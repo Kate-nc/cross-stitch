@@ -952,7 +952,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 // Describe the workflow that does work on this device instead.
                 var noFolderText = (window.Platform && window.Platform.isIOS())
                   ? 'This device syncs by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
-                  : 'No sync folder connected. Set one up on the Home page to sync across devices.';
+                  : 'No sync folder connected. Set one up in Preferences > Sync, backup & data to sync across devices.';
                 rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
                   Icons.cloudOff(),
                   React.createElement('span', null, noFolderText)

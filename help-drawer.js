@@ -33,120 +33,112 @@
   var h = React.createElement;
   var TAB_KEY = "cs_help_drawer_tab";
 
-  // ── Help topics — migrated from help-content.js HELP_TOPICS ────────────
+  // ── Help topics ────────────────────────────────────────────────────────
+  // Keep this in step with the UI: every menu path, tab name and shortcut
+  // named here should exist under that name. Menu paths are written
+  // "File > Preferences" (no arrow glyphs — see AGENTS.md house rule).
   var HELP_TOPICS = [
     {
       id: "creator", area: "Pattern Creator",
       sections: [
         {
-          heading: "Generating a pattern from an image",
-          body: "Convert any image into a cross-stitch pattern. Adjust dimensions, palette size, and apply filters to get the perfect design.",
+          heading: "Starting a pattern",
+          body: "Start from Home > Create new. New from pattern file accepts an image (JPG, PNG, GIF, WebP or BMP), a saved .json project, an .oxs file or a PDF chart; New from scratch opens a blank grid. Inside the Creator you can also use File > Open….",
           bullets: [
-            ["Palette Control", "Limit the maximum number of colours to keep the project manageable."],
-            ["Minimum stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
-            ["Remove background colour", "Pick a colour from your image to treat as empty fabric. Click 'Pick' then click on the image."]
+            ["Image, Dimensions and Palette tabs", "Until a pattern has been generated, the sidebar shows how the image will be converted: adjust the image, set the size in stitches and the fabric count, then choose the colours. The preview updates as you change them."],
+            ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable."],
+            ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
+            ["Dithering", "Off maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
+            ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
+            ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
+            ["Skip background", "Treats a background colour as empty fabric. Press Pick, click the colour in the source image, then adjust Tolerance."],
+            ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
           ]
         },
         {
-          heading: "Editing the generated pattern",
-          body: "Once generated, you can manually edit the pattern:",
+          heading: "Painting and editing stitches",
+          body: "Once a pattern exists, the Tools and View tabs unlock in the sidebar. Choose a colour in the Palette tab, then pick a tool. Painting, filling and erasing are all undoable with Ctrl+Z.",
           bullets: [
-            ["Paint & Fill", "Select a colour from the palette below the canvas, then use the Paint or Fill tools to modify individual stitches or areas."],
-            ["Backstitch", "Draw lines between grid corners. Use the 'Erase Line' tool to remove them."],
-            ["Half-stitches", "Toggle the half-stitch overlay to mark partial coverage."]
+            ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches in the tool strip. Press T to step through the stitch types."],
+            ["Paint (P) and Fill (F)", "Paint colours the stitches you click or drag across; Fill colours a whole connected area."],
+            ["Backstitch", "Click one grid corner and then another to draw a line between them."],
+            ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
+            ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
+            ["Hand (H)", "Pan the canvas without painting."]
           ]
         },
         {
-          heading: "Creator tools",
+          heading: "Selecting stitches",
           bullets: [
-            ["Hand (H)", "Pan the canvas without painting."],
-            ["Magic Wand (W)", "Select a colour region by clicking; refine with the side panel."],
-            ["Lasso (L)", "Draw a freeform selection."],
-            ["Undo / Redo (Ctrl+Z / Ctrl+Y)", "Step through your edit history."]
-          ]
-        },
-        {
-          heading: "Importing images and designs",
-          body: "The import wizard walks you through preparing an image for conversion. Open it via File > Import or drop a file directly on the canvas.",
-          bullets: [
-            ["Supported formats", "PNG, JPG, GIF, WebP for new patterns. .json and .oxs files restore an existing pattern. A .pdf cross-stitch chart can also be imported — see Importing a PDF chart."],
-            ["Crop step", "Draw a crop box to focus on the most important part of the image. Cropping reduces background noise and improves colour-matching quality."],
-            ["Scale step", "Set the target stitch dimensions by dragging the resize handles or typing values. The preview shows estimated physical size at your chosen fabric count."],
-            ["Palette step", "Choose the max number of colours, whether to restrict to stash threads, and which threads to exclude. These settings are applied when the generator runs."]
-          ]
-        },
-        {
-          heading: "Importing a PDF chart",
-          body: "A PDF chart is read into a pattern you can track or edit: its stitches, colour key, backstitch, and ¾, ¼ and half stitches. Before it is saved, a review screen shows what was read so you can put right anything that was not. Scanned charts and charts saved as pictures can be imported too.",
-          bullets: [
-            ["How far to trust it", "The top of the review says how many stitches were matched to the PDF’s own colour key. A scan says ‘Read from a scan’: check its colours against the printed key."],
-            ["Pages tab", "A chart printed over several pages is put together from the row and column numbers on each page. Without numbers, the arrangement is worked out from the pages’ sizes and edges. Change how many pages go across, or how many rows and columns each page repeats from the next, and select a page then its place to move it. With a mouse you can drag pages; on a tablet, hold a page until it lifts, then move it."],
-            ["Pages left out", "A page that could not be placed, or that repeats another in a different style, waits under ‘Not in the chart’. Put it back by selecting it and then a place."],
-            ["Palette tab", "Symbols the key does not list, and symbols read from a scan, come first, each needing a thread. Enter its DMC or Anchor number, or choose a colour: one already in the chart, one close to it, or any DMC thread by colour family. Any other colour can be changed the same way."],
-            ["Symbols that look alike", "A scan can split one symbol into two. The Palette tab shows pairs that may be the same side by side: choose Same symbol to merge them, so there are fewer to look up."],
-            ["Several designs in one PDF", "A booklet of designs is read as separate charts. Choose which design to import at the top of the review, or select Import all N designs to save every design, with its edits, at once."],
-            ["Details tab", "The pattern’s name and designer are taken from the PDF where it prints them, and can be changed here with the fabric count."],
-            ["Large files", "A large chart or a scan can take a while. A card shows each step as it goes, with a Cancel button."]
+            ["Magic wand (W)", "Click a stitch to select every connected stitch of that colour; the side panel refines the selection and offers actions on it."],
+            ["Lasso", "Draw a freehand, polygon or magnetic selection. Choose the lasso and its mode in the Tools tab."],
+            ["Select all and invert", "Ctrl+A selects every stitch; Ctrl+Shift+I inverts the selection. Esc clears it."],
+            ["Moving a selection", "Choose Move in More tools, then drag the selection or nudge it one stitch at a time with the arrow keys."]
           ]
         },
         {
           heading: "View modes and preview",
-          body: "Switch display modes at any time with the V key or the view toolbar \u2014 view modes never change the underlying pattern.",
+          body: "Switch display modes at any time with the V key or the View tab — view modes never change the underlying pattern.",
           bullets: [
-            ["Colour view", "Shows each stitch in its DMC thread colour. Best for a quick overall impression."],
-            ["Symbol view (V)", "Replaces colours with printed symbols. Useful when stitching without a screen or checking print legibility."],
-            ["Realistic preview", "Renders stitches as actual cross-stitch X shapes with thread texture. Can be slow on very large patterns."],
-            ["Split-pane (\\)", "Splits the screen \u2014 left side is the editable canvas, right side shows a live realistic preview. Drag the centre handle to resize."]
+            ["Colour, symbol or both (V)", "Shows each stitch in its thread colour, as a printed symbol, or as colour with the symbol on top."],
+            ["Preview tab", "Renders the pattern as real stitches on fabric, from a plain chart up to a hoop or frame mock-up. The detail level and fabric colour are set in Preferences > Preview & display."],
+            ["Split pane (\\)", "Shows the editable chart and a live preview side by side. Drag the centre handle to resize."],
+            ["Stitch Score", "The Pattern tab shows a 0–100 Stitch Score: 100 minus the percentage of confetti stitches. Higher is easier to stitch."]
           ]
         },
         {
-          heading: "Lineart Cleanup mode",
-          body: "Lineart Cleanup removes dark border lines left over from a lineart illustration conversion. Access it from the More panel in the editor toolbar.",
+          heading: "Replacing a colour",
+          body: "Replace every stitch of one colour with a different thread, without regenerating the pattern.",
           bullets: [
-            ["How to use", "Open More tools and click Cleanup mode. The tool automatically detects the main dark lineart colour. Adjust the tolerance slider to widen or narrow the selection, then press Apply."],
-            ["Auto mode", "Detects and highlights likely lineart pixels. The orange overlay shows what will be replaced."],
-            ["Brush mode", "Paint the cells you want to remove manually using a brush. Useful when only a small section needs cleaning up."],
-            ["Undo", "The entire Cleanup apply is a single undo step."]
+            ["Opening it", "Right-click a stitch and choose Replace this colour, press the swap button on a colour in the Palette tab, or press R and click a stitch."],
+            ["Choosing the new thread", "Pick a thread to preview the change and see how many stitches it affects, then press Apply. Double-click a thread to apply it straight away."],
+            ["Undo", "A replacement is one undo step (Ctrl+Z)."]
+          ]
+        },
+        {
+          heading: "Shift Colours and Palette Presets",
+          body: "Once a pattern exists, these sidebar sections recolour the whole pattern at once.",
+          bullets: [
+            ["Shift Colours", "Rotates every colour around the colour wheel. Drag the Shift slider or use a quick-shift button; the mapping preview shows each thread and its replacement."],
+            ["Palette Presets", "Applies a ready-made palette from the Themes or Harmony tabs, or one you saved earlier under Saved."],
+            ["Revert", "Revert to generated palette returns to the colours the pattern was generated with."]
+          ]
+        },
+        {
+          heading: "Cleanup mode",
+          body: "Cleanup mode removes dark border lines left over from converting a line-art illustration. Open More tools in the tool strip and choose Cleanup mode.",
+          bullets: [
+            ["Auto", "Detects the main dark line colour and shows an overlay of the stitches that will be replaced. Adjust the tolerance to widen or narrow the selection."],
+            ["Brush", "Paint the stitches you want to clean up by hand — useful when only a small area needs it."],
+            ["Apply", "Nothing changes until you press Apply, and the whole clean-up is a single undo step."]
           ]
         },
         {
           heading: "Denoise mode",
-          body: "Conversion from an image always introduces some noise. Denoise mode finds and fixes three specific artefacts without you needing to repaint manually. Access it from the More panel in the editor toolbar, or from the toolbar in Create mode once a pattern has been generated.",
+          body: "Converting an image always introduces some noise. Denoise mode finds and fixes three kinds of artefact without repainting by hand. Open it from More tools in the tool strip.",
           bullets: [
-            ["Palette (checkbox)", "Merges near-duplicate thread colours that the colour-matching step accidentally created. For example, two almost-identical yellows that differ by only a few stitches. The slider sets how close two colours need to be before they are merged. The more-used colour wins and absorbs the rarer one."],
-            ["Speckle (checkbox, off by default)", "Removes isolated stray stitches of up to 3 cells that are completely surrounded by a single dominant colour. Off by default because dithered patterns look identical to speckle — the tool shows a warning if your pattern appears heavily dithered."],
-            ["Fringe (checkbox)", "Smooths the thin band of in-between colours that forms at the edges of solid regions when converting an anti-aliased image. A fringe cell sits between two large solid areas and its colour is perceptually between them."],
-            ["Palette threshold slider", "Controls how aggressively Palette consolidation merges colours (0 to 30 colour-distance units). The default of about 5 units catches accidental near-duplicates without touching intentional thread choices."],
-            ["Auto mode", "Runs all enabled operations automatically and shows a teal overlay of every cell that would be changed. The report below the controls shows how many palette merges, speckle cells, and fringe cells were found. Press Re-run after adjusting settings to refresh the preview."],
-            ["Brush mode", "Paint specific cells into the selection mask manually. The same neighbour-vote replacement is applied when you press Apply."],
-            ["Apply / Cancel", "Nothing changes in your pattern until you press Apply. The entire operation is one undo step."]
+            ["Palette", "Merges near-duplicate threads that colour matching created by accident — for example two almost identical yellows. The slider (0 to 30) sets how close two colours must be; the more-used colour absorbs the rarer one."],
+            ["Speckle (off by default)", "Removes stray groups of up to 3 stitches completely surrounded by one colour. Off by default because dithering looks like speckle; a warning appears if your pattern looks heavily dithered."],
+            ["Fringe", "Smooths the thin band of in-between colours that forms along the edges of solid areas in an anti-aliased image."],
+            ["Auto and Brush", "Auto shows an overlay of every stitch that would change, with counts for each operation; press Re-run after changing settings. Brush lets you paint the area to fix by hand."],
+            ["Apply / Cancel", "Nothing changes until you press Apply, and the whole operation is one undo step."]
           ]
         },
         {
-          heading: "Stash Adapt and thread substitution",
-          body: "The Adapt feature re-maps your palette to threads you already own. Access it from the Project tab after generating.",
+          heading: "Adapting to your stash or another brand",
+          body: "Adapt makes a copy of the pattern that uses threads you own, or a different brand. Use Adapt to my stash or Adapt to brand on the Project tab.",
           bullets: [
-            ["Use only stash threads", "Enable in the sidebar before generating to restrict the initial palette to owned DMC and Anchor threads."],
-            ["Adapt for stash", "Click Adapt on the Project tab to substitute individual colours using nearest-colour matching (\u0394E perceptual distance)."],
-            ["Match quality", "Each substituted colour shows a \u0394E badge \u2014 lower means a closer visual match. Review substitutions before confirming."]
-          ]
-        },
-        {
-          heading: "Palette swap",
-          body: "Palette swap replaces one thread colour across the entire pattern with a different one, without regenerating from scratch.",
-          bullets: [
-            ["Opening swap", "Click the swap icon next to any palette entry, or use Edit > Palette Swap."],
-            ["Replacing a colour", "Pick a replacement from the catalogue or from your stash. The count shows how many stitches will change."],
-            ["Revert", "Palette swaps are undoable with Ctrl+Z until you save the project."]
+            ["Suggestions", "Each colour is matched to the nearest available thread by ΔE, a measure of how different two colours look — lower is closer. Review the suggestions before confirming."],
+            ["A new project", "The adapted pattern is saved as a separate project, so the original is untouched."]
           ]
         },
         {
           heading: "Threads needed and skein estimates",
-          body: "The Materials & Export tab shows a breakdown of how much thread your pattern requires.",
+          body: "The Materials & Output tab shows what the pattern needs, in three sub-tabs: Threads, Stash status and Export.",
           bullets: [
-            ["Skein count", "Estimated skeins needed per colour, based on stitch count, fabric count, strand count, and a waste factor. A standard skein is 315 inches."],
-            ["Stash coverage", "Threads shown in green are fully covered by your owned skeins. Amber means you have some but not enough. Red means none owned."],
-            ["Shopping list", "Shows only threads you need to buy, with an estimated total cost at the default price (\u00a30.95 per skein)."]
+            ["Skein count", "Estimated skeins per colour, from the stitch count, fabric count, strand count and a waste allowance. A standard skein is 315 inches (8 metres)."],
+            ["Stash status", "Each thread shows whether you own enough (In stash), some but not enough (Partial), or none (Need to buy)."],
+            ["Shopping list", "Lists only the threads you still need, with an estimated cost at your skein price (£0.95 by default; change it in Preferences > Stash Manager)."]
           ]
         }
       ]
@@ -156,32 +148,36 @@
       sections: [
         {
           heading: "Tracking progress",
-          body: "Load a saved project to track your stitching progress interactively.",
+          body: "Open a project in the Stitch Tracker to mark stitches as you finish them.",
           bullets: [
-            ["Track Mode", "Click or drag across the pattern to mark stitches as complete. On a touch screen, drag one finger to mark and use two fingers to pan and zoom. Use the timer to estimate your completion date."],
-            ["Navigate Mode", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
+            ["Mark mode (T)", "Click or drag across the chart to mark stitches done. On a touch screen, drag one finger to mark and use two fingers to pan and zoom."],
+            ["Navigate mode (N)", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
+            ["Marking a rectangle", "Hold Shift and drag from the last stitch you marked to mark a whole rectangle. On a touch screen, press and hold a stitch, then tap another one."],
             ["Parking", "Right-click a stitch (in either mode) to mark that a thread is parked there. On a touch screen, press and hold the stitch: in Navigate mode that parks straight away; in Mark mode it starts a rectangle, and the bar that appears has a Park thread here button. The marker is a small triangle in the stitch's colour, outlined so it shows on any background, and it stays visible through the Spotlight and work-area dimming. Do the same again to remove it. It also clears itself when you mark that stitch done, and comes back if you undo."],
             ["Finding a parked thread", "Tap the P on a colour in the palette to jump to where that thread is parked; the guide crosshair marks the spot. If it is parked in more than one place, tap again for the next."],
             ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
             ["Undo", "Undo (Ctrl+Z) covers parking too: placing or removing a park marker, and Clear all, are steps like marking stitches."],
-            ["Colours Drawer", "Open the drawer at the bottom to see your progress per colour. Click a colour to highlight only those stitches on the canvas."]
+            ["Colours drawer (D)", "Shows your progress per colour. Click a colour to highlight only those stitches on the chart."]
           ]
         },
         {
           heading: "Sessions and timer",
+          body: "A session starts by itself when you mark your first stitch, and is logged with its start and end times and the stitches you added. The Stats page uses these sessions.",
           bullets: [
-            ["Start / Stop", "The timer auto-pauses after 5 minutes of inactivity."],
-            ["Sessions", "Each timer run is logged with start / end times and stitch deltas, used by the Stats page."]
+            ["Pause (P)", "Pauses and resumes the session timer. Marking a stitch resumes it automatically."],
+            ["Ending a session", "If you stop stitching for 10 minutes the session is closed and saved. Change this under Preferences > Stitch Tracker > End session after inactivity."],
+            ["Timing mode", "Classic counts short breaks (up to 1½ minutes by default) as stitching time; Batch-friendly allows longer gaps when you mark a large run at once; Manual timer counts the whole visible, unpaused session. Choose in Preferences > Stitch Tracker."]
           ]
         },
         {
           heading: "Highlight view modes",
-          body: "Highlight view focuses on one colour at a time. Cycle through colours with [ and ], then choose a highlight mode with 1\u20134.",
+          body: "Highlight view focuses on one colour at a time. Press V until you reach Highlight, step through colours with [ and ] (or the left and right arrow keys), then choose how the colour is shown with 1–4.",
           bullets: [
-            ["Isolate (1)", "Everything except the focused colour turns grey. The clearest way to see exactly where a colour sits across the pattern."],
-            ["Outline (2)", "Draws a coloured border around the focused colour's regions. Shows stitch boundaries without hiding context."],
-            ["Tint (3)", "Other colours fade to low opacity while the focused colour remains vivid. Softer than Isolate, good for checking neighbouring areas."],
-            ["Spotlight (4)", "A blend of Isolate and Tint \u2014 background colours are dimly visible but the focused colour stands out strongly."]
+            ["Isolate (1)", "Every other colour is replaced by a flat, faded fill so the focused colour is the only one you can see. How faded is set in Preferences > Stitch Tracker."],
+            ["Outline (2)", "All colours stay visible and the focused colour's stitches are outlined."],
+            ["Tint (3)", "All colours stay visible and the focused colour is washed with a translucent tint. The tint colour and strength are set in Preferences > Stitch Tracker."],
+            ["Spotlight (4)", "Every other colour turns pale grey while the focused colour keeps its full colour and symbols."],
+            ["Jump (J)", "Moves to the next stitch of the focused colour that is still to do."]
           ]
         },
         {
@@ -191,17 +187,25 @@
             ["Pick an area (W)", "Tap Area in the toolbar or press W. Choose an area size and tap the overview, or drag across sections for a custom area. Areas are made of whole sections, the same ones Spotlight uses."],
             ["Margin", "A few stitches around the area stay visible, faded, so you can line up its edges. They cannot be marked while you are in the area."],
             ["Next area", "The arrows in the work area bar move to the previous or next unfinished area. When you finish an area, you are offered the next one."],
-            ["Spotlight", "With Spotlight on, it works through the sections inside the area before moving on."],
+            ["Spotlight", "With Spotlight on, it works through the sections inside the area before moving on. Alt and the arrow keys move the spotlight one section at a time."],
             ["Saved and synced", "The area is saved with the project, so it is still selected when you come back or open the project on another device."]
           ]
         },
         {
           heading: "Counting aids",
-          body: "Counting aids overlay reference markers to help you count stitches accurately \u2014 essential when navigating a large pattern without a printed chart.",
+          body: "Counting aids overlay reference markers to help you count stitches accurately — essential when navigating a large pattern without a printed chart.",
           bullets: [
             ["Toggle (C)", "Press C or tap the counting aid button in the toolbar to show or hide the overlay."],
-            ["10\u00d710 grid", "Thin lines divide the canvas into 10\u00d710 stitch blocks, matching the bolded squares on most printed Aida fabric."],
+            ["10×10 grid", "Thin lines divide the canvas into 10×10 stitch blocks, matching the bolded squares on most printed charts."],
             ["Crosshair", "The guide crosshair runs across a whole row and column, so you can follow a line of the chart. Place it in Navigate mode by clicking a cell (or, with the chart focused, with the arrow keys). The bar under the chart shows its row, column and thread, with a Clear guide button; clicking the same cell again or pressing Esc also clears it."]
+          ]
+        },
+        {
+          heading: "Stitch layers",
+          body: "Full stitches, half and part stitches, French knots and backstitch are drawn as separate layers, so you can hide the ones you are not working on.",
+          bullets: [
+            ["F, H, K and L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers."],
+            ["Shift+A", "Shows or hides all layers at once."]
           ]
         }
       ]
@@ -211,28 +215,30 @@
       sections: [
         {
           heading: "Thread stash",
-          body: "Track which DMC and Anchor threads you own, what's running low, and where each one came from.",
+          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low.",
           bullets: [
-            ["Bulk Add (B)", "Open the Bulk Add panel and paste a newline- or comma-separated list of thread IDs (e.g. 310, 550, 3821) to mark them all as owned at once."],
-            ["Ownership levels", "Each thread can be marked as Owned (full skein), Low (partial), or Not owned. The level affects the coverage calculation in the Pattern Library."],
-            ["Brand toggle", "Switch between DMC, Anchor, or Both. Composite keys (e.g. anchor:403) prevent ID collisions between brands."]
+            ["Skeins owned", "Select a thread to set how many skeins you have. Composite keys (for example anchor:403) keep DMC and Anchor numbers that look the same apart."],
+            ["Part-used skeins", "Mark a thread as Mostly full, About half, Remnant or Used up. Used up sets the skein count to zero."],
+            ["Low stock", "A thread is low when you have fewer skeins than its minimum (1 by default; change it per thread or in Preferences > Stash Manager)."],
+            ["Filters", "Show All, Owned, Low Stock, Remnants or Used Up threads, for DMC, Anchor or both, and search by number or name."],
+            ["Bulk Add (B)", "Paste a list of thread numbers (for example 310, 550, 3821) to add them all at once."]
           ]
         },
         {
           heading: "Thread brands and conversions",
-          body: "The app supports both DMC and Anchor brand threads. They are tracked separately using brand-prefixed keys so IDs that overlap between catalogues do not collide.",
+          body: "Both DMC and Anchor stranded cotton are supported, tracked separately so overlapping numbers never collide.",
           bullets: [
-            ["Adding Anchor threads", "Switch the brand selector to Anchor and search by number or name. Anchor threads appear alongside DMC in the stash view when Both is selected."],
-            ["Anchor ↔ DMC equivalents", "Many threads are marketed as rough colour equivalents. Thread conversions in the app map closest matches by ΔE distance — these are approximations, not exact."],
-            ["Stash-constrained generation", "When 'Use only stash threads' is enabled in the Creator, all owned threads (DMC + Anchor) are available to the generator, not just one brand."]
+            ["Anchor ↔ DMC equivalents", "Conversions come from a reconciled table, labelled official, reconciled or single-source. They are close matches, not exact."],
+            ["Stash-constrained generation", "When Use only stash threads is on in the Creator, every thread you own (DMC and Anchor) is available to the generator."]
           ]
         },
         {
           heading: "Pattern Library",
-          body: "Auto-synced from any project you save in the Creator / Tracker, plus any pattern you add manually here.",
+          body: "The Pattern Library tab lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
           bullets: [
-            ["Coverage", "Each card shows how many of its required threads you already own."],
-            ["Stash Manager only", "Patterns added here without a linked project are flagged so you don't expect Tracker progress."]
+            ["Coverage", "Each pattern shows how many of its threads you already own."],
+            ["Stash Manager only", "Patterns added here without a linked project are flagged so you don't expect Tracker progress."],
+            ["Showcase", "The Showcase link opens the Stats page's Showcase tab, a summary of your stitching so far."]
           ]
         }
       ]
@@ -241,74 +247,79 @@
       id: "saving", area: "Saving and Backup",
       sections: [
         {
-          heading: "Project files",
+          heading: "Saving your work",
+          body: "Projects save themselves to this device as you work — there is no Save button to remember. Ctrl+S downloads a .json copy, the same as File > Download (.json).",
           bullets: [
-            ["Save Project (.json)", "The recommended way to save. Keeps your generated pattern, edits, and tracking progress in one file. Loadable in either Creator or Tracker."],
-            ["Export PDF", "Generates a printable multi-page chart with a thread legend."],
-            ["Open in Stitch Tracker (Link)", "Creates a sharable URL that opens the pattern directly in the Tracker without needing a file (only works for smaller patterns)."]
+            ["Download (.json)", "File > Download (.json) writes a copy of the project to a file: the pattern, your edits and your tracking progress. Open it again in the Creator or the Tracker."],
+            ["Export PDF and .oxs", "File > Export PDF… opens the export settings; Export .oxs writes a file other cross-stitch software (MacStitch, WinStitch, FlossCross) can open."],
+            ["Storage", "The top of the File menu shows how much space the app is using, and whether the browser has made it Protected (kept) or Temporary (may be cleared when space runs low)."]
           ]
         },
         {
-          heading: "Full-app backup",
-          body: "Use File > Download all data to export every project, your stash, and your settings as a .csbackup file. Restore with File > Restore from backup. Backups are encrypted with the local app key only — share intentionally.",
+          heading: "Full backup",
+          body: "File > Export Backup downloads every project, your stash and your settings as one file (.csb, or .json on older backups). Restore it with File > Restore from Backup…, or from Preferences > Sync, backup & data. Restoring replaces what is on this device.",
           bullets: [
-            ["Folder sync (optional)", "Choose a folder once and the app writes incremental updates there so you can sync via Dropbox / iCloud / OneDrive."],
-            ["Auto-export", "Toggle in the File menu to write to your sync folder after each save."]
+            ["When to back up", "Before clearing your browser data, switching browser, or deleting projects you might want back."],
+            ["Not encrypted", "Backup files are not encrypted. Keep them somewhere private."]
           ]
         },
         {
           heading: "Sync status indicator (cloud icon)",
-          body: "The cloud icon in the top-right bar shows the current state of folder-based cross-device sync. Click it on any page to see a quick-status popover with actions — no need to navigate to the Home page.",
+          body: "The cloud icon in the top bar shows the state of folder sync. Click it on any page for a quick-status popover with actions.",
           bullets: [
-            ["Cloud with downward arrow (blue/amber)", "A sync folder is connected, but auto-sync is off. Changes are written manually only. To enable automatic sync: File > Preferences > Sync > Enable auto-sync, or tick the checkbox in the sync popover."],
-            ["Cloud with tick (green)", "Auto-sync is active. The app is automatically writing updates to the connected folder and picking up changes from other devices every few seconds."],
-            ["Cloud with line through it", "No sync folder is connected. Visit the Home page and open the Sync section to connect one."],
-            ["Red dot badge on the cloud icon", "There are incoming changes from another device waiting for your review — usually because they conflict with local edits. Click the icon to open the review screen."],
-            ["Auto-sync off warning in popover", "Auto-sync is disabled. The folder is connected but the app will not write or read from it automatically. Enable it in Preferences to restore automatic sync."]
+            ["Cloud with a downward arrow", "A sync folder is connected, but auto-sync is off. To sync automatically, tick the checkbox in the popover or turn it on in Preferences > Sync, backup & data."],
+            ["Cloud with a tick (green)", "Auto-sync is on. The app writes updates to the folder and picks up changes from other devices every few seconds."],
+            ["Cloud with a line through it", "No sync folder is connected. Choose one in Preferences > Sync, backup & data."],
+            ["Red dot on the cloud", "Changes from another device are waiting for you to review — usually because they conflict with edits made here. Click the icon to open the review screen."]
           ]
         },
         {
           heading: "Setting up folder sync",
-          body: "Folder sync uses a shared cloud drive folder (Dropbox, iCloud Drive, OneDrive, Google Drive, or any folder synced by your operating system) to keep multiple devices in step.",
+          body: "Folder sync keeps several devices in step through a folder your cloud drive already syncs (Dropbox, iCloud Drive, OneDrive, Google Drive and so on). No account is needed.",
           bullets: [
-            ["Step 1", "On each device, open the Home page and scroll to the Sync section. Click 'Connect folder' and pick the same cloud-synced folder on each device."],
-            ["Step 2", "Enable auto-sync in Preferences (or via the checkbox in the sync panel). The app will write a .csync file to the folder automatically after each save."],
-            ["Step 3", "On the second device, the watcher polls the folder every 10 seconds. When it sees a newer .csync file, it imports the changes automatically."],
-            ["Conflict resolution", "If both devices edited the same project differently, a review screen appears. You choose which version to keep for each conflicting project."],
-            ["Two-device handshake", "To make pairing easier, open Preferences and go to Sync, backup & data — it generates a short code the second device can scan to pre-fill the folder name and device settings."]
+            ["Step 1", "On each device, open Preferences > Sync, backup & data, press Choose folder… and pick the same cloud-synced folder."],
+            ["Step 2", "Turn on auto-sync. The app then writes a .csync file to the folder shortly after each save."],
+            ["Step 3", "While the app is open and visible, it checks the folder every 10 seconds and brings in newer changes from your other devices."],
+            ["Pairing code", "Show pairing code… on one device and Enter pairing code… on the other gives both devices matching names and settings. The code contains no data or passwords."],
+            ["Encryption (optional)", "Turn on encryption in the same panel to protect sync files with a passphrase. Every device needs the passphrase to read them."],
+            ["Conflicts", "If both devices changed the same project, a review screen lets you choose which version to keep."],
+            ["iPad and iPhone", "These browsers cannot watch a folder. Use Share sync file and Import file in the cloud popover to move changes by hand."]
           ]
         },
         {
           heading: "Sync troubleshooting",
-          body: "If changes from another device are not appearing, work through the following checks in order.",
+          body: "If changes from another device are not appearing, work through these checks in order.",
           bullets: [
-            ["Tab must be visible", "The watcher only polls when the browser tab is the active foreground tab. Bring the tab to the front to trigger an immediate check."],
-            ["Auto-sync must be on", "Check the cloud icon popover — if it shows 'Auto-sync is off', enable it in Preferences > Sync."],
-            ["Folder permission expired", "Browsers can silently revoke folder access after a restart. If the icon turns grey or shows a 'Reconnect' prompt, click it and re-select the folder."],
-            ["Same folder on both devices", "Both devices must point at the identical synced folder — e.g. the same Dropbox sub-folder. If one uses OneDrive and the other Dropbox, they will not see each other's files."],
-            ["Cloud drive not syncing", "The .csync files must actually reach the other device via the cloud service. Check that the cloud app on both machines shows 'Up to date' or equivalent."],
-            ["Review screen open", "A pending review (red badge) blocks some imports until you resolve the conflicts. Click the cloud icon and choose 'Review sync'."]
+            ["Tab must be visible", "The app only checks the folder while its tab is visible. Bring the tab to the front to check straight away."],
+            ["Auto-sync must be on", "If the popover says auto-sync is off, turn it on in Preferences > Sync, backup & data."],
+            ["Folder permission expired", "Browsers can drop folder access after a restart. If the popover asks you to reconnect, do so and choose the same folder."],
+            ["Same folder on both devices", "Both devices must use the same folder in the same cloud drive."],
+            ["Cloud drive not syncing", "The .csync files have to reach the other device through your cloud drive. Check its app says it is up to date."],
+            ["Review waiting", "A pending review (red dot) holds back some changes until you resolve it. Click the cloud icon and choose Review sync."]
           ]
         },
         {
           heading: "PDF export options",
-          body: "The Export tab (inside Materials & Output) offers several layout options for printing your chart.",
+          body: "The Export sub-tab of Materials & Output (or File > Export PDF…) sets up a printable chart.",
           bullets: [
-            ["Page size", "Choose A4, US Letter, or a custom size. The chart scales to fill the chosen dimensions."],
-            ["Stitches per page", "Controls chart density — fewer stitches per page means larger, easier-to-read symbols."],
-            ["Two-column layout", "Prints the colour legend alongside the chart on the same page rather than as a separate sheet."],
-            ["Workshop print theme", "An opt-in dark-line print style enabled in Preferences > Creator. The default theme exports a layout compatible with Pattern Keeper software."],
-            ["Pattern Keeper compatibility", "The default export is structured for direct import into the Pattern Keeper app. Avoid changing page-structure settings if you plan to import it there."]
+            ["Quick presets", "For Pattern Keeper: symbols and colour, medium print, 2-row overlap, cover page. For printing (home): large print, no overlap, no cover page."],
+            ["Page size", "Auto (A4 or US Letter depending on where you are), A4 or US Letter."],
+            ["Stitches per page", "Small, Medium (best for Pattern Keeper), Large or Custom — fewer stitches per page means bigger, easier-to-read cells."],
+            ["Chart modes", "Symbols on white (B&W), Colour blocks with symbols, or both."],
+            ["Optional pages", "Cover page, Info page, Chart index and a mini-legend strip on each page can each be turned on or off."],
+            ["Workshop print theme", "A terracotta grid on a linen background, ticked in the same panel. Leave it off for Pattern Keeper, which expects the standard black grid."],
+            ["Designer branding", "Your name, logo and copyright are set once in Preferences > Profile & branding and printed on every PDF."],
+            ["Bundle", "Download bundle saves one .zip with the PDF, the .oxs file, a PNG preview and the .json project."]
           ]
         },
         {
           heading: "Managing projects",
-          body: "The Home page is the central hub for all your projects. Every pattern you create, open, or import appears in your project library.",
+          body: "Home is the hub for all your projects. Every pattern you create, open or import appears there.",
           bullets: [
-            ["Active project", "The project currently open in the Tracker. Autosaves apply to this slot. Switch projects from the Home page or via the project switcher in the header."],
-            ["Project library", "All saved projects appear as cards on the Home page. Click a card to open it in the Creator or Tracker."],
-            ["Renaming", "Click the project name in the header or on the project card to rename it inline."],
-            ["Deleting", "Delete a project from its card menu on the Home page. Deleted projects cannot be recovered without a backup."]
+            ["Active project", "The project you most recently opened. It is the one the Creator and Tracker open by default."],
+            ["Switching projects", "Use Home > Projects, or File > Switch Project… from any page."],
+            ["Renaming", "Click the project name in the top bar to rename it."],
+            ["Deleting", "Delete projects from the Stash Manager's Pattern Library (one at a time, or select several). An Undo button appears for a few seconds; after that, a deleted project can only be recovered from a backup."]
           ]
         }
       ]
@@ -323,22 +334,22 @@
             ["Pattern", "The chart / design itself. Lives inside a Project, or as a stand-alone entry in the Stash Manager library."],
             ["Stash", "Your physical thread collection (DMC + Anchor). Tracked in the Stash Manager."],
             ["Skein", "One physical bundle of thread (315 inches by default)."],
-            ["Active project", "The single project currently open in the Tracker (autosaves apply to this slot)."],
-            ["Confetti stitches", "Single isolated stitches surrounded by different colours. Each forces a separate thread change and is expensive to sew. Use the Confetti Cleanup slider in the Creator to merge them into adjacent areas."],
-            ["Stitch Score", "A 0\u2013100 quality rating for your pattern. High score = fewer confetti stitches and well-distributed thread changes. Shown on the Project tab after generating."],
-            ["Fabric count", "Holes per inch in your Aida fabric. Common values: 11ct (large stitches), 14ct (standard \u2014 14 stitches \u2248 1 inch), 18ct (fine), 28ct (very fine, usually worked over two threads)."],
-            ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Creates a mixed-colour effect. Shown in the pattern as two DMC IDs joined with '+', e.g. '310+550'."],
-            ["\u0394E (delta-E)", "A perceptual colour-distance score \u2014 lower means a closer visual match. The app uses it when mapping image colours to DMC threads and when the Adapt Modal suggests replacement threads."]
+            ["Active project", "The project you most recently opened; the Creator and Tracker open it by default."],
+            ["Confetti stitches", "Single isolated stitches surrounded by different colours. Each needs its own thread pass, so they are slow to stitch. Confetti Cleanup in the Creator merges them into the surrounding colour."],
+            ["Stitch Score", "A 0–100 rating shown on the Pattern tab: 100 minus the percentage of confetti stitches. Higher is easier to stitch."],
+            ["Fabric count", "Stitches per inch of fabric. Common values: 11 count (large stitches), 14 count (standard — 14 stitches ≈ 1 inch), 18 count (fine), 28 count (very fine, usually worked over two threads)."],
+            ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Shown in the pattern as two DMC numbers joined with '+', e.g. '310+550'."],
+            ["ΔE (delta-E)", "A measure of how different two colours look — lower means a closer match. Used when matching image colours to threads and when suggesting replacement threads."]
           ]
         },
         {
           heading: "Save vs. Download vs. Export",
           bullets: [
-            ["Save", "Write to the app's internal storage (no file appears). Used for autosave and pattern edits."],
-            ["Download", "Write a file to your device (e.g. backup, JSON project)."],
-            ["Export", "Generate a share-ready artefact (PDF chart, OXS)."],
-            ["Open / Import", "Read from a file or URL into the app."],
-            ["Sync (folder)", "Optional incremental writes to a chosen folder for cross-device sync."]
+            ["Save", "Write to the app's own storage on this device (no file appears). Happens automatically as you work."],
+            ["Download", "Write a file to your device (e.g. a backup or a .json project)."],
+            ["Export", "Produce a file to print or share (PDF chart, .oxs, PNG)."],
+            ["Open / Import", "Read a file into the app."],
+            ["Sync (folder)", "Optional updates written to a chosen folder so your other devices can pick them up."]
           ]
         }
       ]
@@ -348,29 +359,27 @@
       sections: [
         {
           heading: "Reading your stats",
-          body: "The Stats page shows a summary of your stitching activity across all projects — total stitches, total time, sessions, and an estimated thread length used.",
+          body: "The Stats page (Stats in the top bar) summarises your stitching across all projects, in Stitching, Stash, Showcase, Activity and Insights tabs.",
           bullets: [
-            ["Stitches logged", "Counts all stitches marked as done across every project."],
-            ["Total time", "Sum of all tracked session durations. The timer must be running during a session to count."],
-            ["Thread used", "Estimated metres of thread consumed, calculated from stitch count and fabric size."]
+            ["Stitches logged", "Counts every stitch marked done across all projects."],
+            ["Time", "Adds up the time from your Tracker sessions."],
+            ["Stash", "Shows what your stash covers, which projects you could start with threads you own, and how long your stash would last at your current pace."]
           ]
         },
         {
           heading: "Sessions and streaks",
-          body: "Each time you start and stop the timer in the Tracker, a session is logged with its start time, duration, and stitch delta.",
+          body: "Each Tracker session is logged with its start time, duration and the stitches added.",
           bullets: [
-            ["Daily streaks", "Consecutive days with at least one recorded session. Resets if you skip a day."],
-            ["Session log", "Each session row shows the date, project name, duration, and stitches added."],
-            ["Heatmap", "A calendar view of stitching frequency \u2014 darker squares mean more stitches that day."]
+            ["Streaks", "Your streak counts consecutive weeks with at least one session."],
+            ["Activity", "A calendar heatmap of how much you stitched each day — darker squares mean more stitches."]
           ]
         },
         {
           heading: "Stitch Score",
-          body: "The Stitch Score (0\u2013100) rates how stitchable your pattern will be before you start. A high score means fewer thread changes and less confetti.",
+          body: "The Stitch Score (0–100) on the Pattern tab rates how pleasant the pattern will be to stitch before you start.",
           bullets: [
-            ["Confetti penalty", "Each isolated single-stitch region lowers the score."],
-            ["Colour spread", "Patterns where each colour is concentrated in one area score higher than patterns with all colours mixed throughout."],
-            ["Improving the score", "Use the Confetti Cleanup and Minimum stitches per colour sliders in the Creator to remove small isolated regions."]
+            ["How it is worked out", "100 minus the percentage of stitches that are confetti (isolated single stitches or tiny clusters)."],
+            ["Improving the score", "Use Confetti Cleanup and Min stitches per colour in the Creator, or Denoise mode on a finished pattern."]
           ]
         }
       ]
@@ -379,23 +388,21 @@
       id: "stitching-style", area: "Stitching Style",
       sections: [
         {
-          heading: "Cross stitch, half stitch, and over-two",
-          body: "The Tracker supports several stitch types. All types can be tracked and toggled independently using the layer visibility buttons in the toolbar.",
+          heading: "How you stitch",
+          body: "The first time you open the Tracker it asks how you usually work through a pattern. Change the answer later in Preferences > Stitch Tracker.",
           bullets: [
-            ["Full cross stitch", "An X-shaped stitch that fills one grid square. The standard stitch type."],
-            ["Half stitch", "A single diagonal stroke covering half a grid square (either / or \\). Useful for shading or edge softening."],
-            ["Over-two", "A cross stitch worked over two fabric threads rather than one, used mainly on even-weave fabric. Gives a larger, softer stitch."],
-            ["French knot", "A small raised knot on the fabric surface. Used for eyes, berries, or any detail needing a dot."],
-            ["Backstitch", "A straight line drawn between grid corners, used to add outlines, fine details, or lettering on top of the cross-stitched area."]
+            ["One section at a time", "Work block by block (10×10, 20×20, tall 10×20 towers or a custom size). Spotlight then focuses on one block at a time, starting from the corner you choose."],
+            ["One colour at a time", "Cross-country: finish all of one colour before starting the next. Highlight view is the best way to see one colour."],
+            ["No fixed method", "Freestyle: no blocks or colour order are suggested."]
           ]
         },
         {
           heading: "Choosing a stitching order",
-          body: "There is no single correct order, but the following approach suits most projects:",
+          body: "There is no single correct order, but this approach suits most projects:",
           bullets: [
-            ["Light before dark", "Start with lighter colours so any bleed-through from the fabric is less visible."],
+            ["Light before dark", "Start with lighter colours so any dark thread carried behind the fabric is less likely to show through."],
             ["Large areas first", "Complete large colour blocks before small details so you can park threads efficiently."],
-            ["Row working", "Some stitchers work all half-stitches in one direction across a row, then return to complete the X \u2014 this keeps tension even."],
+            ["Row working", "Some stitchers work all half-stitches in one direction across a row, then return to complete the X — this keeps tension even."],
             ["One colour at a time", "Finish all stitches of one colour before starting the next to minimise thread changes. Use the Highlight view in the Tracker to isolate one colour at a time."]
           ]
         }
@@ -403,10 +410,11 @@
     }
   ];
 
-  // ── Shortcut catalogue — migrated from help-content.js (canonical for
-  // display). Runtime shortcut registration still lives in shortcuts.js;
-  // when window.Shortcuts.list() is populated we merge in any runtime
-  // entries that aren't already covered here.
+  // ── Shortcut catalogue (display) ───────────────────────────────────────
+  // Runtime registration lives in creator/useKeyboardShortcuts.js,
+  // tracker-app.js (TRACKER_SHORTCUTS) and manager-app.js; this list is what
+  // users see. tests/helpDrawerShortcutsSync.test.js checks every key listed
+  // here against those registrations.
   // Each entry: { id, scope, keys: ['Ctrl+S'] | ['1'], description }.
   var SHORTCUTS = [
     // Global
@@ -415,16 +423,18 @@
     { id: "g.cmd",  scope: "global", keys: ["Ctrl+K", "⌘K"], description: "Open the command palette" },
 
     // Creator
-    { id: "c.tool1", scope: "creator", keys: ["1"], description: "Cross stitch tool (or switch highlight view to Isolate)" },
-    { id: "c.tool2", scope: "creator", keys: ["2"], description: "Half stitch / forward (or Outline mode)" },
-    { id: "c.tool3", scope: "creator", keys: ["3"], description: "Half stitch \\ back (or Tint mode)" },
-    { id: "c.tool4", scope: "creator", keys: ["4"], description: "Backstitch tool (or Spotlight mode)" },
-    { id: "c.tool5", scope: "creator", keys: ["5"], description: "Erase tool" },
+    { id: "c.tool1", scope: "creator", keys: ["1"], description: "Cross stitch (or, in highlight view, Isolate)" },
+    { id: "c.tool2", scope: "creator", keys: ["2"], description: "Half stitch / (or Outline)" },
+    { id: "c.tool3", scope: "creator", keys: ["3"], description: "Half stitch \\ (or Tint)" },
+    { id: "c.tool4", scope: "creator", keys: ["4"], description: "Backstitch (or Spotlight)" },
+    { id: "c.tool5", scope: "creator", keys: ["5"], description: "Erase" },
+    { id: "c.cycle", scope: "creator", keys: ["T", "Shift+T"], description: "Next / previous stitch type" },
     { id: "c.paint", scope: "creator", keys: ["P"], description: "Paint brush" },
     { id: "c.fill",  scope: "creator", keys: ["F"], description: "Fill bucket" },
     { id: "c.wand",  scope: "creator", keys: ["W"], description: "Magic wand (toggle)" },
     { id: "c.eye",   scope: "creator", keys: ["I"], description: "Eyedropper" },
-    { id: "c.replace", scope: "creator", keys: ["R"], description: "Replace colour (toggle) \u2014 click a stitch to replace every stitch of that colour" },
+    { id: "c.hand",  scope: "creator", keys: ["H"], description: "Hand: pan the canvas" },
+    { id: "c.replace", scope: "creator", keys: ["R"], description: "Replace colour (toggle) — click a stitch to replace every stitch of that colour" },
     { id: "c.view",  scope: "creator", keys: ["V"], description: "Cycle view: colour / symbol / both" },
     { id: "c.split", scope: "creator", keys: ["\\"], description: "Toggle split-pane preview" },
     { id: "c.zoomIn",  scope: "creator", keys: ["+", "="], description: "Zoom in" },
@@ -435,10 +445,10 @@
     { id: "c.save",  scope: "creator", keys: ["Ctrl+S", "⌘S"], description: "Save project" },
     { id: "c.selAll", scope: "creator", keys: ["Ctrl+A", "⌘A"], description: "Select all stitches" },
     { id: "c.invert", scope: "creator", keys: ["Ctrl+Shift+I", "⌘⇧I"], description: "Invert selection" },
-    { id: "c.bulk",   scope: "creator", keys: ["B"], description: "Open Bulk Add Threads" },
+    { id: "c.move",   scope: "creator", keys: ["←", "↑", "→", "↓"], description: "Move tool: nudge the selection one stitch" },
 
     // Tracker
-    { id: "t.track",   scope: "tracker", keys: ["T"], description: "Switch to Track mode (mark stitches done)" },
+    { id: "t.track",   scope: "tracker", keys: ["T"], description: "Switch to Mark mode (mark stitches done)" },
     { id: "t.nav",     scope: "tracker", keys: ["N"], description: "Switch to Navigate mode (drag to pan, click to place the guide)" },
     { id: "t.guide",   scope: "tracker", keys: ["Esc"], description: "Navigate mode: clear the guide crosshair" },
     { id: "t.park",    scope: "tracker", keys: ["Right-click"], description: "Park a thread on a stitch (again to remove)" },
@@ -454,6 +464,7 @@
     { id: "t.count",   scope: "tracker", keys: ["C"], description: "Toggle counting aids" },
     { id: "t.pause",   scope: "tracker", keys: ["P"], description: "Pause / resume session timer" },
     { id: "t.pan",     scope: "tracker", keys: ["Space (hold)"], description: "Hold to pan the canvas freely" },
+    { id: "t.focus",   scope: "tracker", keys: ["Alt+←", "Alt+↑", "Alt+→", "Alt+↓"], description: "Move the spotlight one section" },
     { id: "t.zoomIn",  scope: "tracker", keys: ["+", "="], description: "Zoom in" },
     { id: "t.zoomOut", scope: "tracker", keys: ["-"], description: "Zoom out" },
     { id: "t.zoomFit", scope: "tracker", keys: ["0"], description: "Zoom to fit (the work area, when one is active)" },
@@ -466,10 +477,10 @@
     // Tracker — Highlight view
     { id: "th.prev", scope: "tracker", keys: ["[", "←"], description: "Highlight: focus the previous colour" },
     { id: "th.next", scope: "tracker", keys: ["]", "→"], description: "Highlight: focus the next colour" },
-    { id: "th.iso",  scope: "tracker", keys: ["1"], description: "Highlight: Isolate — grey out everything except the focused colour" },
-    { id: "th.out",  scope: "tracker", keys: ["2"], description: "Highlight: Outline — draw outlines around the focused colour" },
-    { id: "th.tint", scope: "tracker", keys: ["3"], description: "Highlight: Tint — dim other colours while the focused one stays vivid" },
-    { id: "th.spot", scope: "tracker", keys: ["4"], description: "Highlight: Spotlight — blend between Isolate and Tint" },
+    { id: "th.iso",  scope: "tracker", keys: ["1"], description: "Highlight: Isolate — fade every other colour to a flat fill" },
+    { id: "th.out",  scope: "tracker", keys: ["2"], description: "Highlight: Outline — outline the focused colour's stitches" },
+    { id: "th.tint", scope: "tracker", keys: ["3"], description: "Highlight: Tint — wash the focused colour with a translucent tint" },
+    { id: "th.spot", scope: "tracker", keys: ["4"], description: "Highlight: Spotlight — turn every other colour pale grey" },
 
     // Manager
     { id: "m.bulk", scope: "manager", keys: ["B"], description: "Open Bulk Add Threads" }
@@ -481,33 +492,31 @@
     manager: "Stash Manager"
   };
 
-  // ── Getting Started — replaces onboarding.js step-by-step tour with a
-  // short, evergreen list. The persona / style picker is intentionally
-  // dropped (its UI surface no longer exists). Per-page WelcomeWizard
-  // replays remain available via the Replay buttons below each section.
+  // ── Getting Started — a short, evergreen list. The action buttons replay
+  // each page's WelcomeWizard (or load the sample pattern).
   var GETTING_STARTED = [
     {
       id: "make-pattern",
       heading: "Make your first pattern",
-      body: "The Pattern Creator turns any image into a cross-stitch chart. Drop a photo, set the dimensions, pick a palette size, and stitchx does the heavy lifting. From there you can hand-edit, preview a realistic render, and export to PDF.",
+      body: "The Pattern Creator turns any image into a cross-stitch chart. Choose an image, set the size and the number of colours, and stitchx does the heavy lifting. From there you can edit stitches by hand, preview them on fabric, and export a PDF.",
       action: { label: "Try a sample pattern", kind: "sample" }
     },
     {
       id: "track",
       heading: "Track your stitches",
-      body: "Open any saved project in the Stitch Tracker to mark progress, log session time, and see per-colour completion. Use Highlight view when you're working a single thread to grey out everything else.",
+      body: "Open any saved project in the Stitch Tracker to mark progress, log session time, and see per-colour completion. Use Highlight view when you're working a single thread to fade out everything else.",
       action: { label: "Replay the Tracker walkthrough", kind: "wizard", page: "tracker" }
     },
     {
       id: "stash",
       heading: "Manage your stash",
-      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that auto-syncs from your saved projects.",
+      body: "The Stash Manager keeps a tally of every DMC and Anchor skein you own, alongside a pattern library that fills itself from your saved projects.",
       action: { label: "Replay the Stash walkthrough", kind: "wizard", page: "manager" }
     },
     {
       id: "creator-walkthrough",
       heading: "Take the Creator walkthrough",
-      body: "A short guided tour of the Pattern Creator's main controls — generation, editing, and export.",
+      body: "A short guided tour of where things live and how to start a new pattern.",
       action: { label: "Replay the Creator walkthrough", kind: "wizard", page: "creator" }
     },
     {

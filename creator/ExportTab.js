@@ -523,7 +523,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
     h("div", { style: { background: "var(--surface-secondary)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-sm)', color: "var(--text-secondary)" } },
       "Designer branding (name, logo, copyright) is now in ",
-      h("strong", null, "File → Preferences"),
+      h("strong", null, "File > Preferences > Profile & branding"),
       ". Settings there apply to every PDF you export."
     ),
 

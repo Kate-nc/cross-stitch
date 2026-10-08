@@ -183,7 +183,7 @@ describe("HelpDrawer — content migration coverage", () => {
       "Magic wand (toggle)",
       "Eyedropper",
       "Open the command palette",
-      "Switch to Track mode (mark stitches done)",
+      "Switch to Mark mode (mark stitches done)",
       "Switch to Navigate mode (drag to pan, click to place the guide)",
       "Toggle the colours drawer",
       "Hold to pan the canvas freely",
