@@ -8,6 +8,106 @@ window.APP_VERSION = '1.0.71';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.71',
+    date: 'October 2026',
+    notes: [
+      'Fixed the Stats page failing with "Stats failed to render" when you opened the stats for a project other than the one loaded in the Stitch Tracker.',
+    ]
+  },
+  {
+    version: '1.0.70',
+    date: 'October 2026',
+    notes: [
+      'On a touchscreen in Mark mode, one finger now marks stitches and two fingers pan and zoom. Panning with two fingers keeps gliding briefly after you let go.',
+      'A press-and-hold rectangle is no longer lost when you tap its opposite corner.',
+    ]
+  },
+  {
+    version: '1.0.69',
+    date: 'October 2026',
+    notes: [
+      'Parking a thread now puts the marker on the stitch you clicked, in that stitch\'s colour, and it stays visible in Colour view and through Spotlight dimming. A marker clears itself when you mark its stitch done.',
+      'Only a real right-click parks a thread; on a Mac, Ctrl+click works too.',
+      'Navigate mode is now a hand tool: drag to move around the chart, and click to place the guide crosshair.',
+    ]
+  },
+  {
+    version: '1.0.68',
+    date: 'October 2026',
+    notes: [
+      'New in the Stitch Tracker: work areas. Press W (or tap Area) to show just the part of a large pattern you are stitching. The colour list, counts, Spotlight and "Mark all done" then cover only that area, and the area is saved and synced with the project.',
+    ]
+  },
+  {
+    version: '1.0.67',
+    date: 'October 2026',
+    notes: [
+      'The Stitch Tracker responds faster while you move the pointer over the chart, and the Outline highlight animates more smoothly.',
+    ]
+  },
+  {
+    version: '1.0.66',
+    date: 'October 2026',
+    notes: [
+      'Importing a PDF chart: when a symbol needs a thread, you can now choose one by colour, and symbols that look alike in a scan can be merged into one.',
+      'A booklet with several designs is read as separate charts. Choose one design, or import them all at once.',
+      'Charts from MacStitch, charts printed in both colour and black and white, symbols drawn as pictures, half stitches drawn as a heavy diagonal line, and backstitch that ends mid-cell are all read correctly.',
+      'A large import shows its progress in a card with a Cancel button, and pages can be rearranged with a finger on a tablet.',
+    ]
+  },
+  {
+    version: '1.0.65',
+    date: 'October 2026',
+    notes: [
+      'New Replace colour window in the Pattern Creator. Right-click a stitch, use the swap button on a palette colour, or press R and click a stitch, then pick the new thread and see a preview before you apply it. It also recolours part stitches and backstitch, and can swap two colours.',
+    ]
+  },
+  {
+    version: '1.0.64',
+    date: 'October 2026',
+    notes: [
+      'PDF charts printed over several pages are now put together in the right order, using the row and column numbers on each page. You can check and rearrange the pages before importing.',
+      'Scanned charts and PDFs that are only a picture can now be imported, including every page of a scan. Three-quarter and quarter stitches drawn as triangles are read too.',
+      'Symbols the importer could not match to the colour key are listed so you can choose a thread for each.',
+    ]
+  },
+  {
+    version: '1.0.63',
+    date: 'September 2026',
+    notes: [
+      'Pages start faster: the Help pane and the backup tools now load the first time you open them. They still work offline.',
+    ]
+  },
+  {
+    version: '1.0.62',
+    date: 'September 2026',
+    notes: [
+      'The Stitch Tracker chart is sharper on high-resolution screens and better sized on tablets and Android phones.',
+    ]
+  },
+  {
+    version: '1.0.61',
+    date: 'September 2026',
+    notes: [
+      'Moving around a large chart in the Stitch Tracker is smoother, especially in Navigate mode, and uses less memory on phones and tablets.',
+    ]
+  },
+  {
+    version: '1.0.60',
+    date: 'August 2026',
+    notes: [
+      'On iPad, importing a sync file no longer stops at a folder step that iPad browsers cannot do.',
+    ]
+  },
+  {
+    version: '1.0.59',
+    date: 'August 2026',
+    notes: [
+      'Sync now works on iPad and iPhone. Use Share sync file in the cloud menu to save changes into your cloud drive, and Import file to bring them back. Files in the picker are no longer greyed out.',
+      'iPhone and iPad users are now warned that the browser may clear stored patterns after a week without a visit. Adding the app to the Home Screen avoids this, and it now has a proper icon.',
+    ]
+  },
+  {
     version: '1.0.58',
     date: 'August 2026',
     notes: [
