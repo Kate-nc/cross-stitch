@@ -22,7 +22,7 @@ first-time user through the workflow.
 
 ## 2. Open the Export tab
 
-Choose **Materials & Output** in the Creator's page tabs, then the **Export** sub-tab. (**File > Export PDF…** skips this screen and exports straight away with standard settings — all optional pages, overlap on, automatic page size — ignoring the choices made here apart from branding and the Workshop theme.) From top to bottom you'll see:
+Choose **Materials & Output** in the Creator's page tabs, then the **Export** sub-tab. Settings you choose here are saved: **File > Export PDF…** and **Print PDF** in the Creator, and **File > Export PDF…** in the Stitch Tracker, all use them. From top to bottom you'll see:
 
 | Section | What it does |
 |---|---|

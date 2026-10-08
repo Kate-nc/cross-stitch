@@ -261,7 +261,7 @@
           body: "Projects save themselves to this device as you work — there is no Save button to remember. Ctrl+S downloads a .json copy, the same as File > Download (.json).",
           bullets: [
             ["Download (.json)", "File > Download (.json) writes a copy of the project to a file: the pattern, your edits and your tracking progress. Open it again in the Creator or the Tracker."],
-            ["Export PDF and .oxs", "File > Export PDF… exports a chart straight away with standard settings; for page size, print size and which pages to include, use the Export tab of Materials & Output instead. Export .oxs writes a file other cross-stitch software (MacStitch, WinStitch, FlossCross) can open."],
+            ["Export PDF and .oxs", "File > Export PDF… exports a chart straight away with your saved export settings — the ones on the Export tab of Materials & Output. In the Tracker it first shows the main settings. Export .oxs writes a file other cross-stitch software (MacStitch, WinStitch, FlossCross) can open."],
             ["Storage", "The top of the File menu shows how much space the app is using, and whether the browser has made it Protected (kept) or Temporary (may be cleared when space runs low)."]
           ]
         },
@@ -310,7 +310,7 @@
         },
         {
           heading: "PDF export options",
-          body: "The Export sub-tab of Materials & Output sets up a printable chart. (File > Export PDF… skips these choices and uses standard settings.)",
+          body: "The Export sub-tab of Materials & Output sets up a printable chart. File > Export PDF… and Print PDF use the same saved settings.",
           bullets: [
             ["Quick presets", "For Pattern Keeper: symbols and colour, medium print, 2-row overlap, cover page. For printing (home): large print, no overlap, no cover page."],
             ["Page size", "Auto (A4 or US Letter depending on where you are), A4 or US Letter."],

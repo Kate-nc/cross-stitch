@@ -147,7 +147,8 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
   });
 
   test('mount wires every handler and the popover data props', () => {
-    expect(CREATOR_MAIN_SRC).toMatch(/onPrintPdf=\{[^}]*exportPDF\(/);
+    // Print PDF uses the Export tab's saved settings (export-pdf.js).
+    expect(CREATOR_MAIN_SRC).toMatch(/onPrintPdf=\{exportPdfWithSavedSettings\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/onTrackPattern=\{io\.handleOpenInTracker\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/onSaveJson=\{io\.saveProject\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/onMoreExports=\{[^}]*setTab\("materials"\)/);

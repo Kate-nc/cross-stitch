@@ -1409,6 +1409,16 @@ function CreatorApp({
   }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
+  // File > Export PDF… and Print PDF use the Export tab's saved settings
+  // (export-pdf.js), so they make the same PDF the Export tab would.
+  const exportPdfWithSavedSettings = () => {
+    if (!window.ExportPdf) return;
+    window.ExportPdf.run(Object.assign({}, exportData, {
+      projectName: state.projectName,
+      projectDesigner: state.projectDesigner,
+      projectDescription: state.projectDescription
+    }));
+  };
   const exportData = useMemo(function () {
     return {
       pat: state.pat,
@@ -1516,11 +1526,7 @@ function CreatorApp({
     onOpen: () => state.loadRef.current.click(),
     onSave: state.pat && state.pal ? io.saveProject : null,
     onTrack: state.pat && state.pal ? io.handleOpenInTracker : null,
-    onExportPDF: state.pat ? () => exportPDF({
-      displayMode: state.pdfDisplayMode,
-      cellSize: state.pdfCellSize,
-      singlePage: state.pdfSinglePage
-    }, exportData) : null,
+    onExportPDF: state.pat ? exportPdfWithSavedSettings : null,
     onNewProject: () => {
       if (!state.pat || confirm("Start a new project? Unsaved changes will be lost.")) state.resetAll();
     },
@@ -1714,11 +1720,7 @@ function CreatorApp({
       state.setTab(t);
     },
     onRequestBackToConvert: handleRequestBackToConvert,
-    onPrintPdf: () => exportPDF({
-      displayMode: state.pdfDisplayMode,
-      cellSize: state.pdfCellSize,
-      singlePage: state.pdfSinglePage
-    }, exportData),
+    onPrintPdf: exportPdfWithSavedSettings,
     onTrackPattern: io.handleOpenInTracker,
     onSaveJson: io.saveProject,
     onMoreExports: () => {

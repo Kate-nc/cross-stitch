@@ -195,7 +195,7 @@ Yes, with sync. Set up folder sync (desktop Chrome or Edge) or move `.csync` fil
 
 ### How do I print a chart as well?
 
-In the Pattern Creator, **Materials & Output > Export > Export PDF**.
+**File > Export PDF…** in the Tracker. It uses the same saved settings as the Pattern Creator's **Materials & Output > Export** tab, which has the full set of options.
 
 ### Can I change the pattern while tracking?
 

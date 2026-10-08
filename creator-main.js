@@ -816,6 +816,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   ]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
+  // File > Export PDF… and Print PDF use the Export tab's saved settings
+  // (export-pdf.js), so they make the same PDF the Export tab would.
+  const exportPdfWithSavedSettings = () => {
+    if (!window.ExportPdf) return;
+    window.ExportPdf.run(Object.assign({}, exportData, {
+      projectName: state.projectName,
+      projectDesigner: state.projectDesigner,
+      projectDescription: state.projectDescription,
+    }));
+  };
   const exportData = useMemo(function() { return {
     pat: state.pat, pal: state.pal, cmap: state.cmap,
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
@@ -909,7 +919,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
         onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData):null}
+        onExportPDF={state.pat?exportPdfWithSavedSettings:null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
@@ -1060,7 +1070,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         pat={!!(state.pat&&state.pal)}
         onTabChange={function(t){state.setTab(t);}}
         onRequestBackToConvert={handleRequestBackToConvert}
-        onPrintPdf={()=>exportPDF({displayMode:state.pdfDisplayMode,cellSize:state.pdfCellSize,singlePage:state.pdfSinglePage},exportData)}
+        onPrintPdf={exportPdfWithSavedSettings}
         onTrackPattern={io.handleOpenInTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
