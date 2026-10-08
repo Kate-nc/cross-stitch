@@ -105,7 +105,7 @@ test('cells marked off-screen still appear when scrolled to', async ({ page }) =
   // A few pixels in from the cell's corner: clear of the grid line and of the
   // symbol glyph at the centre, so the sample is the cell's fill.
   const sample = () => page.evaluate(({ x, y, G, scs }) => {
-    const c = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+    const c = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
     const t = c.__chartTile;
     const px = Math.round((G + x * scs + 4 - t.x) * t.scale);
     const py = Math.round((G + y * scs + 4 - t.y) * t.scale);

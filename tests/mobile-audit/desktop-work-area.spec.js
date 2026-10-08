@@ -28,7 +28,7 @@ async function openTracker(page) {
 
 const state = (page) => page.evaluate((G) => {
   const el = document.querySelector('.tracker-chart-scroll');
-  const c = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+  const c = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
   const rulerCells = document.querySelector('.tracker-chart-scroll > div').children.length - 1;
   const rowCells = document.querySelector('.tracker-chart-scroll > div:nth-child(2)').firstElementChild.children.length;
   const cell = document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width;
@@ -41,7 +41,7 @@ const state = (page) => page.evaluate((G) => {
 
 /** Canvas pixel a few px into a cell, read through the chart's tile origin. */
 const sampleCell = (page, x, y) => page.evaluate(({ x, y, G }) => {
-  const c = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+  const c = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
   const t = c.__chartTile;
   const scs = Math.round(document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width);
   const px = Math.round((G + x * scs + 4 - t.x) * t.scale), py = Math.round((G + y * scs + 4 - t.y) * t.scale);
@@ -51,7 +51,7 @@ const sampleCell = (page, x, y) => page.evaluate(({ x, y, G }) => {
 
 /** Click the centre of a cell, located through the canvas's on-screen box. */
 const clickCell = (page, x, y) => page.evaluate(({ x, y, G }) => {
-  const c = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+  const c = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
   const t = c.__chartTile, r = c.getBoundingClientRect();
   const scs = Math.round(document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width);
   return { cx: r.left + (G + x * scs + scs / 2 - t.x), cy: r.top + (G + y * scs + scs / 2 - t.y) };
@@ -213,7 +213,7 @@ test('W opens the picker; Fit fits the area, not the pattern', async ({ page }) 
   await page.evaluate((a) => window.__workArea.enter(a), AREA);
   await page.waitForTimeout(800);
   // Zoom in so Fit has something to undo.
-  await page.locator('canvas[aria-label="Cross stitch pattern grid"]').focus();
+  await page.locator('canvas[aria-label^="Cross stitch pattern grid"]').focus();
   for (let i = 0; i < 4; i++) { await page.keyboard.press('='); await page.waitForTimeout(60); }
   await page.waitForTimeout(400);
   await page.locator('.ppal-mode-btn', { hasText: 'Fit' }).click();
@@ -283,7 +283,7 @@ test('Spotlight starts inside the area and stays among its sections', async ({ p
   // Top-left start corner: the area's first section, row 16, column 11.
   await expect(page.locator('.focus-block-chip')).toContainText('16,11');
   // Stepping right four times reaches the area's last column and stops there.
-  await page.locator('canvas[aria-label="Cross stitch pattern grid"]').focus();
+  await page.locator('canvas[aria-label^="Cross stitch pattern grid"]').focus();
   for (let i = 0; i < 7; i++) { await page.keyboard.press('Alt+ArrowRight'); await page.waitForTimeout(40); }
   await expect(page.locator('.focus-block-chip')).toContainText('16,15');
 });
