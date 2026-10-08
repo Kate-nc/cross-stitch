@@ -86,9 +86,9 @@
         body: "Track your progress on saved patterns interactively. Click stitches as you complete them; the timer logs your sessions automatically."
       },
       {
-        title: "Track and Navigate modes",
-        body: "Toggle between Track (tap to mark stitches done) and Navigate (move a guide crosshair, place parking markers).",
-        tip: "Press Space to switch modes quickly."
+        title: "Mark and Navigate modes",
+        body: "Switch between Mark (tap stitches to mark them done) and Navigate (drag to move around, tap to place a guide crosshair). To park a thread, right-click its stitch, or press and hold it in Navigate mode.",
+        tip: "Press T for Mark and N for Navigate."
       }
     ]
   };

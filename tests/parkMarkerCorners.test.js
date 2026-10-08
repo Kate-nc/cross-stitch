@@ -46,8 +46,10 @@ describe('Multi-colour parking — source assertions', () => {
     expect(src).toMatch(/localStorage\.getItem\('cs_parkLayers_'\+\(project\.id\|\|''\)\)/);
   });
 
-  test('Option C: renderStitch deps include parkLayers so toggling repaints', () => {
-    expect(src).toMatch(/done,parkMarkers,parkLayers,/);
+  test('Option C: toggling a colour layer repaints the cells it changes', () => {
+    // Markers are repainted incrementally, not through renderStitch's deps.
+    expect(src).toMatch(/\},\[parkMarkers,parkLayers\]\);/);
+    expect(src).toMatch(/\(layers\[pm\.colorId\]!==false\)/);
   });
 
   test('Option C: per-colour pip toggles via toggleParkLayer(p.id)', () => {
@@ -121,5 +123,183 @@ describe('Corner-rotation algorithm — behavioural', () => {
     m = placePark(m, 6, 5, "310", [0, 0, 0]);
     expect(m[0].corner).toBe("BL");
     expect(m[1].corner).toBe("BL");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Placement hits the cell under the pointer. Markers are drawn inside a cell,
+// so the tracker must never ask gridCoord to snap (round) to the nearest grid
+// line — that moved a marker onto the neighbouring column/row whenever the
+// click landed in the right or bottom half of a cell, and silently dropped
+// clicks in the right half of the last column.
+// ---------------------------------------------------------------------------
+describe('Park placement — cell under the pointer', () => {
+  test('every tracker gridCoord call passes snap=false', () => {
+    const calls = src.match(/gridCoord\(stitchRef,[^;]*?,\s*G\s*,\s*[^,)]+/g) || [];
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toMatch(/,\s*G\s*,\s*false$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Parking takes its colour from the stitch. The colour picker that used to
+// feed `selectedColorId` was removed from the tracker, which left parking
+// unreachable; the marker now belongs to the stitch it is placed on.
+// ---------------------------------------------------------------------------
+describe('Parking gestures — colour from the stitch', () => {
+  test('toggleParkAt reads the colour from the cell, not a picker', () => {
+    expect(src).toMatch(/function toggleParkAt\(gx,gy\)/);
+    expect(src).toMatch(/const colorId=cell\.id;/);
+    expect(src).not.toMatch(/colorId:selectedColorId/);
+  });
+
+  test('a finished stitch cannot be parked on', () => {
+    expect(src).toMatch(/const cur=doneRef\.current\|\|done;\s*if\(cur&&cur\[idx\]\)\{/);
+  });
+
+  test('canvas wires right-click and the Nav-mode press-and-hold', () => {
+    expect(src).toMatch(/\{\.\.\.dragMarkHandlers\} onContextMenu=\{handleStitchContextMenu\}/);
+    expect(src).toMatch(/onPointerDownCapture=\{handleCanvasPointerDownCapture\}/);
+    expect(src).toMatch(/onPointerCancelCapture=\{clearNavHold\}/);
+  });
+
+  test('parking a cell with a legacy marker removes every marker at that cell', () => {
+    expect(src).toMatch(/const existing=prev\.some\(m=>m\.x===gx&&m\.y===gy\);\s*if\(existing\)return prev\.filter\(m=>m\.x!==gx\|\|m\.y!==gy\);/);
+  });
+
+  test('the focused canvas supports keyboard parking at the guide cell', () => {
+    expect(src).toMatch(/function handleStitchKeyDown\(e\)\{[\s\S]*?e\.key!=="ContextMenu"&&!\(e\.shiftKey&&e\.key==="F10"\)[\s\S]*?toggleParkAt\(guide\.col,guide\.row\);/);
+    expect(src).toMatch(/onKeyDown=\{handleStitchKeyDown\}/);
+  });
+
+  test('a touch long-press contextmenu never parks (Mark mode owns it for rectangle select)', () => {
+    expect(src).toMatch(/if\(lastPointerTypeRef\.current!=="mouse"\)\{\s*if\(stitchMode==="navigate"\)e\.preventDefault\(\);\s*return;\s*\}/);
+  });
+
+  test('right mouse button does not fall through to the mousedown handlers', () => {
+    expect(src).toMatch(/function handleStitchMouseDown\(e\)\{[\s\S]{0,400}if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)return;/);
+  });
+
+  test('a click straight after a fired hold is ignored in Nav mode', () => {
+    expect(src).toMatch(/if\(Date\.now\(\)<suppressNavClickUntilRef\.current\)return;/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A marker is spent once its stitch is done (Pattern Keeper behaves the same
+// way). It is hidden, not deleted, so undo brings it back, and it is pruned
+// on the next load. The single-cell repaint must put live markers back after
+// its clearRect, otherwise unmarking a parked stitch loses the marker until
+// the next full redraw.
+// ---------------------------------------------------------------------------
+describe('Spent park markers', () => {
+  test('isParkSpent tests the done array at the marker cell', () => {
+    expect(src).toMatch(/function isParkSpent\(pm,doneArr\)\{return !!\(doneArr&&doneArr\[pm\.y\*sW\+pm\.x\]\);\}/);
+  });
+
+  test('drawStitch skips spent markers, using the same done source as the cells', () => {
+    expect(src).toMatch(/if\(isDone\(pm\.y\*sW\+pm\.x\)\)return; \/\/ spent/);
+    expect(src).toMatch(/const isDone=isDoneAt\|\|\(i=>!!\(done&&done\[i\]\)\);/);
+  });
+
+  test('legend counts skip spent markers and recompute when done changes', () => {
+    expect(src).toMatch(/if\(isParkSpent\(parkMarkers\[i\],done\)\)continue;/);
+    expect(src).toMatch(/\},\[parkMarkers,done,sW\]\);/);
+  });
+
+  test('toggled stitches repaint through the clipped full renderer with the new done state', () => {
+    const body = src.slice(src.indexOf('function paintDoneChanges('), src.indexOf('function hitTestHalfStitch('));
+    expect(body).toMatch(/const isDoneAt=i=>!!nd\[i\];/);
+    expect(body).toMatch(/repaintChartCells\(x,y,x\+1,y\+1,isDoneAt\)/);
+    expect(body).not.toMatch(/clearRect/);
+  });
+
+  test('load prunes markers on finished stitches without counting them as removed colours', () => {
+    const toastAt = src.indexOf('for colours no longer in the palette');
+    const pruneAt = src.indexOf('liveParkMarkers.filter(function(m) { return !loadedDone[m.y * nextW + m.x]; })');
+    expect(toastAt).toBeGreaterThan(0);
+    expect(pruneAt).toBeGreaterThan(toastAt);
+  });
+});
+
+// Behavioural: the spent rule itself.
+describe('isParkSpent — behavioural', () => {
+  const sW = 10;
+  function isParkSpent(pm, doneArr) { return !!(doneArr && doneArr[pm.y * sW + pm.x]); }
+  test('live while the stitch is open, spent once done, live again after undo', () => {
+    const done = new Uint8Array(100);
+    const pm = { x: 3, y: 4 };
+    expect(isParkSpent(pm, done)).toBe(false);
+    done[43] = 1;
+    expect(isParkSpent(pm, done)).toBe(true);
+    done[43] = 0;
+    expect(isParkSpent(pm, done)).toBe(false);
+  });
+  test('no done array (pattern still loading) never hides markers', () => {
+    expect(isParkSpent({ x: 0, y: 0 }, null)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Right-click parking is only for a real secondary press on the canvas. The
+// context menu also opens from the keyboard (Menu key, Shift+F10), where no
+// cell is meant; and on a Mac, Ctrl+click is the secondary click, so it must
+// park without also marking the stitch or moving the guide.
+// ---------------------------------------------------------------------------
+describe('Secondary-click parking guards', () => {
+  const dragMarkSrc = fs.readFileSync(path.join(__dirname, '..', 'useDragMark.js'), 'utf8');
+
+  test('a contextmenu only parks right after a secondary press on the canvas', () => {
+    expect(src).toMatch(/if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)lastSecondaryPressRef\.current=Date\.now\(\);/);
+    expect(src).toMatch(/if\(Date\.now\(\)-lastSecondaryPressRef\.current>1000\)return;\s*const gc=gridCoord/);
+  });
+
+  test('Mac Ctrl+click skips the mousedown handlers', () => {
+    expect(src).toMatch(/if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)return;/);
+    expect(src).toMatch(/function isMacSecondaryClick\(e\)\{\s*return e\.button===0&&e\.ctrlKey&&/);
+  });
+
+  test('Mac Ctrl+click does not start a drag-mark', () => {
+    expect(dragMarkSrc).toMatch(/if \(e\.ctrlKey && e\.button === 0 && typeof window !== 'undefined'\s*&& window\.Shortcuts && window\.Shortcuts\.isMac && window\.Shortcuts\.isMac\(\)\) return;/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Visibility. A marker is the colour of the stitch it sits on, so without an
+// outline it vanished in Colour view (black on black). It also sat under the
+// Spotlight overlay (94% dim) and the work-area margin fade, while a thread
+// is usually parked ahead of where you are stitching — outside both.
+// ---------------------------------------------------------------------------
+describe('Park marker visibility', () => {
+  test('marker gets a dark outer ring and a white inner ring before its fill', () => {
+    const b = src.slice(src.indexOf('function drawParkMarker('), src.indexOf('function drawStitch('));
+    expect(b).toMatch(/ctx\.strokeStyle="rgba\(27,24,20,0\.9\)";ctx\.lineWidth=PARK_MARKER_RING;ctx\.stroke\(\);\s*ctx\.strokeStyle="#fff";ctx\.lineWidth=1\.5;ctx\.stroke\(\);\s*ctx\.fillStyle=`rgb\(\$\{pm\.rgb\[0\]\},\$\{pm\.rgb\[1\]\},\$\{pm\.rgb\[2\]\}\)`;ctx\.fill\(\);/);
+  });
+
+  test('marker is inset from the cell corner so its ring stays inside the cell', () => {
+    expect(src).toMatch(/const inset=Math\.min\(2,cSz\*0\.1\);/);
+    expect(src).toMatch(/const PARK_MARKER_RING=3\.5;/);
+  });
+
+  test('markers are drawn after the work-area fade', () => {
+    const fade = src.indexOf('ctx.strokeRect(ax0-1,ay0-1,ax1-ax0+2,ay1-ay0+2);');
+    const markers = src.indexOf('// Park markers last, over the work-area fade');
+    expect(fade).toBeGreaterThan(0);
+    expect(markers).toBeGreaterThan(fade);
+    expect(src.slice(markers, markers + 600)).toMatch(/drawParkMarker\(ctx,pm,gut,cSz\);/);
+  });
+
+  test('the Spotlight overlay cuts live markers out of its dimming', () => {
+    const b = src.slice(src.indexOf('// ═══ Focus area three-zone dimming overlay ═══'), src.indexOf('// ═══ Breadcrumb trail overlay ═══'));
+    expect(b).toMatch(/const lpm=liveParkMarkersRef\.current;/);
+    expect(b).toMatch(/parkMarkerPath\(ctx,lpm\[i\],G,scs\);ctx\.fill\(\);ctx\.stroke\(\);/);
+    // Still inside the destination-out block.
+    expect(b.indexOf('const lpm=')).toBeGreaterThan(b.indexOf('globalCompositeOperation="destination-out"'));
+    expect(b.indexOf('const lpm=')).toBeLessThan(b.indexOf('ctx.restore();\n  // Focus block border'));
+    expect(src).toMatch(/\},\[focusBlock,focusEnabled,stitchingStyle,scs,sW,sH,blockW,blockH,liveParkKey\]\);/);
+  });
+
+  test('live markers exclude hidden layers and spent markers', () => {
+    expect(src).toMatch(/const liveParkMarkers=useMemo\(\(\)=>\(parkMarkers\|\|\[\]\)\.filter\(pm=>parkLayers\[pm\.colorId\]!==false&&!isParkSpent\(pm,done\)\),\[parkMarkers,parkLayers,done,sW\]\);/);
   });
 });

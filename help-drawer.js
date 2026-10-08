@@ -159,7 +159,9 @@
           body: "Load a saved project to track your stitching progress interactively.",
           bullets: [
             ["Track Mode", "Click or drag across the pattern to mark stitches as complete. Use the timer to estimate your completion date."],
-            ["Navigate Mode", "Place a guide crosshair on the canvas. If you select a colour, you can click to place parking markers."],
+            ["Navigate Mode", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
+            ["Parking", "Right-click a stitch (in either mode) to mark that a thread is parked there, or press and hold it in Navigate mode on a touch screen. The marker is a small triangle in the stitch's colour, outlined so it shows on any background, and it stays visible through the Spotlight and work-area dimming. Do the same again to remove it. It also clears itself when you mark that stitch done, and comes back if you undo."],
+            ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
             ["Colours Drawer", "Open the drawer at the bottom to see your progress per colour. Click a colour to highlight only those stitches on the canvas."]
           ]
         },
@@ -197,7 +199,7 @@
           bullets: [
             ["Toggle (C)", "Press C or tap the counting aid button in the toolbar to show or hide the overlay."],
             ["10\u00d710 grid", "Thin lines divide the canvas into 10\u00d710 stitch blocks, matching the bolded squares on most printed Aida fabric."],
-            ["Crosshair", "In Navigate mode, the crosshair marks your current reference point. Click to reposition it; its row and column are shown in the status bar."]
+            ["Crosshair", "The guide crosshair runs across a whole row and column, so you can follow a line of the chart. Place it in Navigate mode by clicking a cell; click the same cell again, or press Esc, to clear it."]
           ]
         }
       ]
@@ -435,7 +437,9 @@
 
     // Tracker
     { id: "t.track",   scope: "tracker", keys: ["T"], description: "Switch to Track mode (mark stitches done)" },
-    { id: "t.nav",     scope: "tracker", keys: ["N"], description: "Switch to Navigate mode (crosshair and parking markers)" },
+    { id: "t.nav",     scope: "tracker", keys: ["N"], description: "Switch to Navigate mode (drag to pan, click to place the guide)" },
+    { id: "t.guide",   scope: "tracker", keys: ["Esc"], description: "Navigate mode: clear the guide crosshair" },
+    { id: "t.park",    scope: "tracker", keys: ["Right-click"], description: "Park a thread on a stitch (again to remove)" },
     { id: "t.view",    scope: "tracker", keys: ["V"], description: "Cycle view: symbol / colour / highlight" },
     { id: "t.full",    scope: "tracker", keys: ["F"], description: "Toggle full-stitch layer visibility" },
     { id: "t.half",    scope: "tracker", keys: ["H"], description: "Toggle half-stitch layer visibility" },

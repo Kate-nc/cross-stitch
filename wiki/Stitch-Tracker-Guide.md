@@ -138,9 +138,13 @@ The flyout shows a live estimate of thread consumed per stitch based on your set
 
 Place a guide crosshair on the chart to help you find your spot.
 
-1. Click the **Crosshair button** (target icon) in the toolbar
-2. Click on the chart where you want the crosshair
-3. The crosshair appears at that location, helping you navigate
+1. Switch to **Navigate mode** (**Nav** in the toolbar, or press **N**)
+2. Click (or tap) the cell where you want the crosshair
+3. The crosshair appears across that row and column, helping you navigate
+
+Click the same cell again, or press **Esc** in Navigate mode, to clear it.
+
+In Navigate mode, dragging the chart pans it, so you can move around without marking anything.
 
 **Use when:** Chart is zoomed in or you've had a break and need to find where you were.
 
@@ -148,14 +152,13 @@ Place a guide crosshair on the chart to help you find your spot.
 
 Mark where you "parked" so you know exactly where to pick up next time.
 
-**Set a marker:**
-1. Click **Navigate mode** in the toolbar
-2. Click on the chart where you want to mark
-3. A circle appears on that stitch
+**Set a marker:** right-click the stitch where the thread is parked (in Mark or Navigate mode). On a touch screen, switch to **Navigate mode** and press and hold the stitch. A small triangle in the stitch's colour, outlined in white and dark so it shows on any background, appears in its corner. It stays visible through the Spotlight and work-area dimming, since threads are usually parked ahead of where you are stitching. The marker always takes the colour of the stitch it sits on, so there is no colour to pick first.
 
-**Multiple markers:** You can place multiple parking markers (one per colour you're actively stitching).
+**Remove a marker:** right-click (or press and hold) the same stitch again. You rarely need to: when you mark the parked stitch as done, its marker clears itself (undo brings it back).
 
-**Clear markers:** Click **Clear all markers** to remove them.
+**Multiple markers:** You can park as many threads as you like, one marker per stitch.
+
+**Hide or clear markers:** The **Park markers** section of the sidebar lists every parked colour with a checkbox to hide it, plus **Clear all**.
 
 ## Session Timer & Completion Estimates
 

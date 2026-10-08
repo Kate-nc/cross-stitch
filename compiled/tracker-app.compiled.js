@@ -1788,6 +1788,16 @@ function TrackerApp({
     fitSZ,
     maxZoom
   } = canvas;
+  // The guide crosshair as drawStitch sees it (read through a ref because the
+  // guide is repainted incrementally, not by a full renderStitch).
+  const guideRef = useRef({
+    row: -1,
+    col: -1
+  });
+  guideRef.current = {
+    row: hlRow,
+    col: hlCol
+  };
   const [loadError, setLoadError] = useState(null);
   // A PDF being read: what the importer is doing, and a way to stop it.
   // { label, stopping, cancel } while busy, else null.
@@ -2055,6 +2065,19 @@ function TrackerApp({
   function isParkLayerVisible(cid) {
     return parkLayers[cid] !== false;
   }
+  // A marker is spent once its stitch is done — the parked thread was used to
+  // make it (Pattern Keeper clears it the same way). Spent markers are hidden
+  // rather than deleted, so undoing the mark brings the marker back; they are
+  // pruned when the project is next loaded (processLoadedProject).
+  function isParkSpent(pm, doneArr) {
+    return !!(doneArr && doneArr[pm.y * sW + pm.x]);
+  }
+  // Read by drawStitch: markers are repainted incrementally (the park repaint
+  // effect), not through renderStitch's deps, so its closure may predate them.
+  const parkMarkersRef = useRef(parkMarkers);
+  parkMarkersRef.current = parkMarkers;
+  const parkLayersRef = useRef(parkLayers);
+  parkLayersRef.current = parkLayers;
   // ── Stitching Style & Spatial Focus Area ──
   const [stitchingStyle, setStitchingStyle] = useState(() => {
     try {
@@ -2076,7 +2099,7 @@ function TrackerApp({
   const [focusBlock, setFocusBlock] = useState(null); // {bx,by} | null
   // Work area: the group of Spotlight sections the chart is clipped to. Saved
   // on the project and synced (newer setAt wins); see work-area.js.
-  // null | {active,x0,y0,x1,y1,bw,bh,setAt}
+  // null | {active,x0,y0,x1,y1,bw,bh,gridW,gridH,setAt}
   const [workArea, setWorkArea] = useState(null);
   // Stitches of faded context shown around the area (a per-stitcher
   // preference, not part of the project).
@@ -2094,6 +2117,16 @@ function TrackerApp({
     } catch (_) {}
   }, []);
   const areaOn = !!(workArea && workArea.active);
+  useEffect(() => {
+    if (!workArea || !window.WorkArea || workArea.gridW === blockW && workArea.gridH === blockH) return;
+    const snapped = window.WorkArea.snapToSections(workArea, blockW, blockH, sW, sH);
+    setWorkArea(Object.assign(snapped, {
+      active: workArea.active,
+      setAt: workArea.setAt,
+      gridW: blockW,
+      gridH: blockH
+    }));
+  }, [workArea, blockW, blockH, sW, sH]);
   // The cells the chart shows: the work area plus its margin, or the whole
   // pattern. The scroller's extent and the rulers cover only this, so scroll
   // positions are relative to its corner; chartScrollOffset() converts.
@@ -2340,6 +2373,8 @@ function TrackerApp({
     if (!rect || !window.WorkArea) return false;
     const next = window.WorkArea.normalise(Object.assign({}, rect, {
       active: true,
+      gridW: blockW,
+      gridH: blockH,
       setAt: Date.now()
     }), sW, sH);
     if (!next) return false;
@@ -2427,12 +2462,24 @@ function TrackerApp({
         if (d && d[base + x]) dn++;
       }
     }
+    if (halfStitches && halfStitches.size) halfStitches.forEach((hs, idx) => {
+      if (!window.WorkArea.containsIndex(r, idx, sW)) return;
+      const hd = halfDone && halfDone.get(idx);
+      if (hs.fwd) {
+        total += 0.5;
+        if (hd && hd.fwd) dn += 0.5;
+      }
+      if (hs.bck) {
+        total += 0.5;
+        if (hd && hd.bck) dn += 0.5;
+      }
+    });
     return {
       total,
       done: dn
     };
   }
-  const areaStats = useMemo(() => areaOn ? countRect(workArea) : null, [areaOn, workArea, pat, done, sW]);
+  const areaStats = useMemo(() => areaOn ? countRect(workArea) : null, [areaOn, workArea, pat, done, halfStitches, halfDone, sW]);
   // Per-colour counts inside the work area, in the same shape as the whole-
   // pattern counts (colourDoneCountsRef): the colour list, highlight cycling and
   // "mark all" use these while an area is active. O(area) per change.
@@ -2603,6 +2650,17 @@ function TrackerApp({
     pinchAnchorScreen: null
   });
   const hasTouchRef = useRef(typeof window !== "undefined" && "ontouchstart" in window);
+  // Parking gestures (see toggleParkAt): the pointer type behind the latest
+  // press, so a contextmenu event can tell a right-click from a touch
+  // long-press; the pending Nav-mode press-and-hold; and the time until which
+  // the compatibility mousedown that follows a fired hold is ignored.
+  const lastPointerTypeRef = useRef("mouse");
+  // When the latest secondary press (right button, or Ctrl+click on a Mac)
+  // hit the canvas. Only a contextmenu right after one parks: the menu can
+  // also come from the keyboard (Menu key, Shift+F10), with no cell meant.
+  const lastSecondaryPressRef = useRef(0);
+  const navHoldRef = useRef(null);
+  const suppressNavClickUntilRef = useRef(0);
   // Stable handler refs — point to latest function each render; listeners attach once
   const touchStartHandlerRef = useRef(null);
   const touchMoveHandlerRef = useRef(null);
@@ -3197,16 +3255,25 @@ function TrackerApp({
     return getStatsTodayStitches(statsSessions, deh) + liveAutoStitches;
   }, [statsSessions, liveAutoStitches, statsSettings]);
   // Multi-colour parking — per-colour count for the legend "park" pip.
+  // Spent markers (on finished stitches, see isParkSpent) are not counted.
   const parkCountsByColour = useMemo(() => {
     const out = {};
     if (!parkMarkers || !parkMarkers.length) return out;
     for (let i = 0; i < parkMarkers.length; i++) {
+      if (isParkSpent(parkMarkers[i], done)) continue;
       const id = parkMarkers[i].colorId;
       if (id) out[id] = (out[id] || 0) + 1;
     }
     return out;
-  }, [parkMarkers]);
+  }, [parkMarkers, done, sW]);
   const totalParkedColours = useMemo(() => Object.keys(parkCountsByColour).length, [parkCountsByColour]);
+  // Markers that are drawn: colour layer shown and not spent. The Spotlight
+  // overlay cuts these out of its dimming; it keys its effect on the string so
+  // it redraws when the set changes, not on every tap that changes `done`.
+  const liveParkMarkers = useMemo(() => (parkMarkers || []).filter(pm => parkLayers[pm.colorId] !== false && !isParkSpent(pm, done)), [parkMarkers, parkLayers, done, sW]);
+  const liveParkKey = liveParkMarkers.map(pm => pm.x + "," + pm.y + "," + (pm.corner || "BL")).join(";");
+  const liveParkMarkersRef = useRef(liveParkMarkers);
+  liveParkMarkersRef.current = liveParkMarkers;
   const allParkLayersHidden = useMemo(() => {
     if (totalParkedColours === 0) return false;
     for (const id in parkCountsByColour) {
@@ -3257,6 +3324,16 @@ function TrackerApp({
   // The counts that "which colours are left" questions should use: the work
   // area's while one is active, the whole pattern's otherwise.
   const scopedColourCounts = areaColourCounts || colourDoneCounts;
+  useEffect(() => {
+    if (!areaColourCounts) return;
+    const current = areaColourCounts[focusColour];
+    if (current && current.total + current.halfTotal > 0) return;
+    const next = pal && pal.find(p => {
+      const c = areaColourCounts[p.id];
+      return c && c.total + c.halfTotal > 0;
+    });
+    setFocusColour(next ? next.id : null);
+  }, [areaColourCounts, focusColour, pal]);
   const layerCounts = useMemo(() => ({
     full: totalStitchable,
     half: halfStitchCounts.total,
@@ -3382,7 +3459,7 @@ function TrackerApp({
   });
   const renderStitchRef = useRef(null);
   // PERF: set true by single/bulk stitch-toggle paths that already painted their
-  // changed cells directly (see drawCellDirectly call sites) so the full-viewport
+  // changed cells directly (see paintDoneChanges call sites) so the full-viewport
   // renderStitch effect can skip a redundant redraw. See the effect below for detail.
   const skipNextFullRedrawRef = useRef(false);
   const focusableColors = useMemo(() => {
@@ -4203,7 +4280,8 @@ function TrackerApp({
     // Regions are Spotlight sections (the worker's blockSize is blockW): in a
     // work area, recommend only the ones inside it.
     const _recCols = analysisResult.regionCols || 1;
-    const _recArea = areaOn && window.WorkArea && (analysisResult.regionSize || blockW) === blockW ? window.WorkArea.sectionRange(workArea, blockW, blockH) : null;
+    const _recSize = analysisResult.regionSize || blockW;
+    const _recArea = areaOn && window.WorkArea ? window.WorkArea.sectionRange(workArea, _recSize, _recSize) : null;
     const scored = [];
     for (let i = 0; i < pr.length; i++) {
       const reg = pr[i];
@@ -4499,8 +4577,7 @@ function TrackerApp({
     if (changes.length > 0) {
       pushTrackHistory(changes);
       applyDoneCountsDelta(changes, pat, nd);
-      const _nv = md ? 1 : 0;
-      for (let i = 0; i < changes.length; i++) drawCellDirectly(changes[i].idx, _nv);
+      paintDoneChanges(changes, nd);
       skipNextFullRedrawRef.current = true;
     }
     doneRef.current = nd;
@@ -4586,7 +4663,7 @@ function TrackerApp({
     }));
     for (let c of last) nd[c.idx] = c.oldVal;
     applyDoneCountsDelta(redoChanges, pat, nd);
-    for (let c of last) drawCellDirectly(c.idx, c.oldVal);
+    paintDoneChanges(last, nd);
     skipNextFullRedrawRef.current = true;
     setDone(nd);
     setTrackHistory(prev => prev.slice(0, -1));
@@ -4612,7 +4689,7 @@ function TrackerApp({
     }));
     for (let c of last) nd[c.idx] = c.oldVal;
     applyDoneCountsDelta(undoChanges, pat, nd);
-    for (let c of last) drawCellDirectly(c.idx, c.oldVal);
+    paintDoneChanges(last, nd);
     skipNextFullRedrawRef.current = true;
     setDone(nd);
     setRedoStack(prev => prev.slice(0, -1));
@@ -6112,6 +6189,14 @@ function TrackerApp({
         }
       } catch (_) {}
     }
+    // A marker on a finished stitch is spent: the parked thread was used to
+    // make it. During a session such markers are only hidden (so undoing a
+    // stray tap brings them back); drop them silently here so they do not
+    // pile up in the saved project.
+    var loadedDone = project.done && project.done.length === restored.length ? project.done : null;
+    if (loadedDone) liveParkMarkers = liveParkMarkers.filter(function (m) {
+      return !loadedDone[m.y * nextW + m.x];
+    });
     setParkMarkers(liveParkMarkers);
     setBreadcrumbs(project.breadcrumbs || []);
     // Preserve v3 stats fields through auto-save round-trips
@@ -7183,7 +7268,7 @@ function TrackerApp({
 
   // ═══ Half-stitch cell rendering ═══
   // Renders half-stitch triangle fills, diagonal lines, and symbols for one cell.
-  // Called from inside drawStitch and drawCellDirectly.
+  // Called from inside drawStitch.
   function _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, view, focusColour, dimmed, lowZoom, medZoom, highZoom) {
     const dirs = ["fwd", "bck"];
     for (let di = 0; di < dirs.length; di++) {
@@ -7264,10 +7349,64 @@ function TrackerApp({
       }
     }
   }
-  function drawStitch(ctx, cSz, viewportRect) {
+
+  // Park marker geometry: a right triangle in its corner of the cell, inset so
+  // its outline (PARK_MARKER_RING wide, centred on the edge) stays inside the
+  // cell. Shared by the chart (drawParkMarker) and the Spotlight overlay, which
+  // cuts the same shape out of its dimming so markers stay at full strength.
+  const PARK_MARKER_RING = 3.5;
+  function parkMarkerPath(ctx, pm, gut, cSz) {
+    const corner = pm.corner || "BL";
+    const inset = Math.min(2, cSz * 0.1);
+    const ts = Math.max(4, Math.min(cSz * 0.5, 14));
+    const x0 = gut + pm.x * cSz + inset,
+      y0 = gut + pm.y * cSz + inset,
+      x1 = gut + (pm.x + 1) * cSz - inset,
+      y1 = gut + (pm.y + 1) * cSz - inset;
+    let pts;
+    if (corner === "TL") pts = [[x0, y0], [x0 + ts, y0], [x0, y0 + ts]];else if (corner === "TR") pts = [[x1, y0], [x1 - ts, y0], [x1, y0 + ts]];else if (corner === "BR") pts = [[x1, y1], [x1 - ts, y1], [x1, y1 - ts]];else pts = [[x0, y1], [x0 + ts, y1], [x0, y1 - ts]];
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    ctx.lineTo(pts[1][0], pts[1][1]);
+    ctx.lineTo(pts[2][0], pts[2][1]);
+    ctx.closePath();
+  }
+  // One park marker, in the thread colour. The marker is the colour of the
+  // stitch it sits on, so on its own it vanishes in Colour view (black on
+  // black); a white inner ring and a dark outer ring make it show on any
+  // background, light or dark.
+  function drawParkMarker(ctx, pm, gut, cSz) {
+    ctx.save();
+    parkMarkerPath(ctx, pm, gut, cSz);
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(27,24,20,0.9)";
+    ctx.lineWidth = PARK_MARKER_RING;
+    ctx.stroke();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = `rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Paints the cells in viewportRect and everything drawn over them. Also the
+  // single-cell / strip repaint path (repaintChartCells), clipped to the cells
+  // being redrawn, so a partial repaint draws exactly what a full one would.
+  // isDoneAt (optional) overrides the done state, for callers that paint a
+  // toggle before setDone has committed.
+  function drawStitch(ctx, cSz, viewportRect, isDoneAt) {
     let gut = G,
       dW = sW,
       dH = sH;
+    const isDone = isDoneAt || (i => !!(done && done[i]));
+    // Guide and park markers are read through refs: they are repainted
+    // incrementally (see the guide / park repaint effects) rather than by a
+    // full renderStitch, so this function's closure may predate them.
+    const hlRow = guideRef.current.row,
+      hlCol = guideRef.current.col;
+    const parkMarkers = parkMarkersRef.current,
+      parkLayers = parkLayersRef.current;
 
     // Determine effective tier and animated feature opacities
     const tier = lockDetailLevel ? 3 : tierRef.current;
@@ -7338,7 +7477,7 @@ function TrackerApp({
         let info = m.id === "__skip__" || m.id === "__empty__" ? null : cmap ? cmap[m.id] : null;
         let px = gut + x * cSz,
           py = gut + y * cSz;
-        let isDn = done && done[idx];
+        let isDn = isDoneAt ? isDoneAt(idx) : done && done[idx];
 
         // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
         if (tier === 1 && !partialStitches.has(idx)) {
@@ -7617,19 +7756,25 @@ function TrackerApp({
     }
 
     // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
+    // Dash phase anchored to the chart origin (lineDashOffset = distance from
+    // it), so the dashes sit in the same place whatever range is painted — a
+    // partial repaint or a scrolled tile — instead of restarting at its edge.
     if (showCtr) {
       ctx.strokeStyle = "rgba(200,60,60,0.3)";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([6, 4]);
+      ctx.lineDashOffset = startY * cSz;
       ctx.beginPath();
       ctx.moveTo(gut + Math.floor(sW / 2) * cSz, gut + startY * cSz);
       ctx.lineTo(gut + Math.floor(sW / 2) * cSz, gut + endY * cSz);
       ctx.stroke();
+      ctx.lineDashOffset = startX * cSz;
       ctx.beginPath();
       ctx.moveTo(gut + startX * cSz, gut + Math.floor(sH / 2) * cSz);
       ctx.lineTo(gut + endX * cSz, gut + Math.floor(sH / 2) * cSz);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.lineDashOffset = 0;
     }
     if (hlRow >= 0 && hlCol >= 0) {
       ctx.strokeStyle = "rgba(59,130,246,0.6)";
@@ -7654,7 +7799,11 @@ function TrackerApp({
       ctx.globalAlpha = bsHsAlpha;
       ctx.lineWidth = tier === 2 ? 1 : bsThickness;
       ctx.lineCap = "round";
+      // Skip lines wholly outside the cells being painted (backstitch runs
+      // along cell edges, in stitch units). A full paint covers the tile so
+      // this rarely skips anything; a one-cell repaint skips nearly all.
       bsLines.forEach(ln => {
+        if (Math.max(ln.x1, ln.x2) < startX || Math.min(ln.x1, ln.x2) > endX || Math.max(ln.y1, ln.y2) < startY || Math.min(ln.y1, ln.y2) > endY) return;
         ctx.strokeStyle = ln.color || "#333";
         ctx.beginPath();
         ctx.moveTo(gut + ln.x1 * cSz, gut + ln.y1 * cSz);
@@ -7662,29 +7811,6 @@ function TrackerApp({
         ctx.stroke();
       });
       ctx.restore();
-    }
-    if (parkMarkers.length > 0) {
-      parkMarkers.forEach(pm => {
-        // Multi-colour parking — Option C: skip markers whose colour layer
-        // is hidden via the legend toggle.
-        if (parkLayers[pm.colorId] === false) return;
-        const corner = pm.corner || "BL";
-        const px2 = gut + pm.x * cSz,
-          py2 = gut + pm.y * cSz;
-        const ts = Math.max(3, Math.min(cSz * 0.4, 10));
-        let pts;
-        if (corner === "TL") pts = [[px2, py2], [px2 + ts, py2], [px2, py2 + ts]];else if (corner === "TR") pts = [[px2 + cSz, py2], [px2 + cSz - ts, py2], [px2 + cSz, py2 + ts]];else if (corner === "BR") pts = [[px2 + cSz, py2 + cSz], [px2 + cSz - ts, py2 + cSz], [px2 + cSz, py2 + cSz - ts]];else pts = [[px2, py2 + cSz], [px2 + ts, py2 + cSz], [px2, py2 + cSz - ts]];
-        ctx.fillStyle = `rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;
-        ctx.strokeStyle = "rgba(0,0,0,0.7)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        ctx.lineTo(pts[1][0], pts[1][1]);
-        ctx.lineTo(pts[2][0], pts[2][1]);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      });
     }
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 2;
@@ -7716,6 +7842,18 @@ function TrackerApp({
       ctx.lineWidth = 2;
       ctx.strokeRect(ax0 - 1, ay0 - 1, ax1 - ax0 + 2, ay1 - ay0 + 2);
       ctx.lineWidth = 1;
+    }
+    // Park markers last, over the work-area fade: a thread is usually parked
+    // ahead of where you are stitching, which is often outside the area.
+    if (parkMarkers.length > 0) {
+      parkMarkers.forEach(pm => {
+        // Multi-colour parking — Option C: skip markers whose colour layer
+        // is hidden via the legend toggle.
+        if (parkLayers[pm.colorId] === false) return;
+        if (pm.x < startX || pm.x >= endX || pm.y < startY || pm.y >= endY) return;
+        if (isDone(pm.y * sW + pm.x)) return; // spent — see isParkSpent
+        drawParkMarker(ctx, pm, gut, cSz);
+      });
     }
   }
   const renderStitch = useCallback(() => {
@@ -7769,8 +7907,8 @@ function TrackerApp({
       delete canvas.__chartTileProbe;
     }
     const prevTile = chartTileRef.current;
-    // Carries the render scale too: drawCellDirectly re-establishes this
-    // transform on the single-cell fast path and needs both halves of it.
+    // Carries the render scale too: repaintChartCells re-establishes this
+    // transform for partial repaints and needs both halves of it.
     chartTileRef.current = {
       x: tile.x,
       y: tile.y,
@@ -7839,7 +7977,7 @@ function TrackerApp({
     // Overlays share the chart's geometry, so a tile move invalidates them too.
     const tileChanged = !prevTile || prevTile.x !== tile.x || prevTile.y !== tile.y || prevTile.w !== tile.w || prevTile.h !== tile.h || prevTile.full !== tile.full;
     if (tileChanged) redrawChartOverlays();
-  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, parkMarkers, parkLayers, hlRow, hlCol, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture, viewBounds, areaOn, workArea]);
+  }, [pat, cmap, scs, sW, sH, showCtr, bsLines, done, stitchView, focusColour, halfStitches, halfDone, stitchZoom, highlightMode, tintColor, tintOpacity, spotDimOpacity, trackerDimLevel, layerVis, bsThickness, lockDetailLevel, lowZoomFade, rowModeActive, currentRow, trackerFabricColour, trackerCanvasTexture, viewBounds, areaOn, workArea]);
 
   // Scroll-driven repaint. Previously every scroll frame ran a full
   // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -7864,7 +8002,7 @@ function TrackerApp({
     renderStitch();
   }, [renderStitch, scs]);
   // PERF: single/bulk stitch toggles already paint their own changed cells directly
-  // via drawCellDirectly() (see markColourDone / _commitBulk / _dragMarkOnToggle /
+  // via paintDoneChanges() (see markColourDone / _commitBulk / _dragMarkOnToggle /
   // undoTrack / redoTrack) for instant feedback. Those call sites set
   // skipNextFullRedrawRef.current=true right before their setDone() so this effect
   // — which would otherwise repaint the *entire visible viewport* just because the
@@ -7878,6 +8016,56 @@ function TrackerApp({
     }
     renderStitch();
   }, [renderStitch]);
+  // The guide crosshair and park markers are repainted where they changed
+  // rather than by a full renderStitch (they are not in its deps): moving the
+  // guide repaints the old and new row and column, a park toggle repaints its
+  // cell. drawStitch reads both through refs, so a later full repaint agrees.
+  const prevGuidePaintRef = useRef(null);
+  useEffect(() => {
+    const prev = prevGuidePaintRef.current;
+    prevGuidePaintRef.current = {
+      row: hlRow,
+      col: hlCol
+    };
+    if (!prev || prev.row === hlRow && prev.col === hlCol) return;
+    const strips = [prev, {
+      row: hlRow,
+      col: hlCol
+    }];
+    for (const g of strips) {
+      if (g.row < 0 || g.col < 0) continue; // no crosshair drawn for this one
+      repaintChartCells(0, g.row, sW, g.row + 1);
+      repaintChartCells(g.col, 0, g.col + 1, sH);
+    }
+  }, [hlRow, hlCol]);
+  const prevParkPaintRef = useRef(null);
+  useEffect(() => {
+    const prev = prevParkPaintRef.current;
+    prevParkPaintRef.current = {
+      markers: parkMarkers,
+      layers: parkLayers
+    };
+    if (!prev) return;
+    // Per-cell signature of what is drawn there; repaint cells whose changed.
+    const sig = (list, layers) => {
+      const m = new Map();
+      for (const pm of list) {
+        const k = pm.y * sW + pm.x;
+        m.set(k, (m.get(k) || "") + pm.colorId + ":" + (pm.corner || "BL") + ":" + (layers[pm.colorId] !== false) + "|");
+      }
+      return m;
+    };
+    const a = sig(prev.markers, prev.layers),
+      b = sig(parkMarkers, parkLayers);
+    const keys = new Set([...a.keys(), ...b.keys()]);
+    keys.forEach(k => {
+      if (a.get(k) !== b.get(k)) {
+        const x = k % sW,
+          y = (k - x) / sW;
+        repaintChartCells(x, y, x + 1, y + 1);
+      }
+    });
+  }, [parkMarkers, parkLayers]);
   // Keep renderStitchRef current so animation callbacks always call the latest closure
   useEffect(() => {
     renderStitchRef.current = renderStitch;
@@ -7956,6 +8144,29 @@ function TrackerApp({
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [!!pat]);
+
+  // ═══ Session onboarding hint ═══
+  // Shown once, on the first stitch of the first session, as a floating toast
+  // so it cannot move the chart. Marked as seen as soon as it is shown.
+  useEffect(() => {
+    if (sessionOnboardingShown || !(liveAutoStitches > 0) || statsSessions.length !== 0) return;
+    setSessionOnboardingShown(true);
+    try {
+      localStorage.setItem("cs_sessionOnboardingDone", "1");
+    } catch (_) {}
+    try {
+      if (window.Toast && window.Toast.show) window.Toast.show({
+        message: "Sessions are tracked automatically as you stitch. Your stats are in the Session panel.",
+        type: "info",
+        duration: 8000,
+        action: () => {
+          setLeftSidebarTab("session");
+          setMorePanelOpen(true);
+        },
+        actionLabel: "Open"
+      });
+    } catch (_) {}
+  }, [sessionOnboardingShown, liveAutoStitches, statsSessions.length]);
 
   // ═══ Thread usage overlay rendering ═══
   useEffect(() => {
@@ -8212,6 +8423,22 @@ function TrackerApp({
       const fw = Math.min(blockW, sW - bx * blockW) * scs,
         fh = Math.min(blockH, sH - by * blockH) * scs;
       ctx.fillRect(fx, fy, fw, fh);
+      // Cut the live park markers out of the dimming. Parking puts a thread
+      // ahead of where you are stitching — usually the next block — and a 94%
+      // dim made those markers all but invisible.
+      const lpm = liveParkMarkersRef.current;
+      if (lpm.length) {
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "black";
+        ctx.strokeStyle = "black";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = PARK_MARKER_RING + 1;
+        for (let i = 0; i < lpm.length; i++) {
+          parkMarkerPath(ctx, lpm[i], G, scs);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
       ctx.restore();
       // Focus block border
       ctx.strokeStyle = "rgba(184, 92, 56,0.9)";
@@ -8238,7 +8465,7 @@ function TrackerApp({
     };
     draw();
     return registerChartOverlay("focusBlock", draw);
-  }, [focusBlock, focusEnabled, stitchingStyle, scs, sW, sH, blockW, blockH]);
+  }, [focusBlock, focusEnabled, stitchingStyle, scs, sW, sH, blockW, blockH, liveParkKey]);
 
   // ═══ Breadcrumb trail overlay ═══
   useEffect(() => {
@@ -8622,213 +8849,102 @@ function TrackerApp({
     }
   };
   const rafIdRef = useRef(null);
-  function drawCellDirectly(idx, nv) {
-    if (!stitchRef.current || !pat || !cmap) return;
-    const ctx = stitchRef.current.getContext('2d');
-    // The canvas is a tile: re-establish the chart-coordinate transform so the
-    // absolute px/py below land in the right place. Cheap, and it keeps this
-    // fast path from having to know about tiling beyond this one line.
-    const _t = chartTileRef.current;
-    const gx = idx % sW;
-    const gy = Math.floor(idx / sW);
-    const px = G + gx * scs;
-    const py = G + gy * scs;
-    // Nothing to do for a cell outside the tile: the canvas only covers the
-    // visible slice, so the draw would be clipped away. This matters for the
-    // bulk paths — markColourDone paints every cell of a colour, which on a
-    // 400x500 chart is thousands of cells of which a handful are on screen.
-    // Correctness is unaffected: the callers set skipNextFullRedrawRef, and
-    // scrolling to an off-tile region repaints it from `done` (see
-    // renderStitchIfScrolledOut), so those cells are drawn when they become
-    // visible rather than never.
-    if (_t.w > 0 && (px + scs < _t.x || px > _t.x + _t.w || py + scs < _t.y || py > _t.y + _t.h)) return;
-    const _s = _t.scale > 0 ? _t.scale : 1;
-    ctx.setTransform(_s, 0, 0, _s, -_t.x * _s, -_t.y * _s);
-    const m = pat[idx];
-    const info = m.id === "__skip__" || m.id === "__empty__" ? null : cmap ? cmap[m.id] : null;
-    const isDn = nv;
-    const cSz = scs;
-    // Tier-aware rendering
-    const tier = lockDetailLevel ? 3 : tierRef.current;
-    const symAlpha = lockDetailLevel ? 1.0 : tierFadeRef.current.symbolOpacity;
-    const bsHsAlpha = lockDetailLevel ? 1.0 : tierFadeRef.current.bsHsOpacity;
-    const symPx = tierSymFontSz(cSz);
-    const dimmed = stitchView === "highlight" && focusColour && m.id !== focusColour && m.id !== "__skip__" && m.id !== "__empty__";
-    const effectiveDimmed2 = dimmed && highlightMode !== "outline" && highlightMode !== "tint";
-    ctx.clearRect(px, py, cSz, cSz);
 
-    // Tier 1 fast path: flat color fill only
-    if (tier === 1) {
-      if (m.id === "__skip__" || m.id === "__empty__") {
-        ctx.fillStyle = "#f0f4f8";
-        ctx.fillRect(px, py, cSz, cSz);
-        return;
-      }
-      if (layerVis.full) {
-        if (isDn) {
-          ctx.fillStyle = `rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;
-          ctx.fillRect(px, py, cSz, cSz);
-        } else {
-          const r2 = Math.round(m.rgb[0] * 0.45 + 255 * 0.55),
-            g2 = Math.round(m.rgb[1] * 0.45 + 255 * 0.55),
-            b2 = Math.round(m.rgb[2] * 0.45 + 255 * 0.55);
-          ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
-          ctx.fillRect(px, py, cSz, cSz);
-        }
-      }
+  // Repaint the cells [x0,x1) x [y0,y1) by running the chart renderer clipped
+  // to them, so a partial repaint draws exactly what a full one would: the
+  // stitches and every line or marker crossing them (grid, centre lines, guide,
+  // backstitch, park markers, row-mode tint, work-area fade). Before this the
+  // fast path was a hand-copied subset of drawStitch that cleared the cell and
+  // redrew only the stitch, so marking a stitch cut a gap in the guide, the
+  // centre and grid lines and any backstitch through it until the next full
+  // repaint.
+  //
+  // Only the part on the current tile is painted: the canvas covers just the
+  // visible slice, and off-tile cells are repainted from state when scrolled
+  // to (renderStitchIfScrolledOut), so drawing them would be clipped away.
+  function repaintChartCells(x0, y0, x1, y1, isDoneAt) {
+    const canvas = stitchRef.current;
+    if (!canvas || !pat || !cmap) return;
+    const t = chartTileRef.current;
+    if (!t || !(t.w > 0)) return;
+    const r = tileCellRange(t, scs);
+    x0 = Math.max(x0, r.x0);
+    y0 = Math.max(y0, r.y0);
+    x1 = Math.min(x1, r.x1);
+    y1 = Math.min(y1, r.y1);
+    if (x0 >= x1 || y0 >= y1) return;
+    const ctx = canvas.getContext('2d');
+    // The canvas is a tile: re-establish the chart-coordinate transform (tile
+    // origin and render scale) that renderStitch left it in.
+    const s = t.scale > 0 ? t.scale : 1;
+    ctx.setTransform(s, 0, 0, s, -t.x * s, -t.y * s);
+    const left = G + x0 * scs,
+      top = G + y0 * scs,
+      right = G + x1 * scs,
+      bottom = G + y1 * scs;
+    ctx.save();
+    // The clip reaches a little past the cells: a park marker's outline (and
+    // a cell's own outline) overhangs its edge by up to a pixel, and that
+    // overhang must be drawn or erased with the cell.
+    const sp = 2;
+    ctx.beginPath();
+    ctx.rect(left - sp, top - sp, right - left + 2 * sp, bottom - top + 2 * sp);
+    ctx.clip();
+    // Paint one cell further on every side than the cells themselves, so
+    // everything that overlaps the clipped area — neighbours' outlines and
+    // markers — is drawn, in the same order as a full paint.
+    const m = scs;
+    drawStitch(ctx, scs, {
+      left: left - m,
+      top: top - m,
+      right: right + m,
+      bottom: bottom + m,
+      width: right - left + 2 * m,
+      height: bottom - top + 2 * m,
+      overdraw: 0
+    }, isDoneAt);
+    ctx.restore();
+  }
+  // Paint stitches that were just marked or unmarked, ahead of the setDone
+  // that will commit them (callers set skipNextFullRedrawRef so that commit
+  // does not repaint the whole tile as well). `changes` is [{idx}], `nd` the
+  // new done array — passed explicitly because each cell's repaint also paints
+  // the overhang into its neighbours, which must show their new state too.
+  //
+  // Few on-tile cells: repaint each. Many (a whole colour, a big range, at low
+  // zoom): one repaint of the tile does less work than hundreds of clipped
+  // ones, each of which paints its neighbours as well. Off-tile cells are
+  // skipped; they are painted from `done` when scrolled to.
+  function paintDoneChanges(changes, nd) {
+    if (!stitchRef.current || !pat || !cmap || !nd) return;
+    const t = chartTileRef.current;
+    if (!t || !(t.w > 0)) return;
+    const r = tileCellRange(t, scs);
+    const on = [];
+    for (let i = 0; i < changes.length; i++) {
+      const idx = changes[i].idx,
+        x = idx % sW,
+        y = (idx - x) / sW;
+      if (x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1) on.push(idx);
+    }
+    if (!on.length) return;
+    const isDoneAt = i => !!nd[i];
+    const tileCells = (r.x1 - r.x0) * (r.y1 - r.y0);
+    if (on.length > Math.max(64, tileCells / 8)) {
+      repaintChartCells(r.x0, r.y0, r.x1, r.y1, isDoneAt);
       return;
     }
-    if (m.id === "__skip__" || m.id === "__empty__") {
-      drawCk(ctx, px, py, cSz);
-      if (cSz >= 4) {
-        ctx.strokeStyle = m.id === "__empty__" ? "rgba(220,50,50,0.25)" : "rgba(0,0,0,0.06)";
-        ctx.strokeRect(px, py, cSz, cSz);
-      }
-      let hs = halfStitches.get(idx);
-      if (hs && layerVis.half && bsHsAlpha > 0.01) {
-        let hd = halfDone.get(idx) || {};
-        ctx.save();
-        ctx.globalAlpha = bsHsAlpha;
-        _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, stitchView, focusColour, false, tier === 2, tier === 3, tier >= 4);
-        ctx.restore();
-      }
-      return;
-    }
-    if (layerVis.full) {
-      if (stitchView === "symbol") {
-        if (isDn) {
-          ctx.fillStyle = "#D5E5C8";
-          ctx.fillRect(px, py, cSz, cSz);
-        } else {
-          ctx.fillStyle = "#fff";
-          ctx.fillRect(px, py, cSz, cSz);
-          if (info && symAlpha > 0.01) {
-            ctx.save();
-            ctx.globalAlpha = symAlpha;
-            ctx.fillStyle = "#1B1814";
-            ctx.font = `bold ${symPx}px monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-            ctx.restore();
-          }
-        }
-      } else if (stitchView === "colour") {
-        ctx.fillStyle = `rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;
-        ctx.fillRect(px, py, cSz, cSz);
-        if (!isDn && info && symAlpha > 0.01) {
-          ctx.save();
-          ctx.globalAlpha = symAlpha;
-          ctx.fillStyle = luminance(m.rgb) > 140 ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.95)";
-          ctx.font = `bold ${Math.max(7, Math.round(symPx * 0.92))}px monospace`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-          ctx.restore();
-        }
-      } else if (highlightMode === "outline" || highlightMode === "tint") {
-        ctx.fillStyle = `rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;
-        ctx.fillRect(px, py, cSz, cSz);
-        if (!isDn && info && symAlpha > 0.01) {
-          ctx.save();
-          ctx.globalAlpha = symAlpha;
-          ctx.fillStyle = luminance(m.rgb) > 140 ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.95)";
-          ctx.font = `bold ${Math.max(7, Math.round(symPx * 0.92))}px monospace`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-          ctx.restore();
-        }
-        if (highlightMode === "tint" && focusColour && m.id === focusColour) {
-          const tr = parseInt(tintColor.slice(1, 3), 16),
-            tg = parseInt(tintColor.slice(3, 5), 16),
-            tb = parseInt(tintColor.slice(5, 7), 16);
-          ctx.fillStyle = `rgba(${tr},${tg},${tb},${tintOpacity})`;
-          ctx.fillRect(px, py, cSz, cSz);
-        }
-      } else if (highlightMode === "spotlight") {
-        if (dimmed) {
-          ctx.fillStyle = "#e8ecf0";
-          ctx.fillRect(px, py, cSz, cSz);
-        } else {
-          ctx.fillStyle = `rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;
-          ctx.fillRect(px, py, cSz, cSz);
-          if (!isDn && info && symAlpha > 0.01) {
-            ctx.save();
-            ctx.globalAlpha = symAlpha;
-            ctx.fillStyle = luminance(m.rgb) > 140 ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.95)";
-            ctx.font = `bold ${Math.max(7, Math.round(symPx * 0.92))}px monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-            ctx.restore();
-          }
-          if (cSz >= 4) {
-            const lum2 = luminance(m.rgb);
-            ctx.strokeStyle = lum2 > 140 ? "rgba(26,26,46,0.85)" : "rgba(255,255,255,0.85)";
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(px + 0.75, py + 0.75, cSz - 1.5, cSz - 1.5);
-            ctx.lineWidth = 1;
-          }
-        }
-      } else {
-        if (isDn) {
-          ctx.fillStyle = dimmed ? "#EFE7D6" : `rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;
-          ctx.fillRect(px, py, cSz, cSz);
-        } else if (dimmed) {
-          ctx.fillStyle = "#EFE7D6";
-          ctx.fillRect(px, py, cSz, cSz);
-          if (symAlpha > 0.01 && info && cSz >= 8) {
-            ctx.save();
-            ctx.globalAlpha = symAlpha;
-            ctx.fillStyle = "rgba(0,0,0,0.06)";
-            ctx.font = `${Math.max(6, Math.round(cSz * 0.45))}px monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-            ctx.restore();
-          }
-        } else {
-          ctx.fillStyle = `rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;
-          ctx.fillRect(px, py, cSz, cSz);
-          if (info && symAlpha > 0.01) {
-            ctx.save();
-            ctx.globalAlpha = symAlpha;
-            ctx.fillStyle = "#1B1814";
-            ctx.font = `bold ${symPx}px monospace`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
-            ctx.restore();
-          }
-        }
-      }
-    }
-    // Tier 4 thread ID label
-    if (tier >= 4 && cSz > 40 && info && symAlpha > 0.01 && layerVis.full) {
-      ctx.save();
-      ctx.globalAlpha = symAlpha * 0.7;
-      ctx.fillStyle = "rgba(100,116,139,1)";
-      ctx.font = `${Math.max(6, Math.round(cSz * 0.2))}px monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(m.id, px + cSz / 2, py + cSz * 0.8);
-      ctx.restore();
-    }
-    // Half stitches
-    let hs = halfStitches.get(idx);
-    if (hs && layerVis.half && bsHsAlpha > 0.01) {
-      let hd = halfDone.get(idx) || {};
-      ctx.save();
-      ctx.globalAlpha = bsHsAlpha;
-      _drawHalfStitchCell(ctx, px, py, cSz, hs, hd, cmap, stitchView, focusColour, effectiveDimmed2, tier === 2, tier === 3, tier >= 4);
-      ctx.restore();
-    }
-    if (cSz >= 4) {
-      ctx.strokeStyle = effectiveDimmed2 && layerVis.full ? "rgba(0,0,0,0.03)" : "rgba(0,0,0,0.08)";
-      ctx.strokeRect(px, py, cSz, cSz);
+    for (let i = 0; i < on.length; i++) {
+      const x = on[i] % sW,
+        y = (on[i] - x) / sW;
+      repaintChartCells(x, y, x + 1, y + 1, isDoneAt);
     }
   }
+  // Memoised callers (_commitBulk, _dragMarkOnToggle) hold an older render's
+  // closure; going through this ref makes them paint with the current zoom,
+  // view settings, guide and markers.
+  const paintDoneChangesRef = useRef(null);
+  paintDoneChangesRef.current = paintDoneChanges;
 
   // ═══ Half-stitch marking helpers ═══
   function hitTestHalfStitch(localX, localY, cellSize, margin) {
@@ -8876,6 +8992,214 @@ function TrackerApp({
     const hs = halfStitches.get(idx);
     return hs && hs[dir] && hs[dir].id === focusColour;
   }
+
+  // ═══ Parking ═══
+  // A park marker shows where a thread is waiting on the front of the fabric.
+  // The thread parked on a stitch is that stitch's colour, so the marker takes
+  // its colour from the stitch and there is nothing to pick first (Pattern
+  // Keeper and Markup R-XP work the same way). Parking a stitch that already
+  // holds its marker removes it. Reached by right-click (desktop, any mode) or
+  // press-and-hold in Navigate mode (touch). Returns true if anything changed.
+  function toggleParkAt(gx, gy) {
+    if (!pat || !cmap || gx < 0 || gx >= sW || gy < 0 || gy >= sH) return false;
+    const idx = gy * sW + gx;
+    const cell = pat[idx];
+    if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return false;
+    const info = cmap[cell.id];
+    if (!info) return false;
+    const cur = doneRef.current || done;
+    if (cur && cur[idx]) {
+      try {
+        if (window.Toast && window.Toast.show) window.Toast.show({
+          message: "That stitch is already done. Park on the next stitch you'll make in this colour.",
+          type: "info",
+          duration: 3000
+        });
+      } catch (_) {}
+      return false;
+    }
+    const colorId = cell.id;
+    setParkMarkers(prev => {
+      const existing = prev.some(m => m.x === gx && m.y === gy);
+      if (existing) return prev.filter(m => m.x !== gx || m.y !== gy);
+      // Multi-colour parking — Option A: auto-rotate corners.
+      // Pick the next free corner at this cell in [BL, BR, TR, TL]
+      // order so markers already on the cell (e.g. synced from an older
+      // version that parked any colour anywhere) are not overdrawn. If all
+      // four are taken, replace the OLDEST marker at this cell (FIFO).
+      const ORDER = ["BL", "BR", "TR", "TL"];
+      const atCell = prev.filter(m => m.x === gx && m.y === gy);
+      const used = new Set(atCell.map(m => m.corner || "BL"));
+      let corner = ORDER.find(c => !used.has(c));
+      let next = prev;
+      if (!corner) {
+        // All four corners occupied — evict the oldest at this cell.
+        const oldestIdx = prev.findIndex(m => m === atCell[0]);
+        if (oldestIdx >= 0) next = prev.filter((_, i) => i !== oldestIdx);
+        corner = atCell[0].corner || "BL";
+      }
+      return [...next, {
+        x: gx,
+        y: gy,
+        colorId,
+        rgb: info.rgb,
+        corner
+      }];
+    });
+    return true;
+  }
+
+  // Desktop: right-click a stitch to park / unpark it, in Mark or Navigate
+  // mode. A touch long-press also raises contextmenu; in Mark mode that
+  // gesture belongs to useDragMark's rectangle select, and in Navigate mode
+  // the press-and-hold recogniser below does the parking, so for touch we
+  // only keep the browser's own menu out of the way.
+  function handleStitchContextMenu(e) {
+    if (dragMarkHandlers.onContextMenu) dragMarkHandlers.onContextMenu(e);
+    if (e.defaultPrevented || isEditMode || !pat) return;
+    if (lastPointerTypeRef.current !== "mouse") {
+      if (stitchMode === "navigate") e.preventDefault();
+      return;
+    }
+    if (Date.now() - lastSecondaryPressRef.current > 1000) return;
+    const gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
+    // Off the chart (the gutter): leave the browser menu alone.
+    if (!gc || gc.gx < 0 || gc.gx >= sW || gc.gy < 0 || gc.gy >= sH) return;
+    e.preventDefault();
+    toggleParkAt(gc.gx, gc.gy);
+  }
+  function handleStitchKeyDown(e) {
+    if (e.key !== "ContextMenu" && !(e.shiftKey && e.key === "F10")) return;
+    const guide = guideRef.current;
+    if (!guide || guide.row < 0 || guide.row >= sH || guide.col < 0 || guide.col >= sW) return;
+    e.preventDefault();
+    toggleParkAt(guide.col, guide.row);
+  }
+
+  // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
+  // phase handlers so they sit alongside useDragMark's (idle in this mode)
+  // rather than replacing them. The hold is abandoned if the finger moves
+  // past the tap slop, a second finger lands (pinch), or the browser takes
+  // the gesture over for a native pan (pointercancel).
+  function clearNavHold() {
+    const h = navHoldRef.current;
+    if (h) {
+      clearTimeout(h.timer);
+      navHoldRef.current = null;
+    }
+  }
+  // Ctrl+click is the Mac secondary click: it parks (via contextmenu) and must
+  // not also mark the stitch or move the guide.
+  function isMacSecondaryClick(e) {
+    return e.button === 0 && e.ctrlKey && !!(window.Shortcuts && window.Shortcuts.isMac && window.Shortcuts.isMac());
+  }
+  function handleCanvasPointerDownCapture(e) {
+    lastPointerTypeRef.current = e.pointerType || "mouse";
+    if (e.button === 2 || isMacSecondaryClick(e)) lastSecondaryPressRef.current = Date.now();
+    clearNavHold();
+    if (stitchMode !== "navigate" || isEditMode || !pat) return;
+    if (!e.pointerType || e.pointerType === "mouse" || e.isPrimary === false) return;
+    const x = e.clientX,
+      y = e.clientY;
+    const ms = window.TouchConstants && window.TouchConstants.LONG_PRESS_MS || 500;
+    const timer = setTimeout(() => {
+      navHoldRef.current = null;
+      const gc = gridCoord(stitchRef, {
+        clientX: x,
+        clientY: y
+      }, scs, G, false, chartTileRef.current);
+      if (!gc) return;
+      // The finger lifting after a hold can still produce a compatibility
+      // mousedown, which would move the guide crosshair onto the stitch.
+      suppressNavClickUntilRef.current = Date.now() + 800;
+      if (toggleParkAt(gc.gx, gc.gy)) {
+        try {
+          if (navigator.vibrate) navigator.vibrate(10);
+        } catch (_) {}
+      }
+    }, ms);
+    navHoldRef.current = {
+      timer,
+      x,
+      y,
+      id: e.pointerId
+    };
+  }
+  function handleCanvasPointerMoveCapture(e) {
+    const h = navHoldRef.current;
+    if (!h || e.pointerId !== h.id) return;
+    const slop = window.TouchConstants && window.TouchConstants.TAP_SLOP_PX || 10;
+    if (Math.abs(e.clientX - h.x) > slop || Math.abs(e.clientY - h.y) > slop) clearNavHold();
+  }
+  useEffect(() => clearNavHold, []);
+
+  // Navigate-mode press (mouse, or the compatibility mousedown after a touch
+  // tap). Tracked on window so a drag keeps panning when the pointer leaves
+  // the canvas. Past a few pixels it is a pan — the same absolute-scroll maths
+  // as startPan/doPan, so handleStitchMouseMove's doPan agrees while the
+  // pointer is over the canvas. Otherwise, on release, it toggles the guide.
+  const NAV_DRAG_PX = 4;
+  const navPressCleanupRef = useRef(null);
+  function beginNavPress(e, gx, gy) {
+    const el = stitchScrollRef.current;
+    if (!el) return;
+    if (navPressCleanupRef.current) navPressCleanupRef.current();
+    const press = {
+      x: e.clientX,
+      y: e.clientY,
+      sl: el.scrollLeft,
+      st: el.scrollTop,
+      dragging: false
+    };
+    const move = ev => {
+      const dx = ev.clientX - press.x,
+        dy = ev.clientY - press.y;
+      if (!press.dragging) {
+        if (Math.abs(dx) <= NAV_DRAG_PX && Math.abs(dy) <= NAV_DRAG_PX) return;
+        press.dragging = true;
+        panStart.current = {
+          x: press.x,
+          y: press.y,
+          scrollX: press.sl,
+          scrollY: press.st
+        };
+        setIsPanning(true);
+      }
+      el.scrollLeft = press.sl - dx;
+      el.scrollTop = press.st - dy;
+    };
+    const cleanup = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      navPressCleanupRef.current = null;
+    };
+    const up = () => {
+      cleanup();
+      if (press.dragging) {
+        setIsPanning(false);
+        return;
+      }
+      toggleGuideAt(gx, gy);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    navPressCleanupRef.current = cleanup;
+  }
+  useEffect(() => () => {
+    if (navPressCleanupRef.current) navPressCleanupRef.current();
+  }, []);
+  // Place the guide crosshair on a cell, or clear it if it is already there.
+  function toggleGuideAt(gx, gy) {
+    if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
+    const g = guideRef.current;
+    if (g.row === gy && g.col === gx) {
+      setHlRow(-1);
+      setHlCol(-1);
+    } else {
+      setHlRow(gy);
+      setHlCol(gx);
+    }
+  }
   function handleStitchMouseDown(e) {
     if (!stitchRef.current || !pat) return;
     if (e.button === 1 || isSpaceDownRef.current) {
@@ -8883,6 +9207,9 @@ function TrackerApp({
       startPan(e);
       return;
     }
+    // Right-click parks (handleStitchContextMenu). Without this a right-click
+    // also moved the guide in Navigate mode and toggled half stitches in Mark.
+    if (e.button === 2 || isMacSecondaryClick(e)) return;
     // Alt+click: relocate the spotlight focus block to the clicked cell's block.
     // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
     // No-op when spotlight is off or the stitching style has no spatial blocks.
@@ -8923,52 +9250,27 @@ function TrackerApp({
       }
       return;
     }
-    let gc = gridCoord(stitchRef, e, scs, G, stitchMode === "navigate" && selectedColorId, chartTileRef.current);
+    // Always the cell under the pointer. Park markers are drawn inside a cell
+    // (a corner triangle), so placing them must not round to the nearest grid
+    // line — that put three clicks in four on a neighbouring cell.
+    let gc = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
     if (!gc) return;
     let {
       gx,
       gy
     } = gc;
     if (stitchMode === "navigate") {
-      if (e.shiftKey || !selectedColorId || !cmap || !cmap[selectedColorId]) {
-        let gc2 = gridCoord(stitchRef, e, scs, G, false, chartTileRef.current);
-        if (gc2 && gc2.gx >= 0 && gc2.gx < sW && gc2.gy >= 0 && gc2.gy < sH) {
-          setHlRow(gc2.gy);
-          setHlCol(gc2.gx);
-        }
-      } else {
-        if (gx >= 0 && gx < sW && gy >= 0 && gy < sH) {
-          let existing = parkMarkers.findIndex(m => m.x === gx && m.y === gy && m.colorId === selectedColorId);
-          if (existing >= 0) setParkMarkers(prev => prev.filter((_, i) => i !== existing));else setParkMarkers(prev => {
-            // Multi-colour parking — Option A: auto-rotate corners.
-            // Pick the next free corner at this cell in [BL, BR, TR, TL]
-            // order so up to 4 colours can be parked on the same cell
-            // without visually overwriting each other. If all four are
-            // taken, replace the OLDEST marker at this cell (FIFO).
-            const ORDER = ["BL", "BR", "TR", "TL"];
-            const atCell = prev.filter(m => m.x === gx && m.y === gy);
-            const used = new Set(atCell.map(m => m.corner || "BL"));
-            let corner = ORDER.find(c => !used.has(c));
-            let next = prev;
-            if (!corner) {
-              // All four corners occupied — evict the oldest at this cell.
-              const oldestIdx = prev.findIndex(m => m === atCell[0]);
-              if (oldestIdx >= 0) next = prev.filter((_, i) => i !== oldestIdx);
-              corner = atCell[0].corner || "BL";
-            }
-            return [...next, {
-              x: gx,
-              y: gy,
-              colorId: selectedColorId,
-              rgb: cmap[selectedColorId].rgb,
-              corner
-            }];
-          });
-        }
-      }
+      // Navigate mode is a hand tool: press and drag pans the chart; a press
+      // released without moving places the guide crosshair, or clears it if
+      // it is already on that cell. Parking is right-click or press-and-hold
+      // (toggleParkAt).
+      if (Date.now() < suppressNavClickUntilRef.current) return;
+      e.preventDefault();
+      beginNavPress(e, gx, gy);
       return;
     }
     if (gx < 0 || gx >= sW || gy < 0 || gy >= sH || !done) return;
+    if (areaOn && !window.WorkArea.contains(workArea, gx, gy)) return;
     let idx = gy * sW + gx;
 
     // ═══ Tracker: Marking half stitches as done (track mode) ═══
@@ -9550,6 +9852,12 @@ function TrackerApp({
         setLeftSidebarOpen(false);
         return;
       }
+      // Last: in Navigate mode, Esc clears the guide crosshair.
+      if (stitchMode === "navigate" && hlRow >= 0 && hlCol >= 0) {
+        setHlRow(-1);
+        setHlCol(-1);
+        return;
+      }
     }
   },
   // History / save (modified — fire from inputs by default).
@@ -9860,7 +10168,7 @@ function TrackerApp({
     scope: "tracker.notedit",
     description: "Jump to next remaining stitch of focus colour",
     run: () => jumpToNextStitch()
-  }], [stitchView, isEditMode, focusableColors, isActive, namePromptOpen, modal, showExitEditModal, cellEditPopover, importDialog, tOverflowOpen, drawer, halfDisambig, focusColour, pat, pal, undoSnapshot, countsVer, trackHistory, redoStack, highlightMode, manuallyPaused, layerVis, colourDoneCounts, focusEnabled, focusBlock, stitchingStyle, blockW, blockH, sW, sH, startCorner]);
+  }], [stitchView, isEditMode, focusableColors, isActive, namePromptOpen, modal, showExitEditModal, cellEditPopover, importDialog, tOverflowOpen, drawer, halfDisambig, focusColour, pat, pal, undoSnapshot, countsVer, trackHistory, redoStack, highlightMode, manuallyPaused, layerVis, colourDoneCounts, focusEnabled, focusBlock, stitchingStyle, blockW, blockH, sW, sH, startCorner, stitchMode, hlRow, hlCol]);
 
   // Update stable handler refs every render (cheap assignment, no DOM work)
   wheelHandlerRef.current = handleStitchWheel;
@@ -10006,7 +10314,7 @@ function TrackerApp({
     // PERF: paint just the changed cells directly instead of a full-viewport
     // renderStitch() redraw (previously called here unconditionally on every
     // drag-mark commit, then AGAIN via the done-dependent useEffect below).
-    for (let i = 0; i < changes.length; i++) drawCellDirectly(changes[i].idx, want);
+    paintDoneChangesRef.current(changes, nd);
     skipNextFullRedrawRef.current = true;
     setDone(nd);
     _pulseCells(changes.map(function (c) {
@@ -10061,7 +10369,9 @@ function TrackerApp({
     // PERF: paint just this cell directly instead of a full-viewport renderStitch()
     // redraw (previously called here unconditionally on every single tap, then
     // AGAIN via the done-dependent useEffect below).
-    drawCellDirectly(idx, nv);
+    paintDoneChangesRef.current([{
+      idx: idx
+    }], nd);
     skipNextFullRedrawRef.current = true;
     setDone(nd);
     // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
@@ -10521,28 +10831,7 @@ function TrackerApp({
       lineHeight: 1,
       display: 'inline-flex'
     }
-  }, Icons.x ? Icons.x() : null)), !sessionOnboardingShown && liveAutoStitches > 0 && statsSessions.length === 0 && /*#__PURE__*/React.createElement("div", {
-    className: "session-onboarding-toast"
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6
-    }
-  }, Icons.info ? Icons.info() : null, " Sessions are tracked automatically as you stitch. View stats via the ", Icons.barChart ? /*#__PURE__*/React.createElement("span", {
-    "aria-hidden": "true",
-    style: {
-      display: 'inline-flex',
-      verticalAlign: '-3px'
-    }
-  }, Icons.barChart()) : null, " button in the Session panel."), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
-      setSessionOnboardingShown(true);
-      try {
-        localStorage.setItem("cs_sessionOnboardingDone", "1");
-      } catch (_) {}
-    }
-  }, "Got it")), focusEnabled && focusBlock && stitchingStyle !== "crosscountry" && /*#__PURE__*/React.createElement("div", {
+  }, Icons.x ? Icons.x() : null)), focusEnabled && focusBlock && stitchingStyle !== "crosscountry" && /*#__PURE__*/React.createElement("div", {
     className: "focus-block-nav"
   }, /*#__PURE__*/React.createElement("div", {
     className: "focus-block-chip",
@@ -11030,9 +11319,9 @@ function TrackerApp({
     className: "ppal-sort-btn" + (legendSort === k ? " ppal-sort-btn--on" : ""),
     onClick: () => setLegendSort(k),
     "aria-pressed": legendSort === k
-  }, l))), focusColour && cmap && cmap[focusColour] ? (() => {
+  }, l))), focusColour && cmap && cmap[focusColour] && (!areaColourCounts || (scopedColourCounts[focusColour] || {}).total + (scopedColourCounts[focusColour] || {}).halfTotal > 0) ? (() => {
     const fc = cmap[focusColour];
-    const dc = colourDoneCounts[focusColour] || {
+    const dc = scopedColourCounts[focusColour] || {
       total: 0,
       done: 0,
       halfTotal: 0,
@@ -11288,7 +11577,7 @@ function TrackerApp({
         gridTemplateColumns: "1fr 1fr",
         gap: "6px 24px"
       }
-    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place crosshair", "Click on any cell to drop a guide"] : null, stitchMode === "navigate" ? ["Park marker", "Select a colour, then click to place a marker"] : null].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
+    }, [["Pan", isTouch ? "Drag one finger across the canvas" : "Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"], ["Zoom in / out", isTouch ? "Pinch two fingers apart / together" : "Ctrl + scroll  ·  or use − / + buttons"], ["Zoom to fit", "Tap the Fit button"], ["Mark a stitch", isTouch ? "Tap a cell" : "Click a cell"], ["Mark multiple", isTouch ? "Tap, then drag across cells" : "Click + drag across cells — all set to same state"], ["Select a rectangle", isTouch ? "Long-press a cell, then tap another" : "Hold Shift + click another cell"], ["Undo last marks", "Undo button (top right)"], stitchView === "highlight" ? ["Cycle colours", isTouch ? "Open the Highlight tab in the sidebar" : "[ or ] keys"] : null, stitchView === "highlight" ? ["Clear focus", "Tap the colour pill to show all colours"] : null, stitchMode === "navigate" ? ["Place a guide", isTouch ? "Tap a cell to drop a crosshair. Tap it again to clear it" : "Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"] : null, ["Park a thread", isTouch ? "In Nav mode, press and hold a stitch. Do it again to remove the marker" : "Right-click a stitch. Right-click again to remove the marker"]].filter(Boolean).map(([label, tip], i) => /*#__PURE__*/React.createElement("div", {
       key: i,
       style: {
         display: "contents"
@@ -11429,7 +11718,7 @@ function TrackerApp({
         marginBottom: 6,
         border: "0.5px solid var(--border)"
       }
-    }, selectedColorId ? "Click to park. Shift+click to move guide." : "Click to place guide crosshair", hasTouchRef.current ? "" : " · T for track mode");
+    }, hasTouchRef.current ? "Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread" : "Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode");
     if (!shortcutsHintDismissed && pat && trackerLoadCount >= 3) return /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 'var(--text-sm)',
@@ -11542,6 +11831,8 @@ function TrackerApp({
   })(), areaPickerOpen && pat && window.WorkAreaPicker && React.createElement(window.WorkAreaPicker, {
     pat,
     done,
+    halfStitches,
+    halfDone,
     sW,
     sH,
     blockW,
@@ -11568,7 +11859,7 @@ function TrackerApp({
       border: "0.5px solid var(--border)",
       borderRadius: "8px 8px 0 0",
       background: "var(--surface-tertiary)",
-      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? isShiftDown && _dragMarkActive ? "cell" : "crosshair" : "default",
+      cursor: isPanning ? "grabbing" : isSpaceDownRef.current ? "grab" : !isEditMode && stitchMode === "track" ? isShiftDown && _dragMarkActive ? "cell" : "crosshair" : !isEditMode && stitchMode === "navigate" ? "grab" : "default",
       transition: "max-height 0.3s",
       position: "relative"
     },
@@ -11632,18 +11923,26 @@ function TrackerApp({
     ref: stitchRef,
     role: "application",
     tabIndex: "0",
-    "aria-label": "Cross stitch pattern grid",
+    "aria-label": "Cross stitch pattern grid. Use Shift+F10 or Menu to park at the guide.",
     style: {
       display: "block",
       position: "absolute",
       zIndex: 2,
       left: -G,
       top: -G,
-      touchAction: _dragMarkActive ? "none" : "pan-x pan-y"
+      touchAction: _dragMarkActive ? "none" : "pan-x pan-y",
+      WebkitTouchCallout: "none"
     },
     onMouseDown: handleStitchMouseDown,
-    onMouseMove: handleStitchMouseMove
-  }, dragMarkHandlers)), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
+    onMouseMove: handleStitchMouseMove,
+    onKeyDown: handleStitchKeyDown
+  }, dragMarkHandlers, {
+    onContextMenu: handleStitchContextMenu,
+    onPointerDownCapture: handleCanvasPointerDownCapture,
+    onPointerMoveCapture: handleCanvasPointerMoveCapture,
+    onPointerUpCapture: clearNavHold,
+    onPointerCancelCapture: clearNavHold
+  })), _dragMarkActive && dragMarkState && (dragMarkState.path.size > 0 || dragMarkState.anchor != null || dragMarkPulse) && /*#__PURE__*/React.createElement("div", {
     className: "drag-mark-overlay drag-mark-overlay--" + (dragMarkState.intent || 'mark'),
     style: {
       position: "absolute",
@@ -11864,11 +12163,11 @@ function TrackerApp({
   }, isEditMode ? "Modify" : "Mark")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn" + (stitchMode === "navigate" ? " ppal-mode-btn--on" : ""),
     onClick: () => setStitchMode("navigate"),
-    title: "Navigate / park (N)",
+    title: "Navigate (N)",
     "aria-pressed": stitchMode === "navigate"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-icon"
-  }, Icons.parkFlag()), /*#__PURE__*/React.createElement("span", {
+  }, Icons.hand()), /*#__PURE__*/React.createElement("span", {
     className: "ppal-mode-btn-label"
   }, "Nav")), /*#__PURE__*/React.createElement("button", {
     className: "ppal-mode-btn",

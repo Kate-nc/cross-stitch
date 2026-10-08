@@ -184,7 +184,7 @@ describe("HelpDrawer — content migration coverage", () => {
       "Eyedropper",
       "Open the command palette",
       "Switch to Track mode (mark stitches done)",
-      "Switch to Navigate mode (crosshair and parking markers)",
+      "Switch to Navigate mode (drag to pan, click to place the guide)",
       "Toggle the colours drawer",
       "Hold to pan the canvas freely",
       "Open Bulk Add Threads"
