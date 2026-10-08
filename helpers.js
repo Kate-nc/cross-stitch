@@ -1542,6 +1542,10 @@ function sectionColor(pct){
 }
 
 // ═══ Visual Progress: Comparison canvas renderers ═══
+// A cell straight from storage may lack rgb (stripCellForSave drops it when
+// the catalogue can rebuild it), so fall back to grey rather than throw.
+function comparisonCellFill(m){var c=m.rgb||[128,128,128];return'rgb('+c[0]+','+c[1]+','+c[2]+')';}
+
 // Renders a mini-canvas showing the done-state of a pattern.
 // doneArray: Uint8Array (or array-like) of 0/1 values, same length as pat.
 function renderComparisonCanvas(canvas,pat,sW,sH,doneArray){
@@ -1551,7 +1555,7 @@ function renderComparisonCanvas(canvas,pat,sW,sH,doneArray){
   for(var y=0;y<sH;y++){for(var x=0;x<sW;x++){
     var idx=y*sW+x;var m=pat[idx];
     if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
-    else if(doneArray&&doneArray[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else if(doneArray&&doneArray[idx]){ctx.fillStyle=comparisonCellFill(m);}
     else{ctx.fillStyle='#e8e8e8';}
     ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
   }}
@@ -1565,7 +1569,7 @@ function renderDiffCanvas(canvas,pat,sW,sH,oldDone,newDone){
   for(var idx=0;idx<pat.length;idx++){
     var x=idx%sW,y=Math.floor(idx/sW);var m=pat[idx];
     if(!m||m.id==='__skip__'||m.id==='__empty__'){ctx.fillStyle='#f8f8f8';}
-    else if(!oldDone[idx]&&newDone[idx]){ctx.fillStyle='rgb('+m.rgb[0]+','+m.rgb[1]+','+m.rgb[2]+')';}
+    else if(!oldDone[idx]&&newDone[idx]){ctx.fillStyle=comparisonCellFill(m);}
     else if(newDone[idx]){ctx.fillStyle='#e0e0e0';}
     else{ctx.fillStyle='#f8f8f8';}
     ctx.fillRect(x*cSz,y*cSz,cSz,cSz);
