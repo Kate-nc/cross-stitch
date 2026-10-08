@@ -87,7 +87,7 @@
       },
       {
         title: "Mark and Navigate modes",
-        body: "Switch between Mark (tap stitches to mark them done) and Navigate (drag to move around, tap to place a guide crosshair). To park a thread, right-click its stitch, or press and hold it in Navigate mode.",
+        body: "Switch between Mark (tap or drag across stitches to mark them done; use two fingers to move around) and Navigate (drag to move around, tap to place a guide crosshair). To park a thread, right-click its stitch, or press and hold it in Navigate mode.",
         tip: "Press T for Mark and N for Navigate."
       }
     ]

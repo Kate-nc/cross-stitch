@@ -1167,8 +1167,25 @@ function renderHoverBar(){
   if(c){
     text="Row: "+(c.row+1)+"   Col: "+(c.col+1);
     if(info&&info.row===c.row+1&&info.col===c.col+1)text+="  —   DMC "+info.id+" "+info.name;
+  }else{
+    // Nothing under the pointer (always the case on touch): describe the
+    // guide crosshair, if there is one.
+    const g=guideRef.current;
+    if(g&&g.row>=0&&g.col>=0){
+      text="Guide   Row: "+(g.row+1)+"   Col: "+(g.col+1);
+      const lbl=cellThreadLabel(g.row*sW+g.col);
+      if(lbl)text+="  —   "+lbl;
+    }
   }
   if(el.textContent!==text)el.textContent=text;
+}
+// "DMC 310 Black" for a stitch, or "" for an empty / skipped cell.
+function cellThreadLabel(idx){
+  const cell=pat&&pat[idx];
+  if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return "";
+  if(cell.type==="blend"&&cell.threads)return "DMC "+cell.id+" "+cell.threads[0].name+"+"+cell.threads[1].name;
+  const ci=cmap&&cmap[cell.id];
+  return "DMC "+cell.id+(ci&&ci.name?" "+ci.name:"");
 }
 function setHoverInfo(info){
   const prev=hoverInfoRef.current;
@@ -1353,7 +1370,7 @@ useEffect(()=>{
     window.removeEventListener("blur",onBlur);
   };
 },[]);
-const touchStateRef=useRef({mode:"none",startX:0,startY:0,pinchDist:0,tapIdx:-1,tapVal:0,pinchAnchorCanvas:null,pinchAnchorScreen:null});
+const touchStateRef=useRef({mode:"none",pinchDist:0,pinchZoom:1,pinchAnchor:null});
 const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // Parking gestures (see toggleParkAt): the pointer type behind the latest
 // press, so a contextmenu event can tell a right-click from a touch
@@ -1364,6 +1381,8 @@ const lastPointerTypeRef=useRef("mouse");
 // hit the canvas. Only a contextmenu right after one parks: the menu can
 // also come from the keyboard (Menu key, Shift+F10), with no cell meant.
 const lastSecondaryPressRef=useRef(0);
+// Screen-reader announcement of the guide as the arrow keys move it.
+const guideLiveRef=useRef(null);
 const navHoldRef=useRef(null);
 const suppressNavClickUntilRef=useRef(0);
 // Stable handler refs — point to latest function each render; listeners attach once
@@ -2593,6 +2612,12 @@ function pushBulkToggleHistory(changes, source){
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let lastEntry=trackHistory[trackHistory.length-1];
+  if(lastEntry&&lastEntry.type==="PARK"){
+    applyParkEntry(lastEntry,false);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
   let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
@@ -2610,6 +2635,12 @@ function undoTrack(){
 function redoTrack(){
   if(!redoStack.length||!done)return;
   let lastEntry=redoStack[redoStack.length-1];
+  if(lastEntry&&lastEntry.type==="PARK"){
+    applyParkEntry(lastEntry,true);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   let last=_historyChanges(lastEntry);
   let nd=new Uint8Array(done);
   let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
@@ -4878,6 +4909,7 @@ const prevGuidePaintRef=useRef(null);
 useEffect(()=>{
   const prev=prevGuidePaintRef.current;
   prevGuidePaintRef.current={row:hlRow,col:hlCol};
+  renderHoverBar();
   if(!prev||(prev.row===hlRow&&prev.col===hlCol))return;
   const strips=[prev,{row:hlRow,col:hlCol}];
   for(const g of strips){
@@ -5607,7 +5639,8 @@ function toggleParkAt(gx,gy){
     return false;
   }
   const colorId=cell.id;
-  setParkMarkers(prev=>{
+  const prev=parkMarkersRef.current;
+  const next=(()=>{
     const existing=prev.some(m=>m.x===gx&&m.y===gy);
     if(existing)return prev.filter(m=>m.x!==gx||m.y!==gy);
     // Multi-colour parking — Option A: auto-rotate corners.
@@ -5627,8 +5660,33 @@ function toggleParkAt(gx,gy){
       corner=atCell[0].corner||"BL";
     }
     return[...next,{x:gx,y:gy,colorId,rgb:info.rgb,corner}];
-  });
+  })();
+  commitParkMarkers(prev,next);
   return true;
+}
+
+// Park changes are steps in the same undo history as stitch marks, so the
+// Undo button and Ctrl+Z undo whatever was done last. Stored as a diff
+// (markers added / removed) rather than a snapshot, so undoing cannot bring
+// back markers that changed some other way since (sync, load pruning).
+function sameParkMarker(a,b){return a.x===b.x&&a.y===b.y&&a.colorId===b.colorId&&(a.corner||"BL")===(b.corner||"BL");}
+function commitParkMarkers(prev,next){
+  const added=next.filter(m=>!prev.some(o=>sameParkMarker(o,m)));
+  const removed=prev.filter(m=>!next.some(o=>sameParkMarker(o,m)));
+  if(!added.length&&!removed.length)return;
+  // Ahead of the render, so a second toggle in the same frame sees this one.
+  parkMarkersRef.current=next;
+  setParkMarkers(next);
+  setTrackHistory(h=>{let n=[...h,{type:"PARK",added,removed}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
+// Apply a PARK history entry forwards (redo) or backwards (undo).
+function applyParkEntry(entry,forward){
+  const add=forward?entry.added:entry.removed, drop=forward?entry.removed:entry.added;
+  const cur=parkMarkersRef.current;
+  const next=cur.filter(m=>!drop.some(o=>sameParkMarker(o,m))).concat(add.filter(m=>!cur.some(o=>sameParkMarker(o,m))));
+  parkMarkersRef.current=next;
+  setParkMarkers(next);
 }
 
 // Desktop: right-click a stitch to park / unpark it, in Mark or Navigate
@@ -5652,12 +5710,49 @@ function handleStitchContextMenu(e){
 }
 
 function handleStitchKeyDown(e){
+  // Navigate mode, chart focused: the arrow keys move the guide crosshair
+  // (Shift: 10 stitches), so the guide — and parking at it with Menu or
+  // Shift+F10 below — works without a pointer. Claimed here, before the
+  // shortcut registry, which skips events that are already handled.
+  if(stitchMode==="navigate"&&!isEditMode&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&GUIDE_KEYS[e.key]){
+    e.preventDefault();
+    moveGuideBy(GUIDE_KEYS[e.key][0]*(e.shiftKey?10:1),GUIDE_KEYS[e.key][1]*(e.shiftKey?10:1));
+    return;
+  }
   if(e.key!=="ContextMenu"&&!(e.shiftKey&&e.key==="F10"))return;
   const guide=guideRef.current;
   if(!guide||guide.row<0||guide.row>=sH||guide.col<0||guide.col>=sW)return;
   e.preventDefault();
   toggleParkAt(guide.col,guide.row);
 }
+
+const GUIDE_KEYS={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
+// Move the guide by (dx,dy) stitches — or, with no guide yet, drop it at the
+// middle of the view — keeping it inside the chart (or the work area's view)
+// and on screen, and announce where it is for screen readers.
+function moveGuideBy(dx,dy){
+  const el=stitchScrollRef.current;
+  if(!el||!pat||!(scs>0))return;
+  const off=chartScrollOffset();
+  const vx0=(el.scrollLeft+off.x-G)/scs,vy0=(el.scrollTop+off.y-G)/scs;
+  const vx1=vx0+el.clientWidth/scs,vy1=vy0+el.clientHeight/scs;
+  const vb=viewBoundsRef.current;
+  const bx0=vb?vb.x0:0,by0=vb?vb.y0:0,bx1=vb?vb.x1:sW,by1=vb?vb.y1:sH;
+  const g=guideRef.current;
+  let col,row;
+  if(g.row<0||g.col<0){col=Math.floor((vx0+vx1)/2);row=Math.floor((vy0+vy1)/2);}
+  else{col=g.col+dx;row=g.row+dy;}
+  col=Math.max(bx0,Math.min(bx1-1,col));row=Math.max(by0,Math.min(by1-1,row));
+  setHlRow(row);setHlCol(col);
+  if(col<vx0+1||col>vx1-2||row<vy0+1||row>vy1-2)centreOnCell(col,row);
+  const live=guideLiveRef.current;
+  if(live){const lbl=cellThreadLabel(row*sW+col);live.textContent="Guide at row "+(row+1)+", column "+(col+1)+(lbl?", "+lbl:"");}
+}
+useEffect(()=>{
+  if(hlRow<0||hlCol<0)return;
+  const live=guideLiveRef.current;
+  if(live){const lbl=cellThreadLabel(hlRow*sW+hlCol);live.textContent="Guide at row "+(hlRow+1)+", column "+(hlCol+1)+(lbl?", "+lbl:"");}
+},[hlRow,hlCol,pat,cmap,sW]);
 
 // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
 // phase handlers so they sit alongside useDragMark's (idle in this mode)
@@ -5743,6 +5838,7 @@ function toggleGuideAt(gx,gy){
 
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
+  stopPanMomentum();
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Right-click parks (handleStitchContextMenu). Without this a right-click
   // also moved the guide in Navigate mode and toggled half stitches in Mark.
@@ -5858,7 +5954,7 @@ function handleStitchMouseMove(e){
 
   if(dragStateRef.current.isDragging) {
     setHoverInfo(null);
-  } else if(stitchMode==="track" && pat && gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH){
+  } else if(pat && gc && gc.gx>=0 && gc.gx<sW && gc.gy>=0 && gc.gy<sH){
     let idx=gc.gy*sW+gc.gx;
     let cell=pat[idx];
     if(cell && cell.id!=="__skip__" && cell.id!=="__empty__"){
@@ -5965,98 +6061,117 @@ function chartOwnsGesture(e){
   return e.touches.length>1||_dragMarkActive;
 }
 
+// Two-finger pan momentum: after a pan (not a pinch) the chart coasts and
+// slows, as native one-finger scrolling does in Navigate mode. Any new touch
+// or press stops it; off when the system asks for reduced motion.
+const panMomentumRafRef=useRef(null);
+function stopPanMomentum(){
+  if(panMomentumRafRef.current){cancelAnimationFrame(panMomentumRafRef.current);panMomentumRafRef.current=null;}
+}
+function startPanMomentum(vx,vy){
+  stopPanMomentum();
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  try{if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;}catch(_){}
+  let last=performance.now();
+  const step=now=>{
+    const dt=Math.min(64,now-last);last=now;
+    // Fingers moved by v px/ms, so the content scrolls the other way.
+    el.scrollLeft-=vx*dt;el.scrollTop-=vy*dt;
+    const decay=Math.pow(0.995,dt);vx*=decay;vy*=decay;
+    if(Math.abs(vx)<0.02&&Math.abs(vy)<0.02){panMomentumRafRef.current=null;return;}
+    panMomentumRafRef.current=requestAnimationFrame(step);
+  };
+  panMomentumRafRef.current=requestAnimationFrame(step);
+}
+useEffect(()=>stopPanMomentum,[]);
+
 function handleTouchStart(e){
   if(!pat)return;
+  stopPanMomentum();
   // Conditional, not unconditional: calling preventDefault here is exactly
   // what forced every pan onto the main thread, because it cancels the native
   // scroll before it starts.
   if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
   if(e.touches.length===1){
-    // C3: single-finger TAP / DRAG-MARK / LONG-PRESS RANGE are owned by
-    // useDragMark via pointer events. We only record startX/startY/mode
-    // here so the > 8px PAN fallback in handleTouchMove can take over.
-    const t=e.touches[0];
-    ts.startX=t.clientX; ts.startY=t.clientY;
-    ts.mode="tap"; ts.tapIdx=-1;
+    // One finger: in Mark mode useDragMark owns tap / drag-mark / long-press
+    // range through pointer events; in Navigate mode the compositor pans.
+    // Nothing to track here.
+    ts.mode="tap";
   }else if(e.touches.length===2){
-    ts.mode="pinch"; ts.tapIdx=-1;
-    const dx=e.touches[1].clientX-e.touches[0].clientX;
-    const dy=e.touches[1].clientY-e.touches[0].clientY;
-    ts.pinchDist=Math.hypot(dx,dy);
+    // Two fingers pan and pinch-zoom the chart together, in every mode. The
+    // point between the fingers is recorded in zoom-independent content
+    // units, so each move can put it back under the current midpoint at the
+    // current zoom (same maths as handleStitchWheel).
+    ts.mode="pinch";
     const container=stitchScrollRef.current;
+    const t0=e.touches[0],t1=e.touches[1];
+    ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    ts.pinchZoom=stitchZoomRef.current;
+    ts.pinchSamples=[];
     if(container){
       const rect=container.getBoundingClientRect();
-      const midX=(e.touches[0].clientX+e.touches[1].clientX)/2-rect.left;
-      const midY=(e.touches[0].clientY+e.touches[1].clientY)/2-rect.top;
-      ts.pinchAnchorCanvas={x:container.scrollLeft+midX,y:container.scrollTop+midY};
-      ts.pinchAnchorScreen={x:midX,y:midY};
+      const midX=(t0.clientX+t1.clientX)/2-rect.left;
+      const midY=(t0.clientY+t1.clientY)/2-rect.top;
+      ts.pinchAnchor={x:(container.scrollLeft+midX)/ts.pinchZoom,y:(container.scrollTop+midY)/ts.pinchZoom};
     }
-    // End any active stitch drag
-    if(dragStateRef.current.isDragging&&dragChangesRef.current.length>0){
-      pushTrackHistory([...dragChangesRef.current]);
-      applyDoneCountsDelta(dragChangesRef.current,pat,done);
-      setDone(new Uint8Array(done)); dragChangesRef.current=[];
-    }
-    dragStateRef.current.isDragging=false;
   }
 }
 
-const PAN_THRESHOLD=8;
 function handleTouchMove(e){
   if(!pat)return;
   if(chartOwnsGesture(e))e.preventDefault();
   const ts=touchStateRef.current;
-  if(e.touches.length===1&&ts.mode!=="pinch"){
-    // When the compositor owns one-finger drags there is nothing to do here:
-    // scrolling it ourselves as well would move the chart at double speed.
-    if(_dragMarkActive){
-    const t=e.touches[0];
-    const dx=t.clientX-ts.startX, dy=t.clientY-ts.startY;
-    if(ts.mode==="tap"&&(Math.abs(dx)>PAN_THRESHOLD||Math.abs(dy)>PAN_THRESHOLD)){
-      ts.mode="pan"; ts.tapIdx=-1;
-      if(stitchScrollRef.current){
-        panStart.current={x:ts.startX,y:ts.startY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
-      }
-    }
-    if(ts.mode==="pan"&&stitchScrollRef.current){
-      stitchScrollRef.current.scrollLeft=panStart.current.scrollX-dx;
-      stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
-    }
-    }
-  }else if(e.touches.length===2&&ts.mode==="pinch"){
-    const dx=e.touches[1].clientX-e.touches[0].clientX;
-    const dy=e.touches[1].clientY-e.touches[0].clientY;
-    const newDist=Math.hypot(dx,dy);
-    if(ts.pinchDist>0){
-      const scale=newDist/ts.pinchDist;
-      const oldZoom=stitchZoomRef.current;
-      // maxZoom (not the bare 4) so zRatio below matches the zoom that is
-      // actually applied — otherwise the scroll jumps when the pinch is
-      // clamped at the device's canvas ceiling. Ceiling applied last, as in
-      // handleStitchWheel.
-      const newZoom=Math.min(maxZoom,Math.max(0.3,oldZoom*scale));
-      const container=stitchScrollRef.current;
-      if(container&&ts.pinchAnchorCanvas){
-        const zRatio=newZoom/oldZoom;
-        requestAnimationFrame(()=>{
-          container.scrollLeft=ts.pinchAnchorCanvas.x*zRatio-ts.pinchAnchorScreen.x;
-          container.scrollTop=ts.pinchAnchorCanvas.y*zRatio-ts.pinchAnchorScreen.y;
-        });
-      }
-      scheduleZoomUpdate(newZoom);
-    }
-    ts.pinchDist=newDist;
-  }
+  // One finger: nothing to do. In Mark mode it marks (useDragMark) and must
+  // not also pan — doing both moved the chart under the finger, so a drag
+  // panned erratically and left a few stray marks. In Navigate mode the
+  // compositor pans; scrolling here as well would double the speed.
+  if(e.touches.length!==2||ts.mode!=="pinch"||!(ts.pinchDist>0)||!ts.pinchAnchor)return;
+  const container=stitchScrollRef.current;
+  if(!container)return;
+  const t0=e.touches[0],t1=e.touches[1];
+  const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+  // Absolute from the gesture start rather than compounded per move, so the
+  // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
+  // the zoom actually applied; ceiling last, as in handleStitchWheel.
+  const newZoom=Math.min(maxZoom,Math.max(0.3,ts.pinchZoom*dist/ts.pinchDist));
+  const rect=container.getBoundingClientRect();
+  const midX=(t0.clientX+t1.clientX)/2-rect.left;
+  const midY=(t0.clientY+t1.clientY)/2-rect.top;
+  const a=ts.pinchAnchor;
+  // Recent midpoints, for the release velocity (handleTouchEnd).
+  const now=performance.now();
+  (ts.pinchSamples||(ts.pinchSamples=[])).push({t:now,x:midX,y:midY,z:newZoom});
+  while(ts.pinchSamples.length>2&&now-ts.pinchSamples[0].t>100)ts.pinchSamples.shift();
+  if(newZoom!==stitchZoomRef.current)scheduleZoomUpdate(newZoom);
+  // After the zoom render (same frame as scheduleZoomUpdate's rAF), so the
+  // content is already its new size when the scroll is clamped to it.
+  requestAnimationFrame(()=>{
+    container.scrollLeft=a.x*newZoom-midX;
+    container.scrollTop=a.y*newZoom-midY;
+  });
 }
 
 function handleTouchEnd(e){
   if(!pat)return;
-  // C3: tap toggle / range fill are owned by useDragMark. Touch handler
-  // only resets pinch + pan tracking state so the next gesture starts
-  // cleanly.
   const ts=touchStateRef.current;
-  ts.mode="none"; ts.tapIdx=-1; ts.pinchDist=0;
+  // A pinch ends when all fingers have lifted. A finger left on the
+  // glass does not start a new gesture (useDragMark has already abandoned
+  // the one-finger gesture the second finger interrupted).
+  if(e.touches&&e.touches.length>0)return;
+  // A two-finger pan that was still moving coasts on. Only a pan: if the
+  // zoom moved, this was a pinch, and coasting would fight it.
+  const sm=ts.pinchSamples;
+  if(ts.mode==="pinch"&&sm&&sm.length>=2){
+    const a=sm[0],b=sm[sm.length-1],dt=b.t-a.t;
+    const recent=performance.now()-b.t<80;
+    if(dt>0&&recent&&Math.abs(b.z/ts.pinchZoom-1)<0.03){
+      const vx=(b.x-a.x)/dt,vy=(b.y-a.y)/dt;
+      if(Math.hypot(vx,vy)>0.3)startPanMomentum(vx,vy);
+    }
+  }
+  ts.mode="none"; ts.pinchDist=0; ts.pinchAnchor=null; ts.pinchSamples=null;
 }
 
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}
@@ -6203,16 +6318,44 @@ function jumpToNextStitch(){
     return;
   }
   setHlRow(foundY);setHlCol(foundX);
-  if(stitchScrollRef.current){
-    const el=stitchScrollRef.current;
-    const off=chartScrollOffset();
-    const px=G+foundX*scs+scs/2-off.x,py=G+foundY*scs+scs/2-off.y;
-    try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
-    catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
-  }
+  centreOnCell(foundX,foundY);
+}
+// Scroll the chart so a cell is in the middle of the view.
+function centreOnCell(x,y){
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  const off=chartScrollOffset();
+  const px=G+x*scs+scs/2-off.x,py=G+y*scs+scs/2-off.y;
+  try{el.scrollTo({left:Math.max(0,px-el.clientWidth/2),top:Math.max(0,py-el.clientHeight/2),behavior:'smooth'});}
+  catch(_){el.scrollLeft=Math.max(0,px-el.clientWidth/2);el.scrollTop=Math.max(0,py-el.clientHeight/2);}
 }
 
-useShortcuts(!isActive ? [] : [
+// Where is that thread parked? The palette's P badge answers it (as Markup
+// R-XP's symbol list does): it brings the colour's park marker into view and
+// puts the guide on it, the way J does for the next stitch. With several
+// markers for one colour, each press moves to the next. A hidden colour is
+// shown first: jumping to a marker you cannot see would only confuse.
+const parkJumpIndexRef=useRef({});
+function goToParkedThread(colorId){
+  const list=parkMarkersRef.current.filter(m=>m.colorId===colorId&&!isParkSpent(m,doneRef.current||done));
+  if(!list.length)return;
+  if(parkLayers[colorId]===false)setParkLayers(prev=>{const n=Object.assign({},prev);delete n[colorId];return n;});
+  const i=(parkJumpIndexRef.current[colorId]||0)%list.length;
+  parkJumpIndexRef.current[colorId]=i+1;
+  const m=list[i];
+  if(areaOn&&workArea&&window.WorkArea&&!window.WorkArea.contains(workArea,m.x,m.y)){
+    const vb=viewBoundsRef.current;
+    if(!vb||m.x<vb.x0||m.x>=vb.x1||m.y<vb.y0||m.y>=vb.y1){
+      try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"DMC "+colorId+" is parked outside this work area, at row "+(m.y+1)+", column "+(m.x+1)+".",type:"info",duration:4000});}catch(_){}
+      return;
+    }
+  }
+  setHlRow(m.y);setHlCol(m.x);
+  centreOnCell(m.x,m.y);
+}
+
+// Built every render, so each entry's run() sees this render's state.
+const trackerShortcuts=!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
   // Esc semantics are implicit and documented in every modal.
   { id: "tracker.esc", keys: "esc", scope: "tracker", hidden: true,
@@ -6388,7 +6531,18 @@ useShortcuts(!isActive ? [] : [
   { id: "tracker.jumpNext", keys: "j", scope: "tracker.notedit",
     description: "Jump to next remaining stitch of focus colour",
     run: () => jumpToNextStitch() },
-],[stitchView,isEditMode,focusableColors,isActive,namePromptOpen,modal,showExitEditModal,cellEditPopover,importDialog,tOverflowOpen,drawer,halfDisambig,focusColour,pat,pal,undoSnapshot,countsVer,trackHistory,redoStack,highlightMode,manuallyPaused,layerVis,colourDoneCounts,focusEnabled,focusBlock,stitchingStyle,blockW,blockH,sW,sH,startCorner,stitchMode,hlRow,hlCol]);
+];
+// Registered once per activation, with run/when delegating by id to the entry
+// from the latest render. The list used to be re-registered from a long deps
+// array, and any state missing from it (leftSidebarOpen, hlRow, stitchMode)
+// left a shortcut reading stale values — Esc did not close the palette on
+// narrow screens.
+const trackerShortcutsRef=useRef(trackerShortcuts);
+trackerShortcutsRef.current=trackerShortcuts;
+useShortcuts(trackerShortcuts.map(entry=>Object.assign({},entry,{
+  run:evt=>{const cur=trackerShortcutsRef.current.find(x=>x.id===entry.id);if(cur)return cur.run(evt);},
+  when:entry.when?(evt=>{const cur=trackerShortcutsRef.current.find(x=>x.id===entry.id);return !!(cur&&(!cur.when||cur.when(evt)));}):undefined,
+})),[isActive]);
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
@@ -6600,6 +6754,7 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
 const dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
+const dragMarkReset=_dragMark.reset||(()=>{});
 // Keep the keyup/blur listener (registered once, on mount, above) calling
 // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
 dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
@@ -7090,9 +7245,9 @@ return(
                   <div className="ppal-tile-actions">
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
-                      onClick={e=>{e.stopPropagation();toggleParkLayer(p.id);}}
-                      aria-pressed={isParkLayerVisible(p.id)}
-                      title={(isParkLayerVisible(p.id)?"Hide":"Show")+" parked markers for DMC "+p.id}
+                      onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
+                      title={"Go to where DMC "+p.id+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
+                      aria-label={"Go to where DMC "+p.id+" is parked"}
                       style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     <button
@@ -7117,6 +7272,25 @@ return(
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
       <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?"Drag to select a rectangle, release to apply":"Shift held — drag from a cell to select a rectangle"}</span>
     </div>}
+    {/* Touch long-press in Mark mode anchors a rectangle. Say what happens
+        next, and offer the two other things a long-press can mean here:
+        parking a thread on that stitch (as Markup R-XP's long-press menu
+        does) and backing out, which had no gesture of its own. */}
+    {_dragMarkActive&&dragMarkState&&dragMarkState.mode==='range'&&dragMarkState.anchor!=null&&(()=>{
+      const a=dragMarkState.anchor,ax=a%sW,ay=Math.floor(a/sW);
+      const anchorDone=!!(done&&done[a]);
+      const parked=parkMarkers.some(m=>m.x===ax&&m.y===ay);
+      return <div className="range-anchor-bar" role="status">
+        <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.crop?Icons.crop():null}</span>
+        <span className="range-anchor-bar__text">Tap the opposite corner to fill a rectangle</span>
+        {!anchorDone&&<button type="button" className="range-anchor-bar__btn" onClick={()=>{dragMarkReset();toggleParkAt(ax,ay);}}>
+          <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.parkFlag?Icons.parkFlag():null}</span>{parked?"Remove park marker":"Park thread here"}
+        </button>}
+        <button type="button" className="range-anchor-bar__btn" onClick={dragMarkReset}>
+          <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.x?Icons.x():null}</span>Cancel
+        </button>
+      </div>;
+    })()}
     {showNavHelp&&!isEditMode&&(()=>{const isTouch=hasTouchRef.current;return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -7125,17 +7299,18 @@ return(
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
         {[
-          ["Pan",isTouch?"Drag one finger across the canvas":"Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"],
+          ["Pan",isTouch?"Mark mode: drag with two fingers  ·  Nav mode: drag with one finger":"Drag in Nav mode  ·  or hold Space + drag  ·  or middle-click drag"],
           ["Zoom in / out",isTouch?"Pinch two fingers apart / together":"Ctrl + scroll  ·  or use − / + buttons"],
           ["Zoom to fit","Tap the Fit button"],
           ["Mark a stitch",isTouch?"Tap a cell":"Click a cell"],
-          ["Mark multiple",isTouch?"Tap, then drag across cells":"Click + drag across cells — all set to same state"],
+          ["Mark multiple",isTouch?"Drag one finger across the stitches":"Click + drag across cells — all set to same state"],
           ["Select a rectangle",isTouch?"Long-press a cell, then tap another":"Hold Shift + click another cell"],
           ["Undo last marks","Undo button (top right)"],
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place a guide",isTouch?"Tap a cell to drop a crosshair. Tap it again to clear it":"Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"]:null,
-          ["Park a thread",isTouch?"In Nav mode, press and hold a stitch. Do it again to remove the marker":"Right-click a stitch. Right-click again to remove the marker"],
+          ["Park a thread",isTouch?"Press and hold a stitch: Nav mode parks at once; in Mark mode tap Park thread here":"Right-click a stitch. Right-click again to remove the marker"],
+          ["Find a parked thread","Tap the P on its colour in the palette"],
         ].filter(Boolean).map(([label,tip],i)=>(
           <div key={i} style={{display:"contents"}}>
             <div style={{color:"var(--text-secondary)",fontWeight:600,paddingTop:1}}>{label}</div>
@@ -7162,7 +7337,7 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press a cell, then tap the opposite corner to fill a rectangle · Pinch to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
@@ -7224,7 +7399,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. Use Shift+F10 or Menu to park at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -7296,6 +7471,12 @@ return(
     <div style={{background:"var(--text-primary)", color:"var(--surface)", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:'var(--text-sm)', fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom:'var(--s-3)'}}>
       {/* Written directly by renderHoverBar(); React never updates these children. */}
       <span ref={hoverBarRef} className="tracker-hover-bar">{"—"}</span>
+      <span ref={guideLiveRef} className="tracker-sr-only" aria-live="polite"/>
+      {/* Touch has no Esc, and re-tapping the exact guide cell is easy to
+          miss, so the guide gets a visible way out wherever it is shown. */}
+      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={()=>{setHlRow(-1);setHlCol(-1);}} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
+        <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.x?Icons.x():null}</span>Clear guide
+      </button>}
     </div>
 
     {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
@@ -7510,7 +7691,7 @@ return(
                 <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{p.id} ({parkCountsByColour[p.id]})</span>
               </label>
             )}
-            <button onClick={()=>{setParkMarkers([]);setParkLayers({});}} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
+            <button onClick={()=>{commitParkMarkers(parkMarkersRef.current,[]);setParkLayers({});}} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
           </>}
         </div>}
 

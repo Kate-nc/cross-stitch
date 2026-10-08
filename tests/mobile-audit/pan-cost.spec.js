@@ -87,13 +87,16 @@ async function pan(page, box, gestures) {
 
   const x0 = Math.round(box.x + box.w * 0.6);
   const y0 = Math.round(box.y + box.h * 0.5);
+  // Mark mode (the default) pans with two fingers moving together; one
+  // finger marks. 80px apart, so it is a pan, not a pinch.
+  const pts = (dx, dy) => [
+    { x: x0 + dx, y: y0 + dy, id: 1, radiusX: 6, radiusY: 6, force: 1 },
+    { x: x0 + dx + 80, y: y0 + dy, id: 2, radiusX: 6, radiusY: 6, force: 1 },
+  ];
   for (let g = 0; g < gestures; g++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0, id: 1, radiusX: 6, radiusY: 6, force: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(0, 0) });
     for (let k = 1; k <= 10; k++) {
-      await cdp.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: x0 - k * 14, y: y0 - k * 9, id: 1, radiusX: 6, radiusY: 6, force: 1 }],
-      });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(-k * 14, -k * 9) });
       await page.waitForTimeout(16);
     }
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });

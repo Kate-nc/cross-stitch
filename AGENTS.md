@@ -12,6 +12,10 @@ this file is a shorter pointer plus the most-broken house rule.
   (parallel runs are safe for the current suite).
 - After editing any file in `creator/`, regenerate the bundle with
   `node build-creator-bundle.js` before committing.
+- After editing `tracker-app.js`, `creator-main.js`, `manager-app.js` or
+  `embroidery.js`, run `node build-runtime-js.js` and commit `compiled/`
+  with it. `npm test` (and the pre-commit hook) fail when `compiled/` is
+  stale; `node build-runtime-js.js --check` says which file.
 
 ## Workshop is the sole theme
 

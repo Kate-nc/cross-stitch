@@ -85,7 +85,7 @@ test('the ants are drawn on the focus colour, follow the tile, and move', async 
     const svg = document.querySelector('svg.tracker-ants');
     if (!svg) return null;
     const [bg, fg] = svg.querySelectorAll('path');
-    const chart = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+    const chart = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
     const s = svg.getBoundingClientRect(), c = chart.getBoundingClientRect();
     return {
       segments: (fg.getAttribute('d').match(/M/g) || []).length,

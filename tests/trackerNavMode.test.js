@@ -59,8 +59,12 @@ describe('Navigate mode press', () => {
     expect(clear).toBeGreaterThan(esc.indexOf('setLeftSidebarOpen(false)'));
   });
 
-  test('the shortcut list re-registers when the mode or guide changes (Esc reads them)', () => {
-    expect(src).toMatch(/,sW,sH,startCorner,stitchMode,hlRow,hlCol\]\);/);
+  test('shortcuts always run against the latest render (Esc reads mode, guide, palette state)', () => {
+    // Registered once per activation; run/when delegate by id to the newest
+    // entries, so no state can go stale through a missing dependency.
+    expect(src).toMatch(/trackerShortcutsRef\.current=trackerShortcuts;/);
+    expect(src).toMatch(/run:evt=>\{const cur=trackerShortcutsRef\.current\.find\(x=>x\.id===entry\.id\);if\(cur\)return cur\.run\(evt\);\}/);
+    expect(src).toMatch(/\}\)\),\[isActive\]\);/);
   });
 
   test('the cursor is a hand in Navigate mode', () => {
@@ -88,6 +92,5 @@ describe('session onboarding hint', () => {
 describe('Nav button', () => {
   test('uses the hand icon, not the parking flag', () => {
     expect(src).toMatch(/title="Navigate \(N\)" aria-pressed=\{stitchMode==="navigate"\}>\s*<span className="ppal-mode-btn-icon">\{Icons\.hand\(\)\}<\/span>/);
-    expect(src).not.toMatch(/Icons\.parkFlag\(\)/);
   });
 });

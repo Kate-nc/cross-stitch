@@ -138,12 +138,19 @@
 
     switch (action.type) {
       case 'POINTER_DOWN': {
-        // Multi-touch guard: a second pointer within MULTI_TOUCH_GRACE_MS
-        // aborts the in-progress 1-finger gesture so pinch / 2-finger
-        // pan can take over without committing a stray mark.
+        // Multi-touch: a second finger means pan / pinch-zoom (two fingers
+        // move the chart in Mark mode; one finger marks). It abandons the
+        // one-finger gesture without committing anything, however late it
+        // lands: a drag's marks are only a preview until release, and a
+        // rectangle anchor would otherwise commit wherever the fingers lift.
         if (s.mode !== 'idle') {
-          if (action.pointerType === 'touch'
-              && (action.time - s.startTime) < multiTouchMs()) {
+          // Only while the first finger is still down: after a long-press the
+          // finger lifts and the opposite-corner tap is a new pointer, which
+          // must complete the rectangle, not cancel it.
+          var firstDown = s.mode === 'pending' || s.mode === 'drag'
+                          || (s.mode === 'range' && s.held);
+          if (action.pointerType === 'touch' && action.pointerId !== s.pointerId
+              && firstDown) {
             effects.push({ type: 'CLEAR_LONG_PRESS' });
             return { state: idle(), effects: effects };
           }
@@ -308,7 +315,7 @@
         return {
           state: next({
             mode: 'range', anchor: s.startIdx, intent: lpi,
-            lastAnchor: s.startIdx,
+            lastAnchor: s.startIdx, held: true,
           }),
           effects: effects,
         };
@@ -331,8 +338,9 @@
               effects: effects,
             };
           }
-          // Tap on same cell or non-markable → keep anchor.
-          return { state: s, effects: effects };
+          // Tap on same cell or non-markable → keep anchor. The finger that
+          // set it has lifted (see the multi-touch check in POINTER_DOWN).
+          return { state: s.held ? next({ held: false }) : s, effects: effects };
         }
 
         if (s.mode === 'shiftRange') {
@@ -452,6 +460,7 @@
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
         notifyShiftUp: noop,
+        reset: noop,
       };
     }
     var w = opts.w, h = opts.h;
@@ -622,6 +631,12 @@
       dispatch({ type: 'SHIFT_UP' });
     }, []);
 
+    // Exposed so the parent can drop a pending gesture — e.g. the touch
+    // long-press rectangle anchor, which otherwise has no way to cancel.
+    var reset = R.useCallback(function () {
+      dispatch({ type: 'RESET' });
+    }, []);
+
     if (isEdit) {
       return {
         handlers: {
@@ -632,6 +647,7 @@
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
         notifyShiftUp: noop,
+        reset: noop,
       };
     }
 
@@ -645,6 +661,7 @@
       },
       dragState: dragState,
       notifyShiftUp: notifyShiftUp,
+      reset: reset,
     };
   }
 

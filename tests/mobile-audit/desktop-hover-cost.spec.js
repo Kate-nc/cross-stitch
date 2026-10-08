@@ -70,7 +70,7 @@ test('hover sweep across the large chart', async ({ page }) => {
   // The bar names the stitch under the pointer: the last position of the
   // sweep, converted through the chart's own geometry.
   const expected = await page.evaluate(({ x, y }) => {
-    const chart = document.querySelector('canvas[aria-label="Cross stitch pattern grid"]');
+    const chart = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]');
     const ruler = document.querySelector('.tracker-chart-scroll > div');
     const cell = ruler.children[1].getBoundingClientRect();
     const col = Math.floor((x - cell.left) / cell.width) + 1;

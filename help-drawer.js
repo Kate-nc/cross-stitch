@@ -158,10 +158,12 @@
           heading: "Tracking progress",
           body: "Load a saved project to track your stitching progress interactively.",
           bullets: [
-            ["Track Mode", "Click or drag across the pattern to mark stitches as complete. Use the timer to estimate your completion date."],
+            ["Track Mode", "Click or drag across the pattern to mark stitches as complete. On a touch screen, drag one finger to mark and use two fingers to pan and zoom. Use the timer to estimate your completion date."],
             ["Navigate Mode", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
-            ["Parking", "Right-click a stitch (in either mode) to mark that a thread is parked there, or press and hold it in Navigate mode on a touch screen. The marker is a small triangle in the stitch's colour, outlined so it shows on any background, and it stays visible through the Spotlight and work-area dimming. Do the same again to remove it. It also clears itself when you mark that stitch done, and comes back if you undo."],
+            ["Parking", "Right-click a stitch (in either mode) to mark that a thread is parked there. On a touch screen, press and hold the stitch: in Navigate mode that parks straight away; in Mark mode it starts a rectangle, and the bar that appears has a Park thread here button. The marker is a small triangle in the stitch's colour, outlined so it shows on any background, and it stays visible through the Spotlight and work-area dimming. Do the same again to remove it. It also clears itself when you mark that stitch done, and comes back if you undo."],
+            ["Finding a parked thread", "Tap the P on a colour in the palette to jump to where that thread is parked; the guide crosshair marks the spot. If it is parked in more than one place, tap again for the next."],
             ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
+            ["Undo", "Undo (Ctrl+Z) covers parking too: placing or removing a park marker, and Clear all, are steps like marking stitches."],
             ["Colours Drawer", "Open the drawer at the bottom to see your progress per colour. Click a colour to highlight only those stitches on the canvas."]
           ]
         },
@@ -199,7 +201,7 @@
           bullets: [
             ["Toggle (C)", "Press C or tap the counting aid button in the toolbar to show or hide the overlay."],
             ["10\u00d710 grid", "Thin lines divide the canvas into 10\u00d710 stitch blocks, matching the bolded squares on most printed Aida fabric."],
-            ["Crosshair", "The guide crosshair runs across a whole row and column, so you can follow a line of the chart. Place it in Navigate mode by clicking a cell; click the same cell again, or press Esc, to clear it."]
+            ["Crosshair", "The guide crosshair runs across a whole row and column, so you can follow a line of the chart. Place it in Navigate mode by clicking a cell (or, with the chart focused, with the arrow keys). The bar under the chart shows its row, column and thread, with a Clear guide button; clicking the same cell again or pressing Esc also clears it."]
           ]
         }
       ]
@@ -440,6 +442,8 @@
     { id: "t.nav",     scope: "tracker", keys: ["N"], description: "Switch to Navigate mode (drag to pan, click to place the guide)" },
     { id: "t.guide",   scope: "tracker", keys: ["Esc"], description: "Navigate mode: clear the guide crosshair" },
     { id: "t.park",    scope: "tracker", keys: ["Right-click"], description: "Park a thread on a stitch (again to remove)" },
+    { id: "t.guideKeys", scope: "tracker", keys: ["←", "↑", "→", "↓"], description: "Navigate mode, chart focused: move the guide (hold Shift for 10 stitches)" },
+    { id: "t.parkGuide", scope: "tracker", keys: ["Shift+F10", "Menu"], description: "Park a thread at the guide" },
     { id: "t.view",    scope: "tracker", keys: ["V"], description: "Cycle view: symbol / colour / highlight" },
     { id: "t.full",    scope: "tracker", keys: ["F"], description: "Toggle full-stitch layer visibility" },
     { id: "t.half",    scope: "tracker", keys: ["H"], description: "Toggle half-stitch layer visibility" },

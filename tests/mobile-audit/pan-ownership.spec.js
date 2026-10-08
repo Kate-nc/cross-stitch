@@ -62,7 +62,8 @@ async function setMode(page, name) {
 const touchAction = (page) => page.evaluate(() =>
   getComputedStyle(document.querySelector('canvas')).touchAction);
 
-async function swipe(page) {
+async function swipe(page, fingers) {
+  const two = fingers === 2;
   const box = await page.evaluate((fn) => {
     const el = eval('(' + fn + ')')();
     const b = el.getBoundingClientRect();
@@ -72,12 +73,12 @@ async function swipe(page) {
   const x0 = Math.round(box.x + box.w * 0.6);
   const y0 = Math.round(box.y + box.h * 0.5);
   await page.evaluate(() => { window.__scrollWrites = 0; });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0, id: 1, radiusX: 6, radiusY: 6, force: 1 }] });
+  // Two fingers move together (a pan, not a pinch), 80px apart.
+  const pts = (dx, dy) => [{ x: x0 + dx, y: y0 + dy, id: 1, radiusX: 6, radiusY: 6, force: 1 }]
+    .concat(two ? [{ x: x0 + dx + 80, y: y0 + dy, id: 2, radiusX: 6, radiusY: 6, force: 1 }] : []);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(0, 0) });
   for (let k = 1; k <= 10; k++) {
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchMove',
-      touchPoints: [{ x: x0 - k * 14, y: y0 - k * 9, id: 1, radiusX: 6, radiusY: 6, force: 1 }],
-    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(-k * 14, -k * 9) });
     await page.waitForTimeout(16);
   }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -161,15 +162,19 @@ test('a nav-mode tap still lands on one cell, and only one', async ({ page }) =>
   expect({ gx: saved.hlCol, gy: saved.hlRow }).toEqual({ gx: target.gx, gy: target.gy });
 });
 
-test('track mode still pans from the main thread, deliberately', async ({ page }) => {
-  // The complement of the test above. Track mode cannot use native panning
-  // without giving up drag-marking, so its pan is still JS — and this asserts
-  // that on purpose, so a future "just make it all native" change has to
-  // confront the trade-off rather than silently break marking.
+test('track mode: one finger marks, two fingers pan from the main thread', async ({ page }) => {
+  // The complement of the nav-mode test. In track mode one finger is
+  // drag-marking, so it must not move the chart (it used to do both, which
+  // panned erratically and left stray marks). Two fingers pan instead, from
+  // JS — asserted on purpose, so a future "just make it all native" change
+  // has to confront the trade-off rather than silently break marking.
   await openTracker(page);
   await setMode(page, 'Mark');
-  const r = await swipe(page);
-  console.log('TRACK_PAN ' + JSON.stringify(r));
-  expect(r.scrollLeft + r.scrollTop, 'the swipe did not scroll at all').toBeGreaterThan(0);
-  expect(r.scrollWrites, 'track mode should still be panning from JS').toBeGreaterThan(0);
+  const one = await swipe(page, 1);
+  console.log('TRACK_ONE_FINGER ' + JSON.stringify(one));
+  expect(one.scrollLeft + one.scrollTop, 'a one-finger drag in track mode must not pan').toBe(0);
+  const two = await swipe(page, 2);
+  console.log('TRACK_TWO_FINGER ' + JSON.stringify(two));
+  expect(two.scrollLeft + two.scrollTop, 'the two-finger swipe did not scroll at all').toBeGreaterThan(0);
+  expect(two.scrollWrites, 'track mode should be panning from JS').toBeGreaterThan(0);
 });

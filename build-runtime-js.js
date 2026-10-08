@@ -5,6 +5,10 @@ const babel = require('@babel/core');
 
 const ROOT = __dirname;
 const OUT_DIR = path.join(ROOT, 'compiled');
+// --check: compile in memory and compare with compiled/, writing nothing.
+// Exits 1 listing any stale output, e.g. a source committed without
+// rebuilding. Line endings are ignored so a CRLF checkout is not "stale".
+const CHECK = process.argv.includes('--check');
 const ENTRIES = [
   { src: 'tracker-app.js', out: 'tracker-app.compiled.js' },
   { src: 'creator-main.js', out: 'creator-main.compiled.js' },
@@ -23,7 +27,7 @@ function writeIfChanged(target, content) {
   return true;
 }
 
-function compileEntry(entry) {
+function build(entry) {
   const source = fs.readFileSync(path.join(ROOT, entry.src), 'utf8');
   const result = babel.transformSync(source, {
     filename: entry.src,
@@ -40,11 +44,32 @@ function compileEntry(entry) {
     '})();',
     ''
   ].join('\n');
+  return wrapped;
+}
+
+function compileEntry(entry) {
+  const wrapped = build(entry);
   const target = path.join(OUT_DIR, entry.out);
   const changed = writeIfChanged(target, wrapped);
   const kb = (wrapped.length / 1024).toFixed(1);
   console.log(`${path.relative(ROOT, target)} ${changed ? 'written' : 'unchanged'} — ${wrapped.length} bytes (${kb} KB)`);
 }
 
-fs.mkdirSync(OUT_DIR, { recursive: true });
-ENTRIES.forEach(compileEntry);
+function checkEntry(entry) {
+  const target = path.join(OUT_DIR, entry.out);
+  const current = fs.existsSync(target) ? fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n') : null;
+  return current === build(entry) ? null : path.relative(ROOT, target) + ' is stale (source: ' + entry.src + ')';
+}
+
+if (CHECK) {
+  const stale = ENTRIES.map(checkEntry).filter(Boolean);
+  if (stale.length) {
+    stale.forEach(m => console.error(m));
+    console.error('Run: node build-runtime-js.js');
+    process.exit(1);
+  }
+  console.log('compiled/ is up to date');
+} else {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  ENTRIES.forEach(compileEntry);
+}
