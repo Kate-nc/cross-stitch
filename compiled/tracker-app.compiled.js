@@ -9927,7 +9927,9 @@ function TrackerApp({
     setHlCol(m.x);
     centreOnCell(m.x, m.y);
   }
-  useShortcuts(!isActive ? [] : [
+
+  // Built every render, so each entry's run() sees this render's state.
+  const trackerShortcuts = !isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
   // Esc semantics are implicit and documented in every modal.
   {
@@ -10295,7 +10297,24 @@ function TrackerApp({
     scope: "tracker.notedit",
     description: "Jump to next remaining stitch of focus colour",
     run: () => jumpToNextStitch()
-  }], [stitchView, isEditMode, focusableColors, isActive, namePromptOpen, modal, showExitEditModal, cellEditPopover, importDialog, tOverflowOpen, drawer, halfDisambig, focusColour, pat, pal, undoSnapshot, countsVer, trackHistory, redoStack, highlightMode, manuallyPaused, layerVis, colourDoneCounts, focusEnabled, focusBlock, stitchingStyle, blockW, blockH, sW, sH, startCorner, stitchMode, hlRow, hlCol]);
+  }];
+  // Registered once per activation, with run/when delegating by id to the entry
+  // from the latest render. The list used to be re-registered from a long deps
+  // array, and any state missing from it (leftSidebarOpen, hlRow, stitchMode)
+  // left a shortcut reading stale values — Esc did not close the palette on
+  // narrow screens.
+  const trackerShortcutsRef = useRef(trackerShortcuts);
+  trackerShortcutsRef.current = trackerShortcuts;
+  useShortcuts(trackerShortcuts.map(entry => Object.assign({}, entry, {
+    run: evt => {
+      const cur = trackerShortcutsRef.current.find(x => x.id === entry.id);
+      if (cur) return cur.run(evt);
+    },
+    when: entry.when ? evt => {
+      const cur = trackerShortcutsRef.current.find(x => x.id === entry.id);
+      return !!(cur && (!cur.when || cur.when(evt)));
+    } : undefined
+  })), [isActive]);
 
   // Update stable handler refs every render (cheap assignment, no DOM work)
   wheelHandlerRef.current = handleStitchWheel;

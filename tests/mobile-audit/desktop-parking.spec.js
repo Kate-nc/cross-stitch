@@ -211,3 +211,25 @@ test('partial repaints draw what a full repaint would', async ({ page }) => {
   expect(d.moved, 'the view moved between the two captures').toBeUndefined();
   expect(d.n, 'pixels where the fast path differs from a full repaint').toBe(0);
 });
+
+test('Esc closes the colour palette on a narrow window', async ({ page }) => {
+  // Esc reads leftSidebarOpen, which the tracker's old hand-kept shortcut
+  // deps list did not include; shortcuts now always run against the latest
+  // render. Guards the behaviour either way.
+  await page.setViewportSize({ width: 900, height: 900 });
+  await openTracker(page);
+  const backdrop = page.locator('.lpanel-backdrop');
+  if (await backdrop.count()) { await page.keyboard.press('Escape'); await page.waitForTimeout(300); }
+  await expect(backdrop).toHaveCount(0);
+  await page.getByRole('button', { name: /colour palette/i }).first().click();
+  await page.waitForTimeout(400);
+  // Cycle until the full palette is open (rail → open on some widths).
+  for (let i = 0; i < 3 && !(await backdrop.count()); i++) {
+    await page.getByRole('button', { name: /colour palette/i }).first().click();
+    await page.waitForTimeout(400);
+  }
+  await expect(backdrop).toHaveCount(1);
+  await page.mouse.move(2, 2);
+  await page.keyboard.press('Escape');
+  await expect(backdrop).toHaveCount(0);
+});
