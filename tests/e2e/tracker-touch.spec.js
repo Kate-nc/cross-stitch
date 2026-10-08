@@ -87,6 +87,7 @@ test.describe('Tracker touch: Mark mode', function() {
       await touch('touchMove', [{ x: f1.x - i * 15, y: f1.y - i * 10, id: 1 }, { x: f2.x - i * 15, y: f2.y - i * 10, id: 2 }]);
       await page.waitForTimeout(20);
     }
+    await page.waitForTimeout(100);
     await touch('touchEnd', [{ x: f2.x - 150, y: f2.y - 100, id: 2 }]);
     await touch('touchEnd', []);
     await page.waitForTimeout(400);

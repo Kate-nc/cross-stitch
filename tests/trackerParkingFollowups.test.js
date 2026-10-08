@@ -106,6 +106,10 @@ describe('status bar', () => {
     expect(src).toMatch(/prevGuidePaintRef\.current=\{row:hlRow,col:hlCol\};\s*renderHoverBar\(\);/);
   });
 
+  test('it refreshes the live label when the pattern or palette changes', () => {
+    expect(src).toMatch(/\},\[hlRow,hlCol,pat,cmap,sW\]\);/);
+  });
+
   test('a Clear guide button appears while there is a guide', () => {
     expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{\(\)=>\{setHlRow\(-1\);setHlCol\(-1\);\}\}/);
   });

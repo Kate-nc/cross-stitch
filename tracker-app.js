@@ -5748,6 +5748,11 @@ function moveGuideBy(dx,dy){
   const live=guideLiveRef.current;
   if(live){const lbl=cellThreadLabel(row*sW+col);live.textContent="Guide at row "+(row+1)+", column "+(col+1)+(lbl?", "+lbl:"");}
 }
+useEffect(()=>{
+  if(hlRow<0||hlCol<0)return;
+  const live=guideLiveRef.current;
+  if(live){const lbl=cellThreadLabel(hlRow*sW+hlCol);live.textContent="Guide at row "+(hlRow+1)+", column "+(hlCol+1)+(lbl?", "+lbl:"");}
+},[hlRow,hlCol,pat,cmap,sW]);
 
 // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
 // phase handlers so they sit alongside useDragMark's (idle in this mode)
@@ -6151,10 +6156,10 @@ function handleTouchMove(e){
 function handleTouchEnd(e){
   if(!pat)return;
   const ts=touchStateRef.current;
-  // A pinch ends when fewer than two fingers remain. A finger left on the
+  // A pinch ends when all fingers have lifted. A finger left on the
   // glass does not start a new gesture (useDragMark has already abandoned
   // the one-finger gesture the second finger interrupted).
-  if(e.touches&&e.touches.length>=2)return;
+  if(e.touches&&e.touches.length>0)return;
   // A two-finger pan that was still moving coasts on. Only a pan: if the
   // zoom moved, this was a pinch, and coasting would fight it.
   const sm=ts.pinchSamples;
