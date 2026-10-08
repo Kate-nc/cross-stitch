@@ -9550,6 +9550,16 @@ function TrackerApp({
     for (let x = rowSpan.x0; x < rowSpan.x1; x++) {
       const idx = y * sW + x,
         m = pat[idx];
+      const hs = halfStitches && halfStitches.get(idx),
+        hd = halfDone && halfDone.get(idx);
+      if (hs && hs.fwd) {
+        total += 0.5;
+        if (hd && hd.fwd) dn += 0.5;
+      }
+      if (hs && hs.bck) {
+        total += 0.5;
+        if (hd && hd.bck) dn += 0.5;
+      }
       if (!m || m.id === "__skip__" || m.id === "__empty__") continue;
       total++;
       if (d && d[idx]) dn++;
@@ -9636,7 +9646,7 @@ function TrackerApp({
     } catch (_) {}
     if (next >= 0) goToRow(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowModeActive, currentRow, doneCount, pat]);
+  }, [rowModeActive, currentRow, doneCount, pat, halfStitches, halfDone]);
 
   // Where is that thread parked? The palette's P badge answers it (as Markup
   // R-XP's symbol list does): it brings the colour's park marker into view and

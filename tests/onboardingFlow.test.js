@@ -68,11 +68,15 @@ describe("Tracker: Skip tour skips", () => {
 
 describe("Creator tips only follow a pattern made in this visit", () => {
   const src = read("creator-main.js");
+  const stateSrc = read("creator/useCreatorState.js");
   test("toolsTab_unlocked needs a fresh generation", () => {
-    expect(src).toMatch(/toolsTab_unlocked: _justGenerated &&/);
+    expect(src).toMatch(/toolsTab_unlocked: state\.patternGeneratedThisVisit &&/);
+    expect(stateSrc).toMatch(/setPatternGeneratedThisVisit\(true\)/);
   });
-  test("firstStitch_creator needs a fresh pattern or scratch grid", () => {
-    expect(src).toMatch(/firstStitch_creator: _freshPattern &&/);
+  test("firstStitch_creator needs a fresh pattern or newly created blank grid", () => {
+    expect(src).toMatch(/const _freshPattern = state\.patternCreatedThisVisit/);
+    expect(stateSrc).toMatch(/function startScratch\(\)[\s\S]*?setPatternCreatedThisVisit\(true\)/);
+    expect(stateSrc).toMatch(/setPatternCreatedThisVisit\(true\);\s*setPatternGeneratedThisVisit\(true\)/);
   });
   test("tips can be skipped as a set", () => {
     expect((src.match(/onSkipAll: \(\)=>_coach\.skipAll\(\)/g) || []).length).toBe(2);

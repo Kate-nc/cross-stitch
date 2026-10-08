@@ -1387,7 +1387,7 @@
         h(Row, { last: true, label: "Restore from a backup file", desc: "Replaces everything with the contents of a backup. Choose carefully." },
           h("label", { style: Object.assign({}, styles.btn, { display: "inline-flex", alignItems: "center", cursor: "pointer" }) },
             "Choose file…",
-            h("input", { type: "file", accept: "application/json,.json,.csb", style: { display: "none" }, onChange: pickRestoreFile })
+            h("input", { type: "file", accept: window.Platform ? window.Platform.fileAccept("application/json,.json,.csb") : "application/json,.json,.csb", style: { display: "none" }, onChange: pickRestoreFile })
           )
         )
       ),

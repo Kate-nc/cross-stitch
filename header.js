@@ -1206,7 +1206,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               Icons.folder(), ' Restore from Backup…',
               React.createElement('input', {
                 type: 'file',
-                accept: '.json,.csb,application/json',
+                accept: window.Platform ? window.Platform.fileAccept('.json,.csb,application/json') : '.json,.csb,application/json',
                 style: { display: 'none' },
                 onChange: function(e) {
                   setFileMenuOpen(false);

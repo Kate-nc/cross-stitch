@@ -1453,16 +1453,10 @@ function CreatorApp({
   //                        done on the first edit.
   // coaching.js holds both back while the welcome walkthrough is open, and
   // remembers them however they are dismissed. Neither blocks the canvas.
-  const [_justGenerated, _setJustGenerated] = React.useState(false);
-  const _prevBusyRef = React.useRef(state.busy);
-  React.useEffect(() => {
-    if (_prevBusyRef.current && !state.busy && state.pat) _setJustGenerated(true);
-    _prevBusyRef.current = state.busy;
-  }, [state.busy, !!state.pat]);
-  const _freshPattern = _justGenerated || !!state.isScratchMode;
+  const _freshPattern = state.patternCreatedThisVisit;
   const _noEditsYet = !state.editHistory || state.editHistory.length === 0;
   const _coach = typeof window.useCoachingSequence === 'function' ? window.useCoachingSequence('creator', {
-    toolsTab_unlocked: _justGenerated && !!state.pat && !!state.pal,
+    toolsTab_unlocked: state.patternGeneratedThisVisit && !!state.pat && !!state.pal,
     firstStitch_creator: _freshPattern && !!state.pat && state.appMode === 'edit' && _noEditsYet
   }) : {
     active: null,
