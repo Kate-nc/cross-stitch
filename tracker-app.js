@@ -5833,6 +5833,7 @@ function toggleGuideAt(gx,gy){
 
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
+  stopPanMomentum();
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Right-click parks (handleStitchContextMenu). Without this a right-click
   // also moved the guide in Navigate mode and toggled half stitches in Mark.
@@ -6055,8 +6056,34 @@ function chartOwnsGesture(e){
   return e.touches.length>1||_dragMarkActive;
 }
 
+// Two-finger pan momentum: after a pan (not a pinch) the chart coasts and
+// slows, as native one-finger scrolling does in Navigate mode. Any new touch
+// or press stops it; off when the system asks for reduced motion.
+const panMomentumRafRef=useRef(null);
+function stopPanMomentum(){
+  if(panMomentumRafRef.current){cancelAnimationFrame(panMomentumRafRef.current);panMomentumRafRef.current=null;}
+}
+function startPanMomentum(vx,vy){
+  stopPanMomentum();
+  const el=stitchScrollRef.current;
+  if(!el)return;
+  try{if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;}catch(_){}
+  let last=performance.now();
+  const step=now=>{
+    const dt=Math.min(64,now-last);last=now;
+    // Fingers moved by v px/ms, so the content scrolls the other way.
+    el.scrollLeft-=vx*dt;el.scrollTop-=vy*dt;
+    const decay=Math.pow(0.995,dt);vx*=decay;vy*=decay;
+    if(Math.abs(vx)<0.02&&Math.abs(vy)<0.02){panMomentumRafRef.current=null;return;}
+    panMomentumRafRef.current=requestAnimationFrame(step);
+  };
+  panMomentumRafRef.current=requestAnimationFrame(step);
+}
+useEffect(()=>stopPanMomentum,[]);
+
 function handleTouchStart(e){
   if(!pat)return;
+  stopPanMomentum();
   // Conditional, not unconditional: calling preventDefault here is exactly
   // what forced every pan onto the main thread, because it cancels the native
   // scroll before it starts.
@@ -6077,6 +6104,7 @@ function handleTouchStart(e){
     const t0=e.touches[0],t1=e.touches[1];
     ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
     ts.pinchZoom=stitchZoomRef.current;
+    ts.pinchSamples=[];
     if(container){
       const rect=container.getBoundingClientRect();
       const midX=(t0.clientX+t1.clientX)/2-rect.left;
@@ -6107,6 +6135,10 @@ function handleTouchMove(e){
   const midX=(t0.clientX+t1.clientX)/2-rect.left;
   const midY=(t0.clientY+t1.clientY)/2-rect.top;
   const a=ts.pinchAnchor;
+  // Recent midpoints, for the release velocity (handleTouchEnd).
+  const now=performance.now();
+  (ts.pinchSamples||(ts.pinchSamples=[])).push({t:now,x:midX,y:midY,z:newZoom});
+  while(ts.pinchSamples.length>2&&now-ts.pinchSamples[0].t>100)ts.pinchSamples.shift();
   if(newZoom!==stitchZoomRef.current)scheduleZoomUpdate(newZoom);
   // After the zoom render (same frame as scheduleZoomUpdate's rAF), so the
   // content is already its new size when the scroll is clamped to it.
@@ -6123,7 +6155,18 @@ function handleTouchEnd(e){
   // glass does not start a new gesture (useDragMark has already abandoned
   // the one-finger gesture the second finger interrupted).
   if(e.touches&&e.touches.length>=2)return;
-  ts.mode="none"; ts.pinchDist=0; ts.pinchAnchor=null;
+  // A two-finger pan that was still moving coasts on. Only a pan: if the
+  // zoom moved, this was a pinch, and coasting would fight it.
+  const sm=ts.pinchSamples;
+  if(ts.mode==="pinch"&&sm&&sm.length>=2){
+    const a=sm[0],b=sm[sm.length-1],dt=b.t-a.t;
+    const recent=performance.now()-b.t<80;
+    if(dt>0&&recent&&Math.abs(b.z/ts.pinchZoom-1)<0.03){
+      const vx=(b.x-a.x)/dt,vy=(b.y-a.y)/dt;
+      if(Math.hypot(vx,vy)>0.3)startPanMomentum(vx,vy);
+    }
+  }
+  ts.mode="none"; ts.pinchDist=0; ts.pinchAnchor=null; ts.pinchSamples=null;
 }
 
 function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}

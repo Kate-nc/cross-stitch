@@ -66,7 +66,7 @@ describe('C3 — legacy drag-mark plumbing removed', () => {
     expect(TRACKER).not.toMatch(/setRangeAnchor\(\{idx,row:gy/);
     expect(TRACKER).not.toMatch(/handleTouchEnd[\s\S]{0,2000}pushTrackHistory/);
     // The handler must still reset touch state so pinch + pan stay clean.
-    expect(TRACKER).toMatch(/function handleTouchEnd[\s\S]{0,400}ts\.mode\s*=\s*["']none["']/);
+    expect(TRACKER).toMatch(/function handleTouchEnd[\s\S]{0,1200}ts\.mode\s*=\s*["']none["']/);
   });
 
   test('handleTouchStart no longer pre-records a tap idx for cell marking', () => {

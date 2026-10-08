@@ -168,6 +168,70 @@ test.describe('Tracker touch: Mark mode', function() {
   });
 });
 
+// A quick two-finger fling, released while still moving.
+async function fling(page, touch, box) {
+  const f1 = { x: box.left + 420, y: box.top + 420 }, f2 = { x: box.left + 520, y: box.top + 420 };
+  await touch('touchStart', [{ ...f1, id: 1 }]);
+  await touch('touchStart', [{ ...f1, id: 1 }, { ...f2, id: 2 }]);
+  for (let i = 1; i <= 6; i++) {
+    await touch('touchMove', [{ x: f1.x - i * 30, y: f1.y - i * 20, id: 1 }, { x: f2.x - i * 30, y: f2.y - i * 20, id: 2 }]);
+    await page.waitForTimeout(12);
+  }
+  await touch('touchEnd', [{ x: f2.x - 180, y: f2.y - 120, id: 2 }]);
+  await touch('touchEnd', []);
+}
+
+test.describe('Tracker touch: two-finger pan momentum', function() {
+  test('a two-finger fling coasts after release, and a touch stops it', async function({ page }) {
+    await loadTrackerFixture(page);
+    const touch = await trackerTouchDriver(page);
+    const box = await scrollerBox(page);
+    await fling(page, touch, box);
+    const atRelease = await trackerScroll(page);
+    await page.waitForTimeout(150);
+    const coasting = await trackerScroll(page);
+    expect(coasting.left, 'still moving after the fingers lift').toBeGreaterThan(atRelease.left + 5);
+    // A new touch stops it where it is.
+    await touch('touchStart', [{ x: box.left + 200, y: box.top + 200, id: 1 }]);
+    await page.waitForTimeout(50);
+    const stopped = await trackerScroll(page);
+    await page.waitForTimeout(300);
+    expect(await trackerScroll(page), 'a touch stops the coast').toEqual(stopped);
+    await touch('touchEnd', []);
+    expect(await trackerDoneCount(page), 'nothing marked').toBe(0);
+  });
+
+  test('a pinch does not coast', async function({ page }) {
+    await loadTrackerFixture(page);
+    const touch = await trackerTouchDriver(page);
+    const box = await scrollerBox(page);
+    const mid = { x: box.left + 340, y: box.top + 320 };
+    await touch('touchStart', [{ x: mid.x - 40, y: mid.y, id: 1 }]);
+    await touch('touchStart', [{ x: mid.x - 40, y: mid.y, id: 1 }, { x: mid.x + 40, y: mid.y, id: 2 }]);
+    for (let i = 1; i <= 6; i++) {
+      await touch('touchMove', [{ x: mid.x - 40 - i * 12 - i * 20, y: mid.y, id: 1 }, { x: mid.x + 40 + i * 12 - i * 20, y: mid.y, id: 2 }]);
+      await page.waitForTimeout(12);
+    }
+    await touch('touchEnd', [{ x: mid.x - 80, y: mid.y, id: 2 }]);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(700);
+    const a = await trackerScroll(page);
+    await page.waitForTimeout(300);
+    expect(await trackerScroll(page)).toEqual(a);
+  });
+
+  test('no momentum when the system asks for reduced motion', async function({ page }) {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await loadTrackerFixture(page);
+    const touch = await trackerTouchDriver(page);
+    await fling(page, touch, await scrollerBox(page));
+    await page.waitForTimeout(100);
+    const a = await trackerScroll(page);
+    await page.waitForTimeout(300);
+    expect(await trackerScroll(page)).toEqual(a);
+  });
+});
+
 test.describe('Tracker touch: Navigate mode', function() {
   test('one finger pans; a tap places and clears the guide; press-and-hold parks', async function({ page }) {
     await loadTrackerFixture(page);
