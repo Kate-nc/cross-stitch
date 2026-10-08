@@ -19,4 +19,15 @@ if ! node scripts/lint-terminology.js; then
   exit 1
 fi
 
+# The pages load compiled/*.compiled.js, so a source committed without
+# rebuilding ships stale code. Only checked when one of those is staged.
+if echo "$STAGED" | grep -qE '^(tracker-app|creator-main|manager-app|embroidery)\.js$|^compiled/'; then
+  if ! node build-runtime-js.js --check; then
+    echo ""
+    echo "FAILED: Pre-commit blocked: compiled/ is out of date."
+    echo "  Run: node build-runtime-js.js   then stage compiled/ and commit again."
+    exit 1
+  fi
+fi
+
 exit 0
