@@ -53,6 +53,7 @@ A digital replacement for a printed chart while you stitch.
 - **Views:** Symbol, Colour + Symbol, or Highlight (Isolate, Outline, Tint, Spotlight) to focus on one colour.
 - **Work areas:** show just one part of a large pattern; counts, Spotlight and "Mark all done" are scoped to it.
 - **Stitch layers:** show or hide full stitches, half stitches, French knots and backstitch.
+- **Row mode** and **Section spotlight:** work one row, or one block, at a time.
 - **Sessions:** start automatically when you stitch and end after a configurable idle time; three timing modes. Used to estimate your completion date and feed the Stats page.
 - **Import:** `.json` projects, `.oxs` (KG-Chart / Pattern Keeper XML), images, and PDF charts — including multi-page, scanned and booklet PDFs, with a review screen before saving.
 

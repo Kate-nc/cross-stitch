@@ -187,8 +187,18 @@
             ["Pick an area (W)", "Tap Area in the toolbar or press W. Choose an area size and tap the overview, or drag across sections for a custom area. Areas are made of whole sections, the same ones Spotlight uses."],
             ["Margin", "A few stitches around the area stay visible, faded, so you can line up its edges. They cannot be marked while you are in the area."],
             ["Next area", "The arrows in the work area bar move to the previous or next unfinished area. When you finish an area, you are offered the next one."],
-            ["Spotlight", "With Spotlight on, it works through the sections inside the area before moving on. Alt and the arrow keys move the spotlight one section at a time."],
+            ["Section spotlight (S)", "Highlights one section at a time. With it on, it works through the sections inside the area before moving on. Alt and the arrow keys move it one section at a time."],
             ["Saved and synced", "The area is saved with the project, so it is still selected when you come back or open the project on another device."]
+          ]
+        },
+        {
+          heading: "Row mode",
+          body: "Row mode washes out every row but one, so you can work across the chart a row at a time. Turn it on with R, or More controls > Layers > Row mode.",
+          bullets: [
+            ["Where it starts", "On the first row with stitches still to do, counting from the corner you start from (Preferences > Stitch Tracker)."],
+            ["Moving between rows", "Use the arrows in the row bar, or the up and down arrow keys (outside Navigate mode). Next unfinished row skips rows that are already done."],
+            ["Finishing a row", "When you mark the last stitch of the row, row mode moves on to the next unfinished row."],
+            ["With a work area", "Rows run across the work area only, and stay inside it."]
           ]
         },
         {
@@ -464,6 +474,9 @@
     { id: "t.count",   scope: "tracker", keys: ["C"], description: "Toggle counting aids" },
     { id: "t.pause",   scope: "tracker", keys: ["P"], description: "Pause / resume session timer" },
     { id: "t.pan",     scope: "tracker", keys: ["Space (hold)"], description: "Hold to pan the canvas freely" },
+    { id: "t.section", scope: "tracker", keys: ["S"], description: "Toggle section spotlight" },
+    { id: "t.row",     scope: "tracker", keys: ["R"], description: "Toggle row mode: work one row at a time" },
+    { id: "t.rowKeys", scope: "tracker", keys: ["↑", "↓"], description: "Row mode (not in Navigate mode): the row above / below" },
     { id: "t.focus",   scope: "tracker", keys: ["Alt+←", "Alt+↑", "Alt+→", "Alt+↓"], description: "Move the spotlight one section" },
     { id: "t.zoomIn",  scope: "tracker", keys: ["+", "="], description: "Zoom in" },
     { id: "t.zoomOut", scope: "tracker", keys: ["-"], description: "Zoom out" },

@@ -106,8 +106,6 @@ describe("Help drawer shortcuts match the registered shortcuts", () => {
   // Registered, visible keys that are deliberately left out of the drawer.
   // Each needs a reason; remove the entry once it is documented or fixed.
   const KNOWN_UNDOCUMENTED = {
-    "tracker.mode.rowmode": "Row mode only ever highlights row 0 (currentRow never advances) - see reports/tutorial-popups-analysis.md",
-    "tracker.focus.toggle": "Shadowed by tracker.layer.full: both bind F and the more specific tracker.notedit scope wins",
     "tracker.esc": "Generic dismiss; covered by the global Esc entry",
     "creator.esc": "Generic dismiss; covered by the global Esc entry",
     "creator.shortcuts": "The ? key; covered by the global entry",

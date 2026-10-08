@@ -9780,6 +9780,7 @@ function TrackerApp({
   useScope("tracker", !!isActive);
   useScope("tracker.notedit", !!isActive && !isEditMode);
   useScope("tracker.view.highlight", !!isActive && stitchView === "highlight");
+  useScope("tracker.rowmode", !!isActive && rowModeActive && !isEditMode);
 
   // Keyup handler for Space-pan release stays imperative (registry is keydown-only).
   useEffect(() => {
@@ -9965,6 +9966,121 @@ function TrackerApp({
     }
   }
 
+  // ── Row mode ─────────────────────────────────────────────────────────────
+  // Work one row at a time: every other row is washed out and the row bar
+  // steps between rows. Rows run across the work area when one is active.
+  // "Onward" follows the start corner: top starts work down, bottom starts up.
+  const rowSpan = areaOn && workArea ? {
+    x0: workArea.x0,
+    x1: workArea.x1,
+    y0: workArea.y0,
+    y1: workArea.y1
+  } : {
+    x0: 0,
+    x1: sW,
+    y0: 0,
+    y1: sH
+  };
+  const rowDir = startCorner === "BL" || startCorner === "BR" ? -1 : 1;
+  function rowStats(y) {
+    const d = doneRef.current || done;
+    let total = 0,
+      dn = 0;
+    if (!pat || y < 0 || y >= sH) return {
+      total: 0,
+      done: 0
+    };
+    for (let x = rowSpan.x0; x < rowSpan.x1; x++) {
+      const idx = y * sW + x,
+        m = pat[idx];
+      if (!m || m.id === "__skip__" || m.id === "__empty__") continue;
+      total++;
+      if (d && d[idx]) dn++;
+    }
+    return {
+      total,
+      done: dn
+    };
+  }
+  function rowUnfinished(y) {
+    const s = rowStats(y);
+    return s.total > 0 && s.done < s.total;
+  }
+  // First unfinished row from `from` (inclusive) in direction `dir`, or -1.
+  function findUnfinishedRow(from, dir) {
+    for (let y = from; y >= rowSpan.y0 && y < rowSpan.y1; y += dir) if (rowUnfinished(y)) return y;
+    return -1;
+  }
+  // Scroll vertically just enough to bring a row into view.
+  function scrollRowIntoView(y) {
+    const el = stitchScrollRef.current;
+    if (!el || !(scs > 0)) return;
+    const off = chartScrollOffset();
+    const top = G + y * scs - off.y,
+      bottom = top + scs;
+    if (top >= el.scrollTop && bottom <= el.scrollTop + el.clientHeight) return;
+    const t = Math.max(0, top - el.clientHeight / 2 + scs / 2);
+    try {
+      el.scrollTo({
+        top: t,
+        behavior: 'smooth'
+      });
+    } catch (_) {
+      el.scrollTop = t;
+    }
+  }
+  function goToRow(y) {
+    const r = Math.max(rowSpan.y0, Math.min(rowSpan.y1 - 1, y));
+    setCurrentRow(r);
+    scrollRowIntoView(r);
+  }
+  function setRowMode(on) {
+    setRowModeActive(on);
+    if (!on) return;
+    const startY = rowDir > 0 ? rowSpan.y0 : rowSpan.y1 - 1;
+    const y = findUnfinishedRow(startY, rowDir);
+    goToRow(y >= 0 ? y : startY);
+  }
+  function nextUnfinishedRow() {
+    let y = findUnfinishedRow(currentRow + rowDir, rowDir);
+    if (y < 0) y = findUnfinishedRow(rowDir > 0 ? rowSpan.y0 : rowSpan.y1 - 1, rowDir);
+    return y;
+  }
+  // Keep the row inside the work area when the area changes.
+  useEffect(() => {
+    if (!rowModeActive) return;
+    if (currentRow < rowSpan.y0 || currentRow >= rowSpan.y1) setRowMode(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowModeActive, rowSpan.y0, rowSpan.y1]);
+  // When the last stitch of the current row is marked, move on to the next
+  // unfinished row. Only on the transition, so opening row mode on a finished
+  // row (or undoing and redoing) doesn't jump unexpectedly.
+  const rowWasFinishedRef = useRef(null);
+  useEffect(() => {
+    if (!rowModeActive || !pat) {
+      rowWasFinishedRef.current = null;
+      return;
+    }
+    const s = rowStats(currentRow);
+    const finished = s.total > 0 && s.done >= s.total;
+    const prev = rowWasFinishedRef.current;
+    rowWasFinishedRef.current = {
+      row: currentRow,
+      finished
+    };
+    if (!finished || !prev || prev.row !== currentRow || prev.finished) return;
+    const next = nextUnfinishedRow();
+    try {
+      if (window.Toast && window.Toast.show) window.Toast.show({
+        message: next >= 0 ? "Row " + (currentRow + 1) + " done. On to row " + (next + 1) + "." : "Row " + (currentRow + 1) + " done. Every row is finished.",
+        type: "success",
+        duration: 2500
+      });
+    } catch (_) {}
+    if (next >= 0) goToRow(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowModeActive, currentRow, doneCount, pat]);
+
   // Where is that thread parked? The palette's P badge answers it (as Markup
   // R-XP's symbol list does): it brings the colour's park marker into view and
   // puts the guide on it, the way J does for the next stitch. With several
@@ -10131,10 +10247,21 @@ function TrackerApp({
     keys: "r",
     scope: "tracker.notedit",
     description: "Toggle row mode",
-    run: () => {
-      setRowModeActive(v => !v);
-      setCurrentRow(0);
-    }
+    run: () => setRowMode(!rowModeActive)
+  }, {
+    id: "tracker.row.prev",
+    keys: "arrowup",
+    scope: "tracker.rowmode",
+    description: "Row mode: the row above",
+    when: () => stitchMode !== "navigate",
+    run: () => goToRow(currentRow - 1)
+  }, {
+    id: "tracker.row.next",
+    keys: "arrowdown",
+    scope: "tracker.rowmode",
+    description: "Row mode: the row below",
+    when: () => stitchMode !== "navigate",
+    run: () => goToRow(currentRow + 1)
   },
   // View cycle.
   {
@@ -10247,18 +10374,22 @@ function TrackerApp({
     scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v => !v)
-  }, {
+  },
+  // S for Section spotlight. Was F, which tracker.layer.full (a more
+  // specific scope) shadowed, so this could never fire.
+  {
     id: "tracker.focus.toggle",
-    keys: "f",
+    keys: "s",
     scope: "tracker",
-    description: "Toggle spotlight focus area",
+    description: "Toggle section spotlight",
     run: () => {
       if (stitchingStyle === "crosscountry") return;
-      setFocusEnabled(v => {
-        const next = !v;
-        if (next && !focusBlock) setFocusBlock(_getStartBlock());
-        return next;
-      });
+      const next = !focusEnabled;
+      setFocusEnabled(next);
+      try {
+        localStorage.setItem("cs_focusEnabled", next ? "1" : "0");
+      } catch (_) {}
+      if (next && !focusBlock) setFocusBlock(_getStartBlock());
     }
   }, {
     id: "tracker.focus.left",
@@ -12079,6 +12210,59 @@ function TrackerApp({
       className: "g-btn",
       onClick: exitWorkArea
     }, Icons.focusExit(), " Show whole pattern")));
+  })(), rowModeActive && !isEditMode && pat && (() => {
+    const st = rowStats(currentRow);
+    const pct = st.total ? Math.floor(st.done / st.total * 100) : 100;
+    const left = st.total - st.done;
+    const next = nextUnfinishedRow();
+    return /*#__PURE__*/React.createElement("div", {
+      className: "work-area-bar row-mode-bar",
+      role: "region",
+      "aria-label": "Row mode"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__title"
+    }, Icons.rowMode(), /*#__PURE__*/React.createElement("span", null, "Row ", currentRow + 1), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__range"
+    }, "of ", sH)), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__progress"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__track",
+      "aria-hidden": "true"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__fill",
+      style: {
+        display: "block",
+        width: pct + "%"
+      }
+    })), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__pct",
+      "aria-live": "polite",
+      "aria-label": "Row " + (currentRow + 1) + ": " + (st.total ? left.toLocaleString("en-GB") + " stitches left" : "no stitches")
+    }, st.total ? left ? left.toLocaleString("en-GB") + " left" : "Done" : "Empty")), /*#__PURE__*/React.createElement("span", {
+      className: "work-area-bar__actions"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "work-area-bar__icon-btn",
+      disabled: currentRow <= rowSpan.y0,
+      onClick: () => goToRow(currentRow - 1),
+      "aria-label": "Row above",
+      title: "Row above"
+    }, Icons.chevronUp()), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "work-area-bar__icon-btn",
+      disabled: currentRow >= rowSpan.y1 - 1,
+      onClick: () => goToRow(currentRow + 1),
+      "aria-label": "Row below",
+      title: "Row below"
+    }, Icons.chevronDown()), next >= 0 && next !== currentRow && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "g-btn",
+      onClick: () => goToRow(next)
+    }, "Next unfinished row"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "g-btn",
+      onClick: () => setRowMode(false)
+    }, "Exit row mode")));
   })(), areaPickerOpen && pat && window.WorkAreaPicker && React.createElement(window.WorkAreaPicker, {
     pat,
     done,
@@ -12961,10 +13145,7 @@ function TrackerApp({
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
     checked: rowModeActive,
-    onChange: e => {
-      setRowModeActive(e.target.checked);
-      setCurrentRow(0);
-    },
+    onChange: e => setRowMode(e.target.checked),
     className: "ppal-check"
   }), /*#__PURE__*/React.createElement("span", {
     style: {

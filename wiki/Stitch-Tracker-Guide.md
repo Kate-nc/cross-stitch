@@ -77,6 +77,10 @@ The fade level, tint colour and Spotlight dimming are set in **Preferences > Sti
 
 **More controls > Layers** (or `F`, `H`, `K`, `L`, and `Shift+A` for all) shows or hides full stitches, half stitches, French knots and backstitch.
 
+### Row mode
+
+**R** (or **More controls > Layers > Row mode**) washes out every row but one so you can work a row at a time. It starts on the first unfinished row from your starting corner; the row bar shows what is left in the row, with buttons for the row above and below and **Next unfinished row**. The up and down arrow keys move between rows (outside Navigate mode). Finishing a row moves you on to the next unfinished one. With a work area, rows run across the area only.
+
 ### Counting aids
 
 **C** toggles a 10×10 grid overlay that matches the bold lines on printed charts.
@@ -93,7 +97,7 @@ The colour list, counts and **Mark all done** cover only the area. The arrows in
 
 ## Spotlight
 
-If you stitch one section at a time, Spotlight focuses on one block (10×10 by default) and dims the rest. **Alt** + the arrow keys move it one block at a time. Inside a work area, it works through the area's blocks first.
+If you stitch one section at a time, Section spotlight focuses on one block (10×10 by default) and dims the rest. Press **S** (or **More controls > Tools > Highlight active section**) to turn it on or off; **Alt** + the arrow keys move it one block at a time. Inside a work area, it works through the area's blocks first.
 
 ## Parking Threads
 
@@ -161,6 +165,9 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 | Isolate / Outline / Tint / Spotlight | 1 / 2 / 3 / 4 |
 | Jump to next stitch of colour | J |
 | Pick a work area | W |
+| Section spotlight on / off | S |
+| Row mode on / off | R |
+| Row mode: row above / below | ↑ / ↓ |
 | Move the spotlight | Alt + arrow keys |
 | Colours drawer | D |
 | Counting aids | C |
