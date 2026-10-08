@@ -660,3 +660,22 @@ test('REGRESSION: stale memoised handlers still invoke the latest onToggleCell',
 
   global.window = prev;
 });
+
+test('after the long-press finger lifts, a new finger completes the rectangle', () => {
+  // The opposite-corner tap is a new pointer; it is not a second finger.
+  const ctx = makeCtx(4, 4, makePattern(4, 4));
+  let s = initialState();
+  const fx = [];
+  s = step(s, { type: 'POINTER_DOWN', idx: 0, time: 0, x: 0, y: 0,
+                pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'LONG_PRESS_FIRED' }, ctx, fx);
+  s = step(s, { type: 'POINTER_UP', idx: 0, time: 700 }, ctx, fx);
+  expect(s.mode).toBe('range');
+  s = step(s, { type: 'POINTER_DOWN', idx: 10, time: 1500,
+                pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  expect(s.mode).toBe('range');
+  s = step(s, { type: 'POINTER_UP', idx: 10, time: 1550 }, ctx, fx);
+  const commits = fx.filter(e => e.type === 'COMMIT_RANGE');
+  expect(commits).toHaveLength(1);
+  expect(commits[0].set.size).toBe(9);
+});

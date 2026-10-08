@@ -144,8 +144,13 @@
         // lands: a drag's marks are only a preview until release, and a
         // rectangle anchor would otherwise commit wherever the fingers lift.
         if (s.mode !== 'idle') {
+          // Only while the first finger is still down: after a long-press the
+          // finger lifts and the opposite-corner tap is a new pointer, which
+          // must complete the rectangle, not cancel it.
+          var firstDown = s.mode === 'pending' || s.mode === 'drag'
+                          || (s.mode === 'range' && s.held);
           if (action.pointerType === 'touch' && action.pointerId !== s.pointerId
-              && s.mode !== 'shiftRange') {
+              && firstDown) {
             effects.push({ type: 'CLEAR_LONG_PRESS' });
             return { state: idle(), effects: effects };
           }
@@ -310,7 +315,7 @@
         return {
           state: next({
             mode: 'range', anchor: s.startIdx, intent: lpi,
-            lastAnchor: s.startIdx,
+            lastAnchor: s.startIdx, held: true,
           }),
           effects: effects,
         };
@@ -333,8 +338,9 @@
               effects: effects,
             };
           }
-          // Tap on same cell or non-markable → keep anchor.
-          return { state: s, effects: effects };
+          // Tap on same cell or non-markable → keep anchor. The finger that
+          // set it has lifted (see the multi-touch check in POINTER_DOWN).
+          return { state: s.held ? next({ held: false }) : s, effects: effects };
         }
 
         if (s.mode === 'shiftRange') {
