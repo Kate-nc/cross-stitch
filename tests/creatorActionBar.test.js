@@ -113,7 +113,7 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
     // The new tab bar drives phase navigation (aria-selected wires it).
     expect(ACTION_BAR_SRC).toMatch(/role:\s*"tablist"/);
     // Roving tabindex is wired on tabs.
-    expect(ACTION_BAR_SRC).toMatch(/tabIndex:\s*tabs\[\d+\]\.active\s*\?\s*0\s*:\s*-1/);
+    expect(ACTION_BAR_SRC).toMatch(/tabIndex:\s*t\.active\s*\?\s*0\s*:\s*-1/);
     expect(ACTION_BAR_SRC).toMatch(/onKeyDown:\s*onTablistKeyDown/);
   });
 
@@ -127,7 +127,26 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
 
   test('still renders the tab bar when props.ready is false', () => {
     expect(ACTION_BAR_SRC).toMatch(/var hasPat = !!\(props && props\.ready\)/);
-    expect(ACTION_BAR_SRC).toMatch(/hasPat \? h\("div", \{ className: "creator-actionbar__primary" \}/);
+    expect(ACTION_BAR_SRC).toMatch(/hasStitches \? h\("div", \{ className: "creator-actionbar__primary" \}/);
+  });
+
+  // P2-1 (audit COMMON-04, COMMON-10)
+  test('an empty grid shows only tools: no Print PDF, Export, Open in Tracker or difficulty', () => {
+    expect(ACTION_BAR_SRC).toMatch(/var hasStitches = hasPat && \(Number\(props\.totalStitchable\) \|\| 0\) > 0;/);
+    expect(ACTION_BAR_SRC).toMatch(/var trackBtn = hasStitches && /);
+    expect(ACTION_BAR_SRC).toMatch(/var difficultyBadge = \(hasStitches && props\.difficulty\)/);
+    expect(ACTION_BAR_SRC).toMatch(/hasStitches \? trackBtn : null/);
+    const compact = fs.readFileSync(path.join(REPO_ROOT, 'creator', 'CompactBar.js'), 'utf8');
+    expect(compact).toMatch(/var hasStitches = hasPat && \(Number\(props\.totalStitchable\) \|\| 0\) > 0;/);
+    expect(compact).toMatch(/hasStitches \? h\("button", \{ type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run\(props\.onPrintPdf\) \}/);
+    expect(compact).toMatch(/hasStitches \? h\("button", \{ type: "button", className: "cc-sheet__item", onClick: run\(props\.onTrackPattern\) \}/);
+  });
+
+  test('scratch projects say Canvas; imported charts without a picture show neither', () => {
+    expect(ACTION_BAR_SRC).toMatch(/if \(sourceTab === "convert"\) tabs\.push\(\{\s*id: "convert", label: "Convert"/);
+    expect(ACTION_BAR_SRC).toMatch(/if \(sourceTab === "canvas"\) tabs\.push\(\{\s*id: "canvas", label: "Canvas"/);
+    expect(CREATOR_MAIN_SRC).toMatch(/const _sourceTab = state\.isScratchMode \? 'canvas' : \(\(state\.img && state\.img\.src\) \? 'convert' : null\);/);
+    expect(CREATOR_MAIN_SRC).toMatch(/sourceTab=\{_sourceTab\}/);
   });
 
   test('Export menu closes on Escape and outside click', () => {

@@ -62,6 +62,9 @@
     var infoBtnRef = React.useRef(null);
 
     var hasPat = !!props.pat;
+    // Print, Export and Track need stitches; an empty grid has only tools.
+    var hasStitches = hasPat && (Number(props.totalStitchable) || 0) > 0;
+    var sourceTab = props.sourceTab === undefined ? "convert" : props.sourceTab;
     var appMode = props.appMode;
     var tab = props.tab;
 
@@ -81,14 +84,17 @@
     // Convert / Edit / Materials — icon segmented control with labels for
     // screen readers (visible labels sit in the More sheet's heading).
     var modes = [
-      { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
+      sourceTab === "convert" ? { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
         disabled: !props.hasImage && !hasPat,
-        onClick: function () { if (appMode !== "create" && typeof props.onRequestBackToConvert === "function") props.onRequestBackToConvert(); } },
+        onClick: function () { if (appMode !== "create" && typeof props.onRequestBackToConvert === "function") props.onRequestBackToConvert(); } } : null,
+      sourceTab === "canvas" ? { id: "canvas", label: "Canvas", icon: Icons.ruler || Icons.layers, active: appMode === "create",
+        disabled: false,
+        onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
       { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
-    ];
+    ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
       modes.map(function (m) {
         return h("button", {
@@ -118,7 +124,7 @@
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
       // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage ? h("button", {
+      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
@@ -140,26 +146,26 @@
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
-        hasPat ? h("button", {
+        hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
           onClick: function () { setExportOpen(!exportOpen); }
         }, Icons.document ? Icons.document() : null, h("span", null, "Export…"),
           h("span", { className: "cc-sheet__chev", "aria-hidden": "true" }, exportOpen ? Icons.chevronUp() : Icons.chevronDown())) : null,
-        hasPat && exportOpen ? h("div", { className: "cc-sheet__sub" },
+        hasStitches && exportOpen ? h("div", { className: "cc-sheet__sub" },
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onSaveJson) },
             Icons.save ? Icons.save() : null, h("span", null, "Save project (.json)")),
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
-          props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
+          hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
         score != null ? h("div", { className: "cc-sheet__score", title: "Higher score = easier to stitch: fewer isolated single stitches." },
           h("span", { className: "cc-sheet__score-lbl" }, "Stitch Score"),
           h("span", { className: "cc-sheet__score-val" }, score + "/100"),

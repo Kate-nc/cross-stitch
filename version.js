@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.89';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.90',
+    date: 'October 2026',
+    notes: [
+      'Home > Create new has three clear ways to start: Turn a photo into a pattern, Draw on a blank grid and Import a chart, each opening only the files it can use. Pick a file meant for the other tile and you are asked whether to use that one instead. Files can be dropped onto the tab. In the Creator, a blank grid shows only the drawing tools until it has stitches, and a design drawn from scratch has a Canvas tab (grid size and fabric) instead of Convert.',
+    ]
+  },
+  {
     version: '1.0.89',
     date: 'October 2026',
     notes: [

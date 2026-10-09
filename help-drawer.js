@@ -45,7 +45,7 @@
       sections: [
         {
           heading: "Starting a pattern",
-          body: "Start from Home > Create new. New from pattern file accepts an image (JPG, PNG, GIF, WebP or BMP), a saved .json project, an .oxs file or a PDF chart; New from scratch opens a blank grid. Inside the Creator you can also use File > Open….",
+          body: "Start from Home > Create new, which has three ways in. Turn a photo into a pattern takes a picture (JPG, PNG, GIF, WebP or BMP) and chooses the threads for you. Draw on a blank grid opens an empty grid to design stitch by stitch. Import a chart opens a PDF or .oxs chart, or a saved .json project. If you pick a file that suits a different tile, you're asked whether to use that one instead. You can also drop a file onto the Create new tab, or use File > Open… inside the Creator.",
           bullets: [
             ["Convert settings", "Until a pattern has been generated, the sidebar shows how the image will be converted, in this order: Size & fabric (the size in stitches and the fabric count), Colours, Background, Quality, then Adjust image (brightness, contrast and sharpening, folded away because most pictures don't need it). The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
             ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable. New patterns start at 15; change the starting value in Preferences > Pattern Creator."],
@@ -54,12 +54,14 @@
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
             ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes. It also folds away the in-between shades that appear along the edges of logos and other flat pictures, where two colours (or a colour and the skipped background) meet, so they don't each need a thread of their own."],
             ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
+            ["Canvas", "A design drawn from scratch has no picture to convert, so its first tab is Canvas instead of Convert: the grid's size (change it with Resize canvas) and the fabric. A chart imported without a picture has neither tab."],
+            ["Printing and tracking", "Print PDF, Export and Open in Tracker appear once the pattern has stitches in it; an empty grid shows only the drawing tools."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
           ]
         },
         {
           heading: "What can I import?",
-          body: "Import a file from Home > Create new > New from pattern file, by dropping it on the Creator, or with File > Open….",
+          body: "Import a file from Home > Create new > Import a chart, by dropping it on the Create new tab or the Creator, or with File > Open….",
           bullets: [
             ["PDF charts", "Charts saved as PDF by the designer, including Pattern Keeper-compatible PDFs. The colours, symbols and size are read from the chart and you can check them before saving. Scanned or photographed charts can't be read yet, and nor can password-protected PDFs."],
             [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross."],

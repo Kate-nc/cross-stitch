@@ -104,9 +104,10 @@ describe('Convert panel shows each control once (audit B-16)', () => {
 
   it('renders one fabric select, in the Output section', () => {
     expect(sidebarSrc.match(/FABRIC_COUNTS\.map\(/g) || []).toHaveLength(1);
+    // One select, built by fabricSelect() and used in Size & fabric (and in
+    // the Canvas tab for a design drawn from scratch, P2-1).
     const dim = sidebarSrc.indexOf('var dimSection');
-    const sel = sidebarSrc.indexOf('FABRIC_COUNTS.map(');
-    expect(sel).toBeGreaterThan(dim);
+    expect(sidebarSrc.indexOf('fabricSelect()', dim)).toBeGreaterThan(dim);
     expect(sidebarSrc).not.toMatch(/var fabSection/);
     expect(sidebarSrc).toMatch(/Skein estimates assume 2 strands and 8 m per skein\./);
   });

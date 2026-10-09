@@ -698,6 +698,15 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
+  // The fabric count select, shared by Size & fabric here and the Canvas tab.
+  function fabricSelect(extraStyle) {
+    return h("select", {
+      value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
+      style:Object.assign({width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}, extraStyle || {})
+    }, FABRIC_COUNTS.map(function(f) {
+      return h("option", {key:f.ct, value:f.ct}, f.label);
+    }));
+  }
   var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -731,12 +740,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Fabric"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
-      h("select", {
-        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
-      }, FABRIC_COUNTS.map(function(f) {
-        return h("option", {key:f.ct, value:f.ct}, f.label);
-      })),
+      fabricSelect(),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
         "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
       ),
@@ -1816,6 +1820,42 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     );
 
+    // ── Canvas (audit COMMON-10): a design drawn from scratch has no picture
+    //    to convert, so its first tab is the grid's size and fabric. Size
+    //    changes go through Resize canvas, which keeps the stitches. ──
+    if (app.sourceTab === "canvas") {
+      var canvasFabricCt = ctx.fabricCt || 14;
+      var canvasPanel = h("div", {className:"creator-canvas-panel", style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}},
+        h(Section, {title:"Size & fabric", defaultOpen:true},
+          h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"6px 0 10px"}},
+            h("span", {style:{color:"var(--text-tertiary)"}}, "Grid"),
+            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
+            h("span", {style:{color:"var(--text-tertiary)"}}, "Finished"),
+            h("span", {style:{textAlign:"right"}}, window.finishedSizeText ? window.finishedSizeText(ctx.sW, ctx.sH, canvasFabricCt) : "")
+          ),
+          h("button", {
+            type:"button", className:"g-btn", style:{width:"100%",justifyContent:"center",marginBottom:'var(--s-3)'},
+            onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
+          }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
+          h("label", {style:{display:"flex",flexDirection:"column",gap:4,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}},
+            "Fabric",
+            fabricSelect({color:"var(--text-primary)",textTransform:"none",letterSpacing:0,fontWeight:400})
+          )
+        )
+      );
+      var canvasActions = h("div", {style:{flexShrink:0,borderTop:"1px solid var(--border)",padding:"12px",background:"var(--surface)"}},
+        h("button", {
+          type:"button", className:"g-btn primary", style:{width:"100%",justifyContent:"center",padding:"10px"},
+          onClick:function(){ if (app.setAppMode) app.setAppMode("edit"); }
+        }, window.Icons && window.Icons.pencil ? window.Icons.pencil() : null, "Back to drawing")
+      );
+      return h(React.Fragment, null,
+        drawerHeader,
+        canvasPanel,
+        canvasActions
+      );
+    }
+
     return h(React.Fragment, null,
       drawerHeader,
       createPanel,
@@ -2163,7 +2203,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && h("div", {className:"rpanel-back-to-convert", style:{
+    gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"

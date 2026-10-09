@@ -121,7 +121,11 @@ describe('wiring', () => {
     expect(home.indexOf("classifyFileForCreate(file) === 'unsupported'")).toBeGreaterThan(-1);
     expect(home.indexOf("classifyFileForCreate(file) === 'unsupported'")).toBeLessThan(home.indexOf('var reader = new FileReader();'));
     const main = loadSource('creator-main.js');
-    expect((main.match(/rejectUnsupportedFile\((f|df)\)/g) || []).length).toBe(3);
+    // The Creator's file picker and its canvas drop zone. The welcome card's
+    // drop zone moved to Home's Create tab (P2-1), which routes drops through
+    // startFile() and so through the same check.
+    expect((main.match(/rejectUnsupportedFile\((f|df)\)/g) || []).length).toBe(2);
+    expect(home).toMatch(/function onDrop\(e\) \{[\s\S]{0,300}startFile\(file\)/);
   });
 
   test('the engine no longer shows raw "Import failed:" messages', () => {

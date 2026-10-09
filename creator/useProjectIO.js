@@ -592,9 +592,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // Initial load: pending actions, handoff, active project, or auto-saved session
   React.useEffect(function() {
+    // Every path below ends by calling settle(), so the Creator knows when it
+    // has finished looking for something to open (see creator-main.js).
+    function settle() { if (state.setBootSettled) state.setBootSettled(true); }
     if (window.__pendingCreatorAction === "scratch") {
       delete window.__pendingCreatorAction;
       state.startScratch();
+      settle();
       return;
     }
     if (window.__pendingCreatorFile) {
@@ -610,6 +614,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         sessionStorage.removeItem('cs_pending_image_ts'); // INT-6
       } catch (_) {}
       handleFile(file);
+      settle();
       return;
     }
     if (window.__pendingCreatorJsonFile) {
@@ -632,7 +637,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setLoadError("Could not load: " + err2.message);
           setTimeout(function() { state.setLoadError(null); }, 4000);
         }
+        settle();
       };
+      rd2.onerror = settle;
       rd2.readAsText(jsonFile);
       return;
     }
@@ -673,6 +680,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
             alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
           }
+          settle();
           return;
         }
       } catch (e) { console.error("Failed to load handoff to creator:", e); }
@@ -742,7 +750,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
               });
             }
           } catch(_) {}
-        });
+        }).then(settle, settle);
         return;
       }
     }
@@ -764,7 +772,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           }
         } catch (_) {}
       }
-    });
+    }).then(settle, settle);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist name/designer/description to localStorage so they survive a refresh
