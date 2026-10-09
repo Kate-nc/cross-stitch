@@ -1480,6 +1480,14 @@ function CreatorApp({
   React.useEffect(() => {
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');
   }, [state.sidebarTab, _coach.active]);
+  // Touch users start with no tool armed, so the coach mark tells them to pick Paint first.
+  const _coarsePointer = (() => {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    } catch (_) {
+      return false;
+    }
+  })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
   return /*#__PURE__*/React.createElement(window.GenerationContext.Provider, {
@@ -2567,7 +2575,7 @@ function CreatorApp({
   }, "Generating pattern\\u2026")), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',
-    body: state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+    body: _coarsePointer ? state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.' : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.' : state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
     placement: 'inside-bottom',
     target: '.canvas-area',
     showHighlight: false,

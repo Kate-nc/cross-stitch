@@ -5888,6 +5888,9 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
+  function isFinePointer() {
+    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -5931,12 +5934,17 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
+  // Only fine pointers get Paint armed: on touch, an armed tool turns the
+  // first swipe into stitches, so touch users start with no tool (one finger
+  // pans, long-press opens the context menu) and pick Paint themselves.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    setBrushAndActivate("paint");
-    selectStitchType("cross");
+    if (isFinePointer()) {
+      setBrushAndActivate("paint");
+      selectStitchType("cross");
+    }
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -6031,7 +6039,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -8572,16 +8580,33 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var pts = Array.from(activePointersRef.current.values());
     var midX = (pts[0].x + pts[1].x) / 2;
     var midY = (pts[0].y + pts[1].y) / 2;
-    var rect = pcRef.current.getBoundingClientRect();
+    var sc = scrollRef.current;
+    var originX = 0, originY = 0, padX = 0, padY = 0;
+    if (sc.getBoundingClientRect) {
+      // Viewport origin of the scroll container, and the canvas's offset
+      // inside its scrolled content (gutter / centring padding).
+      var cRect = sc.getBoundingClientRect();
+      var pRect = pcRef.current.getBoundingClientRect();
+      originX = cRect.left; originY = cRect.top;
+      padX = pRect.left - cRect.left + sc.scrollLeft;
+      padY = pRect.top - cRect.top + sc.scrollTop;
+    }
     pinchStateRef.current = {
       startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
       startZoom: state.zoom,
       lastAppliedZoom: state.zoom,
-      focalX: scrollRef.current.scrollLeft + (midX - rect.left),
-      focalY: scrollRef.current.scrollTop + (midY - rect.top),
+      startScrollLeft: sc.scrollLeft,
+      startScrollTop: sc.scrollTop,
+      startMidX: midX,
+      startMidY: midY,
+      originX: originX, originY: originY,
+      padX: padX, padY: padY,
     };
   }
 
+  // The scroll position always follows the midpoint of the two fingers, so a
+  // steady two-finger drag pans; zoom is applied only when its rounded value
+  // changes, keeping the content point under the starting midpoint pinned.
   function updatePinchGesture() {
     var pinch = pinchStateRef.current;
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
@@ -8592,18 +8617,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    if (nextZoom === pinch.lastAppliedZoom) return;
+    var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
-    state.setZoom(nextZoom);
-    requestAnimationFrame(function() {
-      if (!scrollRef.current || !pcRef.current) return;
-      var rect = pcRef.current.getBoundingClientRect();
-      var ratio = nextZoom / pinch.startZoom;
-      var offsetX = midX - rect.left;
-      var offsetY = midY - rect.top;
-      scrollRef.current.scrollLeft = Math.max(0, pinch.focalX * ratio - offsetX);
-      scrollRef.current.scrollTop = Math.max(0, pinch.focalY * ratio - offsetY);
-    });
+    var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
+    function applyScroll() {
+      if (!scrollRef.current) return;
+      scrollRef.current.scrollLeft = next.scrollLeft;
+      scrollRef.current.scrollTop = next.scrollTop;
+    }
+    if (zoomChanged) {
+      state.setZoom(nextZoom);
+      // Wait for the canvas to resize before scrolling into the new range.
+      requestAnimationFrame(applyScroll);
+    } else {
+      applyScroll();
+    }
   }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
@@ -12181,27 +12209,34 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
+  // On touch screens, tapping the active Paint/Fill/Erase button again puts
+  // the tool down so one finger pans the chart again.
+  var coarsePointer = false;
+  try { coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) {}
+  var paintOn = cv.activeTool === "paint" && cv.brushMode === "paint";
+  var fillOn = cv.activeTool === "fill" && cv.brushMode === "fill";
+  var eraseOn = cv.stitchType === "erase";
+  function pickBrush(mode, isOn) {
+    if (coarsePointer && isOn) { cv.selectStitchType(null); return; }
+    if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+    cv.setBrushAndActivate(mode);
+  }
   var brushGrp = [
     h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("paint");
-        },
-        title:"Paint (P)", "aria-label":"Paint tool"
+        className:"tb-btn"+(paintOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("paint", paintOn); },
+        title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("fill");
-        },
-        title:"Fill (F)", "aria-label":"Fill tool"
+        className:"tb-btn"+(fillOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("fill", fillOn); },
+        title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
       }, "Fill"),
       h("button", {
-        className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
+        className:"tb-btn"+(eraseOn?" tb-btn--red":""),
+        onClick:function(){ cv.selectStitchType(coarsePointer && eraseOn ? null : "erase"); },
+        title:"Erase (5)", "aria-label":"Erase tool", "aria-pressed":eraseOn
       }, svgErase, "Erase")
     )
   ];
@@ -12298,6 +12333,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "hand" || (!cv.activeTool && !ctx.partialStitchTool)) {
+    // No drawing tool: one finger (or the Hand tool) pans the chart.
+    badgeLabel = (cv.activeTool === "hand" || coarsePointer) ? "Panning" : null;
+    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.brushMode === "paint") {

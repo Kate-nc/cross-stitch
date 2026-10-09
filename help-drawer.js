@@ -65,7 +65,8 @@
             ["Brush size", "Paint, half stitches and Erase cover a square up to 10 × 10 stitches. Set the size in the Tools tab or under More tools."],
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
-            ["Hand (H)", "Pan the canvas without painting."]
+            ["Hand (H)", "Pan the canvas without painting."],
+            ["On a touch screen", "No tool is picked when a pattern opens, so one finger scrolls the chart and pressing and holding a stitch opens its menu. Tap Paint, Fill or Erase to start drawing; tap the same button again to put the tool down and scroll with one finger. Two fingers always pan and zoom."]
           ]
         },
         {
