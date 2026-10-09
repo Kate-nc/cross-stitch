@@ -7,8 +7,8 @@
  *     US English) on the current fabric, converted with stitchesForLength
  *     (pattern-size-calc.js);
  *   - chips that fit the picture to a Bookmark (5 × 18 cm), Card (5 × 7 in),
- *     15 cm hoop or A4, or use the Picture size (1 stitch per pixel, at most
- *     500);
+ *     15 cm hoop or A4, or use the Picture size (1 stitch per pixel, scaled
+ *     evenly to stay between 10 and 500);
  *   - a readout with stitches and finished size, and notes when a very wide
  *     or tall picture leaves a thin short side, or when the pattern has more
  *     stitches than the picture has pixels.
@@ -42,11 +42,10 @@
   }
   window.sizeFieldFrameSize = frameSize;
 
-  // 1 stitch per pixel, scaled down to fit 500 if the picture is larger.
+  // 1 stitch per pixel, scaled evenly to stay within 10–500
+  // (pattern-size-calc.js pictureStitchSize).
   function pictureSize(origW, origH) {
-    if (!(origW > 0) || !(origH > 0)) return null;
-    var s = Math.min(1, 500 / Math.max(origW, origH));
-    return { w: Math.max(10, Math.round(origW * s)), h: Math.max(10, Math.round(origH * s)) };
+    return window.pictureStitchSize(origW, origH);
   }
   window.sizeFieldPictureSize = pictureSize;
 
@@ -169,7 +168,7 @@
             onClick: function () { applyFrame(f); } }, f.label);
         }),
         h("button", { type: "button", className: "size-field__chip", "data-size-preset": "picture", disabled: !pic,
-          title: "One stitch per pixel (at most 500)",
+          title: "One stitch per pixel, scaled evenly to stay between 10 and 500 stitches",
           onClick: function () { if (pic) setStitches(pic.w, pic.h); } }, "Picture size")
       ),
       h("p", { className: "size-field__readout", "data-size-readout": "" },

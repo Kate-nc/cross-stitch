@@ -224,8 +224,25 @@ function clampStitches(n) {
 }
 
 /**
+ * Scale a picture of srcW x srcH by `scale`, keeping its shape inside the
+ * 10-500 stitch limits: a picture too small for the 10-stitch minimum is
+ * scaled up evenly until its short side reaches 10, rather than having one
+ * side stretched. Only very long, thin pictures (more than 50:1) still lose
+ * their shape at the limits.
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function scaleKeepingShape(srcW, srcH, scale) {
+  var shortPx = Math.min(srcW, srcH);
+  if (shortPx * scale < PATTERN_MIN_STITCHES) scale = PATTERN_MIN_STITCHES / shortPx;
+  return { w: clampStitches(srcW * scale), h: clampStitches(srcH * scale) };
+}
+
+/**
  * Starting size for a picture of srcW x srcH pixels: the long side fitted to
- * 100 stitches, but never more stitches than the picture has pixels.
+ * 100 stitches, but never more stitches than the picture has pixels (a
+ * picture under 10 pixels across is scaled up evenly to the 10-stitch
+ * minimum).
  *
  * @returns {{ w: number, h: number }}
  */
@@ -233,8 +250,18 @@ function initialPatternSize(srcW, srcH) {
   if (!(srcW > 0) || !(srcH > 0)) return { w: 80, h: 80 };
   var longPx = Math.max(srcW, srcH);
   var longSt = Math.min(INITIAL_LONG_SIDE_STITCHES, longPx);
-  var scale = longSt / longPx;
-  return { w: clampStitches(srcW * scale), h: clampStitches(srcH * scale) };
+  return scaleKeepingShape(srcW, srcH, longSt / longPx);
+}
+
+/**
+ * The Picture size preset: one stitch per pixel, scaled down evenly to fit
+ * 500 or up evenly to reach the 10-stitch minimum.
+ *
+ * @returns {{ w: number, h: number } | null}
+ */
+function pictureStitchSize(srcW, srcH) {
+  if (!(srcW > 0) || !(srcH > 0)) return null;
+  return scaleKeepingShape(srcW, srcH, Math.min(1, PATTERN_MAX_STITCHES / Math.max(srcW, srcH)));
 }
 
 /**
@@ -267,12 +294,19 @@ function lengthForStitches(stitches, unit, fabricCount, stitchOver) {
 function fitPatternToFrame(frameW, frameH, unit, ar, fabricCount, stitchOver) {
   var a = Math.min(frameW, frameH), b = Math.max(frameW, frameH);
   var landscape = ar >= 1;
-  var maxW = stitchesForLength(landscape ? b : a, unit, fabricCount, stitchOver);
-  var maxH = stitchesForLength(landscape ? a : b, unit, fabricCount, stitchOver);
-  if (!(ar > 0)) return { w: clampStitches(maxW), h: clampStitches(maxH) };
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  var spi = calcEffectiveSPI(fabricCount, stitchOver);
+  function toIn(v) { return unit === 'cm' ? v / CM_PER_INCH : v; }
+  // Whole stitches that fit: rounded down, so the pattern never comes out
+  // larger than the frame (a tiny epsilon absorbs floating-point error).
+  function fits(len) { return Math.floor(toIn(len) * spi + 1e-9); }
+  var maxW = fits(landscape ? b : a), maxH = fits(landscape ? a : b);
+  // Only the 10-stitch minimum can push a pattern past a very small frame.
+  function clampDown(n) { return Math.max(PATTERN_MIN_STITCHES, Math.min(PATTERN_MAX_STITCHES, Math.floor(n + 1e-9))); }
+  if (!(ar > 0)) return { w: clampDown(maxW), h: clampDown(maxH) };
   var w = maxW, h = maxW / ar;
   if (h > maxH) { h = maxH; w = maxH * ar; }
-  return { w: clampStitches(w), h: clampStitches(h) };
+  return { w: clampDown(w), h: clampDown(h) };
 }
 
 /**
@@ -323,6 +357,7 @@ if (typeof module !== 'undefined' && module.exports) {
     PATTERN_MIN_STITCHES,
     PATTERN_MAX_STITCHES,
     initialPatternSize,
+    pictureStitchSize,
     stitchesForLength,
     lengthForStitches,
     fitPatternToFrame,
@@ -340,6 +375,7 @@ if (typeof window !== 'undefined') {
   window.dualSizeText        = dualSizeText;
   window.fabricSizes         = fabricSizes;
   window.initialPatternSize  = initialPatternSize;
+  window.pictureStitchSize   = pictureStitchSize;
   window.stitchesForLength   = stitchesForLength;
   window.lengthForStitches   = lengthForStitches;
   window.fitPatternToFrame   = fitPatternToFrame;

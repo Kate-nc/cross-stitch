@@ -12,6 +12,8 @@ describe('starting size for a new picture', () => {
     [6000, 4000, 100, 67],
     [300, 2400, 13, 100],
     [5, 5, 10, 10],
+    // Under 10 px: scaled up evenly to the 10-stitch minimum, keeping its shape.
+    [5, 20, 10, 40],
   ])('%i x %i px starts at %i x %i stitches', (w, h, sw, sh) => {
     expect(calc.initialPatternSize(w, h)).toEqual({ w: sw, h: sh });
   });
@@ -46,7 +48,12 @@ describe('finished size', () => {
     expect(calc.fitPatternToFrame(5, 7, 'in', 3 / 2, 14, 1)).toEqual({ w: 98, h: 65 });
     expect(calc.fitPatternToFrame(5, 7, 'in', 2 / 3, 14, 1)).toEqual({ w: 65, h: 98 });
     // Bookmark 5 x 18 cm with a tall picture.
-    expect(calc.fitPatternToFrame(5, 18, 'cm', 0.25, 14, 1)).toEqual({ w: 25, h: 99 });
+    expect(calc.fitPatternToFrame(5, 18, 'cm', 0.25, 14, 1)).toEqual({ w: 24, h: 99 });
+    // Whole stitches that fit, rounded down: never larger than the frame.
+    const a4 = calc.fitPatternToFrame(21, 29.7, 'cm', 21 / 29.7, 14, 1);
+    expect(a4).toEqual({ w: 115, h: 162 });
+    expect(calc.lengthForStitches(a4.w, 'cm', 14, 1)).toBeLessThanOrEqual(21);
+    expect(calc.lengthForStitches(a4.h, 'cm', 14, 1)).toBeLessThanOrEqual(29.7);
     // Never past 500.
     expect(calc.fitPatternToFrame(100, 100, 'cm', 1, 32, 1).w).toBe(500);
   });
@@ -89,12 +96,17 @@ describe('the Size field', () => {
     const s = win.sizeFieldFrameSize(hoop, 1, 14);
     // 15 cm / sqrt(2) = 10.6 cm = 58 stitches each way.
     expect(s).toEqual({ w: 58, h: 58 });
+    // A 2:1 picture's diagonal stays inside the 15 cm circle.
+    const r = win.sizeFieldFrameSize(hoop, 2, 14);
+    const diag = Math.hypot(calc.lengthForStitches(r.w, 'cm', 14, 1), calc.lengthForStitches(r.h, 'cm', 14, 1));
+    expect(diag).toBeLessThanOrEqual(15);
   });
 
-  test('Picture size is one stitch per pixel, at most 500', () => {
+  test('Picture size is one stitch per pixel, scaled evenly to stay between 10 and 500', () => {
     const win = load();
     expect(win.sizeFieldPictureSize(24, 24)).toEqual({ w: 24, h: 24 });
     expect(win.sizeFieldPictureSize(2400, 300)).toEqual({ w: 500, h: 63 });
+    expect(win.sizeFieldPictureSize(5, 20)).toEqual({ w: 10, h: 40 });
     expect(win.sizeFieldPictureSize(0, 0)).toBeNull();
   });
 
