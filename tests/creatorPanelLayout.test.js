@@ -103,3 +103,38 @@ describe('creatorFitZoom', () => {
     expect(creatorFitZoom(2000, 2000, 300, 300, 28)).toBe(0.05);
   });
 });
+
+describe('creatorFitBox', () => {
+  const src = read('creator/useCreatorState.js');
+  const start = src.indexOf('function creatorFitBox(');
+  const end = src.indexOf('window.creatorFitBox = creatorFitBox;');
+  const creatorFitBox = new Function('window', 'document', 'getComputedStyle',
+    src.slice(start, end) + '\nreturn creatorFitBox;'
+  )({ innerHeight: 1000 }, { querySelector: () => null }, () => ({ maxHeight: 'none' }));
+
+  test('caps a split-pane flex child at its parent pane height', () => {
+    const box = creatorFitBox({
+      clientWidth: 600,
+      clientHeight: 530,
+      offsetHeight: 550,
+      getBoundingClientRect: () => ({ top: 100, bottom: 650 }),
+      parentElement: { getBoundingClientRect: () => ({ bottom: 650 }) },
+    });
+    expect(box.h).toBe(530);
+  });
+});
+
+describe('generation view transition', () => {
+  const state = read('creator/useCreatorState.js');
+
+  test('closes the drawer before mounting the Edit view fit', () => {
+    expect(state).toMatch(/setPanelOpen\(false\);\s*setAppMode\("edit"\);[\s\S]*pendingFitRef\.current = true;/);
+  });
+});
+
+describe('tablet topbar menus', () => {
+  test('uses selectors that override the later base menu positioning', () => {
+    expect(css).toMatch(/\.tb-topbar \.tb-proj-switcher__menu\{position:fixed/);
+    expect(css).toMatch(/\.tb-topbar \.sync-popover\{position:fixed/);
+  });
+});
