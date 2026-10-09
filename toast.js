@@ -89,6 +89,11 @@
     // then immediately dismiss this toast entry.
     var action = (typeof opts.action === "function") ? opts.action : null;
     var actionLabel = opts.actionLabel || "View";
+    // Several actions: [{ label, onClick, keepOpen }]. keepOpen leaves the
+    // toast up after the click (e.g. "Copy details").
+    var actions = Array.isArray(opts.actions) ? opts.actions.filter(function (a) {
+      return a && typeof a.onClick === "function" && a.label;
+    }) : [];
 
     // Honour the user's "show toasts" preference. Errors always show so
     // users still see why something failed.
@@ -180,12 +185,12 @@
       el.appendChild(undoBtn);
     }
 
-    if (action) {
-      var actionBtn = document.createElement("button");
-      actionBtn.type = "button";
-      actionBtn.textContent = actionLabel;
-      actionBtn.setAttribute("aria-label", actionLabel);
-      actionBtn.style.cssText = [
+    function actionButton(label, onClick, keepOpen) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.setAttribute("aria-label", label);
+      btn.style.cssText = [
         "font-weight:600",
         "color:var(--accent)",
         "background:none",
@@ -194,13 +199,22 @@
         "margin-left:12px",
         "padding:2px 4px",
         "font-family:inherit",
-        "font-size:13px"
+        "font-size:13px",
+        "white-space:nowrap"
       ].join(";");
-      actionBtn.addEventListener("click", function () {
-        try { action(); } catch (err) { console.error("Toast action handler failed:", err); }
-        removeToast(entry, true);
+      btn.addEventListener("click", function () {
+        try { onClick(); } catch (err) { console.error("Toast action handler failed:", err); }
+        if (!keepOpen) removeToast(entry, true);
       });
-      el.appendChild(actionBtn);
+      return btn;
+    }
+
+    if (action) el.appendChild(actionButton(actionLabel, action, false));
+    if (actions.length) {
+      var actionRow = document.createElement("span");
+      actionRow.style.cssText = "display:inline-flex;flex-wrap:wrap;align-items:center;";
+      actions.forEach(function (a) { actionRow.appendChild(actionButton(a.label, a.onClick, !!a.keepOpen)); });
+      el.appendChild(actionRow);
     }
 
     var dismissBtn = document.createElement("button");

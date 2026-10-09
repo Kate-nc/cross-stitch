@@ -510,8 +510,18 @@
       // Reset so the same file can be re-selected if needed
       e.target.value = '';
       if (!file) return;
-      // Route non-image pattern files through the new import engine.
+      // Route non-image pattern files through the new import engine. Files
+      // from other design programs (.xsd, .pat, .xsp …) and anything else
+      // that isn't an image stay on Home with a plain-English message
+      // (audit IMPORT-05) instead of failing in the image converter.
       var name = (file.name || '').toLowerCase();
+      var IE = window.ImportEngine;
+      if (IE && typeof IE.classifyFileForCreate === 'function' && IE.classifyFileForCreate(file) === 'unsupported') {
+        var unsupported = new Error('Unsupported file type: ' + file.name);
+        unsupported.name = 'ImportUnsupportedError';
+        if (typeof IE.showImportError === 'function') IE.showImportError(unsupported, file.name);
+        return;
+      }
       var isImage = (file.type || '').indexOf('image/') === 0;
       var isPattern = /\.(oxs|xml|json|pdf)$/i.test(name);
       if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
@@ -521,10 +531,12 @@
         setPending(true);
         window.ImportEngine.importAndReview(file).catch(function (err) {
           console.error('[home] importAndReview rejected:', err);
-          if (window.Toast && window.Toast.show) {
-            window.Toast.show({ message: 'Could not import: ' + (err && err.message || err), type: 'error', duration: 10000 });
-          } else {
-            alert('Could not import: ' + (err && err.message || err));
+          // The engine has usually shown its own friendly toast already.
+          if (err && err.__importToastShown) return;
+          if (window.ImportEngine && typeof window.ImportEngine.showImportError === 'function') {
+            window.ImportEngine.showImportError(err, file.name);
+          } else if (window.Toast && window.Toast.show) {
+            window.Toast.show({ message: 'Something went wrong importing this file.', type: 'error', duration: 10000 });
           }
         }).finally(function () { setPending(false); });
         return;

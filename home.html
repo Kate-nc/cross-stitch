@@ -79,6 +79,7 @@
      because project-library.js consumes window.MultiProjectDashboard. -->
 <!-- The full import engine (~126 KB) is fetched lazily on first picker / DnD use; the shim provides window.ImportEngine stubs that load the real bundle on demand. See reports/perf-opt-2-spec.md. -->
 <script src="import-engine/lazy-shim.js"></script>
+<script src="import-engine/ui/importErrors.js"></script>
 <!-- Mark the page kind BEFORE command-palette.js loads so its pageKind()
      heuristic returns the right registry. -->
 <script>window.__csPageKind = 'home';</script>
