@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.77';
+window.APP_VERSION = '1.0.78';
 
 window.APP_CHANGELOG = [
   {
@@ -12,6 +12,20 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'On touch screens the chart now scrolls with one finger until you pick a drawing tool. Tap Paint, Fill or Erase again to go back to scrolling, and drag with two fingers to pan.',
+    version: '1.0.79',
+    date: 'October 2026',
+    notes: [
+      'Fast brush strokes in the Pattern Creator no longer leave gaps: Paint and Erase fill in every square the stroke passes over, and the whole stroke still undoes in one step.',
+      'If you close the "Name your project" box, it no longer comes back each time you reopen that pattern.',
+      'The Convert panel is tidier: Skip background and the fabric count each appear once (Background and Output), instead of twice.',
+    ]
+  },
+  {
+    version: '1.0.78',
+    date: 'October 2026',
+    notes: [
+      'Finished size and skein estimates are now correct for evenweave and linen stitched over two (25, 28 and 32 count). They used to show half the real size and about half the thread.',
+      'Shopping lists and Stash status count threads, not blends: a blend adds to the two threads it is made from instead of appearing as an extra colour to buy. The fabric size tables use each fabric\'s own setting, so the separate Over two boxes have gone.',
     ]
   },
   {

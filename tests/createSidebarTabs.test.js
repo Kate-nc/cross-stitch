@@ -44,11 +44,13 @@ describe('Create-mode sidebar — five task tabs', () => {
     // sections stacked vertically (no tabContentMap or separate tab-content vars).
     const cpIdx = sidebarSrc.indexOf('var createPanel');
     expect(cpIdx).toBeGreaterThan(0);
-    // bgSection, fabSection, palSection and dimSection must all appear inside
-    // the createPanel definition (within 2000 chars of it).
+    // bgSection, palSection and dimSection must all appear inside the
+    // createPanel definition (within 2000 chars of it). The fabric select
+    // lives in dimSection (Output); the separate fabSection was a duplicate
+    // (audit B-16).
     const cpBlock = sidebarSrc.slice(cpIdx, cpIdx + 2000);
     expect(cpBlock).toMatch(/bgSection/);
-    expect(cpBlock).toMatch(/fabSection/);
+    expect(cpBlock).not.toMatch(/fabSection/);
     expect(cpBlock).toMatch(/palSection/);
     expect(cpBlock).toMatch(/dimSection/);
     // The old separate tab-content vars are gone from create mode.
@@ -88,5 +90,24 @@ describe('Create-mode top toolbar — duplicate Generate removed', () => {
     expect(createSection).toMatch(/Icons\.image\(\)/);
     // The previous \uD83D\uDDBC (🖼) emoji must be gone.
     expect(createSection).not.toMatch(/\uD83D\uDDBC/);
+  });
+});
+
+describe('Convert panel shows each control once (audit B-16)', () => {
+  const sidebarSrc = fs.readFileSync(path.join(__dirname, '..', 'creator/Sidebar.js'), 'utf8');
+
+  it('renders "Skip background" once, in the Background section', () => {
+    expect(sidebarSrc.match(/h\("span", null, "Skip background"\)/g) || []).toHaveLength(1);
+    const bg = sidebarSrc.indexOf('var bgSection');
+    expect(sidebarSrc.indexOf('"Skip background"', bg)).toBeGreaterThan(bg);
+  });
+
+  it('renders one fabric select, in the Output section', () => {
+    expect(sidebarSrc.match(/FABRIC_COUNTS\.map\(/g) || []).toHaveLength(1);
+    const dim = sidebarSrc.indexOf('var dimSection');
+    const sel = sidebarSrc.indexOf('FABRIC_COUNTS.map(');
+    expect(sel).toBeGreaterThan(dim);
+    expect(sidebarSrc).not.toMatch(/var fabSection/);
+    expect(sidebarSrc).toMatch(/Skein estimates assume 2 strands and 8 m per skein\./);
   });
 });

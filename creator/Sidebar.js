@@ -641,8 +641,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
-        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
-      )
+        "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
+      ),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Skein estimates assume 2 strands and 8 m per skein.")
     )
   );
 
@@ -1097,26 +1098,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
   })() : null;
 
-  // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.fabricCt+"ct");
-  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-        h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Fabric count"),
-        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
-      ),
-      h("select", {
-        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
-      }, FABRIC_COUNTS.map(function(f) {
-        return h("option", {key:f.ct, value:f.ct}, f.label);
-      })),
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
-    )
-  );
-
-  // ── Image section (non-scratch) — source adjustments + background ──────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  // ── Image section (non-scratch) — source adjustments ───────────────────────
+  // Background has its own section (bgSection) below; it used to be repeated
+  // here as well (audit B-16).
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
@@ -1153,42 +1138,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
         inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
         helpTopic:"image"
-      }),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},
-        h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
-          var on = e.target.checked;
-          gen.setSkipBg(on);
-          var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
-          if (on && isDefaultWhite) armBgPick();
-          else if (!on && gen.pickBg) gen.setPickBg(false);
-        }}),
-        h("span", null, "Skip background"),
-        h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
-      ),
-      gen.skipBg && h("div", {style:{marginTop:10}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
-          h("div", {
-            onClick:armBgPick,
-            title:"Pick background colour from the source image",
-            style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
-          }),
-          h("button", {
-            onClick:armBgPick,
-            style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
-          }, gen.pickBg ? "Picking\u2026" : "Pick")
-        ),
-        h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
-          helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-        ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
-          h("button", {
-            onClick:gen.autoCrop,
-            style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
-          }, "Auto-Crop to Stitches")
-        )
-      )
+      })
     )
   ) : null;
 
@@ -1607,10 +1557,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
       var fabricCt = ctx.fabricCt || 14;
-      var finishedW = (ctx.sW / fabricCt).toFixed(1);
-      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
       var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
-        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        // Per thread, not per palette entry: blends fold into their threads.
+        ? window.buildThreadShoppingRows(ctx.displayPal || ctx.pal || [], { fabricCt: fabricCt }).reduce(function(t, r) { return t + r.needed; }, 0)
         : 0;
       var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
       function row(label, value) {
@@ -1622,7 +1572,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
@@ -1707,10 +1657,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
         var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
         var fabricCt = ctx.fabricCt||14;
-        var finishedW = (ctx.sW/fabricCt).toFixed(1);
-        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
         var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
-          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+          ?window.buildThreadShoppingRows(ctx.displayPal||ctx.pal||[],{fabricCt:fabricCt}).reduce(function(t,r){return t+r.needed;},0):0;
         var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
         function statRow(label, value) {
           return h(React.Fragment, null,
@@ -1720,7 +1669,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
-          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
           statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
@@ -1739,7 +1688,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       // 2. Output (dimensions + fabric)
       dimSection,
-      fabSection,
       // 3. Palette
       palSection,
       // 4. Quality (dithering + cleanup)

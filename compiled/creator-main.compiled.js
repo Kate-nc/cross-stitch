@@ -1011,8 +1011,6 @@ function CreatorApp({
       setDimOpen: state.setDimOpen,
       palOpen: state.palOpen,
       setPalOpen: state.setPalOpen,
-      fabOpen: state.fabOpen,
-      setFabOpen: state.setFabOpen,
       adjOpen: state.adjOpen,
       setAdjOpen: state.setAdjOpen,
       bgOpen: state.bgOpen,
@@ -1117,7 +1115,7 @@ function CreatorApp({
       isScratchMode: state.isScratchMode,
       isActive: isActive
     };
-  }, [state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.fabOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {

@@ -123,6 +123,26 @@ function toDisplayDimensions(widthIn, heightIn, units) {
   };
 }
 
+/**
+ * Finished size as shown in the Creator, e.g. "5.7 × 5.7 in".
+ *
+ * stitchOver defaults to the fabric's own setting: stitchOverFor() in
+ * constants.js returns 2 for the "(over 2)" counts in FABRIC_COUNTS.
+ *
+ * @param {number} stitchesWide
+ * @param {number} stitchesHigh
+ * @param {number} fabricCount
+ * @param {number} [stitchOver]
+ * @returns {string}
+ */
+function finishedSizeText(stitchesWide, stitchesHigh, fabricCount, stitchOver) {
+  if (stitchOver == null) {
+    stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  }
+  var d = calcDesignSizeIn(stitchesWide, stitchesHigh, fabricCount, stitchOver);
+  return d.widthIn.toFixed(1) + ' × ' + d.heightIn.toFixed(1) + ' in';
+}
+
 // ════════════════════════════════════════════════════════════════════
 // Export (CommonJS for tests; browser globals for in-page use)
 // ════════════════════════════════════════════════════════════════════
@@ -135,7 +155,8 @@ if (typeof module !== 'undefined' && module.exports) {
     calcEffectiveSPI,
     calcDesignSizeIn,
     calcCutSizeIn,
-    toDisplayDimensions
+    toDisplayDimensions,
+    finishedSizeText
   };
 }
 if (typeof window !== 'undefined') {
@@ -143,4 +164,5 @@ if (typeof window !== 'undefined') {
   window.calcDesignSizeIn    = calcDesignSizeIn;
   window.calcCutSizeIn       = calcCutSizeIn;
   window.toDisplayDimensions = toDisplayDimensions;
+  window.finishedSizeText    = finishedSizeText;
 }

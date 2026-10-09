@@ -4972,6 +4972,74 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
+// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// caps distinct threads, so a blend such as 310+550 is two threads the user
+// may already be buying for solids: its stitches are added to each
+// component's row and it gets no row of its own. A blend stitch uses one
+// strand of each thread, so it costs each component half the thread of a
+// two-strand solid stitch.
+//   pal  — palette entries ({ id, type, count, rgb, name, threads? })
+//   opts — { fabricCt, stash, strandsUsed, wasteFactor }
+// Returns [{ p: { id, type:'solid', count, rgb, name }, key, owned, needed,
+//            status, name }] in first-seen order.
+window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
+  opts = opts || {};
+  var fabricCt = opts.fabricCt || 14;
+  var stash = opts.stash || {};
+  var order = [], byKey = {};
+  (pal || []).forEach(function(p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    var count = p.count || 0;
+    var parts;
+    if (p.type === 'blend') {
+      parts = (p.threads && p.threads.length)
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
+        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
+    } else {
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
+    }
+    parts.forEach(function(t) {
+      var key = t.brand + ':' + t.id;
+      var r = byKey[key];
+      if (!r) {
+        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
+        order.push(key);
+      }
+      if (!r.name && t.name) r.name = t.name;
+      if (!r.rgb && t.rgb) r.rgb = t.rgb;
+      r.stitches += count;
+      r.threadStitches += parts.length > 1 ? count / parts.length : count;
+    });
+  });
+  return order.map(function(key) {
+    var r = byKey[key];
+    if (!r.rgb || !r.name) {
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
+      if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
+    }
+    var needed;
+    if (typeof stitchesToSkeins === 'function') {
+      var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+      needed = sk.skeinsToBuy || 0;
+    } else {
+      needed = Math.ceil(r.threadStitches / 800) || 0;
+    }
+    // Any thread with stitches needs at least one skein.
+    if (r.stitches > 0) needed = Math.max(1, needed);
+    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
+    var entry = stash[stashKey];
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(entry)
+      : ((entry && entry.owned) || 0);
+    var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+    return {
+      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
+      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
+    };
+  });
+};
+
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
 var _canvasFilterSupported = (function() {
@@ -5347,7 +5415,6 @@ window.useCreatorState = function useCreatorState() {
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _fabOpen  = useState(false);   var fabOpen  = _fabOpen[0],  setFabOpen  = _fabOpen[1];
   var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
@@ -5514,6 +5581,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Whether this project has already shown the name prompt. Saved with the
+  // project (optional field namePromptShown) so a dismissed prompt doesn't
+  // come back on every reload (audit B-10). The ref is for the save
+  // controller's callback, which closes over an early render.
+  var _namePromptShown = useState(false); var namePromptShown = _namePromptShown[0], setNamePromptShownState = _namePromptShown[1];
+  var namePromptShownRef = useRef(false);
+  var setNamePromptShown = useCallback(function(v) {
+    namePromptShownRef.current = !!v;
+    setNamePromptShownState(!!v);
+  }, []);
+  useEffect(function() {
+    if (namePromptOpen && !namePromptShownRef.current) setNamePromptShown(true);
+  }, [namePromptOpen, setNamePromptShown]);
   // Proposal 2: auto-save state surfaced in the header badge so the user can
   // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
   // static "All changes saved" string. Driven by SaveStatus.createSaveController
@@ -5840,7 +5920,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
+    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
@@ -6091,7 +6171,7 @@ window.useCreatorState = function useCreatorState() {
     if (!hasGenerated) {
       // First generation only: collapse all the settings accordions so
       // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false); setFabOpen(false);
+      setDimOpen(false); setPalOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
     }
@@ -6632,7 +6712,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
+    dimOpen, setDimOpen, palOpen, setPalOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
@@ -6677,6 +6757,7 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    namePromptShown, setNamePromptShown, namePromptShownRef,
     saveStatus, setSaveStatus,
     savedAt, setSavedAt,
     saveError, setSaveError,
@@ -8381,27 +8462,30 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
    Depends on globals: React, gridCoord, drawCk, drawPatternOnCanvas (for full
    redraws during drag-erase of backstitch). */
 
-/* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
-   the scroll position and finger midpoint captured when the gesture began,
-   plus the scroll container's viewport origin and the canvas's offset inside
-   the scrolled content. Returns the scroll position that keeps the chart
-   point that was under the starting midpoint under the current midpoint,
-   after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
-   is a plain pan: the chart follows the fingers. */
-window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
-  var originX = pinch.originX || 0, originY = pinch.originY || 0;
-  var padX = pinch.padX || 0, padY = pinch.padY || 0;
-  var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
-  var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
-  return {
-    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
-    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
-  };
-};
+// Grid cells on the line from (x0, y0) to (x1, y1), both ends included,
+// each touching the previous one (Bresenham). Pointer moves arrive tens of
+// pixels apart on a fast stroke, so a drag paints along this line rather
+// than only under each sample (audit B-11).
+function lineCells(x0, y0, x1, y1) {
+  var cells = [];
+  var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  var err = dx + dy;
+  for (;;) {
+    cells.push({ x: x0, y: y0 });
+    if (x0 === x1 && y0 === y1) break;
+    var e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+  return cells;
+}
+window.lineCells = lineCells;
 
 window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Internal drag refs (not in state — don't need React rendering)
   var isDraggingRef        = React.useRef(false);
+  var lastDragCellRef      = React.useRef(null);  // last cell the stroke reached
   var dragChangesRef       = React.useRef([]);
   var dragCellsRef         = React.useRef(new Set());
   var dragActionRef        = React.useRef(null);
@@ -8480,6 +8564,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function cancelDragSession() {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    lastDragCellRef.current = null;
     dragChangesRef.current = [];
     dragCellsRef.current.clear();
     dragActionRef.current = null;
@@ -8972,6 +9057,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     isDraggingRef.current = true;
+    lastDragCellRef.current = { gx: gx, gy: gy };
     dragChangesRef.current = [];
     dragCellsRef.current.clear();
     dragPatRef.current = pat.slice();
@@ -9026,7 +9112,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       }
       return;
     }
-    if (isDraggingRef.current) applyBrush(gc.gx, gc.gy, dragActionRef.current);
+    if (isDraggingRef.current) {
+      // Fill the gap since the last sample so a fast stroke stays continuous.
+      // Same drag session, so the whole stroke is still one undo step.
+      var last = lastDragCellRef.current;
+      if (last && (last.gx !== gc.gx || last.gy !== gc.gy)) {
+        lineCells(last.gx, last.gy, gc.gx, gc.gy).forEach(function(c) {
+          applyBrush(c.x, c.y, dragActionRef.current);
+        });
+      } else {
+        applyBrush(gc.gx, gc.gy, dragActionRef.current);
+      }
+      lastDragCellRef.current = { gx: gc.gx, gy: gc.gy };
+    }
   }
 
   function handlePatMouseUp(e) {
@@ -9052,6 +9150,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    lastDragCellRef.current = null;
 
     var pat = state.pat, partialStitches = state.partialStitches, bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
@@ -9771,6 +9870,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
@@ -9837,6 +9937,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
@@ -10020,6 +10121,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");
     state.setProjectDescription(project.description || "");
+    // Older projects have no namePromptShown: treat as not yet shown.
+    if (state.setNamePromptShown) state.setNamePromptShown(!!project.namePromptShown);
     // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
     try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
@@ -10491,6 +10594,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       // PERF (deferred-1): see helpers.js / serializePattern.
@@ -10542,9 +10646,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
         onFirstSaveSuccess: function () {
           // Prompt for a name only if the user hasn't given one yet AND only
-          // once per project. Non-blocking: the project is already saved
-          // under its auto-generated name ("Untitled pattern") at this point.
-          if (!state.projectName && state.setNamePromptOpen) {
+          // once per project: namePromptShown is saved with the project, so a
+          // reload doesn't ask again. Non-blocking: the project is already
+          // saved under its auto-generated name ("Untitled pattern").
+          var shownRef = state.namePromptShownRef;
+          if (!state.projectName && !(shownRef && shownRef.current) && state.setNamePromptOpen) {
             if (state.setNameModalReason) state.setNameModalReason("firstSave");
             state.setNamePromptOpen(true);
           }
@@ -10576,7 +10682,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
-    state.projectDesigner, state.projectDescription,
+    state.projectDesigner, state.projectDescription, state.namePromptShown,
     state.isActive,
   ]);
 
@@ -14077,8 +14183,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
-        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
-      )
+        "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
+      ),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Skein estimates assume 2 strands and 8 m per skein.")
     )
   );
 
@@ -14533,26 +14640,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
   })() : null;
 
-  // ── Fabric & Floss section ──────────────────────────────────────────────────
-  var fabBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.fabricCt+"ct");
-  var fabSection = h(Section, {title:"Fabric & Floss", isOpen:app.fabOpen, onToggle:app.setFabOpen, badge:fabBadge},
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-        h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Fabric count"),
-        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
-      ),
-      h("select", {
-        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
-      }, FABRIC_COUNTS.map(function(f) {
-        return h("option", {key:f.ct, value:f.ct}, f.label);
-      })),
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Affects skein & finished size estimates. Assumes 2 strands, 8m per skein.")
-    )
-  );
-
-  // ── Image section (non-scratch) — source adjustments + background ──────────
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.skipBg||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+  // ── Image section (non-scratch) — source adjustments ───────────────────────
+  // Background has its own section (bgSection) below; it used to be repeated
+  // here as well (audit B-16).
+  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
@@ -14589,42 +14680,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
         inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
         helpTopic:"image"
-      }),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)'}}, "Background"),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-1)'}},
-        h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
-          var on = e.target.checked;
-          gen.setSkipBg(on);
-          var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
-          if (on && isDefaultWhite) armBgPick();
-          else if (!on && gen.pickBg) gen.setPickBg(false);
-        }}),
-        h("span", null, "Skip background"),
-        h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
-      ),
-      gen.skipBg && h("div", {style:{marginTop:10}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
-          h("div", {
-            onClick:armBgPick,
-            title:"Pick background colour from the source image",
-            style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
-          }),
-          h("button", {
-            onClick:armBgPick,
-            style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
-          }, gen.pickBg ? "Picking\u2026" : "Pick")
-        ),
-        h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
-          helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-        ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
-          h("button", {
-            onClick:gen.autoCrop,
-            style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
-          }, "Auto-Crop to Stitches")
-        )
-      )
+      })
     )
   ) : null;
 
@@ -15043,10 +15099,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
       var fabricCt = ctx.fabricCt || 14;
-      var finishedW = (ctx.sW / fabricCt).toFixed(1);
-      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
       var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
-        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        // Per thread, not per palette entry: blends fold into their threads.
+        ? window.buildThreadShoppingRows(ctx.displayPal || ctx.pal || [], { fabricCt: fabricCt }).reduce(function(t, r) { return t + r.needed; }, 0)
         : 0;
       var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
       function row(label, value) {
@@ -15058,7 +15114,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
@@ -15143,10 +15199,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
         var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
         var fabricCt = ctx.fabricCt||14;
-        var finishedW = (ctx.sW/fabricCt).toFixed(1);
-        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
         var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
-          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+          ?window.buildThreadShoppingRows(ctx.displayPal||ctx.pal||[],{fabricCt:fabricCt}).reduce(function(t,r){return t+r.needed;},0):0;
         var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
         function statRow(label, value) {
           return h(React.Fragment, null,
@@ -15156,7 +15211,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
-          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
           statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
@@ -15175,7 +15230,6 @@ window.CreatorSidebar = function CreatorSidebar() {
       bgSection,
       // 2. Output (dimensions + fabric)
       dimSection,
-      fabSection,
       // 3. Palette
       palSection,
       // 4. Quality (dithering + cleanup)
@@ -16129,18 +16183,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     var units        = fsUnits;
 
     // Fabric list with per-row default stitch-over (1 = Aida, 2 = evenweave/linen).
-    // 25/28/32-count are evenweave (over 2 by default); all others are Aida (over 1).
+    // The default comes from FABRIC_COUNTS (stitchOverFor in constants.js), so
+    // this table and the Fabric menu can't disagree.
     var fabrics = [
-      {ct:11,label:"11 count Aida",      defaultSO:1},
-      {ct:14,label:"14 count Aida",      defaultSO:1},
-      {ct:16,label:"16 count Aida",      defaultSO:1},
-      {ct:18,label:"18 count Aida",      defaultSO:1},
-      {ct:20,label:"20 count Aida",      defaultSO:1},
-      {ct:22,label:"22 count Aida",      defaultSO:1},
-      {ct:25,label:"25 count Evenweave", defaultSO:2},
-      {ct:28,label:"28 count Linen",     defaultSO:2},
-      {ct:32,label:"32 count Linen",     defaultSO:2}
-    ];
+      {ct:11,label:"11 count Aida"},
+      {ct:14,label:"14 count Aida"},
+      {ct:16,label:"16 count Aida"},
+      {ct:18,label:"18 count Aida"},
+      {ct:20,label:"20 count Aida"},
+      {ct:22,label:"22 count Aida"},
+      {ct:25,label:"25 count Evenweave"},
+      {ct:28,label:"28 count Linen"},
+      {ct:32,label:"32 count Linen"}
+    ].map(function(f) { f.defaultSO = stitchOverFor(f.ct); return f; });
 
     // stitchOverride 0 = use per-row default; 1 or 2 = global override.
     function effectiveSO(f) {
@@ -16149,9 +16204,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
     function calcRow(f) {
       var so  = effectiveSO(f);
-      var spi = f.ct / so;                          // effective stitches per inch
-      var wIn = ctx.sW / spi;
-      var hIn = ctx.sH / spi;
+      var design = calcDesignSizeIn(ctx.sW, ctx.sH, f.ct, so);
+      var wIn = design.widthIn;
+      var hIn = design.heightIn;
       // Cut size: design + margin each side (both sides → ×2); round up ¼″.
       var cutW = Math.ceil((wIn + 2 * margin) * 4) / 4;
       var cutH = Math.ceil((hIn + 2 * margin) * 4) / 4;
@@ -16640,7 +16695,13 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var patternRows = [];
   if (hasDims) patternRows.push.apply(patternRows, row("Size", sW + " \u00D7 " + sH + " stitches"));
-  if (hasFabric) patternRows.push.apply(patternRows, row("Fabric", props.fabricCt + " ct Aida"));
+  if (hasFabric) {
+    var fab = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS.find(function(f) { return f.ct === props.fabricCt; }) : null;
+    patternRows.push.apply(patternRows, row("Fabric", fab ? fab.label : props.fabricCt + " count"));
+    if (hasDims && typeof window.finishedSizeText === "function") {
+      patternRows.push.apply(patternRows, row("Finished", window.finishedSizeText(sW, sH, props.fabricCt)));
+    }
+  }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
   if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
   if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));
