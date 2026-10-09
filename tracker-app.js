@@ -7421,14 +7421,17 @@ return(
         {leftSidebarTab==="tools"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch mode</div>
-            <div style={{display:"flex",gap:6}}>
+            {/* Shared with the Creator's Navigate | Draw (components/ModeToggle.js). */}
+            {window.ModeToggle?<window.ModeToggle className="mode-toggle--block" ariaLabel="Stitch mode" value={stitchMode} onChange={setStitchMode}
+              options={[{value:"track",label:"Mark",icon:Icons.check(),title:"Mark stitches (T)"},{value:"navigate",label:"Navigate",icon:Icons.hand(),title:"Navigate (N)"}]}/>
+            :<div style={{display:"flex",gap:6}}>
               {[["track","Mark"],["navigate","Navigate"]].map(([v,l])=>
                 <button key={v}
                   style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
                   onClick={()=>setStitchMode(v)} aria-pressed={stitchMode===v}
                 >{l}</button>
               )}
-            </div>
+            </div>}
           </div>
           {stitchingStyle!=="crosscountry"&&<div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Section spotlight</div>

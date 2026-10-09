@@ -57,7 +57,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   // Build status text. Touch screens get touch wording (audit COMMON-06).
   var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
   var statusText;
-  if (app.eyedropperEmpty) {
+  if (cv.drawMode === false) {
+    // Navigate (audit DRAW-01) — same wording as the Tracker's Navigate mode.
+    statusText = coarse
+      ? "Drag to pan \u00B7 Tap a stitch to see its thread \u00B7 Press and hold for more options \u00B7 Choose Draw to edit"
+      : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
+  } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
@@ -190,7 +195,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-        if (cv.activeTool === "hand") return "grab";
+        if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";

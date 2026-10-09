@@ -1985,7 +1985,25 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Resize canvas\u2026")
   );
 
+  // Navigate | Draw (audit DRAW-01). On touch it is the first control in the
+  // tool strip instead, so it isn't repeated here.
+  var coarseTools = !!(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer());
+  var modeSection = (!coarseTools && window.ModeToggle) ? h("div", {style:{padding:"12px 12px 0"}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
+      "Chart mode"),
+    h(window.ModeToggle, {
+      className: "mode-toggle--block",
+      ariaLabel: "Chart mode",
+      value: cv.drawMode ? "draw" : "navigate",
+      onChange: function (v) { cv.setDrawMode(v === "draw"); },
+      options: [
+        { value: "navigate", label: "Navigate", icon: window.Icons.hand(), title: "Navigate: drag to move around the chart (H)" },
+        { value: "draw", label: "Draw", icon: window.Icons.pencil ? window.Icons.pencil() : null, title: "Draw: clicks change the chart (H)" }
+      ]
+    })
+  ) : null;
   var toolsContent = h(React.Fragment, null,
+    modeSection,
     stitchTypeSection,
     bsContSection,
     brushSizeSection,

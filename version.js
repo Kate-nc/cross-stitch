@@ -4,17 +4,24 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.84';
+window.APP_VERSION = '1.0.85';
 
 window.APP_CHANGELOG = [
   {
-    version: '1.0.85',
+    version: '1.0.86',
     date: 'October 2026',
     notes: [
       'The Pattern Creator\'s start screen and Convert page are readable in dark mode, and the bar along the top no longer stays light.',
       'After generating, the message now offers a Back to Convert button instead of pointing at a Setup button that doesn\'t exist. The welcome tour and tips describe the current panels and say where they are on your device.',
       'In Convert\'s Colour Breakdown you can tap or click a colour to highlight it in the preview (tap again to clear), so it works on phones and tablets too.',
       'Undo, Redo and the other small controls in the Pattern Creator use the app\'s own icons instead of arrow and tick characters.',
+    ]
+  },
+  {
+    version: '1.0.85',
+    date: 'October 2026',
+    notes: [
+      'The Pattern Creator has a Navigate | Draw switch, like Mark and Navigate in the Stitch Tracker, so you can always see whether a touch will draw or scroll. On phones and tablets it is the first button in the toolbar and new patterns open in Navigate; on a computer it is in the Tools tab and H switches between them. Navigate replaces the Hand tool.',
     ]
   },
   {

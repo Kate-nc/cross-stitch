@@ -79,8 +79,8 @@
             ["Brush size", "Paint, half stitches and Erase cover a square up to 10 × 10 stitches. Set the size in the Tools tab or under More tools."],
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
-            ["Hand (H)", "Pan the canvas without painting."],
-            ["On a touch screen", "No tool is picked when a pattern opens, so one finger scrolls the chart and pressing and holding a stitch opens its menu. Tap Paint, Fill or Erase to start drawing; tap the same button again to put the tool down and scroll with one finger. Two fingers always pan and zoom."]
+            ["Navigate and Draw (H)", "The Navigate | Draw switch says what a touch or click will do, like Mark and Navigate in the Stitch Tracker. Navigate moves around without changing anything: drag the chart to pan it, tap a stitch to see its thread, and press and hold (or right-click) for its menu. Draw makes touches and clicks change the chart with the tool you picked. Choosing Paint, Fill, Erase or any other tool switches to Draw; choosing Navigate keeps your tool for next time. Press H to switch."],
+            ["On a touch screen", "The switch is the first control in the toolbar, and a new pattern opens in Navigate so the first swipe scrolls. In Draw, drag one finger to draw and use two fingers to pan and zoom; a second finger cancels a stroke you've started. Tapping the active Paint, Fill or Erase button again goes back to Navigate. On a computer the switch is in the Tools tab, and the Creator opens in Draw."]
           ]
         },
         {
@@ -461,7 +461,7 @@
     { id: "c.fill",  scope: "creator", keys: ["F"], description: "Fill bucket" },
     { id: "c.wand",  scope: "creator", keys: ["W"], description: "Magic wand (toggle)" },
     { id: "c.eye",   scope: "creator", keys: ["I"], description: "Eyedropper" },
-    { id: "c.hand",  scope: "creator", keys: ["H"], description: "Hand: pan the canvas" },
+    { id: "c.hand",  scope: "creator", keys: ["H"], description: "Switch between Navigate and Draw" },
     { id: "c.replace", scope: "creator", keys: ["R"], description: "Replace colour (toggle) — click a stitch to replace every stitch of that colour" },
     { id: "c.view",  scope: "creator", keys: ["V"], description: "Cycle view: colour / symbol / both" },
     { id: "c.split", scope: "creator", keys: ["\\"], description: "Toggle split-pane preview" },

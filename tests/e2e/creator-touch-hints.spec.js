@@ -40,6 +40,9 @@ test.describe('Touch hints on Pixel 5', function() {
     const mouseHints = page.getByText(/Press \?|Right-click|Hold Alt/i);
     const n = await mouseHints.count();
     for (let i = 0; i < n; i++) await expect(mouseHints.nth(i)).toBeHidden();
+    // A new pattern opens in Navigate on touch (P1-1).
+    await expect(page.getByText(/Tap a stitch to see its thread/)).toBeVisible();
+    await page.getByRole('button', { name: 'Paint tool' }).tap();
     await expect(page.getByText('Long-press a stitch for more options.')).toBeVisible();
   });
 });

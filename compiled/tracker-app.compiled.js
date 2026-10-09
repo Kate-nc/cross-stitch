@@ -12732,7 +12732,23 @@ function TrackerApp({
       letterSpacing: "0.05em",
       marginBottom: 8
     }
-  }, "Stitch mode"), /*#__PURE__*/React.createElement("div", {
+  }, "Stitch mode"), window.ModeToggle ? /*#__PURE__*/React.createElement(window.ModeToggle, {
+    className: "mode-toggle--block",
+    ariaLabel: "Stitch mode",
+    value: stitchMode,
+    onChange: setStitchMode,
+    options: [{
+      value: "track",
+      label: "Mark",
+      icon: Icons.check(),
+      title: "Mark stitches (T)"
+    }, {
+      value: "navigate",
+      label: "Navigate",
+      icon: Icons.hand(),
+      title: "Navigate (N)"
+    }]
+  }) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 6

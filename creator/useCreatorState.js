@@ -259,6 +259,16 @@ if (typeof window !== 'undefined') {
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
+function isFinePointerNow() {
+  try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+}
+// Navigate / Draw starting mode: the last choice on this device, else Draw
+// for a mouse or trackpad and Navigate for touch (audit DRAW-01).
+function initialDrawMode() {
+  var saved = loadUserPref("creator.drawMode", null);
+  if (saved === true || saved === false) return saved;
+  return isFinePointerNow();
+}
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -586,6 +596,21 @@ window.useCreatorState = function useCreatorState() {
     }
     activeToolRef.current = v; _actTool[1](v);
   }
+  // Draw / Navigate (audit DRAW-01). In Navigate the chosen tool is
+  // remembered but inactive: everything outside this hook sees activeTool and
+  // partialStitchTool as null, so one finger (or a mouse drag) pans and a
+  // long-press opens the stitch menu. Touch screens start in Navigate, mouse
+  // users in Draw; the last choice is remembered per device.
+  var _drawMode = useState(initialDrawMode);
+  var drawMode = _drawMode[0];
+  var drawModeRef = useRef(drawMode);
+  var setDrawMode = useCallback(function (v) {
+    v = !!v;
+    if (drawModeRef.current === v) return;
+    drawModeRef.current = v;
+    _drawMode[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -1003,10 +1028,29 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
-  var stitchType = partialStitchTool ? partialStitchTool
-    : activeTool === "backstitch" ? "backstitch"
-    : activeTool === "eraseAll" ? "erase"
-    : (activeTool === "paint" || activeTool === "fill") ? "cross"
+  // What the rest of the Creator sees: no tool while in Navigate.
+  var effActiveTool = drawMode ? activeTool : null;
+  var effPartialStitchTool = drawMode ? partialStitchTool : null;
+  var effActiveToolRef = useRef(null);
+  if (!effActiveToolRef.current) {
+    effActiveToolRef.current = {};
+    Object.defineProperty(effActiveToolRef.current, "current", {
+      get: function () { return drawModeRef.current ? activeToolRef.current : null; },
+      set: function (v) { activeToolRef.current = v; }
+    });
+  }
+  var effPartialToolRef = useRef(null);
+  if (!effPartialToolRef.current) {
+    effPartialToolRef.current = {};
+    Object.defineProperty(effPartialToolRef.current, "current", {
+      get: function () { return drawModeRef.current ? partialStitchToolRef.current : null; },
+      set: function (v) { partialStitchToolRef.current = v; }
+    });
+  }
+  var stitchType = effPartialStitchTool ? effPartialStitchTool
+    : effActiveTool === "backstitch" ? "backstitch"
+    : effActiveTool === "eraseAll" ? "erase"
+    : (effActiveTool === "paint" || effActiveTool === "fill") ? "cross"
     : null;
 
   var ownedCount = useMemo(function() {
@@ -1058,9 +1102,6 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
-  function isFinePointer() {
-    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
-  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -1074,6 +1115,45 @@ window.useCreatorState = function useCreatorState() {
   function setHsTool(t) {
     if (partialStitchToolRef.current === t) { setPartialStitchTool(null); return; }
     setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
+  }
+
+  // User-facing tool choices (toolbar, sidebar, shortcuts, menus). Choosing a
+  // tool switches to Draw; the Hand tool is Navigate. The raw setters above
+  // are kept for internal use (e.g. arming Paint on load) so that doesn't
+  // switch modes by itself.
+  function chooseActiveTool(v) {
+    if (v === "hand") { setDrawMode(false); return; }
+    if (v) setDrawMode(true);
+    setActiveTool(v);
+  }
+  function choosePartialStitchTool(v) {
+    if (v) setDrawMode(true);
+    setPartialStitchTool(v);
+  }
+  function chooseStitchType(t) {
+    if (t) setDrawMode(true);
+    selectStitchType(t);
+  }
+  function chooseBrush(mode) {
+    setDrawMode(true);
+    setBrushAndActivate(mode);
+  }
+  function chooseTool(tool) {
+    if (tool === "hand") { setDrawMode(!drawModeRef.current); return; }
+    if (!drawModeRef.current) {
+      setDrawMode(true);
+      if (activeToolRef.current !== tool) { setActiveTool(tool); setBsStart(null); setPartialStitchTool(null); }
+      return;
+    }
+    setTool(tool);
+  }
+  function chooseHsTool(t) {
+    if (!drawModeRef.current) {
+      setDrawMode(true);
+      if (partialStitchToolRef.current !== t) { setPartialStitchTool(t); setActiveTool(null); setBsStart(null); }
+      return;
+    }
+    setHsTool(t);
   }
 
   function copyText(txt, label) {
@@ -1105,16 +1185,13 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
-  // Only fine pointers get Paint armed: on touch, an armed tool turns the
-  // first swipe into stitches, so touch users start with no tool (one finger
-  // pans, long-press opens the context menu) and pick Paint themselves.
+  // Paint is armed but stays inactive in Navigate (the touch default), so the
+  // first swipe on a phone scrolls; tapping Draw or Paint starts painting.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    if (isFinePointer()) {
-      setBrushAndActivate("paint");
-      selectStitchType("cross");
-    }
+    setBrushAndActivate("paint");
+    selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -1210,7 +1287,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -1804,7 +1881,7 @@ window.useCreatorState = function useCreatorState() {
   // fresh state values at call time, while avoiding a circular dependency on
   // the full return object (which doesn't exist yet at this point).
   var _moveStateProxy = {
-    activeTool: activeTool,
+    activeTool: effActiveTool,
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
@@ -1892,7 +1969,8 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, activeToolRef, previousToolRef,
+    activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
+    rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
@@ -1908,7 +1986,7 @@ window.useCreatorState = function useCreatorState() {
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
-    partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
+    partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
@@ -2059,8 +2137,8 @@ window.useCreatorState = function useCreatorState() {
       stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
     ]),
     // Functions
-    buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
-    setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
+    buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
+    setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed, disambiguateNow,
     // Eyedropper feedback

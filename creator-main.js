@@ -593,6 +593,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function() { return {
     activeTool: state.activeTool, setActiveTool: state.setActiveTool, activeToolRef: state.activeToolRef,
+    drawMode: state.drawMode, setDrawMode: state.setDrawMode, drawModeRef: state.drawModeRef,
     brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
     brushSize: state.brushSize, setBrushSize: state.setBrushSize,
     selectedColorId: state.selectedColorId, setSelectedColorId: state.setSelectedColorId,
@@ -707,7 +708,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleDenoisePointerMove: denoiseMode ? denoiseMode.handleDenoisePointerMove : null,
     handleDenoisePointerUp: denoiseMode ? denoiseMode.handleDenoisePointerUp : null,
   }; }, [
-    state.activeTool, state.brushMode, state.brushSize,
+    state.activeTool, state.drawMode, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,

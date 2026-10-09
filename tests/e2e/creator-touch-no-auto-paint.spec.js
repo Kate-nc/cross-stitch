@@ -91,7 +91,8 @@ test.describe('Creator on a phone: no automatic Paint', function() {
       return after.l !== before.l || after.t !== before.t;
     }).toBe(true);
     await expect(undo).toBeDisabled();
-    await expect(page.getByText('Panning', { exact: true })).toBeVisible();
+    // P1-1: the Navigate | Draw toggle shows Navigate.
+    await expect(page.locator('.tb-mode-toggle [data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('tapping Paint then a cell paints', async function({ page }) {
@@ -126,7 +127,7 @@ test.describe('Creator on a phone: no automatic Paint', function() {
     // Tapping Paint again puts the tool down.
     await page.getByRole('button', { name: 'Paint tool' }).tap();
     await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
-    await expect(page.getByText('Panning', { exact: true })).toBeVisible();
+    await expect(page.locator('.tb-mode-toggle [data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

@@ -530,19 +530,35 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
-  // On touch screens, tapping the active Paint/Fill/Erase button again puts
-  // the tool down so one finger pans the chart again.
+  // Brush group — primary tools only; secondary tools (Pick/Wand/Lasso/Replace/Cleanup) live in More panel
+  // On touch screens, tapping the active Paint/Fill/Erase button again goes
+  // back to Navigate (the Navigate | Draw toggle shows which is on).
   var coarsePointer = false;
   try { coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) {}
   var paintOn = cv.activeTool === "paint" && cv.brushMode === "paint";
   var fillOn = cv.activeTool === "fill" && cv.brushMode === "fill";
   var eraseOn = cv.stitchType === "erase";
   function pickBrush(mode, isOn) {
-    if (coarsePointer && isOn) { cv.selectStitchType(null); return; }
+    if (coarsePointer && isOn) { cv.setDrawMode(false); return; }
     if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
     cv.setBrushAndActivate(mode);
   }
+  // Navigate | Draw (audit DRAW-01): first in the strip on touch; on desktop
+  // it lives in the Tools tab.
+  var modeToggle = window.ModeToggle ? h(window.ModeToggle, {
+    key: "mode-toggle",
+    className: "tb-mode-toggle",
+    ariaLabel: "Chart mode",
+    value: cv.drawMode ? "draw" : "navigate",
+    onChange: function (v) {
+      if (v === "draw" && !cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+      cv.setDrawMode(v === "draw");
+    },
+    options: [
+      { value: "navigate", label: "Navigate", icon: window.Icons.hand(), title: "Navigate: drag to move around, tap a stitch to see its thread" },
+      { value: "draw", label: "Draw", icon: window.Icons.pencil ? window.Icons.pencil() : null, title: "Draw: touches change the chart" }
+    ]
+  }) : null;
   var brushGrp = [
     h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
@@ -557,7 +573,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(eraseOn?" tb-btn--red":""),
-        onClick:function(){ cv.selectStitchType(coarsePointer && eraseOn ? null : "erase"); },
+        onClick:function(){ if (coarsePointer && eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); },
         title:"Erase (5)", "aria-label":"Erase tool", "aria-pressed":eraseOn
       }, svgErase, "Erase")
     )
@@ -655,9 +671,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
-  } else if (cv.activeTool === "hand" || (!cv.activeTool && !ctx.partialStitchTool)) {
-    // No drawing tool: one finger (or the Hand tool) pans the chart.
-    badgeLabel = (cv.activeTool === "hand" || coarsePointer) ? "Panning" : null;
+  } else if (!cv.drawMode) {
+    // Navigate: on touch the Navigate | Draw toggle already says so.
+    badgeLabel = coarsePointer ? null : "Navigate";
+    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
+  } else if (!cv.activeTool && !ctx.partialStitchTool) {
+    badgeLabel = "";  // no tool chosen: no badge
     badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
@@ -713,7 +732,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ];
 
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
-  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
+  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || (!coarsePointer && !cv.drawMode) ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
     cv.activeTool === "denoise" || cv.activeTool === "move";
@@ -755,16 +774,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+        // Navigate replaces the separate Hand tool. On touch the Navigate |
+        // Draw toggle is always in the strip, so it isn't repeated here.
+        !coarsePointer && h("button", {
+          className:"tb-btn"+(!cv.drawMode?" tb-btn--on":""),
           onClick:function(){
-            if (cv.activeTool==="hand") cv.setActiveTool(null);
-            else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            cv.setDrawMode(!cv.drawMode);
             setMorePanelOpen(false);
           },
-          title:"Hand — pan / drag to scroll (H)", "aria-label":"Hand pan tool",
-          "aria-pressed": cv.activeTool==="hand"?"true":"false"
-        }, window.Icons.hand(), " Hand"),
+          title:"Navigate — drag to move around the chart (H)", "aria-label":"Navigate",
+          "aria-pressed": !cv.drawMode?"true":"false"
+        }, window.Icons.hand(), " Navigate"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
           onClick:function(){
@@ -911,6 +931,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
+          coarsePointer && modeToggle,
           brushGrp,
           clearSelBtn,
           toolBadge,

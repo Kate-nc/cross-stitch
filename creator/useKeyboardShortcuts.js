@@ -160,11 +160,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
       } },
     { id: "creator.tool.hand", keys: "h", scope: "creator.design",
-      description: "Hand — pan / drag to scroll",
+      description: "Navigate / Draw — switch between moving around and drawing",
       when: function () { return !!state.pat; },
       run: function () {
-        if (state.activeTool === "hand") { state.setActiveTool(null); }
-        else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
+        // Navigate replaced the Hand tool (audit DRAW-01); H flips the mode.
+        if (state.setDrawMode) state.setDrawMode(!(state.drawModeRef ? state.drawModeRef.current : state.drawMode));
       } },
     // Move-selection arrow nudge (one cell per press, each nudge is undoable).
     { id: "creator.move.up",    keys: "arrowup",    scope: "creator.design", hidden: true,

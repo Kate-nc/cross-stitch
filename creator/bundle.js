@@ -5150,6 +5150,16 @@ if (typeof window !== 'undefined') {
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
+function isFinePointerNow() {
+  try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+}
+// Navigate / Draw starting mode: the last choice on this device, else Draw
+// for a mouse or trackpad and Navigate for touch (audit DRAW-01).
+function initialDrawMode() {
+  var saved = loadUserPref("creator.drawMode", null);
+  if (saved === true || saved === false) return saved;
+  return isFinePointerNow();
+}
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -5477,6 +5487,21 @@ window.useCreatorState = function useCreatorState() {
     }
     activeToolRef.current = v; _actTool[1](v);
   }
+  // Draw / Navigate (audit DRAW-01). In Navigate the chosen tool is
+  // remembered but inactive: everything outside this hook sees activeTool and
+  // partialStitchTool as null, so one finger (or a mouse drag) pans and a
+  // long-press opens the stitch menu. Touch screens start in Navigate, mouse
+  // users in Draw; the last choice is remembered per device.
+  var _drawMode = useState(initialDrawMode);
+  var drawMode = _drawMode[0];
+  var drawModeRef = useRef(drawMode);
+  var setDrawMode = useCallback(function (v) {
+    v = !!v;
+    if (drawModeRef.current === v) return;
+    drawModeRef.current = v;
+    _drawMode[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -5894,10 +5919,29 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
-  var stitchType = partialStitchTool ? partialStitchTool
-    : activeTool === "backstitch" ? "backstitch"
-    : activeTool === "eraseAll" ? "erase"
-    : (activeTool === "paint" || activeTool === "fill") ? "cross"
+  // What the rest of the Creator sees: no tool while in Navigate.
+  var effActiveTool = drawMode ? activeTool : null;
+  var effPartialStitchTool = drawMode ? partialStitchTool : null;
+  var effActiveToolRef = useRef(null);
+  if (!effActiveToolRef.current) {
+    effActiveToolRef.current = {};
+    Object.defineProperty(effActiveToolRef.current, "current", {
+      get: function () { return drawModeRef.current ? activeToolRef.current : null; },
+      set: function (v) { activeToolRef.current = v; }
+    });
+  }
+  var effPartialToolRef = useRef(null);
+  if (!effPartialToolRef.current) {
+    effPartialToolRef.current = {};
+    Object.defineProperty(effPartialToolRef.current, "current", {
+      get: function () { return drawModeRef.current ? partialStitchToolRef.current : null; },
+      set: function (v) { partialStitchToolRef.current = v; }
+    });
+  }
+  var stitchType = effPartialStitchTool ? effPartialStitchTool
+    : effActiveTool === "backstitch" ? "backstitch"
+    : effActiveTool === "eraseAll" ? "erase"
+    : (effActiveTool === "paint" || effActiveTool === "fill") ? "cross"
     : null;
 
   var ownedCount = useMemo(function() {
@@ -5949,9 +5993,6 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
-  function isFinePointer() {
-    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
-  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -5965,6 +6006,45 @@ window.useCreatorState = function useCreatorState() {
   function setHsTool(t) {
     if (partialStitchToolRef.current === t) { setPartialStitchTool(null); return; }
     setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
+  }
+
+  // User-facing tool choices (toolbar, sidebar, shortcuts, menus). Choosing a
+  // tool switches to Draw; the Hand tool is Navigate. The raw setters above
+  // are kept for internal use (e.g. arming Paint on load) so that doesn't
+  // switch modes by itself.
+  function chooseActiveTool(v) {
+    if (v === "hand") { setDrawMode(false); return; }
+    if (v) setDrawMode(true);
+    setActiveTool(v);
+  }
+  function choosePartialStitchTool(v) {
+    if (v) setDrawMode(true);
+    setPartialStitchTool(v);
+  }
+  function chooseStitchType(t) {
+    if (t) setDrawMode(true);
+    selectStitchType(t);
+  }
+  function chooseBrush(mode) {
+    setDrawMode(true);
+    setBrushAndActivate(mode);
+  }
+  function chooseTool(tool) {
+    if (tool === "hand") { setDrawMode(!drawModeRef.current); return; }
+    if (!drawModeRef.current) {
+      setDrawMode(true);
+      if (activeToolRef.current !== tool) { setActiveTool(tool); setBsStart(null); setPartialStitchTool(null); }
+      return;
+    }
+    setTool(tool);
+  }
+  function chooseHsTool(t) {
+    if (!drawModeRef.current) {
+      setDrawMode(true);
+      if (partialStitchToolRef.current !== t) { setPartialStitchTool(t); setActiveTool(null); setBsStart(null); }
+      return;
+    }
+    setHsTool(t);
   }
 
   function copyText(txt, label) {
@@ -5996,16 +6076,13 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
-  // Only fine pointers get Paint armed: on touch, an armed tool turns the
-  // first swipe into stitches, so touch users start with no tool (one finger
-  // pans, long-press opens the context menu) and pick Paint themselves.
+  // Paint is armed but stays inactive in Navigate (the touch default), so the
+  // first swipe on a phone scrolls; tapping Draw or Paint starts painting.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    if (isFinePointer()) {
-      setBrushAndActivate("paint");
-      selectStitchType("cross");
-    }
+    setBrushAndActivate("paint");
+    selectStitchType("cross");
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -6101,7 +6178,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -6695,7 +6772,7 @@ window.useCreatorState = function useCreatorState() {
   // fresh state values at call time, while avoiding a circular dependency on
   // the full return object (which doesn't exist yet at this point).
   var _moveStateProxy = {
-    activeTool: activeTool,
+    activeTool: effActiveTool,
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
@@ -6783,7 +6860,8 @@ window.useCreatorState = function useCreatorState() {
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
-    activeTool, setActiveTool, activeToolRef, previousToolRef,
+    activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
+    rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
@@ -6799,7 +6877,7 @@ window.useCreatorState = function useCreatorState() {
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
     sessions, setSessions, partialStitches, setPartialStitches,
-    partialStitchTool, setPartialStitchTool, partialStitchToolRef, threadOwned, setThreadOwned,
+    partialStitchTool: effPartialStitchTool, setPartialStitchTool: choosePartialStitchTool, partialStitchToolRef: effPartialToolRef.current, threadOwned, setThreadOwned,
     globalStash, setGlobalStash, kittingResult, setKittingResult,
     altOpen, setAltOpen,
     resizeCanvasOpen, setResizeCanvasOpen,
@@ -6950,8 +7028,8 @@ window.useCreatorState = function useCreatorState() {
       stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
     ]),
     // Functions
-    buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType,
-    setBrushAndActivate, setTool, setHsTool, setPsTool: setHsTool, fitZ, copyText,
+    buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
+    setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed, disambiguateNow,
     // Eyedropper feedback
@@ -8614,6 +8692,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // path. This way Hand works for mouse, pen and touch users without
   // a separate code branch.
   function isPanTool() { return getActiveTool() === "hand"; }
+  // Navigate mode (audit DRAW-01): no tool acts on the chart. One finger or a
+  // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
+  // menu. Two fingers pan and zoom in either mode.
+  function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+
+  // Open the stitch context menu for the cell under a viewport point.
+  function openCellMenuAt(clientX, clientY) {
+    if (typeof state.setContextMenu !== "function" || !state.pat || !state.pcRef || !state.pcRef.current) return false;
+    var gc = gridCoord(state.pcRef, { clientX: clientX, clientY: clientY }, state.cs, state.G, false);
+    if (!gc || gc.gx < 0 || gc.gx >= state.sW || gc.gy < 0 || gc.gy >= state.sH) return false;
+    var idx = gc.gy * state.sW + gc.gx;
+    state.setContextMenu({ x: clientX, y: clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: state.pat[idx] });
+    return true;
+  }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -9323,9 +9415,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if ((isTouchPointer(e) || isPanTool()) && (isPanTool() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
+        moved: false,
         startX: e.clientX,
         startY: e.clientY,
         scrollLeft: scrollRef.current.scrollLeft,
@@ -9382,7 +9475,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (isPanTool()) return;
+    if (isPanTool() || isNavigate()) return;
     if (!activeTool && !partialStitchTool) return;
     e.preventDefault();
     handlePatMouseDown(e);
@@ -9405,7 +9498,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
-      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) clearLongPressTimer();
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); panStateRef.current.moved = true; }
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -9436,7 +9529,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerUp(e) {
     var hadPinch = !!pinchStateRef.current;
     var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
-    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId;
+    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
 
     activePointersRef.current.delete(e.pointerId);
     if (e.target && e.target.releasePointerCapture) {
@@ -9444,8 +9537,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     if (wasPan) {
+      var panTap = !wasPan.moved && !longPressTriggeredRef.current && !hadPinch;
       panStateRef.current = null;
       clearLongPressTimer();
+      // A tap in Navigate shows that stitch's thread (the stitch menu).
+      if (panTap && isTouchPointer(e) && isNavigate()) openCellMenuAt(e.clientX, e.clientY);
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -9817,11 +9913,11 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         state.setActiveTool("eyedropper"); state.setBsStart(null); state.setPartialStitchTool(null);
       } },
     { id: "creator.tool.hand", keys: "h", scope: "creator.design",
-      description: "Hand — pan / drag to scroll",
+      description: "Navigate / Draw — switch between moving around and drawing",
       when: function () { return !!state.pat; },
       run: function () {
-        if (state.activeTool === "hand") { state.setActiveTool(null); }
-        else { state.setActiveTool("hand"); state.setBsStart(null); state.setPartialStitchTool(null); }
+        // Navigate replaced the Hand tool (audit DRAW-01); H flips the mode.
+        if (state.setDrawMode) state.setDrawMode(!(state.drawModeRef ? state.drawModeRef.current : state.drawMode));
       } },
     // Move-selection arrow nudge (one cell per press, each nudge is undoable).
     { id: "creator.move.up",    keys: "arrowup",    scope: "creator.design", hidden: true,
@@ -12339,19 +12435,35 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("line", {x1:"8.3",y1:"1.5",x2:"9.7",y2:"1.5",stroke:"currentColor",strokeWidth:"1.1",strokeLinecap:"round"})
   );
 
-  // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
-  // On touch screens, tapping the active Paint/Fill/Erase button again puts
-  // the tool down so one finger pans the chart again.
+  // Brush group — primary tools only; secondary tools (Pick/Wand/Lasso/Replace/Cleanup) live in More panel
+  // On touch screens, tapping the active Paint/Fill/Erase button again goes
+  // back to Navigate (the Navigate | Draw toggle shows which is on).
   var coarsePointer = false;
   try { coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) {}
   var paintOn = cv.activeTool === "paint" && cv.brushMode === "paint";
   var fillOn = cv.activeTool === "fill" && cv.brushMode === "fill";
   var eraseOn = cv.stitchType === "erase";
   function pickBrush(mode, isOn) {
-    if (coarsePointer && isOn) { cv.selectStitchType(null); return; }
+    if (coarsePointer && isOn) { cv.setDrawMode(false); return; }
     if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
     cv.setBrushAndActivate(mode);
   }
+  // Navigate | Draw (audit DRAW-01): first in the strip on touch; on desktop
+  // it lives in the Tools tab.
+  var modeToggle = window.ModeToggle ? h(window.ModeToggle, {
+    key: "mode-toggle",
+    className: "tb-mode-toggle",
+    ariaLabel: "Chart mode",
+    value: cv.drawMode ? "draw" : "navigate",
+    onChange: function (v) {
+      if (v === "draw" && !cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+      cv.setDrawMode(v === "draw");
+    },
+    options: [
+      { value: "navigate", label: "Navigate", icon: window.Icons.hand(), title: "Navigate: drag to move around, tap a stitch to see its thread" },
+      { value: "draw", label: "Draw", icon: window.Icons.pencil ? window.Icons.pencil() : null, title: "Draw: touches change the chart" }
+    ]
+  }) : null;
   var brushGrp = [
     h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
@@ -12366,7 +12478,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, "Fill"),
       h("button", {
         className:"tb-btn"+(eraseOn?" tb-btn--red":""),
-        onClick:function(){ cv.selectStitchType(coarsePointer && eraseOn ? null : "erase"); },
+        onClick:function(){ if (coarsePointer && eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); },
         title:"Erase (5)", "aria-label":"Erase tool", "aria-pressed":eraseOn
       }, svgErase, "Erase")
     )
@@ -12464,9 +12576,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
-  } else if (cv.activeTool === "hand" || (!cv.activeTool && !ctx.partialStitchTool)) {
-    // No drawing tool: one finger (or the Hand tool) pans the chart.
-    badgeLabel = (cv.activeTool === "hand" || coarsePointer) ? "Panning" : null;
+  } else if (!cv.drawMode) {
+    // Navigate: on touch the Navigate | Draw toggle already says so.
+    badgeLabel = coarsePointer ? null : "Navigate";
+    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
+  } else if (!cv.activeTool && !ctx.partialStitchTool) {
+    badgeLabel = "";  // no tool chosen: no badge
     badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
@@ -12522,7 +12637,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   ];
 
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
-  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || cv.activeTool === "hand" ||
+  var morePanelHasActiveTool = cv.activeTool === "eyedropper" || (!coarsePointer && !cv.drawMode) ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
     cv.activeTool === "denoise" || cv.activeTool === "move";
@@ -12564,16 +12679,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Tools"),
       h("div", {className:"tb-grp", style:{flexWrap:"wrap",gap:2}},
-        h("button", {
-          className:"tb-btn"+(cv.activeTool==="hand"?" tb-btn--on":""),
+        // Navigate replaces the separate Hand tool. On touch the Navigate |
+        // Draw toggle is always in the strip, so it isn't repeated here.
+        !coarsePointer && h("button", {
+          className:"tb-btn"+(!cv.drawMode?" tb-btn--on":""),
           onClick:function(){
-            if (cv.activeTool==="hand") cv.setActiveTool(null);
-            else { cv.setActiveTool("hand"); cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); }
+            cv.setDrawMode(!cv.drawMode);
             setMorePanelOpen(false);
           },
-          title:"Hand — pan / drag to scroll (H)", "aria-label":"Hand pan tool",
-          "aria-pressed": cv.activeTool==="hand"?"true":"false"
-        }, window.Icons.hand(), " Hand"),
+          title:"Navigate — drag to move around the chart (H)", "aria-label":"Navigate",
+          "aria-pressed": !cv.drawMode?"true":"false"
+        }, window.Icons.hand(), " Navigate"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="eyedropper"?" tb-btn--on":""),
           onClick:function(){
@@ -12720,6 +12836,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
       h("div", {className:"pill-row"},
         h("div", {ref:app.stripRef, className:"pill"},
+          coarsePointer && modeToggle,
           brushGrp,
           clearSelBtn,
           toolBadge,
@@ -15658,7 +15775,25 @@ window.CreatorSidebar = function CreatorSidebar() {
     }, "Resize canvas\u2026")
   );
 
+  // Navigate | Draw (audit DRAW-01). On touch it is the first control in the
+  // tool strip instead, so it isn't repeated here.
+  var coarseTools = !!(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer());
+  var modeSection = (!coarseTools && window.ModeToggle) ? h("div", {style:{padding:"12px 12px 0"}},
+    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
+      "Chart mode"),
+    h(window.ModeToggle, {
+      className: "mode-toggle--block",
+      ariaLabel: "Chart mode",
+      value: cv.drawMode ? "draw" : "navigate",
+      onChange: function (v) { cv.setDrawMode(v === "draw"); },
+      options: [
+        { value: "navigate", label: "Navigate", icon: window.Icons.hand(), title: "Navigate: drag to move around the chart (H)" },
+        { value: "draw", label: "Draw", icon: window.Icons.pencil ? window.Icons.pencil() : null, title: "Draw: clicks change the chart (H)" }
+      ]
+    })
+  ) : null;
   var toolsContent = h(React.Fragment, null,
+    modeSection,
     stitchTypeSection,
     bsContSection,
     brushSizeSection,
@@ -16046,7 +16181,12 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   // Build status text. Touch screens get touch wording (audit COMMON-06).
   var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
   var statusText;
-  if (app.eyedropperEmpty) {
+  if (cv.drawMode === false) {
+    // Navigate (audit DRAW-01) — same wording as the Tracker's Navigate mode.
+    statusText = coarse
+      ? "Drag to pan \u00B7 Tap a stitch to see its thread \u00B7 Press and hold for more options \u00B7 Choose Draw to edit"
+      : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
+  } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
@@ -16179,7 +16319,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ref:app.scrollRef,
       style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
-        if (cv.activeTool === "hand") return "grab";
+        if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";
