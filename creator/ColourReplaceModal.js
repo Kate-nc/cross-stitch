@@ -337,7 +337,7 @@
           onChange: function(e) { setFuzzyTol(Number(e.target.value)); },
           style: { width: 90 }
         }),
-        fuzzy && !swapping && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, '\u0394E \u2264 ' + fuzzyTol)
+        fuzzy && !swapping && h('span', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, 'Difference up to ' + fuzzyTol)
       ),
       fuzzy && !swapping && h('div', {
         className: 'colour-replace-fuzzy-list',
@@ -395,7 +395,7 @@
         h('span', { style: { fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', flexShrink: 0, minWidth: 35 } }, t.id),
         h('span', { style: { fontSize: 'var(--text-sm)', color: 'var(--text-primary)', flex: 1, textAlign: 'left', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.name || t.id),
         isSrc && tag('current'),
-        !isSrc && simLabel && tag(simLabel, '\u0394E ' + item.dE.toFixed(1)),
+        !isSrc && simLabel && tag(simLabel, 'Difference ' + item.dE.toFixed(1)),
         !isSrc && inPal && sectionKey !== 'palette' && tag('in palette'),
         isPicked && h('span', { 'aria-hidden': 'true', style: { color: 'var(--accent)', display: 'inline-flex', flexShrink: 0 } },
           window.Icons && window.Icons.check ? window.Icons.check() : null)

@@ -42,13 +42,13 @@ The first setting picks good starting values for the picture:
 | **Photo** | Up to 20 threads, subtle shading, blends, balanced cleanup |
 | **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across) |
 
-The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**. To start every picture from your own defaults (threads, blends and dithering) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
+The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**. To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
 ### Image
 
 - **Brightness / Contrast / Saturation** — tune the image before conversion.
-- **Smooth** — reduce noise before matching colours (Median removes small specks; Gaussian softens edges).
-- **Pre-sharpen detail** — keeps fine lines crisp.
+- **Soften grainy photos** — smooths away noise before the threads are chosen. The method is under **Advanced**.
+- **Sharpen details** — keeps fine lines crisp.
 - **Background** — tick **Skip background**, press **Pick**, click the background colour in the image, then adjust **Tolerance** to treat it as empty fabric.
 - **Crop** — crop the image to the part you want.
 
@@ -76,19 +76,21 @@ A blend stitches two threads together in one stitch and gets its own chart symbo
 
 **Use only stash threads** — match only to DMC and Anchor threads you own.
 
-**Dithering** — blends neighbouring stitches to suggest in-between colours.
+**Shading** (in **Clean-up**) — mixes neighbouring threads to suggest in-between colours.
 
 | Setting | Effect | When to use |
 |---------|--------|------------|
 | **Off** | Each area takes its closest thread | Logos, simple graphics |
-| **Atkinson — Subtle** | Gentle blending, few isolated stitches | Soft gradients |
-| **Atkinson — Balanced** | Smooth gradients in clean colour zones | Most photos |
-| **Atkinson — Strong** | Richest gradients, more scattered stitches | Detailed photos |
-| **Bayer 2×2 / 4×4 / 8×8** | A regular geometric blending pattern | A deliberate textured look |
+| **Smooth blend — Subtle** | Gentle blending, few single stitches | Soft gradients |
+| **Smooth blend — Balanced** | Smooth gradients in clean colour zones | Most photos |
+| **Smooth blend — Strong** | Richest gradients, more scattered stitches | Detailed photos |
+| **Pattern blend — Coarse / Medium / Fine** | A regular geometric blending pattern | A deliberate textured look |
+
+With Smooth blend, **Fewer single stitches in blends** keeps the mix in small clumps. The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
 **Min stitches per colour** — colours used fewer times than this are dropped.
 **Confetti Cleanup** — merges isolated stitches into the surrounding colour (0–3).
-**Stitch Cleanup** — tidies small regions, with options to protect fine details and separate similar neighbours.
+**Stitch Cleanup** — tidies small regions, with options to protect fine details and **Keep look-alike colours apart** (with **How strict**).
 
 ### Compare options
 
@@ -134,7 +136,7 @@ Choose a colour in the **Palette** tab, then a tool:
 | Hand | `H` | Pan without painting |
 | Replace colour | `R` | Click a stitch to replace every stitch of its colour |
 
-**More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), Cleanup mode and Denoise mode.
+**More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), **Fix outline colours** and **Tidy stray stitches**.
 
 ### Brush size
 
@@ -172,8 +174,8 @@ Colours with no stitches show a remove button in the palette; **Remove unused (N
 
 ### Cleaning up
 
-- **Cleanup mode** (More tools) — removes dark border lines left over from line-art images.
-- **Denoise mode** (More tools) — merges near-duplicate threads, removes speckle, and smooths colour fringes. Nothing changes until you press **Apply**.
+- **Fix outline colours** (More tools) — removes dark border lines left over from line-art images. **How strict** (Gentle, Balanced, Strong) widens or narrows the selection.
+- **Tidy stray stitches** (More tools) — merges threads that are almost the same, removes speckle, and smooths colour fringes. Nothing changes until you press **Apply**.
 
 ### Split pane
 
@@ -183,7 +185,7 @@ Press `\` (or the split-pane button) to see the editable chart and a realistic p
 
 1. On the **Project** page, choose **Adapt to my stash** (or **Adapt to brand** to convert to Anchor or DMC).
 2. Pick **Match my stash** or **Convert to brand**.
-3. Review the table of original and replacement threads; override any suggestion, and use the ΔE threshold to control how close matches must be.
+3. Review the table of original and replacement threads; override any suggestion, and use the difference limit to control how close matches must be.
 4. Press **Save adapted copy** — this creates a **new project**; the original is unchanged.
 
 ## Materials & Output
@@ -218,12 +220,12 @@ Your pattern saves **automatically** on this device and appears in **Home > Proj
 |------------|--------|------|
 | **Photo** | Photo-realistic | Needs more stitches for detail; crop to the subject |
 | **Portrait** | Realistic | Adjust saturation if skin tones look wrong |
-| **Logo** | Sharp, defined | Excellent for cross-stitch; little or no smoothing or dithering |
+| **Logo** | Sharp, defined | Excellent for cross-stitch; little or no smoothing or shading |
 | **Digital art** | Depends on style | Flat colours convert more cleanly than painted textures |
 
 ### Too many isolated stitches?
 
-Raise **Confetti Cleanup** or **Min stitches per colour**, use less dithering, or run **Denoise mode** on the finished pattern. Watch the Stitch Score rise.
+Raise **Confetti Cleanup** or **Min stitches per colour**, use less shading, or run **Tidy stray stitches** on the finished pattern. Watch the Stitch Score rise.
 
 ### Stitching time
 

@@ -973,20 +973,22 @@ window.CreatorSidebar = function CreatorSidebar() {
     var strengthIdx=strengthKeys.indexOf(sc2.strength);
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
+    // Shading (audit COMMON-09): Off, Smooth blend or Pattern blend. The
+    // method names are only under Advanced.
     var algoOpts = [
-      {id:"off",      label:"Off",      tip:"Direct colour mapping — each pixel mapped to its closest DMC colour. Cleanest, easiest to sew."},
-      {id:"atkinson", label:"Atkinson", tip:"Atkinson dithering — clusters similar colours into coherent zones instead of scattering confetti. Works well for photographic and blended designs."},
-      {id:"bayer",    label:"Bayer",    tip:"Ordered (Bayer) dithering — uses a regular threshold matrix. Produces perfectly geometric, repeating patterns at colour transitions. Ideal for geometric or pixel-art designs."},
+      {id:"off",      label:"Off",           tip:"Each stitch takes its closest thread. The tidiest chart and the easiest to stitch."},
+      {id:"atkinson", label:"Smooth blend",  tip:"Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos."},
+      {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures."},
     ];
     var atkinsonLevels = [
-      {id:"weak",     label:"Subtle",   tip:"50% strength — gentle blending, very few isolated stitches."},
-      {id:"balanced", label:"Balanced", tip:"Standard Atkinson — smooth gradients in clean colour zones."},
-      {id:"strong",   label:"Strong",   tip:"150% strength — richest gradients, more scattered stitches."},
+      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few single stitches."},
+      {id:"balanced", label:"Balanced", tip:"Smooth gradients in tidy patches of colour."},
+      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more single stitches."},
     ];
     var bayerSizes = [
-      {id:"bayer2", label:"2\xD72", tip:"Coarse 2\xD72 Bayer matrix — bold, checkerboard-style pattern with 4 threshold levels."},
-      {id:"bayer4", label:"4\xD74", tip:"Standard 4\xD74 Bayer matrix — balanced geometric transitions with 16 threshold levels."},
-      {id:"bayer8", label:"8\xD78", tip:"Fine 8\xD78 Bayer matrix — smooth, detailed transitions with 64 threshold levels."},
+      {id:"bayer2", label:"Coarse", tip:"A bold, chequered pattern."},
+      {id:"bayer4", label:"Medium", tip:"A balanced, regular pattern."},
+      {id:"bayer8", label:"Fine",   tip:"A fine, detailed pattern."},
     ];
     function setAlgoClick(algo) {
       if (algo === "off") { gen.setDith("off"); return; }
@@ -1011,14 +1013,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
     var smoothDithActive = gen.dith && dithAlgo === "atkinson";
-    return h(Section, {title:"Quality", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
-      // ── Dithering subsection ─────────────────────────────────────────────
+    return h(Section, {title:"Clean-up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+      // ── Shading subsection ───────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Dithering"),
-          h(InfoIcon, {text:"Blends colours across neighbouring stitches. Atkinson clusters colours into clean zones; Bayer creates regular geometric patterns at transitions.", width:240})
+          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
+          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more single stitches.", width:240})
         ),
-        // Algorithm row: Off | Atkinson | Bayer
+        // Off | Smooth blend | Pattern blend
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
           algoOpts.map(function(o) {
             var active = dithAlgo === o.id;
@@ -1041,12 +1043,17 @@ window.CreatorSidebar = function CreatorSidebar() {
           h(Toggle, {
             checked:sc2.smoothDithering,
             onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
-            label:"Smooth dithering",
-            help:"Reduces confetti during Atkinson dithering by lowering the error-diffusion threshold. Cleaner gradients, but may slightly shift colours."
+            label:"Fewer single stitches in blends",
+            help:"Keeps Smooth blend from scattering single stitches. Cleaner gradients, though colours may shift slightly."
           }),
           !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
-            dithAlgo === "bayer" ? "Not used with Bayer dithering." : "Only active when Atkinson dithering is on."
+            dithAlgo === "bayer" ? "Not used with Pattern blend." : "Only used with Smooth blend."
           )
+        ),
+        // The method names, for those who want them.
+        h("details", {className:"convert-advanced"},
+          h("summary", null, "Advanced"),
+          h("p", null, "Smooth blend is Atkinson error diffusion at 50%, 100% or 150% strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
         )
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
@@ -1175,14 +1182,14 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(Toggle, {
         checked:gen.disambig,
         onChange:gen.setDisambig,
-        label:"Separate similar neighbours",
-        help:"After generation, checks each pair of adjacent cells and replaces any that are too visually similar to tell apart. Useful for patterns with many near-identical colours like skies or skin tones."
+        label:"Keep look-alike colours apart",
+        help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart. Helps with skies and skin tones."
       }),
       gen.disambig && h(React.Fragment, null,
         h("div", {style:{marginTop:'var(--s-2)'}},
           h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-            h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Separation strength"),
-            h(InfoIcon, {text:"How different adjacent cell colours must be. Gentle: only fix very obvious clashes (\u0394E>8). Standard: fix colours hard to distinguish on a printed grid. Strong: maximise separation even at the cost of slight colour accuracy.", width:240})
+            h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:500}}, "How strict"),
+            h(InfoIcon, {text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
           ),
           h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
             [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
@@ -1216,30 +1223,33 @@ window.CreatorSidebar = function CreatorSidebar() {
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
   var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjust image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
+      h(SliderRow, {label:"Soften grainy photos", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
-        helpText:"Pre-blur to reduce speckled stitches",
+        helpText:"Softens grain before threads are matched",
         inlineHint:"Blurs the source before generating. Try 1\u20132 for grainy or low-resolution photos to reduce speckled stitches. Leave at Off for sharp images.",
         helpTopic:"image"}),
       gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
-      gen.smooth>0 && h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
+      // The softening method is under Advanced (audit COMMON-09).
+      gen.smooth>0 && h("details", {className:"convert-advanced"},
+        h("summary", null, "Advanced"),
+        h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
           h(Tooltip, {text:"Preserves edges better. Best for most photos", width:220},
             h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
           ),
           h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:220},
-            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian")
+            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian") // terminology-lint-allow
           )
         )
-      ),
+      )),
       h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
       h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
         h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
-        h("span", null, "Pre-sharpen detail"),
-        h(InfoIcon, {text:"Sharpens the source image before downscaling so facial features, eyes, and fine edges survive the reduction. Uses a luminance-only unsharp mask — chroma is left unchanged to prevent colour fringing. Leave off for already-sharp or very noisy images.", width:260})
+        h("span", null, "Sharpen details"),
+        h(InfoIcon, {text:"Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy.", width:260})
       ),
       gen.preSharpen && h(SliderRow, {
         label:"Amount",
@@ -2108,7 +2118,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var correctSection = h("div", {style:{padding:"0 12px 12px",borderTop:"1px solid var(--border)",paddingTop:12}},
     h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-2)'}},
       "Correct"),
-    h("div", {style:{display:"flex",gap:6,marginBottom:8}},
+    h("div", {style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}},
       h("button", {
         onClick:function(){
           if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
@@ -2123,7 +2133,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           color:cv.activeTool==="cleanup"?"var(--accent)":"var(--text-secondary)",
           borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
-      }, "Cleanup"),
+      }, "Fix outline colours"),
       h("button", {
         onClick:function(){
           if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
@@ -2138,7 +2148,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
           borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
-      }, "Denoise")
+      }, "Tidy stray stitches")
     ),
     h("button", {
       onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },

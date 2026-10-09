@@ -137,7 +137,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       worker = new Worker('noise-cleanup-worker.js');
     } catch (e) {
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not start denoise worker: ' + (e && e.message || String(e)));
+      state.setDenoiseAutoError('Could not look for stray stitches: ' + (e && e.message || String(e)));
       return;
     }
     workerRef.current = worker;
@@ -184,13 +184,13 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       } else if (msg.type === 'error') {
         releaseWorker(worker);
         state.setDenoiseAutoRunning(false);
-        state.setDenoiseAutoError(msg.message || 'Denoise detection failed');
+        state.setDenoiseAutoError(msg.message || 'Could not look for stray stitches');
       }
     };
     worker.onerror = function(ev) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Worker error: ' + (ev.message || 'unknown'));
+      state.setDenoiseAutoError('Could not look for stray stitches: ' + (ev.message || 'unknown error'));
     };
 
     try {
@@ -212,7 +212,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     } catch (postErr) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not run denoise worker: ' + (postErr && postErr.message || String(postErr)));
+      state.setDenoiseAutoError('Could not look for stray stitches: ' + (postErr && postErr.message || String(postErr)));
     }
   }, [state]);
 

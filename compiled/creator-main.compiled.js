@@ -675,6 +675,26 @@ function CreatorApp({
   }), history, {
     onSwitchToTrack
   });
+
+  // ── First-visit tour, by way in (audit COMMON-06) ──
+  // Picked once the Creator knows what it opened: a scratch grid (after the
+  // New design sheet), a picture to convert, or a chart with no picture (an
+  // import). null = not decided yet; '' = no tour.
+  const tourWayIn = state.isScratchMode ? 'scratch' : state.img && state.img.src ? 'convert' : state.pat ? 'import' : null;
+  const [tourPage, setTourPage] = React.useState(null);
+  React.useEffect(() => {
+    if (tourPage !== null || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;
+    const page = 'creator-' + tourWayIn;
+    setTourPage(window.WelcomeWizard && window.WelcomeWizard.shouldShow(page) ? page : '');
+  }, [tourPage, state.bootSettled, state.newDesignOpen, tourWayIn]);
+  // Help > Getting started and Preferences replay the tour for the current way in.
+  React.useEffect(() => {
+    function onShow(e) {
+      if (e && e.detail && e.detail.page === 'creator') setTourPage('creator-' + (tourWayIn || 'convert'));
+    }
+    window.addEventListener('cs:showWelcome', onShow);
+    return () => window.removeEventListener('cs:showWelcome', onShow);
+  }, [tourWayIn]);
   usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {
     isActive: isActive
@@ -2541,7 +2561,11 @@ function CreatorApp({
     stage: state.progressStage,
     onCancel: state.cancelGenerate,
     cancellable: state.generateCancellable
-  }), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
+  }), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), tourPage && isActive && window.WelcomeWizard && /*#__PURE__*/React.createElement(window.WelcomeWizard, {
+    key: tourPage,
+    page: tourPage,
+    onClose: () => setTourPage('')
+  }), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',
     body: _coarsePointer ? state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.' : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.' : state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
@@ -2765,16 +2789,8 @@ function UnifiedApp() {
     window.location.href = 'manager.html';
   }, []);
   const [statsModal, setStatsModal] = React.useState(null);
-  const [welcomeOpen, setWelcomeOpen] = React.useState(() => !!(window.WelcomeWizard && window.WelcomeWizard.shouldShow('creator')));
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
-  React.useEffect(() => {
-    function onShow(e) {
-      if (e && e.detail && e.detail.page === 'creator') setWelcomeOpen(true);
-    }
-    window.addEventListener('cs:showWelcome', onShow);
-    return () => window.removeEventListener('cs:showWelcome', onShow);
-  }, []);
   React.useEffect(() => {
     const h = () => {
       if (mode === 'stats') {
@@ -2877,10 +2893,7 @@ function UnifiedApp() {
   }), statsModal === 'shortcuts' && /*#__PURE__*/React.createElement(SharedModals.Help, {
     defaultTab: "shortcuts",
     onClose: () => setStatsModal(null)
-  })), welcomeOpen && mode === 'design' && window.WelcomeWizard && /*#__PURE__*/React.createElement(window.WelcomeWizard, {
-    page: "creator",
-    onClose: () => setWelcomeOpen(false)
-  }), window.HelpHintBanner && /*#__PURE__*/React.createElement(window.HelpHintBanner, null));
+  })), window.HelpHintBanner && /*#__PURE__*/React.createElement(window.HelpHintBanner, null));
 }
 
 // With nothing to open, the Creator has nothing to show: Home's Create tab

@@ -1716,7 +1716,7 @@ window.useCreatorState = function useCreatorState() {
     // Threads and chart symbols, not "colours": a blend is one symbol made of
     // two threads (audit IMG-02).
     var counts = threadCountsSentence(creatorThreadCounts(result.pal));
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if

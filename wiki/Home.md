@@ -44,7 +44,7 @@ You can also go straight to a tool:
 
 ### Pattern Creator
 
-- Convert images with 2–100 colours, optional dithering (Atkinson or Bayer), background removal and cleanup of isolated stitches
+- Convert images with 2–100 colours, optional shading (Smooth blend or Pattern blend), background removal and cleanup of isolated stitches
 - Restrict colours to threads you own
 - Paint, fill, erase, Magic Wand and Lasso selection; quarter, half, three-quarter and backstitch
 - Replace a colour, shift the whole palette, or adapt the pattern to your stash or another brand

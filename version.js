@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.97';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.98',
+    date: 'October 2026',
+    notes: [
+      'The Creator\'s welcome tour now matches how you started: turning a picture into a pattern, drawing on a blank grid, or an imported chart, each in four steps or fewer. It names buttons as they appear on your device (Tap and the Settings sheet on a phone, Click and the panel on the right on a computer), and it shows once for each way in. If you already finished the old tour you won\'t see it again; Help > Getting Started replays it.',
+      'Plainer names for the Convert settings and editing tools: Quality is now Clean-up, Dithering is Shading (Off, Smooth blend or Pattern blend), Smooth is Soften grainy photos, Pre-sharpen detail is Sharpen details, Separate similar neighbours is Keep look-alike colours apart, and colour distances show as a Difference instead of ΔE. In More tools, Cleanup mode is Fix outline colours and Denoise mode is Tidy stray stitches, with a How strict choice (Gentle, Balanced or Strong) in place of the numeric thresholds. The technical names are kept under Advanced for anyone who wants them.',
+    ]
+  },
+  {
     version: '1.0.97',
     date: 'October 2026',
     notes: [

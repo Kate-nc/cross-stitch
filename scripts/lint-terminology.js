@@ -42,7 +42,16 @@ const TARGET_FILES = [
   "creator/Sidebar.js",
   "creator/PreviewCanvas.js",
   "creator/PatternInfoPopover.js",
-  "creator/useCreatorState.js"
+  "creator/useCreatorState.js",
+  // The Convert, Edit and dialog wording pass (audit P2-9).
+  "creator/ToolStrip.js",
+  "creator/MagicWandPanel.js",
+  "creator/ColourReplaceModal.js",
+  "creator/AdaptModal.js",
+  "creator/LegendTab.js",
+  "creator/ProjectTab.js",
+  "creator/PatternTab.js",
+  "creator/ImportWizard.js"
 ];
 
 // Forbidden → preferred. Each rule is matched as a whole word with the given
@@ -60,6 +69,40 @@ const FORBIDDEN = [
   { bad: "Max colours", good: "Threads (max)", caseSensitive: false, note: "The limit is on threads; see TERMINOLOGY.md 'Thread vs. symbol'." }
 ];
 
+// Technical names stitchers don't use (audit P2-9). Matched only inside
+// string literals, so code identifiers and comments can still name the
+// algorithm; the one place they may appear in the UI is an "Advanced"
+// disclosure, whose lines carry the allow comment. See TERMINOLOGY.md
+// "Plain names for the settings".
+const DELTA = String.fromCharCode(0x394);
+const DELTA_ESCAPE = "\\\\" + "u0394"; // the escape as written in source
+const JARGON = [
+  { bad: "Delta E", re: new RegExp(DELTA + "|" + DELTA_ESCAPE + "|\\bdelta[- ]?E\\b|\\bdE\\b", "i"), good: "Difference", note: "Say 'Difference' or 'How strict'; colour-science units stay out of the UI." },
+  { bad: "luminance", re: /\bluminance\b/i, good: "brightness", note: "Say 'brightness' or 'light and dark'." },
+  { bad: "chroma", re: /\bchroma\b/i, good: "colour", note: "Say 'colour' or 'how vivid'." },
+  { bad: "Gaussian", re: /\bGaussian\b/, good: "Soften grainy photos", note: "Name what it does, not the filter." },
+  { bad: "Bayer", re: /\bBayer\b/, good: "Pattern blend", note: "The ordered dither is 'Pattern blend'." },
+  { bad: "Atkinson", re: /\bAtkinson\b/, good: "Smooth blend", note: "The error-diffusion dither is 'Smooth blend'." }
+];
+
+// The jargon rules cover the Creator and the text that explains it; the
+// Stash Manager's thread-substitution cards still show the colour difference
+// in its usual units.
+function jargonApplies(rel) {
+  return rel.indexOf("creator/") === 0 || rel === "creator-main.js" ||
+    rel === "help-drawer.js" || rel === "onboarding-wizard.js";
+}
+
+// String literals on a line ("...", '...', `...`); enough for the one-line
+// UI strings these files write.
+const STRING_RE = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+
+function stringsOn(line) {
+  const t = line.trim();
+  if (t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")) return [];
+  return line.match(STRING_RE) || [];
+}
+
 const ALLOW_COMMENT = "terminology-lint-allow";
 
 function scanFile(rel) {
@@ -73,6 +116,12 @@ function scanFile(rel) {
       const flags = rule.caseSensitive ? "" : "i";
       const re = new RegExp("\\b" + rule.bad.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", flags);
       if (re.test(line)) {
+        hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
+      }
+    });
+    const strs = jargonApplies(rel) ? stringsOn(line) : [];
+    JARGON.forEach(rule => {
+      if (strs.some(str => rule.re.test(str))) {
         hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
       }
     });
@@ -103,4 +152,4 @@ if (require.main === module) {
   process.exit(hits.length === 0 ? 0 : 1);
 }
 
-module.exports = { lintAll, scanFile, FORBIDDEN, TARGET_FILES };
+module.exports = { lintAll, scanFile, FORBIDDEN, JARGON, TARGET_FILES };

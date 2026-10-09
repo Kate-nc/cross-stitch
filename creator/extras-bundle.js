@@ -1696,12 +1696,12 @@
     var label = (window.MatchQuality && window.MatchQuality.tierLabel(t.tier)) || t.tier;
     var diff = (window.MatchQuality && props.sourceLab && t.lab)
       ? window.MatchQuality.describeLabDiff(props.sourceLab, t.lab) : '';
-    var title = label + ' (\u0394E ' + (t.deltaE != null ? t.deltaE : '?') + ')' + (diff ? ' \u2014 ' + diff : '');
+    var title = label + ' (difference ' + (t.deltaE != null ? t.deltaE : '?') + ')' + (diff ? ' \u2014 ' + diff : '');
     return h('span', { className: 'cs-adapt-chip', style: chipBase(token), title: title },
       h('span', { style: dotStyle(token) }),
       label,
       h('span', { style: { opacity: 0.7, marginLeft: 4, fontVariantNumeric: 'tabular-nums' } },
-        '\u0394E ' + (t.deltaE != null ? t.deltaE : '?'))
+        'Difference ' + (t.deltaE != null ? t.deltaE : '?'))
     );
   }
   function chipBase(token) {
@@ -2212,7 +2212,7 @@
                   style: { width: 140 }
                 }),
                 h('span', { style: { fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--text-primary)' } },
-                  '\u0394E ' + threshold)
+                  'Difference ' + threshold)
               ),
               Object.keys(overrides).length > 0 && h('button', {
                 onClick: handleResetOverrides,
@@ -2809,7 +2809,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
-                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 \u0394E\u2080\u2080 " + similarPairs[p.id].dE.toFixed(1),
+                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
                       "aria-label": "Compare with similar colour DMC " + similarPairs[p.id].otherId,
                       role: "button",
                       tabIndex: 0,
