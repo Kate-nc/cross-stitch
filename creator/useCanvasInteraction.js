@@ -23,6 +23,24 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
+   the scroll position and finger midpoint captured when the gesture began,
+   plus the scroll container's viewport origin and the canvas's offset inside
+   the scrolled content. Returns the scroll position that keeps the chart
+   point that was under the starting midpoint under the current midpoint,
+   after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
+   is a plain pan: the chart follows the fingers. */
+window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
+  var originX = pinch.originX || 0, originY = pinch.originY || 0;
+  var padX = pinch.padX || 0, padY = pinch.padY || 0;
+  var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
+  var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
+  return {
+    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
+    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
+  };
+};
+
 window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Internal drag refs (not in state — don't need React rendering)
   var isDraggingRef        = React.useRef(false);
