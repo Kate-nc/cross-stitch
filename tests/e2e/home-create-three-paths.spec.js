@@ -2,7 +2,7 @@
 // (P2-1, audit COMMON-04, COMMON-10).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { device, quietOnboarding, skipTourIfShown, LOGO } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, LOGO, startBlankGrid } = require('./creator-helpers');
 
 const PDF = path.join(__dirname, '..', '..', 'TestUploads', 'PAT1968_2.pdf');
 
@@ -55,6 +55,7 @@ test.describe('Starting a pattern on Pixel 5', function() {
   test('a blank grid shows only tools, and its first tab is Canvas', async function({ page }) {
     await openCreateTab(page);
     await page.getByRole('link', { name: /Draw on a blank grid/ }).click();
+    await startBlankGrid(page, { navigate: false });
     await page.waitForSelector('.creator-rail', { timeout: 15000 });
     await expect(page.getByRole('tab', { name: 'Canvas' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Convert' })).toHaveCount(0);
@@ -69,7 +70,7 @@ test.describe('Starting a pattern on Pixel 5', function() {
     await page.getByRole('tab', { name: 'Canvas' }).click();
     const header = page.locator('.rpanel-drawer-header');
     if (await header.isVisible()) await header.click();
-    await expect(page.locator('.creator-canvas-panel')).toContainText('80 × 80 stitches');
+    await expect(page.locator('.creator-canvas-panel')).toContainText('100 × 100 stitches');
     await expect(page.getByRole('button', { name: /Resize canvas/ })).toBeVisible();
   });
 });
@@ -79,7 +80,7 @@ test.describe('Starting a pattern on desktop', function() {
 
   test('the action bar of an empty grid has no Print, Export or Tracker', async function({ page }) {
     await quietOnboarding(page);
-    await page.goto('/create.html?action=new-blank');
+    await startBlankGrid(page);
     await page.waitForSelector('.toolbar-row', { timeout: 15000 });
     const bar = page.locator('.creator-actionbar');
     await expect(bar.getByRole('tab', { name: 'Canvas' })).toBeVisible();

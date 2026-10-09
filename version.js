@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.92';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.93',
+    date: 'October 2026',
+    notes: [
+      'Draw on a blank grid now starts with a New design sheet: pick a size (Small motif, Card, Medium, Large or your own), the fabric count and colour, and optionally a picture to trace over, shown faintly under the grid. The tracing picture stays with the design and can be shown, hidden, faded, changed or removed from the Canvas tab.',
+    ]
+  },
+  {
     version: '1.0.92',
     date: 'October 2026',
     notes: [

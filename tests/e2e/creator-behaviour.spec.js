@@ -1,6 +1,6 @@
 // Audit B-10 (name prompt on every reload) and B-11 (fast strokes left gaps).
 const { test, expect } = require('@playwright/test');
-const { device, quietOnboarding, generateLogo, pickDarkSwatch } = require('./creator-helpers');
+const { device, quietOnboarding, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
 
 const pixel5 = device('Pixel 5');
 
@@ -98,9 +98,9 @@ test.describe('Creator behaviour on Pixel 5', function() {
     await expect(page.locator('.cc-name__text')).toHaveText('logo');
   });
 
-  test('a blank grid opens with no prompt', async function({ page }) {
+  test('a blank grid opens with no name prompt', async function({ page }) {
     await quietOnboarding(page);
-    await page.goto('/create.html?action=new-blank');
+    await startBlankGrid(page);
     await page.waitForSelector('.creator-rail', { timeout: 15000 });
     await page.waitForTimeout(2500);
     await expect(page.getByRole('heading', { name: /Name/ })).toHaveCount(0);

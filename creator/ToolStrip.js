@@ -843,7 +843,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         "aria-label":"Resize canvas",
         style:{width:"100%",justifyContent:"flex-start"}
       }, window.Icons&&window.Icons.canvasResize?window.Icons.canvasResize():null, " Resize canvas\u2026"),
-      (gen.img && gen.img.src) && h("button", {
+      (gen.img && gen.img.src && !ctx.isScratchMode) && h("button", {
         className:"tb-btn",
         onClick:function(){ if(app&&app.requestBackToConvert)app.requestBackToConvert(); setMorePanelOpen(false); },
         title:"Return to image settings and re-generate the pattern",

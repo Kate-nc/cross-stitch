@@ -75,7 +75,7 @@ describe("Creator tips only follow a pattern made in this visit", () => {
   });
   test("firstStitch_creator needs a fresh pattern or newly created blank grid", () => {
     expect(src).toMatch(/const _freshPattern = state\.patternCreatedThisVisit/);
-    expect(stateSrc).toMatch(/function startScratch\(\)[\s\S]*?setPatternCreatedThisVisit\(true\)/);
+    expect(stateSrc).toMatch(/function startScratch\(w, h, opts\)[\s\S]*?setPatternCreatedThisVisit\(true\)/);
     expect(stateSrc).toMatch(/setPatternCreatedThisVisit\(true\);\s*setPatternGeneratedThisVisit\(true\)/);
   });
   test("tips can be skipped as a set", () => {

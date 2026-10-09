@@ -52,8 +52,8 @@ describe('fabric colour belongs to the project', () => {
   const state = loadSource('creator/useCreatorState.js');
 
   test('every Creator save writes settings.fabricColour', () => {
-    expect((io.match(/fabricColour: state\.fabricColour \}/g) || []).length).toBe(3);
-    expect(io).toMatch(/state\.symbolOverrides, state\.fabricColour, state\.isActive,/);
+    expect((io.match(/fabricColour: state\.fabricColour[ ,}]/g) || []).length).toBe(3);
+    expect(io).toMatch(/state\.symbolOverrides, state\.fabricColour,/);
   });
 
   test('loading restores it, and an old project falls back to the preference', () => {
