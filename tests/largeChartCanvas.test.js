@@ -63,6 +63,6 @@ describe('Creator zoom on project load', () => {
     // A timeout let the first draw run at the default 100%.
     expect(useProjectIO).not.toMatch(/setTimeout\(function\(\) \{\s*(var z = [^\n]*\n\s*)?state\.setZoom/);
     expect(useProjectIO).toMatch(
-      /\} else \{\s*state\.setZoom\(Math\.min\(3, Math\.max\(0\.05, 750 \/ \(s\.sW \* 20\)\)\)\);/);
+      /\} else \{\s*var box = window\.creatorFitBox\(scrollRef\.current\);\s*state\.setZoom\(window\.creatorFitZoom\(s\.sW, s\.sH,/);
   });
 });

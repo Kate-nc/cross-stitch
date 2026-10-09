@@ -378,7 +378,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }, 100);
       }
     } else {
-      state.setZoom(Math.min(3, Math.max(0.05, 750 / (s.sW * 20))));
+      var box = window.creatorFitBox(scrollRef.current);
+      state.setZoom(window.creatorFitZoom(s.sW, s.sH, box && box.w, box && box.h, state.G));
+      // Refit once the chart is mounted at its final size.
+      if (state.requestFitZoom) state.requestFitZoom();
     }
 
     // Restore per-pattern view state from UserPrefs

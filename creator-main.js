@@ -524,7 +524,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     pdfCellSize: state.pdfCellSize, setPdfCellSize: state.setPdfCellSize,
     pdfSinglePage: state.pdfSinglePage, setPdfSinglePage: state.setPdfSinglePage,
     toasts: state.toasts, addToast: state.addToast, dismissToast: state.dismissToast,
-    pcRef: state.pcRef, scrollRef: state.scrollRef, expRef: state.expRef, loadRef: state.loadRef,
+    pcRef: state.pcRef, scrollRef: state.scrollRef, chartFitH: state.chartFitH, expRef: state.expRef, loadRef: state.loadRef,
     stripRef: state.stripRef, overflowRef: state.overflowRef,
     overflowOpen: state.overflowOpen, setOverflowOpen: state.setOverflowOpen,
     morePanelOpen: state.morePanelOpen, setMorePanelOpen: state.setMorePanelOpen,
@@ -572,7 +572,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,
     state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage,
-    state.toasts, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed,
+    state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed,
     state.shortcutsHintDismissed, state.namePromptOpen, state.projectName,
     state.projectDesigner, state.projectDescription,
     state.eyedropperEmpty, state.pxX, state.pxY, state.totPg,
@@ -1250,7 +1250,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           </div>
           {state.tab==="pattern"&&<>
             {state.panelOpen&&<div className="rpanel-backdrop" onClick={()=>state.setPanelOpen(false)}/>}
-            <div className={"rpanel"+(state.panelOpen?" rpanel--open":"")}>
+            <div className={"rpanel"+(state.appMode==="edit"?" rpanel--edit":"")+(state.panelOpen?" rpanel--open":"")}>
             <window.CreatorSidebar/>
             </div>
           </>}
