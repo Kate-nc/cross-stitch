@@ -87,6 +87,20 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // path. This way Hand works for mouse, pen and touch users without
   // a separate code branch.
   function isPanTool() { return getActiveTool() === "hand"; }
+  // Navigate mode (audit DRAW-01): no tool acts on the chart. One finger or a
+  // mouse drag pans, a tap shows the stitch's thread, a long-press opens the
+  // menu. Two fingers pan and zoom in either mode.
+  function isNavigate() { return !!(state.drawModeRef && state.drawModeRef.current === false); }
+
+  // Open the stitch context menu for the cell under a viewport point.
+  function openCellMenuAt(clientX, clientY) {
+    if (typeof state.setContextMenu !== "function" || !state.pat || !state.pcRef || !state.pcRef.current) return false;
+    var gc = gridCoord(state.pcRef, { clientX: clientX, clientY: clientY }, state.cs, state.G, false);
+    if (!gc || gc.gx < 0 || gc.gx >= state.sW || gc.gy < 0 || gc.gy >= state.sH) return false;
+    var idx = gc.gy * state.sW + gc.gx;
+    state.setContextMenu({ x: clientX, y: clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: state.pat[idx] });
+    return true;
+  }
 
   function isPrimaryButton(e) {
     return (e.button == null ? 0 : e.button) === 0;
@@ -796,9 +810,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if ((isTouchPointer(e) || isPanTool()) && (isPanTool() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
+        moved: false,
         startX: e.clientX,
         startY: e.clientY,
         scrollLeft: scrollRef.current.scrollLeft,
@@ -855,7 +870,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (isPanTool()) return;
+    if (isPanTool() || isNavigate()) return;
     if (!activeTool && !partialStitchTool) return;
     e.preventDefault();
     handlePatMouseDown(e);
@@ -878,7 +893,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
-      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) clearLongPressTimer();
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); panStateRef.current.moved = true; }
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -909,7 +924,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerUp(e) {
     var hadPinch = !!pinchStateRef.current;
     var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
-    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId;
+    var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
 
     activePointersRef.current.delete(e.pointerId);
     if (e.target && e.target.releasePointerCapture) {
@@ -917,8 +932,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     if (wasPan) {
+      var panTap = !wasPan.moved && !longPressTriggeredRef.current && !hadPinch;
       panStateRef.current = null;
       clearLongPressTimer();
+      // A tap in Navigate shows that stitch's thread (the stitch menu).
+      if (panTap && isTouchPointer(e) && isNavigate()) openCellMenuAt(e.clientX, e.clientY);
       state.setHoverCoords(null);
       e.preventDefault();
       return;
