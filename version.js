@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.84';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.85',
+    date: 'October 2026',
+    notes: [
+      'The Pattern Creator has a Navigate | Draw switch, like Mark and Navigate in the Stitch Tracker, so you can always see whether a touch will draw or scroll. On phones and tablets it is the first button in the toolbar and new patterns open in Navigate; on a computer it is in the Tools tab and H switches between them. Navigate replaces the Hand tool.',
+    ]
+  },
+  {
     version: '1.0.84',
     date: 'October 2026',
     notes: [
