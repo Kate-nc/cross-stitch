@@ -5,7 +5,7 @@
 // finger lifts, at the cell the finger (and the loupe above it) ended on, so
 // a finger that lands a little off can settle on the right cell first.
 const { test, expect } = require('@playwright/test');
-const { device, generateLogo, pickDarkSwatch, isCompact } = require('./creator-helpers');
+const { device, generateLogo, pickDarkSwatch } = require('./creator-helpers');
 
 const G = 28;
 
@@ -21,10 +21,8 @@ function rng(seed) {
   };
 }
 
+// Choosing Paint switches to Draw (P1-1).
 async function chooseDrawPaint(page) {
-  if (await isCompact(page)) {
-    await page.locator('.creator-rail').getByRole('radio', { name: 'Draw' }).tap();
-  }
   await page.getByRole('button', { name: 'Paint tool' }).tap();
 }
 
