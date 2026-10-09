@@ -223,7 +223,9 @@ window.CreatorSidebar = function CreatorSidebar() {
           if (e.key === " " || e.key === "Enter") { e.preventDefault(); choose(); }
         }
       },
-        h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
+        (window.isPlaceholderThread && window.isPlaceholderThread(p.id))
+          ? h("span", {className: "pal-row__swatch thread-placeholder-swatch", title: "No thread yet: use the swap button to choose one"}, Icons.help())
+          : h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
         h("span", {className: "pal-row__id"}, p.id),
         h("span", {className: "pal-row__name"}, p.name && p.name !== p.id ? p.name : ""),
         h("span", {className: "pal-row__count", title: countText + " stitches"}, countText),

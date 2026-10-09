@@ -3058,6 +3058,33 @@
 
   function I(name) { return typeof Icons[name] === 'function' ? Icons[name]() : null; }
 
+  // A thread the importer couldn't identify ("U1"…) has an invented colour, so
+  // it is drawn as a hatched swatch with a question mark until it gets a real
+  // thread (audit IMPORT-07). helpers.js holds the shared test.
+  function isPlaceholder(id, placeholders) {
+    if (typeof window.isPlaceholderThread === 'function') return window.isPlaceholderThread(id, placeholders);
+    return /^U\d+$/.test(String(id));
+  }
+  function PlaceholderSwatch(props) {
+    return h('span', { className: 'thread-placeholder-swatch ' + (props.className || ''), role: 'img',
+      'aria-label': 'No thread yet', title: 'No thread yet' }, I('help'));
+  }
+
+  // True while the viewport is phone-narrow (the review becomes a full-screen
+  // sheet there; see styles.css).
+  var NARROW_QUERY = '(max-width: 600px)';
+  function useNarrow() {
+    var mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(NARROW_QUERY) : null;
+    var st = React.useState(function () { return !!(mq && mq.matches); });
+    React.useEffect(function () {
+      if (!mq) return undefined;
+      var on = function () { st[1](mq.matches); };
+      if (mq.addEventListener) mq.addEventListener('change', on); else if (mq.addListener) mq.addListener(on);
+      return function () { if (mq.removeEventListener) mq.removeEventListener('change', on); else if (mq.removeListener) mq.removeListener(on); };
+    }, []);
+    return st[0];
+  }
+
   // ── Sub-components ─────────────────────────────────────────────────────
 
   function ImportProgress(props) {
@@ -3389,8 +3416,10 @@
         return h('div', { key: id, className: 'import-palette-row' + (pending[id] ? ' pending' : '') },
           props.samples && props.samples[id]
             ? h(GlyphSample, { sample: props.samples[id], label: 'How ' + label + ' looks in the chart' })
-            : h('span', { className: 'import-palette-swatch',
-                style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
+            : (pending[id] || isPlaceholder(id, report.placeholders))
+              ? h(PlaceholderSwatch, { className: 'import-palette-swatch' })
+              : h('span', { className: 'import-palette-swatch',
+                  style: { background: 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')' } }),
           h('span', { className: 'import-palette-name' },
             h('span', { className: 'import-palette-id' }, pending[id] ? (m.symbol ? 'Symbol ' + m.symbol : id) : id),
             pending[id] ? h('span', { className: 'import-palette-note' },
@@ -3821,10 +3850,11 @@
       // The one on screen first: it is the one opened after the import.
       var order = [designIndex].concat(designs.map(function (_, i) { return i; }).filter(function (i) { return i !== designIndex; }));
       var projects = order.map(designProject);
-      props.onClose && props.onClose('confirm', { project: projects[0], projects: projects, edits: edits });
+      props.onClose && props.onClose('confirm', { project: projects[0], projects: projects, edits: edits, destination: 'home' });
     }
     var _e = React.useState({}); var edits = _e[0], setEdits = _e[1];
     var _c = React.useState(true); var showConfidence = _c[0], setShowConfidence = _c[1];
+    var narrow = useNarrow();
 
     // Escape closes the modal — matches every other dialog in the app.
     React.useEffect(function () {
@@ -3900,7 +3930,7 @@
               return h('option', { key: i, value: String(i) }, d.title + ' (' + n + (n === 1 ? ' page)' : ' pages)'));
             })),
           h('span', { className: 'import-design-note' },
-            'This PDF holds ' + designs.length + ' designs. ‘Use this pattern’ imports the one shown; each design keeps its own changes.'),
+            'This PDF holds ' + designs.length + ' designs. Start stitching or Edit first imports the one shown; each design keeps its own changes.'),
           h('button', { type: 'button', className: 'g-btn', onClick: importAll },
             I('layers'), h('span', null, 'Import all ' + designs.length + ' designs'))),
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
@@ -3909,7 +3939,7 @@
               key: t.id, role: 'tab', 'aria-selected': tab === t.id,
               className: 'import-review-tab ' + (tab === t.id ? 'active' : ''),
               onClick: function () { setTab(t.id); }
-            }, t.icon, h('span', null, t.label));
+            }, narrow ? null : t.icon, h('span', null, t.label));
           })
         ),
         h('section', { className: 'import-review-body' },
@@ -3923,9 +3953,18 @@
           tab === 'metadata' && h(ImportMetadataForm, { project: working, onEdit: applyEdit }),
           tab === 'compare'  && h(ImportSideBySide, { project: working, originalFileUrl: props.originalFileUrl })
         ),
-        h('aside', { className: 'import-review-warnings' },
-          h(WarningList, { warnings: allWarnings })
-        ),
+        // On a phone the notes fold into one line, open by default only when
+        // one of them matters (high severity).
+        narrow
+          ? (allWarnings.length > 0 && h('details', {
+              className: 'import-review-warnings import-review-notes',
+              open: allWarnings.some(function (w) { return w && w.severity === 'high'; }) || undefined },
+              h('summary', null, I(allWarnings.some(function (w) { return w && w.severity === 'high'; }) ? 'warning' : 'info'),
+                h('span', null, allWarnings.length + (allWarnings.length === 1 ? ' note' : ' notes'))),
+              h(WarningList, { warnings: allWarnings })))
+          : h('aside', { className: 'import-review-warnings' },
+              h(WarningList, { warnings: allWarnings })
+            ),
         h('footer', { className: 'import-review-footer' },
           h('label', { className: 'import-review-toggle' },
             h('input', { type: 'checkbox', checked: showConfidence,
@@ -3937,9 +3976,16 @@
             (props.coverage < 0.95) && h('button', { type: 'button', className: 'g-btn',
               onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
             }, I('wandFix'), h('span', null, 'Open guided wizard')),
-            h('button', { type: 'button', className: 'g-btn primary',
-              onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits }); } },
-              I('check'), h('span', null, 'Use this pattern'))
+            // Most imported charts are bought to be stitched, so Start
+            // stitching leads; from inside the Creator, Edit first does.
+            [
+              h('button', { key: 'edit', type: 'button', className: 'g-btn import-review-edit' + (props.preferEdit ? ' primary' : ''),
+                onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'edit' }); } },
+                I('pencil'), h('span', null, 'Edit first')),
+              h('button', { key: 'stitch', type: 'button', className: 'g-btn import-review-stitch' + (props.preferEdit ? '' : ' primary'),
+                onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'stitch' }); } },
+                I('needle'), h('span', null, 'Start stitching'))
+            ][props.preferEdit ? 'reverse' : 'slice']()
           )
         )
       )
@@ -4508,13 +4554,15 @@
         reviewMode: result.reviewMode,
         originalFileUrl: url,
         layoutSession: result.layoutSession || null,
+        preferEdit: cameFromCreator(opts),
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        var dest = destinationOpts(out.destination, opts);
         if (out.action === 'confirm' && out.project && out.projects && out.projects.length > 1) {
-          return saveAll(out.project, out.projects, opts);
+          return saveAll(out.project, out.projects, dest);
         }
         if (out.action === 'confirm' && out.project) {
-          return saveAndNavigate(out.project, opts);
+          return saveAndNavigate(out.project, dest);
         }
         return out;
       });
@@ -4526,6 +4574,23 @@
       try { showFriendlyError(err, file && file.name); } catch (_) {}
       throw err;
     });
+  }
+
+  // Imported from inside the Creator: Edit first stays the main action there.
+  function cameFromCreator(opts) {
+    if (opts && opts.navigateTo && /create\.html/i.test(opts.navigateTo)) return true;
+    return isCurrentPage('create.html');
+  }
+
+  // Where the review's buttons go (audit IMPORT-06): Start stitching opens
+  // the Tracker on the new project, Edit first keeps the caller's destination
+  // (the Creator by default), and a booklet imported whole goes to
+  // Home › Projects, since there are several patterns to choose from.
+  function destinationOpts(destination, opts) {
+    opts = opts || {};
+    if (destination === 'stitch') return Object.assign({}, opts, { navigateTo: 'stitch.html?from=home', appendId: true });
+    if (destination === 'home') return Object.assign({}, opts, { navigateTo: 'home.html?tab=projects', forceNav: true });
+    return opts;
   }
 
   // Returns true when `destination` (a relative URL like 'home.html') is
@@ -4596,6 +4661,12 @@
     // opts.navigateTo (e.g. 'stitch.html' to drop straight into the
     // tracker, or 'home.html' to return to the library).
     var destination = opts.navigateTo || 'create.html?from=home';
+    // The Tracker, like Home's project tiles, also takes the id in the URL in
+    // case the active-project pointer is lost during the navigation.
+    function destinationFor(id) {
+      if (!opts.appendId || !id) return destination;
+      return destination + (destination.indexOf('?') === -1 ? '?' : '&') + 'id=' + encodeURIComponent(id);
+    }
     var storage = window.ProjectStorage;
     if (!storage || typeof storage.save !== 'function') {
       // Fall back to legacy single-project storage if available.
@@ -4606,7 +4677,7 @@
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
           if (!opts.quiet) showImportToast(project, opts.toastMessage);
-          if (nav) window.location.href = destination;
+          if (nav) window.location.href = destinationFor(project.id);
           return { action: 'confirm', project: project };
         });
       }
@@ -4693,15 +4764,15 @@
         // required to swap the running React state for the new project.
         if (nav) {
           var skipSamePage = opts.skipSamePageNav === true
-            || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
+            || (!opts.forceNav && opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
           if (!skipSamePage) {
             // Signal to home-app.js that we are navigating away so the
             // self-heal in refreshAll() doesn't clear the fresh pointer
             // while the in-flight IDB query triggered by setActiveProject
             // above is still resolving.
             window.__navigatingAway = true;
-            try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destination, projectId: id })); } catch (_) {}
-            window.location.href = destination;
+            try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destinationFor(id), projectId: id })); } catch (_) {}
+            window.location.href = destinationFor(id);
           }
         }
         return { action: 'confirm', project: project, id: id };
@@ -4722,6 +4793,7 @@
     saveAndNavigate: saveAndNavigate,
     saveAll: saveAll,
     _isCurrentPage: isCurrentPage,
+    _destinationOpts: destinationOpts,
   });
 })();
 
