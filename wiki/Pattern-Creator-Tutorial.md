@@ -42,7 +42,7 @@ The first setting picks good starting values for the picture:
 | **Photo** | Up to 20 threads, subtle shading, blends, balanced cleanup |
 | **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across) |
 
-The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**.
+The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**. To start every picture from your own defaults (threads, blends and dithering) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
 ### Image
 

@@ -271,6 +271,7 @@
   // PATTERN CREATOR
   // --------------------------------------------------------------------
   function CreatorPanel() {
+    var guessType = usePref("creatorGuessPictureType", true);
     var pal = usePref("creatorDefaultPaletteSize", 15);
     var fab = usePref("creatorDefaultFabricCount", 16);
     var fabColour = usePref("creatorFabricColour", "#FFFFFF");
@@ -294,7 +295,10 @@
         subtitle: "Defaults used when starting a new pattern. You can still adjust everything per-project from the Creator's sidebar." }),
 
       h(Section, { title: "Generation defaults" },
-        h(Row, { label: "Maximum colours", desc: "How many DMC colours the Creator may use when matching an image." },
+        h(Row, { label: "Guess the picture type", desc: "When you add a picture, the Creator guesses whether it is a graphic or logo, a photo or pixel art, and starts from that type's settings. Turn off to start every picture from the defaults below." },
+          h(Switch, { checked: guessType[0] !== false, onChange: guessType[1] })
+        ),
+        h(Row, { label: "Threads (max)", desc: "How many DMC threads the Creator may use when matching an image. Used when the picture type isn't guessed." },
           h("input", { type: "range", min: 2, max: 100, value: pal[0], onChange: function (e) { pal[1](parseInt(e.target.value, 10)); }, style: { width: 160 } }),
           h("input", { type: "number", inputMode: "numeric", min: 2, max: 100, value: pal[0], onChange: function (e) { pal[1](Math.max(2, Math.min(100, parseInt(e.target.value, 10) || 15))); }, style: Object.assign({}, styles.input, { width: 64 }) })
         ),
@@ -308,7 +312,7 @@
           h("input", { type: "color", "aria-label": "Default fabric colour for new patterns", value: /^#[0-9a-fA-F]{6}$/.test(fabColour[0] || "") ? fabColour[0] : "#FFFFFF",
             onChange: function (e) { fabColour[1](e.target.value.toUpperCase()); }, style: { width: 48, height: 32, padding: 0, border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface)" } })
         ),
-        h(Row, { label: "Allow blended threads", desc: "Lets the Creator combine two threads in one stitch for richer colour." },
+        h(Row, { label: "Allow blended threads", desc: "Lets the Creator combine two threads in one stitch for richer colour. Used when the picture type isn't guessed." },
           h(Switch, { checked: allowBlend[0], onChange: allowBlend[1] })
         ),
         h(Row, { last: true, label: "Use only threads from my stash", desc: "Restricts the palette to threads marked as owned in the Stash Manager." },
@@ -317,7 +321,7 @@
       ),
 
       h(Section, { title: "Image preparation" },
-        h(Row, { label: "Dithering", desc: "How the Creator blends colours across pixels. Off (the default) gives the tidiest charts; Balanced suits photos." },
+        h(Row, { label: "Dithering", desc: "How the Creator blends colours across pixels. Off (the default) gives the tidiest charts; Balanced suits photos. Used when the picture type isn't guessed." },
           h(Segmented, { value: dith[0], onChange: dith[1], options: [
             { value: "off", label: "Off" }, { value: "weak", label: "Weak" },
             { value: "balanced", label: "Balanced" }, { value: "strong", label: "Strong" }

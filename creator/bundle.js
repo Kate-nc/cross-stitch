@@ -11394,9 +11394,15 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }
       } catch (err) { console.warn("useProjectIO: picture check failed", err); }
       autoSkipBackground(info ? info.border : null);
-      if (info && info.w && state.setPictureInfo && state.applyPicturePreset && typeof window.guessPictureType === "function") {
+      if (info && info.w && state.setPictureInfo) {
         state.setPictureInfo(info);
-        state.applyPicturePreset(window.guessPictureType(info), info);
+        // Preferences > Pattern Creator > Guess the picture type. Off: the
+        // Preferences defaults stay, and the control shows Custom.
+        var guess = true;
+        try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
+        if (guess && state.applyPicturePreset && typeof window.guessPictureType === "function") {
+          state.applyPicturePreset(window.guessPictureType(info), info);
+        }
       }
     }
     function autoSkipBackground(found) {

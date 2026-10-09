@@ -111,6 +111,16 @@ describe('the hook', () => {
     expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { bgCol: [240, 240, 240] }))).toBe('custom');
   });
 
+  test('Preferences can turn the guess off, so its own defaults apply', () => {
+    expect(loadSource('user-prefs.js')).toMatch(/creatorGuessPictureType:\s*true,/);
+    const prefs = loadSource('preferences-modal.js');
+    expect(prefs).toMatch(/usePref\("creatorGuessPictureType", true\)/);
+    expect(prefs).toMatch(/label: "Guess the picture type"/);
+    const io = loadSource('creator/useProjectIO.js');
+    expect(io).toMatch(/UserPrefs\.get\("creatorGuessPictureType"\) !== false/);
+    expect(io).toMatch(/if \(guess && state\.applyPicturePreset[\s\S]{0,120}state\.applyPicturePreset\(window\.guessPictureType\(info\), info\);/);
+  });
+
   test('the picture-type radios have one Tab stop and arrow keys', () => {
     const sb = loadSource('creator/Sidebar.js');
     const sec = sb.slice(sb.indexOf('var pictureTypeSection'), sb.indexOf('// ── Palette section'));

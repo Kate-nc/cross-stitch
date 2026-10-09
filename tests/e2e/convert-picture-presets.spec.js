@@ -70,6 +70,22 @@ test.describe('Picture-type presets on desktop', function() {
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
   });
 
+  test('with guessing turned off in Preferences, a picture starts from the Preferences defaults', async function({ page }) {
+    await page.addInitScript(function() {
+      try { localStorage.setItem('cs_pref_creatorGuessPictureType', 'false'); localStorage.setItem('cs_pref_creatorDefaultPaletteSize', '12'); } catch (e) {}
+    });
+    await openConvertWithLogo(page);
+    await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
+    const slider = page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
+    await expect(slider).toHaveValue('12');
+    // Arrow keys still choose a type.
+    await pictureType(page, 'Graphic or logo').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
+    await expect(pictureType(page, 'Photo')).toBeFocused();
+    await expect(slider).toHaveValue('20');
+  });
+
   test('a tiny picture is guessed as pixel art and generates at its own size', async function({ page }) {
     await quietOnboarding(page);
     await page.goto('/home.html?tab=create');
