@@ -11616,7 +11616,7 @@ function TrackerApp({
         border: "0.5px solid var(--border)"
       }
     }, hasTouchRef.current ? "Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread" : "Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode");
-    if (!shortcutsHintDismissed && pat && trackerLoadCount >= 3) return /*#__PURE__*/React.createElement("div", {
+    if (!shortcutsHintDismissed && pat && trackerLoadCount >= 3 && !(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())) return /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 'var(--text-sm)',
         color: "var(--text-tertiary)",

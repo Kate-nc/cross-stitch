@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.83';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.84',
+    date: 'October 2026',
+    notes: [
+      'On phones and tablets the Pattern Creator no longer shows mouse and keyboard tips such as \u201CRight-click any cell\u201D, \u201CHold Alt to zoom\u201D or \u201CPress ? for help\u201D; it says \u201CLong-press a stitch for more options\u201D instead. The labels under the Convert preview are larger and easier to read, in light and dark themes.',
+    ]
+  },
+  {
     version: '1.0.83',
     date: 'October 2026',
     notes: [

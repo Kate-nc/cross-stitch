@@ -369,7 +369,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           : h(React.Fragment, null,
               h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
-              h("span", {style:{color:"var(--accent-ink)"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{color:"var(--accent-ink)"}}, (window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())
+                ? "Select a colour to paint \u2014 or long-press a stitch"
+                : "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0

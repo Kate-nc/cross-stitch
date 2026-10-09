@@ -247,7 +247,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        {!zoomLocked&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
+        {/* Touch screens have no Alt key, and the Magnifier button sits right here. */}
+        {!zoomLocked&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())&&<span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );
@@ -1180,46 +1181,46 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {/* Left: source image with crop / change controls */}
               <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
                 <div className="card" style={{overflow:"hidden"}}>
-                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
-                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>Original Image</div>
+                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--text-primary)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:"var(--text-xs)",padding:"2px 7px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",cursor:"pointer",fontWeight:600}}>Cancel</button>
                   </div>}
                   <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.pickBg?"crosshair":"default"}} onClick={canvas.srcClick}/>
-                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
-                    <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
+                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--line)"}}>
+                    <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
-                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
+                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Crop</button>
+                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Change</button>
                     </div>
                   </div>
                 </div>
               </div>
               {/* Right: preview comparison or placeholder */}
               <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
-                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"#A89E89",fontSize:12}}>
+                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-secondary)",fontSize:12}}>
                   Adjust settings and generate a pattern to see a preview here.
                 </div>}
                 {state.previewUrl&&<div className="card">
                   {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
-                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
+                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"var(--text-primary)",background:"var(--warning-soft)",border:"0.5px solid var(--line)",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
                       <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
                       No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
                     </div>
                   )}
-                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
                       Preview
-                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"#A89E89"}}>{Icons.spinner()}</span>}
+                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"var(--text-secondary)"}}>{Icons.spinner()}</span>}
                     </span>
-                    {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                    {state.previewDims&&<span style={{fontSize:"var(--text-xs)",fontWeight:500,color:"var(--text-secondary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                                 {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                   <button
                                     onClick={()=>state.setShowCleanupDiff(d=>!d)}
                                     style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-                                      border:state.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
-                                      background:state.showCleanupDiff?"#F4DDCF":"#fff",
-                                      color:state.showCleanupDiff?"#B85C38":"#5C5448",
+                                      border:state.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--line)",
+                                      background:state.showCleanupDiff?"var(--accent-soft)":"var(--surface)",
+                                      color:state.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
                                       fontWeight:state.showCleanupDiff?600:400,
                                       display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
                                   >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
@@ -1230,37 +1231,37 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   </div>
                 </div>}
                 {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+                  <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
-                    {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
+                    {state.skipBg&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
+                    {state.previewStats.stashUsage&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                   </div>
                   {state.previewStats.confettiPct!=null&&(()=>{
                     const t=confettiTier(state.previewStats.confettiPct);
                     const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
                     return(
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
+                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid var(--line)"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:10,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                          <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
                           <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{flex:1,height:5,background:"var(--line)",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
                           </div>
                           <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                         </div>
-                        <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
                       </div>
                     );
                   })()}
-                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #E5DCCB"}}>
-                    <div style={{fontSize:10,fontWeight:600,color:"#A89E89",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
+                    <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                       {state.previewColors.map(function(pcol){
                         var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
@@ -1282,10 +1283,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                               hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
                             }}
                             onMouseLeave={function(){state.setPreviewHighlight(null);}}>
-                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
-                            <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                            <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                            <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
+                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid var(--line)"}}/>
+                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                            <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
                           </div>
                         );
                       })}
@@ -1323,16 +1324,16 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,
-        background:"rgba(255,255,255,0.8)",zIndex:1000,
+        background:"color-mix(in srgb, var(--surface) 85%, transparent)",zIndex:1000,
         display:"flex",alignItems:"center",justifyContent:"center",
         flexDirection:"column",gap:12
       }}>
         <div style={{
-          width:32,height:32,border:"3px solid #E5DCCB",
-          borderTopColor:"#B85C38",borderRadius:"50%",
+          width:32,height:32,border:"3px solid var(--line)",
+          borderTopColor:"var(--accent)",borderRadius:"50%",
           animation:"spin 0.8s linear infinite"
         }}/>
-        <div style={{fontSize:14,color:"#5C5448",fontWeight:500}}>Generating pattern\u2026</div>
+        <div style={{fontSize:14,color:"var(--text-secondary)",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
