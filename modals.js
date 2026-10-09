@@ -363,8 +363,9 @@ const SharedModals = {
 };
 
 // ═══ Name Prompt Modal ═══
-// Simple modal that asks the user to name their project before the first save.
-function NamePromptModal({ defaultName, onConfirm, onCancel }) {
+// Simple modal that asks the user to name their project. Callers can change
+// the wording (the Creator's export-time nudge uses "Skip" instead of "Cancel").
+function NamePromptModal({ defaultName, onConfirm, onCancel, title, message, cancelLabel, confirmLabel }) {
   const [name, setName] = React.useState(defaultName || '');
   const inputRef = React.useRef(null);
   React.useEffect(() => { if (inputRef.current) inputRef.current.select(); }, []);
@@ -381,10 +382,11 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
   },
     React.createElement(window.Overlay.CloseButton, { onClose: onCancel }),
     React.createElement('div', { style: { padding: 24 } },
-      React.createElement('h3', { id: 'name-prompt-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, 'Name Your Project'),
-      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' } }, 'Give your project a name before saving.'),
+      React.createElement('h3', { id: 'name-prompt-title', style: { marginTop: 0, marginBottom: 12, fontSize: 18, color: 'var(--text-primary)' } }, title || 'Name Your Project'),
+      React.createElement('p', { style: { margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' } }, message || 'Give your project a name before saving.'),
       React.createElement('input', {
         ref: inputRef, type: 'text', maxLength: 60, value: name,
+        className: 'name-prompt-input', 'aria-labelledby': 'name-prompt-title',
         'data-autofocus': true,
         onChange: e => setName(e.target.value),
         onKeyDown: e => { if (e.key === 'Enter') handleSubmit(); },
@@ -392,8 +394,8 @@ function NamePromptModal({ defaultName, onConfirm, onCancel }) {
         style: { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }
       }),
       React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' } }, 'Cancel'),
-        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 } }, 'Save')
+        React.createElement('button', { onClick: onCancel, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' } }, cancelLabel || 'Cancel'),
+        React.createElement('button', { onClick: handleSubmit, style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: 'none', background: 'var(--accent)', color: 'var(--surface)', cursor: 'pointer', fontWeight: 600 } }, confirmLabel || 'Save')
       )
     )
   );

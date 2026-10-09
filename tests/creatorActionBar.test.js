@@ -148,10 +148,12 @@ describe('Creator outcome action bar (UX-12 Phase 5 + Option 2)', () => {
 
   test('mount wires every handler and the popover data props', () => {
     // Print PDF uses the Export tab's saved settings (export-pdf.js).
-    expect(CREATOR_MAIN_SRC).toMatch(/onPrintPdf=\{exportPdfWithSavedSettings\}/);
-    expect(CREATOR_MAIN_SRC).toMatch(/onTrackPattern=\{io\.handleOpenInTracker\}/);
+    // Print PDF, Track and Export… pass through the one-time name nudge (P0-2).
+    expect(CREATOR_MAIN_SRC).toMatch(/onPrintPdf=\{printPdfWithNameNudge\}/);
+    expect(CREATOR_MAIN_SRC).toMatch(/onTrackPattern=\{stableHandleOpenInTracker\}/);
     expect(CREATOR_MAIN_SRC).toMatch(/onSaveJson=\{io\.saveProject\}/);
-    expect(CREATOR_MAIN_SRC).toMatch(/onMoreExports=\{[^}]*setTab\("materials"\)/);
+    expect(CREATOR_MAIN_SRC).toMatch(/onMoreExports=\{\(\)=>_nameNudgeRef\.current\('exports'\)\}/);
+    expect(CREATOR_MAIN_SRC).toMatch(/key === 'exports'\) \{ state\.setTab\("materials"\)/);
     expect(CREATOR_MAIN_SRC).toMatch(/setMaterialsTab\("output"\)/);
     // Polish 13 step 3 — onSwitchToCreate prop is no longer wired.
     expect(CREATOR_MAIN_SRC).not.toMatch(/onSwitchToCreate=\{/);

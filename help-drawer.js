@@ -263,6 +263,7 @@
           heading: "Saving your work",
           body: "Projects save themselves to this device as you work — there is no Save button to remember. Ctrl+S downloads a .json copy, the same as File > Download (.json).",
           bullets: [
+            ["Project names", "Nothing asks for a name while you create. A pattern converted from an image is named after the image file (IMG_2041.jpg becomes IMG_2041), an imported chart keeps its title or file name, and a blank grid starts as Untitled design. The first time you print or export an automatically named pattern, or open it in the Tracker, you're asked once whether to give it a name; Skip keeps the current one."],
             ["Download (.json)", "File > Download (.json) writes a copy of the project to a file: the pattern, your edits and your tracking progress. Open it again in the Creator or the Tracker."],
             ["Export PDF and .oxs", "File > Export PDF… exports a chart straight away with your saved export settings — the ones on the Export tab of Materials & Output. In the Tracker it first shows the main settings. Export .oxs writes a file other cross-stitch software (MacStitch, WinStitch, FlossCross) can open."],
             ["Storage", "The top of the File menu shows how much space the app is using, and whether the browser has made it Protected (kept) or Temporary (may be cleared when space runs low)."]
@@ -331,7 +332,7 @@
           bullets: [
             ["Active project", "The project you most recently opened. It is the one the Creator and Tracker open by default."],
             ["Switching projects", "Use Home > Projects, or File > Switch Project… from any page."],
-            ["Renaming", "Click the project name in the top bar to rename it."],
+            ["Renaming", "Click the project name in the top bar to rename it. On a phone, tap the project button at the top left and choose Rename."],
             ["Deleting", "Delete projects from the Stash Manager's Pattern Library (one at a time, or select several). An Undo button appears for a few seconds; after that, a deleted project can only be recovered from a backup."]
           ]
         }

@@ -48,10 +48,8 @@ async function openConvertWithLogo(page) {
 
 async function generateAndDismissName(page) {
   await page.getByRole('button', { name: 'Generate pattern' }).first().click();
-  const cancel = page.getByRole('button', { name: 'Cancel', exact: true });
-  await cancel.waitFor({ timeout: 15000 });
-  await cancel.click();
-  await page.waitForSelector('.rpanel--edit');
+  // No name prompt any more (P0-2): the project is named after the image.
+  await page.waitForSelector('.rpanel--edit', { timeout: 15000 });
 }
 
 // Share of the viewport where the chart area is actually visible: the
@@ -154,9 +152,7 @@ test.describe('Scratch grid on Pixel 5', function() {
   test('can add DMC 310 and paint a stitch', async function({ page }) {
     await quietOnboarding(page);
     await page.goto('/create.html?action=new-blank');
-    const cancel = page.getByRole('button', { name: 'Cancel', exact: true });
-    await cancel.waitFor({ timeout: 15000 });
-    await cancel.click();
+    await page.waitForSelector('.rpanel', { timeout: 15000 });
 
     const undo = page.getByRole('button', { name: 'Undo', exact: true }).first();
     await expect(undo).toBeDisabled();

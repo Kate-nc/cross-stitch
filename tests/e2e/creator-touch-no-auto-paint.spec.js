@@ -39,10 +39,7 @@ async function generateLogo(page) {
   await page.waitForSelector('.rpanel');
   await skipTourIfShown(page);
   await page.getByRole('button', { name: 'Generate pattern' }).first().click();
-  const cancel = page.getByRole('button', { name: 'Cancel', exact: true });
-  await cancel.waitFor({ timeout: 15000 });
-  await cancel.click();
-  await page.waitForSelector('.rpanel--edit');
+  await page.waitForSelector('.rpanel--edit', { timeout: 15000 });
   await page.waitForTimeout(300);
 }
 

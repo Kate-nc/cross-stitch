@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.79';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.80',
+    date: 'October 2026',
+    notes: [
+      'New patterns are named for you, so no box pops up while you create: a converted image takes the image\u2019s file name and a blank grid starts as \u201CUntitled design\u201D. The first time you print, export or track an automatically named pattern you\u2019re asked once whether to rename it. On a phone, rename a pattern from the project button at the top of the screen.',
+    ]
+  },
+  {
     version: '1.0.79',
     date: 'October 2026',
     notes: [
