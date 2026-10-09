@@ -250,7 +250,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var hl = _resolveHighlight(state);
 
   // color-2 (B3): fabric background colour (defaults to white).
-  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  ctx2d.fillStyle = fabricFill;
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {
@@ -286,12 +287,18 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var dimDesat  = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
+        // Unstitched cells show the pattern's fabric (audit COMMON-08), as
+        // the Tracker does, with a faint checker so they still read as empty.
         if (showOverlayImg) {
           ctx2d.globalAlpha = 0.2;
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
+          ctx2d.fillStyle = fabricFill;
+          ctx2d.fillRect(px, py, cSz, cSz);
+          ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
+          ctx2d.globalAlpha = 1.0;
         }
       } else if (view === "color" || view === "both") {
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
@@ -560,7 +567,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var hl = _resolveHighlight(state);
 
   // color-2 (B3): fabric background colour (defaults to white).
-  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  ctx2d.fillStyle = fabricFill;
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {
@@ -595,12 +603,18 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       var dimDesat = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
+        // Unstitched cells show the pattern's fabric (audit COMMON-08), as
+        // the Tracker does, with a faint checker so they still read as empty.
         if (showOverlayImg) {
           ctx2d.globalAlpha = 0.2;
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
+          ctx2d.fillStyle = fabricFill;
+          ctx2d.fillRect(px, py, cSz, cSz);
+          ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
+          ctx2d.globalAlpha = 1.0;
         }
       } else if (view === "color" || view === "both") {
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;

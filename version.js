@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.90';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.91',
+    date: 'October 2026',
+    notes: [
+      'Each pattern now keeps its own fabric colour, and the Pattern Creator and Stitch Tracker both draw the chart on it; Preferences sets the colour new patterns start with. The Fabric settings group counts into Aida and evenweave or linen (over two), offer White, Antique white, Cream, Black, Navy or any colour, and show the finished size and how much fabric to cut, in centimetres and inches with your preferred unit first. Fabric can be changed later from Edit > Project.',
+    ]
+  },
+  {
     version: '1.0.90',
     date: 'October 2026',
     notes: [

@@ -2358,7 +2358,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var useMemo  = React.useMemo;
 
   // ── All hooks BEFORE any conditional returns ───────────────────────────────
-  var _units    = useState("in");     var units    = _units[0];    var setUnits    = _units[1];
+  var _units    = useState(function () { return (typeof window.preferredUnits === "function" && window.preferredUnits() === "imperial") ? "in" : "cm"; });     var units    = _units[0];    var setUnits    = _units[1];
   var _margin   = useState(3);        var margin   = _margin[0];   var setMargin   = _margin[1];
   var _sort     = useState("number"); var sort     = _sort[0];     var setSort     = _sort[1];
   var _copied   = useState(false);    var copied   = _copied[0];   var setCopied   = _copied[1];
