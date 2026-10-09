@@ -479,6 +479,16 @@ describe('buildImportReport', () => {
     expect(r.warnings.join(' ')).toMatch(/4 stitches use a symbol missing from the key \(q\)/);
   });
 
+  it('does not double the brackets of a picture symbol placeholder (B-15)', () => {
+    const r = imp.buildImportReport({}, {
+      entries: [{ threadCode: '310' }],
+      matchReport: { unresolved: 3, unresolvedSymbols: { '(colour)': 3 } },
+    }, 1, 1, 10, 1);
+    const text = r.warnings.join(' ');
+    expect(text).toMatch(/missing from the key \(colour\)/);
+    expect(text).not.toMatch(/\(\(colour\)\)/);
+  });
+
   it('carries layout warnings through', () => {
     const r = imp.buildImportReport({ warnings: ['Pages 2 repeat page 1'] }, { entries: [{ threadCode: '1' }] }, 1, 1, 1, 1);
     expect(r.warnings).toContain('Pages 2 repeat page 1');

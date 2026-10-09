@@ -44,6 +44,9 @@ const preamble =
 const helperCode =
   preamble +
   extractFn(raw, '_oxsExtractDimension') + '\n' +
+  extractFn(raw, '_oxsParseThreadRef') + '\n' +
+  extractFn(raw, '_oxsBrandFromName') + '\n' +
+  extractFn(raw, '_oxsBrandLabel') + '\n' +
   extractFn(raw, 'parseOXS') + '\n' +
   extractFn(raw, 'generateOXS') + '\n';
 

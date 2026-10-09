@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.75';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.77',
+    date: 'October 2026',
+    notes: [
+      '.oxs charts can be imported from the Home screen again. Imported Anchor threads are matched properly (using the official Anchor to DMC conversion) and flagged in the review, instead of being swapped for an unrelated DMC colour.',
+      'Import warnings no longer show doubled brackets, as in “((colour))”.',
+    ]
+  },
+  {
     version: '1.0.76',
     date: 'October 2026',
     notes: [

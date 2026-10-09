@@ -41,6 +41,13 @@
       if (!parseOXS) throw ENGINE.errors.UnsupportedError('parseOXS not loaded — include import-formats.js');
       const bytes = await probe.fullBytes();
       const xml = bytesToString(bytes);
+      // Anchor threads map to DMC through the official conversion table,
+      // which not every page loads up front. Without it parseOXS falls back
+      // to the closest colour.
+      if (/\banchor\b/i.test(xml) && typeof window !== 'undefined' &&
+          typeof window.getOfficialMatch !== 'function' && typeof window.loadThreadConversions === 'function') {
+        try { await window.loadThreadConversions(); } catch (_) { /* closest colour instead */ }
+      }
       let result;
       try {
         result = parseOXS(xml);
@@ -55,7 +62,7 @@
         grid: [],         // intentionally empty: legacy materialiser uses _legacyProject
         legend: [],
         meta: { publisher: 'oxs', title: baseName },
-        flags: { warnings: [], uncertainCells: 0 },
+        flags: { warnings: (result && Array.isArray(result.warnings)) ? result.warnings.slice() : [], uncertainCells: 0 },
         _legacyProject: project,
         _legacyResult: result,
       };

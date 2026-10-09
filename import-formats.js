@@ -99,6 +99,32 @@ function _oxsExtractDimension(doc, chart, sizeEls, attrPair) {
   return { value: parsed };
 }
 
+// A thread reference from an OXS palette entry: "DMC 310", "Anchor 403",
+// "Madeira 2400", or a bare "310" (brand null, read as DMC). Returns
+// { brand, id } or null when the text isn't a reference at all.
+function _oxsParseThreadRef(text) {
+  if (text == null) return null;
+  var t = String(text).trim();
+  if (!t) return null;
+  if (/^(\d[\w-]*|blanc|ecru|white)$/i.test(t)) return { brand: null, id: t };
+  var m = t.match(/^([A-Za-z][A-Za-z&.' ]*?)\s*[:#-]?\s*(\d[\w-]*|blanc|ecru)$/i);
+  if (!m) return null;
+  return { brand: m[1].trim().toLowerCase(), id: m[2] };
+}
+
+// Brand named at the start of a palette entry's name ("Anchor dark grey"),
+// for files that put the brand there rather than in the number.
+function _oxsBrandFromName(name) {
+  var m = String(name || '').trim().match(/^(dmc|anchor|madeira|cosmo|sullivans|presencia|olympus|finca)\b/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function _oxsBrandLabel(brand) {
+  if (!brand) return 'DMC';
+  if (brand === 'dmc') return 'DMC';
+  return brand.charAt(0).toUpperCase() + brand.slice(1);
+}
+
 function parseOXS(xmlString) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, "application/xml");
@@ -170,14 +196,39 @@ function parseOXS(xmlString) {
       else if (nameLower === "ecru" || matchNumber.toLowerCase() === "ecru") matchNumber = "ECRU";
       else if (nameLower === "black" && !matchNumber) matchNumber = "310";
 
-      // Try matching by number
-      if (matchNumber) {
-        dmcThread = _importDmcById(matchNumber); // PERF (perf-2 #3): O(1) map lookup
+      // Brand-aware matching (audit B-09). Only a DMC (or brandless) number is
+      // looked up as a DMC id: "Anchor 400" must never match DMC 400.
+      const ref = _oxsParseThreadRef(dmcNumber) || (!dmcNumber ? _oxsParseThreadRef(nameStr) : null);
+      let brand = ref ? ref.brand : null;
+      if (!brand) brand = _oxsBrandFromName(nameStr);
+      const isDmc = !brand || brand === 'dmc';
+      if (ref && isDmc) {
+        matchNumber = ref.id;
+        const refLower = ref.id.toLowerCase();
+        if (refLower === 'white' || refLower === 'blanc') matchNumber = 'BLANC';
+        else if (refLower === 'ecru') matchNumber = 'ECRU';
       }
+      const sourceLabel = ref ? (_oxsBrandLabel(brand) + ' ' + ref.id) : (nameStr || dmcNumber || ('palette colour ' + index));
+      let matchedBy = null;
 
-      // Try matching by name
-      if (!dmcThread && nameStr) {
-        dmcThread = _importDmcByName(nameStr); // PERF (perf-2 #3): O(1) map lookup
+      if (isDmc) {
+        // Try matching by number
+        if (matchNumber) {
+          dmcThread = _importDmcById(matchNumber); // PERF (perf-2 #3): O(1) map lookup
+          if (dmcThread) matchedBy = 'id';
+        }
+
+        // Try matching by name
+        if (!dmcThread && nameStr) {
+          dmcThread = _importDmcByName(nameStr); // PERF (perf-2 #3): O(1) map lookup
+          if (dmcThread) matchedBy = 'name';
+        }
+      } else if (brand === 'anchor' && ref && typeof getOfficialMatch === 'function') {
+        const conv = getOfficialMatch('anchor', ref.id, 'dmc');
+        if (conv && conv.id) {
+          dmcThread = _importDmcById(conv.id);
+          if (dmcThread) matchedBy = 'conversion';
+        }
       }
 
       // Try extraction RGB
@@ -203,13 +254,16 @@ function parseOXS(xmlString) {
             dmcThread = DMC[i];
           }
         }
+        if (dmcThread) matchedBy = 'colour';
       }
 
       if (dmcThread) {
         paletteMap[index] = {
           dmcThread: dmcThread,
           rgb: dmcThread.rgb,
-          originalId: matchNumber
+          originalId: matchNumber,
+          sourceLabel: sourceLabel,
+          matchedBy: matchedBy
         };
       } else if (rgb) {
          // Fallback to nearest DMC again just in case
@@ -227,7 +281,9 @@ function parseOXS(xmlString) {
                 paletteMap[index] = {
                   dmcThread: dmcThread,
                   rgb: rgb,
-                  originalId: matchNumber
+                  originalId: matchNumber,
+                  sourceLabel: sourceLabel,
+                  matchedBy: 'colour'
                 };
             }
          }
@@ -240,6 +296,13 @@ function parseOXS(xmlString) {
   // palette size and hide legitimate colour collisions.
   const _seenPaletteId = {};
   const _paletteIndexRedirect = {};
+  // Every entry that didn't match a DMC id exactly, reported once the
+  // stitches show which ones the chart actually uses.
+  const _substitutions = {};
+  for (const _idx in paletteMap) {
+    const _e = paletteMap[_idx];
+    if (_e.matchedBy && _e.matchedBy !== 'id') _substitutions[_idx] = _e;
+  }
   for (const _idx in paletteMap) {
     const _id = paletteMap[_idx].dmcThread.id;
     if (_seenPaletteId[_id] == null) {
@@ -255,6 +318,7 @@ function parseOXS(xmlString) {
     type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0]
   }));
   let stitchCount = 0;
+  const _usedSubstitutions = {};
 
   const stitchContainer = chart.querySelector("fullstitches") || chart.querySelector("Fullstitches") ||
                           chart.querySelector("FullStitches") || chart.querySelector("stitches") ||
@@ -270,6 +334,7 @@ function parseOXS(xmlString) {
 
     if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
 
+    if (_substitutions[palIdx]) _usedSubstitutions[palIdx] = true;
     if (_paletteIndexRedirect[palIdx] != null) palIdx = _paletteIndexRedirect[palIdx];
     const palEntry = paletteMap[palIdx];
     if (palEntry && palEntry.dmcThread) {
@@ -311,13 +376,22 @@ function parseOXS(xmlString) {
     });
   }
 
+  const warnings = [];
+  for (const _idx in _usedSubstitutions) {
+    const _e = _substitutions[_idx];
+    const how = _e.matchedBy === 'conversion' ? 'official conversion'
+      : _e.matchedBy === 'name' ? 'matched by name' : 'closest equivalent';
+    warnings.push(_e.sourceLabel + ' was matched to DMC ' + _e.dmcThread.id + ' (' + how + ').');
+  }
+
   return {
     width,
     height,
     pattern,
     bsLines,
     stitchCount,
-    paletteSize: Object.keys(paletteMap).length
+    paletteSize: Object.keys(paletteMap).length,
+    warnings
   };
 }
 
