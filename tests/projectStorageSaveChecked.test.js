@@ -168,6 +168,19 @@ describe('INT-7 Phase B-2: saveChecked() runtime decisions', () => {
     });
   });
 
+  test('IDB written by this tab after an older baseline from a previous page → not a conflict (overlapping saves)', async () => {
+    // After a reload the baseline can still name the previous page's tab
+    // while a save from this page has already landed.
+    const ctx = mkThis({
+      get: jest.fn().mockResolvedValue({ id: 'proj_x', lastWriteAt: 2000, lastWriteTabId: 'tab-self' }),
+      save: jest.fn().mockResolvedValue('proj_x')
+    });
+    const win = { CrossTabCoord: { tabId: 'tab-self', getSeen: () => ({ lastWriteAt: 1000, lastWriteTabId: 'tab-previous-page' }) } };
+    const res = await run(ctx, mkProject(), win);
+    expect(ctx.save).toHaveBeenCalledTimes(1);
+    expect(res.ok).toBe(true);
+  });
+
   test('in-IDB record lacks lastWriteAt (legacy) → no conflict, saves through', async () => {
     const ctx = mkThis({
       get: jest.fn().mockResolvedValue({ id: 'proj_x' })

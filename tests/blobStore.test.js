@@ -82,7 +82,10 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
 
   test('the project list and stats read the projects store, not pendingImports', () => {
     const storage = loadSource('project-storage.js');
-    expect((storage.match(/pendingImports/g) || []).length).toBe(2);
+    // It creates the store and, when a project is deleted, removes that
+    // project's tracing picture (trace:<id>, P2-4); it never reads it.
+    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.(get|getAll|openCursor)\(/);
+    expect(storage).toMatch(/tx\.objectStore\("pendingImports"\)\.delete\("trace:" \+ id\)/);
   });
 });
 

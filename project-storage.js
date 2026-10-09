@@ -566,10 +566,12 @@ const ProjectStorage = (() => {
         return { ok: true, id: id };
       }
       let seen = null;
+      let ownTabId = null;
       try {
         if (typeof window !== 'undefined' && window.CrossTabCoord
             && typeof window.CrossTabCoord.getSeen === 'function') {
           seen = window.CrossTabCoord.getSeen(project.id);
+          ownTabId = window.CrossTabCoord.tabId || null;
         }
       } catch (_) {}
       if (seen && typeof seen.lastWriteAt === 'number') {
@@ -580,7 +582,11 @@ const ProjectStorage = (() => {
             && current.lastWriteAt > seen.lastWriteAt
             && typeof current.lastWriteTabId === 'string'
             && current.lastWriteTabId
-            && current.lastWriteTabId !== seen.lastWriteTabId) {
+            && current.lastWriteTabId !== seen.lastWriteTabId
+            // Two saves from this tab can overlap (an autosave while the
+            // previous one is still writing); our own write is never a
+            // conflict.
+            && current.lastWriteTabId !== ownTabId) {
           return {
             ok: false,
             reason: 'conflict',
@@ -702,7 +708,10 @@ const ProjectStorage = (() => {
         if (this.getActiveProjectId() === id) this.clearActiveProject();
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          // A scratch design's tracing picture (P2-4) is kept beside it in
+          // pendingImports as trace:<id>; it goes with the project.
+          let hasPending = db.objectStoreNames.contains("pendingImports");
+          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE].concat(hasPending ? ["pendingImports"] : []), "readwrite");
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
@@ -713,6 +722,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
+            if (hasPending) tx.objectStore("pendingImports").delete("trace:" + id);
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
@@ -789,7 +799,8 @@ const ProjectStorage = (() => {
         const projectIds = allKeys.filter(
           k => typeof k === "string" && k.startsWith("proj_"));
         await new Promise((resolve, reject) => {
-          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          const hasPending = db.objectStoreNames.contains("pendingImports");
+          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE].concat(hasPending ? ["pendingImports"] : []), "readwrite");
           const store = tx.objectStore(STORE_NAME);
           const metaStore = tx.objectStore(META_STORE);
           const statsStore = tx.objectStore(STATS_STORE);
@@ -797,6 +808,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
+            if (hasPending) tx.objectStore("pendingImports").delete("trace:" + id);
           }
           if (includeAutoSave) store.delete("auto_save");
           tx.oncomplete = () => resolve();

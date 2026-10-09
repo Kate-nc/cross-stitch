@@ -514,6 +514,8 @@ window.useCreatorState = function useCreatorState() {
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.lastPage", next); } catch (_) {}
   }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
+  // The New design sheet is open (audit DRAW-02).
+  var _newDesign = useState(false);    var newDesignOpen = _newDesign[0], setNewDesignOpen = _newDesign[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
   // True once the boot effect in useProjectIO has finished looking for
   // something to open (pending action, handoff or saved project). With
@@ -697,6 +699,8 @@ window.useCreatorState = function useCreatorState() {
   // Tracking / progress
   var _done = useState(null);        var done = _done[0], setDone = _done[1];
   var _scrMode  = useState(false);   var isScratchMode = _scrMode[0], setIsScratchMode = _scrMode[1];
+  var isScratchModeRef = useRef(false);
+  isScratchModeRef.current = isScratchMode;
   var _scrPal   = useState([]);      var scratchPalette = _scrPal[0], setScratchPalette = _scrPal[1];
   // Symbols the user picked (Change symbol), id -> symbol. Saved as the
   // project's optional `symbols` map; the cells carry them in the session.
@@ -1283,13 +1287,22 @@ window.useCreatorState = function useCreatorState() {
     setPat(blank); setPal(result.pal); setCmap(result.cmap); setDone(new Uint8Array(w * h));
   }
 
-  function startScratch() {
+  // A blank grid to draw on. The New design sheet (creator/NewDesignSheet.js,
+  // audit DRAW-02) passes the size and fabric; with no arguments it uses the
+  // current size, as before.
+  function startScratch(w, h, opts) {
+    var gw = Math.max(10, Math.min(500, Math.round(Number(w) || sW)));
+    var gh = Math.max(10, Math.min(500, Math.round(Number(h) || sH)));
+    opts = opts || {};
     resetAll();
     setIsScratchMode(true);
     setAutoProjectName(window.UNTITLED_DESIGN_NAME || "Untitled design");
-    setImg({ src: null, w: sW, h: sH });
-    prevSW.current = sW; prevSH.current = sH;
-    initBlankGrid(sW, sH);
+    setSW(gw); setSH(gh);
+    if (opts.fabricCt) setFabricCt(opts.fabricCt);
+    if (opts.fabricColour) setFabricColour(opts.fabricColour);
+    setImg({ src: null, w: gw, h: gh });
+    prevSW.current = gw; prevSH.current = gh;
+    initBlankGrid(gw, gh);
     setPatternCreatedThisVisit(true);
     // Scratch mode bypasses Create → go straight to Edit
     setAppMode("edit");
@@ -1572,6 +1585,8 @@ window.useCreatorState = function useCreatorState() {
     // img is a plain-object sentinel { src: null, w, h } in scratch mode —
     // it is truthy but not a drawable.  Bail before any canvas operation.
     if (!img || img.src === null) return;
+    // A scratch design's picture is only for tracing; it is never converted.
+    if (isScratchModeRef.current) return;
     // INT-3 / C-3: a fresh Generate replaces pat/pal and resets `done`
     // and `parkMarkers` to empty. If the user has any stitched progress
     // we must confirm before throwing it away — there is no undo.
@@ -2008,7 +2023,7 @@ window.useCreatorState = function useCreatorState() {
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
     lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
-    bootSettled, setBootSettled,
+    bootSettled, setBootSettled, newDesignOpen, setNewDesignOpen,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,

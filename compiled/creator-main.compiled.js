@@ -1139,6 +1139,8 @@ function CreatorApp({
       isScratchMode: state.isScratchMode,
       sourceTab: _sourceTab,
       openCanvas: handleOpenCanvas,
+      setTracePicture: io.setTracePicture,
+      removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
   }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
@@ -1863,7 +1865,21 @@ function CreatorApp({
       color: "#A53D3D",
       marginBottom: 12
     }
-  }, state.loadError), !state.img && !state.pat && /*#__PURE__*/React.createElement("div", {
+  }, state.loadError), state.newDesignOpen && window.CreatorNewDesignSheet && /*#__PURE__*/React.createElement(window.CreatorNewDesignSheet, {
+    fabricCt: state.fabricCt,
+    fabricColour: state.fabricColour,
+    onCancel: function () {
+      window.location.href = 'home.html?tab=create';
+    },
+    onStart: function (o) {
+      state.setNewDesignOpen(false);
+      state.startScratch(o.w, o.h, {
+        fabricCt: o.fabricCt,
+        fabricColour: o.fabricColour
+      });
+      if (o.trace && o.trace.file) io.setTracePicture(o.trace.file, o.trace.opacity);
+    }
+  }), !state.img && !state.pat && /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 700,
       margin: "80px auto",
@@ -1884,7 +1900,7 @@ function CreatorApp({
       fontSize: 14,
       fontWeight: 600
     }
-  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
+  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
     accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",

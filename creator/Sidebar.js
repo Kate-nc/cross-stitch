@@ -9,6 +9,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
+  var traceInputRef = React.useRef(null);
   var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
   var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
@@ -1829,6 +1830,33 @@ window.CreatorSidebar = function CreatorSidebar() {
             onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
           }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
           fabricBlock()
+        ),
+        // Tracing picture (audit DRAW-02): shown faintly under the grid,
+        // never converted. Kept with the project as trace:<projectId>.
+        h(Section, {title:"Tracing picture", defaultOpen:true},
+          h("input", {type:"file", accept:"image/*", ref:traceInputRef, style:{display:"none"},
+            "aria-label":"Choose a picture to trace",
+            onChange:function(e){ var f = e.target.files && e.target.files[0]; e.target.value = "";
+              if (f && app.setTracePicture) app.setTracePicture(f, typeof cv.overlayOpacity === "number" ? cv.overlayOpacity : 0.3); }}),
+          (gen.img && gen.img.src)
+            ? h("div", {className:"canvas-trace", style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"6px 0"}},
+                h("img", {src:gen.img.src, alt:"Tracing picture", style:{maxWidth:"100%",maxHeight:120,objectFit:"contain",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",alignSelf:"flex-start"}}),
+                h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer"}},
+                  h("input", {type:"checkbox", checked:!!cv.showOverlay, onChange:function(e){ cv.setShowOverlay(e.target.checked); }}),
+                  "Show under the grid"),
+                h("label", {style:{display:"flex",flexDirection:"column",gap:4,fontSize:'var(--text-sm)'}},
+                  h("span", null, "Opacity ", h("strong", null, Math.round((cv.overlayOpacity || 0) * 100) + "%")),
+                  h("input", {type:"range", min:5, max:90, step:5, value:Math.round((cv.overlayOpacity || 0.3) * 100),
+                    "aria-label":"Tracing picture opacity",
+                    onChange:function(e){ cv.setOverlayOpacity(Number(e.target.value) / 100); }})),
+                h("div", {style:{display:"flex",gap:'var(--s-2)'}},
+                  h("button", {type:"button", className:"g-btn", onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }}, "Change"),
+                  h("button", {type:"button", className:"g-btn", onClick:function(){ if (app.removeTracePicture) app.removeTracePicture(); }}, "Remove"))
+              )
+            : h("div", {style:{padding:"6px 0",display:"flex",flexDirection:"column",gap:'var(--s-2)'}},
+                h("p", {style:{margin:0,fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, "Show a picture faintly under the grid to draw over. It isn\u2019t converted."),
+                h("button", {type:"button", className:"g-btn", style:{alignSelf:"flex-start"}, onClick:function(){ traceInputRef.current && traceInputRef.current.click(); }},
+                  window.Icons && window.Icons.image ? window.Icons.image() : null, "Add a tracing picture"))
         )
       );
       var canvasActions = h("div", {style:{flexShrink:0,borderTop:"1px solid var(--border)",padding:"12px",background:"var(--surface)"}},

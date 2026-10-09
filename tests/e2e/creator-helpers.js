@@ -4,7 +4,7 @@
 // viewport still has a touch screen. DESKTOP turns touch off so "desktop"
 // really means a mouse and a fine pointer.
 const path = require('path');
-const { devices } = require('@playwright/test');
+const { devices, expect } = require('@playwright/test');
 
 const LOGO = path.join(__dirname, '..', 'fixtures', 'logo.png');
 const DESKTOP = { viewport: { width: 1440, height: 900 }, hasTouch: false, isMobile: false, deviceScaleFactor: 1 };
@@ -43,6 +43,19 @@ async function openConvertWithLogo(page) {
   await page.waitForURL(/create\.html/);
   await page.waitForSelector('.rpanel', { state: 'attached' });
   await skipTourIfShown(page);
+}
+
+// A blank grid (P2-4): the New design sheet comes first. Opens
+// create.html?action=new-blank unless the page is already on its way there
+// (opts.navigate === false), picks a size preset if given, then starts.
+async function startBlankGrid(page, opts) {
+  opts = opts || {};
+  if (opts.navigate !== false) await page.goto('/create.html?action=new-blank');
+  const sheet = page.getByRole('dialog', { name: 'New design' });
+  await expect(sheet).toBeVisible({ timeout: 15000 });
+  if (opts.preset) await sheet.getByRole('radio', { name: opts.preset }).click();
+  await sheet.getByRole('button', { name: 'Start drawing' }).click();
+  await expect(sheet).toHaveCount(0);
 }
 
 // Phones (under 900px) have the compact top bar's Generate; wider screens
@@ -123,6 +136,6 @@ const undoButton = (page) => page.getByRole('button', { name: 'Undo', exact: tru
 
 module.exports = {
   LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo,
-  clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
+  startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
   zoomUntilScrollable, pickDarkSwatch, undoButton,
 };

@@ -11,7 +11,7 @@
 //       of the screen.
 const { test, expect } = require('@playwright/test');
 const {
-  device, quietOnboarding, openConvertWithLogo, clickGenerate, waitForEdit, pickDarkSwatch, undoButton,
+  device, quietOnboarding, openConvertWithLogo, clickGenerate, waitForEdit, pickDarkSwatch, undoButton, startBlankGrid,
 } = require('./creator-helpers');
 
 // Share of the viewport where the chart's scroll box is actually visible:
@@ -196,7 +196,7 @@ test.describe('Scratch grid on Pixel 5', function() {
 
   test('can add DMC 310 and paint a stitch', async function({ page }) {
     await quietOnboarding(page);
-    await page.goto('/create.html?action=new-blank');
+    await startBlankGrid(page);
     await page.waitForSelector('.creator-rail', { timeout: 15000 });
 
     const undo = undoButton(page);

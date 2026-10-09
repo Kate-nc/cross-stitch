@@ -581,6 +581,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     isScratchMode: state.isScratchMode,
     sourceTab: _sourceTab, openCanvas: handleOpenCanvas,
+    setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
     isActive: isActive,
   }; }, [
     _sourceTab, handleOpenCanvas,
@@ -1172,6 +1173,18 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
+        {/* New design (audit DRAW-02): size, fabric and an optional tracing
+            picture, before the blank grid is made. */}
+        {state.newDesignOpen&&window.CreatorNewDesignSheet&&<window.CreatorNewDesignSheet
+          fabricCt={state.fabricCt}
+          fabricColour={state.fabricColour}
+          onCancel={function(){ window.location.href='home.html?tab=create'; }}
+          onStart={function(o){
+            state.setNewDesignOpen(false);
+            state.startScratch(o.w, o.h, { fabricCt: o.fabricCt, fabricColour: o.fabricColour });
+            if (o.trace && o.trace.file) io.setTracePicture(o.trace.file, o.trace.opacity);
+          }}
+        />}
         {/* Nothing open yet: a /home handoff is in flight (image being
             decoded, scratch project being built, JSON being loaded) or the
             saved project is still loading. Once the boot has settled with
@@ -1183,7 +1196,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             aria-live="polite">
           <div className="creator-boot-spinner" aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
-          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&<CreatorNoProjectRedirect/>}
+          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
         </div>}
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
