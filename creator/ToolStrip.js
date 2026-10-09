@@ -439,7 +439,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           style:{width:80}, title:"Zoom"
         }),
         h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
-        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
+        h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},

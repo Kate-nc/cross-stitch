@@ -588,6 +588,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 @media(max-width:599px){.materials-cols{grid-template-columns:1fr;}}
 .rpanel{width:280px;background:var(--surface);border-left:1px solid var(--border);flex-shrink:0;position:sticky;top:128px;max-height:calc(100vh - 128px);overflow-y:auto;align-self:flex-start;transition:width 0.18s ease;}
 .rpanel--collapsed{width:44px;}
+.rpanel-drawer-header{display:none;}
 .rpanel--collapsed .rp-tabs{padding:4px!important;}
 .rpanel--collapsed .rp-tabs > span{display:none;}
 .rpanel-collapse-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-secondary);cursor:pointer;flex-shrink:0;padding:0;}
@@ -728,9 +729,9 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   /* Phase 5 — show the Legend tab + section only on mobile. */
   .lp-tab--mobile-only{display:inline-flex;}
   .lp-section--mobile-only{display:flex;}
-  /* Phase 5 — palette legend lives in the lpanel on mobile, so the
-     standalone rpanel is redundant. Hide it entirely. */
-  .rpanel{display:none!important;}
+  /* The Tracker's palette legend lives in the lpanel on mobile. Only the
+     Creator renders .rpanel, and it needs it as a bottom drawer (see the
+     max-width:899px drawer block further down) — never hide it here. */
   /* Phase 5 — touch-friendly hit targets inside the lpanel. */
   .lp-btn,.lp-tab,.lp-seg{min-height:44px;}
 }
@@ -791,6 +792,20 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-app-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .tb-app-tab--active{background:transparent;color:var(--accent);font-weight:600;}
 .tb-app-tab--active::after{content:'';position:absolute;bottom:-14px;left:12px;right:12px;height:2px;background:var(--accent);border-radius:2px;}
+/* Portrait tablets (iPad Mini is 768px): the top bar measures ~856px, and
+   left alone it widened the layout viewport past the screen, so the
+   Creator's fixed bottom drawer sat below the visible area. Use the same
+   scroll-the-row approach as phones (see the max-width:599px block below);
+   dropdowns go position:fixed so the clip on .tb-topbar doesn't cut them. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .tb-topbar{overflow:hidden;}
+  .tb-topbar-inner{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+  .tb-topbar-inner::-webkit-scrollbar{display:none;}
+  .tb-topbar-inner > *{flex-shrink:0;}
+  .tb-topbar .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:calc(var(--app-header-height, 48px) + 6px);max-width:none;width:auto;}
+  .tb-page-dropdown{position:fixed;top:calc(var(--app-header-height, 48px) + 6px);}
+  .tb-topbar .sync-popover{position:fixed;top:calc(var(--app-header-height, 48px) + 8px);right:8px;}
+}
 /* Responsive: compact nav tabs on narrow screens */
 @media (max-width: 599px) {
   .tb-app-nav{gap:0;margin-left:2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
@@ -1170,7 +1185,10 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 @keyframes cs-fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
 @keyframes toast-in{from{opacity:0;transform:translateY(10px) scale(0.95);}to{opacity:1;transform:translateY(0) scale(1);}}
 @keyframes cs-spin{to{transform:rotate(360deg);}}
-.cs-page-content{animation:cs-fadein 0.18s ease-out both;flex:1;display:flex;flex-direction:column;min-height:0;}
+/* backwards, not both: a fill-mode that keeps transform:translateY(0) after
+   the fade makes this the containing block for position:fixed children, and
+   the Creator's bottom drawer then sat below the fold of the page. */
+.cs-page-content{animation:cs-fadein 0.18s ease-out backwards;flex:1;display:flex;flex-direction:column;min-height:0;}
 .preview-spinner{animation:cs-spin 900ms linear infinite;}
 @media (prefers-reduced-motion: reduce){
   .cs-page-content{animation:none;}
@@ -2218,15 +2236,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .creator-palette-chip{min-width:44px;min-height:44px;padding:8px 12px!important;border-radius:8px!important;gap:6px!important;font-size:12px!important;}
   .creator-palette-chip-swatch{width:18px!important;height:18px!important;border-radius:4px!important;}
   .creator-palette-chip-remove{min-width:24px;min-height:24px;font-size:12px!important;}
-  /* Mobile drawer for rpanel */
-  .rpanel{position:fixed;bottom:0;left:0;right:0;width:100%;border-left:none;border-top:1px solid var(--border);top:auto;max-height:44px;overflow:hidden;transition:max-height 0.25s ease;z-index:500;border-radius:16px 16px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,0.08);}
-  .rpanel--drawer-open,.rpanel--open{max-height:70dvh;overflow-y:auto;}
-  .rp-tabs{position:sticky;top:0;z-index:10;}
   .rp-tab{min-height:44px;}
-  /* Creator panel handle bar */
-  .rpanel-handle-bar{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 6px;}
-  /* Backdrop */
-  .rpanel-backdrop{position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.25);}
   /* Manager right panel drawer */
   .mgr-rpanel{position:fixed;bottom:0;left:0;right:0;width:100%;max-height:44px;overflow:hidden;transition:max-height 0.25s ease;z-index:500;border-radius:16px 16px 0 0;border-left:none;border-top:1px solid var(--border);box-shadow:0 -2px 12px rgba(0,0,0,0.08);}
   .mgr-rpanel--open{max-height:70dvh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,0px);}
@@ -2466,6 +2476,33 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
      of dead space under the chart on every tablet. Reclaim it alongside the
      elements it was compensating for, so the two stay in step. */
   body.tracker-mobile .canvas-area{padding-bottom:env(safe-area-inset-bottom,0)!important;}
+}
+
+/* Creator panel as a bottom drawer. Width-only on purpose: a touch tablet
+   at 900px or wider (iPad Pro landscape) gets the desktop side panel. When
+   this lived in the (pointer:coarse) block the panel stayed width:100% at
+   >=900px and covered the whole canvas. Touch-target sizes stay in the
+   coarse-pointer block above. */
+@media (max-width: 899px) {
+  .rpanel{position:fixed;bottom:0;left:0;right:0;width:100%;border-left:none;border-top:1px solid var(--border);top:auto;max-height:45px;overflow:hidden;transition:max-height 0.25s ease;z-index:500;border-radius:16px 16px 0 0;box-shadow:0 -2px 12px rgba(0,0,0,0.08);}
+  /* Edit mode peeks the handle and the whole tab strip (about 92px). */
+  .rpanel--edit{max-height:94px;}
+  .rpanel--drawer-open,.rpanel--open{max-height:70dvh;overflow-y:auto;}
+  .rp-tabs{position:sticky;top:0;z-index:10;}
+  /* Creator panel handle bar (the Manager's drawer handle reuses it) */
+  .rpanel-handle-bar{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 6px;}
+  /* Backdrop */
+  .rpanel-backdrop{position:fixed;inset:0;z-index:499;background:rgba(0,0,0,0.25);}
+  /* Convert mode has no tab strip, so the drawer gets a Settings row that
+     stays fully visible while collapsed (see creator/Sidebar.js). */
+  .rpanel-drawer-header{display:flex;flex-direction:column;justify-content:center;flex-shrink:0;width:100%;min-height:44px;padding:6px 16px 4px;border:none;background:var(--surface);color:var(--text-primary);font-family:inherit;cursor:pointer;touch-action:manipulation;position:sticky;top:0;z-index:12;}
+  .rpanel-drawer-header .rpanel-handle-bar{display:block;margin:0 auto 4px;}
+  .rpanel-drawer-header__row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);font-size:var(--text-sm);font-weight:600;line-height:1.3;}
+  .rpanel-drawer-header__chev{display:inline-flex;color:var(--text-secondary);}
+  .rpanel-drawer-header__chev svg{width:18px;height:18px;}
+  /* Collapsed, the drawer peeks its handle and tab strip; the page has its
+     own Convert button, so the Back to Convert row waits until it opens. */
+  .rpanel:not(.rpanel--open) .rpanel-back-to-convert{display:none;}
 }
 
 /* ═════════════════════════════════════════════════════════

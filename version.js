@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.75';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.76',
+    date: 'October 2026',
+    notes: [
+      'Pattern Creator settings and palette are available on phones and tablets again. On a phone, tap Settings at the bottom of the screen to change the size, colours and fabric before generating. On an iPad in landscape the panel sits beside the chart instead of covering it.',
+      'Fit now fills the space you have: a new pattern opens sized to your screen instead of a fixed width.',
+    ]
+  },
+  {
     version: '1.0.75',
     date: 'October 2026',
     notes: [

@@ -4920,6 +4920,58 @@ function _extractDmcId(key) {
   return key.slice(idx + 1);
 }
 
+// Zoom that fits an sW x sH chart into availW x availH CSS px. The canvas is
+// sW*cs + G + 2 wide (rulers on the left and top only) and cs is
+// round(20 * zoom), so pick a whole cell size and turn it back into a zoom.
+// Without a measured box it falls back to the old fixed 750px width.
+function creatorFitZoom(sW, sH, availW, availH, G) {
+  if (!(sW > 0) || !(sH > 0)) return 1;
+  if (G == null) G = 28;
+  var cell;
+  if (availW > 0 && availH > 0) {
+    cell = Math.floor(Math.min((availW - G - 2) / sW, (availH - G - 2) / sH));
+    // Cells are whole pixels: take the next size up if it overflows by no
+    // more than a few pixels, rather than leaving a much smaller chart.
+    var up = cell + 1;
+    if (up * sW + G + 2 <= availW + 4 && up * sH + G + 2 <= availH + 4) cell = up;
+    cell = Math.max(1, cell);
+  } else {
+    cell = 750 / sW;
+  }
+  return Math.min(3, Math.max(0.05, cell / 20));
+}
+window.creatorFitZoom = creatorFitZoom;
+
+// The part of the chart's scroll container that is actually on screen: its
+// width, and its height down to the bottom of the viewport or the top of the
+// phone bottom drawer, capped by its max-height or parent pane. Returns null
+// when the container isn't mounted.
+function creatorFitBox(el) {
+  if (!el || !el.clientWidth || typeof el.getBoundingClientRect !== "function") return null;
+  var r = el.getBoundingClientRect();
+  var chrome = (el.offsetHeight || 0) - (el.clientHeight || 0);
+  var bottom = window.innerHeight || r.bottom;
+  var drawer = document.querySelector(".rpanel");
+  if (drawer && getComputedStyle(drawer).position === "fixed") {
+    var dt = drawer.getBoundingClientRect().top;
+    if (dt > r.top) bottom = Math.min(bottom, dt);
+  }
+  var h = bottom - Math.max(0, r.top) - chrome;
+  var mh = parseFloat(getComputedStyle(el).maxHeight);
+  if (isFinite(mh)) h = Math.min(h, mh - chrome);
+  // In compare mode the scroll box is a flex child of the fixed-height split
+  // pane, which has no max-height of its own.
+  var parent = el.parentElement;
+  if (parent && typeof parent.getBoundingClientRect === "function") {
+    var pr = parent.getBoundingClientRect();
+    if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
+  }
+  // Container below the fold: fall back to its own size.
+  if (!(h >= 120)) h = el.clientHeight || (isFinite(mh) ? mh : 0);
+  return { w: el.clientWidth, h: h, outerH: Math.round(h + chrome) };
+}
+window.creatorFitBox = creatorFitBox;
+
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
 var _canvasFilterSupported = (function() {
@@ -5587,9 +5639,24 @@ window.useCreatorState = function useCreatorState() {
 
   var cs = useMemo(function() { return Math.max(2, Math.round(20 * zoom)); }, [zoom]);
 
+  // The chart's scroll box is sized by its content (up to 550px), so a
+  // fitted chart would shrink it. Keep it at the measured height instead.
+  var _chartFitH = useState(null); var chartFitH = _chartFitH[0], setChartFitH = _chartFitH[1];
   var fitZ = useCallback(function() {
-    setZoom(Math.min(3, Math.max(0.05, 750 / (sW * 20))));
-  }, [sW]);
+    var box = creatorFitBox(scrollRef.current);
+    setZoom(creatorFitZoom(sW, sH, box && box.w, box && box.h, G));
+    setChartFitH(box ? box.outerH : null);
+  }, [sW, sH]);
+
+  // After a generate or a load the chart's container mounts in the next
+  // commit, so the fit is measured once it is there. requestFitZoom() arms it.
+  var pendingFitRef = useRef(false);
+  var requestFitZoom = useCallback(function() { pendingFitRef.current = true; }, []);
+  useEffect(function() {
+    if (!pendingFitRef.current || !pat || !scrollRef.current) return;
+    pendingFitRef.current = false;
+    fitZ();
+  }, [pat, appMode, tab, splitPaneEnabled, fitZ]);
 
   var pxX = Math.ceil(sW / (typeof A4W !== "undefined" ? A4W : 62));
   var pxY = Math.ceil(sH / (typeof A4H !== "undefined" ? A4H : 91));
@@ -5861,6 +5928,7 @@ window.useCreatorState = function useCreatorState() {
     // Scratch mode bypasses Create → go straight to Edit
     setAppMode("edit");
     setSidebarTab("palette");
+    pendingFitRef.current = true;
   }
 
   function addScratchColour(d) {
@@ -6024,10 +6092,12 @@ window.useCreatorState = function useCreatorState() {
     // Image / Dimensions / Palette sidebar tabs left users stranded in
     // create mode with no pattern to show. Now every successful generation
     // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setPanelOpen(false);
     setAppMode("edit");
     setSidebarTab("palette");
-    var z = Math.min(3, Math.max(0.05, 750 / (sW * 20)));
-    setTimeout(function() { setZoom(z); }, 0);
+    // Fallback zoom now; the real fit runs once the Edit view has mounted.
+    setZoom(creatorFitZoom(sW, sH, null, null, G));
+    pendingFitRef.current = true;
     setBusy(false);
     // Toast on successful generation. Mentions the phase flip so users
     // notice the sidebar tabs and canvas tools have changed; the action
@@ -6492,8 +6562,8 @@ window.useCreatorState = function useCreatorState() {
   }
 
   // Auto-close the right panel when the screen drops below 900px (portrait
-  // phone) where the rpanel is hidden by CSS but its backdrop is still
-  // rendered — preventing a ghost dark overlay after screen rotation.
+  // phone), where it becomes a bottom drawer, so a rotation doesn't leave
+  // the drawer open over the chart with its backdrop showing.
   useEffect(function() {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     var mql = window.matchMedia('(max-width: 899px)');
@@ -6628,7 +6698,7 @@ window.useCreatorState = function useCreatorState() {
     denoiseHandlersRef,
     G, EDIT_HISTORY_MAX,
     // Derived
-    totalStitchable, cs, fitZ, pxX, pxY, totPg,
+    totalStitchable, cs, fitZ, requestFitZoom, chartFitH, pxX, pxY, totPg,
     skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
@@ -9961,7 +10031,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         }, 100);
       }
     } else {
-      state.setZoom(Math.min(3, Math.max(0.05, 750 / (s.sW * 20))));
+      var box = window.creatorFitBox(scrollRef.current);
+      state.setZoom(window.creatorFitZoom(s.sW, s.sH, box && box.w, box && box.h, state.G));
+      // Refit once the chart is mounted at its final size.
+      if (state.requestFitZoom) state.requestFitZoom();
     }
 
     // Restore per-pattern view state from UserPrefs
@@ -11892,7 +11965,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           style:{width:80}, title:"Zoom"
         }),
         h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
-        h("button", {className:"tb-btn", onClick:function(){ cv.setZoom(cv.fitZ||1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
+        h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
     return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
@@ -15058,7 +15131,25 @@ window.CreatorSidebar = function CreatorSidebar() {
       createProjectSection
     );
 
+    // Under 900px the panel is a bottom drawer. Edit mode peeks its tab
+    // strip; Convert has no tabs, so it gets this Settings row instead
+    // (hidden by CSS at 900px and wider).
+    var drawerOpen = !!app.panelOpen;
+    var drawerHeader = h("button", {
+      type:"button", className:"rpanel-drawer-header",
+      "aria-expanded": drawerOpen ? "true" : "false",
+      onClick: function() { if (typeof app.setPanelOpen === "function") app.setPanelOpen(!drawerOpen); }
+    },
+      h("span", {className:"rpanel-handle-bar", "aria-hidden":"true"}),
+      h("span", {className:"rpanel-drawer-header__row"},
+        h("span", null, "Settings"),
+        h("span", {className:"rpanel-drawer-header__chev", "aria-hidden":"true"},
+          window.Icons && (drawerOpen ? window.Icons.chevronDown() : window.Icons.chevronUp()))
+      )
+    );
+
     return h(React.Fragment, null,
+      drawerHeader,
       createPanel,
       createActions
     );
@@ -15386,7 +15477,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && h("div", {style:{
+    gen.img && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
@@ -15831,7 +15922,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
-      style:{overflow:"auto",maxHeight:550,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
+      style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand") return "grab";
         if (cv.activeTool === "eyedropper") return "copy";

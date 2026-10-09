@@ -1752,7 +1752,25 @@ window.CreatorSidebar = function CreatorSidebar() {
       createProjectSection
     );
 
+    // Under 900px the panel is a bottom drawer. Edit mode peeks its tab
+    // strip; Convert has no tabs, so it gets this Settings row instead
+    // (hidden by CSS at 900px and wider).
+    var drawerOpen = !!app.panelOpen;
+    var drawerHeader = h("button", {
+      type:"button", className:"rpanel-drawer-header",
+      "aria-expanded": drawerOpen ? "true" : "false",
+      onClick: function() { if (typeof app.setPanelOpen === "function") app.setPanelOpen(!drawerOpen); }
+    },
+      h("span", {className:"rpanel-handle-bar", "aria-hidden":"true"}),
+      h("span", {className:"rpanel-drawer-header__row"},
+        h("span", null, "Settings"),
+        h("span", {className:"rpanel-drawer-header__chev", "aria-hidden":"true"},
+          window.Icons && (drawerOpen ? window.Icons.chevronDown() : window.Icons.chevronUp()))
+      )
+    );
+
     return h(React.Fragment, null,
+      drawerHeader,
       createPanel,
       createActions
     );
@@ -2080,7 +2098,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && h("div", {style:{
+    gen.img && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
