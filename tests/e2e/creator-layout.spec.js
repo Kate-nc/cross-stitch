@@ -1,7 +1,7 @@
 // Creator layout on phones and tablets (audit B-01, B-02, B-14, COMMON-03).
 //
 // B-01: the Creator's settings panel was hidden under 900px, so Convert had no
-//       Size / Max colours / Fabric controls and a scratch grid had no way to
+//       Size / Threads (max) / Fabric controls and a scratch grid had no way to
 //       add a colour.
 // B-02: on a touch tablet at 900px+ the drawer stayed full width and covered
 //       the chart.
@@ -54,7 +54,7 @@ for (const c of CASES) {
 
     test('Convert settings are reachable and the chart is not covered', async function({ page }) {
       await openConvertWithLogo(page);
-      const maxColours = page.getByText('Max colours').first();
+      const maxColours = page.getByText('Threads (max)').first();
       const header = page.locator('.rpanel-drawer-header');
       if (c.drawer) {
         await expect(header).toBeVisible();

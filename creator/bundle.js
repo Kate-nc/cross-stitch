@@ -2494,14 +2494,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     }
   }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
 
-  // Count unique stitched colours for status bar
-  var colCount = 0;
-  if (pal) {
-    for (var pi = 0; pi < pal.length; pi++) {
-      var pe = pal[pi];
-      if (pe && pe.id && pe.id !== "__skip__" && pe.id !== "__empty__" && pe.count > 0) colCount++;
-    }
-  }
+  // Threads and chart symbols for the status bar (audit IMG-02).
+  var countsText = typeof window.threadCountsShort === "function"
+    ? window.threadCountsShort(window.creatorThreadCounts(pal)) : "";
 
   return h("div", {className: "preview-wrap"},
     h("canvas", {
@@ -2509,7 +2504,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       className: "preview-canvas"
     }),
     h("div", {className: "preview-status-bar"},
-      sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "")
+      sW + " \xD7 " + sH + " stitches" + (countsText ? " \xB7 " + countsText : "")
     )
   );
 };
@@ -4987,9 +4982,14 @@ function creatorFitBox(el) {
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
   // In compare mode the scroll box is a flex child of the fixed-height split
-  // pane, which has no max-height of its own.
+  // pane, which has no max-height of its own. Only a flex parent sets the
+  // box's height: an ordinary parent is as tall as the chart already is, so
+  // capping at it kept the fit at the current size and a small chart never
+  // grew to fill the window.
   var parent = el.parentElement;
-  if (parent && typeof parent.getBoundingClientRect === "function") {
+  var parentIsFlex = false;
+  try { parentIsFlex = !!parent && /flex/.test(getComputedStyle(parent).display); } catch (_) {}
+  if (parentIsFlex && typeof parent.getBoundingClientRect === "function") {
     var pr = parent.getBoundingClientRect();
     if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
   }
@@ -4999,7 +4999,7 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
-// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// One row per thread to buy, not per palette entry (audit B-05). Threads (max)
 // caps distinct threads, so a blend such as 310+550 is two threads the user
 // may already be buying for solids: its stitches are added to each
 // component's row and it gets no row of its own. A blend stitch uses one
@@ -5136,6 +5136,119 @@ var CONVERSION_STATE_KEYS = [
   'disambig', 'disambigLevel',
 ];
 
+// ── Picture-type presets (audit IMG-01) ────────────────────────────────────
+// "What kind of picture is this?" at the top of Convert. Choosing one only
+// sets values; every control stays editable, and once a value differs from
+// what the preset set the control shows Custom. Pixel art takes its thread
+// count and size from the picture itself (picturePresetValues).
+var PICTURE_PRESETS = {
+  graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
+  photo:   { label: 'Photo', maxC: 20, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
+};
+var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
+
+// The values a preset sets for a picture. info is analysePicture's result
+// (null before a picture is loaded). Keys are useCreatorState setters' names
+// without "set": maxC, dithMode, allowBlends, cleanupStrength, skipBg, bgCol,
+// sW, sH.
+function picturePresetValues(id, info) {
+  var p = PICTURE_PRESETS[id];
+  if (!p) return null;
+  var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
+  if (p.maxC) v.maxC = p.maxC;
+  if (p.cleanupStrength) v.cleanupStrength = p.cleanupStrength;
+  if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
+  if (p.maxCFromSource) {
+    var n = info && info.distinct ? info.distinct : p.maxCFromSource;
+    v.maxC = Math.max(2, Math.min(p.maxCFromSource, n));
+  }
+  if (p.sizeFromSourceMax && info && info.w && info.h && info.w <= p.sizeFromSourceMax && info.h <= p.sizeFromSourceMax) {
+    v.sW = info.w; v.sH = info.h;
+  }
+  return v;
+}
+
+// Look at a picture once, on upload: its size, how many exact colours it
+// has (counted up to 4097), how much of it a few colours cover, how flat it
+// is, and whether its border is one colour. imageData is { data, width,
+// height } (RGBA); w and h are the picture's own size when imageData is a
+// scaled copy.
+function analysePicture(imageData, w, h) {
+  var d = imageData.data, iw = imageData.width, ih = imageData.height;
+  var exact = Object.create(null), distinct = 0;
+  var bins = Object.create(null), opaque = 0, same = 0, pairs = 0;
+  for (var y = 0; y < ih; y++) {
+    var prev = -1;
+    for (var x = 0; x < iw; x++) {
+      var i = (y * iw + x) * 4;
+      if (d[i + 3] < 128) { prev = -1; continue; }
+      opaque++;
+      var key = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      if (distinct <= 4096 && !exact[key]) { exact[key] = 1; distinct++; }
+      var bin = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+      bins[bin] = (bins[bin] || 0) + 1;
+      if (prev !== -1) { pairs++; if (prev === key) same++; }
+      prev = key;
+    }
+  }
+  var counts = Object.keys(bins).map(function (k) { return bins[k]; }).sort(function (a, b) { return b - a; });
+  var top8 = 0;
+  for (var k = 0; k < Math.min(8, counts.length); k++) top8 += counts[k];
+  var border = null;
+  try { if (typeof window !== 'undefined' && typeof window.detectUniformBorder === 'function') border = window.detectUniformBorder(imageData); } catch (_) {}
+  return {
+    w: w || iw, h: h || ih, distinct: distinct,
+    top8Cover: opaque ? top8 / opaque : 0,
+    flat: pairs ? same / pairs : 0,
+    border: border
+  };
+}
+
+// Few colours and large flat areas suggest a graphic; a tiny picture with
+// few colours suggests pixel art; anything else is treated as a photo.
+function guessPictureType(info) {
+  if (!info) return 'photo';
+  if (Math.max(info.w, info.h) <= 96 && info.distinct <= 64) return 'pixel';
+  if (info.top8Cover >= 0.95 && info.flat >= 0.6) return 'graphic';
+  return 'photo';
+}
+
+// Threads and chart symbols in a palette (audit IMG-02). Max threads caps
+// distinct threads; a blend such as 310+550 is one chart symbol made of two
+// threads the pattern may already use as solids. Uses the same decomposition
+// as skeinData and the shopping list.
+function creatorThreadCounts(pal) {
+  var ids = Object.create(null), threads = 0, symbols = 0, blends = 0;
+  function add(id, brand) { var k = (brand || 'dmc') + ':' + id; if (!ids[k]) { ids[k] = 1; threads++; } }
+  (pal || []).forEach(function (p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    if (typeof p.count === 'number' && p.count <= 0) return;
+    symbols++;
+    if (p.type === 'blend') {
+      blends++;
+      var parts = (p.threads && p.threads.length) ? p.threads : String(p.id).split('+').map(function (id) { return { id: id }; });
+      parts.forEach(function (t) { add(t.id, t.brand || p.brand); });
+    } else {
+      add(p.id, p.brand);
+    }
+  });
+  return { threads: threads, symbols: symbols, blends: blends };
+}
+
+function _threadPlural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+// "24 threads, 40 chart symbols (16 are blends of two threads)", or
+// "24 threads" when there are no blends.
+function threadCountsSentence(c) {
+  var s = _threadPlural(c.threads, 'thread', 'threads');
+  if (!c.blends) return s;
+  return s + ', ' + _threadPlural(c.symbols, 'chart symbol', 'chart symbols') + ' (' + c.blends + (c.blends === 1 ? ' is a blend' : ' are blends') + ' of two threads)';
+}
+// "24 threads · 40 symbols"
+function threadCountsShort(c) {
+  return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
+}
+
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
 // every other call site funnels through this. Constrained to DMC threads only
@@ -5174,6 +5287,14 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
 if (typeof window !== 'undefined') {
   window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
   window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
+  window.PICTURE_PRESETS = PICTURE_PRESETS;
+  window.PICTURE_PRESET_ORDER = PICTURE_PRESET_ORDER;
+  window.picturePresetValues = picturePresetValues;
+  window.analysePicture = analysePicture;
+  window.guessPictureType = guessPictureType;
+  window.creatorThreadCounts = creatorThreadCounts;
+  window.threadCountsSentence = threadCountsSentence;
+  window.threadCountsShort = threadCountsShort;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -5522,6 +5643,44 @@ window.useCreatorState = function useCreatorState() {
     } catch (_) {}
   }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
+
+  // ── Picture type (audit IMG-01) ─────────────────────────────────────────
+  // pictureInfo: analysePicture() of the loaded picture. presetApplied:
+  // { id, values } for the preset last chosen (or guessed on upload).
+  // pictureType is that id while every value it set is unchanged, else
+  // 'custom' (also 'custom' when no preset has been applied).
+  var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
+  var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
+  var pictureInfoRef = useRef(null);
+  pictureInfoRef.current = pictureInfo;
+  var applyPicturePreset = useCallback(function (id, info) {
+    var v = picturePresetValues(id, info === undefined ? pictureInfoRef.current : info);
+    if (!v) return;
+    if (v.maxC != null) setMaxC(v.maxC);
+    if (v.dithMode != null) setDithMode(v.dithMode);
+    if (v.allowBlends != null) setAllowBlends(v.allowBlends);
+    if (v.cleanupStrength) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: true, strength: v.cleanupStrength }); });
+    if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
+    if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
+    setPresetApplied({ id: id, values: v });
+  }, []);
+  var pictureType = (function () {
+    if (!presetApplied) return 'custom';
+    var v = presetApplied.values, cur = {
+      maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
+      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      bgCol: bgCol
+    };
+    for (var k in v) {
+      // The background colour is an [r, g, b] array: compare by value.
+      if (k === 'bgCol') {
+        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
+        continue;
+      }
+      if (cur[k] !== v[k]) return 'custom';
+    }
+    return presetApplied.id;
+  })();
 
   // Crop state
   var _isCrop  = useState(false);    var isCropping = _isCrop[0], setIsCropping = _isCrop[1];
@@ -5900,6 +6059,7 @@ window.useCreatorState = function useCreatorState() {
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
+  var threadCounts = useMemo(function() { return creatorThreadCounts(pal); }, [pal]);
 
   // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
   // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
@@ -6122,6 +6282,7 @@ window.useCreatorState = function useCreatorState() {
     _setFabricColourRaw(defaultFabricColour());
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
     // "materials" or "project" tab from a previous session hides the rpanel.
@@ -6424,8 +6585,10 @@ window.useCreatorState = function useCreatorState() {
     // Toast on successful generation. Mentions the phase flip so users
     // notice the sidebar tabs and canvas tools have changed; the action
     // bar's "< Setup" button is the way back. (Polish B.)
-    var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    // Threads and chart symbols, not "colours": a blend is one symbol made of
+    // two threads (audit IMG-02).
+    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -6925,6 +7088,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
+    pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
@@ -11208,21 +11372,41 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
-    // Plain backgrounds are left unstitched automatically (audit IMG-01):
-    // if the outer 2% of the picture is one colour, skip it, with Undo.
-    function autoSkipBackground(imgEl) {
-      if (typeof window.detectUniformBorder !== "function" || !state.setSkipBg) return;
-      var found = null;
+    // Look at the picture once: plain backgrounds are left unstitched
+    // automatically (if the outer 2% is one colour, skip it, with Undo), and
+    // the picture type is guessed and its preset applied (audit IMG-01).
+    function examinePicture(imgEl) {
+      var info = null;
       try {
         var maxSide = 400;
         var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
         var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
         var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
         var c2 = cnv.getContext("2d");
-        if (!c2) return;
-        c2.drawImage(imgEl, 0, 0, cw, ch);
-        found = window.detectUniformBorder(c2.getImageData(0, 0, cw, ch));
-      } catch (err) { console.warn("useProjectIO: background check failed", err); return; }
+        if (c2) {
+          // Exact colours, so pixel art keeps its own palette.
+          c2.imageSmoothingEnabled = false;
+          c2.drawImage(imgEl, 0, 0, cw, ch);
+          var data = c2.getImageData(0, 0, cw, ch);
+          info = typeof window.analysePicture === "function"
+            ? window.analysePicture(data, imgEl.width, imgEl.height)
+            : { border: typeof window.detectUniformBorder === "function" ? window.detectUniformBorder(data) : null };
+        }
+      } catch (err) { console.warn("useProjectIO: picture check failed", err); }
+      autoSkipBackground(info ? info.border : null);
+      if (info && info.w && state.setPictureInfo) {
+        state.setPictureInfo(info);
+        // Preferences > Pattern Creator > Guess the picture type. Off: the
+        // Preferences defaults stay, and the control shows Custom.
+        var guess = true;
+        try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
+        if (guess && state.applyPicturePreset && typeof window.guessPictureType === "function") {
+          state.applyPicturePreset(window.guessPictureType(info), info);
+        }
+      }
+    }
+    function autoSkipBackground(found) {
+      if (!state.setSkipBg) return;
       var autoRef = state.bgAutoSkippedRef;
       if (!found) {
         // A skip we switched on for the previous picture shouldn't carry over.
@@ -11270,7 +11454,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false); startDraft(f);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -11280,7 +11464,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false); startDraft(f);
+          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
@@ -12954,7 +13138,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           onClose: function () { setInfoOpen(false); },
           triggerRef: moreBtnRef,
           sW: props.sW, sH: props.sH, fabricCt: props.fabricCt,
-          colourCount: props.colourCount, skeinEstimate: props.skeinEstimate,
+          colourCount: props.colourCount, threadCounts: props.threadCounts, skeinEstimate: props.skeinEstimate,
           totalStitchable: props.totalStitchable, difficulty: props.difficulty,
           solidPct: props.solidPct, stitchSpeed: props.stitchSpeed, doneCount: props.doneCount
         })
@@ -15520,7 +15704,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
@@ -15969,18 +16153,51 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
+  // ── What kind of picture is this? (audit IMG-01) ─────────────────────────────
+  // Each choice applies a preset (useCreatorState PICTURE_PRESETS); Custom is
+  // shown once any value the preset set has been changed.
+  var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
+    ? h("div", {className:"picture-type"},
+        h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
+        h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
+          window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
+            var on = gen.pictureType === id;
+            // One Tab stop (the chosen type, or the first while Custom), and
+            // arrow keys move between the types and choose them.
+            var tabbable = on || (order.indexOf(gen.pictureType) === -1 && i === 0);
+            return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
+              className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-picture-type":id,
+              tabIndex: tabbable ? 0 : -1,
+              onClick:function(){ gen.applyPicturePreset(id); },
+              onKeyDown:function(e){
+                var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+                if (!step) return;
+                e.preventDefault();
+                var next = order[(i + step + order.length) % order.length];
+                gen.applyPicturePreset(next);
+                var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-picture-type="' + next + '"]');
+                if (sib) sib.focus();
+              }}, window.PICTURE_PRESETS[id].label);
+          }),
+          h("button", {type:"button", role:"radio", "aria-checked":gen.pictureType === "custom" ? "true" : "false", disabled:true,
+            className:"lp-seg" + (gen.pictureType === "custom" ? " lp-seg--on" : ""), "data-picture-type":"custom",
+            title:"Your own settings. Pick a type to start again from its preset."}, "Custom")
+        )
+      )
+    : null;
+
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
-        helpText:"One colour = one DMC thread skein",
-        inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
+      h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
+        helpText:"Each thread is one colour of stranded cotton",
+        inlineHint:"Each thread is one colour of stranded cotton. A blend uses two of these threads in one stitch, so the chart can have more symbols than threads. Fewer threads means less shopping and faster stitching.",
         helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       ),
-      ctx.pal && ctx.pal.length > 0 && ctx.pal.length < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
-        ctx.pal.length + " of " + gen.effectiveMaxC + " colours used"
+      ctx.pal && ctx.threadCounts && ctx.threadCounts.threads > 0 && ctx.threadCounts.threads < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
+        ctx.threadCounts.threads + " of " + gen.effectiveMaxC + " threads used"
       )
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
@@ -16004,7 +16221,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
         (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
-          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
+          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " threads" : "")
       ),
       gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
@@ -16895,7 +17112,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
-          row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
+          row("Threads", ctx.pat ? window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal)) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
           row("Estimated cost", ctx.pat && cost > 0
@@ -16992,7 +17209,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
           statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
-          statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
+          statRow("Threads", window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
           statRow("Est. cost", cost>0?("\u2248 "+(typeof window.AppPrefs!=="undefined"&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(cost):("\u00A3"+cost.toFixed(2)))):"\u2014")
@@ -17006,6 +17223,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      // 0. What kind of picture is this? (presets)
+      pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)
       dimSection,
       // 2. Colours
@@ -17404,7 +17623,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
-        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
+        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))
       )
     )
   );
@@ -17424,14 +17643,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     return null;
   }
   if (ctx.pat && ctx.pal && app && app.tab === 'project') {
-    var palLen = (ctx.displayPal || ctx.pal || []).length;
     return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
       h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
       h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize:'var(--text-sm)' } },
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
         h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
-        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
-        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Threads'),
+        h('span', null, window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal))),
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
         h('span', null, (ctx.fabricCt || 14) + ' count'),
         ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),
@@ -18581,7 +18799,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     }
   }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
-  if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
+  // Threads and chart symbols, not "colours" (audit IMG-02).
+  if (props.threadCounts && typeof window.threadCountsShort === "function") patternRows.push.apply(patternRows, row("Threads", window.threadCountsShort(props.threadCounts)));
+  else if (hasColours) patternRows.push.apply(patternRows, row("Symbols", String(props.colourCount)));
   if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));
 
   var estimateRows = [];
@@ -20186,7 +20406,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           sW: props.sW,
           sH: props.sH,
           fabricCt: props.fabricCt,
-          colourCount: props.colourCount,
+          colourCount: props.colourCount, threadCounts: props.threadCounts,
           skeinEstimate: props.skeinEstimate,
           totalStitchable: props.totalStitchable,
           difficulty: props.difficulty,

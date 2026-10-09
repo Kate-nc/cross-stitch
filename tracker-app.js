@@ -7597,7 +7597,7 @@ return(
             </select>
           </div>
 
-          <SliderRow label="Max Colours" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
+          <SliderRow label="Threads (max)" val={importMaxColours} setVal={setImportMaxColours} min={5} max={40} />
 
           <label style={{display:"flex", alignItems:"center", gap:'var(--s-2)', fontSize:'var(--text-md)', color:"var(--text-primary)", cursor:"pointer"}}>
             <input type="checkbox" checked={importSkipBg} onChange={e=>setImportSkipBg(e.target.checked)}/> Skip near-white background

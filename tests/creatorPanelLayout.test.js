@@ -110,7 +110,7 @@ describe('creatorFitBox', () => {
   const end = src.indexOf('window.creatorFitBox = creatorFitBox;');
   const creatorFitBox = new Function('window', 'document', 'getComputedStyle',
     src.slice(start, end) + '\nreturn creatorFitBox;'
-  )({ innerHeight: 1000 }, { querySelector: () => null }, () => ({ maxHeight: 'none' }));
+  )({ innerHeight: 1000 }, { querySelector: () => null }, (el) => ({ maxHeight: 'none', display: (el && el.display) || 'block' }));
 
   test('caps a split-pane flex child at its parent pane height', () => {
     const box = creatorFitBox({
@@ -118,9 +118,22 @@ describe('creatorFitBox', () => {
       clientHeight: 530,
       offsetHeight: 550,
       getBoundingClientRect: () => ({ top: 100, bottom: 650 }),
-      parentElement: { getBoundingClientRect: () => ({ bottom: 650 }) },
+      parentElement: { display: 'flex', getBoundingClientRect: () => ({ bottom: 650 }) },
     });
     expect(box.h).toBe(530);
+  });
+
+  test('an ordinary parent, as tall as the chart already is, does not cap the fit', () => {
+    // Edit on a wide screen: the chart was fitted small, so its wrapper is
+    // small too; the fit must still reach the bottom of the window.
+    const box = creatorFitBox({
+      clientWidth: 1158,
+      clientHeight: 190,
+      offsetHeight: 192,
+      getBoundingClientRect: () => ({ top: 290, bottom: 482 }),
+      parentElement: { display: 'block', getBoundingClientRect: () => ({ bottom: 509 }) },
+    });
+    expect(box.h).toBe(1000 - 290 - 2);
   });
 });
 

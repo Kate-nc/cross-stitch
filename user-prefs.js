@@ -58,6 +58,9 @@
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
     // 15 colours and no dithering give stitchable charts out of the box
     // (audit IMG-01); a four-colour logo used to become 19 colours.
+    // Guess "What kind of picture is this?" on upload and apply its preset
+    // (P2-5). Off: the defaults below apply to new pictures instead.
+    creatorGuessPictureType:      true,
     creatorDefaultPaletteSize:    15,
     creatorDefaultFabricCount:    16,
     creatorAllowBlends:           true,

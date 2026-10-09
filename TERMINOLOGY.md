@@ -44,6 +44,23 @@ Brand names of the supported thread manufacturers. Always capitalised as
 ### Skein
 A single physical bundle of thread (315 inches per skein, by default).
 
+### Thread vs. symbol
+A **thread** is one colour of stranded cotton (DMC 310). A **symbol** is a
+mark on the chart. A solid stitch's symbol is one thread; a **blend** is one
+symbol made of two threads stitched together (310+550), so a chart can have
+more symbols than threads. The Convert limit is **Threads (max)**, and it
+caps distinct threads, blends included.
+
+Counts say which they mean, never "colours":
+
+- success toast: "24 threads, 40 chart symbols (16 are blends of two
+  threads)", or "24 threads" when there are no blends;
+- Palette header and summaries: "24 threads · 40 symbols".
+
+`creatorThreadCounts(pal)` in `creator/useCreatorState.js` returns
+`{ threads, symbols, blends }`; `threadCountsSentence` and
+`threadCountsShort` format it. The terminology lint flags "Max colours".
+
 ---
 
 ## Verbs (Save vs. Download vs. Export)
@@ -106,6 +123,7 @@ opts in once per device.
 | Project (when you mean only the chart) | Pattern |
 | File (when you mean an entry in storage) | Project / Pattern |
 | Convert (without context) | Convert palette / Convert to Anchor |
+| Max colours, "N colours" for a palette count | Threads (max); "N threads · M symbols" |
 
 ---
 

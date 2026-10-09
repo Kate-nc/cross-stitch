@@ -87,7 +87,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     }
   }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
-  if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
+  // Threads and chart symbols, not "colours" (audit IMG-02).
+  if (props.threadCounts && typeof window.threadCountsShort === "function") patternRows.push.apply(patternRows, row("Threads", window.threadCountsShort(props.threadCounts)));
+  else if (hasColours) patternRows.push.apply(patternRows, row("Symbols", String(props.colourCount)));
   if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));
 
   var estimateRows = [];

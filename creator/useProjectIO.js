@@ -611,21 +611,41 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
-    // Plain backgrounds are left unstitched automatically (audit IMG-01):
-    // if the outer 2% of the picture is one colour, skip it, with Undo.
-    function autoSkipBackground(imgEl) {
-      if (typeof window.detectUniformBorder !== "function" || !state.setSkipBg) return;
-      var found = null;
+    // Look at the picture once: plain backgrounds are left unstitched
+    // automatically (if the outer 2% is one colour, skip it, with Undo), and
+    // the picture type is guessed and its preset applied (audit IMG-01).
+    function examinePicture(imgEl) {
+      var info = null;
       try {
         var maxSide = 400;
         var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
         var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
         var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
         var c2 = cnv.getContext("2d");
-        if (!c2) return;
-        c2.drawImage(imgEl, 0, 0, cw, ch);
-        found = window.detectUniformBorder(c2.getImageData(0, 0, cw, ch));
-      } catch (err) { console.warn("useProjectIO: background check failed", err); return; }
+        if (c2) {
+          // Exact colours, so pixel art keeps its own palette.
+          c2.imageSmoothingEnabled = false;
+          c2.drawImage(imgEl, 0, 0, cw, ch);
+          var data = c2.getImageData(0, 0, cw, ch);
+          info = typeof window.analysePicture === "function"
+            ? window.analysePicture(data, imgEl.width, imgEl.height)
+            : { border: typeof window.detectUniformBorder === "function" ? window.detectUniformBorder(data) : null };
+        }
+      } catch (err) { console.warn("useProjectIO: picture check failed", err); }
+      autoSkipBackground(info ? info.border : null);
+      if (info && info.w && state.setPictureInfo) {
+        state.setPictureInfo(info);
+        // Preferences > Pattern Creator > Guess the picture type. Off: the
+        // Preferences defaults stay, and the control shows Custom.
+        var guess = true;
+        try { guess = typeof UserPrefs === "undefined" || UserPrefs.get("creatorGuessPictureType") !== false; } catch (_) {}
+        if (guess && state.applyPicturePreset && typeof window.guessPictureType === "function") {
+          state.applyPicturePreset(window.guessPictureType(info), info);
+        }
+      }
+    }
+    function autoSkipBackground(found) {
+      if (!state.setSkipBg) return;
       var autoRef = state.bgAutoSkippedRef;
       if (!found) {
         // A skip we switched on for the previous picture shouldn't carry over.
@@ -673,7 +693,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false); startDraft(f);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -683,7 +703,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false); startDraft(f);
+          state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
