@@ -26,7 +26,7 @@ const path = require('path');
 const SHIM_PATH = path.join(__dirname, '..', '..', 'import-engine', 'lazy-shim.js');
 const SHIM_CODE = fs.readFileSync(SHIM_PATH, 'utf8');
 
-function makeMocks() {
+function makeMocks(opts) {
   const headChildren = [];
   let appendImpl = null;
   const head = {
@@ -37,7 +37,9 @@ function makeMocks() {
     },
   };
   const document = { head, createElement: () => ({ tag: 'script', onload: null, onerror: null, src: null }) };
-  const window = {};
+  // Pages normally load import-formats.js themselves; the shim only fetches
+  // it when window.parseOXS is missing (see the last describe block).
+  const window = (opts && opts.withoutFormats) ? {} : { parseOXS: function () {} };
   return {
     window, document, headChildren,
     setAppendImpl(fn) { appendImpl = fn; },
@@ -156,5 +158,44 @@ describe('import-engine/lazy-shim.js', () => {
     // Shim should detect the non-lazy ImportEngine and not overwrite it.
     expect(m.window.ImportEngine.openImportPicker).toBe(realPicker);
     expect(m.window.ImportEngine.__lazy).toBeUndefined();
+  });
+});
+
+describe('import-engine/lazy-shim.js loads import-formats.js when a page forgot it', () => {
+  test('appends import-formats.js before the bundle', async () => {
+    const m = makeMocks({ withoutFormats: true });
+    loadShim(m.window, m.document);
+    m.setAppendImpl((node) => {
+      if (node.src === 'import-formats.js') m.window.parseOXS = function () {};
+      else m.window.ImportEngine = Object.assign(m.window.ImportEngine || {}, { importAndReview: () => Promise.resolve('ok') });
+      setImmediate(() => node.onload());
+    });
+    await expect(m.window.ImportEngine.importAndReview('a.oxs')).resolves.toBe('ok');
+    expect(m.headChildren.map((n) => n.src)).toEqual(['import-formats.js', 'import-engine/bundle.js']);
+  });
+
+  test('uses window.loadScript when the page has it', async () => {
+    const m = makeMocks({ withoutFormats: true });
+    const calls = [];
+    m.window.loadScript = (src, o) => { calls.push(src); expect(typeof o.test).toBe('function'); m.window.parseOXS = function () {}; return Promise.resolve(); };
+    loadShim(m.window, m.document);
+    m.setAppendImpl((node) => {
+      m.window.ImportEngine = Object.assign(m.window.ImportEngine || {}, { importAndReview: () => Promise.resolve('ok') });
+      setImmediate(() => node.onload());
+    });
+    await m.window.ImportEngine.importAndReview('a.oxs');
+    expect(calls).toEqual(['import-formats.js']);
+    expect(m.headChildren.map((n) => n.src)).toEqual(['import-engine/bundle.js']);
+  });
+
+  test('still loads the bundle if import-formats.js fails', async () => {
+    const m = makeMocks({ withoutFormats: true });
+    loadShim(m.window, m.document);
+    m.setAppendImpl((node) => {
+      if (node.src === 'import-formats.js') { setImmediate(() => node.onerror(new Error('offline'))); return; }
+      m.window.ImportEngine = Object.assign(m.window.ImportEngine || {}, { importAndReview: () => Promise.resolve('ok') });
+      setImmediate(() => node.onload());
+    });
+    await expect(m.window.ImportEngine.importAndReview('a.pdf')).resolves.toBe('ok');
   });
 });

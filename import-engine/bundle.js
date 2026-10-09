@@ -2347,6 +2347,13 @@
       if (!parseOXS) throw ENGINE.errors.UnsupportedError('parseOXS not loaded — include import-formats.js');
       const bytes = await probe.fullBytes();
       const xml = bytesToString(bytes);
+      // Anchor threads map to DMC through the official conversion table,
+      // which not every page loads up front. Without it parseOXS falls back
+      // to the closest colour.
+      if (/\banchor\b/i.test(xml) && typeof window !== 'undefined' &&
+          typeof window.getOfficialMatch !== 'function' && typeof window.loadThreadConversions === 'function') {
+        try { await window.loadThreadConversions(); } catch (_) { /* closest colour instead */ }
+      }
       let result;
       try {
         result = parseOXS(xml);
@@ -2361,7 +2368,7 @@
         grid: [],         // intentionally empty: legacy materialiser uses _legacyProject
         legend: [],
         meta: { publisher: 'oxs', title: baseName },
-        flags: { warnings: [], uncertainCells: 0 },
+        flags: { warnings: (result && Array.isArray(result.warnings)) ? result.warnings.slice() : [], uncertainCells: 0 },
         _legacyProject: project,
         _legacyResult: result,
       };
@@ -4022,6 +4029,14 @@
       if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
         own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
       }
+    });
+    (project.partialStitches || []).forEach(function (e) {
+      Object.keys(e[1] || {}).forEach(function (k) {
+        var m = e[1][k];
+        if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
+          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+        }
+      });
     });
     function target(id) {
       if (id in memo) return memo[id];

@@ -4366,7 +4366,10 @@ class PatternKeeperImporter {
         warnings.push('No colour key was found, so thread colours were estimated from the chart.');
      }
      if (m.unresolved) {
-        const syms = Object.keys(m.unresolvedSymbols || {}).slice(0, 8).join(' ');
+        // A picture symbol's placeholder name is already "(colour)"; strip
+        // its brackets so the list doesn't read "((colour))".
+        const syms = Object.keys(m.unresolvedSymbols || {}).slice(0, 8)
+          .map(s => String(s).replace(/^\((.*)\)$/, '$1')).join(' ');
         warnings.push(m.unresolved + ' stitches use a symbol missing from the key (' + syms +
           ') and were imported as placeholders, one per symbol, to be given a thread.');
      }

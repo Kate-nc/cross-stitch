@@ -18,6 +18,11 @@
  * Concurrent calls during the loading window share the same load promise
  * — only one bundle <script> is ever appended.
  *
+ * The OXS and image strategies call the parsers in import-formats.js
+ * (window.parseOXS, window.parseImagePattern). A page that forgot to include
+ * it broke every .oxs import (home.html did, audit B-03), so the shim loads
+ * it first whenever window.parseOXS is missing.
+ *
  * This file is loaded synchronously and runs to completion before the
  * page's React entry points; keep it tiny and side-effect-free until a
  * call comes in.
@@ -34,31 +39,52 @@
   if (window.ImportEngine && !window.ImportEngine.__lazy && typeof window.ImportEngine.openImportPicker === 'function') return;
 
   var SRC = 'import-engine/bundle.js';
+  var FORMATS_SRC = 'import-formats.js';
   var loadingPromise = null;
 
-  function loadBundle() {
-    if (loadingPromise) return loadingPromise;
-    loadingPromise = new Promise(function (resolve, reject) {
+  function appendScript(src) {
+    return new Promise(function (resolve, reject) {
       try {
         var s = document.createElement('script');
         s.tag = 'script';            // for test sandbox introspection
-        s.src = SRC;
+        s.src = src;
         s.async = false;             // preserve global side-effects ordering
-        s.onload = function () { resolve(window.ImportEngine); };
+        s.onload = function () { resolve(); };
         s.onerror = function (e) {
-          // Reset the gate so a retry can attempt a fresh load (e.g. network
-          // recovered) AND remove the failed <script> tag so the DOM doesn't
-          // accumulate orphans across repeated failures.
-          loadingPromise = null;
+          // Remove the failed <script> tag so the DOM doesn't accumulate
+          // orphans across repeated failures.
           if (s.parentNode) try { s.parentNode.removeChild(s); } catch (_) {}
           reject(e);
         };
         document.head.appendChild(s);
       } catch (e) {
-        loadingPromise = null;
         reject(e);
       }
     });
+  }
+
+  // null when the parsers are already there, else a promise that settles
+  // once import-formats.js has loaded (or failed to).
+  function ensureFormats() {
+    if (typeof window.parseOXS === 'function') return null;
+    var load = typeof window.loadScript === 'function'
+      ? window.loadScript(FORMATS_SRC, { test: function () { return typeof window.parseOXS === 'function'; } })
+      : appendScript(FORMATS_SRC);
+    // Not fatal here: the engine still handles PDFs and JSON, and the OXS
+    // strategy reports a clear error if the parser is still missing.
+    return load.catch(function () {});
+  }
+
+  function loadBundle() {
+    if (loadingPromise) return loadingPromise;
+    var formats = ensureFormats();
+    loadingPromise = (formats ? formats.then(function () { return appendScript(SRC); }) : appendScript(SRC))
+      .then(function () { return window.ImportEngine; }, function (e) {
+        // Reset the gate so a retry can attempt a fresh load (e.g. network
+        // recovered).
+        loadingPromise = null;
+        throw e;
+      });
     return loadingPromise;
   }
 

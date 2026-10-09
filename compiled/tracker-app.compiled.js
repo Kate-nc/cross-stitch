@@ -6041,8 +6041,9 @@ function TrackerApp({
       rd.readAsText(f);
     } else if (format === "oxs") {
       let rd = new FileReader();
-      rd.onload = ev => {
+      rd.onload = async ev => {
         try {
+          if (typeof window.loadThreadConversions === 'function') await window.loadThreadConversions();
           let result = parseOXS(ev.target.result);
           let project = importResultToProject(result, 14, baseName);
           const importedAt = Date.now();
