@@ -74,6 +74,70 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
+// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// caps distinct threads, so a blend such as 310+550 is two threads the user
+// may already be buying for solids: its stitches are added to each
+// component's row and it gets no row of its own. A blend stitch uses one
+// strand of each thread, so it costs each component half the thread of a
+// two-strand solid stitch.
+//   pal  — palette entries ({ id, type, count, rgb, name, threads? })
+//   opts — { fabricCt, stash, strandsUsed, wasteFactor }
+// Returns [{ p: { id, type:'solid', count, rgb, name }, key, owned, needed,
+//            status, name }] in first-seen order.
+window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
+  opts = opts || {};
+  var fabricCt = opts.fabricCt || 14;
+  var stash = opts.stash || {};
+  var order = [], byId = {};
+  (pal || []).forEach(function(p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    var count = p.count || 0;
+    var parts;
+    if (p.type === 'blend') {
+      parts = (p.threads && p.threads.length)
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb }; })
+        : String(p.id).split('+').map(function(id) { return { id: id }; });
+    } else {
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand }];
+    }
+    parts.forEach(function(t) {
+      var r = byId[t.id];
+      if (!r) {
+        r = byId[t.id] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand || 'dmc', stitches: 0, threadStitches: 0 };
+        order.push(t.id);
+      }
+      if (!r.name && t.name) r.name = t.name;
+      if (!r.rgb && t.rgb) r.rgb = t.rgb;
+      r.stitches += count;
+      r.threadStitches += parts.length > 1 ? count / parts.length : count;
+    });
+  });
+  return order.map(function(id) {
+    var r = byId[id];
+    if (!r.rgb || !r.name) {
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, id) : null;
+      if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
+    }
+    var needed;
+    if (typeof stitchesToSkeins === 'function') {
+      var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+      needed = sk.skeinsToBuy || 0;
+    } else {
+      needed = Math.ceil(r.threadStitches / 800) || 0;
+    }
+    // Any thread with stitches needs at least one skein.
+    if (r.stitches > 0) needed = Math.max(1, needed);
+    var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
+    var owned = (stash[key] && stash[key].owned) || 0;
+    var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+    return {
+      p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
+      key: key, owned: owned, needed: needed, status: status, name: r.name || id
+    };
+  });
+};
+
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
 var _canvasFilterSupported = (function() {

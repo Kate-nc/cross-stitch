@@ -2094,7 +2094,8 @@ const SKEIN_TOTAL_IN=1890;
 const rtConsumption=useMemo(()=>{
   if(!wastePrefs.enabled||!skeinData||!skeinData.length)return{};
   const strands=typeof wastePrefs.strandCountOverride==='number'?wastePrefs.strandCountOverride:2;
-  const base=(4.8*strands)/fabricCt;
+  // Effective count: 28-count over 2 uses thread like 14-count Aida.
+  const base=(4.8*strands)/(fabricCt/(typeof stitchOverFor==="function"?stitchOverFor(fabricCt):1));
   const tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
   const effectiveCostIn=(base+tail)*wastePrefs.generalWasteMultiplier;
   const snap=rtStashSnapshotRef.current||{};

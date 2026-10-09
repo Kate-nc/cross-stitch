@@ -641,7 +641,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
-        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
+        "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
       )
     )
   );
@@ -1607,10 +1607,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
       var fabricCt = ctx.fabricCt || 14;
-      var finishedW = (ctx.sW / fabricCt).toFixed(1);
-      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
       var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
-        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        // Per thread, not per palette entry: blends fold into their threads.
+        ? window.buildThreadShoppingRows(ctx.displayPal || ctx.pal || [], { fabricCt: fabricCt }).reduce(function(t, r) { return t + r.needed; }, 0)
         : 0;
       var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
       function row(label, value) {
@@ -1622,7 +1622,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
@@ -1707,10 +1707,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
         var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
         var fabricCt = ctx.fabricCt||14;
-        var finishedW = (ctx.sW/fabricCt).toFixed(1);
-        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
         var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
-          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+          ?window.buildThreadShoppingRows(ctx.displayPal||ctx.pal||[],{fabricCt:fabricCt}).reduce(function(t,r){return t+r.needed;},0):0;
         var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
         function statRow(label, value) {
           return h(React.Fragment, null,
@@ -1720,7 +1719,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
-          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
           statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),

@@ -168,7 +168,7 @@ function _getAnchorById(){
 function getAnchorById(id){var m=_getAnchorById();return (m&&id!=null)?(m[id]||null):null;}
 if(typeof window!=='undefined'){window.getAnchorById=getAnchorById;}
 
-function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
+function skeinEst(stitchCount,fabricCt){if(typeof stitchesToSkeins==='function'){const result=stitchesToSkeins({stitchCount:stitchCount,fabricCount:fabricCt,stitchOver:typeof stitchOverFor==='function'?stitchOverFor(fabricCt):1,strandsUsed:2,wasteFactor:0.20});return Math.max(1,result.skeinsToBuy);}return 1;}
 
 function confettiTier(pct){
   if(pct<2)return{color:"var(--success)",label:"Excellent"};

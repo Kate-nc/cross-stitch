@@ -138,8 +138,8 @@
           heading: "Threads needed and skein estimates",
           body: "The Materials & Output tab shows what the pattern needs, in three sub-tabs: Threads, Stash status and Export.",
           bullets: [
-            ["Skein count", "Estimated skeins per colour, from the stitch count, fabric count, strand count and a waste allowance. A standard skein is 315 inches (8 metres)."],
-            ["Stash status", "Each thread shows whether you own enough (In stash), some but not enough (Partial), or none (Need to buy)."],
+            ["Skein count", "Estimated skeins per colour, from the stitch count, fabric count, strand count and a waste allowance. A standard skein is 315 inches (8 metres). 25, 28 and 32 count are worked over two threads, so 28 count uses thread (and gives a finished size) like 14 count Aida."],
+            ["Stash status", "Each thread shows whether you own enough (In stash), some but not enough (Partial), or none (Need to buy). A blend is not a separate thread to buy: its stitches count towards each of its two threads."],
             ["Shopping list", "Lists only the threads you still need, with an estimated cost at your skein price (£0.95 by default; change it in Preferences > Stash Manager)."]
           ]
         }

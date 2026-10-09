@@ -4965,6 +4965,70 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
+// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// caps distinct threads, so a blend such as 310+550 is two threads the user
+// may already be buying for solids: its stitches are added to each
+// component's row and it gets no row of its own. A blend stitch uses one
+// strand of each thread, so it costs each component half the thread of a
+// two-strand solid stitch.
+//   pal  — palette entries ({ id, type, count, rgb, name, threads? })
+//   opts — { fabricCt, stash, strandsUsed, wasteFactor }
+// Returns [{ p: { id, type:'solid', count, rgb, name }, key, owned, needed,
+//            status, name }] in first-seen order.
+window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
+  opts = opts || {};
+  var fabricCt = opts.fabricCt || 14;
+  var stash = opts.stash || {};
+  var order = [], byId = {};
+  (pal || []).forEach(function(p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    var count = p.count || 0;
+    var parts;
+    if (p.type === 'blend') {
+      parts = (p.threads && p.threads.length)
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb }; })
+        : String(p.id).split('+').map(function(id) { return { id: id }; });
+    } else {
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand }];
+    }
+    parts.forEach(function(t) {
+      var r = byId[t.id];
+      if (!r) {
+        r = byId[t.id] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand || 'dmc', stitches: 0, threadStitches: 0 };
+        order.push(t.id);
+      }
+      if (!r.name && t.name) r.name = t.name;
+      if (!r.rgb && t.rgb) r.rgb = t.rgb;
+      r.stitches += count;
+      r.threadStitches += parts.length > 1 ? count / parts.length : count;
+    });
+  });
+  return order.map(function(id) {
+    var r = byId[id];
+    if (!r.rgb || !r.name) {
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, id) : null;
+      if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
+    }
+    var needed;
+    if (typeof stitchesToSkeins === 'function') {
+      var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+      needed = sk.skeinsToBuy || 0;
+    } else {
+      needed = Math.ceil(r.threadStitches / 800) || 0;
+    }
+    // Any thread with stitches needs at least one skein.
+    if (r.stitches > 0) needed = Math.max(1, needed);
+    var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
+    var owned = (stash[key] && stash[key].owned) || 0;
+    var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+    return {
+      p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
+      key: key, owned: owned, needed: needed, status: status, name: r.name || id
+    };
+  });
+};
+
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
 var _canvasFilterSupported = (function() {
@@ -14012,7 +14076,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("option", {key:f.ct, value:f.ct}, f.label);
       })),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
-        "\u2248 " + (ctx.sW / (ctx.fabricCt||14)).toFixed(1) + " \u00D7 " + (ctx.sH / (ctx.fabricCt||14)).toFixed(1) + " in finished"
+        "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
       )
     )
   );
@@ -14978,10 +15042,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
       var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
       var fabricCt = ctx.fabricCt || 14;
-      var finishedW = (ctx.sW / fabricCt).toFixed(1);
-      var finishedH = (ctx.sH / fabricCt).toFixed(1);
+      var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
       var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
-        ? (ctx.displayPal || ctx.pal || []).reduce(function(t,p){ return t + (p && p.count ? skeinEst(p.count, fabricCt) : 0); }, 0)
+        // Per thread, not per palette entry: blends fold into their threads.
+        ? window.buildThreadShoppingRows(ctx.displayPal || ctx.pal || [], { fabricCt: fabricCt }).reduce(function(t, r) { return t + r.needed; }, 0)
         : 0;
       var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
       function row(label, value) {
@@ -14993,7 +15057,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       return h(Section, {title:"Live summary", defaultOpen:false},
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-          row("Finished", finishedW + " \u00D7 " + finishedH + " in (" + fabricCt + "ct)"),
+          row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
           row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
@@ -15078,10 +15142,9 @@ window.CreatorSidebar = function CreatorSidebar() {
         var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
         var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
         var fabricCt = ctx.fabricCt||14;
-        var finishedW = (ctx.sW/fabricCt).toFixed(1);
-        var finishedH = (ctx.sH/fabricCt).toFixed(1);
+        var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
         var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
-          ?(ctx.displayPal||ctx.pal||[]).reduce(function(t,p){return t+(p&&p.count?skeinEst(p.count,fabricCt):0);},0):0;
+          ?window.buildThreadShoppingRows(ctx.displayPal||ctx.pal||[],{fabricCt:fabricCt}).reduce(function(t,r){return t+r.needed;},0):0;
         var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
         function statRow(label, value) {
           return h(React.Fragment, null,
@@ -15091,7 +15154,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
-          statRow("Finished", finishedW+" \u00D7 "+finishedH+" in ("+fabricCt+"ct)"),
+          statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
           statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
@@ -16064,18 +16127,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     var units        = fsUnits;
 
     // Fabric list with per-row default stitch-over (1 = Aida, 2 = evenweave/linen).
-    // 25/28/32-count are evenweave (over 2 by default); all others are Aida (over 1).
+    // The default comes from FABRIC_COUNTS (stitchOverFor in constants.js), so
+    // this table and the Fabric menu can't disagree.
     var fabrics = [
-      {ct:11,label:"11 count Aida",      defaultSO:1},
-      {ct:14,label:"14 count Aida",      defaultSO:1},
-      {ct:16,label:"16 count Aida",      defaultSO:1},
-      {ct:18,label:"18 count Aida",      defaultSO:1},
-      {ct:20,label:"20 count Aida",      defaultSO:1},
-      {ct:22,label:"22 count Aida",      defaultSO:1},
-      {ct:25,label:"25 count Evenweave", defaultSO:2},
-      {ct:28,label:"28 count Linen",     defaultSO:2},
-      {ct:32,label:"32 count Linen",     defaultSO:2}
-    ];
+      {ct:11,label:"11 count Aida"},
+      {ct:14,label:"14 count Aida"},
+      {ct:16,label:"16 count Aida"},
+      {ct:18,label:"18 count Aida"},
+      {ct:20,label:"20 count Aida"},
+      {ct:22,label:"22 count Aida"},
+      {ct:25,label:"25 count Evenweave"},
+      {ct:28,label:"28 count Linen"},
+      {ct:32,label:"32 count Linen"}
+    ].map(function(f) { f.defaultSO = stitchOverFor(f.ct); return f; });
 
     // stitchOverride 0 = use per-row default; 1 or 2 = global override.
     function effectiveSO(f) {
@@ -16084,9 +16148,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
     function calcRow(f) {
       var so  = effectiveSO(f);
-      var spi = f.ct / so;                          // effective stitches per inch
-      var wIn = ctx.sW / spi;
-      var hIn = ctx.sH / spi;
+      var design = calcDesignSizeIn(ctx.sW, ctx.sH, f.ct, so);
+      var wIn = design.widthIn;
+      var hIn = design.heightIn;
       // Cut size: design + margin each side (both sides → ×2); round up ¼″.
       var cutW = Math.ceil((wIn + 2 * margin) * 4) / 4;
       var cutH = Math.ceil((hIn + 2 * margin) * 4) / 4;
@@ -16575,7 +16639,13 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var patternRows = [];
   if (hasDims) patternRows.push.apply(patternRows, row("Size", sW + " \u00D7 " + sH + " stitches"));
-  if (hasFabric) patternRows.push.apply(patternRows, row("Fabric", props.fabricCt + " ct Aida"));
+  if (hasFabric) {
+    var fab = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS.find(function(f) { return f.ct === props.fabricCt; }) : null;
+    patternRows.push.apply(patternRows, row("Fabric", fab ? fab.label : props.fabricCt + " count"));
+    if (hasDims && typeof window.finishedSizeText === "function") {
+      patternRows.push.apply(patternRows, row("Finished", window.finishedSizeText(sW, sH, props.fabricCt)));
+    }
+  }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
   if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
   if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));

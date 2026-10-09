@@ -79,7 +79,13 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var patternRows = [];
   if (hasDims) patternRows.push.apply(patternRows, row("Size", sW + " \u00D7 " + sH + " stitches"));
-  if (hasFabric) patternRows.push.apply(patternRows, row("Fabric", props.fabricCt + " ct Aida"));
+  if (hasFabric) {
+    var fab = (typeof FABRIC_COUNTS !== "undefined") ? FABRIC_COUNTS.find(function(f) { return f.ct === props.fabricCt; }) : null;
+    patternRows.push.apply(patternRows, row("Fabric", fab ? fab.label : props.fabricCt + " count"));
+    if (hasDims && typeof window.finishedSizeText === "function") {
+      patternRows.push.apply(patternRows, row("Finished", window.finishedSizeText(sW, sH, props.fabricCt)));
+    }
+  }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
   if (hasColours) patternRows.push.apply(patternRows, row("Colours", String(props.colourCount)));
   if (hasSkeins) patternRows.push.apply(patternRows, row("Skeins", "~" + skeinsRounded));
