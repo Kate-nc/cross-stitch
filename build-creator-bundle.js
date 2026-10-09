@@ -66,6 +66,7 @@ const ORDER = [
   'usePreview.js',
   'CompareOptions.js',
   'CompareStrip.js',
+  'GenerateProgress.js',
   'PatternCanvas.js',
   'SplitPane.js',
   'CompactBar.js',

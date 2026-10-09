@@ -1379,19 +1379,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {/* ── Full-screen crop modal ── */}
         {typeof window.CropModal!=="undefined"&&<window.CropModal/>}
       </div>
-      {state.busy&&<div style={{
-        position:"fixed",top:0,left:0,right:0,bottom:0,
-        background:"color-mix(in srgb, var(--surface) 85%, transparent)",zIndex:1000,
-        display:"flex",alignItems:"center",justifyContent:"center",
-        flexDirection:"column",gap:12
-      }}>
-        <div style={{
-          width:32,height:32,border:"3px solid var(--line)",
-          borderTopColor:"var(--accent)",borderRadius:"50%",
-          animation:"spin 0.8s linear infinite"
-        }}/>
-        <div style={{fontSize:14,color:"var(--text-secondary)",fontWeight:500}}>Generating pattern\u2026</div>
-      </div>}
+      {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
+      {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}
       <window.CreatorToastContainer/>
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',

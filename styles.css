@@ -8349,3 +8349,9 @@ body.creator-compact .creator-toast-container,body.creator-compact [data-toast-c
 body.creator-compact .compare-strip__row{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
 body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start;}
 @media (prefers-reduced-motion: reduce){.compare-strip__pending{animation:none;}.compare-strip__chev{transition:none;}}
+
+/* ── Generating a pattern (audit IMG-07) ────────────────────────────────── */
+/* Same card as the import progress (.import-busy), centred over a light
+   scrim so the settings can't change underneath it. */
+.generate-busy-scrim{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:var(--s-4);background:color-mix(in srgb, var(--surface) 70%, transparent);}
+.generate-busy{width:min(360px, 100%);display:flex;flex-direction:column;gap:var(--s-2);padding:var(--s-3) var(--s-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);box-shadow:var(--shadow-md);color:var(--text-primary);}

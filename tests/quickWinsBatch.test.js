@@ -31,7 +31,10 @@ describe('C-8: stale worker terminated before new generation', () => {
       /setBusy\(true\)[\s\S]{0,800}?var reqId = \+\+genReqIdRef\.current/);
     expect(m).not.toBeNull();
     expect(m[0]).toMatch(/C-8/);
-    expect(m[0]).toMatch(/workerRef\.current\.terminate\(\)/);
+    // Terminated through retireGenerateWorker (P2-8), which detaches the
+    // worker's handlers first and then calls terminate().
+    expect(m[0]).toMatch(/retireGenerateWorker\(workerRef\.current\)/);
+    expect(useCreatorState).toMatch(/function retireGenerateWorker\(w\) \{[\s\S]*?try \{ w\.terminate\(\); \} catch \(_\) \{\}/);
     expect(m[0]).toMatch(/workerRef\.current = null/);
     expect(m[0]).toMatch(/!== 'unavailable'/);
   });
