@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.91';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.92',
+    date: 'October 2026',
+    notes: [
+      'Photos of any size can be turned into patterns from Home; the 4 MB limit is gone. Convert setup is no longer lost if the page reloads or your phone closes the browser before you generate: the Creator offers to continue setting it up, and unfinished conversions are listed on Home > Projects with Continue and Discard.',
+    ]
+  },
+  {
     version: '1.0.91',
     date: 'October 2026',
     notes: [

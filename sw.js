@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v64';
+var CACHE_NAME = 'cross-stitch-cache-v65';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -46,6 +46,7 @@ var PRECACHE_URLS = [
   './cross-tab-resolution.js',
   './cross-tab-lock.js',
   './project-storage.js',
+  './blob-store.js',
   './stash-bridge.js',
 
   // Page-specific local scripts

@@ -1183,7 +1183,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             aria-live="polite">
           <div className="creator-boot-spinner" aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
-          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<CreatorNoProjectRedirect/>}
+          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&<CreatorNoProjectRedirect/>}
         </div>}
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
@@ -1671,7 +1671,7 @@ function CreatorNoProjectRedirect(){
     var hasPendingImage = false;
     if (!act) {
       try {
-        if (sessionStorage.getItem('cs_pending_image_dataurl') &&
+        if ((sessionStorage.getItem('cs_pending_image_dataurl') || sessionStorage.getItem('cs_pending_image_handoff')) &&
             !localStorage.getItem('crossstitch_active_project')) {
           hasPendingImage = true;
         }
@@ -1698,6 +1698,11 @@ function CreatorNoProjectRedirect(){
       // so the sw-register.js controllerchange handler suppresses any reload
       // regardless of whether the data URL is still present (e.g. TTL expired).
       window.__creatorImageHandoffActive = true;
+      // The picture is in IndexedDB (audit COMMON-07). useProjectIO reads it
+      // (the read is asynchronous, so it can't happen here) and deletes it.
+      var handoffId = p.get('handoff');
+      try { if (!handoffId) handoffId = sessionStorage.getItem('cs_pending_image_handoff'); } catch (_) {}
+      if (handoffId && /^handoff:/.test(handoffId)) window.__pendingCreatorHandoffId = handoffId;
       var pendingDataUrl = sessionStorage.getItem('cs_pending_image_dataurl');
       var pendingName    = sessionStorage.getItem('cs_pending_image_name') || 'image.jpg';
       var pendingType    = sessionStorage.getItem('cs_pending_image_type') || 'image/jpeg';
@@ -1731,6 +1736,10 @@ function CreatorNoProjectRedirect(){
         var blob = new Blob([ab], { type: pendingType });
         window.__pendingCreatorFile = new File([blob], pendingName, { type: pendingType });
       }
+    } else if (act === 'draft') {
+      // Home > Projects > Continue on a Convert draft (audit COMMON-07).
+      var draftId = p.get('draft');
+      if (draftId && /^draft:/.test(draftId)) window.__pendingCreatorDraftId = draftId;
     } else if (act === 'new-from-image') {
       // Legacy fallback: a navigation hit create.html?action=new-from-image.
       // No in-app code routes here any more (Header "Create", /home greeting

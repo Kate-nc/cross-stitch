@@ -49,7 +49,7 @@
     // home-image-pending handoff was still in progress. If sessionStorage still
     // holds the pending data URL, let create.html load so it can reconstruct
     // the file — processPendingAction's recovery path handles it from there.
-    try { if (sessionStorage.getItem('cs_pending_image_dataurl')) return; } catch (_) {}    var active = localStorage.getItem('crossstitch_active_project');
+    try { if (sessionStorage.getItem('cs_pending_image_dataurl') || sessionStorage.getItem('cs_pending_image_handoff') || sessionStorage.getItem('cs_active_draft')) return; } catch (_) {}    var active = localStorage.getItem('crossstitch_active_project');
     if (!active) { location.replace('home.html?tab=create'); return; }
   } catch (_) { /* localStorage blocked â†’ load tool normally */ }
 })();
@@ -138,6 +138,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="cross-tab-resolution.js"></script>
 <script src="cross-tab-lock.js"></script>
 <script src="project-storage.js"></script>
+<script src="blob-store.js"></script>
 <!-- Lazy import engine: the full bundle (~126 KB) loads on first picker / DnD use. See reports/perf-opt-2-spec.md. -->
 <script src="import-engine/lazy-shim.js"></script>
 <script src="import-engine/ui/importErrors.js"></script>
