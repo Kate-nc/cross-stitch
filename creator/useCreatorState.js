@@ -81,6 +81,74 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
+// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// caps distinct threads, so a blend such as 310+550 is two threads the user
+// may already be buying for solids: its stitches are added to each
+// component's row and it gets no row of its own. A blend stitch uses one
+// strand of each thread, so it costs each component half the thread of a
+// two-strand solid stitch.
+//   pal  — palette entries ({ id, type, count, rgb, name, threads? })
+//   opts — { fabricCt, stash, strandsUsed, wasteFactor }
+// Returns [{ p: { id, type:'solid', count, rgb, name }, key, owned, needed,
+//            status, name }] in first-seen order.
+window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
+  opts = opts || {};
+  var fabricCt = opts.fabricCt || 14;
+  var stash = opts.stash || {};
+  var order = [], byKey = {};
+  (pal || []).forEach(function(p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    var count = p.count || 0;
+    var parts;
+    if (p.type === 'blend') {
+      parts = (p.threads && p.threads.length)
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
+        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
+    } else {
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
+    }
+    parts.forEach(function(t) {
+      var key = t.brand + ':' + t.id;
+      var r = byKey[key];
+      if (!r) {
+        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
+        order.push(key);
+      }
+      if (!r.name && t.name) r.name = t.name;
+      if (!r.rgb && t.rgb) r.rgb = t.rgb;
+      r.stitches += count;
+      r.threadStitches += parts.length > 1 ? count / parts.length : count;
+    });
+  });
+  return order.map(function(key) {
+    var r = byKey[key];
+    if (!r.rgb || !r.name) {
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
+      if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
+    }
+    var needed;
+    if (typeof stitchesToSkeins === 'function') {
+      var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+      needed = sk.skeinsToBuy || 0;
+    } else {
+      needed = Math.ceil(r.threadStitches / 800) || 0;
+    }
+    // Any thread with stitches needs at least one skein.
+    if (r.stitches > 0) needed = Math.max(1, needed);
+    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
+    var entry = stash[stashKey];
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(entry)
+      : ((entry && entry.owned) || 0);
+    var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
+    return {
+      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
+      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
+    };
+  });
+};
+
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
 var _canvasFilterSupported = (function() {
@@ -456,7 +524,6 @@ window.useCreatorState = function useCreatorState() {
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _fabOpen  = useState(false);   var fabOpen  = _fabOpen[0],  setFabOpen  = _fabOpen[1];
   var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
@@ -623,6 +690,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Whether this project has already shown the name prompt. Saved with the
+  // project (optional field namePromptShown) so a dismissed prompt doesn't
+  // come back on every reload (audit B-10). The ref is for the save
+  // controller's callback, which closes over an early render.
+  var _namePromptShown = useState(false); var namePromptShown = _namePromptShown[0], setNamePromptShownState = _namePromptShown[1];
+  var namePromptShownRef = useRef(false);
+  var setNamePromptShown = useCallback(function(v) {
+    namePromptShownRef.current = !!v;
+    setNamePromptShownState(!!v);
+  }, []);
+  useEffect(function() {
+    if (namePromptOpen && !namePromptShownRef.current) setNamePromptShown(true);
+  }, [namePromptOpen, setNamePromptShown]);
   // Proposal 2: auto-save state surfaced in the header badge so the user can
   // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
   // static "All changes saved" string. Driven by SaveStatus.createSaveController
@@ -946,7 +1026,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
+    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
@@ -1192,7 +1272,7 @@ window.useCreatorState = function useCreatorState() {
     if (!hasGenerated) {
       // First generation only: collapse all the settings accordions so
       // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false); setFabOpen(false);
+      setDimOpen(false); setPalOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
     }
@@ -1733,7 +1813,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
+    dimOpen, setDimOpen, palOpen, setPalOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
@@ -1778,6 +1858,7 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    namePromptShown, setNamePromptShown, namePromptShownRef,
     saveStatus, setSaveStatus,
     savedAt, setSavedAt,
     saveError, setSaveError,

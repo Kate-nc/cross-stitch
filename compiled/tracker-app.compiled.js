@@ -3246,6 +3246,7 @@ function TrackerApp({
     stitchRef = useRef(null);
   const projectIdRef = useRef(null); // current project's storage ID
   const createdAtRef = useRef(null); // stable createdAt ISO string for the active project
+  const namePromptShownRef = useRef(false); // Creator-owned flag, carried through Tracker saves
   const lastSnapshotRef = useRef(null); // freshest serialised project for beforeunload
   const v3FieldsRef = useRef({}); // preserve v3 stats fields across save round-trips
   const autoSaveDirtyRef = useRef(false);
@@ -3903,7 +3904,8 @@ function TrackerApp({
   const rtConsumption = useMemo(() => {
     if (!wastePrefs.enabled || !skeinData || !skeinData.length) return {};
     const strands = typeof wastePrefs.strandCountOverride === 'number' ? wastePrefs.strandCountOverride : 2;
-    const base = 4.8 * strands / fabricCt;
+    // Effective count: 28-count over 2 uses thread like 14-count Aida.
+    const base = 4.8 * strands / (fabricCt / (typeof stitchOverFor === "function" ? stitchOverFor(fabricCt) : 1));
     const tail = wastePrefs.tailAllowanceIn * 2 / Math.max(1, wastePrefs.threadRunLength);
     const effectiveCostIn = (base + tail) * wastePrefs.generalWasteMultiplier;
     const snap = rtStashSnapshotRef.current || {};
@@ -5233,6 +5235,7 @@ function TrackerApp({
       id: projectIdRef.current || undefined,
       page: "tracker",
       name: finalName,
+      namePromptShown: namePromptShownRef.current || undefined,
       createdAt: createdAtRef.current || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       settings: {
@@ -5955,6 +5958,7 @@ function TrackerApp({
     setProjectName(project.name || "");
     setProjectDesigner(project.designer || "");
     setProjectDescription(project.description || "");
+    namePromptShownRef.current = !!project.namePromptShown;
     try {
       const saved = localStorage.getItem('cs_layerVis_' + (project.id || ''));
       if (saved) setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);
@@ -6468,6 +6472,7 @@ function TrackerApp({
       name: projectName,
       designer: projectDesigner,
       description: projectDescription,
+      namePromptShown: namePromptShownRef.current || undefined,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: {
@@ -6702,6 +6707,7 @@ function TrackerApp({
         id: projectIdRef.current,
         page: "tracker",
         name: projectName,
+        namePromptShown: namePromptShownRef.current || undefined,
         createdAt: createdAtRef.current,
         updatedAt: new Date().toISOString(),
         settings: {

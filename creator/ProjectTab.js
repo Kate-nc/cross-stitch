@@ -66,18 +66,19 @@ window.CreatorProjectTab = function CreatorProjectTab() {
     var units        = fsUnits;
 
     // Fabric list with per-row default stitch-over (1 = Aida, 2 = evenweave/linen).
-    // 25/28/32-count are evenweave (over 2 by default); all others are Aida (over 1).
+    // The default comes from FABRIC_COUNTS (stitchOverFor in constants.js), so
+    // this table and the Fabric menu can't disagree.
     var fabrics = [
-      {ct:11,label:"11 count Aida",      defaultSO:1},
-      {ct:14,label:"14 count Aida",      defaultSO:1},
-      {ct:16,label:"16 count Aida",      defaultSO:1},
-      {ct:18,label:"18 count Aida",      defaultSO:1},
-      {ct:20,label:"20 count Aida",      defaultSO:1},
-      {ct:22,label:"22 count Aida",      defaultSO:1},
-      {ct:25,label:"25 count Evenweave", defaultSO:2},
-      {ct:28,label:"28 count Linen",     defaultSO:2},
-      {ct:32,label:"32 count Linen",     defaultSO:2}
-    ];
+      {ct:11,label:"11 count Aida"},
+      {ct:14,label:"14 count Aida"},
+      {ct:16,label:"16 count Aida"},
+      {ct:18,label:"18 count Aida"},
+      {ct:20,label:"20 count Aida"},
+      {ct:22,label:"22 count Aida"},
+      {ct:25,label:"25 count Evenweave"},
+      {ct:28,label:"28 count Linen"},
+      {ct:32,label:"32 count Linen"}
+    ].map(function(f) { f.defaultSO = stitchOverFor(f.ct); return f; });
 
     // stitchOverride 0 = use per-row default; 1 or 2 = global override.
     function effectiveSO(f) {
@@ -86,9 +87,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
 
     function calcRow(f) {
       var so  = effectiveSO(f);
-      var spi = f.ct / so;                          // effective stitches per inch
-      var wIn = ctx.sW / spi;
-      var hIn = ctx.sH / spi;
+      var design = calcDesignSizeIn(ctx.sW, ctx.sH, f.ct, so);
+      var wIn = design.widthIn;
+      var hIn = design.heightIn;
       // Cut size: design + margin each side (both sides → ×2); round up ¼″.
       var cutW = Math.ceil((wIn + 2 * margin) * 4) / 4;
       var cutH = Math.ceil((hIn + 2 * margin) * 4) / 4;

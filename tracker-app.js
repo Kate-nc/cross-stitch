@@ -1782,6 +1782,7 @@ const [importFabricCt, setImportFabricCt] = useState(14);
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
+const namePromptShownRef=useRef(false); // Creator-owned flag, carried through Tracker saves
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
@@ -2094,7 +2095,8 @@ const SKEIN_TOTAL_IN=1890;
 const rtConsumption=useMemo(()=>{
   if(!wastePrefs.enabled||!skeinData||!skeinData.length)return{};
   const strands=typeof wastePrefs.strandCountOverride==='number'?wastePrefs.strandCountOverride:2;
-  const base=(4.8*strands)/fabricCt;
+  // Effective count: 28-count over 2 uses thread like 14-count Aida.
+  const base=(4.8*strands)/(fabricCt/(typeof stitchOverFor==="function"?stitchOverFor(fabricCt):1));
   const tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
   const effectiveCostIn=(base+tail)*wastePrefs.generalWasteMultiplier;
   const snap=rtStashSnapshotRef.current||{};
@@ -2896,6 +2898,7 @@ function doSaveProject(finalName){
     id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
+    namePromptShown:namePromptShownRef.current||undefined,
     createdAt:createdAtRef.current||new Date().toISOString(),
     updatedAt:new Date().toISOString(),
     settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed,wastePrefs},
@@ -3414,6 +3417,7 @@ function processLoadedProject(project){
   setProjectName(project.name||"");
   setProjectDesigner(project.designer||"");
   setProjectDescription(project.description||"");
+  namePromptShownRef.current=!!project.namePromptShown;
   try{const saved=localStorage.getItem('cs_layerVis_'+(project.id||''));if(saved)setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);}catch(_){setLayerVis(ALL_LAYERS_VISIBLE);}
   try{const saved=localStorage.getItem('cs_parkLayers_'+(project.id||''));setParkLayers(saved?JSON.parse(saved):{});}catch(_){setParkLayers({});}
   // Per-project legend overlay (sort + collapsed). When absent, the
@@ -3838,6 +3842,7 @@ const buildSnapshot = () => {
   return {
     version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
     designer: projectDesigner, description: projectDescription,
+    namePromptShown: namePromptShownRef.current || undefined,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },
     pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
@@ -4002,6 +4007,7 @@ useEffect(() => {
     const project = {
       ...(lastSnapshotRef.current || {}),
       version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
+      namePromptShown: namePromptShownRef.current || undefined,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs },

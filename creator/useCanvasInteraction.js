@@ -3,9 +3,30 @@
    Depends on globals: React, gridCoord, drawCk, drawPatternOnCanvas (for full
    redraws during drag-erase of backstitch). */
 
+// Grid cells on the line from (x0, y0) to (x1, y1), both ends included,
+// each touching the previous one (Bresenham). Pointer moves arrive tens of
+// pixels apart on a fast stroke, so a drag paints along this line rather
+// than only under each sample (audit B-11).
+function lineCells(x0, y0, x1, y1) {
+  var cells = [];
+  var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+  var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  var err = dx + dy;
+  for (;;) {
+    cells.push({ x: x0, y: y0 });
+    if (x0 === x1 && y0 === y1) break;
+    var e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+  return cells;
+}
+window.lineCells = lineCells;
+
 window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Internal drag refs (not in state — don't need React rendering)
   var isDraggingRef        = React.useRef(false);
+  var lastDragCellRef      = React.useRef(null);  // last cell the stroke reached
   var dragChangesRef       = React.useRef([]);
   var dragCellsRef         = React.useRef(new Set());
   var dragActionRef        = React.useRef(null);
@@ -84,6 +105,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function cancelDragSession() {
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    lastDragCellRef.current = null;
     dragChangesRef.current = [];
     dragCellsRef.current.clear();
     dragActionRef.current = null;
@@ -556,6 +578,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     isDraggingRef.current = true;
+    lastDragCellRef.current = { gx: gx, gy: gy };
     dragChangesRef.current = [];
     dragCellsRef.current.clear();
     dragPatRef.current = pat.slice();
@@ -610,7 +633,19 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       }
       return;
     }
-    if (isDraggingRef.current) applyBrush(gc.gx, gc.gy, dragActionRef.current);
+    if (isDraggingRef.current) {
+      // Fill the gap since the last sample so a fast stroke stays continuous.
+      // Same drag session, so the whole stroke is still one undo step.
+      var last = lastDragCellRef.current;
+      if (last && (last.gx !== gc.gx || last.gy !== gc.gy)) {
+        lineCells(last.gx, last.gy, gc.gx, gc.gy).forEach(function(c) {
+          applyBrush(c.x, c.y, dragActionRef.current);
+        });
+      } else {
+        applyBrush(gc.gx, gc.gy, dragActionRef.current);
+      }
+      lastDragCellRef.current = { gx: gc.gx, gy: gc.gy };
+    }
   }
 
   function handlePatMouseUp(e) {
@@ -636,6 +671,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    lastDragCellRef.current = null;
 
     var pat = state.pat, partialStitches = state.partialStitches, bsLines = state.bsLines;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;

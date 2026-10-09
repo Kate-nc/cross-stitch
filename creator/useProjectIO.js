@@ -72,6 +72,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
@@ -138,6 +139,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
@@ -321,6 +323,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectName(project.name || "");
     state.setProjectDesigner(project.designer || "");
     state.setProjectDescription(project.description || "");
+    // Older projects have no namePromptShown: treat as not yet shown.
+    if (state.setNamePromptShown) state.setNamePromptShown(!!project.namePromptShown);
     // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
     try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
@@ -792,6 +796,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     var project5 = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
+      namePromptShown: !!state.namePromptShown,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       // PERF (deferred-1): see helpers.js / serializePattern.
@@ -843,9 +848,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
         onFirstSaveSuccess: function () {
           // Prompt for a name only if the user hasn't given one yet AND only
-          // once per project. Non-blocking: the project is already saved
-          // under its auto-generated name ("Untitled pattern") at this point.
-          if (!state.projectName && state.setNamePromptOpen) {
+          // once per project: namePromptShown is saved with the project, so a
+          // reload doesn't ask again. Non-blocking: the project is already
+          // saved under its auto-generated name ("Untitled pattern").
+          var shownRef = state.namePromptShownRef;
+          if (!state.projectName && !(shownRef && shownRef.current) && state.setNamePromptOpen) {
             if (state.setNameModalReason) state.setNameModalReason("firstSave");
             state.setNamePromptOpen(true);
           }
@@ -877,7 +884,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
-    state.projectDesigner, state.projectDescription,
+    state.projectDesigner, state.projectDescription, state.namePromptShown,
     state.isActive,
   ]);
 
