@@ -473,6 +473,40 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
+    // Plain backgrounds are left unstitched automatically (audit IMG-01):
+    // if the outer 2% of the picture is one colour, skip it, with Undo.
+    function autoSkipBackground(imgEl) {
+      if (typeof window.detectUniformBorder !== "function" || !state.setSkipBg) return;
+      var found = null;
+      try {
+        var maxSide = 400;
+        var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
+        var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
+        var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
+        var c2 = cnv.getContext("2d");
+        if (!c2) return;
+        c2.drawImage(imgEl, 0, 0, cw, ch);
+        found = window.detectUniformBorder(c2.getImageData(0, 0, cw, ch));
+      } catch (err) { console.warn("useProjectIO: background check failed", err); return; }
+      var autoRef = state.bgAutoSkippedRef;
+      if (!found) {
+        // A skip we switched on for the previous picture shouldn't carry over.
+        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+        return;
+      }
+      state.setBgCol(found.rgb);
+      state.setSkipBg(true);
+      if (autoRef) autoRef.current = true;
+      if (state.addToast) {
+        state.addToast("Background left unstitched.", {
+          type: "info", duration: 8000,
+          action: { label: "Undo", onClick: function () {
+            state.setSkipBg(false);
+            if (autoRef) autoRef.current = false;
+          } }
+        });
+      }
+    }
     var rd = new FileReader();
     rd.onload = function(ev) {
       var i = new Image();
@@ -501,7 +535,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); state.setIsUploading(false);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -511,7 +545,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); nameFromImage(); state.setIsUploading(false);
+          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {

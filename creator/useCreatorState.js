@@ -285,7 +285,7 @@ window.useCreatorState = function useCreatorState() {
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
   // Generation parameters (initial values come from Preferences › Pattern Creator)
-  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 15); return (typeof v === "number" && v > 0) ? v : 15; });
   var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
@@ -307,6 +307,9 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
+  // True while skipBg was switched on by the automatic plain-background check
+  // (useProjectIO.handleFile) rather than by the user.
+  var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
@@ -522,9 +525,12 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
+  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
+  // Adjust image and Project start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
+  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
@@ -1820,7 +1826,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,

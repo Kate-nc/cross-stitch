@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.82';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.83',
+    date: 'October 2026',
+    notes: [
+      'New patterns start with 15 colours and no dithering, and plain backgrounds are left unstitched automatically. This only changes the starting values if you haven\u2019t set your own in Preferences.',
+      'The Convert settings now start with Size & fabric and Colours. Image adjustments have moved further down as Adjust image, folded away until you need them.',
+    ]
+  },
+  {
     version: '1.0.81',
     date: 'October 2026',
     notes: [
