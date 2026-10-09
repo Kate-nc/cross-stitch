@@ -112,7 +112,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Share
   function handleShare() {
     if (typeof navigator === 'undefined' || !navigator.share) return;
-    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricCt + ' count', ''];
+    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricShortLabel(fabricCt), ''];
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';

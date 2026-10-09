@@ -5020,7 +5020,9 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     // Any thread with stitches needs at least one skein.
     if (r.stitches > 0) needed = Math.max(1, needed);
     var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
-    var owned = (stash[key] && stash[key].owned) || 0;
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(stash[key])
+      : (stash[key] && stash[key].owned) || 0;
     var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
     return {
       p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
@@ -5724,7 +5726,9 @@ window.useCreatorState = function useCreatorState() {
     var map = {};
     pal.forEach(function(p) {
       if (p.type === "solid") { map[p.id] = (map[p.id] || 0) + p.count; }
-      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count; }); }
+      else if (p.type === "blend" && p.threads) {
+        p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count / p.threads.length; });
+      }
     });
     return Object.entries(map)
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })

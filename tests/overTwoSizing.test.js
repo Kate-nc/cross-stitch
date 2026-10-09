@@ -76,8 +76,9 @@ describe('buildThreadShoppingRows', () => {
   const end = src.indexOf('\n};\n', start) + 3;
   const window = {};
   // eslint-disable-next-line no-new-func
-  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', src.slice(start, end))(
-    window, env.stitchesToSkeins, (b, id) => b + ':' + id, () => null);
+  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', src.slice(start, end))(
+    window, env.stitchesToSkeins, (b, id) => b + ':' + id, () => null,
+    (entry) => (entry && entry.owned || 0) + (entry && entry.partialStatus === 'about-half' ? 0.5 : 0));
   const build = window.buildThreadShoppingRows;
 
   const pal = [
@@ -101,7 +102,25 @@ describe('buildThreadShoppingRows', () => {
     expect(rows.find((r) => r.p.id === '310').status).toBe('needed');
   });
 
+  test('partial skeins contribute to stash status', () => {
+    const rows = build([{ id: '550', type: 'solid', count: 1000 }], {
+      fabricCt: 14, stash: { 'dmc:550': { partialStatus: 'about-half' } }
+    });
+    expect(rows[0].owned).toBe(0.5);
+    expect(rows[0].status).toBe('partial');
+  });
+
   test('skips background and empty cells', () => {
     expect(build([{ id: '__skip__', count: 9 }, { id: '__empty__', count: 9 }], {})).toEqual([]);
   });
+});
+
+test('skein data gives each blend component half the stitch count', () => {
+  const src = read('creator/useCreatorState.js');
+  expect(src).toMatch(/map\[t\.id\] = \(map\[t\.id\] \|\| 0\) \+ p\.count \/ p\.threads\.length/);
+});
+
+test('Prepare sharing uses the over-two-aware fabric label', () => {
+  const src = read('creator/PrepareTab.js');
+  expect(src).toContain("' @ ' + fabricShortLabel(fabricCt)");
 });

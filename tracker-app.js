@@ -3488,8 +3488,11 @@ function loadProject(e){
     rd.readAsText(f);
   } else if (format === "oxs") {
     let rd=new FileReader();
-    rd.onload=ev=>{
+    rd.onload=async ev=>{
       try{
+        if(typeof getOfficialMatch!=='function'&&typeof loadThreadConversions==='function'){
+          try{await loadThreadConversions();}catch(_){}
+        }
         let result = parseOXS(ev.target.result);
         let project = importResultToProject(result, 14, baseName);
         const importedAt = Date.now();
@@ -3498,6 +3501,9 @@ function loadProject(e){
         processLoadedProject(project);
         persistProjectRecord(project).catch(err => console.error("Import save failed:", err));
         setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
+        if(result.warnings&&result.warnings.length>0){
+          window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
+        }
       }catch(err){
         console.error(err);
         setLoadError("Could not load OXS: "+err.message);
