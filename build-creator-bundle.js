@@ -64,6 +64,8 @@ const ORDER = [
   'useKeyboardShortcuts.js',
   'useProjectIO.js',
   'usePreview.js',
+  'CompareOptions.js',
+  'CompareStrip.js',
   'PatternCanvas.js',
   'SplitPane.js',
   'CompactBar.js',

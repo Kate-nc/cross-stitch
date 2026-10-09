@@ -2157,7 +2157,24 @@ function CreatorApp({
     height: state.sH,
     previewPw: state.previewDims && state.previewDims.pw,
     previewPh: state.previewDims && state.previewDims.ph
-  }))), state.previewUrl && state.previewStats && /*#__PURE__*/React.createElement("div", {
+  }))), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
+    img: state.img,
+    settings: state.conversionSettings,
+    sW: state.sW,
+    sH: state.sH,
+    maxC: state.maxC,
+    arLock: state.arLock,
+    stitchSpeed: state.stitchSpeed,
+    compact: _compact,
+    onApply: function (v) {
+      if (v.maxC != null) {
+        state.setMaxC(v.maxC);
+        return;
+      }
+      state.chgW(v.sW);
+      if (!state.arLock) state.chgH(v.sH);
+    }
+  }), state.previewUrl && state.previewStats && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       padding: "12px 14px"
@@ -2203,7 +2220,7 @@ function CreatorApp({
       fontSize: "var(--text-xs)",
       color: "var(--text-secondary)"
     }
-  }, "Colours"), /*#__PURE__*/React.createElement("div", {
+  }, "Chart symbols"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,

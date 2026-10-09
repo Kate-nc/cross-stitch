@@ -90,6 +90,15 @@ A blend stitches two threads together in one stitch and gets its own chart symbo
 **Confetti Cleanup** — merges isolated stitches into the surrounding colour (0–3).
 **Stitch Cleanup** — tidies small regions, with options to protect fine details and separate similar neighbours.
 
+### Compare options
+
+Under the preview, **Compare options** shows the picture at three neighbouring settings side by side:
+
+- **Size**: 25% smaller, the current size, 25% larger;
+- **Threads**: 5 fewer, the current number, 5 more.
+
+Each shows its stitches, threads, roughly how many hours it would take and its confetti level. Choose one to use its setting. The previews are smaller versions made in the background, so the real pattern can differ slightly. On a phone, tap **Compare options** to open it, then swipe sideways.
+
 ### Generate
 
 Press **Generate pattern** in the action bar. Generation runs in the background; most images take a few seconds. Not happy? Change any setting and **Regenerate**.

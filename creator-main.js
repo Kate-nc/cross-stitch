@@ -1276,12 +1276,23 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
                   </div>
                 </div>}
+                {/* Compare options (audit IMG-05): neighbouring sizes or thread
+                    counts, side by side; choosing one applies it. */}
+                {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip
+                  img={state.img} settings={state.conversionSettings}
+                  sW={state.sW} sH={state.sH} maxC={state.maxC} arLock={state.arLock}
+                  stitchSpeed={state.stitchSpeed} compact={_compact}
+                  onApply={function(v){
+                    if(v.maxC!=null){state.setMaxC(v.maxC);return;}
+                    state.chgW(v.sW);
+                    if(!state.arLock)state.chgH(v.sH);
+                  }}/>}
                 {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
                   <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
                     {state.skipBg&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Chart symbols</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
                     {state.previewStats.stashUsage&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>

@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.94';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.96',
+    date: 'October 2026',
+    notes: [
+      'Compare options before you generate: under the Convert preview, see the picture 25% smaller and larger, or with 5 fewer or 5 more threads, side by side, each with its stitches, threads, hours and confetti, and choose one to use it. The preview estimates now count chart symbols rather than colours.',
+    ]
+  },
+  {
     version: '1.0.95',
     date: 'October 2026',
     notes: [
