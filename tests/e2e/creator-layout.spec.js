@@ -137,6 +137,8 @@ test.describe('iPad Pro 11 landscape side panel', function() {
     await generateAndDismissName(page);
     const undo = page.getByRole('button', { name: 'Undo', exact: true }).first();
     await expect(undo).toBeDisabled();
+    // Touch starts in Navigate with no tool armed (P0-1, P1-1): pick Paint.
+    await page.getByRole('button', { name: 'Paint tool' }).tap();
     // A dark thread, so the tap changes the (red) centre of the logo.
     await page.locator('.swatch-scroll-inner button').nth(3).tap();
     const canvas = page.locator('.canvas-area canvas').first();

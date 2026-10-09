@@ -110,10 +110,11 @@ describe('creatorFitBox', () => {
   const end = src.indexOf('window.creatorFitBox = creatorFitBox;');
   const creatorFitBox = new Function('window', 'document', 'getComputedStyle',
     src.slice(start, end) + '\nreturn creatorFitBox;'
-  )({ innerHeight: 1000 }, { querySelector: () => null }, () => ({ maxHeight: 'none' }));
+  )({ innerHeight: 1000 }, { querySelector: () => null }, (el) => ({ maxHeight: 'none', flexGrow: el.flexGrow || '0' }));
 
   test('caps a split-pane flex child at its parent pane height', () => {
     const box = creatorFitBox({
+      flexGrow: '1',
       clientWidth: 600,
       clientHeight: 530,
       offsetHeight: 550,
@@ -121,6 +122,19 @@ describe('creatorFitBox', () => {
       parentElement: { getBoundingClientRect: () => ({ bottom: 650 }) },
     });
     expect(box.h).toBe(530);
+  });
+
+  test('does not cap the normal Edit scroll box at its content-sized parent', () => {
+    // At the fallback zoom the box (and so its parent) is only 300px tall;
+    // the fit must still use the space down to the bottom of the screen.
+    const box = creatorFitBox({
+      clientWidth: 600,
+      clientHeight: 298,
+      offsetHeight: 300,
+      getBoundingClientRect: () => ({ top: 100, bottom: 400 }),
+      parentElement: { getBoundingClientRect: () => ({ bottom: 400 }) },
+    });
+    expect(box.h).toBe(898);
   });
 });
 
