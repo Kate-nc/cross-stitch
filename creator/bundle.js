@@ -1405,7 +1405,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
   var hl = _resolveHighlight(state);
 
   // color-2 (B3): fabric background colour (defaults to white).
-  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  ctx2d.fillStyle = fabricFill;
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {
@@ -1441,12 +1442,18 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       var dimDesat  = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
+        // Unstitched cells show the pattern's fabric (audit COMMON-08), as
+        // the Tracker does, with a faint checker so they still read as empty.
         if (showOverlayImg) {
           ctx2d.globalAlpha = 0.2;
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
+          ctx2d.fillStyle = fabricFill;
+          ctx2d.fillRect(px, py, cSz, cSz);
+          ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
+          ctx2d.globalAlpha = 1.0;
         }
       } else if (view === "color" || view === "both") {
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
@@ -1715,7 +1722,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var hl = _resolveHighlight(state);
 
   // color-2 (B3): fabric background colour (defaults to white).
-  ctx2d.fillStyle = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  ctx2d.fillStyle = fabricFill;
   ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
 
   if (showOverlayImg && img) {
@@ -1750,12 +1758,18 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       var dimDesat = dim ? (hl.bgDimDesaturation * hl.dimFraction) : 0;
 
       if (m.id === "__skip__" || m.id === "__empty__") {
+        // Unstitched cells show the pattern's fabric (audit COMMON-08), as
+        // the Tracker does, with a faint checker so they still read as empty.
         if (showOverlayImg) {
           ctx2d.globalAlpha = 0.2;
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
+          ctx2d.fillStyle = fabricFill;
+          ctx2d.fillRect(px, py, cSz, cSz);
+          ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
+          ctx2d.globalAlpha = 1.0;
         }
       } else if (view === "color" || view === "both") {
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
@@ -5194,6 +5208,14 @@ function creatorMaxZoom(sW, sH, coarse) {
   return Math.max(3, Math.floor(cap * 100) / 100);
 }
 window.creatorMaxZoom = creatorMaxZoom;
+// The fabric colour a pattern starts with: the creatorFabricColour
+// preference, else white (audit COMMON-08).
+function defaultFabricColour() {
+  var v = loadUserPref("creatorFabricColour", "#FFFFFF");
+  return (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : "#FFFFFF";
+}
+window.creatorDefaultFabricColour = defaultFabricColour;
+
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -5424,17 +5446,16 @@ window.useCreatorState = function useCreatorState() {
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
   var _prevMode   = useState("pixel");   var previewMode = _prevMode[0], setPreviewMode = _prevMode[1];
   var _rlvl       = useState(2);         var realisticLevel = _rlvl[0], setRealisticLevel = _rlvl[1];
-  // color-2 (B3): canvas background fabric colour (e.g. white aida, natural
-  // linen, black aida). Persisted via UserPrefs as #RRGGBB. Used by
-  // canvasRenderer.js for the canvas background fill so users can preview
-  // their pattern against realistic fabric instead of a plain white sheet.
-  var _fabCol = useState(function () { var v = loadUserPref("creatorFabricColour", "#FFFFFF"); return (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : "#FFFFFF"; });
+  // color-2 (B3) / audit COMMON-08: the fabric colour behind the chart
+  // (#RRGGBB). It belongs to the pattern: saved as settings.fabricColour and
+  // restored on load. The creatorFabricColour preference is only the default
+  // for new patterns (and for projects saved before the field existed).
+  var _fabCol = useState(defaultFabricColour);
   var fabricColour = _fabCol[0];
   var _setFabricColourRaw = _fabCol[1];
   function setFabricColour(v) {
     if (typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v)) return;
     _setFabricColourRaw(v);
-    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creatorFabricColour", v); } catch (_) {}
   }
   // color-11: thread-sheen texture toggle. Read from UserPrefs; updated via
   // a cs:prefsChanged listener so the canvas re-renders when the prefs modal
@@ -6094,6 +6115,7 @@ window.useCreatorState = function useCreatorState() {
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
+    _setFabricColourRaw(defaultFabricColour());
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
@@ -10649,7 +10671,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
@@ -10717,7 +10739,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -10847,6 +10869,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       });
     }
     if (s.fabricCt) state.setFabricCt(s.fabricCt);
+    // The pattern's own fabric colour (audit COMMON-08); older projects take
+    // the default for new patterns.
+    if (state.setFabricColour) {
+      state.setFabricColour(/^#[0-9a-fA-F]{6}$/.test(s.fabricColour || "") ? s.fabricColour
+        : (window.creatorDefaultFabricColour ? window.creatorDefaultFabricColour() : "#FFFFFF"));
+    }
     if (s.skeinPrice != null) state.setSkeinPrice(s.skeinPrice);
     if (s.stitchSpeed) state.setStitchSpeed(s.stitchSpeed);
 
@@ -11442,7 +11470,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
+      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -11521,7 +11549,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
-    state.symbolOverrides, state.isActive,
+    state.symbolOverrides, state.fabricColour, state.isActive,
   ]);
 
   // Per-pattern view state periodic save
@@ -14728,6 +14756,98 @@ window.CropModal = function CropModal() {
 };
 
 
+/* ─── FabricBlock.js ─── */
+/* creator/FabricBlock.js — one Fabric block for the Creator (audit COMMON-08).
+ *
+ * The fabric a pattern is stitched on, saved with the pattern
+ * (settings.fabricCt and settings.fabricColour):
+ *   - count, grouped Aida (11–22) and Evenweave / linen, over two (25–32);
+ *   - colour swatches (White, Antique white, Cream, Black, Navy, Custom);
+ *   - finished size and a suggested cut size (5 cm / 2 in each side), in
+ *     both unit systems with the preferred one first (pattern-size-calc.js).
+ *
+ * Used in Convert › Size & fabric, the Canvas tab and Edit › Project.
+ *
+ * window.CreatorFabricBlock(props): fabricCt, setFabricCt, fabricColour,
+ * setFabricColour, sW, sH, showSizes (default true).
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+
+(function () {
+  var FABRIC_COLOURS = [
+    { id: "white",   label: "White",         hex: "#FFFFFF" },
+    { id: "antique", label: "Antique white", hex: "#FAEBD7" },
+    { id: "cream",   label: "Cream",         hex: "#FFF8E7" },
+    { id: "black",   label: "Black",         hex: "#1A1A1A" },
+    { id: "navy",    label: "Navy",          hex: "#1F2A44" }
+  ];
+  window.CREATOR_FABRIC_COLOURS = FABRIC_COLOURS;
+
+  function isPreset(hex) {
+    var u = String(hex || "").toUpperCase();
+    return FABRIC_COLOURS.some(function (f) { return f.hex.toUpperCase() === u; });
+  }
+
+  window.CreatorFabricBlock = function CreatorFabricBlock(props) {
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var counts = (typeof FABRIC_COUNTS !== "undefined" ? FABRIC_COUNTS : window.FABRIC_COUNTS) || [];
+    var aida = counts.filter(function (f) { return !f.over; });
+    var even = counts.filter(function (f) { return f.over; });
+    var ct = props.fabricCt || 14;
+    var colour = props.fabricColour || "#FFFFFF";
+    var sizes = (props.showSizes !== false && props.sW > 0 && props.sH > 0 && typeof window.fabricSizes === "function")
+      ? window.fabricSizes(props.sW, props.sH, ct) : null;
+    function opt(f) { return h("option", { key: f.ct, value: f.ct }, f.label.replace(/\s*\(over 2\)/, "")); }
+
+    return h("div", { className: "fabric-block" },
+      h("label", { className: "fabric-block__field" },
+        h("span", { className: "fabric-block__label" }, "Fabric count"),
+        h("select", {
+          className: "fabric-block__select", value: ct,
+          onChange: function (e) { if (props.setFabricCt) props.setFabricCt(Number(e.target.value)); }
+        },
+          h("optgroup", { label: "Aida" }, aida.map(opt)),
+          even.length ? h("optgroup", { label: "Evenweave / linen, over two" }, even.map(opt)) : null
+        )
+      ),
+      h("div", { className: "fabric-block__field" },
+        h("span", { className: "fabric-block__label", id: "fabric-colour-label" }, "Fabric colour"),
+        h("div", { className: "fabric-block__swatches", role: "group", "aria-labelledby": "fabric-colour-label" },
+          FABRIC_COLOURS.map(function (f) {
+            var on = colour.toUpperCase() === f.hex.toUpperCase();
+            return h("button", {
+              key: f.id, type: "button",
+              className: "fabric-block__swatch" + (on ? " fabric-block__swatch--on" : ""),
+              style: { background: f.hex },
+              title: f.label, "aria-label": f.label, "aria-pressed": on ? "true" : "false",
+              onClick: function () { if (props.setFabricColour) props.setFabricColour(f.hex); }
+            });
+          }),
+          h("label", {
+            className: "fabric-block__swatch fabric-block__swatch--custom" + (!isPreset(colour) ? " fabric-block__swatch--on" : ""),
+            title: "Custom colour",
+            style: !isPreset(colour) ? { background: colour } : null
+          },
+            h("span", { className: "fabric-block__custom-icon", "aria-hidden": "true" }, Icons.eyedropper ? Icons.eyedropper() : null),
+            h("input", {
+              type: "color", value: colour, "aria-label": "Custom fabric colour",
+              onChange: function (e) { if (props.setFabricColour) props.setFabricColour(e.target.value.toUpperCase()); }
+            })
+          )
+        )
+      ),
+      sizes ? h("dl", { className: "fabric-block__sizes" },
+        h("dt", null, "Finished size"), h("dd", { "data-fabric-finished": "" }, sizes.finished),
+        h("dt", null, "Cut fabric"), h("dd", { "data-fabric-cut": "" }, sizes.cut,
+          h("span", { className: "fabric-block__note" }, sizes.units === "imperial" ? " with 2 in each side" : " with 5 cm each side"))
+      ) : null
+    );
+  };
+})();
+
+
 /* ─── Sidebar.js ─── */
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext and GenerationContext.
@@ -15429,14 +15549,15 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
-  // The fabric count select, shared by Size & fabric here and the Canvas tab.
-  function fabricSelect(extraStyle) {
-    return h("select", {
-      value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-      style:Object.assign({width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}, extraStyle || {})
-    }, FABRIC_COUNTS.map(function(f) {
-      return h("option", {key:f.ct, value:f.ct}, f.label);
-    }));
+  // The fabric the pattern is stitched on (audit COMMON-08): count, colour,
+  // finished and cut size. Saved with the pattern; shared by Size & fabric,
+  // the Canvas tab and Edit > Project.
+  function fabricBlock() {
+    return h(window.CreatorFabricBlock, {
+      fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
+      fabricColour: app.fabricColour, setFabricColour: app.setFabricColour,
+      sW: ctx.sW, sH: ctx.sH
+    });
   }
   var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
@@ -15467,15 +15588,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
     h("div", {style:{marginTop:'var(--s-1)'}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-        h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Fabric"),
-        h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
-      ),
-      fabricSelect(),
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
-        "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
-      ),
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Skein estimates assume 2 strands and 8 m per skein.")
+      fabricBlock(),
+      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Skein estimates assume 2 strands and 8 m per skein.")
     )
   );
 
@@ -16555,23 +16669,17 @@ window.CreatorSidebar = function CreatorSidebar() {
     //    to convert, so its first tab is the grid's size and fabric. Size
     //    changes go through Resize canvas, which keeps the stitches. ──
     if (app.sourceTab === "canvas") {
-      var canvasFabricCt = ctx.fabricCt || 14;
       var canvasPanel = h("div", {className:"creator-canvas-panel", style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}},
         h(Section, {title:"Size & fabric", defaultOpen:true},
           h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"6px 0 10px"}},
             h("span", {style:{color:"var(--text-tertiary)"}}, "Grid"),
-            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-            h("span", {style:{color:"var(--text-tertiary)"}}, "Finished"),
-            h("span", {style:{textAlign:"right"}}, window.finishedSizeText ? window.finishedSizeText(ctx.sW, ctx.sH, canvasFabricCt) : "")
+            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, ctx.sW + " \u00D7 " + ctx.sH + " stitches")
           ),
           h("button", {
             type:"button", className:"g-btn", style:{width:"100%",justifyContent:"center",marginBottom:'var(--s-3)'},
             onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
           }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
-          h("label", {style:{display:"flex",flexDirection:"column",gap:4,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}},
-            "Fabric",
-            fabricSelect({color:"var(--text-primary)",textTransform:"none",letterSpacing:0,fontWeight:400})
-          )
+          fabricBlock()
         )
       );
       var canvasActions = h("div", {style:{flexShrink:0,borderTop:"1px solid var(--border)",padding:"12px",background:"var(--surface)"}},
@@ -16965,7 +17073,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       sTab === "tools" && toolsContent,
       sTab === "view" && viewContent,
       sTab === "preview" && previewPanel,
-      sTab === "project" && projectInfoSection,
+      sTab === "project" && h(React.Fragment, null,
+        projectInfoSection,
+        // Fabric can change after the pattern is made (audit COMMON-08).
+        h(Section, {title:"Fabric", defaultOpen:true}, h("div", {style:{padding:"4px 0 2px"}}, fabricBlock()))
+      ),
       sTab === "more" && moreContent
     ),
     editActions

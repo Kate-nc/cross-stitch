@@ -296,6 +296,14 @@ function creatorMaxZoom(sW, sH, coarse) {
   return Math.max(3, Math.floor(cap * 100) / 100);
 }
 window.creatorMaxZoom = creatorMaxZoom;
+// The fabric colour a pattern starts with: the creatorFabricColour
+// preference, else white (audit COMMON-08).
+function defaultFabricColour() {
+  var v = loadUserPref("creatorFabricColour", "#FFFFFF");
+  return (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : "#FFFFFF";
+}
+window.creatorDefaultFabricColour = defaultFabricColour;
+
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -526,17 +534,16 @@ window.useCreatorState = function useCreatorState() {
   var _prevFabric = useState(false);     var previewFabricBg = _prevFabric[0], setPreviewFabricBg = _prevFabric[1];
   var _prevMode   = useState("pixel");   var previewMode = _prevMode[0], setPreviewMode = _prevMode[1];
   var _rlvl       = useState(2);         var realisticLevel = _rlvl[0], setRealisticLevel = _rlvl[1];
-  // color-2 (B3): canvas background fabric colour (e.g. white aida, natural
-  // linen, black aida). Persisted via UserPrefs as #RRGGBB. Used by
-  // canvasRenderer.js for the canvas background fill so users can preview
-  // their pattern against realistic fabric instead of a plain white sheet.
-  var _fabCol = useState(function () { var v = loadUserPref("creatorFabricColour", "#FFFFFF"); return (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : "#FFFFFF"; });
+  // color-2 (B3) / audit COMMON-08: the fabric colour behind the chart
+  // (#RRGGBB). It belongs to the pattern: saved as settings.fabricColour and
+  // restored on load. The creatorFabricColour preference is only the default
+  // for new patterns (and for projects saved before the field existed).
+  var _fabCol = useState(defaultFabricColour);
   var fabricColour = _fabCol[0];
   var _setFabricColourRaw = _fabCol[1];
   function setFabricColour(v) {
     if (typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v)) return;
     _setFabricColourRaw(v);
-    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creatorFabricColour", v); } catch (_) {}
   }
   // color-11: thread-sheen texture toggle. Read from UserPrefs; updated via
   // a cs:prefsChanged listener so the canvas re-renders when the prefs modal
@@ -1196,6 +1203,7 @@ window.useCreatorState = function useCreatorState() {
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
+    _setFabricColourRaw(defaultFabricColour());
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is

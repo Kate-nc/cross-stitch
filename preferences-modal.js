@@ -273,6 +273,7 @@
   function CreatorPanel() {
     var pal = usePref("creatorDefaultPaletteSize", 15);
     var fab = usePref("creatorDefaultFabricCount", 16);
+    var fabColour = usePref("creatorFabricColour", "#FFFFFF");
     var allowBlend = usePref("creatorAllowBlends", true);
     var stashOnly = usePref("creatorStashOnlyDefault", false);
     var dith = usePref("creatorDefaultDithering", "off");
@@ -302,6 +303,10 @@
           h("select", { value: fab[0], onChange: function (e) { fab[1](parseInt(e.target.value, 10)); }, style: styles.input },
             [11, 14, 16, 18, 22, 25, 28, 32].map(function (n) { return h("option", { key: n, value: n }, String(n) + " count"); })
           )
+        ),
+        h(Row, { label: "Fabric colour", desc: "The fabric colour new patterns start with. Each pattern keeps its own; change it in the Creator's Fabric settings." },
+          h("input", { type: "color", "aria-label": "Default fabric colour for new patterns", value: /^#[0-9a-fA-F]{6}$/.test(fabColour[0] || "") ? fabColour[0] : "#FFFFFF",
+            onChange: function (e) { fabColour[1](e.target.value.toUpperCase()); }, style: { width: 48, height: 32, padding: 0, border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface)" } })
         ),
         h(Row, { label: "Allow blended threads", desc: "Lets the Creator combine two threads in one stitch for richer colour." },
           h(Switch, { checked: allowBlend[0], onChange: allowBlend[1] })
@@ -835,7 +840,12 @@
   function RegionalPanel() {
     var cur = usePref("currency", "GBP");
     var lenUnit = usePref("threadLengthUnit", "in");
-    var fabricUnit = usePref("fabricMeasurementUnit", "in");
+    // Measurement units (P2-2): null means "by locale" (imperial for US
+    // English only), shown as the locale's choice until the user picks one.
+    var unitsPref = usePref("units", null);
+    var unitsShown = unitsPref[0] === "metric" || unitsPref[0] === "imperial" ? unitsPref[0]
+      : (typeof window.preferredUnits === "function" ? window.preferredUnits()
+        : (/^en-US\b/i.test((typeof navigator !== "undefined" && navigator.language) || "") ? "imperial" : "metric"));
     var skeinPrice = usePref("skeinPriceDefault", 0.95);
 
     return h("div", null,
@@ -861,9 +871,9 @@
             { value: "in", label: "Inches" }, { value: "cm", label: "Centimetres" }
           ]})
         ),
-        h(Row, { last: true, label: "Fabric size", desc: "Whether finished sizes show in inches or centimetres." },
-          h(Segmented, { value: fabricUnit[0], onChange: fabricUnit[1], options: [
-            { value: "in", label: "Inches" }, { value: "cm", label: "Centimetres" }
+        h(Row, { last: true, label: "Fabric sizes", desc: "Finished and cut sizes show in both units; this one comes first." },
+          h(Segmented, { value: unitsShown, onChange: unitsPref[1], options: [
+            { value: "metric", label: "Centimetres" }, { value: "imperial", label: "Inches" }
           ]})
         )
       )

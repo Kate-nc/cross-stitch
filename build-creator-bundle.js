@@ -71,6 +71,7 @@ const ORDER = [
   'MagicWandPanel.js',
   'BulkAddModal.js',
   'CropModal.js',
+  'FabricBlock.js',
   'Sidebar.js',
   'Toast.js',
   'ContextMenu.js',

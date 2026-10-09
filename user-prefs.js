@@ -171,7 +171,8 @@
     // ─── Regional & units ───────────────────────────────────────────────
     currency:               "GBP",              // GBP | USD | EUR | CAD | AUD
     threadLengthUnit:       "in",               // in | cm
-    fabricMeasurementUnit:  "in",               // in | cm
+    fabricMeasurementUnit:  "in",               // legacy, unused; superseded by `units`
+    units:                  null,               // P2-2: "metric" | "imperial"; null = by locale (imperial for en-US only)
 
     // ─── Sync, branding ─────────────────────────────────────────────────
     autoSyncEnabled:        true,

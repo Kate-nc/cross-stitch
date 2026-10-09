@@ -7983,6 +7983,43 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .mode-toggle--block{display:flex;width:100%;}
 .mode-toggle--block .mode-toggle__btn{flex:1;}
 
+/* ═══ Fabric block (audit COMMON-08) ═══════════════════════════════════════
+   creator/FabricBlock.js: count, colour, finished and cut size. Swatch
+   backgrounds are the fabric's own colour, set inline. */
+.fabric-block { display: flex; flex-direction: column; gap: var(--s-3); }
+.fabric-block__field { display: flex; flex-direction: column; gap: 4px; }
+.fabric-block__label {
+  font-size: var(--text-xs); font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.fabric-block__select {
+  width: 100%; padding: 6px 10px; border-radius: var(--radius-md);
+  border: 0.5px solid var(--border); font-size: var(--text-md);
+  background: var(--surface); color: var(--text-primary);
+}
+.fabric-block__swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fabric-block__swatch {
+  width: 32px; height: 32px; padding: 0; position: relative; cursor: pointer;
+  border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+}
+.fabric-block__swatch--on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); }
+.fabric-block__swatch--custom {
+  display: inline-flex; align-items: center; justify-content: center; overflow: hidden;
+  background: var(--surface); color: var(--text-secondary);
+}
+.fabric-block__swatch--custom input[type="color"] {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: none; padding: 0;
+}
+.fabric-block__custom-icon { display: inline-flex; width: 16px; height: 16px; pointer-events: none; }
+.fabric-block__custom-icon svg { width: 16px; height: 16px; }
+.fabric-block__sizes {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0;
+  font-size: var(--text-sm);
+}
+.fabric-block__sizes dt { color: var(--text-tertiary); }
+.fabric-block__sizes dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.fabric-block__note { color: var(--text-tertiary); font-size: var(--text-xs); }
+
 /* ═══ Palette tab: pattern colours, symbols, Add colour (audit DRAW-05) ═══
    creator/Sidebar.js. Swatch ink is black or white by the thread's own
    luminance, so it does not follow the theme. */
