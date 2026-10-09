@@ -2360,14 +2360,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // ── All hooks BEFORE any conditional returns ───────────────────────────────
   var _units    = useState("in");     var units    = _units[0];    var setUnits    = _units[1];
   var _margin   = useState(3);        var margin   = _margin[0];   var setMargin   = _margin[1];
-  var _overTwo  = useState(false);    var overTwo  = _overTwo[0];  var setOverTwo  = _overTwo[1];
   var _sort     = useState("number"); var sort     = _sort[0];     var setSort     = _sort[1];
   var _copied   = useState(false);    var copied   = _copied[0];   var setCopied   = _copied[1];
   var _addedAll = useState(false);    var addedAll = _addedAll[0]; var setAddedAll = _addedAll[1];
 
   var stash           = ctx.globalStash || {};
   var fabricCt        = ctx.fabricCt || 14;
-  var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
 
   // color-2 (B3): fabric background colour preview. Reads from app (AppContext);
   // setter is also on app (wired via creator-main → useCreatorState).
@@ -2382,11 +2380,22 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     { id: "blackaida", label: "Black Aida",       hex: "#1A1A1A" }
   ];
 
+  // What to buy: one row per thread, blends folded into their components
+  // (audit B-05). The legend below still lists each chart symbol, blends
+  // included; the summary, stash status and shopping list use these.
+  var threadRows = useMemo(function() {
+    if (!(ctx.pat && ctx.pal)) return [];
+    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
+  }, [ctx.pat, ctx.pal, stash, fabricCt]);
+
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
+    var threadById = {};
+    threadRows.forEach(function(r) { threadById[r.p.id] = r; });
+    var rank = { needed: 0, partial: 1, owned: 2 };
     return ctx.pal.map(function(p) {
       var skResult = (typeof stitchesToSkeins === "function")
-        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: effectiveFabric, strandsUsed: 2 })
+        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2 })
         : null;
       var needed;
       if (skResult) {
@@ -2394,12 +2403,20 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           ? Math.max(skResult.colorA.skeinsToBuy || 0, skResult.colorB.skeinsToBuy || 0)
           : (skResult.skeinsToBuy || 0);
       } else {
-        needed = (typeof skeinEst === "function") ? skeinEst(p.count, effectiveFabric) : Math.ceil(p.count / 800);
+        needed = (typeof skeinEst === "function") ? skeinEst(p.count, fabricCt) : Math.ceil(p.count / 800);
       }
       if (needed < 1) needed = 1;
-      var stashEntry = stash[threadKey('dmc', p.id)] || {};
-      var owned      = stashEntry.owned || 0;
-      var status     = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
+      var owned, status;
+      if (p.type === "blend" && p.threads) {
+        // A blend is in stash when both of its threads are.
+        var parts = p.threads.map(function(t) { return threadById[t.id]; }).filter(Boolean);
+        owned  = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
+        status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, "owned") : "needed";
+      } else {
+        var stashEntry = stash[threadKey('dmc', p.id)] || {};
+        owned  = stashEntry.owned || 0;
+        status = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
+      }
       var name = (p.type === "blend" && p.threads)
         ? p.threads[0].name + " + " + p.threads[1].name
         : (p.name || p.id);
@@ -2408,7 +2425,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       var dc = (ctx.colourDoneCounts && ctx.colourDoneCounts[p.id]) || {total: 0, done: 0};
       return {p: p, owned: owned, needed: needed, status: status, name: name, confettiCount: confettiCount, dc: dc};
     });
-  }, [ctx.pat, ctx.pal, stash, effectiveFabric, app.confettiData, ctx.colourDoneCounts]);
+  }, [ctx.pat, ctx.pal, stash, fabricCt, threadRows, app.confettiData, ctx.colourDoneCounts]);
 
   var threadIdCollator = _LEGEND_THREAD_ID_COLLATOR;
   function compareThreadIds(aId, bId) {
@@ -2496,11 +2513,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var dismissedPairsRef = React.useRef(null);
   if (dismissedPairsRef.current === null) dismissedPairsRef.current = new Set();
 
-  var totalColours   = rows.length;
-  var totalSkeins    = rows.reduce(function(s, r) { return s + r.needed; }, 0);
-  var ownedColours   = rows.filter(function(r) { return r.status === "owned"; }).length;
-  var partialColours = rows.filter(function(r) { return r.status === "partial"; }).length;
-  var needSkeins     = rows.reduce(function(s, r) { return s + Math.max(0, r.needed - r.owned); }, 0);
+  // Totals count threads, not palette entries: a blend is not an extra colour to buy.
+  var totalColours   = threadRows.length;
+  var totalSkeins    = threadRows.reduce(function(s, r) { return s + r.needed; }, 0);
+  var ownedColours   = threadRows.filter(function(r) { return r.status === "owned"; }).length;
+  var partialColours = threadRows.filter(function(r) { return r.status === "partial"; }).length;
+  var needSkeins     = threadRows.reduce(function(s, r) { return s + Math.max(0, r.needed - r.owned); }, 0);
   var hasStash       = Object.keys(stash).length > 0;
 
   // ── Early returns after all hooks ─────────────────────────────────────────
@@ -2523,10 +2541,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             background:"var(--surface-secondary)", whiteSpace:"nowrap"};
   }
 
-  function calcFab(ct, div) {
-    var ef  = div ? ct / div : ct;
-    var wIn = sW / ef + margin * 2;
-    var hIn = sH / ef + margin * 2;
+  // Each fabric at its own stitch-over (FABRIC_COUNTS marks the over-2 ones).
+  function calcFab(ct) {
+    var d   = calcDesignSizeIn(sW, sH, ct, stitchOverFor(ct));
+    var wIn = d.widthIn + margin * 2;
+    var hIn = d.heightIn + margin * 2;
     return units === "cm"
       ? {w: (wIn * 2.54).toFixed(1) + " cm", h: (hIn * 2.54).toFixed(1) + " cm"}
       : {w: wIn.toFixed(1) + '"',             h: hIn.toFixed(1) + '"'};
@@ -2548,8 +2567,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function handleCopy() {
     var lines = ["Shopping List",
-      sW + "\u00d7" + sH + " stitches @ " + fabricCt + " count" + (overTwo ? " over two" : ""), ""];
-    sortedRows.forEach(function(r) {
+      sW + "\u00d7" + sH + " stitches @ " + fabricShortLabel(fabricCt), ""];
+    threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
       lines.push(mark + " DMC " + r.p.id + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
@@ -2564,8 +2583,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function handleShare() {
     if (!canShare) return;
-    var lines = ["Shopping List \u2014 " + sW + "\u00d7" + sH + " @ " + fabricCt + " count", ""];
-    sortedRows.forEach(function(r) {
+    var lines = ["Shopping List \u2014 " + sW + "\u00d7" + sH + " @ " + fabricShortLabel(fabricCt), ""];
+    threadRows.forEach(function(r) {
       if (r.status !== "owned") {
         var diff = Math.max(0, r.needed - r.owned);
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
@@ -2577,7 +2596,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   function handleAddAll() {
     if (typeof StashBridge === "undefined") return;
-    var promises = rows.filter(function(r) { return r.status !== "owned"; }).map(function(r) {
+    var promises = threadRows.filter(function(r) { return r.status !== "owned"; }).map(function(r) {
       return StashBridge.updateThreadOwned(r.p.id, r.needed);
     });
     Promise.all(promises).then(function() {
@@ -2864,11 +2883,6 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
           ),
           h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
-            h("input", {type:"checkbox", checked:overTwo,
-              onChange: function(e) { setOverTwo(e.target.checked); }}),
-            "Stitching over two"
-          ),
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Margin:",
             h("input", {
               type:"number", min:0, max:10, step:0.5, value:margin,
@@ -2951,14 +2965,14 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             ),
             h("tbody", null,
               fabCounts.map(function(f) {
-                var dims      = calcFab(f.ct, overTwo ? 2 : null);
+                var dims      = calcFab(f.ct);
                 var isCurrent = f.ct === fabricCt;
                 return h("tr", {key:f.ct, style:{
                   borderBottom:"0.5px solid var(--surface-tertiary)",
                   background: isCurrent ? "var(--success-soft)" : "transparent"
                 }},
                   h("td", {style:{padding:"6px 10px", fontWeight:isCurrent?700:400, color:isCurrent?"var(--accent)":"inherit"}},
-                    f.ct + (overTwo ? " (2 strands)" : "") + " ct"
+                    fabricShortLabel(f.ct)
                   ),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.w),
                   h("td", {style:{padding:"6px 10px", textAlign:"right", fontWeight:600, fontVariantNumeric:"tabular-nums"}}, dims.h)
@@ -2970,7 +2984,6 @@ window.CreatorLegendTab = function CreatorLegendTab() {
         h("p", {style:{fontSize:10, color:"var(--text-tertiary)", marginTop:6, marginBottom:0, lineHeight:1.4}},
           sW + "\u00d7" + sH + " stitches"
           + (margin > 0 ? " + " + margin + "\" margin" : "")
-          + (overTwo ? ", over two" : "")
         )
       )
 
@@ -2990,11 +3003,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 /* ─── PrepareTab.js ─── */
 /* creator/PrepareTab.js — Prepare tab: shopping list + fabric calculator.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
-   Depends on: stitchesToSkeins (threadCalc.js), FABRIC_COUNTS (constants.js),
+   Depends on: buildThreadShoppingRows (useCreatorState.js), stitchesToSkeins (threadCalc.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js), CreatorContext (context.js) */
 
 window.CreatorPrepareTab = function CreatorPrepareTab() {
-  var STITCHES_PER_SKEIN_ESTIMATE = 800;
   var ctx = window.usePatternData();
   var app = window.useApp();
   var h = React.createElement;
@@ -3004,7 +3016,6 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
   var _units = useState('in'); var units = _units[0]; var setUnits = _units[1];
   var _margin = useState(3); var margin = _margin[0]; var setMargin = _margin[1];
-  var _overTwo = useState(false); var overTwo = _overTwo[0]; var setOverTwo = _overTwo[1];
   var _fabOpen = useState(false); var fabOpen = _fabOpen[0]; var setFabOpen = _fabOpen[1];
   var _sort = useState('number'); var sort = _sort[0]; var setSort = _sort[1];
   var _copied = useState(false); var copied = _copied[0]; var setCopied = _copied[1];
@@ -3014,51 +3025,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var stash = ctx.globalStash || {};
   var fabricCt = ctx.fabricCt || 14;
 
-  // Determine effective stitch count per thread (accounting for over-two)
-  var effectiveFabric = overTwo ? fabricCt / 2 : fabricCt;
-
-  // Build shopping list rows — always call useMemo unconditionally
+  // Shopping rows: one per thread, blends folded into their component threads.
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
-    return ctx.pal.map(function(p) {
-      var key = threadKey('dmc', p.id);
-      var stashEntry = stash[key] || {};
-      var owned = stashEntry.owned || 0;
-
-      var skResult = (typeof stitchesToSkeins === 'function')
-        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: effectiveFabric, strandsUsed: 2 })
-        : null;
-
-      var needed;
-      if (skResult) {
-        if (skResult.colorA) {
-          // Blend
-          needed = Math.max(skResult.colorA.skeinsToBuy || 0, (skResult.colorB && skResult.colorB.skeinsToBuy) || 0);
-        } else {
-          needed = skResult.skeinsToBuy || 0;
-        }
-      } else {
-        needed = Math.ceil(p.count / STITCHES_PER_SKEIN_ESTIMATE) || 0;
-      }
-      // Any palette entry with stitches should require at least one skein.
-      if ((p.count || 0) > 0) needed = Math.max(1, needed || 0);
-
-      var status;
-      if (owned >= needed) {
-        status = 'owned';
-      } else if (owned > 0) {
-        status = 'partial';
-      } else {
-        status = 'needed';
-      }
-
-      var name = p.type === 'blend' && p.threads
-        ? p.threads[0].name + ' + ' + p.threads[1].name
-        : (p.name || p.id);
-
-      return { p: p, key: key, owned: owned, needed: needed, status: status, name: name };
-    });
-  }, [ctx.pat, ctx.pal, stash, effectiveFabric]);
+    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
+  }, [ctx.pat, ctx.pal, stash, fabricCt]);
 
   // Sort
   function compareThreadIds(aId, bId) {
@@ -3112,10 +3083,11 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var sW = ctx.sW || 0;
   var sH = ctx.sH || 0;
 
-  function calcFab(ct, div) {
-    var ef = div ? ct / div : ct;
-    var wIn = sW / ef + margin * 2;
-    var hIn = sH / ef + margin * 2;
+  // Each fabric at its own stitch-over (FABRIC_COUNTS marks the over-2 ones).
+  function calcFab(ct) {
+    var d = calcDesignSizeIn(sW, sH, ct, stitchOverFor(ct));
+    var wIn = d.widthIn + margin * 2;
+    var hIn = d.heightIn + margin * 2;
     if (units === 'cm') return { w: (wIn * 2.54).toFixed(1) + ' cm', h: (hIn * 2.54).toFixed(1) + ' cm' };
     return { w: wIn.toFixed(1) + '"', h: hIn.toFixed(1) + '"' };
   }
@@ -3123,7 +3095,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Copy as text
   function handleCopy() {
     var lines = ['Shopping List'];
-    lines.push(sW + '\u00d7' + sH + ' stitches @ ' + fabricCt + ' count' + (overTwo ? ' over two' : ''));
+    lines.push(sW + '\u00d7' + sH + ' stitches @ ' + fabricShortLabel(fabricCt));
     lines.push('');
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
@@ -3143,7 +3115,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   // Share
   function handleShare() {
     if (typeof navigator === 'undefined' || !navigator.share) return;
-    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricCt + ' count', ''];
+    var lines = ['Shopping List \u2014 ' + sW + '\u00d7' + sH + ' @ ' + fabricShortLabel(fabricCt), ''];
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
@@ -3228,14 +3200,6 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
 
     // Controls row
     h('div', {style: {display: 'flex', alignItems: 'center', gap: 10, marginBottom:'var(--s-3)', flexWrap: 'wrap'}},
-      h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
-        h('input', {
-          type: 'checkbox', checked: overTwo,
-          onChange: function(e) { setOverTwo(e.target.checked); }
-        }),
-        'Over two'
-      ),
-      h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-tertiary)'}},'|'),
       h('span', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)'}}, 'Sort:'),
       h('select', {
         value: sort,
@@ -3333,14 +3297,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                 color: units === u ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: units === u ? 600 : 400
               }
             }, u === 'in' ? 'Inches' : 'Centimetres');
-          }),
-          h('label', {style: {fontSize:'var(--text-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap:'var(--s-1)'}},
-            h('input', {
-              type: 'checkbox', checked: overTwo,
-              onChange: function(e) { setOverTwo(e.target.checked); }
-            }),
-            'Over two'
-          )
+          })
         ),
         // Table
         h('div', {style: {overflow: 'auto'}},
@@ -3355,7 +3312,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             ),
             h('tbody', null,
               fabCounts.map(function(f) {
-                var dims = calcFab(f.ct, overTwo ? 2 : null);
+                var dims = calcFab(f.ct);
                 var isCurrent = f.ct === fabricCt;
                 return h('tr', {
                   key: f.ct,
@@ -3365,7 +3322,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
                   }
                 },
                   h('td', {style: {padding: '6px 10px', fontWeight: isCurrent ? 700 : 400}},
-                    f.label + (overTwo ? ' (over 2)' : '')
+                    f.label
                   ),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.w),
                   h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, dims.h),
@@ -3382,7 +3339,6 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         ),
         h('p', {style: {fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 10}},
           'Pattern: ' + sW + '\u00d7' + sH + ' stitches. Margin: ' + margin + '" each side.'
-          + (overTwo ? ' Stitching over two threads.' : '')
         )
       )
     )

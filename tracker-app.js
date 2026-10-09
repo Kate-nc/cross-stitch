@@ -2094,7 +2094,8 @@ const SKEIN_TOTAL_IN=1890;
 const rtConsumption=useMemo(()=>{
   if(!wastePrefs.enabled||!skeinData||!skeinData.length)return{};
   const strands=typeof wastePrefs.strandCountOverride==='number'?wastePrefs.strandCountOverride:2;
-  const base=(4.8*strands)/fabricCt;
+  // Effective count: 28-count over 2 uses thread like 14-count Aida.
+  const base=(4.8*strands)/(fabricCt/(typeof stitchOverFor==="function"?stitchOverFor(fabricCt):1));
   const tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
   const effectiveCostIn=(base+tail)*wastePrefs.generalWasteMultiplier;
   const snap=rtStashSnapshotRef.current||{};
@@ -3489,6 +3490,9 @@ function loadProject(e){
     let rd=new FileReader();
     rd.onload=async ev=>{
       try{
+        if(typeof getOfficialMatch!=='function'&&typeof loadThreadConversions==='function'){
+          try{await loadThreadConversions();}catch(_){}
+        }
         if (typeof window.loadThreadConversions === 'function') await window.loadThreadConversions();
         let result = parseOXS(ev.target.result);
         let project = importResultToProject(result, 14, baseName);
@@ -3498,6 +3502,9 @@ function loadProject(e){
         processLoadedProject(project);
         persistProjectRecord(project).catch(err => console.error("Import save failed:", err));
         setImportSuccess(`Imported "${baseName || 'pattern'}" \u2014 ${result.width}\u00d7${result.height}, ${result.paletteSize} colours, ${result.stitchCount} stitches`);
+        if(result.warnings&&result.warnings.length>0){
+          window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
+        }
       }catch(err){
         console.error(err);
         setLoadError("Could not load OXS: "+err.message);

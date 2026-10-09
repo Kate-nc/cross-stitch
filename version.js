@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.77';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.78',
+    date: 'October 2026',
+    notes: [
+      'Finished size and skein estimates are now correct for evenweave and linen stitched over two (25, 28 and 32 count). They used to show half the real size and about half the thread.',
+      'Shopping lists and Stash status count threads, not blends: a blend adds to the two threads it is made from instead of appearing as an extra colour to buy. The fabric size tables use each fabric\'s own setting, so the separate Over two boxes have gone.',
+    ]
+  },
+  {
     version: '1.0.77',
     date: 'October 2026',
     notes: [

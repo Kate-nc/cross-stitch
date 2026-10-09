@@ -24,6 +24,12 @@ const FLOSS_STRANDS_PER_SKEIN = 6;    // standard stranded cotton skein
 // Convention: 10 % (experienced), 15–20 % (beginners).  Configurable.
 const DEFAULT_WASTE_FACTOR = 0.15;
 
+// Threads each stitch covers, when the caller doesn't say: stitchOverFor()
+// from constants.js knows the "(over 2)" fabrics; without it, 1 (Aida).
+function defaultStitchOver(fabricCount) {
+  return (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+}
+
 const BRAND_SKEIN_LENGTH = {
   DMC:     8.0,   // metres
   Anchor:  8.0,
@@ -34,6 +40,7 @@ const BRAND_SKEIN_LENGTH = {
 function stitchesToSkeins({
   stitchCount,
   fabricCount = 14,
+  stitchOver = defaultStitchOver(fabricCount),
   strandsUsed = 2,
   skeinLengthM = 8.0,
   wasteFactor = DEFAULT_WASTE_FACTOR,
@@ -54,10 +61,12 @@ function stitchesToSkeins({
   }
 
   // Canonical unit: INCHES.
-  // threadPerStitch scales inversely with fabric count (smaller stitches use
-  // less thread) and linearly with strand count.
+  // threadPerStitch scales inversely with the effective count (smaller
+  // stitches use less thread) and linearly with strand count. 28-count over
+  // 2 makes stitches the size of 14-count Aida, so it uses 28 / 2 = 14.
+  const effectiveCount = fabricCount / (stitchOver === 2 ? 2 : 1);
   const threadCostIn   = BASE_THREAD_PER_STITCH_IN
-                         * (BASE_FABRIC_COUNT / fabricCount)
+                         * (BASE_FABRIC_COUNT / effectiveCount)
                          * (strandsUsed / BASE_STRANDS);  // in/stitch
   const flossLengthIn  = stitchCount * threadCostIn;      // in, no waste
   const totalWithWasteIn = flossLengthIn * (1 + wasteFactor);
@@ -99,6 +108,7 @@ function stitchesToSkeins({
 function skeinsToStitches({
   skeinCount,
   fabricCount = 14,
+  stitchOver = defaultStitchOver(fabricCount),
   strandsUsed = 2,
   skeinLengthM = 8.0,
   wasteFactor = DEFAULT_WASTE_FACTOR
@@ -111,7 +121,7 @@ function skeinsToStitches({
 
   // Invert stitchesToSkeins: stitchCount = skeins × skeinLength / (threadCost × (1+waste))
   const threadCostIn      = BASE_THREAD_PER_STITCH_IN
-                            * (BASE_FABRIC_COUNT / fabricCount)
+                            * (BASE_FABRIC_COUNT / (fabricCount / (stitchOver === 2 ? 2 : 1)))
                             * (strandsUsed / BASE_STRANDS);
   const skeinLengthIn     = skeinLengthM * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
   const usablePerSkeinIn  = skeinLengthIn / (1 + wasteFactor);
@@ -153,7 +163,7 @@ function threadCostPerStitch(fabricCount, strandCount, wastePrefs) {
   // Same calibrated anchor as stitchesToSkeins (BASE_THREAD_PER_STITCH_IN,
   // BASE_FABRIC_COUNT, BASE_STRANDS); tail waste and general waste are added
   // on top for the real-time tracker's finer-grained model.
-  var baseCostIn         = BASE_THREAD_PER_STITCH_IN * BASE_FABRIC_COUNT / fc * strands / BASE_STRANDS;
+  var baseCostIn         = BASE_THREAD_PER_STITCH_IN * BASE_FABRIC_COUNT / (fc / defaultStitchOver(fc)) * strands / BASE_STRANDS;
   var tailWastePerStitch = (tailIn * 2) / runLen;
   return (baseCostIn + tailWastePerStitch) * genWaste;
 }
