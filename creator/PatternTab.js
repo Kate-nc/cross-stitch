@@ -147,7 +147,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var score = Math.round(100 - cleanPct);
       var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
       var singles = app.confettiData.clean.singles;
-      return h("div", {style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
+      // On phones the score moves into the top bar's More sheet (COMMON-03).
+      return h("div", {className:"cc-hide-compact", style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
         h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
           h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
           h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
@@ -193,6 +194,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
+      className:"cs-chart-scroll",
       style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";

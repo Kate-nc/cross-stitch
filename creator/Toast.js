@@ -15,6 +15,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   };
 
   return h("div", {
+    className: "creator-toast-container",
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
       display: "flex", flexDirection: "column-reverse", gap:'var(--s-2)',

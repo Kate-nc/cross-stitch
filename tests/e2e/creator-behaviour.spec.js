@@ -1,30 +1,8 @@
 // Audit B-10 (name prompt on every reload) and B-11 (fast strokes left gaps).
-const path = require('path');
-const { test, expect, devices } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
+const { device, quietOnboarding, generateLogo, pickDarkSwatch } = require('./creator-helpers');
 
-const LOGO = path.join(__dirname, '..', 'fixtures', 'logo.png');
-const pixel5 = Object.assign({}, devices['Pixel 5']);
-delete pixel5.defaultBrowserType;
-
-async function quietOnboarding(page) {
-  await page.addInitScript(function() {
-    try {
-      ['tracker', 'creator', 'manager', 'home'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); });
-      ['firstStitch_creator', 'toolsTab_unlocked', 'import', 'undo', 'progress', 'save'].forEach(function(k) {
-        localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
-      });
-    } catch (e) {}
-  });
-}
-
-async function generateLogo(page) {
-  await quietOnboarding(page);
-  await page.goto('/home.html?tab=create');
-  await page.locator('input.home-create-file-input').setInputFiles(LOGO);
-  await page.waitForURL(/create\.html/);
-  await page.waitForSelector('.rpanel');
-  await page.getByRole('button', { name: 'Generate pattern' }).first().click();
-}
+const pixel5 = device('Pixel 5');
 
 const nameDialog = (page) => page.getByRole('heading', { name: 'Name Your Project' });
 
@@ -61,13 +39,12 @@ test.describe('Creator behaviour on Pixel 5', function() {
 
   test('a fast diagonal swipe paints a continuous line', async function({ page }) {
     await generateLogo(page);
-    await page.waitForSelector('.rpanel--edit', { timeout: 15000 });
     await page.waitForTimeout(500);
 
-    // On a phone no tool is armed after generating (P0-1): pick Paint first.
+    // On a phone a new pattern opens in Navigate (P0-1, P1-1): pick Paint first.
     await page.getByRole('button', { name: 'Paint tool' }).tap();
     // A dark thread, so every cell on the line changes colour.
-    await page.locator('.swatch-scroll-inner button').nth(3).tap();
+    await pickDarkSwatch(page);
     const before = await sampleCells(page, 5, 5, 55, 55);
 
     // 12 touch moves across 40 cells: about three cells per sample.
@@ -115,34 +92,37 @@ test.describe('Creator behaviour on Pixel 5', function() {
 
   test('generating names the project after the image, with no prompt', async function({ page }) {
     await generateLogo(page);
-    await page.waitForSelector('.rpanel--edit', { timeout: 15000 });
     await page.waitForTimeout(2500);
     await expect(nameDialog(page)).toHaveCount(0);
-    await expect(page.locator('.tb-proj-switcher__name')).toHaveText('logo');
+    // The phone top bar shows the name (P1-2).
+    await expect(page.locator('.cc-name__text')).toHaveText('logo');
   });
 
   test('a blank grid opens with no prompt', async function({ page }) {
     await quietOnboarding(page);
     await page.goto('/create.html?action=new-blank');
-    await page.waitForSelector('.rpanel', { timeout: 15000 });
+    await page.waitForSelector('.creator-rail', { timeout: 15000 });
     await page.waitForTimeout(2500);
     await expect(page.getByRole('heading', { name: /Name/ })).toHaveCount(0);
-    await expect(page.locator('.tb-proj-switcher__name')).toHaveText('Untitled design');
+    await expect(page.locator('.cc-name__text')).toHaveText('Untitled design');
   });
 
   test('Print PDF offers a name once for an auto-named project', async function({ page }) {
     await generateLogo(page);
-    await page.waitForSelector('.rpanel--edit', { timeout: 15000 });
     const prompt = page.getByRole('heading', { name: 'Name this pattern' });
-    const printPdf = page.getByRole('button', { name: /Print PDF/ }).first();
-    await printPdf.click();
+    // On a phone Print PDF is in the top bar's More sheet (P1-2).
+    const printPdf = async function() {
+      await page.locator('.cc-more').click();
+      await page.getByRole('dialog', { name: 'Pattern actions' }).getByRole('button', { name: 'Print PDF' }).click();
+    };
+    await printPdf();
     await expect(prompt).toBeVisible();
     await expect(page.getByText('Give this pattern a name? It will appear on the PDF and in your library.')).toBeVisible();
     await expect(page.locator('.name-prompt-input')).toHaveValue('logo');
     await page.getByRole('button', { name: 'Skip', exact: true }).click();
     await expect(prompt).toHaveCount(0);
     await page.waitForTimeout(1500);
-    await printPdf.click();
+    await printPdf();
     await page.waitForTimeout(1000);
     await expect(prompt).toHaveCount(0);
   });

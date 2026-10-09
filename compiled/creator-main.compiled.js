@@ -802,6 +802,17 @@ function CreatorApp({
   const _ioRef = React.useRef(null);
   _ioRef.current = io;
   const _nameNudgeRef = React.useRef(function () {});
+  // Compact phone chrome (audit COMMON-03): under 900px one top bar and a
+  // bottom tool rail replace the header, action bar and tool strip.
+  // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
+  const _compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  React.useEffect(() => {
+    const on = !!(_compact && isActive);
+    document.body.classList.toggle('creator-compact', on);
+    return () => {
+      document.body.classList.remove('creator-compact');
+    };
+  }, [_compact, isActive]);
   const [pendingNamedAction, setPendingNamedAction] = React.useState(null);
   const _histRef = React.useRef(null);
   _histRef.current = history;
@@ -1762,7 +1773,38 @@ function CreatorApp({
         duration: 3500
       });
     }
-  })), window.CreatorActionBar && /*#__PURE__*/React.createElement(window.CreatorActionBar, {
+  })), _compact && window.CreatorCompactTopBar && /*#__PURE__*/React.createElement(window.CreatorCompactTopBar, {
+    pat: !!(state.pat && state.pal),
+    appMode: state.appMode,
+    tab: state.tab,
+    hasImage: !!(state.img && state.img.src),
+    generatingPattern: !!state.busy,
+    onGenerate: state.generate,
+    projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : '',
+    saveStatus: state.saveStatus,
+    savedAt: state.savedAt,
+    onTabChange: function (t) {
+      state.setTab(t);
+    },
+    onRequestBackToConvert: handleRequestBackToConvert,
+    onPrintPdf: printPdfWithNameNudge,
+    onTrackPattern: stableHandleOpenInTracker,
+    onSaveJson: io.saveProject,
+    onMoreExports: () => _nameNudgeRef.current('exports'),
+    onPreferences: typeof window.PreferencesModal !== 'undefined' ? () => state.setPreferencesOpen(true) : undefined,
+    stitchScore: state.confettiData ? Math.round(100 - state.confettiData.clean.pct) : null,
+    stitchScoreNote: state.confettiData ? state.confettiData.clean.singles.toLocaleString('en-GB') + ' isolated stitches' : null,
+    sW: state.sW,
+    sH: state.sH,
+    fabricCt: state.fabricCt,
+    colourCount: state.pal ? state.pal.length : 0,
+    skeinEstimate: state.totalSkeins,
+    totalStitchable: state.totalStitchable,
+    difficulty: state.difficulty,
+    solidPct: state.confettiData ? 100 - state.confettiData.clean.pct : undefined,
+    stitchSpeed: state.stitchSpeed,
+    doneCount: state.doneCount
+  }), !_compact && window.CreatorActionBar && /*#__PURE__*/React.createElement(window.CreatorActionBar, {
     ready: !!(state.pat && state.pal),
     sW: state.sW,
     sH: state.sH,

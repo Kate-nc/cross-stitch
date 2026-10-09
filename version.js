@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.85';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.86',
+    date: 'October 2026',
+    notes: [
+      'On phones the Pattern Creator gives the chart most of the screen. One bar at the top holds the pattern name, the save status and a More menu (Print PDF, Export, Open in Tracker, Pattern info, Help); a bar at the bottom holds Navigate | Draw, Paint, Fill, Erase, your colour, Undo and More tools, which now has zoom and an optional colour strip. Tablets in landscape and computers are unchanged.',
+    ]
+  },
+  {
     version: '1.0.85',
     date: 'October 2026',
     notes: [
