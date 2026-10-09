@@ -6201,13 +6201,28 @@ details[open] .creator-popover-difficulty__summary::before {
 }
 
 /* ── Create new panel ── */
-.home-create-file-input { display: none; }
+.home-create-file-input, .home-import-file-input { display: none; }
 .home-create-panel { padding: var(--s-3, 12px) 0 0; position: relative; }
 .home-create-panel__grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* Three ways to start (audit COMMON-04): side by side when they fit,
+     stacked on a phone. */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--s-3, 12px);
 }
+/* A file dragged over the Create tab can be dropped anywhere on it. */
+.home-create-panel--dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-lg, 10px);
+}
+.home-create-tile { text-align: left; font: inherit; cursor: pointer; }
+.creator-boot-spinner {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2.5px solid var(--border); border-top-color: var(--accent);
+  animation: home-create-pending-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .creator-boot-spinner { animation: none; } }
 /* Disabled state for the secondary tile while the primary tile is mid-handoff. */
 .home-create-tile--disabled { opacity: 0.5; pointer-events: none; }
 /* Transitional overlay while the chosen image hands off to the Creator. */

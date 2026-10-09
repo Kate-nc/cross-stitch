@@ -31,7 +31,7 @@ test.describe('Import errors on Pixel 5', function() {
   for (const c of CASES) {
     test(c.file + ' shows a plain-English message and stays on Home', async function({ page }) {
       await openHomeCreate(page);
-      await page.locator('input.home-create-file-input').setInputFiles(FIX(c.file));
+      await page.locator('input.home-import-file-input').setInputFiles(FIX(c.file));
       const toast = page.locator('[data-toast-id]').filter({ hasText: c.message });
       await expect(toast).toBeVisible({ timeout: 20000 });
       // No code paths or stack details in what the user sees.

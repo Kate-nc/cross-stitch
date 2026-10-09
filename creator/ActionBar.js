@@ -36,6 +36,15 @@
  *   hasImage          — boolean; true when an image is loaded (shows Generate button)
  *   generatingPattern — boolean; true while generation is running
  *   onGenerate        — optional; "Generate Pattern" / "Regenerate" click handler
+ *   sourceTab         — "convert" | "canvas" | null (audit COMMON-10): the
+ *                       first tab. Canvas (size and fabric) for a design
+ *                       drawn from scratch; none for a chart imported
+ *                       without a picture.
+ *   onOpenCanvas      — Canvas tab click handler
+ *
+ * Print PDF, Export and Open in Tracker, and the difficulty chip, appear
+ * only once the pattern has stitches (an empty scratch grid has nothing to
+ * print or track).
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -121,6 +130,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var appMode = (props && props.appMode) || "edit";
   var currentTab = (props && props.tab) || "pattern";
   var hasPat = !!(props && props.ready);
+  var hasStitches = hasPat && (Number(props.totalStitchable) || 0) > 0;
+  var sourceTab = props.sourceTab === undefined ? "convert" : props.sourceTab;
 
   function tabStyle(active, disabled) {
     return {
@@ -141,27 +152,39 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     if (tabs && tabs[idx] && tabs[idx].focus) tabs[idx].focus();
   }
 
-  var tabs = [
-    {
-      active: appMode === "create",
-      disabled: appMode === "create",
-      onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
-    },
-    {
-      active: appMode === "edit" && currentTab === "pattern",
-      disabled: !hasPat,
-      onClick: !hasPat ? undefined : function() {
-        if (typeof props.onTabChange === "function") props.onTabChange("pattern");
-      }
-    },
-    {
-      active: currentTab === "materials",
-      disabled: !hasPat,
-      onClick: !hasPat ? undefined : function() {
-        if (typeof props.onTabChange === "function") props.onTabChange("materials");
-      }
+  var tabs = [];
+  if (sourceTab === "convert") tabs.push({
+    id: "convert", label: "Convert", icon: Icons.image,
+    active: appMode === "create",
+    disabled: appMode === "create",
+    title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode \u2014 adjust settings and re-generate",
+    onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
+  });
+  if (sourceTab === "canvas") tabs.push({
+    id: "canvas", label: "Canvas", icon: Icons.ruler || Icons.layers,
+    active: appMode === "create",
+    disabled: appMode === "create",
+    title: "Grid size and fabric",
+    onClick: appMode === "create" ? undefined : props.onOpenCanvas
+  });
+  tabs.push({
+    id: "edit", label: "Edit", icon: Icons.pencil,
+    active: appMode === "edit" && currentTab === "pattern",
+    disabled: !hasPat,
+    title: hasPat ? "Edit the generated pattern" : "Generate a pattern first",
+    onClick: !hasPat ? undefined : function() {
+      if (typeof props.onTabChange === "function") props.onTabChange("pattern");
     }
-  ];
+  });
+  tabs.push({
+    id: "materials", label: "Materials", icon: Icons.layers,
+    active: currentTab === "materials",
+    disabled: !hasPat,
+    title: hasPat ? "Materials \u2014 thread count, export options" : "Generate a pattern first",
+    onClick: !hasPat ? undefined : function() {
+      if (typeof props.onTabChange === "function") props.onTabChange("materials");
+    }
+  });
   var activeTabIndex = 0;
   for (var i = 0; i < tabs.length; i++) {
     if (tabs[i].active) { activeTabIndex = i; break; }
@@ -200,48 +223,25 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         padding: 3, gap: 2
       }
     },
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[0].active,
-        tabIndex: tabs[0].active ? 0 : -1,
-        disabled: tabs[0].disabled,
-        style: tabStyle(appMode === "create", appMode === "create"),
-        onClick: tabs[0].onClick,
-        title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode — adjust settings and re-generate"
-      },
-      Icons.image ? Icons.image() : null,
-      h("span", null, "Convert")
-    ),
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[1].active,
-        tabIndex: tabs[1].active ? 0 : -1,
-        disabled: !hasPat,
-        style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
-        onClick: tabs[1].onClick,
-        title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
-      },
-      Icons.pencil ? Icons.pencil() : null,
-      h("span", null, "Edit")
-    ),
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[2].active,
-        tabIndex: tabs[2].active ? 0 : -1,
-        disabled: !hasPat,
-        style: tabStyle(currentTab === "materials", !hasPat),
-        onClick: tabs[2].onClick,
-        title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
-      },
-      Icons.layers ? Icons.layers() : null,
-      h("span", null, "Materials")
-    )
+    tabs.map(function(t) {
+      return h("button", {
+          key: t.id,
+          type: "button",
+          role: "tab",
+          "aria-selected": t.active,
+          tabIndex: t.active ? 0 : -1,
+          disabled: t.disabled,
+          style: tabStyle(t.active, t.disabled),
+          onClick: t.onClick,
+          title: t.title
+        },
+        t.icon ? t.icon() : null,
+        h("span", null, t.label)
+      );
+    })
   );
 
-  var trackBtn = hasPat && (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = hasStitches && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -254,7 +254,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
-  var difficultyBadge = props.difficulty ? h("span", {
+  var difficultyBadge = (hasStitches && props.difficulty) ? h("span", {
     className: "creator-actionbar__difficulty-chip",
     style: { color: props.difficulty.color, borderColor: props.difficulty.color },
     title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
@@ -326,7 +326,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
     generateBtn,
-    hasPat ? h("div", { className: "creator-actionbar__primary" },
+    hasStitches ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
@@ -377,7 +377,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ) : h("div", { className: "creator-actionbar__primary" }),
-    hasPat ? trackBtn : null,
+    hasStitches ? trackBtn : null,
     hasPat ? infoChip : null
   )
   );

@@ -9,7 +9,7 @@ async function importFromHome(page) {
   await quietOnboarding(page);
   await page.goto('/home.html?tab=create');
   await skipTourIfShown(page);
-  await page.locator('input.home-create-file-input').setInputFiles(PDF);
+  await page.locator('input.home-import-file-input').setInputFiles(PDF);
   await page.waitForSelector('.import-review-modal', { timeout: 90000 });
 }
 

@@ -507,6 +507,10 @@ window.useCreatorState = function useCreatorState() {
   }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
+  // True once the boot effect in useProjectIO has finished looking for
+  // something to open (pending action, handoff or saved project). With
+  // nothing open after that, the Creator sends the user to Home › Create.
+  var _bootSettled = useState(false);    var bootSettled = _bootSettled[0], setBootSettled = _bootSettled[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
   var _view       = useState(function () { var v = loadUserPref("creatorDefaultViewMode", "colour"); return v === "colour" ? "color" : (v || "color"); });
@@ -1996,6 +2000,7 @@ window.useCreatorState = function useCreatorState() {
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
     lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    bootSettled, setBootSettled,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,

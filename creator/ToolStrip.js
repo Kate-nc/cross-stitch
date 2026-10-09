@@ -457,6 +457,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
+  // The Canvas tab (a design drawn from scratch: size and fabric) has no
+  // tools; the image-conversion strip below doesn't apply to it.
+  if (app.appMode === "create" && app.sourceTab === "canvas") return null;
+
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
     var createZoomGrp = [

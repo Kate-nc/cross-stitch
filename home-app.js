@@ -461,6 +461,9 @@
   function CreatePanel() {
     var Icons = window.Icons || {};
     var fileInputRef = React.useRef(null);
+    var importInputRef = React.useRef(null);
+    var dragState = React.useState(false);
+    var dragging = dragState[0]; var setDragging = dragState[1];
     var pendingState = React.useState(false);
     var pending = pendingState[0]; var setPending = pendingState[1];
 
@@ -490,6 +493,10 @@
       var input = fileInputRef.current;
       if (input) input.click();
     }
+    function handleImportChart() {
+      var input = importInputRef.current;
+      if (input) input.click();
+    }
 
     function navigateAfterPaint(href) {
       // One rAF lets the spinner paint, then queueMicrotask (or setTimeout
@@ -505,11 +512,63 @@
       });
     }
 
-    function handleFileChange(e) {
+    // Which kind of file this is: 'image', 'pattern' or 'unsupported'
+    // (import-engine/ui/importErrors.js), with a fallback by extension.
+    function classify(file) {
+      var IE = window.ImportEngine;
+      if (IE && typeof IE.classifyFileForCreate === 'function') return IE.classifyFileForCreate(file);
+      if ((file.type || '').indexOf('image/') === 0) return 'image';
+      return /\.(oxs|xml|json|pdf)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
+    }
+
+    // Each tile has its own picker (audit COMMON-04). A file that suits the
+    // other tile is offered there rather than silently rerouted.
+    function handlePhotoChange(e) { takeFile(e, 'photo'); }
+    function handleImportChange(e) { takeFile(e, 'import'); }
+    function takeFile(e, tile) {
       var file = e.target.files && e.target.files[0];
       // Reset so the same file can be re-selected if needed
       e.target.value = '';
       if (!file) return;
+      routeFile(file, tile);
+    }
+    function routeFile(file, tile) {
+      var kind = classify(file);
+      if (kind === 'unsupported') return startFile(file);
+      var ask = null;
+      if (tile === 'photo' && kind === 'pattern') {
+        ask = { title: 'This looks like a chart file', message: 'This looks like a chart file. Import it instead?', confirmLabel: 'Import' };
+      } else if (tile === 'import' && kind === 'image') {
+        ask = { title: 'This is a picture', message: 'This is a picture. Turn it into a pattern instead?', confirmLabel: 'Turn into a pattern' };
+      }
+      if (!ask) return startFile(file);
+      var CD = window.ConfirmDialog;
+      var answer = CD && typeof CD.show === 'function'
+        ? CD.show({ title: ask.title, message: ask.message, confirmLabel: ask.confirmLabel, cancelLabel: 'Cancel' })
+        : Promise.resolve(window.confirm(ask.message));
+      answer.then(function (ok) { if (ok) startFile(file); });
+    }
+
+    function onDragOver(e) {
+      if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+      e.preventDefault();
+      if (!dragging) setDragging(true);
+    }
+    function onDragLeave(e) {
+      if (e.currentTarget.contains && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+      setDragging(false);
+    }
+    // Dropping a file anywhere on the Create tab (it used to be the
+    // Creator's welcome card): pictures are converted, charts imported.
+    function onDrop(e) {
+      e.preventDefault();
+      setDragging(false);
+      if (pending) return;
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) startFile(file);
+    }
+
+    function startFile(file) {
       // Route non-image pattern files through the new import engine. Files
       // from other design programs (.xsd, .pat, .xsp …) and anything else
       // that isn't an image stay on Home with a plain-English message
@@ -592,20 +651,31 @@
       reader.readAsDataURL(file);
     }
 
+    var accept = function (list) { return window.Platform ? window.Platform.fileAccept(list) : list; };
     return h('section', {
-      className: 'home-create-panel',
-      'aria-labelledby': 'home-create-panel-title'
+      className: 'home-create-panel' + (dragging ? ' home-create-panel--dragging' : ''),
+      'aria-labelledby': 'home-create-panel-title',
+      onDragOver: onDragOver, onDragEnter: onDragOver, onDragLeave: onDragLeave, onDrop: onDrop
     },
       h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      // One picker per tile. ".oxs" resolves to no UTI on iOS and would grey
+      // out the whole Files picker; Platform.fileAccept drops the filter
+      // there and keeps it everywhere else (tests/platformCapabilities.test.js).
       h('input', {
         ref: fileInputRef,
         type: 'file',
-        // ".oxs" resolves to no UTI on iOS and would grey out the whole Files
-        // picker. Platform.fileAccept drops the filter there and keeps it everywhere else.
-        // See tests/platformCapabilities.test.js.
-        accept: (window.Platform ? window.Platform.fileAccept('image/*,.oxs,.xml,.json,.pdf') : 'image/*,.oxs,.xml,.json,.pdf'),
+        accept: accept('image/*'),
         className: 'home-create-file-input',
-        onChange: handleFileChange,
+        onChange: handlePhotoChange,
+        'aria-hidden': 'true',
+        tabIndex: -1
+      }),
+      h('input', {
+        ref: importInputRef,
+        type: 'file',
+        accept: accept('.pdf,.oxs,.xml,.json'),
+        className: 'home-import-file-input',
+        onChange: handleImportChange,
         'aria-hidden': 'true',
         tabIndex: -1
       }),
@@ -620,8 +690,8 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'New from pattern file'),
-            h('span', null, 'Image, .oxs, .json or .pdf')
+            h('strong', null, 'Turn a photo into a pattern'),
+            h('span', null, 'Pick a picture and we\u2019ll choose the threads.')
           )
         ),
         h('a', {
@@ -631,10 +701,24 @@
           onClick: pending ? function (e) { e.preventDefault(); } : undefined
         },
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.plus === 'function' ? Icons.plus() : null),
+            typeof Icons.pencil === 'function' ? Icons.pencil() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'New from scratch'),
-            h('span', null, 'Start with a blank grid')
+            h('strong', null, 'Draw on a blank grid'),
+            h('span', null, 'Design stitch by stitch.')
+          )
+        ),
+        h('button', {
+          type: 'button',
+          className: 'home-create-tile',
+          onClick: handleImportChart,
+          disabled: pending,
+          'data-onboard': 'home-import-chart'
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.document === 'function' ? Icons.document() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'Import a chart'),
+            h('span', null, 'A PDF or .oxs from a designer or another app. Photos of paper charts aren\u2019t supported yet.')
           )
         ),
         // Embroidery planner: experimental third tile, only rendered when the

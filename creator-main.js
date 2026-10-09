@@ -383,6 +383,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
   const _compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // The Creator's first tab (audit COMMON-10): Convert when there is a
+  // picture to convert, Canvas for a design drawn from scratch (its size and
+  // fabric), and neither for a chart imported without a picture.
+  const _sourceTab = state.isScratchMode ? 'canvas' : ((state.img && state.img.src) ? 'convert' : null);
+  const handleOpenCanvas = React.useCallback(function() {
+    state.setAppMode("create");
+    state.setTab("pattern");
+  }, [state.setAppMode, state.setTab]);
   React.useEffect(()=>{
     const on = !!(_compact && isActive);
     document.body.classList.toggle('creator-compact', on);
@@ -572,8 +580,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleOpenInTracker: stableHandleOpenInTracker,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
     isScratchMode: state.isScratchMode,
+    sourceTab: _sourceTab, openCanvas: handleOpenCanvas,
     isActive: isActive,
   }; }, [
+    _sourceTab, handleOpenCanvas,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
@@ -1106,7 +1116,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         pat={!!(state.pat&&state.pal)}
         appMode={state.appMode}
         tab={state.tab}
-        hasImage={!!(state.img&&state.img.src)}
+        hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
+        sourceTab={_sourceTab}
+        onOpenCanvas={handleOpenCanvas}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):''}
@@ -1151,49 +1163,27 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onTrackPattern={stableHandleOpenInTracker}
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
-        hasImage={!!(state.img&&state.img.src)}
+        hasImage={!!(state.img&&state.img.src)&&!state.isScratchMode}
+        sourceTab={_sourceTab}
+        onOpenCanvas={handleOpenCanvas}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
         {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
-        {/* Hide the legacy "Welcome to stitchx" card
-            while a /home handoff is in flight (image being decoded, scratch
-            project being built, JSON being loaded). Without this guard the
-            user sees the welcome flash for a beat and assumes their action
-            failed. The card still appears for direct entries that don't
-            carry an action= deep link (e.g. someone clicked "New project"
-            inside the Creator and resetAll wiped the canvas). */}
-        {!state.img&&!state.pat&&(state.isUploading||window.__pendingCreatorFile||window.__pendingCreatorAction||window.__pendingCreatorJsonFile)&&<div
-            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
+        {/* Nothing open yet: a /home handoff is in flight (image being
+            decoded, scratch project being built, JSON being loaded) or the
+            saved project is still loading. Once the boot has settled with
+            nothing to show, send the user to Home > Create, which has the
+            three ways to start (audit COMMON-04); the old welcome card with
+            its overlapping upload tiles is gone. */}
+        {!state.img&&!state.pat&&<div
+            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"var(--text-secondary)"}}
             aria-live="polite">
-          <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
+          <div className="creator-boot-spinner" aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
-        </div>}
-        {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
-            onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
-            onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
-            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];if(rejectUnsupportedFile(df)){e.dataTransfer.clearData();return;}var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
-          >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
-          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
-            <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
-            </div>
-            <div onClick={()=>state.loadRef.current.click()} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
-            </div>
-            <div onClick={state.startScratch} className="upload-area">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Design from Scratch</div><div style={{color:"#5C5448",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
-            </div>
-          </div>
+          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<CreatorNoProjectRedirect/>}
         </div>}
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
@@ -1651,6 +1641,15 @@ function UnifiedApp(){
     {welcomeOpen&&mode==='design'&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
+}
+
+// With nothing to open, the Creator has nothing to show: Home's Create tab
+// is the one place to start a pattern (audit COMMON-04).
+function CreatorNoProjectRedirect(){
+  React.useEffect(function(){
+    window.location.replace('home.html?tab=create');
+  },[]);
+  return null;
 }
 
 // ── Pre-mount: process ?action= deep links from /home synchronously ─────

@@ -413,7 +413,8 @@ describe('call sites route through Platform', () => {
   // (home-screen.js also has such inputs, but its HomeScreen component is not
   // mounted by any page — /home.html renders home-app.js instead.)
   it.each([
-    ['home-app.js', /fileAccept\('image\/\*,\.oxs,\.xml,\.json,\.pdf'\)/],
+    // Home has one picker per tile (P2-1): photos, and charts to import.
+    ['home-app.js', /fileAccept\(list\)[\s\S]*accept\('\.pdf,\.oxs,\.xml,\.json'\)/],
     ['creator-main.js', /fileAccept\("image\/\*,\.oxs,\.xml,\.json,\.pdf"\)/],
     ['tracker-app.js', /fileAccept\("\.json,\.oxs,\.xml,\.png/],
   ])('%s sanitises its pattern-open accept filter', (file, pattern) => {

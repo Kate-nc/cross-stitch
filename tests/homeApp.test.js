@@ -86,7 +86,8 @@ describe('home-app.js source contract', () => {
 
   test('uses Icons.* for tile icons (no emojis)', () => {
     expect(SRC).toMatch(/Icons\.image/);
-    expect(SRC).toMatch(/Icons\.plus/);
+    expect(SRC).toMatch(/Icons\.pencil/);
+    expect(SRC).toMatch(/Icons\.document/);
   });
 
   test('contains no emoji or unicode-glyph literals in user-facing strings', () => {

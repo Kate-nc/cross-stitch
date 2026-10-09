@@ -806,6 +806,14 @@ function CreatorApp({
   // bottom tool rail replace the header, action bar and tool strip.
   // body.creator-compact keys the CSS (styles.css, "Compact phone chrome").
   const _compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // The Creator's first tab (audit COMMON-10): Convert when there is a
+  // picture to convert, Canvas for a design drawn from scratch (its size and
+  // fabric), and neither for a chart imported without a picture.
+  const _sourceTab = state.isScratchMode ? 'canvas' : state.img && state.img.src ? 'convert' : null;
+  const handleOpenCanvas = React.useCallback(function () {
+    state.setAppMode("create");
+    state.setTab("pattern");
+  }, [state.setAppMode, state.setTab]);
   React.useEffect(() => {
     const on = !!(_compact && isActive);
     document.body.classList.toggle('creator-compact', on);
@@ -1129,9 +1137,11 @@ function CreatorApp({
       handleOpenInTracker: stableHandleOpenInTracker,
       openResizeCanvas: () => state.setResizeCanvasOpen(true),
       isScratchMode: state.isScratchMode,
+      sourceTab: _sourceTab,
+      openCanvas: handleOpenCanvas,
       isActive: isActive
     };
-  }, [state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
@@ -1784,7 +1794,9 @@ function CreatorApp({
     pat: !!(state.pat && state.pal),
     appMode: state.appMode,
     tab: state.tab,
-    hasImage: !!(state.img && state.img.src),
+    hasImage: !!(state.img && state.img.src) && !state.isScratchMode,
+    sourceTab: _sourceTab,
+    onOpenCanvas: handleOpenCanvas,
     generatingPattern: !!state.busy,
     onGenerate: state.generate,
     projectName: state.pat && state.pal ? state.projectName || state.sW + '×' + state.sH + ' pattern' : '',
@@ -1834,7 +1846,9 @@ function CreatorApp({
     onTrackPattern: stableHandleOpenInTracker,
     onSaveJson: io.saveProject,
     onMoreExports: () => _nameNudgeRef.current('exports'),
-    hasImage: !!(state.img && state.img.src),
+    hasImage: !!(state.img && state.img.src) && !state.isScratchMode,
+    sourceTab: _sourceTab,
+    onOpenCanvas: handleOpenCanvas,
     generatingPattern: !!state.busy,
     onGenerate: state.generate
   }), /*#__PURE__*/React.createElement(window.CreatorToolStrip, null), /*#__PURE__*/React.createElement("div", {
@@ -1849,7 +1863,7 @@ function CreatorApp({
       color: "#A53D3D",
       marginBottom: 12
     }
-  }, state.loadError), !state.img && !state.pat && (state.isUploading || window.__pendingCreatorFile || window.__pendingCreatorAction || window.__pendingCreatorJsonFile) && /*#__PURE__*/React.createElement("div", {
+  }, state.loadError), !state.img && !state.pat && /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 700,
       margin: "80px auto",
@@ -1859,188 +1873,18 @@ function CreatorApp({
       flexDirection: "column",
       alignItems: "center",
       gap: 14,
-      color: "#5C5448"
+      color: "var(--text-secondary)"
     },
     "aria-live": "polite"
   }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 32,
-      height: 32,
-      border: "2.5px solid #E5DCCB",
-      borderTopColor: "#B85C38",
-      borderRadius: "50%",
-      animation: "spin 0.9s linear infinite"
-    },
+    className: "creator-boot-spinner",
     "aria-hidden": "true"
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 14,
       fontWeight: 600
     }
-  }, "Preparing your pattern\u2026")), !state.img && !state.pat && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && /*#__PURE__*/React.createElement("div", {
-    style: {
-      maxWidth: 700,
-      margin: "40px auto",
-      textAlign: "center",
-      padding: "40px",
-      border: state.isDragging ? "2px dashed #B85C38" : "2px dashed transparent",
-      borderRadius: "16px",
-      background: state.isDragging ? "#F4DDCF" : "transparent",
-      transition: "all 0.2s"
-    },
-    onDragOver: e => {
-      e.preventDefault();
-      state.setIsDragging(true);
-    },
-    onDragEnter: e => {
-      e.preventDefault();
-      state.setIsDragging(true);
-    },
-    onDragLeave: e => {
-      e.preventDefault();
-      state.setIsDragging(false);
-    },
-    onDrop: e => {
-      e.preventDefault();
-      state.setIsDragging(false);
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        var df = e.dataTransfer.files[0];
-        if (rejectUnsupportedFile(df)) {
-          e.dataTransfer.clearData();
-          return;
-        }
-        var dn = (df.name || '').toLowerCase();
-        var dImg = (df.type || '').indexOf('image/') === 0;
-        var dPat = !dImg && /\.(oxs|xml|json|pdf)$/i.test(dn);
-        if (dPat && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
-          window.ImportEngine.importAndReview(df, {
-            navigateTo: 'create.html?from=home'
-          }).catch(function (err) {
-            console.error('[creator] Import failed:', err);
-          });
-        } else {
-          io.handleFile(df);
-        }
-        e.dataTransfer.clearData();
-      }
-    }
-  }, /*#__PURE__*/React.createElement("h1", {
-    style: {
-      fontSize: 28,
-      fontWeight: 700,
-      color: "#1B1814",
-      marginBottom: 8
-    }
-  }, "Start a new pattern"), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 15,
-      color: "#5C5448",
-      marginBottom: 32
-    }
-  }, "Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-      gap: 24
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    onClick: () => state.fRef.current.click(),
-    className: "upload-area",
-    style: {
-      position: "relative"
-    }
-  }, /*#__PURE__*/React.createElement("svg", {
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "48",
-    height: "48",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "1.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  }, /*#__PURE__*/React.createElement("rect", {
-    x: "3",
-    y: "3",
-    width: "18",
-    height: "18",
-    rx: "2",
-    ry: "2"
-  }), /*#__PURE__*/React.createElement("circle", {
-    cx: "8.5",
-    cy: "8.5",
-    r: "1.5"
-  }), /*#__PURE__*/React.createElement("polyline", {
-    points: "21 15 16 10 5 21"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 600,
-      fontSize: 18,
-      color: "#1B1814",
-      marginBottom: 4
-    }
-  }, "Create New Pattern"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: "#5C5448",
-      fontSize: 14
-    }
-  }, "Upload an image, PDF, or pattern file"))), /*#__PURE__*/React.createElement("div", {
-    onClick: () => state.loadRef.current.click(),
-    className: "upload-area"
-  }, /*#__PURE__*/React.createElement("svg", {
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "48",
-    height: "48",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "1.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 600,
-      fontSize: 18,
-      color: "#1B1814",
-      marginBottom: 4
-    }
-  }, "Load Existing Project"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: "#5C5448",
-      fontSize: 14
-    }
-  }, "Open a saved JSON, .oxs, .xml or PDF"))), /*#__PURE__*/React.createElement("div", {
-    onClick: state.startScratch,
-    className: "upload-area"
-  }, /*#__PURE__*/React.createElement("svg", {
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "48",
-    height: "48",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "1.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  }, /*#__PURE__*/React.createElement("path", {
-    d: "M12 20h9"
-  }), /*#__PURE__*/React.createElement("path", {
-    d: "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontWeight: 600,
-      fontSize: 18,
-      color: "#1B1814",
-      marginBottom: 4
-    }
-  }, "Design from Scratch"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: "#5C5448",
-      fontSize: 14
-    }
-  }, "Start with a blank grid and paint by hand"))))), /*#__PURE__*/React.createElement("input", {
+  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
     accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",
@@ -3023,6 +2867,15 @@ function UnifiedApp() {
     page: "creator",
     onClose: () => setWelcomeOpen(false)
   }), window.HelpHintBanner && /*#__PURE__*/React.createElement(window.HelpHintBanner, null));
+}
+
+// With nothing to open, the Creator has nothing to show: Home's Create tab
+// is the one place to start a pattern (audit COMMON-04).
+function CreatorNoProjectRedirect() {
+  React.useEffect(function () {
+    window.location.replace('home.html?tab=create');
+  }, []);
+  return null;
 }
 
 // ── Pre-mount: process ?action= deep links from /home synchronously ─────

@@ -5405,6 +5405,10 @@ window.useCreatorState = function useCreatorState() {
   }
   var _sidOpen    = useState(true);      var sidebarOpen = _sidOpen[0],   setSidebarOpen = _sidOpen[1];
   var _loadErr    = useState(null);      var loadError  = _loadErr[0],    setLoadError  = _loadErr[1];
+  // True once the boot effect in useProjectIO has finished looking for
+  // something to open (pending action, handoff or saved project). With
+  // nothing open after that, the Creator sends the user to Home › Create.
+  var _bootSettled = useState(false);    var bootSettled = _bootSettled[0], setBootSettled = _bootSettled[1];
   var _copied     = useState(null);      var copied     = _copied[0],     setCopied     = _copied[1];
   var _modal      = useState(null);      var modal      = _modal[0],      setModal      = _modal[1];
   var _view       = useState(function () { var v = loadUserPref("creatorDefaultViewMode", "colour"); return v === "colour" ? "color" : (v || "color"); });
@@ -6894,6 +6898,7 @@ window.useCreatorState = function useCreatorState() {
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
     lastGenSnapshot, setLastGenSnapshot,
     tab, setTab, materialsTab, setMaterialsTab, sidebarOpen, setSidebarOpen, loadError, setLoadError,
+    bootSettled, setBootSettled,
     copied, setCopied, modal, setModal,
     view, setView, zoom, setZoom, hiId, setHiId, showCtr, setShowCtr,
     showOverlay, setShowOverlay, overlayOpacity, setOverlayOpacity,
@@ -11147,9 +11152,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // Initial load: pending actions, handoff, active project, or auto-saved session
   React.useEffect(function() {
+    // Every path below ends by calling settle(), so the Creator knows when it
+    // has finished looking for something to open (see creator-main.js).
+    function settle() { if (state.setBootSettled) state.setBootSettled(true); }
     if (window.__pendingCreatorAction === "scratch") {
       delete window.__pendingCreatorAction;
       state.startScratch();
+      settle();
       return;
     }
     if (window.__pendingCreatorFile) {
@@ -11165,6 +11174,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         sessionStorage.removeItem('cs_pending_image_ts'); // INT-6
       } catch (_) {}
       handleFile(file);
+      settle();
       return;
     }
     if (window.__pendingCreatorJsonFile) {
@@ -11187,7 +11197,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setLoadError("Could not load: " + err2.message);
           setTimeout(function() { state.setLoadError(null); }, 4000);
         }
+        settle();
       };
+      rd2.onerror = settle;
       rd2.readAsText(jsonFile);
       return;
     }
@@ -11228,6 +11240,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
             alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
           }
+          settle();
           return;
         }
       } catch (e) { console.error("Failed to load handoff to creator:", e); }
@@ -11297,7 +11310,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
               });
             }
           } catch(_) {}
-        });
+        }).then(settle, settle);
         return;
       }
     }
@@ -11319,7 +11332,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           }
         } catch (_) {}
       }
-    });
+    }).then(settle, settle);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist name/designer/description to localStorage so they survive a refresh
@@ -12565,6 +12578,9 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     var infoBtnRef = React.useRef(null);
 
     var hasPat = !!props.pat;
+    // Print, Export and Track need stitches; an empty grid has only tools.
+    var hasStitches = hasPat && (Number(props.totalStitchable) || 0) > 0;
+    var sourceTab = props.sourceTab === undefined ? "convert" : props.sourceTab;
     var appMode = props.appMode;
     var tab = props.tab;
 
@@ -12584,14 +12600,17 @@ window.CreatorSplitPane = function CreatorSplitPane() {
     // Convert / Edit / Materials — icon segmented control with labels for
     // screen readers (visible labels sit in the More sheet's heading).
     var modes = [
-      { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
+      sourceTab === "convert" ? { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
         disabled: !props.hasImage && !hasPat,
-        onClick: function () { if (appMode !== "create" && typeof props.onRequestBackToConvert === "function") props.onRequestBackToConvert(); } },
+        onClick: function () { if (appMode !== "create" && typeof props.onRequestBackToConvert === "function") props.onRequestBackToConvert(); } } : null,
+      sourceTab === "canvas" ? { id: "canvas", label: "Canvas", icon: Icons.ruler || Icons.layers, active: appMode === "create",
+        disabled: false,
+        onClick: function () { if (appMode !== "create" && typeof props.onOpenCanvas === "function") props.onOpenCanvas(); } } : null,
       { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
       { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
         onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
-    ];
+    ].filter(Boolean);
     var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
       modes.map(function (m) {
         return h("button", {
@@ -12621,7 +12640,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
         className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
       }, status.icon) : null,
       // Convert: Generate stays one tap away (it is also in the settings drawer).
-      appMode === "create" && props.hasImage ? h("button", {
+      appMode === "create" && props.hasImage && sourceTab === "convert" ? h("button", {
         type: "button", className: "cc-generate",
         "data-onboard": "creator-generate",
         disabled: !!props.generatingPattern,
@@ -12643,26 +12662,26 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
         h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
           Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
-        hasPat ? h("button", {
+        hasStitches ? h("button", {
           type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
           onClick: function () { setExportOpen(!exportOpen); }
         }, Icons.document ? Icons.document() : null, h("span", null, "Export…"),
           h("span", { className: "cc-sheet__chev", "aria-hidden": "true" }, exportOpen ? Icons.chevronUp() : Icons.chevronDown())) : null,
-        hasPat && exportOpen ? h("div", { className: "cc-sheet__sub" },
+        hasStitches && exportOpen ? h("div", { className: "cc-sheet__sub" },
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onSaveJson) },
             Icons.save ? Icons.save() : null, h("span", null, "Save project (.json)")),
           h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
             Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
         ) : null,
-        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+        hasStitches ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
           Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
         hasPat ? h("button", {
           ref: infoBtnRef, type: "button", className: "cc-sheet__item",
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
-          props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
+          hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
         score != null ? h("div", { className: "cc-sheet__score", title: "Higher score = easier to stitch: fewer isolated single stitches." },
           h("span", { className: "cc-sheet__score-lbl" }, "Stitch Score"),
           h("span", { className: "cc-sheet__score-val" }, score + "/100"),
@@ -13156,6 +13175,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       }, 'Cancel')
     );
   }
+
+  // The Canvas tab (a design drawn from scratch: size and fabric) has no
+  // tools; the image-conversion strip below doesn't apply to it.
+  if (app.appMode === "create" && app.sourceTab === "canvas") return null;
 
   // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
   if (app.appMode === "create") {
@@ -15406,6 +15429,15 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
+  // The fabric count select, shared by Size & fabric here and the Canvas tab.
+  function fabricSelect(extraStyle) {
+    return h("select", {
+      value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
+      style:Object.assign({width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}, extraStyle || {})
+    }, FABRIC_COUNTS.map(function(f) {
+      return h("option", {key:f.ct, value:f.ct}, f.label);
+    }));
+  }
   var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
@@ -15439,12 +15471,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("span", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}}, "Fabric"),
         h(InfoIcon, {text:"The thread count of your Aida or evenweave fabric — affects finished size and skein estimates", width:220})
       ),
-      h("select", {
-        value:ctx.fabricCt, onChange:function(e){ctx.setFabricCt(Number(e.target.value));},
-        style:{width:"100%",padding:"6px 10px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",fontSize:'var(--text-md)',background:"var(--surface)"}
-      }, FABRIC_COUNTS.map(function(f) {
-        return h("option", {key:f.ct, value:f.ct}, f.label);
-      })),
+      fabricSelect(),
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}},
         "\u2248 " + window.finishedSizeText(ctx.sW, ctx.sH, ctx.fabricCt||14) + " finished"
       ),
@@ -16524,6 +16551,42 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     );
 
+    // ── Canvas (audit COMMON-10): a design drawn from scratch has no picture
+    //    to convert, so its first tab is the grid's size and fabric. Size
+    //    changes go through Resize canvas, which keeps the stitches. ──
+    if (app.sourceTab === "canvas") {
+      var canvasFabricCt = ctx.fabricCt || 14;
+      var canvasPanel = h("div", {className:"creator-canvas-panel", style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}},
+        h(Section, {title:"Size & fabric", defaultOpen:true},
+          h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"6px 0 10px"}},
+            h("span", {style:{color:"var(--text-tertiary)"}}, "Grid"),
+            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
+            h("span", {style:{color:"var(--text-tertiary)"}}, "Finished"),
+            h("span", {style:{textAlign:"right"}}, window.finishedSizeText ? window.finishedSizeText(ctx.sW, ctx.sH, canvasFabricCt) : "")
+          ),
+          h("button", {
+            type:"button", className:"g-btn", style:{width:"100%",justifyContent:"center",marginBottom:'var(--s-3)'},
+            onClick:function(){ if (app.openResizeCanvas) app.openResizeCanvas(); }
+          }, window.Icons && window.Icons.canvasResize ? window.Icons.canvasResize() : null, "Resize canvas\u2026"),
+          h("label", {style:{display:"flex",flexDirection:"column",gap:4,fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5}},
+            "Fabric",
+            fabricSelect({color:"var(--text-primary)",textTransform:"none",letterSpacing:0,fontWeight:400})
+          )
+        )
+      );
+      var canvasActions = h("div", {style:{flexShrink:0,borderTop:"1px solid var(--border)",padding:"12px",background:"var(--surface)"}},
+        h("button", {
+          type:"button", className:"g-btn primary", style:{width:"100%",justifyContent:"center",padding:"10px"},
+          onClick:function(){ if (app.setAppMode) app.setAppMode("edit"); }
+        }, window.Icons && window.Icons.pencil ? window.Icons.pencil() : null, "Back to drawing")
+      );
+      return h(React.Fragment, null,
+        drawerHeader,
+        canvasPanel,
+        canvasActions
+      );
+    }
+
     return h(React.Fragment, null,
       drawerHeader,
       createPanel,
@@ -16871,7 +16934,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   return h(React.Fragment, null,
     // "Back to Convert" link — shown in edit mode when a source image exists.
     // Fires the back-to-convert request (may show warning modal if edits exist).
-    gen.img && h("div", {className:"rpanel-back-to-convert", style:{
+    gen.img && app.sourceTab !== "canvas" && h("div", {className:"rpanel-back-to-convert", style:{
       flexShrink:0, padding:"6px 12px",
       borderBottom:"1px solid var(--line)",
       background:"var(--surface-secondary)"
@@ -19359,6 +19422,15 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  *   hasImage          — boolean; true when an image is loaded (shows Generate button)
  *   generatingPattern — boolean; true while generation is running
  *   onGenerate        — optional; "Generate Pattern" / "Regenerate" click handler
+ *   sourceTab         — "convert" | "canvas" | null (audit COMMON-10): the
+ *                       first tab. Canvas (size and fabric) for a design
+ *                       drawn from scratch; none for a chart imported
+ *                       without a picture.
+ *   onOpenCanvas      — Canvas tab click handler
+ *
+ * Print PDF, Export and Open in Tracker, and the difficulty chip, appear
+ * only once the pattern has stitches (an empty scratch grid has nothing to
+ * print or track).
  */
 
 window.CreatorActionBar = function CreatorActionBar(props) {
@@ -19444,6 +19516,8 @@ window.CreatorActionBar = function CreatorActionBar(props) {
   var appMode = (props && props.appMode) || "edit";
   var currentTab = (props && props.tab) || "pattern";
   var hasPat = !!(props && props.ready);
+  var hasStitches = hasPat && (Number(props.totalStitchable) || 0) > 0;
+  var sourceTab = props.sourceTab === undefined ? "convert" : props.sourceTab;
 
   function tabStyle(active, disabled) {
     return {
@@ -19464,27 +19538,39 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     if (tabs && tabs[idx] && tabs[idx].focus) tabs[idx].focus();
   }
 
-  var tabs = [
-    {
-      active: appMode === "create",
-      disabled: appMode === "create",
-      onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
-    },
-    {
-      active: appMode === "edit" && currentTab === "pattern",
-      disabled: !hasPat,
-      onClick: !hasPat ? undefined : function() {
-        if (typeof props.onTabChange === "function") props.onTabChange("pattern");
-      }
-    },
-    {
-      active: currentTab === "materials",
-      disabled: !hasPat,
-      onClick: !hasPat ? undefined : function() {
-        if (typeof props.onTabChange === "function") props.onTabChange("materials");
-      }
+  var tabs = [];
+  if (sourceTab === "convert") tabs.push({
+    id: "convert", label: "Convert", icon: Icons.image,
+    active: appMode === "create",
+    disabled: appMode === "create",
+    title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode \u2014 adjust settings and re-generate",
+    onClick: appMode === "create" ? undefined : props.onRequestBackToConvert
+  });
+  if (sourceTab === "canvas") tabs.push({
+    id: "canvas", label: "Canvas", icon: Icons.ruler || Icons.layers,
+    active: appMode === "create",
+    disabled: appMode === "create",
+    title: "Grid size and fabric",
+    onClick: appMode === "create" ? undefined : props.onOpenCanvas
+  });
+  tabs.push({
+    id: "edit", label: "Edit", icon: Icons.pencil,
+    active: appMode === "edit" && currentTab === "pattern",
+    disabled: !hasPat,
+    title: hasPat ? "Edit the generated pattern" : "Generate a pattern first",
+    onClick: !hasPat ? undefined : function() {
+      if (typeof props.onTabChange === "function") props.onTabChange("pattern");
     }
-  ];
+  });
+  tabs.push({
+    id: "materials", label: "Materials", icon: Icons.layers,
+    active: currentTab === "materials",
+    disabled: !hasPat,
+    title: hasPat ? "Materials \u2014 thread count, export options" : "Generate a pattern first",
+    onClick: !hasPat ? undefined : function() {
+      if (typeof props.onTabChange === "function") props.onTabChange("materials");
+    }
+  });
   var activeTabIndex = 0;
   for (var i = 0; i < tabs.length; i++) {
     if (tabs[i].active) { activeTabIndex = i; break; }
@@ -19523,48 +19609,25 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         padding: 3, gap: 2
       }
     },
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[0].active,
-        tabIndex: tabs[0].active ? 0 : -1,
-        disabled: tabs[0].disabled,
-        style: tabStyle(appMode === "create", appMode === "create"),
-        onClick: tabs[0].onClick,
-        title: appMode === "create" ? "Set up image and pattern settings" : "Return to Convert mode — adjust settings and re-generate"
-      },
-      Icons.image ? Icons.image() : null,
-      h("span", null, "Convert")
-    ),
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[1].active,
-        tabIndex: tabs[1].active ? 0 : -1,
-        disabled: !hasPat,
-        style: tabStyle(appMode === "edit" && currentTab === "pattern", !hasPat),
-        onClick: tabs[1].onClick,
-        title: hasPat ? "Edit the generated pattern" : "Generate a pattern first"
-      },
-      Icons.pencil ? Icons.pencil() : null,
-      h("span", null, "Edit")
-    ),
-    h("button", {
-        type: "button",
-        role: "tab",
-        "aria-selected": tabs[2].active,
-        tabIndex: tabs[2].active ? 0 : -1,
-        disabled: !hasPat,
-        style: tabStyle(currentTab === "materials", !hasPat),
-        onClick: tabs[2].onClick,
-        title: hasPat ? "Materials — thread count, export options" : "Generate a pattern first"
-      },
-      Icons.layers ? Icons.layers() : null,
-      h("span", null, "Materials")
-    )
+    tabs.map(function(t) {
+      return h("button", {
+          key: t.id,
+          type: "button",
+          role: "tab",
+          "aria-selected": t.active,
+          tabIndex: t.active ? 0 : -1,
+          disabled: t.disabled,
+          style: tabStyle(t.active, t.disabled),
+          onClick: t.onClick,
+          title: t.title
+        },
+        t.icon ? t.icon() : null,
+        h("span", null, t.label)
+      );
+    })
   );
 
-  var trackBtn = hasPat && (typeof props.onTrackPattern === "function") ? h("button", {
+  var trackBtn = hasStitches && (typeof props.onTrackPattern === "function") ? h("button", {
       type: "button",
       className: "creator-actionbar__mode-btn creator-actionbar__mode-btn--forward",
       onClick: props.onTrackPattern,
@@ -19577,7 +19640,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
 
   // Difficulty badge — always-visible tier chip, e.g. "Intermediate".
   // Full breakdown is inside the Pattern info popover.
-  var difficultyBadge = props.difficulty ? h("span", {
+  var difficultyBadge = (hasStitches && props.difficulty) ? h("span", {
     className: "creator-actionbar__difficulty-chip",
     style: { color: props.difficulty.color, borderColor: props.difficulty.color },
     title: "Difficulty: " + props.difficulty.label + " \u00B7 " + (props.difficulty.score != null ? props.difficulty.score + " / 100" : "") + ". Open \u2018Pattern info\u2019 for the full breakdown."
@@ -19649,7 +19712,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
     tabBar,
     h("div", { className: "creator-actionbar__actions" },
     generateBtn,
-    hasPat ? h("div", { className: "creator-actionbar__primary" },
+    hasStitches ? h("div", { className: "creator-actionbar__primary" },
       h("button", {
           type: "button",
           className: "creator-actionbar__btn creator-actionbar__btn--primary",
@@ -19700,7 +19763,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
         )
       )
     ) : h("div", { className: "creator-actionbar__primary" }),
-    hasPat ? trackBtn : null,
+    hasStitches ? trackBtn : null,
     hasPat ? infoChip : null
   )
   );

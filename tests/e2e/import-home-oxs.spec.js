@@ -16,7 +16,7 @@ test.describe('OXS import from Home on Pixel 5', function() {
       } catch (e) {}
     });
     await page.goto('/home.html?tab=create');
-    await page.locator('input.home-create-file-input')
+    await page.locator('input.home-import-file-input')
       .setInputFiles(path.join(__dirname, '..', 'fixtures', 'sampler-color.oxs'));
     await expect(page.getByText('Review imported pattern').first()).toBeVisible({ timeout: 20000 });
     await expect(page.locator('.import-warnings')).toContainText('DMC 414 (official conversion)');
