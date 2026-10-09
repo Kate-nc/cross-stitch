@@ -251,7 +251,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {"aria-hidden":"true", style:{fontSize:12,color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, window.Icons.chevronRight()),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
@@ -551,7 +551,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             blendThread1 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {role:"button", tabIndex:0, "aria-label":"Remove thread 1", onClick:function(){setBlendThread1(null);},onKeyDown:function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();setBlendThread1(null);}},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2,display:"inline-flex"}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
           h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
@@ -559,7 +559,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             blendThread2 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {role:"button", tabIndex:0, "aria-label":"Remove thread 2", onClick:function(){setBlendThread2(null);},onKeyDown:function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();setBlendThread2(null);}},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2,display:"inline-flex"}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
         ),
@@ -592,7 +592,9 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+              (isSel1||isSel2)
+                ? h("span", {"aria-label":isSel1?"Thread 1":"Thread 2", style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:"50%",flexShrink:0,background:"var(--accent)",color:"var(--text-on-accent)",fontSize:10,fontWeight:700,lineHeight:1}}, isSel1?"1":"2")
+                : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
           blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
@@ -786,7 +788,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           },
           style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
         },
-          h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {"aria-hidden":"true", style:{fontSize:12,display:"inline-flex",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, window.Icons.chevronRight()),
           "Explore variations"
         ),
         gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
@@ -1438,8 +1440,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       }),
       app.coverageOverride!=null && h("button", {
         onClick:function(){app.setCoverageOverride(null);},
-        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
-      }, "\u21BA Auto")
+        "aria-label":"Reset to automatic",
+        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)",display:"inline-flex",alignItems:"center",gap:3}
+      }, window.Icons.refresh(), "Auto")
     ),
     h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {

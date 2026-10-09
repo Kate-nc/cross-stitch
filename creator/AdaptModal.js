@@ -253,7 +253,7 @@
           )
         )
       ),
-      h('td', { style: Object.assign({}, cellStyle, { width: 28, textAlign: 'center', color: 'var(--text-tertiary)' }) }, '\u2192'),
+      h('td', { style: Object.assign({}, cellStyle, { width: 28, textAlign: 'center', color: 'var(--text-tertiary)' }), 'aria-label': 'becomes' }, window.Icons.chevronRight()),
       h('td', { style: Object.assign({}, cellStyle, { position: 'relative' }) },
         t ? h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
           h(Swatch, { rgb: t.rgb }),

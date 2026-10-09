@@ -46,6 +46,16 @@
   // A step's `target` must exist on the page the walkthrough runs on; if it
   // doesn't (e.g. no image loaded yet), the card is centred and its tip,
   // which talks about the highlight, is left out.
+  // `body` may be a function, called when the card renders, for copy that
+  // depends on the device (the Creator's settings are a side panel at 900px
+  // and wider, and a bottom sheet below that).
+  function wideScreen() {
+    try { return !window.matchMedia || window.matchMedia("(min-width: 900px)").matches; }
+    catch (_) { return true; }
+  }
+  function stepBody(step) {
+    return typeof step.body === "function" ? step.body() : step.body;
+  }
   var STEPS = {
     creator: [
       {
@@ -54,13 +64,17 @@
       },
       {
         title: "Set up the conversion",
-        body: "The Image, Dimensions and Palette tabs control how your image becomes a pattern: adjust and crop it, set the size in stitches and the fabric, and choose how many colours to use. The preview updates as you go.",
+        body: function () {
+          return "Set the size, number of colours and fabric in the settings panel " +
+            (wideScreen() ? "on the right" : "in the Settings sheet at the bottom of the screen") +
+            ". The preview updates as you go.";
+        },
         target: "[data-onboard=\"creator-sidebar-tabs\"]",
         placement: "left"
       },
       {
         title: "Generate the pattern",
-        body: "When the preview looks right, press Generate Pattern. The Tools and View tabs then unlock so you can paint, fill, select and add backstitch.",
+        body: "When the preview looks right, press Generate Pattern. It switches to Edit, where the Palette and Tools tabs let you paint, fill, select and add backstitch.",
         tip: "Pressing the highlighted button generates the pattern and closes this tour.",
         target: "[data-onboard=\"creator-generate\"]",
         placement: "bottom",
@@ -428,7 +442,7 @@
               })
             : [
                 h("h3", { key: "t", id: titleId, style: { margin: "0 0 10px 0", fontSize: 19, color: "var(--text-primary)" } }, step.title),
-                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "var(--text-secondary)" } }, step.body),
+                h("p", { key: "b", style: { margin: "0 0 12px 0", fontSize: 14, lineHeight: 1.55, color: "var(--text-secondary)" } }, stepBody(step)),
                 showTip && h("div", {
                   key: "tip",
                   style: {

@@ -71,7 +71,7 @@
         },
         {
           heading: "Painting and editing stitches",
-          body: "Once a pattern exists, the Tools and View tabs unlock in the sidebar. Choose a colour in the Palette tab, then pick a tool. Painting, filling and erasing are all undoable with Ctrl+Z.",
+          body: "Generate switches to Edit, where the Palette, Tools and View tabs are. Choose a colour in the Palette tab, then pick a tool. Use Convert to go back to the image, size or palette. Painting, filling and erasing are all undoable with Ctrl+Z.",
           bullets: [
             ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches in the tool strip. Press T to step through the stitch types."],
             ["Paint (P) and Fill (F)", "Paint colours the stitches you click or drag across; Fill colours a whole connected area."],

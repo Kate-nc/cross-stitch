@@ -573,10 +573,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: sweeping ? "#B85C38" : "#FBF8F3",
-      color: sweeping ? "#fff" : "#5C5448",
+      background: sweeping ? "var(--accent)" : "var(--surface-secondary)",
+      color: sweeping ? "#fff" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, sweeping ? /*#__PURE__*/React.createElement(React.Fragment, null, Icons.pause(), " Pause") : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.play(), " Auto-sweep")), /*#__PURE__*/React.createElement("button", {
@@ -591,10 +591,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (zoomLocked ? "#A04E11" : "#E5DCCB"),
+      border: "0.5px solid " + (zoomLocked ? "var(--accent-hover)" : "var(--line)"),
       borderRadius: 6,
-      background: zoomLocked ? "#F8EFD8" : "#FBF8F3",
-      color: zoomLocked ? "#A04E11" : "#5C5448",
+      background: zoomLocked ? "var(--warning-soft)" : "var(--surface-secondary)",
+      color: zoomLocked ? "var(--accent-hover)" : "var(--text-secondary)",
       fontWeight: 500,
       display: "inline-flex",
       alignItems: "center",
@@ -611,10 +611,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (showDiff ? "#A04E11" : "#E5DCCB"),
+      border: "0.5px solid " + (showDiff ? "var(--accent-hover)" : "var(--line)"),
       borderRadius: 6,
-      background: showDiff ? "#F8EFD8" : "#FBF8F3",
-      color: showDiff ? "#A04E11" : "#5C5448",
+      background: showDiff ? "var(--warning-soft)" : "var(--surface-secondary)",
+      color: showDiff ? "var(--accent-hover)" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, showDiff ? "Hide changes" : "Show changes"), heatmapSrc && /*#__PURE__*/React.createElement("button", {
@@ -628,10 +628,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (showHeatmap ? "#A53D3D" : "#E5DCCB"),
+      border: "0.5px solid " + (showHeatmap ? "var(--danger)" : "var(--line)"),
       borderRadius: 6,
-      background: showHeatmap ? "#FCEFEF" : "#FBF8F3",
-      color: showHeatmap ? "#A53D3D" : "#5C5448",
+      background: showHeatmap ? "var(--danger-soft)" : "var(--surface-secondary)",
+      color: showHeatmap ? "var(--danger)" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, showHeatmap ? "Hide heatmap" : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.fire(), " Heatmap")), !zoomLocked && !(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer()) && /*#__PURE__*/React.createElement("span", {
@@ -877,6 +877,7 @@ function CreatorApp({
       state.setTab("pattern");
     }
   }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+  state.backToConvertRef.current = handleRequestBackToConvert;
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function () {
@@ -1541,6 +1542,11 @@ function CreatorApp({
   })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // Coach-mark copy follows the device: under 900px the Palette tab is in the
+  // bottom sheet, not on the right, and touch users tap rather than click.
+  const _coachWide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
+  const _paletteWhere = _coachWide ? 'the Palette tab on the right' : 'the Palette tab at the bottom of the screen';
+  const _tapOrClick = _coarsePointer ? 'tap' : 'click';
   return /*#__PURE__*/React.createElement(window.GenerationContext.Provider, {
     value: genCtx
   }, /*#__PURE__*/React.createElement(window.AppContext.Provider, {
@@ -1792,12 +1798,12 @@ function CreatorApp({
     className: "cs-page-content"
   }, state.loadError && /*#__PURE__*/React.createElement("div", {
     style: {
-      background: "#FCEFEF",
+      background: "var(--danger-soft)",
       border: "1px solid #ECC8C8",
       borderRadius: 8,
       padding: "8px 14px",
       fontSize: 12,
-      color: "#A53D3D",
+      color: "var(--danger)",
       marginBottom: 12
     }
   }, state.loadError), !state.img && !state.pat && (state.isUploading || window.__pendingCreatorFile || window.__pendingCreatorAction || window.__pendingCreatorJsonFile) && /*#__PURE__*/React.createElement("div", {
@@ -1810,15 +1816,15 @@ function CreatorApp({
       flexDirection: "column",
       alignItems: "center",
       gap: 14,
-      color: "#5C5448"
+      color: "var(--text-secondary)"
     },
     "aria-live": "polite"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       width: 32,
       height: 32,
-      border: "2.5px solid #E5DCCB",
-      borderTopColor: "#B85C38",
+      border: "2.5px solid var(--line)",
+      borderTopColor: "var(--accent)",
       borderRadius: "50%",
       animation: "spin 0.9s linear infinite"
     },
@@ -1834,9 +1840,9 @@ function CreatorApp({
       margin: "40px auto",
       textAlign: "center",
       padding: "40px",
-      border: state.isDragging ? "2px dashed #B85C38" : "2px dashed transparent",
+      border: state.isDragging ? "2px dashed var(--accent)" : "2px dashed transparent",
       borderRadius: "16px",
-      background: state.isDragging ? "#F4DDCF" : "transparent",
+      background: state.isDragging ? "var(--accent-light)" : "transparent",
       transition: "all 0.2s"
     },
     onDragOver: e => {
@@ -1879,13 +1885,13 @@ function CreatorApp({
     style: {
       fontSize: 28,
       fontWeight: 700,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 8
     }
   }, "Start a new pattern"), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 15,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       marginBottom: 32
     }
   }, "Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working."), /*#__PURE__*/React.createElement("div", {
@@ -1927,12 +1933,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Create New Pattern"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Upload an image, PDF, or pattern file"))), /*#__PURE__*/React.createElement("div", {
@@ -1954,12 +1960,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Load Existing Project"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Open a saved JSON, .oxs, .xml or PDF"))), /*#__PURE__*/React.createElement("div", {
@@ -1983,12 +1989,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Design from Scratch"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Start with a blank grid and paint by hand"))))), /*#__PURE__*/React.createElement("input", {
@@ -2431,7 +2437,7 @@ function CreatorApp({
       fontWeight: 400,
       textTransform: "none"
     }
-  }, "(hover to highlight)")), /*#__PURE__*/React.createElement("div", {
+  }, window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? "(tap a colour to highlight)" : "(hover or click to highlight)")), /*#__PURE__*/React.createElement("div", {
     style: {
       maxHeight: 200,
       overflowY: "auto",
@@ -2442,47 +2448,33 @@ function CreatorApp({
   }, state.previewColors.map(function (pcol) {
     var sf = state.previewDims ? state.sW * state.sH / (state.previewDims.pw * state.previewDims.ph) : 1;
     var n = findThreadInCatalog('dmc', pcol.id);
-    return /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
       key: pcol.id,
+      className: "convert-breakdown-row",
+      "aria-pressed": state.pinnedPreviewColour === pcol.id,
+      "aria-label": "Highlight " + pcol.id + (n ? " " + n.name : "") + " in the preview",
       style: {
         display: "flex",
         alignItems: "center",
         gap: 6,
         padding: "3px 4px",
         borderRadius: 4,
-        cursor: "default"
+        cursor: "pointer",
+        width: "100%",
+        textAlign: "left",
+        font: "inherit",
+        border: "none",
+        background: state.pinnedPreviewColour === pcol.id ? "var(--accent-soft)" : "transparent"
+      },
+      onClick: function () {
+        state.togglePreviewColour(pcol.id);
       },
       onMouseEnter: function () {
-        if (!state.previewMapped || !state.previewDims) return;
-        var pw = state.previewDims.pw,
-          ph = state.previewDims.ph;
-        var hc = document.createElement('canvas');
-        hc.width = pw;
-        hc.height = ph;
-        var hcx = hc.getContext('2d');
-        var hi = hcx.createImageData(pw, ph);
-        var hd = hi.data;
-        var tid = pcol.id;
-        for (var k = 0; k < state.previewMapped.length; k++) {
-          var kidx = k * 4;
-          var km = state.previewMapped[k];
-          if (km.id === tid) {
-            hd[kidx] = 255;
-            hd[kidx + 1] = 255;
-            hd[kidx + 2] = 255;
-            hd[kidx + 3] = 180;
-          } else if (km.id !== '__skip__' && km.id !== '__empty__') {
-            hd[kidx] = 0;
-            hd[kidx + 1] = 0;
-            hd[kidx + 2] = 0;
-            hd[kidx + 3] = 130;
-          }
-        }
-        hcx.putImageData(hi, 0, 0);
-        state.setPreviewHighlight(hc.toDataURL());
+        state.hoverPreviewColour(pcol.id);
       },
       onMouseLeave: function () {
-        state.setPreviewHighlight(null);
+        state.hoverPreviewColour(null);
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2637,7 +2629,7 @@ function CreatorApp({
   }, "Generating pattern\\u2026")), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',
-    body: _coarsePointer ? state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.' : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.' : state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+    body: _coarsePointer ? state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.' : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.' : state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in ' + _paletteWhere + ', then click a square on the grid to paint it.' : 'Choose a colour in ' + _paletteWhere + ', then click a square on the chart to paint it.',
     placement: 'inside-bottom',
     target: '.canvas-area',
     showHighlight: false,
@@ -2649,7 +2641,7 @@ function CreatorApp({
     id: 'toolsTab_unlocked',
     target: '.creator-sidebar-tab[data-tab-id="tools"]',
     title: 'Tools and View are now unlocked',
-    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Convert, for the image, size and palette, is one ' + _tapOrClick + ' away.',
     placement: 'left',
     showHighlight: true,
     completeOnTargetClick: true,

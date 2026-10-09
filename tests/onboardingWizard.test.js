@@ -69,15 +69,18 @@ describe('WelcomeWizard', () => {
     expect(step.target).toBe('[data-onboard="creator-generate"]');
   });
 
+  // A body may be a function of the device (see stepBody in the wizard).
+  const bodyText = s => (typeof s.body === 'function' ? s.body() : s.body) || '';
+
   test('No creator step body contains stale "Start New" panel reference', () => {
-    const bodies = window.WelcomeWizard.STEPS.creator.map(s => s.body || '');
+    const bodies = window.WelcomeWizard.STEPS.creator.map(bodyText);
     bodies.forEach(body => {
       expect(body).not.toMatch(/Start New/);
     });
   });
 
   test('No creator step body contains directional references "above" or "below"', () => {
-    const bodies = window.WelcomeWizard.STEPS.creator.map(s => s.body || '');
+    const bodies = window.WelcomeWizard.STEPS.creator.map(bodyText);
     bodies.forEach(body => {
       expect(body).not.toMatch(/\babove\b/i);
       expect(body).not.toMatch(/\bbelow\b/i);

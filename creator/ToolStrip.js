@@ -720,15 +720,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
       "aria-label":"Undo",
-      style:{opacity:cv.editHistory.length?1:0.3}
-    }, "\u21A9"),
+      style:{opacity:cv.editHistory.length?1:0.3,fontSize:16}
+    }, window.Icons.undo()),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
       "aria-label":"Redo",
-      style:{opacity:cv.redoHistory.length?1:0.3}
-    }, "\u21AA")
+      style:{opacity:cv.redoHistory.length?1:0.3,fontSize:16}
+    }, window.Icons.redo())
   ];
 
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)

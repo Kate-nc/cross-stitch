@@ -231,20 +231,20 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
         <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:sweeping?"var(--accent)":"var(--surface-secondary)",color:sweeping?"#fff":"var(--text-secondary)",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
         <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
           title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"var(--accent-hover)":"var(--line)"),borderRadius:6,background:zoomLocked?"var(--warning-soft)":"var(--surface-secondary)",color:zoomLocked?"var(--accent-hover)":"var(--text-secondary)",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
           {Icons.magnify()} Magnifier
         </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"var(--accent-hover)":"var(--line)"),borderRadius:6,background:showDiff?"var(--warning-soft)":"var(--surface-secondary)",color:showDiff?"var(--accent-hover)":"var(--text-secondary)",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"var(--danger)":"var(--line)"),borderRadius:6,background:showHeatmap?"var(--danger-soft)":"var(--surface-secondary)",color:showHeatmap?"var(--danger)":"var(--text-secondary)",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
         {/* Touch screens have no Alt key, and the Magnifier button sits right here. */}
@@ -417,6 +417,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       state.setTab("pattern");
     }
   }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+  state.backToConvertRef.current = handleRequestBackToConvert;
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
@@ -927,6 +928,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const _coarsePointer = (()=>{ try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) { return false; } })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // Coach-mark copy follows the device: under 900px the Palette tab is in the
+  // bottom sheet, not on the right, and touch users tap rather than click.
+  const _coachWide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
+  const _paletteWhere = _coachWide ? 'the Palette tab on the right' : 'the Palette tab at the bottom of the screen';
+  const _tapOrClick = _coarsePointer ? 'tap' : 'click';
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -1116,7 +1122,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
-        {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
+        {state.loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"var(--danger)",marginBottom:12}}>{state.loadError}</div>}
         {/* Hide the legacy "Welcome to stitchx" card
             while a /home handoff is in flight (image being decoded, scratch
             project being built, JSON being loaded). Without this guard the
@@ -1125,32 +1131,32 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             carry an action= deep link (e.g. someone clicked "New project"
             inside the Creator and resetAll wiped the canvas). */}
         {!state.img&&!state.pat&&(state.isUploading||window.__pendingCreatorFile||window.__pendingCreatorAction||window.__pendingCreatorJsonFile)&&<div
-            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
+            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"var(--text-secondary)"}}
             aria-live="polite">
-          <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
+          <div style={{width:32,height:32,border:"2.5px solid var(--line)",borderTopColor:"var(--accent)",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
         </div>}
         {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
+            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed var(--accent)":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"var(--accent-light)":"transparent",transition:"all 0.2s"}}
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
             onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];if(rejectUnsupportedFile(df)){e.dataTransfer.clearData();return;}var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
           >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
-          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
+          <h1 style={{fontSize:28,fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Start a new pattern</h1>
+          <p style={{fontSize:15,color:"var(--text-secondary)",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Create New Pattern</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
             </div>
             <div onClick={()=>state.loadRef.current.click()} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Load Existing Project</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
             </div>
             <div onClick={state.startScratch} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Design from Scratch</div><div style={{color:"#5C5448",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Design from Scratch</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
             </div>
           </div>
         </div>}
@@ -1262,33 +1268,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     );
                   })()}
                   {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
-                    <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                    <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>{window.matchMedia&&window.matchMedia('(pointer: coarse)').matches?"(tap a colour to highlight)":"(hover or click to highlight)"}</span></div>
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                       {state.previewColors.map(function(pcol){
                         var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
                         var n=findThreadInCatalog('dmc',pcol.id);
                         return(
-                          <div key={pcol.id}
-                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
-                            onMouseEnter={function(){
-                              if(!state.previewMapped||!state.previewDims)return;
-                              var pw=state.previewDims.pw,ph=state.previewDims.ph;
-                              var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
-                              var hcx=hc.getContext('2d');
-                              var hi=hcx.createImageData(pw,ph);var hd=hi.data;
-                              var tid=pcol.id;
-                              for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
-                                if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
-                                else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
-                              }
-                              hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
-                            }}
-                            onMouseLeave={function(){state.setPreviewHighlight(null);}}>
+                          <button type="button" key={pcol.id}
+                            className="convert-breakdown-row"
+                            aria-pressed={state.pinnedPreviewColour===pcol.id}
+                            aria-label={"Highlight "+pcol.id+(n?" "+n.name:"")+" in the preview"}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"pointer",width:"100%",textAlign:"left",font:"inherit",border:"none",
+                              background:state.pinnedPreviewColour===pcol.id?"var(--accent-soft)":"transparent"}}
+                            onClick={function(){state.togglePreviewColour(pcol.id);}}
+                            onMouseEnter={function(){state.hoverPreviewColour(pcol.id);}}
+                            onMouseLeave={function(){state.hoverPreviewColour(null);}}>
                             <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid var(--line)"}}/>
                             <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
                             <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
                             <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -1345,8 +1344,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.'
             : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.')
           : state.isScratchMode && !(state.pal && state.pal.length)
-          ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.'
-          : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+          ? 'Add a colour in ' + _paletteWhere + ', then click a square on the grid to paint it.'
+          : 'Choose a colour in ' + _paletteWhere + ', then click a square on the chart to paint it.',
         placement: 'inside-bottom',
         target: '.canvas-area',
         showHighlight: false,
@@ -1359,7 +1358,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
-        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Convert, for the image, size and palette, is one ' + _tapOrClick + ' away.',
         placement: 'left',
         showHighlight: true,
         completeOnTargetClick: true,

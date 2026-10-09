@@ -698,6 +698,11 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
+  // Convert's Colour Breakdown highlights one colour in the preview: on hover
+  // with a mouse, or pinned by a tap/click so touch users get it too (audit
+  // B-17). A new preview clears the pin.
+  var _prevPin    = useState(null);  var pinnedPreviewColour = _prevPin[0], setPinnedPreviewColour = _prevPin[1];
+  useEffect(function() { setPinnedPreviewColour(null); }, [previewMapped]);
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -848,6 +853,9 @@ window.useCreatorState = function useCreatorState() {
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
   var scrollRef  = useRef(null);
+  // creator-main.js points this at handleRequestBackToConvert (which asks
+  // first when there are edits), for the post-generate toast's action.
+  var backToConvertRef = useRef(null);
   var expRef     = useRef(null);
   var loadRef    = useRef(null);
   var prevSW     = useRef(sW);
@@ -869,6 +877,32 @@ window.useCreatorState = function useCreatorState() {
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
+
+  // Mask over the preview: the colour's cells lit, every other stitch dimmed.
+  // Returns a data URL, or null when there is no preview to mask.
+  function previewHighlightFor(tid) {
+    if (!tid || !previewMapped || !previewDims) return null;
+    var pw = previewDims.pw, ph = previewDims.ph;
+    var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
+    var hcx = hc.getContext("2d");
+    var hi = hcx.createImageData(pw, ph); var hd = hi.data;
+    for (var k = 0; k < previewMapped.length; k++) {
+      var kidx = k * 4, km = previewMapped[k];
+      if (km.id === tid) { hd[kidx] = 255; hd[kidx + 1] = 255; hd[kidx + 2] = 255; hd[kidx + 3] = 180; }
+      else if (km.id !== "__skip__" && km.id !== "__empty__") { hd[kidx] = 0; hd[kidx + 1] = 0; hd[kidx + 2] = 0; hd[kidx + 3] = 130; }
+    }
+    hcx.putImageData(hi, 0, 0);
+    return hc.toDataURL();
+  }
+  // Hovering shows a colour; leaving goes back to the pinned one, if any.
+  function hoverPreviewColour(tid) {
+    setPreviewHighlight(previewHighlightFor(tid || pinnedPreviewColour));
+  }
+  function togglePreviewColour(tid) {
+    var next = pinnedPreviewColour === tid ? null : tid;
+    setPinnedPreviewColour(next);
+    setPreviewHighlight(previewHighlightFor(next));
+  }
 
   // ─── Derived values ──────────────────────────────────────────────────────────
   var totalStitchable = useMemo(function() {
@@ -1402,10 +1436,14 @@ window.useCreatorState = function useCreatorState() {
     pendingFitRef.current = true;
     setBusy(false);
     // Toast on successful generation. Mentions the phase flip so users
-    // notice the sidebar tabs and canvas tools have changed; the action
-    // bar's "< Setup" button is the way back. (Polish B.)
+    // notice the sidebar tabs and canvas tools have changed; Convert is the
+    // way back, offered as the toast's action. (Polish B; audit B-06 \u2014 it
+    // used to name a "Setup" button that doesn't exist.)
     var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use Convert to revisit the image, size or palette.", {
+      type:"success", duration:5000,
+      action: { label: "Back to Convert", onClick: function() { if (backToConvertRef.current) backToConvertRef.current(); } }
+    });
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -1967,6 +2005,7 @@ window.useCreatorState = function useCreatorState() {
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
+    pinnedPreviewColour, hoverPreviewColour, togglePreviewColour,
     previewLoading, setPreviewLoading,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
@@ -1988,7 +2027,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupPendingMask, setCleanupPendingMask,
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
-    pcRef, fRef, scrollRef, expRef, loadRef,
+    pcRef, fRef, scrollRef, backToConvertRef, expRef, loadRef,
     prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     denoisePendingMask, setDenoisePendingMask,

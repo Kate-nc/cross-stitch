@@ -266,8 +266,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
-      }, "Clear \u2715")
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}
+      }, "Clear", window.Icons.x())
     ),
 
   );
