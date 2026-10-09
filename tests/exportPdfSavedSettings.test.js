@@ -98,8 +98,11 @@ describe("ExportPdf.run", () => {
 describe("callers", () => {
   test("Creator File menu and Print PDF use ExportPdf, not the fixed-default shim", () => {
     const src = read("creator-main.js");
-    expect(src).toMatch(/onExportPDF=\{state\.pat\?exportPdfWithSavedSettings:null\}/);
-    expect(src).toMatch(/onPrintPdf=\{exportPdfWithSavedSettings\}/);
+    // Both go through the one-time name nudge (P0-2), which then calls
+    // exportPdfWithSavedSettings.
+    expect(src).toMatch(/onExportPDF=\{state\.pat\?printPdfWithNameNudge:null\}/);
+    expect(src).toMatch(/onPrintPdf=\{printPdfWithNameNudge\}/);
+    expect(src).toMatch(/if \(key === 'pdf'\) exportPdfWithSavedSettings\(\);/);
     expect(src).not.toMatch(/exportPDF\(\{displayMode/);
   });
 

@@ -436,7 +436,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),

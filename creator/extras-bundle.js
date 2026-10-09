@@ -2391,7 +2391,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     var threadById = {};
-    threadRows.forEach(function(r) { threadById[r.p.id] = r; });
+    threadRows.forEach(function(r) { threadById[r.key] = r; });
     var rank = { needed: 0, partial: 1, owned: 2 };
     return ctx.pal.map(function(p) {
       var skResult = (typeof stitchesToSkeins === "function")
@@ -2409,12 +2409,12 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       var owned, status;
       if (p.type === "blend" && p.threads) {
         // A blend is in stash when both of its threads are.
-        var parts = p.threads.map(function(t) { return threadById[t.id]; }).filter(Boolean);
+        var parts = p.threads.map(function(t) { return threadById[(t.brand || p.brand || 'dmc') + ':' + t.id]; }).filter(Boolean);
         owned  = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
         status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, "owned") : "needed";
       } else {
-        var stashEntry = stash[threadKey('dmc', p.id)] || {};
-        owned  = stashEntry.owned || 0;
+        var stashEntry = stash[threadKey(p.brand || 'dmc', p.id)];
+        owned  = typeof stashEffectiveQty === 'function' ? stashEffectiveQty(stashEntry) : ((stashEntry && stashEntry.owned) || 0);
         status = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
       }
       var name = (p.type === "blend" && p.threads)

@@ -124,6 +124,8 @@
     return false;
   }
   function HelpHintBanner() {
+    // A "Press ?" hint means nothing without a keyboard (audit COMMON-06).
+    var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
     var _v = React.useState(false);
     var visible = _v[0], setVisible = _v[1];
     var _t = React.useState(function () {
@@ -172,7 +174,7 @@
         document.removeEventListener("focusout", check, true);
       };
     }, []);
-    if (!visible || typing) return null;
+    if (coarse || !visible || typing) return null;
     function dismiss() {
       setVisible(false);
       try { localStorage.setItem(HINT_KEY, "1"); } catch (_) { /* localStorage quota exceeded */ }

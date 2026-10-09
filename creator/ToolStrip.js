@@ -531,27 +531,34 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
+  // On touch screens, tapping the active Paint/Fill/Erase button again puts
+  // the tool down so one finger pans the chart again.
+  var coarsePointer = false;
+  try { coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) {}
+  var paintOn = cv.activeTool === "paint" && cv.brushMode === "paint";
+  var fillOn = cv.activeTool === "fill" && cv.brushMode === "fill";
+  var eraseOn = cv.stitchType === "erase";
+  function pickBrush(mode, isOn) {
+    if (coarsePointer && isOn) { cv.selectStitchType(null); return; }
+    if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+    cv.setBrushAndActivate(mode);
+  }
   var brushGrp = [
     h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("paint");
-        },
-        title:"Paint (P)", "aria-label":"Paint tool"
+        className:"tb-btn"+(paintOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("paint", paintOn); },
+        title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("fill");
-        },
-        title:"Fill (F)", "aria-label":"Fill tool"
+        className:"tb-btn"+(fillOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("fill", fillOn); },
+        title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
       }, "Fill"),
       h("button", {
-        className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
+        className:"tb-btn"+(eraseOn?" tb-btn--red":""),
+        onClick:function(){ cv.selectStitchType(coarsePointer && eraseOn ? null : "erase"); },
+        title:"Erase (5)", "aria-label":"Erase tool", "aria-pressed":eraseOn
       }, svgErase, "Erase")
     )
   ];
@@ -648,6 +655,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "hand" || (!cv.activeTool && !ctx.partialStitchTool)) {
+    // No drawing tool: one finger (or the Hand tool) pans the chart.
+    badgeLabel = (cv.activeTool === "hand" || coarsePointer) ? "Panning" : null;
+    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.brushMode === "paint") {

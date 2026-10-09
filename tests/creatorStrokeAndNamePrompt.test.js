@@ -56,8 +56,9 @@ describe('name prompt is shown once per project', () => {
     expect(io).toMatch(/state\.setNamePromptShown\(!!project\.namePromptShown\)/);
   });
 
-  test('the first-save prompt checks it', () => {
-    expect(io).toMatch(/!\(shownRef && shownRef\.current\) && state\.setNamePromptOpen/);
+  test('the export-time prompt checks it', () => {
+    const main = read('creator-main.js');
+    expect(main).toMatch(/if \(auto && !shown && state\.pat && state\.pal\)/);
   });
 
   test('opening the prompt sets it', () => {

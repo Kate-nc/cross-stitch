@@ -4,11 +4,11 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.75';
+window.APP_VERSION = '1.0.84';
 
 window.APP_CHANGELOG = [
   {
-    version: '1.0.80',
+    version: '1.0.85',
     date: 'October 2026',
     notes: [
       'The Pattern Creator\'s start screen and Convert page are readable in dark mode, and the bar along the top no longer stays light.',
@@ -18,9 +18,39 @@ window.APP_CHANGELOG = [
     ]
   },
   {
+    version: '1.0.84',
+    date: 'October 2026',
+    notes: [
+      'On phones and tablets the Pattern Creator no longer shows mouse and keyboard tips such as \u201CRight-click any cell\u201D, \u201CHold Alt to zoom\u201D or \u201CPress ? for help\u201D; it says \u201CLong-press a stitch for more options\u201D instead. The labels under the Convert preview are larger and easier to read, in light and dark themes.',
+    ]
+  },
+  {
+    version: '1.0.83',
+    date: 'October 2026',
+    notes: [
+      'New patterns start with 15 colours and no dithering, and plain backgrounds are left unstitched automatically. This only changes the starting values if you haven\u2019t set your own in Preferences.',
+      'The Convert settings now start with Size & fabric and Colours. Image adjustments have moved further down as Adjust image, folded away until you need them.',
+    ]
+  },
+  {
+    version: '1.0.81',
+    date: 'October 2026',
+    notes: [
+      'Clearer messages when a file can\u2019t be imported: they say what went wrong in plain English and link to a new help article, What can I import?. Files from other design programs (such as Pattern Maker .xsd or PCStitch .pat) are turned away with a note on how to export them as OXS or PDF, instead of failing as a picture.',
+    ]
+  },
+  {
+    version: '1.0.80',
+    date: 'October 2026',
+    notes: [
+      'New patterns are named for you, so no box pops up while you create: a converted image takes the image\u2019s file name and a blank grid starts as \u201CUntitled design\u201D. The first time you print, export or track an automatically named pattern you\u2019re asked once whether to rename it. On a phone, rename a pattern from the project button at the top of the screen.',
+    ]
+  },
+  {
     version: '1.0.79',
     date: 'October 2026',
     notes: [
+      'On touch screens the chart now scrolls with one finger until you pick a drawing tool. Tap Paint, Fill or Erase again to go back to scrolling, and drag with two fingers to pan.',
       'Fast brush strokes in the Pattern Creator no longer leave gaps: Paint and Erase fill in every square the stroke passes over, and the whole stroke still undoes in one step.',
       'If you close the "Name your project" box, it no longer comes back each time you reopen that pattern.',
       'The Convert panel is tidier: Skip background and the fabric count each appear once (Background and Output), instead of twice.',

@@ -802,9 +802,9 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   .tb-topbar-inner{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
   .tb-topbar-inner::-webkit-scrollbar{display:none;}
   .tb-topbar-inner > *{flex-shrink:0;}
-  .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:calc(var(--app-header-height, 48px) + 6px);max-width:none;width:auto;}
+  .tb-topbar .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:calc(var(--app-header-height, 48px) + 6px);max-width:none;width:auto;}
   .tb-page-dropdown{position:fixed;top:calc(var(--app-header-height, 48px) + 6px);}
-  .sync-popover{position:fixed;top:calc(var(--app-header-height, 48px) + 8px);right:8px;}
+  .tb-topbar .sync-popover{position:fixed;top:calc(var(--app-header-height, 48px) + 8px);right:8px;}
 }
 /* Responsive: compact nav tabs on narrow screens */
 @media (max-width: 599px) {
@@ -5869,6 +5869,7 @@ details[open] .creator-popover-difficulty__summary::before {
 @media (pointer: coarse) {
   .tb-proj-switcher__btn { min-height: 44px; }
   .tb-proj-switcher__item { min-height: 44px; }
+  .name-prompt-input { min-height: 44px; font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

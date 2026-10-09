@@ -4944,8 +4944,8 @@ window.creatorFitZoom = creatorFitZoom;
 
 // The part of the chart's scroll container that is actually on screen: its
 // width, and its height down to the bottom of the viewport or the top of the
-// phone bottom drawer, capped by its max-height. Returns null when the
-// container isn't mounted.
+// phone bottom drawer, capped by its max-height or parent pane. Returns null
+// when the container isn't mounted.
 function creatorFitBox(el) {
   if (!el || !el.clientWidth || typeof el.getBoundingClientRect !== "function") return null;
   var r = el.getBoundingClientRect();
@@ -4959,6 +4959,13 @@ function creatorFitBox(el) {
   var h = bottom - Math.max(0, r.top) - chrome;
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
+  // In compare mode the scroll box is a flex child of the fixed-height split
+  // pane, which has no max-height of its own.
+  var parent = el.parentElement;
+  if (parent && typeof parent.getBoundingClientRect === "function") {
+    var pr = parent.getBoundingClientRect();
+    if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
+  }
   // Container below the fold: fall back to its own size.
   if (!(h >= 120)) h = el.clientHeight || (isFinite(mh) ? mh : 0);
   return { w: el.clientWidth, h: h, outerH: Math.round(h + chrome) };
@@ -4979,23 +4986,24 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   opts = opts || {};
   var fabricCt = opts.fabricCt || 14;
   var stash = opts.stash || {};
-  var order = [], byId = {};
+  var order = [], byKey = {};
   (pal || []).forEach(function(p) {
     if (!p || p.id === '__skip__' || p.id === '__empty__') return;
     var count = p.count || 0;
     var parts;
     if (p.type === 'blend') {
       parts = (p.threads && p.threads.length)
-        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb }; })
-        : String(p.id).split('+').map(function(id) { return { id: id }; });
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
+        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
     } else {
-      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand }];
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
     }
     parts.forEach(function(t) {
-      var r = byId[t.id];
+      var key = t.brand + ':' + t.id;
+      var r = byKey[key];
       if (!r) {
-        r = byId[t.id] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand || 'dmc', stitches: 0, threadStitches: 0 };
-        order.push(t.id);
+        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
+        order.push(key);
       }
       if (!r.name && t.name) r.name = t.name;
       if (!r.rgb && t.rgb) r.rgb = t.rgb;
@@ -5003,10 +5011,10 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
       r.threadStitches += parts.length > 1 ? count / parts.length : count;
     });
   });
-  return order.map(function(id) {
-    var r = byId[id];
+  return order.map(function(key) {
+    var r = byKey[key];
     if (!r.rgb || !r.name) {
-      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, id) : null;
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
       if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
     }
     var needed;
@@ -5019,12 +5027,15 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     }
     // Any thread with stitches needs at least one skein.
     if (r.stitches > 0) needed = Math.max(1, needed);
-    var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
-    var owned = (stash[key] && stash[key].owned) || 0;
+    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
+    var entry = stash[stashKey];
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(entry)
+      : ((entry && entry.owned) || 0);
     var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
     return {
-      p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
-      key: key, owned: owned, needed: needed, status: status, name: r.name || id
+      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
+      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
     };
   });
 };
@@ -5165,7 +5176,7 @@ window.useCreatorState = function useCreatorState() {
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
   // Generation parameters (initial values come from Preferences › Pattern Creator)
-  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 15); return (typeof v === "number" && v > 0) ? v : 15; });
   var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
@@ -5187,6 +5198,9 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
+  // True while skipBg was switched on by the automatic plain-background check
+  // (useProjectIO.handleFile) rather than by the user.
+  var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
@@ -5402,9 +5416,12 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
+  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
+  // Adjust image and Project start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
+  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
@@ -5588,6 +5605,27 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (namePromptOpen && !namePromptShownRef.current) setNamePromptShown(true);
   }, [namePromptOpen, setNamePromptShown]);
+  // True while the project still has the name the app gave it (image file
+  // name, chart title or "Untitled design"). Saved with the project as the
+  // optional field nameAutoGenerated; cleared when the user renames. The first
+  // export or Tracker hand-off of an auto-named project offers a rename once.
+  var _nameAuto = useState(false); var nameAutoGenerated = _nameAuto[0], setNameAutoGeneratedState = _nameAuto[1];
+  var nameAutoGeneratedRef = useRef(false);
+  var setNameAutoGenerated = useCallback(function(v) {
+    nameAutoGeneratedRef.current = !!v;
+    setNameAutoGeneratedState(!!v);
+  }, []);
+  // A name the user typed: header chip, rename prompt or command palette.
+  var renameProject = useCallback(function(name) {
+    setProjectName(name);
+    setNameAutoGenerated(false);
+  }, [setNameAutoGenerated]);
+  // An automatic name for a new project; the prompt may be offered again.
+  var setAutoProjectName = useCallback(function(name) {
+    setProjectName(name);
+    setNameAutoGenerated(true);
+    setNamePromptShown(false);
+  }, [setNameAutoGenerated, setNamePromptShown]);
   // Proposal 2: auto-save state surfaced in the header badge so the user can
   // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
   // static "All changes saved" string. Driven by SaveStatus.createSaveController
@@ -5911,6 +5949,9 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
+  function isFinePointer() {
+    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -5954,12 +5995,17 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
+  // Only fine pointers get Paint armed: on touch, an armed tool turns the
+  // first swipe into stitches, so touch users start with no tool (one finger
+  // pans, long-press opens the context menu) and pick Paint themselves.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    setBrushAndActivate("paint");
-    selectStitchType("cross");
+    if (isFinePointer()) {
+      setBrushAndActivate("paint");
+      selectStitchType("cross");
+    }
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -6024,6 +6070,7 @@ window.useCreatorState = function useCreatorState() {
   function startScratch() {
     resetAll();
     setIsScratchMode(true);
+    setAutoProjectName(window.UNTITLED_DESIGN_NAME || "Untitled design");
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
@@ -6054,7 +6101,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -6195,6 +6242,7 @@ window.useCreatorState = function useCreatorState() {
     // Image / Dimensions / Palette sidebar tabs left users stranded in
     // create mode with no pattern to show. Now every successful generation
     // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setPanelOpen(false);
     setAppMode("edit");
     setSidebarTab("palette");
     // Fallback zoom now; the real fit runs once the Edit view has mounted.
@@ -6707,7 +6755,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
@@ -6777,6 +6825,7 @@ window.useCreatorState = function useCreatorState() {
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
     namePromptShown, setNamePromptShown, namePromptShownRef,
+    nameAutoGenerated, setNameAutoGenerated, nameAutoGeneratedRef, renameProject, setAutoProjectName,
     saveStatus, setSaveStatus,
     savedAt, setSavedAt,
     saveError, setSaveError,
@@ -8501,6 +8550,24 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
+   the scroll position and finger midpoint captured when the gesture began,
+   plus the scroll container's viewport origin and the canvas's offset inside
+   the scrolled content. Returns the scroll position that keeps the chart
+   point that was under the starting midpoint under the current midpoint,
+   after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
+   is a plain pan: the chart follows the fingers. */
+window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
+  var originX = pinch.originX || 0, originY = pinch.originY || 0;
+  var padX = pinch.padX || 0, padY = pinch.padY || 0;
+  var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
+  var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
+  return {
+    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
+    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
+  };
+};
+
 window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Internal drag refs (not in state — don't need React rendering)
   var isDraggingRef        = React.useRef(false);
@@ -8599,16 +8666,33 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var pts = Array.from(activePointersRef.current.values());
     var midX = (pts[0].x + pts[1].x) / 2;
     var midY = (pts[0].y + pts[1].y) / 2;
-    var rect = pcRef.current.getBoundingClientRect();
+    var sc = scrollRef.current;
+    var originX = 0, originY = 0, padX = 0, padY = 0;
+    if (sc.getBoundingClientRect) {
+      // Viewport origin of the scroll container, and the canvas's offset
+      // inside its scrolled content (gutter / centring padding).
+      var cRect = sc.getBoundingClientRect();
+      var pRect = pcRef.current.getBoundingClientRect();
+      originX = cRect.left; originY = cRect.top;
+      padX = pRect.left - cRect.left + sc.scrollLeft;
+      padY = pRect.top - cRect.top + sc.scrollTop;
+    }
     pinchStateRef.current = {
       startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
       startZoom: state.zoom,
       lastAppliedZoom: state.zoom,
-      focalX: scrollRef.current.scrollLeft + (midX - rect.left),
-      focalY: scrollRef.current.scrollTop + (midY - rect.top),
+      startScrollLeft: sc.scrollLeft,
+      startScrollTop: sc.scrollTop,
+      startMidX: midX,
+      startMidY: midY,
+      originX: originX, originY: originY,
+      padX: padX, padY: padY,
     };
   }
 
+  // The scroll position always follows the midpoint of the two fingers, so a
+  // steady two-finger drag pans; zoom is applied only when its rounded value
+  // changes, keeping the content point under the starting midpoint pinned.
   function updatePinchGesture() {
     var pinch = pinchStateRef.current;
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
@@ -8619,18 +8703,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    if (nextZoom === pinch.lastAppliedZoom) return;
+    var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
-    state.setZoom(nextZoom);
-    requestAnimationFrame(function() {
-      if (!scrollRef.current || !pcRef.current) return;
-      var rect = pcRef.current.getBoundingClientRect();
-      var ratio = nextZoom / pinch.startZoom;
-      var offsetX = midX - rect.left;
-      var offsetY = midY - rect.top;
-      scrollRef.current.scrollLeft = Math.max(0, pinch.focalX * ratio - offsetX);
-      scrollRef.current.scrollTop = Math.max(0, pinch.focalY * ratio - offsetY);
-    });
+    var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
+    function applyScroll() {
+      if (!scrollRef.current) return;
+      scrollRef.current.scrollLeft = next.scrollLeft;
+      scrollRef.current.scrollTop = next.scrollTop;
+    }
+    if (zoomChanged) {
+      state.setZoom(nextZoom);
+      // Wait for the canvas to resize before scrolling into the new range.
+      requestAnimationFrame(applyScroll);
+    } else {
+      applyScroll();
+    }
   }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
@@ -9870,6 +9957,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
+      nameAutoGenerated: !!state.nameAutoGenerated,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
@@ -9937,6 +10025,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
+      nameAutoGenerated: !!state.nameAutoGenerated,
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
@@ -10122,6 +10211,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setProjectDescription(project.description || "");
     // Older projects have no namePromptShown: treat as not yet shown.
     if (state.setNamePromptShown) state.setNamePromptShown(!!project.namePromptShown);
+    // Optional field (absent on older projects): the name was chosen by the app.
+    if (state.setNameAutoGenerated) state.setNameAutoGenerated(!!project.nameAutoGenerated);
     // Clear pending-metadata localStorage so a stale pre-gen name can't bleed back in
     try { localStorage.removeItem("cs_pend_meta"); } catch (_) {}
     state.projectIdRef.current = project.id || null;
@@ -10256,6 +10347,50 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // app into create mode so the correct sidebar tabs render.
     if (typeof state.setAppMode === "function") state.setAppMode("create");
     state.setIsUploading(true);
+    // Name the project after the image ("IMG_2041.jpg" gives "IMG_2041")
+    // instead of asking. A name the user typed before generating is kept.
+    function nameFromImage() {
+      if (!state.setAutoProjectName) return;
+      var typedBeforeGenerate = !state.pat && state.projectName &&
+        !(state.nameAutoGeneratedRef && state.nameAutoGeneratedRef.current);
+      if (typedBeforeGenerate) return;
+      var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
+      state.setAutoProjectName(fromFile || "Untitled design");
+    }
+    // Plain backgrounds are left unstitched automatically (audit IMG-01):
+    // if the outer 2% of the picture is one colour, skip it, with Undo.
+    function autoSkipBackground(imgEl) {
+      if (typeof window.detectUniformBorder !== "function" || !state.setSkipBg) return;
+      var found = null;
+      try {
+        var maxSide = 400;
+        var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
+        var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
+        var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
+        var c2 = cnv.getContext("2d");
+        if (!c2) return;
+        c2.drawImage(imgEl, 0, 0, cw, ch);
+        found = window.detectUniformBorder(c2.getImageData(0, 0, cw, ch));
+      } catch (err) { console.warn("useProjectIO: background check failed", err); return; }
+      var autoRef = state.bgAutoSkippedRef;
+      if (!found) {
+        // A skip we switched on for the previous picture shouldn't carry over.
+        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+        return;
+      }
+      state.setBgCol(found.rgb);
+      state.setSkipBg(true);
+      if (autoRef) autoRef.current = true;
+      if (state.addToast) {
+        state.addToast("Background left unstitched.", {
+          type: "info", duration: 8000,
+          action: { label: "Undo", onClick: function () {
+            state.setSkipBg(false);
+            if (autoRef) autoRef.current = false;
+          } }
+        });
+      }
+    }
     var rd = new FileReader();
     rd.onload = function(ev) {
       var i = new Image();
@@ -10284,7 +10419,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); state.setIsUploading(false);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -10294,7 +10429,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); state.setIsUploading(false);
+          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
@@ -10482,7 +10617,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           var pend = localStorage.getItem("cs_pend_meta");
           if (pend) {
             var pm = JSON.parse(pend);
-            if (pm.n) state.setProjectName(pm.n);
+            if (pm.n) {
+              if (pm.a && state.setAutoProjectName) state.setAutoProjectName(pm.n);
+              else state.setProjectName(pm.n);
+            }
             if (pm.d) state.setProjectDesigner(pm.d);
             if (pm.ds) state.setProjectDescription(pm.ds);
           }
@@ -10497,11 +10635,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     try {
       localStorage.setItem("cs_pend_meta", JSON.stringify({
         n: state.projectName || "",
+        a: !!state.nameAutoGenerated,
         d: state.projectDesigner || "",
         ds: state.projectDescription || ""
       }));
     } catch (_) {}
-  }, [state.projectName, state.projectDesigner, state.projectDescription]);
+  }, [state.projectName, state.nameAutoGenerated, state.projectDesigner, state.projectDescription]);
 
   // Stash sync on mount
   React.useEffect(function() {
@@ -10594,6 +10733,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       version: 11, id: state.projectIdRef.current, page: "creator", name: state.projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
+      nameAutoGenerated: !!state.nameAutoGenerated,
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       // PERF (deferred-1): see helpers.js / serializePattern.
@@ -10642,18 +10782,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       saveControllerRef.current = window.SaveStatus.createSaveController({
         onStatus:  function (s)   { if (state.setSaveStatus) state.setSaveStatus(s); },
         onSavedAt: function (d)   { if (state.setSavedAt)    state.setSavedAt(d); },
-        onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); },
-        onFirstSaveSuccess: function () {
-          // Prompt for a name only if the user hasn't given one yet AND only
-          // once per project: namePromptShown is saved with the project, so a
-          // reload doesn't ask again. Non-blocking: the project is already
-          // saved under its auto-generated name ("Untitled pattern").
-          var shownRef = state.namePromptShownRef;
-          if (!state.projectName && !(shownRef && shownRef.current) && state.setNamePromptOpen) {
-            if (state.setNameModalReason) state.setNameModalReason("firstSave");
-            state.setNamePromptOpen(true);
-          }
-        }
+        onError:   function (err) { if (state.setSaveError)  state.setSaveError(err); }
+        // No name prompt after the first save any more (audit COMMON-05): a
+        // new project is named after its source, and the first export or
+        // Tracker hand-off offers a rename once instead (see creator-main.js).
       }, { debounceMs: 1000, savedHoldMs: 2500 });
     }
     var ctrl = saveControllerRef.current;
@@ -10681,7 +10813,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
-    state.projectDesigner, state.projectDescription, state.namePromptShown,
+    state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.isActive,
   ]);
 
@@ -12208,27 +12340,34 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   );
 
   // Brush group — primary tools only; secondary tools (Hand/Pick/Wand/Lasso/Replace/Cleanup) live in More panel
+  // On touch screens, tapping the active Paint/Fill/Erase button again puts
+  // the tool down so one finger pans the chart again.
+  var coarsePointer = false;
+  try { coarsePointer = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches); } catch (_) {}
+  var paintOn = cv.activeTool === "paint" && cv.brushMode === "paint";
+  var fillOn = cv.activeTool === "fill" && cv.brushMode === "fill";
+  var eraseOn = cv.stitchType === "erase";
+  function pickBrush(mode, isOn) {
+    if (coarsePointer && isOn) { cv.selectStitchType(null); return; }
+    if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+    cv.setBrushAndActivate(mode);
+  }
   var brushGrp = [
     h("div", {key:"brush-grp", className:"tb-grp"},
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="paint" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("paint");
-        },
-        title:"Paint (P)", "aria-label":"Paint tool"
+        className:"tb-btn"+(paintOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("paint", paintOn); },
+        title:"Paint (P)", "aria-label":"Paint tool", "aria-pressed":paintOn
       }, "Paint"),
       h("button", {
-        className:"tb-btn"+(cv.brushMode==="fill" && cv.activeTool!=="eyedropper" && cv.stitchType!=="erase"?" tb-btn--on":""),
-        onClick:function(){
-          if (!cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
-          cv.setBrushAndActivate("fill");
-        },
-        title:"Fill (F)", "aria-label":"Fill tool"
+        className:"tb-btn"+(fillOn?" tb-btn--on":""),
+        onClick:function(){ pickBrush("fill", fillOn); },
+        title:"Fill (F)", "aria-label":"Fill tool", "aria-pressed":fillOn
       }, "Fill"),
       h("button", {
-        className:"tb-btn"+(cv.stitchType==="erase"?" tb-btn--red":""),
-        onClick:function(){cv.selectStitchType("erase");}, title:"Erase (5)", "aria-label":"Erase tool"
+        className:"tb-btn"+(eraseOn?" tb-btn--red":""),
+        onClick:function(){ cv.selectStitchType(coarsePointer && eraseOn ? null : "erase"); },
+        title:"Erase (5)", "aria-label":"Erase tool", "aria-pressed":eraseOn
       }, svgErase, "Erase")
     )
   ];
@@ -12325,6 +12464,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = "Half /"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.stitchType === "half-bck") {
     badgeLabel = "Half \\"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "hand" || (!cv.activeTool && !ctx.partialStitchTool)) {
+    // No drawing tool: one finger (or the Hand tool) pans the chart.
+    badgeLabel = (cv.activeTool === "hand" || coarsePointer) ? "Panning" : null;
+    badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-secondary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.brushMode === "fill") {
     badgeLabel = "Fill"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.brushMode === "paint") {
@@ -13899,7 +14042,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           : h(React.Fragment, null,
               h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
-              h("span", {style:{color:"var(--accent-ink)"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{color:"var(--accent-ink)"}}, (window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())
+                ? "Select a colour to paint \u2014 or long-press a stitch"
+                : "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
@@ -14133,7 +14278,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
-  var dimSection = h(Section, {title:"Output", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -14180,7 +14325,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
@@ -14634,7 +14779,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // Background has its own section (bgSection) below; it used to be repeated
   // here as well (audit B-16).
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjust image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -15156,14 +15301,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
 
     // ── Project section — name/designer/description + live stats ──────────
-    var createProjectSection = h(Section, {title:"Project", defaultOpen:true},
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
       h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
         h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
           h("input", {
             type:"text", value:app.projectName||"", maxLength:60,
             placeholder:ctx.pat?(ctx.sW+"\xD7"+ctx.sH+" pattern"):"e.g. Sunflower sampler",
-            onChange:function(e){var v=e.target.value.slice(0,60);if(typeof app.setProjectName==="function")app.setProjectName(v);},
+            onChange:function(e){var v=e.target.value.slice(0,60);if(typeof app.renameProject==="function")app.renameProject(v);else if(typeof app.setProjectName==="function")app.setProjectName(v);},
             style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
           })
         ),
@@ -15211,25 +15356,27 @@ window.CreatorSidebar = function CreatorSidebar() {
       })()
     );
 
-    // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
+    // ── Single scrollable settings panel (audit IMG-06: the choices that
+    //    matter most come first; image adjustments are rarely needed) ──
     var createPanel = h("div", {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      // 1. Image (source adjustments + background)
-      adjSection,
-      bgSection,
-      // 2. Output (dimensions + fabric)
+      // 1. Size & fabric (dimensions + fabric)
       dimSection,
-      // 3. Palette
+      // 2. Colours
       palSection,
+      // 3. Background
+      bgSection,
       // 4. Quality (dithering + cleanup)
       tidySection,
-      // 5. Palette swap (conditional)
+      // 5. Adjust image (collapsed by default)
+      adjSection,
+      // 6. Palette swap (conditional)
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 6. Project (info + summary)
+      // 7. Project (collapsed by default)
       createProjectSection
     );
 
@@ -15266,7 +15413,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.pat ? (ctx.sW + "\xD7" + ctx.sH + " pattern") : "e.g. Sunflower sampler",
-          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),
@@ -15896,7 +16043,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     return cv.paletteSwap.confirmView || null;
   }
 
-  // Build status text
+  // Build status text. Touch screens get touch wording (audit COMMON-06).
+  var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
   var statusText;
   if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
@@ -15913,6 +16061,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       (cv.lassoMode === "freehand" ? "drag to paint selection." :
        cv.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
        "click to place anchors; snaps to colour edges.");
+  } else if (coarse && (cv.stitchType === "cross" || !cv.stitchType)) {
+    // Touch screens: no right-click or keyboard; long-press opens the menu.
+    statusText = "Long-press a stitch for more options.";
   } else if (cv.stitchType === "cross") {
     if (!cv.selectedColorId) {
       statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
@@ -15924,7 +16075,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (cv.stitchType === "half-bck") {
     statusText = "Half stitch \\ \u2014 click cells to place.";
   } else if (cv.stitchType === "backstitch") {
-    statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
+    statusText = coarse
+      ? "Backstitch \u2014 tap grid intersections. Press and hold to cancel."
+      : "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (cv.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
@@ -15940,7 +16093,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !app.shortcutsHintDismissed && h("div", {
+    !app.shortcutsHintDismissed && !coarse && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
@@ -16544,7 +16697,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         h("input", {
           type:"text", value: app.projectName || "", maxLength:60,
           placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
-          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.setProjectName === "function") app.setProjectName(v); },
+          onChange: function(e) { var v = e.target.value.slice(0,60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); },
           style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
         })
       ),

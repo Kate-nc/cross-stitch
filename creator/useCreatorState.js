@@ -53,8 +53,8 @@ window.creatorFitZoom = creatorFitZoom;
 
 // The part of the chart's scroll container that is actually on screen: its
 // width, and its height down to the bottom of the viewport or the top of the
-// phone bottom drawer, capped by its max-height. Returns null when the
-// container isn't mounted.
+// phone bottom drawer, capped by its max-height or parent pane. Returns null
+// when the container isn't mounted.
 function creatorFitBox(el) {
   if (!el || !el.clientWidth || typeof el.getBoundingClientRect !== "function") return null;
   var r = el.getBoundingClientRect();
@@ -68,6 +68,13 @@ function creatorFitBox(el) {
   var h = bottom - Math.max(0, r.top) - chrome;
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
+  // In compare mode the scroll box is a flex child of the fixed-height split
+  // pane, which has no max-height of its own.
+  var parent = el.parentElement;
+  if (parent && typeof parent.getBoundingClientRect === "function") {
+    var pr = parent.getBoundingClientRect();
+    if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
+  }
   // Container below the fold: fall back to its own size.
   if (!(h >= 120)) h = el.clientHeight || (isFinite(mh) ? mh : 0);
   return { w: el.clientWidth, h: h, outerH: Math.round(h + chrome) };
@@ -88,23 +95,24 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   opts = opts || {};
   var fabricCt = opts.fabricCt || 14;
   var stash = opts.stash || {};
-  var order = [], byId = {};
+  var order = [], byKey = {};
   (pal || []).forEach(function(p) {
     if (!p || p.id === '__skip__' || p.id === '__empty__') return;
     var count = p.count || 0;
     var parts;
     if (p.type === 'blend') {
       parts = (p.threads && p.threads.length)
-        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb }; })
-        : String(p.id).split('+').map(function(id) { return { id: id }; });
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
+        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
     } else {
-      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand }];
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
     }
     parts.forEach(function(t) {
-      var r = byId[t.id];
+      var key = t.brand + ':' + t.id;
+      var r = byKey[key];
       if (!r) {
-        r = byId[t.id] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand || 'dmc', stitches: 0, threadStitches: 0 };
-        order.push(t.id);
+        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
+        order.push(key);
       }
       if (!r.name && t.name) r.name = t.name;
       if (!r.rgb && t.rgb) r.rgb = t.rgb;
@@ -112,10 +120,10 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
       r.threadStitches += parts.length > 1 ? count / parts.length : count;
     });
   });
-  return order.map(function(id) {
-    var r = byId[id];
+  return order.map(function(key) {
+    var r = byKey[key];
     if (!r.rgb || !r.name) {
-      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, id) : null;
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
       if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
     }
     var needed;
@@ -128,12 +136,15 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     }
     // Any thread with stitches needs at least one skein.
     if (r.stitches > 0) needed = Math.max(1, needed);
-    var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
-    var owned = (stash[key] && stash[key].owned) || 0;
+    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
+    var entry = stash[stashKey];
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(entry)
+      : ((entry && entry.owned) || 0);
     var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
     return {
-      p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
-      key: key, owned: owned, needed: needed, status: status, name: r.name || id
+      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
+      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
     };
   });
 };
@@ -274,7 +285,7 @@ window.useCreatorState = function useCreatorState() {
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
   // Generation parameters (initial values come from Preferences › Pattern Creator)
-  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 15); return (typeof v === "number" && v > 0) ? v : 15; });
   var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
@@ -296,6 +307,9 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
+  // True while skipBg was switched on by the automatic plain-background check
+  // (useProjectIO.handleFile) rather than by the user.
+  var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
@@ -511,9 +525,12 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
+  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
+  // Adjust image and Project start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
+  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
@@ -697,6 +714,27 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (namePromptOpen && !namePromptShownRef.current) setNamePromptShown(true);
   }, [namePromptOpen, setNamePromptShown]);
+  // True while the project still has the name the app gave it (image file
+  // name, chart title or "Untitled design"). Saved with the project as the
+  // optional field nameAutoGenerated; cleared when the user renames. The first
+  // export or Tracker hand-off of an auto-named project offers a rename once.
+  var _nameAuto = useState(false); var nameAutoGenerated = _nameAuto[0], setNameAutoGeneratedState = _nameAuto[1];
+  var nameAutoGeneratedRef = useRef(false);
+  var setNameAutoGenerated = useCallback(function(v) {
+    nameAutoGeneratedRef.current = !!v;
+    setNameAutoGeneratedState(!!v);
+  }, []);
+  // A name the user typed: header chip, rename prompt or command palette.
+  var renameProject = useCallback(function(name) {
+    setProjectName(name);
+    setNameAutoGenerated(false);
+  }, [setNameAutoGenerated]);
+  // An automatic name for a new project; the prompt may be offered again.
+  var setAutoProjectName = useCallback(function(name) {
+    setProjectName(name);
+    setNameAutoGenerated(true);
+    setNamePromptShown(false);
+  }, [setNameAutoGenerated, setNamePromptShown]);
   // Proposal 2: auto-save state surfaced in the header badge so the user can
   // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
   // static "All changes saved" string. Driven by SaveStatus.createSaveController
@@ -1020,6 +1058,9 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
+  function isFinePointer() {
+    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -1063,12 +1104,17 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
+  // Only fine pointers get Paint armed: on touch, an armed tool turns the
+  // first swipe into stitches, so touch users start with no tool (one finger
+  // pans, long-press opens the context menu) and pick Paint themselves.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    setBrushAndActivate("paint");
-    selectStitchType("cross");
+    if (isFinePointer()) {
+      setBrushAndActivate("paint");
+      selectStitchType("cross");
+    }
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -1133,6 +1179,7 @@ window.useCreatorState = function useCreatorState() {
   function startScratch() {
     resetAll();
     setIsScratchMode(true);
+    setAutoProjectName(window.UNTITLED_DESIGN_NAME || "Untitled design");
     setImg({ src: null, w: sW, h: sH });
     prevSW.current = sW; prevSH.current = sH;
     initBlankGrid(sW, sH);
@@ -1163,7 +1210,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {
@@ -1304,6 +1351,7 @@ window.useCreatorState = function useCreatorState() {
     // Image / Dimensions / Palette sidebar tabs left users stranded in
     // create mode with no pattern to show. Now every successful generation
     // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setPanelOpen(false);
     setAppMode("edit");
     setSidebarTab("palette");
     // Fallback zoom now; the real fit runs once the Edit view has mounted.
@@ -1816,7 +1864,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
@@ -1886,6 +1934,7 @@ window.useCreatorState = function useCreatorState() {
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
     namePromptShown, setNamePromptShown, namePromptShownRef,
+    nameAutoGenerated, setNameAutoGenerated, nameAutoGeneratedRef, renameProject, setAutoProjectName,
     saveStatus, setSaveStatus,
     savedAt, setSavedAt,
     saveError, setSaveError,

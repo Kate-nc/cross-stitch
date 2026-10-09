@@ -53,11 +53,13 @@
     "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.
 
     // ─── Pattern Creator generation defaults (read by Sidebar on init) ──
-    creatorDefaultPaletteSize:    24,
+    // 15 colours and no dithering give stitchable charts out of the box
+    // (audit IMG-01); a four-colour logo used to become 19 colours.
+    creatorDefaultPaletteSize:    15,
     creatorDefaultFabricCount:    16,
     creatorAllowBlends:           true,
     creatorStashOnlyDefault:      false,
-    creatorDefaultDithering:      "balanced",   // off | weak | balanced | strong
+    creatorDefaultDithering:      "off",        // off | weak | balanced | strong
     creatorSmoothDithering:       true,
     creatorOrphanRemovalStrength: 2,            // 0..3
     creatorMinStitchesPerColour:  6,

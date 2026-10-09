@@ -247,7 +247,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"var(--danger)":"var(--line)"),borderRadius:6,background:showHeatmap?"var(--danger-soft)":"var(--surface-secondary)",color:showHeatmap?"var(--danger)":"var(--text-secondary)",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        {!zoomLocked&&<span style={{fontSize:10,color:"var(--text-tertiary)"}}>Hold Alt to zoom</span>}
+        {/* Touch screens have no Alt key, and the Magnifier button sits right here. */}
+        {!zoomLocked&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())&&<span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );
@@ -309,7 +310,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // which is always updated before effects run.
   React.useEffect(()=>{
     if(!state.pat||!state.pal){delete window.__navigateToTracker;return;}
-    window.__navigateToTracker=function(){if(_ioRef.current&&_ioRef.current.handleOpenInTracker)_ioRef.current.handleOpenInTracker();};
+    window.__navigateToTracker=function(){if(_nameNudgeRef.current)_nameNudgeRef.current('track');};
     return()=>{delete window.__navigateToTracker;};
   },[!!state.pat,!!state.pal]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -336,7 +337,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // Command Palette → Rename current project bridge (UX-12 Phase 6 PR #11).
   React.useEffect(()=>{
-    const h=()=>{ state.setNamePromptOpen(true); };
+    const h=()=>{ state.setNameModalReason('rename'); state.setNamePromptOpen(true); };
     window.addEventListener('cs:openRename',h);
     return()=>window.removeEventListener('cs:openRename',h);
   },[state.setNamePromptOpen]);
@@ -377,6 +378,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // useMemo so the refs are always populated when context values are built.
   const _cvHRef  = React.useRef(null);  _cvHRef.current  = canvas;
   const _ioRef   = React.useRef(null);  _ioRef.current   = io;
+  const _nameNudgeRef = React.useRef(function(){});
+  const [pendingNamedAction, setPendingNamedAction] = React.useState(null);
   const _histRef = React.useRef(null);  _histRef.current = history;
 
   const stableHandlePatPointerDown   = React.useCallback(function(e){_cvHRef.current.handlePatPointerDown(e);},   []);
@@ -396,7 +399,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
   const stableHandleFile          = React.useCallback(function(e) {_ioRef.current.handleFile(e);},         []);
   const stableLoadProject         = React.useCallback(function(e) {_ioRef.current.loadProject(e);},        []);
-  const stableHandleOpenInTracker = React.useCallback(function()  {_ioRef.current.handleOpenInTracker();}, []);
+  const stableHandleOpenInTracker = React.useCallback(function()  {_nameNudgeRef.current('track');}, []);
 
   const stableUndoEdit = React.useCallback(function(){_histRef.current.undoEdit();}, []);
   // Latest edit history, read by toast actions that outlive the render they
@@ -532,7 +535,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     stripCollapsed: state.stripCollapsed, setStripCollapsed: state.setStripCollapsed,
     shortcutsHintDismissed: state.shortcutsHintDismissed, setShortcutsHintDismissed: state.setShortcutsHintDismissed,
     namePromptOpen: state.namePromptOpen, setNamePromptOpen: state.setNamePromptOpen,
-    projectName: state.projectName, setProjectName: state.setProjectName,
+    projectName: state.projectName, setProjectName: state.setProjectName, renameProject: state.renameProject,
     projectDesigner: state.projectDesigner, setProjectDesigner: state.setProjectDesigner,
     projectDescription: state.projectDescription, setProjectDescription: state.setProjectDescription,
     eyedropperEmpty: state.eyedropperEmpty, setEyedropperEmpty: state.setEyedropperEmpty,
@@ -827,6 +830,46 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       projectDescription: state.projectDescription,
     }));
   };
+  // Audit COMMON-05: projects are named after their source, so nothing asks
+  // for a name while creating. The first time an auto-named project is
+  // exported or opened in the Tracker, offer a rename once (Skip or Save),
+  // then carry on with what the user asked for. The action is run from an
+  // effect after the prompt closes, so it sees the new name.
+  const runNamedAction = (key) => {
+    if (key === 'pdf') exportPdfWithSavedSettings();
+    else if (key === 'track') { if (_ioRef.current && _ioRef.current.handleOpenInTracker) _ioRef.current.handleOpenInTracker(); }
+    else if (key === 'exports') { state.setTab("materials"); if (state.setMaterialsTab) state.setMaterialsTab("output"); }
+  };
+  _nameNudgeRef.current = (key) => {
+    const auto = state.nameAutoGeneratedRef && state.nameAutoGeneratedRef.current;
+    const shown = state.namePromptShownRef && state.namePromptShownRef.current;
+    if (auto && !shown && state.pat && state.pal) {
+      setPendingNamedAction(key);
+      state.setNameModalReason('export');
+      state.setNamePromptOpen(true);
+      return;
+    }
+    runNamedAction(key);
+  };
+  React.useEffect(() => {
+    if (!pendingNamedAction || state.namePromptOpen) return;
+    const key = pendingNamedAction;
+    setPendingNamedAction(null);
+    runNamedAction(key);
+  }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
+  // Audit IMPORT-05: files from other design programs (.xsd, .pat, .xsp …)
+  // and other non-images are turned away with a plain-English toast instead
+  // of being handed to the image converter (import-engine/ui/importErrors.js).
+  const rejectUnsupportedFile = (f) => {
+    const IE = window.ImportEngine;
+    if (!f || !IE || typeof IE.classifyFileForCreate !== 'function') return false;
+    if (IE.classifyFileForCreate(f) !== 'unsupported') return false;
+    const err = new Error('Unsupported file type: ' + (f.name || ''));
+    err.name = 'ImportUnsupportedError';
+    if (typeof IE.showImportError === 'function') IE.showImportError(err, f.name);
+    return true;
+  };
   const exportData = useMemo(function() { return {
     pat: state.pat, pal: state.pal, cmap: state.cmap,
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
@@ -880,14 +923,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   React.useEffect(()=>{
     if (_coach.active === 'toolsTab_unlocked' && state.sidebarTab === 'tools') _coach.complete('toolsTab_unlocked');
   }, [state.sidebarTab, _coach.active]);
+  // Touch users start with no tool armed, so the coach mark tells them to pick Paint first.
+  const _coarsePointer = (()=>{ try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) { return false; } })();
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
   // Coach-mark copy follows the device: under 900px the Palette tab is in the
   // bottom sheet, not on the right, and touch users tap rather than click.
   const _coachWide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
-  const _coachTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   const _paletteWhere = _coachWide ? 'the Palette tab on the right' : 'the Palette tab at the bottom of the screen';
-  const _tapOrClick = _coachTouch ? 'tap' : 'click';
+  const _tapOrClick = _coarsePointer ? 'tap' : 'click';
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -901,6 +945,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
         var n = (f.name || '').toLowerCase();
+        if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
         var isPattern = /\.(oxs|xml|pdf)$/i.test(n);
         if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
           e.target.value = '';
@@ -912,14 +957,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       <Header page={state.appMode==='edit'?'editor':'creator'} tab={state.tab} onPageChange={state.setTab}
         onOpen={()=>state.loadRef.current.click()}
         onSave={state.pat&&state.pal?io.saveProject:null}
-        onTrack={state.pat&&state.pal?io.handleOpenInTracker:null}
-        onExportPDF={state.pat?exportPdfWithSavedSettings:null}
+        onTrack={state.pat&&state.pal?stableHandleOpenInTracker:null}
+        onExportPDF={state.pat?printPdfWithNameNudge:null}
         onNewProject={()=>{if(!state.pat||confirm("Start a new project? Unsaved changes will be lost."))state.resetAll();}}
         onOpenProject={typeof window.ProjectStorage!=='undefined'?()=>{window.location.href='home.html';}:undefined}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
         setModal={state.setModal}
         projectName={state.pat&&state.pal?(state.projectName||(state.sW+'×'+state.sH+' pattern')):undefined}
-        onNameChange={state.pat&&state.pal?n=>state.setProjectName(n):undefined}
+        onNameChange={state.pat&&state.pal?n=>state.renameProject(n):undefined}
         showAutosaved={!!(state.pat&&state.pal)}
         saveStatus={state.saveStatus}
         savedAt={state.savedAt}
@@ -1013,23 +1058,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       })()}
       {state.namePromptOpen&&<NamePromptModal
         defaultName={state.projectName||(state.sW+'×'+state.sH+' pattern')}
+        {...(state.nameModalReason==='export'?{
+          title:'Name this pattern',
+          message:'Give this pattern a name? It will appear on the PDF and in your library.',
+          cancelLabel:'Skip'
+        }:state.nameModalReason==='rename'?{
+          title:'Rename this pattern',
+          message:'The name appears on the PDF and in your library.'
+        }:{})}
         onConfirm={name=>{
-          state.setProjectName(name);
+          var reason=state.nameModalReason;
+          state.renameProject(name);
           state.setNamePromptOpen(false);
-          // Two distinct flows share this modal:
-          //  - "firstSave"  → opened automatically after the first auto-save.
-          //                   The project is already in IndexedDB under
-          //                   "Untitled pattern"; we only need to update the
-          //                   name (the auto-save effect picks the change up
-          //                   on the next debounce). Do NOT trigger a .json
-          //                   download here.
-          //  - "download"   → opened by the legacy "Save (.json)" path.
-          //                   doSaveProject downloads the file to disk.
-          if(state.nameModalReason==='firstSave'){
-            state.setNameModalReason&&state.setNameModalReason(null);
-            if(state.addToast)state.addToast('Saved as "'+name+'"',{type:'success',duration:2500});
+          state.setNameModalReason&&state.setNameModalReason(null);
+          // Three flows share this modal:
+          //  - "export"   → offered once before the first export or Tracker
+          //                 hand-off of an auto-named project; the pending
+          //                 action runs from an effect once the modal closes.
+          //  - "rename"   → command palette / phone header "Rename".
+          //  - "download" → the legacy "Save (.json)" path, which downloads.
+          if(reason==='export'||reason==='rename'){
+            if(state.addToast)state.addToast('Renamed to "'+name+'"',{type:'success',duration:2500});
           }else{
-            state.setNameModalReason&&state.setNameModalReason(null);
             io.doSaveProject(name);
           }
         }}
@@ -1037,11 +1087,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           var reason=state.nameModalReason;
           state.setNamePromptOpen(false);
           state.setNameModalReason&&state.setNameModalReason(null);
-          if(reason==='firstSave'){
-            // First-save prompt: the project is already saved under
-            // "Untitled pattern" — just close quietly.
-            return;
-          }
+          // Skip keeps the automatic name; a pending export still runs.
+          if(reason==='export'||reason==='rename')return;
           // Legacy download path: tell the user why nothing happened —
           // without this the modal just disappears with no feedback when
           // they cancel a Download attempt.
@@ -1064,10 +1111,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         pat={!!(state.pat&&state.pal)}
         onTabChange={function(t){state.setTab(t);}}
         onRequestBackToConvert={handleRequestBackToConvert}
-        onPrintPdf={exportPdfWithSavedSettings}
-        onTrackPattern={io.handleOpenInTracker}
+        onPrintPdf={printPdfWithNameNudge}
+        onTrackPattern={stableHandleOpenInTracker}
         onSaveJson={io.saveProject}
-        onMoreExports={()=>{state.setTab("materials");if(state.setMaterialsTab)state.setMaterialsTab("output");}}
+        onMoreExports={()=>_nameNudgeRef.current('exports')}
         hasImage={!!(state.img&&state.img.src)}
         generatingPattern={!!state.busy}
         onGenerate={state.generate}
@@ -1093,7 +1140,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
-            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
+            onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];if(rejectUnsupportedFile(df)){e.dataTransfer.clearData();return;}var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
           >
           <h1 style={{fontSize:28,fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Start a new pattern</h1>
           <p style={{fontSize:15,color:"var(--text-secondary)",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
@@ -1116,6 +1163,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           var f = e.target.files && e.target.files[0];
           if (!f) return;
           var n = (f.name || '').toLowerCase();
+          if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
           var isImage = (f.type || '').indexOf('image/') === 0;
           var isPattern = !isImage && /\.(oxs|xml|json|pdf)$/i.test(n);
           if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
@@ -1140,28 +1188,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
                 <div className="card" style={{overflow:"hidden"}}>
                   <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>Original Image</div>
-                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--accent-hover)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--warning)",borderBottom:"1px solid var(--warning)",display:"flex",alignItems:"center",gap:8}}>
+                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--text-primary)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid var(--warning)",borderRadius:6,background:"var(--surface)",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:"var(--text-xs)",padding:"2px 7px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",cursor:"pointer",fontWeight:600}}>Cancel</button>
                   </div>}
                   <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.pickBg?"crosshair":"default"}} onClick={canvas.srcClick}/>
                   <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--line)"}}>
-                    <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{state.origW}×{state.origH}px</span>
+                    <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface-secondary)"}}>Crop</button>
-                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface-secondary)"}}>Change</button>
+                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Crop</button>
+                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Change</button>
                     </div>
                   </div>
                 </div>
               </div>
               {/* Right: preview comparison or placeholder */}
               <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
-                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-tertiary)",fontSize:12}}>
+                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-secondary)",fontSize:12}}>
                   Adjust settings and generate a pattern to see a preview here.
                 </div>}
                 {state.previewUrl&&<div className="card">
                   {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
-                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"var(--accent-hover)",background:"var(--warning-soft)",border:"0.5px solid var(--line)",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
+                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"var(--text-primary)",background:"var(--warning-soft)",border:"0.5px solid var(--line)",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
                       <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
                       No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
                     </div>
@@ -1169,15 +1217,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
                       Preview
-                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"var(--text-tertiary)"}}>{Icons.spinner()}</span>}
+                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"var(--text-secondary)"}}>{Icons.spinner()}</span>}
                     </span>
-                    {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"var(--text-tertiary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                    {state.previewDims&&<span style={{fontSize:"var(--text-xs)",fontWeight:500,color:"var(--text-secondary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                                 {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                   <button
                                     onClick={()=>state.setShowCleanupDiff(d=>!d)}
                                     style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
                                       border:state.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--line)",
-                                      background:state.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+                                      background:state.showCleanupDiff?"var(--accent-soft)":"var(--surface)",
                                       color:state.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
                                       fontWeight:state.showCleanupDiff?600:400,
                                       display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
@@ -1191,13 +1239,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
                   <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
-                    {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
+                    {state.skipBg&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
+                    {state.previewStats.stashUsage&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                   </div>
                   {state.previewStats.confettiPct!=null&&(()=>{
                     const t=confettiTier(state.previewStats.confettiPct);
@@ -1205,7 +1253,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     return(
                       <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid var(--line)"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:10,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                          <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
                           <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -1214,12 +1262,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                           </div>
                           <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                         </div>
-                        <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
                       </div>
                     );
                   })()}
                   {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
-                    <div style={{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>{window.matchMedia&&window.matchMedia('(pointer: coarse)').matches?"(tap a colour to highlight)":"(hover or click to highlight)"}</span></div>
+                    <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>{window.matchMedia&&window.matchMedia('(pointer: coarse)').matches?"(tap a colour to highlight)":"(hover or click to highlight)"}</span></div>
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                       {state.previewColors.map(function(pcol){
                         var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
@@ -1230,14 +1278,14 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                             aria-pressed={state.pinnedPreviewColour===pcol.id}
                             aria-label={"Highlight "+pcol.id+(n?" "+n.name:"")+" in the preview"}
                             style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"pointer",width:"100%",textAlign:"left",font:"inherit",border:"none",
-                              background:state.pinnedPreviewColour===pcol.id?"var(--accent-light)":"transparent"}}
+                              background:state.pinnedPreviewColour===pcol.id?"var(--accent-soft)":"transparent"}}
                             onClick={function(){state.togglePreviewColour(pcol.id);}}
                             onMouseEnter={function(){state.hoverPreviewColour(pcol.id);}}
                             onMouseLeave={function(){state.hoverPreviewColour(null);}}>
-                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
-                            <span style={{fontSize:10,fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                            <span style={{fontSize:10,color:"var(--text-tertiary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                            <span style={{fontSize:10,fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
+                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid var(--line)"}}/>
+                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                            <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
                           </button>
                         );
                       })}
@@ -1275,7 +1323,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       </div>
       {state.busy&&<div style={{
         position:"fixed",top:0,left:0,right:0,bottom:0,
-        background:"rgba(255,255,255,0.8)",zIndex:1000,
+        background:"color-mix(in srgb, var(--surface) 85%, transparent)",zIndex:1000,
         display:"flex",alignItems:"center",justifyContent:"center",
         flexDirection:"column",gap:12
       }}>
@@ -1290,9 +1338,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',
         title: 'Paint your first stitch',
-        body: state.isScratchMode && !(state.pal && state.pal.length)
-          ? 'Add a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the grid to paint it.'
-          : 'Choose a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the chart to paint it.',
+        body: _coarsePointer
+          ? (state.isScratchMode && !(state.pal && state.pal.length)
+            ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.'
+            : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.')
+          : state.isScratchMode && !(state.pal && state.pal.length)
+          ? 'Add a colour in ' + _paletteWhere + ', then click a square on the grid to paint it.'
+          : 'Choose a colour in ' + _paletteWhere + ', then click a square on the chart to paint it.',
         placement: 'inside-bottom',
         target: '.canvas-area',
         showHighlight: false,

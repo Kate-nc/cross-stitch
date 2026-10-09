@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v62';
+var CACHE_NAME = 'cross-stitch-cache-v63';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -60,6 +60,7 @@ var PRECACHE_URLS = [
   './creator/extras-bundle.js',
   './creator/import-wizard-bundle.js',
   './import-engine/lazy-shim.js',
+  './import-engine/ui/importErrors.js',
   './import-engine/bundle.js',
   './compiled/manager-app.compiled.js',
   './compiled/embroidery.compiled.js',

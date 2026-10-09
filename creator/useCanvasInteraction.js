@@ -23,6 +23,24 @@ function lineCells(x0, y0, x1, y1) {
 }
 window.lineCells = lineCells;
 
+/* computePinchScroll — pure maths for the two-finger gesture. `pinch` holds
+   the scroll position and finger midpoint captured when the gesture began,
+   plus the scroll container's viewport origin and the canvas's offset inside
+   the scrolled content. Returns the scroll position that keeps the chart
+   point that was under the starting midpoint under the current midpoint,
+   after scaling by `ratio` (current zoom / starting zoom). With ratio 1 this
+   is a plain pan: the chart follows the fingers. */
+window.computePinchScroll = function computePinchScroll(pinch, midX, midY, ratio) {
+  var originX = pinch.originX || 0, originY = pinch.originY || 0;
+  var padX = pinch.padX || 0, padY = pinch.padY || 0;
+  var focalX = pinch.startScrollLeft + (pinch.startMidX - originX) - padX;
+  var focalY = pinch.startScrollTop + (pinch.startMidY - originY) - padY;
+  return {
+    scrollLeft: Math.max(0, focalX * ratio + padX - (midX - originX)),
+    scrollTop: Math.max(0, focalY * ratio + padY - (midY - originY)),
+  };
+};
+
 window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   // Internal drag refs (not in state — don't need React rendering)
   var isDraggingRef        = React.useRef(false);
@@ -121,16 +139,33 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var pts = Array.from(activePointersRef.current.values());
     var midX = (pts[0].x + pts[1].x) / 2;
     var midY = (pts[0].y + pts[1].y) / 2;
-    var rect = pcRef.current.getBoundingClientRect();
+    var sc = scrollRef.current;
+    var originX = 0, originY = 0, padX = 0, padY = 0;
+    if (sc.getBoundingClientRect) {
+      // Viewport origin of the scroll container, and the canvas's offset
+      // inside its scrolled content (gutter / centring padding).
+      var cRect = sc.getBoundingClientRect();
+      var pRect = pcRef.current.getBoundingClientRect();
+      originX = cRect.left; originY = cRect.top;
+      padX = pRect.left - cRect.left + sc.scrollLeft;
+      padY = pRect.top - cRect.top + sc.scrollTop;
+    }
     pinchStateRef.current = {
       startDist: Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y),
       startZoom: state.zoom,
       lastAppliedZoom: state.zoom,
-      focalX: scrollRef.current.scrollLeft + (midX - rect.left),
-      focalY: scrollRef.current.scrollTop + (midY - rect.top),
+      startScrollLeft: sc.scrollLeft,
+      startScrollTop: sc.scrollTop,
+      startMidX: midX,
+      startMidY: midY,
+      originX: originX, originY: originY,
+      padX: padX, padY: padY,
     };
   }
 
+  // The scroll position always follows the midpoint of the two fingers, so a
+  // steady two-finger drag pans; zoom is applied only when its rounded value
+  // changes, keeping the content point under the starting midpoint pinned.
   function updatePinchGesture() {
     var pinch = pinchStateRef.current;
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
@@ -141,18 +176,21 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    if (nextZoom === pinch.lastAppliedZoom) return;
+    var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
-    state.setZoom(nextZoom);
-    requestAnimationFrame(function() {
-      if (!scrollRef.current || !pcRef.current) return;
-      var rect = pcRef.current.getBoundingClientRect();
-      var ratio = nextZoom / pinch.startZoom;
-      var offsetX = midX - rect.left;
-      var offsetY = midY - rect.top;
-      scrollRef.current.scrollLeft = Math.max(0, pinch.focalX * ratio - offsetX);
-      scrollRef.current.scrollTop = Math.max(0, pinch.focalY * ratio - offsetY);
-    });
+    var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
+    function applyScroll() {
+      if (!scrollRef.current) return;
+      scrollRef.current.scrollLeft = next.scrollLeft;
+      scrollRef.current.scrollTop = next.scrollTop;
+    }
+    if (zoomChanged) {
+      state.setZoom(nextZoom);
+      // Wait for the canvas to resize before scrolling into the new range.
+      requestAnimationFrame(applyScroll);
+    } else {
+      applyScroll();
+    }
   }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────

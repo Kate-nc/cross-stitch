@@ -228,8 +228,8 @@ describe('Proposal 2 wiring: useProjectIO + creator-main integration points', ()
 
   test('useProjectIO drives the auto-save through SaveStatus.createSaveController', () => {
     expect(useProjectIO).toMatch(/window\.SaveStatus[\s\S]*createSaveController/);
-    expect(useProjectIO).toMatch(/onFirstSaveSuccess/);
-    expect(useProjectIO).toMatch(/setNameModalReason\("firstSave"\)/);
+    // P0-2: the first save no longer opens a name prompt.
+    expect(useProjectIO).not.toMatch(/setNameModalReason\("firstSave"\)/);
     // The legacy silent-error swallowers must be gone from the auto-save path.
     // (The whole auto-save effect block now goes through the controller, which
     // calls onError → setSaveError, so no `.catch(function() {})` should
@@ -243,8 +243,8 @@ describe('Proposal 2 wiring: useProjectIO + creator-main integration points', ()
     expect(useProjectIO).toMatch(/retryAutoSave\s*:\s*function/);
   });
 
-  test('creator-main routes the firstSave name-prompt without triggering a download', () => {
-    expect(creatorMain).toMatch(/nameModalReason==='firstSave'/);
+  test('creator-main routes the export/rename name-prompt without triggering a download', () => {
+    expect(creatorMain).toMatch(/reason==='export'\|\|reason==='rename'/);
     // The legacy download-name path still calls io.doSaveProject.
     expect(creatorMain).toMatch(/io\.doSaveProject\(name\)/);
   });

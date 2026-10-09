@@ -7,6 +7,8 @@
 //
 // Public API:
 //   window.HelpDrawer.open({ tab, context, query })
+//   window.HelpDrawer.open({ topic, section })  → a help topic's article,
+//     e.g. { topic: "creator", section: "What can I import?" }
 //   window.HelpDrawer.close()
 //   window.HelpDrawer.toggle(opts)
 //   window.HelpDrawer.isOpen() → boolean
@@ -45,14 +47,26 @@
           heading: "Starting a pattern",
           body: "Start from Home > Create new. New from pattern file accepts an image (JPG, PNG, GIF, WebP or BMP), a saved .json project, an .oxs file or a PDF chart; New from scratch opens a blank grid. Inside the Creator you can also use File > Open….",
           bullets: [
-            ["Convert settings", "Until a pattern has been generated, the settings panel shows how the image will be converted, in sections: Image, Background, Output (size and fabric), Palette, Quality and Project. The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
-            ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable."],
+            ["Convert settings", "Until a pattern has been generated, the sidebar shows how the image will be converted, in this order: Size & fabric (the size in stitches and the fabric count), Colours, Background, Quality, then Adjust image (brightness, contrast and sharpening, folded away because most pictures don't need it). The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
+            ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable. New patterns start at 15; change the starting value in Preferences > Pattern Creator."],
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
-            ["Dithering", "Off maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
+            ["Dithering", "Off (the default) maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
             ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
-            ["Skip background", "Treats a background colour as empty fabric. Press Pick, click the colour in the source image, then adjust Tolerance."],
+            ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
+          ]
+        },
+        {
+          heading: "What can I import?",
+          body: "Import a file from Home > Create new > New from pattern file, by dropping it on the Creator, or with File > Open….",
+          bullets: [
+            ["PDF charts", "Charts saved as PDF by the designer, including Pattern Keeper-compatible PDFs. The colours, symbols and size are read from the chart and you can check them before saving. Scanned or photographed charts can't be read yet, and nor can password-protected PDFs."],
+            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross."],
+            ["stitchx .json files and backups", "Projects downloaded with File > Download (.json). A full backup of every project is restored with File > Restore from Backup… instead."],
+            ["Images", "JPG, PNG, GIF, WebP and BMP pictures are converted into a new pattern."],
+            ["Not supported yet", "Files saved in another program's own format: Pattern Maker (.xsd), PCStitch (.pat), XStitch Pro (.xsp) and others. Photos of a paper chart are converted as pictures, not read as charts."],
+            ["Exporting from another program", "In Pattern Maker, PCStitch, WinStitch or MacStitch, use the program's Export (or Save as) option and choose OXS. If OXS isn't offered, print the chart to PDF instead, then import that file here."]
           ]
         },
         {
@@ -65,7 +79,8 @@
             ["Brush size", "Paint, half stitches and Erase cover a square up to 10 × 10 stitches. Set the size in the Tools tab or under More tools."],
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
-            ["Hand (H)", "Pan the canvas without painting."]
+            ["Hand (H)", "Pan the canvas without painting."],
+            ["On a touch screen", "No tool is picked when a pattern opens, so one finger scrolls the chart and pressing and holding a stitch opens its menu. Tap Paint, Fill or Erase to start drawing; tap the same button again to put the tool down and scroll with one finger. Two fingers always pan and zoom."]
           ]
         },
         {
@@ -262,6 +277,7 @@
           heading: "Saving your work",
           body: "Projects save themselves to this device as you work — there is no Save button to remember. Ctrl+S downloads a .json copy, the same as File > Download (.json).",
           bullets: [
+            ["Project names", "Nothing asks for a name while you create. A pattern converted from an image is named after the image file (IMG_2041.jpg becomes IMG_2041), an imported chart keeps its title or file name, and a blank grid starts as Untitled design. The first time you print or export an automatically named pattern, or open it in the Tracker, you're asked once whether to give it a name; Skip keeps the current one."],
             ["Download (.json)", "File > Download (.json) writes a copy of the project to a file: the pattern, your edits and your tracking progress. Open it again in the Creator or the Tracker."],
             ["Export PDF and .oxs", "File > Export PDF… exports a chart straight away with your saved export settings — the ones on the Export tab of Materials & Output. In the Tracker it first shows the main settings. Export .oxs writes a file other cross-stitch software (MacStitch, WinStitch, FlossCross) can open."],
             ["Storage", "The top of the File menu shows how much space the app is using, and whether the browser has made it Protected (kept) or Temporary (may be cleared when space runs low)."]
@@ -330,7 +346,7 @@
           bullets: [
             ["Active project", "The project you most recently opened. It is the one the Creator and Tracker open by default."],
             ["Switching projects", "Use Home > Projects, or File > Switch Project… from any page."],
-            ["Renaming", "Click the project name in the top bar to rename it."],
+            ["Renaming", "Click the project name in the top bar to rename it. On a phone, tap the project button at the top left and choose Rename."],
             ["Deleting", "Delete projects from the Stash Manager's Pattern Library (one at a time, or select several). An Undo button appears for a few seconds; after that, a deleted project can only be recovered from a backup."]
           ]
         }
@@ -640,7 +656,10 @@
     open: false,
     tab: "help",        // 'help' | 'shortcuts' | 'getting-started'
     context: null,      // 'creator' | 'tracker' | 'manager' | null
-    query: ""
+    query: "",
+    topic: null,        // help topic id to open on (with `section`)
+    section: null,      // section heading inside that topic
+    openSeq: 0          // bumped on every open() so the view resets
   };
   var subscribers = [];
   function setState(patch) {
@@ -676,7 +695,9 @@
   function open(opts) {
     opts = opts || {};
     var tab;
-    if (opts.tab === "help" || opts.tab === "shortcuts" || opts.tab === "getting-started") {
+    if (opts.topic) {
+      tab = "help";
+    } else if (opts.tab === "help" || opts.tab === "shortcuts" || opts.tab === "getting-started") {
       tab = opts.tab;
     } else if (opts.context === "creator" || opts.context === "tracker" || opts.context === "manager") {
       tab = "shortcuts";
@@ -689,7 +710,10 @@
       open: true,
       tab: tab,
       context: ctx,
-      query: typeof opts.query === "string" ? opts.query : ""
+      query: typeof opts.query === "string" ? opts.query : "",
+      topic: typeof opts.topic === "string" ? opts.topic : null,
+      section: typeof opts.section === "string" ? opts.section : null,
+      openSeq: state.openSeq + 1
     });
     persistTab(tab);
     try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: true } })); } catch (_) {}
@@ -1099,8 +1123,21 @@
     }, [state.open, state.tab]);
 
     React.useEffect(function () {
-      if (state.open) { setHelpView("landing"); setHelpCat(null); setHelpArt(null); }
-    }, [state.open]); // eslint-disable-line react-hooks/exhaustive-deps
+      if (!state.open) return;
+      // open({ topic, section }) lands on that article; otherwise the landing.
+      var topic = state.topic ? HELP_TOPICS.find(function (t) { return t.id === state.topic; }) : null;
+      if (topic) {
+        var idx = -1;
+        if (state.section) {
+          idx = topic.sections.findIndex(function (sec) { return sec.heading === state.section; });
+        }
+        setHelpCat(topic.id);
+        if (idx >= 0) { setHelpArt(idx); setHelpView("detail"); }
+        else { setHelpArt(null); setHelpView("list"); }
+        return;
+      }
+      setHelpView("landing"); setHelpCat(null); setHelpArt(null);
+    }, [state.open, state.openSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
     React.useEffect(function () {
       if (!state.open) return;
