@@ -72,6 +72,7 @@ const ORDER = [
   'BulkAddModal.js',
   'CropModal.js',
   'FabricBlock.js',
+  'SizeField.js',
   'NewDesignSheet.js',
   'Sidebar.js',
   'Toast.js',

@@ -207,6 +207,101 @@ function fabricSizes(stitchesWide, stitchesHigh, fabricCount, units) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// Sizing a pattern from a picture (P2-6, audit IMG-03)
+// ════════════════════════════════════════════════════════════════════
+
+// Pattern sizes are kept between these, in stitches.
+var PATTERN_MIN_STITCHES = 10;
+var PATTERN_MAX_STITCHES = 500;
+// A new picture's long side starts at this many stitches.
+var INITIAL_LONG_SIDE_STITCHES = 100;
+// Below this many stitches the short side of a very wide or tall picture
+// is too thin to show much; the Creator suggests cropping.
+var SHORT_SIDE_NOTE_STITCHES = 20;
+
+function clampStitches(n) {
+  return Math.max(PATTERN_MIN_STITCHES, Math.min(PATTERN_MAX_STITCHES, Math.round(n)));
+}
+
+/**
+ * Starting size for a picture of srcW x srcH pixels: the long side fitted to
+ * 100 stitches, but never more stitches than the picture has pixels.
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function initialPatternSize(srcW, srcH) {
+  if (!(srcW > 0) || !(srcH > 0)) return { w: 80, h: 80 };
+  var longPx = Math.max(srcW, srcH);
+  var longSt = Math.min(INITIAL_LONG_SIDE_STITCHES, longPx);
+  var scale = longSt / longPx;
+  return { w: clampStitches(srcW * scale), h: clampStitches(srcH * scale) };
+}
+
+/**
+ * Stitches needed to cover `length` (in 'cm' or 'in') on a fabric.
+ * 18 cm on 14-count: 18 / 2.54 x 14 = 99.2, so 99.
+ */
+function stitchesForLength(length, unit, fabricCount, stitchOver) {
+  var inches = unit === 'cm' ? length / CM_PER_INCH : length;
+  if (!(inches > 0)) return 0;
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  return Math.round(inches * calcEffectiveSPI(fabricCount, stitchOver));
+}
+
+/**
+ * Length (in 'cm' or 'in') that `stitches` cover on a fabric.
+ */
+function lengthForStitches(stitches, unit, fabricCount, stitchOver) {
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  var inches = stitches / calcEffectiveSPI(fabricCount, stitchOver);
+  return unit === 'cm' ? inches * CM_PER_INCH : inches;
+}
+
+/**
+ * The largest pattern with aspect ratio `ar` (width / height) that fits a
+ * frame of frameW x frameH (in 'cm' or 'in'). The frame is turned to match
+ * the picture: a landscape picture uses the frame's long side across.
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function fitPatternToFrame(frameW, frameH, unit, ar, fabricCount, stitchOver) {
+  var a = Math.min(frameW, frameH), b = Math.max(frameW, frameH);
+  var landscape = ar >= 1;
+  var maxW = stitchesForLength(landscape ? b : a, unit, fabricCount, stitchOver);
+  var maxH = stitchesForLength(landscape ? a : b, unit, fabricCount, stitchOver);
+  if (!(ar > 0)) return { w: clampStitches(maxW), h: clampStitches(maxH) };
+  var w = maxW, h = maxW / ar;
+  if (h > maxH) { h = maxH; w = maxH * ar; }
+  return { w: clampStitches(w), h: clampStitches(h) };
+}
+
+/**
+ * Notes about a size for a picture of srcW x srcH pixels:
+ *   shortSide  — the short side is under 20 stitches on a very wide (or
+ *                tall) picture: { stitches, orientation: 'wide' | 'tall' }
+ *   enlarged   — the pattern has more stitches than the picture has pixels
+ *                across (or down): { px, block, axis: 'wide' | 'tall' }
+ */
+function patternSizeNotes(sW, sH, srcW, srcH) {
+  var out = { shortSide: null, enlarged: null };
+  if (!(srcW > 0) || !(srcH > 0)) return out;
+  var ratio = srcW / srcH;
+  if (Math.min(sW, sH) < SHORT_SIDE_NOTE_STITCHES && (ratio >= 2 || ratio <= 0.5)) {
+    out.shortSide = { stitches: Math.min(sW, sH), orientation: ratio >= 1 ? 'wide' : 'tall' };
+  }
+  var fx = sW / srcW, fy = sH / srcH;
+  if (fx > 1 || fy > 1) {
+    var acrossFirst = fx >= fy;
+    out.enlarged = {
+      px: acrossFirst ? srcW : srcH,
+      block: Math.max(1, Math.round(Math.max(fx, fy))),
+      axis: acrossFirst ? 'wide' : 'tall'
+    };
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════════════
 // Export (CommonJS for tests; browser globals for in-page use)
 // ════════════════════════════════════════════════════════════════════
 if (typeof module !== 'undefined' && module.exports) {
@@ -224,7 +319,14 @@ if (typeof module !== 'undefined' && module.exports) {
     defaultUnitsForLocale,
     preferredUnits,
     dualSizeText,
-    fabricSizes
+    fabricSizes,
+    PATTERN_MIN_STITCHES,
+    PATTERN_MAX_STITCHES,
+    initialPatternSize,
+    stitchesForLength,
+    lengthForStitches,
+    fitPatternToFrame,
+    patternSizeNotes
   };
 }
 if (typeof window !== 'undefined') {
@@ -237,4 +339,9 @@ if (typeof window !== 'undefined') {
   window.preferredUnits      = preferredUnits;
   window.dualSizeText        = dualSizeText;
   window.fabricSizes         = fabricSizes;
+  window.initialPatternSize  = initialPatternSize;
+  window.stitchesForLength   = stitchesForLength;
+  window.lengthForStitches   = lengthForStitches;
+  window.fitPatternToFrame   = fitPatternToFrame;
+  window.patternSizeNotes    = patternSizeNotes;
 }
