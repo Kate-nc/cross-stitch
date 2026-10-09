@@ -23,8 +23,9 @@ test.describe('Convert defaults on desktop', function() {
     await expect.poll(function() { return estimate(page, 'Skipped'); }, { timeout: 20000 }).not.toBeNull();
     const skipped = parseInt((await estimate(page, 'Skipped')).replace(/\D/g, ''), 10);
     expect(skipped).toBeGreaterThan(0);
-    const colours = parseInt(await estimate(page, 'Colours'), 10);
-    expect(colours).toBeLessThanOrEqual(8);
+    // Counted as chart symbols (blends included) since P2-7.
+    const symbols = parseInt(await estimate(page, 'Chart symbols'), 10);
+    expect(symbols).toBeLessThanOrEqual(8);
 
     await clickGenerate(page);
     await waitForEdit(page);
