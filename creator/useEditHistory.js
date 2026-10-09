@@ -10,6 +10,9 @@
          scratch palette and rebuilds pal/cmap.
      - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
          Specific branch in undoEdit/redoEdit. Restores palette entries.
+     - { type: "symbol", id, from, to, changes: [] }
+         Change symbol (audit DRAW-05). Specific branch: re-applies the old /
+         new symbol through state.applySymbol without recording history.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines? }
@@ -31,6 +34,17 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!editHistory.length) return;
     var last = editHistory[editHistory.length - 1];
+
+    if (last.type === "symbol") {
+      if (typeof state.applySymbol === "function") state.applySymbol(last.id, last.from, false);
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
 
     // Handle add_colour undo: remove the added colour from scratchPalette, pal, cmap
     if (last.type === "add_colour" && last.addedEntry) {
@@ -153,6 +167,17 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!redoHistory.length) return;
     var last = redoHistory[redoHistory.length - 1];
+
+    if (last.type === "symbol") {
+      if (typeof state.applySymbol === "function") state.applySymbol(last.id, last.to, false);
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
 
     // Handle add_colour redo: re-add the colour
     if (last.type === "add_colour" && last.addedEntry) {

@@ -1415,6 +1415,8 @@ function CreatorApp({
       addScratchColour: state.addScratchColour,
       removeScratchColour: state.removeScratchColour,
       removeUnusedColours: state.removeUnusedColours,
+      changeSymbol: state.changeSymbol,
+      symbolOverrides: state.symbolOverrides,
       toggleOwned: state.toggleOwned,
       displayPal: state.displayPal,
       totalStitchable: state.totalStitchable,
@@ -1430,7 +1432,7 @@ function CreatorApp({
       toBuyCount: state.toBuyCount,
       toBuyList: state.toBuyList
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
+  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
   // File > Export PDF… and Print PDF use the Export tab's saved settings

@@ -657,8 +657,21 @@ function buildPalette(patArr){
     if(m.symbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
   }
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
+  // A colour whose cells carry a symbol (one the user chose, or one painted
+  // with) keeps it; the rest take the symbol for their rank, unless a carried
+  // symbol already claims it, in which case the next free one.
+  let claimed={};
+  entries.forEach(e=>{if(symbolMap[e.id])claimed[symbolMap[e.id]]=true;});
+  let nextFree=0;
   entries.forEach((e,i)=>{
-    e.symbol=symbolMap[e.id]||SYMS[i%SYMS.length];
+    if(symbolMap[e.id]){e.symbol=symbolMap[e.id];return;}
+    let s=SYMS[i%SYMS.length];
+    if(claimed[s]){
+      while(nextFree<SYMS.length&&claimed[SYMS[nextFree]])nextFree++;
+      if(nextFree<SYMS.length)s=SYMS[nextFree];
+    }
+    claimed[s]=true;
+    e.symbol=s;
   });
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
   return{pal:entries,cmap:cm};

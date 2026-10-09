@@ -97,6 +97,16 @@
           ]
         },
         {
+          heading: "The palette",
+          body: "The Palette tab starts with the colours in your pattern: each row shows the thread's symbol on its swatch, its DMC number, name and how many stitches use it. Tap a row to paint with that colour (or to highlight it when no paint tool is chosen).",
+          bullets: [
+            ["Add colour", "Opens the thread picker. My stash lists the DMC threads you own (it appears when the Stash Manager is available), Suggested lists the threads closest to the colour you've selected, and All DMC has a search by number or name plus colour-family filters such as Reds, Blues and Neutrals. Tap a thread to add it. Blend (2 threads) builds a blended colour."],
+            ["Change symbol", "The shapes button on a row offers the symbols no other colour uses. Pick one and the chart, the colour strip and the Materials legend all switch to it. Undo puts the old symbol back. The Pattern Keeper PDF still chooses its own symbols for now."],
+            ["Symbols on swatches", "The colour strip shows each thread's symbol on its swatch, in black or white so it stands out, which helps tell similar colours apart. Press and hold a swatch to see its number, name and stitch count."],
+            ["Replace a colour", "The swap button on a row replaces that thread throughout the pattern."]
+          ]
+        },
+        {
           heading: "View modes and preview",
           body: "Switch display modes at any time with the V key or the View tab — view modes never change the underlying pattern.",
           bullets: [

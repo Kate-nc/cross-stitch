@@ -687,8 +687,13 @@ window.useCreatorState = function useCreatorState() {
   var _done = useState(null);        var done = _done[0], setDone = _done[1];
   var _scrMode  = useState(false);   var isScratchMode = _scrMode[0], setIsScratchMode = _scrMode[1];
   var _scrPal   = useState([]);      var scratchPalette = _scrPal[0], setScratchPalette = _scrPal[1];
+  // Symbols the user picked (Change symbol), id -> symbol. Saved as the
+  // project's optional `symbols` map; the cells carry them in the session.
+  var _symOv    = useState({});      var symbolOverrides = _symOv[0], setSymbolOverrides = _symOv[1];
   var _dmcSch   = useState("");      var dmcSearch = _dmcSch[0], setDmcSearch = _dmcSch[1];
-  var _colPick  = useState(true);    var colPickerOpen = _colPick[0], setColPickerOpen = _colPick[1];
+  // The Add colour picker starts closed; the Palette tab opens it itself
+  // when the pattern has no colours yet (audit DRAW-05).
+  var _colPick  = useState(false);   var colPickerOpen = _colPick[0], setColPickerOpen = _colPick[1];
   var _parkM    = useState([]);      var parkMarkers = _parkM[0], setParkMarkers = _parkM[1];
   var _hlRow    = useState(-1);      var hlRow = _hlRow[0], setHlRow = _hlRow[1];
   var _hlCol    = useState(-1);      var hlCol = _hlCol[0], setHlCol = _hlCol[1];
@@ -1186,7 +1191,7 @@ window.useCreatorState = function useCreatorState() {
     setDimOpen(true); setPalOpen(true); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
-    setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
+    setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
@@ -1302,6 +1307,37 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory([]);
     if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
+
+  // Change a colour's symbol (audit DRAW-05). Updates the palette, the
+  // colour's cells and the scratch palette; refuses a symbol another colour
+  // uses. `record` false is for undo / redo.
+  function applySymbol(id, sym, record) {
+    var PT = window.PaletteTools;
+    if (!PT || !pal) return false;
+    var r = PT.reassignSymbol(pal, id, sym);
+    if (!r.ok) {
+      if (r.reason === "duplicate") addToast("Another colour already uses that symbol", { type: "warning", duration: 2500 });
+      return false;
+    }
+    var entry = r.pal.find(function(p) { return p.id === id; });
+    setPal(r.pal);
+    setCmap(function(prev) { return prev ? Object.assign({}, prev, { [id]: entry }) : prev; });
+    if (pat) setPat(PT.stampSymbol(pat, id, sym));
+    setScratchPalette(function(prev) {
+      return prev.map(function(p) { return p.id === id ? Object.assign({}, p, { symbol: sym }) : p; });
+    });
+    setSymbolOverrides(function(prev) { return Object.assign({}, prev, { [id]: sym }); });
+    if (record !== false) {
+      setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "symbol", changes: [], id: id, from: r.from, to: sym }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      setRedoHistory([]);
+    }
+    return true;
+  }
+  function changeSymbol(id, sym) { return applySymbol(id, sym, true); }
 
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
@@ -2149,6 +2185,7 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
     setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
+    changeSymbol, applySymbol, symbolOverrides, setSymbolOverrides,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed, disambiguateNow,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
