@@ -513,7 +513,6 @@ window.useCreatorState = function useCreatorState() {
   // Section open states
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _fabOpen  = useState(false);   var fabOpen  = _fabOpen[0],  setFabOpen  = _fabOpen[1];
   var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
@@ -680,6 +679,19 @@ window.useCreatorState = function useCreatorState() {
   // Project identity
   var _projName  = useState("");     var projectName = _projName[0], setProjectName = _projName[1];
   var _namePrompt= useState(false);  var namePromptOpen = _namePrompt[0], setNamePromptOpen = _namePrompt[1];
+  // Whether this project has already shown the name prompt. Saved with the
+  // project (optional field namePromptShown) so a dismissed prompt doesn't
+  // come back on every reload (audit B-10). The ref is for the save
+  // controller's callback, which closes over an early render.
+  var _namePromptShown = useState(false); var namePromptShown = _namePromptShown[0], setNamePromptShownState = _namePromptShown[1];
+  var namePromptShownRef = useRef(false);
+  var setNamePromptShown = useCallback(function(v) {
+    namePromptShownRef.current = !!v;
+    setNamePromptShownState(!!v);
+  }, []);
+  useEffect(function() {
+    if (namePromptOpen && !namePromptShownRef.current) setNamePromptShown(true);
+  }, [namePromptOpen, setNamePromptShown]);
   // Proposal 2: auto-save state surfaced in the header badge so the user can
   // see "Saving…", "Saved 5 s ago", or "Save failed — Retry" instead of the
   // static "All changes saved" string. Driven by SaveStatus.createSaveController
@@ -1003,7 +1015,7 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setFabOpen(false); setAdjOpen(false);
+    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
@@ -1249,7 +1261,7 @@ window.useCreatorState = function useCreatorState() {
     if (!hasGenerated) {
       // First generation only: collapse all the settings accordions so
       // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false); setFabOpen(false);
+      setDimOpen(false); setPalOpen(false);
       setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
       setHasGenerated(true);
     }
@@ -1789,7 +1801,7 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen, fabOpen, setFabOpen,
+    dimOpen, setDimOpen, palOpen, setPalOpen,
     adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
     cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
@@ -1834,6 +1846,7 @@ window.useCreatorState = function useCreatorState() {
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
     namePromptOpen, setNamePromptOpen,
+    namePromptShown, setNamePromptShown, namePromptShownRef,
     saveStatus, setSaveStatus,
     savedAt, setSavedAt,
     saveError, setSaveError,

@@ -3246,6 +3246,7 @@ function TrackerApp({
     stitchRef = useRef(null);
   const projectIdRef = useRef(null); // current project's storage ID
   const createdAtRef = useRef(null); // stable createdAt ISO string for the active project
+  const namePromptShownRef = useRef(false); // Creator-owned flag, carried through Tracker saves
   const lastSnapshotRef = useRef(null); // freshest serialised project for beforeunload
   const v3FieldsRef = useRef({}); // preserve v3 stats fields across save round-trips
   const autoSaveDirtyRef = useRef(false);
@@ -5234,6 +5235,7 @@ function TrackerApp({
       id: projectIdRef.current || undefined,
       page: "tracker",
       name: finalName,
+      namePromptShown: namePromptShownRef.current || undefined,
       createdAt: createdAtRef.current || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       settings: {
@@ -5956,6 +5958,7 @@ function TrackerApp({
     setProjectName(project.name || "");
     setProjectDesigner(project.designer || "");
     setProjectDescription(project.description || "");
+    namePromptShownRef.current = !!project.namePromptShown;
     try {
       const saved = localStorage.getItem('cs_layerVis_' + (project.id || ''));
       if (saved) setLayerVis(JSON.parse(saved));else setLayerVis(ALL_LAYERS_VISIBLE);
@@ -6468,6 +6471,7 @@ function TrackerApp({
       name: projectName,
       designer: projectDesigner,
       description: projectDescription,
+      namePromptShown: namePromptShownRef.current || undefined,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
       settings: {
@@ -6702,6 +6706,7 @@ function TrackerApp({
         id: projectIdRef.current,
         page: "tracker",
         name: projectName,
+        namePromptShown: namePromptShownRef.current || undefined,
         createdAt: createdAtRef.current,
         updatedAt: new Date().toISOString(),
         settings: {

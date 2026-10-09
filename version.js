@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.75';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.79',
+    date: 'October 2026',
+    notes: [
+      'Fast brush strokes in the Pattern Creator no longer leave gaps: Paint and Erase fill in every square the stroke passes over, and the whole stroke still undoes in one step.',
+      'If you close the "Name your project" box, it no longer comes back each time you reopen that pattern.',
+      'The Convert panel is tidier: Skip background and the fabric count each appear once (Background and Output), instead of twice.',
+    ]
+  },
+  {
     version: '1.0.78',
     date: 'October 2026',
     notes: [
