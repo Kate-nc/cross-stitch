@@ -7908,6 +7908,115 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .mode-toggle--block{display:flex;width:100%;}
 .mode-toggle--block .mode-toggle__btn{flex:1;}
 
+/* ═══ Palette tab: pattern colours, symbols, Add colour (audit DRAW-05) ═══
+   creator/Sidebar.js. Swatch ink is black or white by the thread's own
+   luminance, so it does not follow the theme. */
+.pal-rows { display: flex; flex-direction: column; gap: 2px; }
+.pal-row {
+  display: flex; align-items: center; gap: var(--s-2);
+  min-height: 36px; padding: 2px 4px 2px 2px;
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: var(--surface); cursor: pointer; font-size: var(--text-sm);
+  position: relative; min-width: 0;
+}
+.pal-row:hover { background: var(--surface-secondary); }
+.pal-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pal-row--selected { border-color: var(--accent); background: var(--accent-light); }
+.pal-row--hi { border-color: var(--accent-hover); background: var(--surface-tertiary); }
+.pal-row--unused { opacity: 0.6; }
+.pal-row__swatch {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1; font-weight: 600;
+}
+.pal-row__swatch--black { color: black; }
+.pal-row__swatch--white { color: white; }
+.pal-row__id { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 40px; color: var(--text-primary); }
+.pal-row__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: var(--text-xs); }
+.pal-row__count { font-variant-numeric: tabular-nums; color: var(--text-tertiary); font-size: var(--text-xs); }
+.pal-row__stash { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pal-row__btn {
+  flex-shrink: 0; width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-tertiary); cursor: pointer;
+}
+.pal-row__btn:hover, .pal-row__btn:focus-visible { color: var(--accent); border-color: var(--border); background: var(--surface); }
+.pal-row__btn svg { width: 16px; height: 16px; }
+
+.pal-symbols {
+  margin-top: var(--s-2); padding: var(--s-2);
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-secondary);
+}
+.pal-symbols__head { display: flex; align-items: center; gap: var(--s-2); margin-bottom: var(--s-2); }
+.pal-symbols__title { flex: 1; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
+.pal-symbols__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; }
+.pal-symbols__btn {
+  height: 36px; font-size: 18px; line-height: 1; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary);
+}
+.pal-symbols__btn:hover, .pal-symbols__btn:focus-visible { border-color: var(--accent); color: var(--accent); }
+.pal-symbols__empty { font-size: var(--text-xs); color: var(--text-tertiary); }
+
+.pal-add { padding: var(--s-2) 12px var(--s-3); }
+.pal-add__btn {
+  width: 100%; min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  border: 1px dashed var(--accent); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--accent); font-weight: 600; font-size: var(--text-sm); cursor: pointer;
+}
+.pal-add__btn:hover { background: var(--accent-light); }
+.pal-add__btn svg { width: 16px; height: 16px; }
+.pal-picker { padding: var(--s-2) 12px var(--s-3); border-top: 0.5px solid var(--border); min-width: 0; }
+.pal-picker__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-2); }
+.pal-picker__title { font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary); }
+.pal-pick-tabs { display: flex; gap: 2px; margin-bottom: var(--s-2); border-bottom: 1px solid var(--border); }
+.pal-pick-tab {
+  flex: 1; min-height: 36px; padding: 4px 6px; cursor: pointer;
+  border: none; border-bottom: 2px solid transparent; background: transparent;
+  color: var(--text-secondary); font-size: var(--text-xs); font-weight: 500;
+}
+.pal-pick-tab--on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
+.pal-pick-note { font-size: var(--text-xs); color: var(--text-tertiary); margin-bottom: var(--s-1); }
+.pal-pick-search {
+  width: 100%; box-sizing: border-box; padding: 6px 10px; margin-bottom: var(--s-2);
+  border: 0.5px solid var(--border); border-radius: var(--radius-md); font-size: var(--text-sm);
+}
+.pal-pick-families { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: var(--s-2); }
+.pal-pick-family {
+  padding: 3px 9px; min-height: 28px; cursor: pointer; font-size: var(--text-xs);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--text-secondary);
+}
+.pal-pick-family--on { border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.pal-pick-list { max-height: 240px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.pal-pick-row {
+  display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: 34px; padding: 3px 8px;
+  border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--surface);
+  cursor: pointer; text-align: left; font: inherit; color: var(--text-primary);
+}
+.pal-pick-row:hover { background: var(--surface-secondary); }
+.pal-pick-row--in { background: var(--accent-light); border-color: var(--accent-border); opacity: 0.75; cursor: default; }
+.pal-pick-row__swatch { width: 18px; height: 18px; border-radius: 3px; flex-shrink: 0; border: 1px solid var(--border); }
+.pal-pick-row__id { font-weight: 600; min-width: 40px; font-size: var(--text-sm); }
+.pal-pick-row__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--text-secondary); }
+.pal-pick-row__mark { display: inline-flex; color: var(--text-tertiary); }
+.pal-pick-row--in .pal-pick-row__mark { color: var(--accent); }
+.pal-pick-row__mark svg { width: 14px; height: 14px; }
+.pal-pick-empty { font-size: var(--text-xs); color: var(--text-tertiary); padding: 8px 0; text-align: center; }
+
+/* Tool-strip swatches carry their symbol (P1-4). */
+.tb-swatch-sym { font-size: 16px; line-height: 1; font-weight: 600; pointer-events: none; }
+.tb-swatch-sym--black { color: black; }
+.tb-swatch-sym--white { color: white; }
+.tb-swatch-tip {
+  position: fixed; z-index: 1300; transform: translate(-50%, -100%);
+  padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--text-primary); color: var(--surface); font-size: var(--text-xs);
+  white-space: nowrap; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
 /* ═══ Touch loupe and precision cursor (audit DRAW-03) ═══════════════════
    creator/Loupe.js positions these in viewport px while a finger draws. */
 .creator-loupe {

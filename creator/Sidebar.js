@@ -9,7 +9,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
-  var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
   var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
   var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
@@ -100,6 +100,32 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   }
 
+  // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
+  var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
+  function symbolPanel(list) {
+    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
+    if (!entry) return null;
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for DMC " + entry.id},
+      h("div", {className: "pal-symbols__head"},
+        h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
+        h("span", {className: "pal-symbols__title"}, "Symbol for DMC " + entry.id),
+        h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close", onClick: function() { setSymbolPickerFor(null); }}, Icons.x())
+      ),
+      free.length
+        ? h("div", {className: "pal-symbols__grid"},
+            free.map(function(sym) {
+              return h("button", {
+                key: sym, type: "button", className: "pal-symbols__btn",
+                "aria-label": "Use symbol " + sym, title: "Use " + sym,
+                onClick: function() { if (ctx.changeSymbol && ctx.changeSymbol(entry.id, sym) !== false) setSymbolPickerFor(null); }
+              }, sym);
+            }))
+        : h("div", {className: "pal-symbols__empty"}, "Every symbol is in use. Remove a colour to free one.")
+    );
+  }
+
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
@@ -174,74 +200,67 @@ window.CreatorSidebar = function CreatorSidebar() {
         hiddenByFilter++;
         return null;
       }
+      var countText = (Number(p.count) || 0).toLocaleString("en-GB");
+      var ink = window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black";
+      function choose() {
+        if (isPaintMode) {
+          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+        } else {
+          cv.setHiId(cv.hiId === p.id ? null : p.id);
+        }
+      }
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
         "aria-pressed": ips || ihs,
-        onClick: function() {
-          if (isPaintMode) {
-            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-          } else {
-            cv.setHiId(cv.hiId === p.id ? null : p.id);
-          }
-        },
+        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : ("DMC " + p.id),
+        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        "data-colour-id": p.id,
+        onClick: choose,
         onKeyDown: function(e) {
-          if (e.repeat) return;
-          if (e.key === " " || e.key === "Enter") {
-            e.preventDefault();
-            if (isPaintMode) {
-              cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-            } else {
-              cv.setHiId(cv.hiId === p.id ? null : p.id);
-            }
-          }
-        },
-        style: {
-          display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:'var(--text-xs)',position:"relative",
-          border: ips ? "2px solid var(--accent)" : ihs ? "2px solid var(--accent-hover)" : "0.5px solid var(--border)",
-          background: ips ? "var(--accent-light)" : ihs ? "#F8EFD8" : "var(--surface)",
-          opacity: isUnused ? 0.6 : 1
+          if (e.repeat || e.target !== e.currentTarget) return;
+          if (e.key === " " || e.key === "Enter") { e.preventDefault(); choose(); }
         }
       },
-        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
-        h("span", {style:{fontFamily:"monospace",color:"var(--text-secondary)",fontSize:10}}, p.symbol),
-        h("span", {style:{fontWeight:500}}, p.id),
-        isUnused && h("span", {
-          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
-        }, "\xD7"),
-        // Brief D — stash status dot (top-right corner). Hidden when stash empty.
+        h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
+        h("span", {className: "pal-row__id"}, p.id),
+        h("span", {className: "pal-row__name"}, p.name && p.name !== p.id ? p.name : ""),
+        h("span", {className: "pal-row__count", title: countText + " stitches"}, countText),
+        // Brief D — stash status dot. Hidden when stash empty.
         stashStatus && h("span", {
+          className: "pal-row__stash pal-row__stash--" + stashStatus,
           title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
           "aria-label": "Stash status: " + stashStatus,
-          style: {
-            position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
-            background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
-          }
+          style: { background: STASH_DOT[stashStatus] }
         }),
-        // Colour swap button — visible on hover (mouse) or always (touch)
+        app.appMode === "edit" && h("button", {
+          type: "button",
+          className: "pal-row__btn",
+          title: "Change symbol",
+          "aria-label": "Change symbol for DMC " + p.id,
+          "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
+          onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
+        }, Icons.symbols ? Icons.symbols() : null),
+        // Colour swap button
         app.appMode === "edit" && h("button", {
           key: "swap-" + p.id,
-          className: "pal-chip-swap",
+          type: "button",
+          className: "pal-row__btn pal-chip-swap",
           title: "Replace DMC " + p.id + " with another colour",
           "aria-label": "Replace " + (p.name || p.id) + " with another colour",
           onClick: function(e) {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
-          },
-          style: {
-            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
-            border:"none", background:"transparent", cursor:"pointer",
-            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
-            opacity:0, transition:"opacity var(--motion)", borderRadius:2
-          },
-          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
-          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; },
-          onFocus: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.outline="2px solid var(--accent)"; e.currentTarget.style.outlineOffset="1px"; },
-          onBlur: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; e.currentTarget.style.outline="none"; }
-        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
+          }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null),
+        isUnused && h("button", {
+          type: "button",
+          className: "pal-row__btn",
+          title: "Remove from palette",
+          "aria-label": "Remove DMC " + p.id + " from the palette",
+          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); }
+        }, Icons.x())
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
@@ -251,8 +270,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+          h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern")
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
@@ -375,8 +394,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
       ),
       displayPal.length > 0
-        ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+        ? h("div", {className:"creator-pattern-chips pal-rows", role:"list"}, chips)
+        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet"),
+      symbolPanel(displayPal)
       )
     );
   })() : null;
@@ -446,10 +466,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
   ) : null;
 
-  // ── Colours section (scratch mode) ─────────────────────────────────────────
-  var coloursBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}},
-    (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
-  );
   // ── Blend picker local state ──────────────────────────────────────────────
   var _bl1 = React.useState(null); var blendThread1 = _bl1[0], setBlendThread1 = _bl1[1];
   var _bl2 = React.useState(null); var blendThread2 = _bl2[0], setBlendThread2 = _bl2[1];
@@ -488,16 +504,120 @@ window.CreatorSidebar = function CreatorSidebar() {
     setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);
   }
 
-  var coloursSection = ctx.pat ? h(Section, {
-    title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
-  },
-    h("div", {style:{marginTop:'var(--s-2)'}},
+  // ── Add colour picker (audit DRAW-05) ─────────────────────────────────────
+  // The pattern's own colours come first (above). The DMC catalogue sits
+  // behind Add colour, in three tabs: My stash, Suggested (close to the
+  // selected colour) and All DMC (search plus colour-family chips). With no
+  // colours yet (a blank scratch grid) the picker is simply open.
+  var PT = window.PaletteTools;
+  var palIsEmpty = !(ctx.pal && ctx.pal.length);
+  var pickerOpen = !!ctx.colPickerOpen || palIsEmpty;
+  var stashAvailable = typeof StashBridge !== "undefined";
+  var ownedThreads = React.useMemo(function() {
+    if (!stashAvailable || !ctx.globalStash) return [];
+    return DMC.filter(function(d) { return isColorOwned(ctx.globalStash["dmc:" + d.id]); });
+  }, [ctx.globalStash, stashAvailable]);
+  var familyOf = React.useMemo(function() {
+    var m = Object.create(null);
+    if (PT) DMC.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
+    return m;
+  }, [!!PT]);
+  var _pickTab = React.useState(null); var pickTabState = _pickTab[0], setPickTab = _pickTab[1];
+  var _family = React.useState(null); var familyFilter = _family[0], setFamilyFilter = _family[1];
+  var suggestBase = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
+    || (cv.hiId && ctx.cmap && ctx.cmap[cv.hiId])
+    || (ctx.displayPal && ctx.displayPal[0]) || null;
+  var pickTab = pickTabState
+    || (stashAvailable && ownedThreads.length ? "stash" : (!palIsEmpty && suggestBase ? "suggested" : "all"));
+  if (pickTab === "stash" && !stashAvailable) pickTab = "all";
+  var suggested = React.useMemo(function() {
+    if (!PT || !suggestBase || !suggestBase.lab) return [];
+    return PT.nearestThreads(suggestBase.lab, DMC, 12, ctx.cmap || {});
+  }, [suggestBase && suggestBase.id, ctx.cmap]);
+  var allList = ctx.dmcFiltered || [];
+  if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
+
+  function threadRow(d) {
+    var inPal = ctx.cmap && ctx.cmap[d.id];
+    return h("button", {
+      key: d.id, type: "button",
+      className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
+      "aria-label": (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      title: inPal ? "Already in this pattern" : "Add to this pattern",
+      onClick: function() { if (!inPal) ctx.addScratchColour(d); }
+    },
+      h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),
+      h("span", {className: "pal-pick-row__id"}, d.id),
+      h("span", {className: "pal-pick-row__name"}, d.name),
+      h("span", {className: "pal-pick-row__mark", "aria-hidden": "true"}, inPal ? Icons.check() : Icons.plus())
+    );
+  }
+  function threadList(list, emptyText) {
+    return h("div", {className: "pal-pick-list"},
+      list.slice(0, 60).map(threadRow),
+      list.length === 0 && h("div", {className: "pal-pick-empty"}, emptyText)
+    );
+  }
+  var tabs = [
+    stashAvailable ? { id: "stash", label: "My stash" } : null,
+    { id: "suggested", label: "Suggested" },
+    { id: "all", label: "All DMC" }
+  ].filter(Boolean);
+  var singlePicker = h(React.Fragment, null,
+    h("div", {className: "pal-pick-tabs", role: "tablist", "aria-label": "Where to find a colour"},
+      tabs.map(function(t) {
+        return h("button", {
+          key: t.id, type: "button", role: "tab",
+          className: "pal-pick-tab" + (pickTab === t.id ? " pal-pick-tab--on" : ""),
+          "aria-selected": pickTab === t.id ? "true" : "false",
+          onClick: function() { setPickTab(t.id); }
+        }, t.label);
+      })
+    ),
+    pickTab === "stash" && threadList(ownedThreads, "No DMC threads in your stash yet. Add them in the Stash Manager."),
+    pickTab === "suggested" && h(React.Fragment, null,
+      suggestBase
+        ? h("div", {className: "pal-pick-note"}, "Closest to DMC " + suggestBase.id + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        : null,
+      threadList(suggested, "Select a colour in the pattern to see threads close to it.")
+    ),
+    pickTab === "all" && h(React.Fragment, null,
+      h("input", {
+        type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
+        className: "pal-pick-search",
+        value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);}
+      }),
+      PT && h("div", {className: "pal-pick-families", role: "group", "aria-label": "Colour family"},
+        PT.FAMILIES.map(function(f) {
+          var on = familyFilter === f.id;
+          return h("button", {
+            key: f.id, type: "button",
+            className: "pal-pick-family" + (on ? " pal-pick-family--on" : ""),
+            "aria-pressed": on ? "true" : "false",
+            onClick: function() { setFamilyFilter(on ? null : f.id); }
+          }, f.label);
+        })
+      ),
+      threadList(allList, "No colours found")
+    )
+  );
+
+  var coloursSection = !ctx.pat ? null : !pickerOpen
+    ? h("div", {className: "pal-add"},
+        h("button", {type: "button", className: "pal-add__btn", onClick: function() { ctx.setColPickerOpen(true); }},
+          Icons.plus(), "Add colour"))
+    : h("div", {className: "pal-picker", role: "region", "aria-label": "Add colour"},
+      h("div", {className: "pal-picker__head"},
+        h("span", {className: "pal-picker__title"}, "Add colour"),
+        !palIsEmpty && h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close",
+          onClick: function() { ctx.setColPickerOpen(false); }}, Icons.x())
+      ),
       ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
         [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
-              h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
+              h("span", {style:{fontSize:10,color:"var(--text-secondary)",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
             item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
@@ -518,33 +638,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
         }, "Blend (2 threads)")
       ),
-      !blendMode ? h(React.Fragment, null,
-        h("input", {
-          type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
-          value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
-        }),
-        h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
-          ctx.dmcFiltered.slice(0,60).map(function(d) {
-            var inPal = ctx.cmap && ctx.cmap[d.id];
-            return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
-              h("div", {
-                onClick:function(){ctx.addScratchColour(d);},
-                style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-                  background:inPal?"var(--accent-light)":"var(--surface)",
-                  border:inPal?"1px solid var(--accent-border)":"1px solid transparent",
-                  opacity:inPal?0.7:1,width:"100%"}
-              },
-                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
-                h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
-                h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--accent)",display:"inline-flex"}}, window.Icons && window.Icons.check ? window.Icons.check() : null) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
-              )
-            );
-          }),
-          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
-        )
-      ) : h(React.Fragment, null,
+      !blendMode ? singlePicker : h(React.Fragment, null,
         // Blend mode UI: pick two threads
         h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:6,alignItems:"center"}},
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
@@ -598,8 +692,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
-    )
-  ) : null;
+    );
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");

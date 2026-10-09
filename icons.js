@@ -705,6 +705,15 @@ window.Icons = (function() {
     more: function() {
       return svg(c(5,12,1), c(12,12,1), c(19,12,1));
     },
+    // Square, circle and triangle — Change symbol in the palette (P1-4)
+    symbols: function() {
+      return svg(
+        p('M4 4h6v6H4z'),
+        c(17,7,3),
+        p('M7 14l3.5 6h-7z'),
+        p('M14 14h6M14 17h6M14 20h6')
+      );
+    },
     settings: function() {
       return svg(
         c(12,12,3),

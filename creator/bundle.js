@@ -5585,8 +5585,13 @@ window.useCreatorState = function useCreatorState() {
   var _done = useState(null);        var done = _done[0], setDone = _done[1];
   var _scrMode  = useState(false);   var isScratchMode = _scrMode[0], setIsScratchMode = _scrMode[1];
   var _scrPal   = useState([]);      var scratchPalette = _scrPal[0], setScratchPalette = _scrPal[1];
+  // Symbols the user picked (Change symbol), id -> symbol. Saved as the
+  // project's optional `symbols` map; the cells carry them in the session.
+  var _symOv    = useState({});      var symbolOverrides = _symOv[0], setSymbolOverrides = _symOv[1];
   var _dmcSch   = useState("");      var dmcSearch = _dmcSch[0], setDmcSearch = _dmcSch[1];
-  var _colPick  = useState(true);    var colPickerOpen = _colPick[0], setColPickerOpen = _colPick[1];
+  // The Add colour picker starts closed; the Palette tab opens it itself
+  // when the pattern has no colours yet (audit DRAW-05).
+  var _colPick  = useState(false);   var colPickerOpen = _colPick[0], setColPickerOpen = _colPick[1];
   var _parkM    = useState([]);      var parkMarkers = _parkM[0], setParkMarkers = _parkM[1];
   var _hlRow    = useState(-1);      var hlRow = _hlRow[0], setHlRow = _hlRow[1];
   var _hlCol    = useState(-1);      var hlCol = _hlCol[0], setHlCol = _hlCol[1];
@@ -6084,7 +6089,7 @@ window.useCreatorState = function useCreatorState() {
     setDimOpen(true); setPalOpen(true); setAdjOpen(false);
     setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
-    setIsScratchMode(false); setScratchPalette([]); setDmcSearch("");
+    setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
@@ -6200,6 +6205,37 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory([]);
     if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
   }
+
+  // Change a colour's symbol (audit DRAW-05). Updates the palette, the
+  // colour's cells and the scratch palette; refuses a symbol another colour
+  // uses. `record` false is for undo / redo.
+  function applySymbol(id, sym, record) {
+    var PT = window.PaletteTools;
+    if (!PT || !pal) return false;
+    var r = PT.reassignSymbol(pal, id, sym);
+    if (!r.ok) {
+      if (r.reason === "duplicate") addToast("Another colour already uses that symbol", { type: "warning", duration: 2500 });
+      return false;
+    }
+    var entry = r.pal.find(function(p) { return p.id === id; });
+    setPal(r.pal);
+    setCmap(function(prev) { return prev ? Object.assign({}, prev, { [id]: entry }) : prev; });
+    if (pat) setPat(PT.stampSymbol(pat, id, sym));
+    setScratchPalette(function(prev) {
+      return prev.map(function(p) { return p.id === id ? Object.assign({}, p, { symbol: sym }) : p; });
+    });
+    setSymbolOverrides(function(prev) { return Object.assign({}, prev, { [id]: sym }); });
+    if (record !== false) {
+      setEditHistory(function(prev) {
+        var n = prev.concat([{ type: "symbol", changes: [], id: id, from: r.from, to: sym }]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      setRedoHistory([]);
+    }
+    return true;
+  }
+  function changeSymbol(id, sym) { return applySymbol(id, sym, true); }
 
   function removeScratchColour(id) {
     // E-5: don't let the user orphan stitches by removing an in-use scratch colour.
@@ -7047,6 +7083,7 @@ window.useCreatorState = function useCreatorState() {
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
     setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
     resetAll, initBlankGrid, startScratch, addScratchColour, removeScratchColour, removeUnusedColours,
+    changeSymbol, applySymbol, symbolOverrides, setSymbolOverrides,
     toggleOwned, generate, randomise, generateGallery, promoteVariation, applyVariationSeed, disambiguateNow,
     // Eyedropper feedback
     eyedropperEmpty, setEyedropperEmpty,
@@ -7135,6 +7172,9 @@ window.useCreatorState = function useCreatorState() {
          scratch palette and rebuilds pal/cmap.
      - { type: "remove_unused_colours", removedFromPal, removedFromScratch }
          Specific branch in undoEdit/redoEdit. Restores palette entries.
+     - { type: "symbol", id, from, to, changes: [] }
+         Change symbol (audit DRAW-05). Specific branch: re-applies the old /
+         new symbol through state.applySymbol without recording history.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines? }
@@ -7156,6 +7196,17 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!editHistory.length) return;
     var last = editHistory[editHistory.length - 1];
+
+    if (last.type === "symbol") {
+      if (typeof state.applySymbol === "function") state.applySymbol(last.id, last.from, false);
+      state.setEditHistory(function(prev) { return prev.slice(0, -1); });
+      state.setRedoHistory(function(prev) {
+        var n = prev.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
 
     // Handle add_colour undo: remove the added colour from scratchPalette, pal, cmap
     if (last.type === "add_colour" && last.addedEntry) {
@@ -7278,6 +7329,17 @@ window.useEditHistory = function useEditHistory(state) {
 
     if (!redoHistory.length) return;
     var last = redoHistory[redoHistory.length - 1];
+
+    if (last.type === "symbol") {
+      if (typeof state.applySymbol === "function") state.applySymbol(last.id, last.to, false);
+      state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
+      state.setEditHistory(function(prev) {
+        var n = prev.concat([last]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      return;
+    }
 
     // Handle add_colour redo: re-add the colour
     if (last.type === "add_colour" && last.addedEntry) {
@@ -8616,6 +8678,144 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
 window.DENOISE_OVERLAY_COLOR = DENOISE_OVERLAY_COLOR;
 window.DENOISE_THRESHOLD_MAX_DE = DENOISE_THRESHOLD_MAX_DE;
 window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
+
+
+/* ─── paletteTools.js ─── */
+/* creator/paletteTools.js — pure helpers for the Palette tab (audit DRAW-05).
+ *
+ *   PaletteTools.unusedSymbols(pal, syms)        symbols no palette colour uses
+ *   PaletteTools.reassignSymbol(pal, id, sym)    give one colour a new symbol,
+ *                                                refusing duplicates
+ *   PaletteTools.stampSymbol(pat, id, sym)       copy of the pattern with that
+ *                                                colour's cells carrying `sym`
+ *   PaletteTools.colourFamily(lab)               "reds", "blues", "neutrals"…
+ *   PaletteTools.nearestThreads(lab, list, n, exclude)
+ *   PaletteTools.swatchInk(rgb)                  "black" or "white" for text
+ *   PaletteTools.swatchLabel(entry)              "DMC 310 · Black · 1,204 stitches"
+ *
+ * Symbols live on the pattern's cells (buildPalette in colour-utils.js reads
+ * them), so a changed symbol survives every palette rebuild. The project
+ * saves the changed ones in its optional `symbols` map.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+
+(function (root) {
+  var FAMILIES = [
+    { id: "reds", label: "Reds" },
+    { id: "pinks", label: "Pinks" },
+    { id: "oranges", label: "Oranges" },
+    { id: "yellows", label: "Yellows" },
+    { id: "greens", label: "Greens" },
+    { id: "blues", label: "Blues" },
+    { id: "purples", label: "Purples" },
+    { id: "browns", label: "Browns" },
+    { id: "neutrals", label: "Neutrals" }
+  ];
+
+  function unusedSymbols(pal, syms) {
+    var used = Object.create(null);
+    (pal || []).forEach(function (p) { if (p && p.symbol) used[p.symbol] = true; });
+    return (syms || []).filter(function (s) { return !used[s]; });
+  }
+
+  // Returns { ok: true, pal, from } or { ok: false, reason }.
+  function reassignSymbol(pal, id, sym) {
+    if (!pal || !sym) return { ok: false, reason: "missing" };
+    var idx = -1;
+    for (var i = 0; i < pal.length; i++) if (pal[i] && pal[i].id === id) idx = i;
+    if (idx < 0) return { ok: false, reason: "missing" };
+    var from = pal[idx].symbol;
+    if (from === sym) return { ok: false, reason: "same" };
+    for (var j = 0; j < pal.length; j++) {
+      if (j !== idx && pal[j] && pal[j].symbol === sym) return { ok: false, reason: "duplicate" };
+    }
+    var next = pal.slice();
+    next[idx] = Object.assign({}, pal[idx], { symbol: sym });
+    return { ok: true, pal: next, from: from };
+  }
+
+  function stampSymbol(pat, id, sym) {
+    if (!pat) return pat;
+    var out = new Array(pat.length);
+    for (var i = 0; i < pat.length; i++) {
+      var c = pat[i];
+      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym }) : c;
+    }
+    return out;
+  }
+
+  // A rough colour family from CIELAB lightness, chroma and hue, for the
+  // All DMC filter chips.
+  function colourFamily(lab) {
+    if (!lab || lab.length < 3) return "neutrals";
+    var L = lab[0], a = lab[1], b = lab[2];
+    var C = Math.sqrt(a * a + b * b);
+    if (C < 10) return "neutrals";
+    var hue = (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+    if (hue >= 345 || hue < 35) return L >= 65 ? "pinks" : "reds";
+    if (hue < 105) {
+      if (C < 30 && L < 75) return "browns";
+      return hue < 70 ? "oranges" : "yellows";
+    }
+    if (hue < 190) return "greens";
+    if (hue < 290) return "blues";
+    return "purples";
+  }
+
+  function deltaE(a, b) {
+    if (typeof root.dE2000 === "function") return root.dE2000(a, b);
+    var d0 = a[0] - b[0], d1 = a[1] - b[1], d2 = a[2] - b[2];
+    return Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2);
+  }
+
+  // The `n` threads in `list` closest to `lab`, nearest first, skipping ids
+  // in `exclude` (an object or Set of ids).
+  function nearestThreads(lab, list, n, exclude) {
+    if (!lab || !list) return [];
+    var has = exclude && typeof exclude.has === "function"
+      ? function (id) { return exclude.has(id); }
+      : function (id) { return !!(exclude && exclude[id]); };
+    var scored = [];
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (!t || !t.lab || has(t.id)) continue;
+      scored.push({ t: t, d: deltaE(lab, t.lab) });
+    }
+    scored.sort(function (x, y) { return x.d - y.d; });
+    return scored.slice(0, n || 12).map(function (s) { return s.t; });
+  }
+
+  function swatchInk(rgb) {
+    if (!rgb) return "black";
+    var lum = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+    return lum > 140 ? "black" : "white";
+  }
+
+  function swatchLabel(p) {
+    if (!p) return "";
+    var parts = [(p.type === "blend" ? "Blend " : "DMC ") + p.id];
+    if (p.name && p.name !== p.id) parts.push(p.name);
+    if (p.count != null) {
+      var n = Number(p.count) || 0;
+      parts.push(n.toLocaleString("en-GB") + (n === 1 ? " stitch" : " stitches"));
+    }
+    return parts.join(" · ");
+  }
+
+  var api = {
+    FAMILIES: FAMILIES,
+    unusedSymbols: unusedSymbols,
+    reassignSymbol: reassignSymbol,
+    stampSymbol: stampSymbol,
+    colourFamily: colourFamily,
+    nearestThreads: nearestThreads,
+    swatchInk: swatchInk,
+    swatchLabel: swatchLabel
+  };
+  root.PaletteTools = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})(typeof window !== "undefined" ? window : globalThis);
 
 
 /* ─── Loupe.js ─── */
@@ -10358,6 +10558,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
    Expects state (from useCreatorState) and history (from useEditHistory),
    plus options = { onSwitchToTrack }. */
 
+// The project's optional `symbols` map (audit DRAW-05): the symbols the user
+// chose with Change symbol that the palette still shows. Undefined when there
+// are none, so untouched projects save exactly as before.
+function creatorSavedSymbols(overrides, pal) {
+  if (!overrides || !pal) return undefined;
+  var out = null;
+  pal.forEach(function(p) {
+    if (p && overrides[p.id] && overrides[p.id] === p.symbol) { (out = out || {})[p.id] = p.symbol; }
+  });
+  return out || undefined;
+}
+window.creatorSavedSymbols = creatorSavedSymbols;
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
@@ -10429,6 +10642,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
+      symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
@@ -10497,6 +10711,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
+      symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
@@ -10631,6 +10846,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (s.stitchSpeed) state.setStitchSpeed(s.stitchSpeed);
 
     var restored = project.pattern.map(restoreStitch);
+    // Symbols chosen with Change symbol ride on their cells (buildPalette
+    // keeps a symbol its cells carry).
+    var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
+    if (savedSyms) {
+      restored = restored.map(function(c) { return c && savedSyms[c.id] ? Object.assign({}, c, { symbol: savedSyms[c.id] }) : c; });
+    }
+    if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
     state.setTab("pattern"); state.setActiveTool(null); state.setSelectedColorId(null);
@@ -11205,6 +11427,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       designer: state.projectDesigner || "", description: state.projectDescription || "",
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
+      symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
       settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup },
       // PERF (deferred-1): see helpers.js / serializePattern.
@@ -11285,7 +11508,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
-    state.isActive,
+    state.symbolOverrides, state.isActive,
   ]);
 
   // Per-pattern view state periodic save
@@ -12532,6 +12755,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelRef = React.useRef(null);
   var moreBtnRef = React.useRef(null);
   var swatchRowRef = React.useRef(null);
+  // Long-press on a swatch shows "DMC 310 · Black · 1,204 stitches" (P1-4).
+  var _swTip = React.useState(null); var swatchTip = _swTip[0], setSwatchTip = _swTip[1];
+  var swatchPressRef = React.useRef(null);
+  function swatchPressStart(e, p) {
+    if (e.pointerType !== "touch") return;
+    var r = e.currentTarget.getBoundingClientRect();
+    var press = { id: p.id, fired: false, timer: null };
+    press.timer = setTimeout(function() {
+      press.fired = true;
+      setSwatchTip({ id: p.id, text: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id, x: r.left + r.width / 2, y: r.top - 6 });
+    }, (window.TouchConstants && window.TouchConstants.LONG_PRESS_MS) || 500);
+    swatchPressRef.current = press;
+  }
+  function swatchPressEnd() {
+    var press = swatchPressRef.current;
+    if (press && press.timer) clearTimeout(press.timer);
+    if (press && press.fired) setTimeout(function() { setSwatchTip(null); }, 1200);
+  }
   React.useEffect(function() {
     if (!morePanelOpen) return;
     function closeMp(e) {
@@ -13095,8 +13336,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         var isSel = cv.selectedColorId === p.id;
         return h("button", {
           key: p.id,
-          onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
-          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+          onClick: function() {
+            // A long-press shows the tooltip; it doesn't also change the colour.
+            var press = swatchPressRef.current;
+            if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
+            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+          },
+          onPointerDown: function(e) { swatchPressStart(e, p); },
+          onPointerUp: swatchPressEnd,
+          onPointerCancel: swatchPressEnd,
+          onPointerLeave: swatchPressEnd,
+          onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
+          title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id,
           "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
           "aria-pressed": isSel,
           style:{
@@ -13105,16 +13356,21 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             background:"rgb("+p.rgb+")",
             border: isSel ? "2.5px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
             boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
-            outline:"none"
+            outline:"none",
+            display:"inline-flex", alignItems:"center", justifyContent:"center"
           }
-        });
+        }, p.symbol ? h("span", {
+          className:"tb-swatch-sym tb-swatch-sym--" + (window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black"),
+          "aria-hidden":"true"
+        }, p.symbol) : null);
       })
     ),
     palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
       onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:120,behavior:"smooth"}); },
       "aria-label":"Scroll swatches right", title:"Scroll right"
-    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
+    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+    swatchTip && h("div", {className:"tb-swatch-tip", role:"tooltip", style:{left:swatchTip.x, top:swatchTip.y}}, swatchTip.text)
   ) : null;
 
   // Clear selection — shown in pill when a selection is active (Wand/Lasso are in More panel)
@@ -14461,7 +14717,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
-  var _pco = React.useState(false); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
+  var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
   var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
   var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
   var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
@@ -14552,6 +14808,32 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   }
 
+  // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
+  var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
+  function symbolPanel(list) {
+    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
+    if (!entry) return null;
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for DMC " + entry.id},
+      h("div", {className: "pal-symbols__head"},
+        h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
+        h("span", {className: "pal-symbols__title"}, "Symbol for DMC " + entry.id),
+        h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close", onClick: function() { setSymbolPickerFor(null); }}, Icons.x())
+      ),
+      free.length
+        ? h("div", {className: "pal-symbols__grid"},
+            free.map(function(sym) {
+              return h("button", {
+                key: sym, type: "button", className: "pal-symbols__btn",
+                "aria-label": "Use symbol " + sym, title: "Use " + sym,
+                onClick: function() { if (ctx.changeSymbol && ctx.changeSymbol(entry.id, sym) !== false) setSymbolPickerFor(null); }
+              }, sym);
+            }))
+        : h("div", {className: "pal-symbols__empty"}, "Every symbol is in use. Remove a colour to free one.")
+    );
+  }
+
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
@@ -14626,74 +14908,67 @@ window.CreatorSidebar = function CreatorSidebar() {
         hiddenByFilter++;
         return null;
       }
+      var countText = (Number(p.count) || 0).toLocaleString("en-GB");
+      var ink = window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black";
+      function choose() {
+        if (isPaintMode) {
+          cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+        } else {
+          cv.setHiId(cv.hiId === p.id ? null : p.id);
+        }
+      }
       return h("div", {
         key: p.id,
         role: "button",
         tabIndex: 0,
         "aria-pressed": ips || ihs,
-        onClick: function() {
-          if (isPaintMode) {
-            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-          } else {
-            cv.setHiId(cv.hiId === p.id ? null : p.id);
-          }
-        },
+        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : ("DMC " + p.id),
+        className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
+        "data-colour-id": p.id,
+        onClick: choose,
         onKeyDown: function(e) {
-          if (e.repeat) return;
-          if (e.key === " " || e.key === "Enter") {
-            e.preventDefault();
-            if (isPaintMode) {
-              cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
-            } else {
-              cv.setHiId(cv.hiId === p.id ? null : p.id);
-            }
-          }
-        },
-        style: {
-          display:"flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:5,
-          cursor:"pointer",fontSize:'var(--text-xs)',position:"relative",
-          border: ips ? "2px solid var(--accent)" : ihs ? "2px solid var(--accent-hover)" : "0.5px solid var(--border)",
-          background: ips ? "var(--accent-light)" : ihs ? "#F8EFD8" : "var(--surface)",
-          opacity: isUnused ? 0.6 : 1
+          if (e.repeat || e.target !== e.currentTarget) return;
+          if (e.key === " " || e.key === "Enter") { e.preventDefault(); choose(); }
         }
       },
-        h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+p.rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
-        h("span", {style:{fontFamily:"monospace",color:"var(--text-secondary)",fontSize:10}}, p.symbol),
-        h("span", {style:{fontWeight:500}}, p.id),
-        isUnused && h("span", {
-          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); },
-          style:{fontSize:9,color:"var(--text-tertiary)",cursor:"pointer",marginLeft:2,lineHeight:1}
-        }, "\xD7"),
-        // Brief D — stash status dot (top-right corner). Hidden when stash empty.
+        h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
+        h("span", {className: "pal-row__id"}, p.id),
+        h("span", {className: "pal-row__name"}, p.name && p.name !== p.id ? p.name : ""),
+        h("span", {className: "pal-row__count", title: countText + " stitches"}, countText),
+        // Brief D — stash status dot. Hidden when stash empty.
         stashStatus && h("span", {
+          className: "pal-row__stash pal-row__stash--" + stashStatus,
           title: stashStatus === 'owned' ? 'In your stash' : stashStatus === 'partial' ? 'You own this colour but quantity may be low' : 'Not in stash',
           "aria-label": "Stash status: " + stashStatus,
-          style: {
-            position:"absolute", top:-2, right:-2, width:6, height:6, borderRadius:"50%",
-            background: STASH_DOT[stashStatus], boxShadow:"0 0 0 1px #fff"
-          }
+          style: { background: STASH_DOT[stashStatus] }
         }),
-        // Colour swap button — visible on hover (mouse) or always (touch)
+        app.appMode === "edit" && h("button", {
+          type: "button",
+          className: "pal-row__btn",
+          title: "Change symbol",
+          "aria-label": "Change symbol for DMC " + p.id,
+          "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
+          onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
+        }, Icons.symbols ? Icons.symbols() : null),
+        // Colour swap button
         app.appMode === "edit" && h("button", {
           key: "swap-" + p.id,
-          className: "pal-chip-swap",
+          type: "button",
+          className: "pal-row__btn pal-chip-swap",
           title: "Replace DMC " + p.id + " with another colour",
           "aria-label": "Replace " + (p.name || p.id) + " with another colour",
           onClick: function(e) {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
-          },
-          style: {
-            position:"absolute", bottom:1, left:1, width:13, height:13, padding:0,
-            border:"none", background:"transparent", cursor:"pointer",
-            color:"var(--text-tertiary)", display:"flex", alignItems:"center", justifyContent:"center",
-            opacity:0, transition:"opacity var(--motion)", borderRadius:2
-          },
-          onMouseEnter: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; },
-          onMouseLeave: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; },
-          onFocus: function(e) { e.currentTarget.style.opacity="1"; e.currentTarget.style.color="var(--accent)"; e.currentTarget.style.outline="2px solid var(--accent)"; e.currentTarget.style.outlineOffset="1px"; },
-          onBlur: function(e) { e.currentTarget.style.opacity="0"; e.currentTarget.style.color="var(--text-tertiary)"; e.currentTarget.style.outline="none"; }
-        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null)
+          }
+        }, typeof Icons !== 'undefined' && Icons.colourSwap ? Icons.colourSwap() : null),
+        isUnused && h("button", {
+          type: "button",
+          className: "pal-row__btn",
+          title: "Remove from palette",
+          "aria-label": "Remove DMC " + p.id + " from the palette",
+          onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); }
+        }, Icons.x())
       );
     }).filter(Boolean);
     var unusedCount = displayPal ? displayPal.filter(function(p) { return p.count === 0; }).length : 0;
@@ -14703,8 +14978,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
-          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
+          h("span", {"aria-hidden":"true",style:{color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
+          h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "In this pattern")
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           app.appMode === "edit" && unusedCount > 0 && h("button", {
@@ -14827,8 +15102,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
       ),
       displayPal.length > 0
-        ? h("div", {className:"creator-pattern-chips", style:{display:"flex",flexWrap:"wrap",gap:3}}, chips)
-        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet")
+        ? h("div", {className:"creator-pattern-chips pal-rows", role:"list"}, chips)
+        : h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"8px 0"}}, "No colours yet"),
+      symbolPanel(displayPal)
       )
     );
   })() : null;
@@ -14898,10 +15174,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
   ) : null;
 
-  // ── Colours section (scratch mode) ─────────────────────────────────────────
-  var coloursBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}},
-    (ctx.displayPal ? ctx.displayPal.filter(function(p){return p.count>0;}).length : 0)+" used"
-  );
   // ── Blend picker local state ──────────────────────────────────────────────
   var _bl1 = React.useState(null); var blendThread1 = _bl1[0], setBlendThread1 = _bl1[1];
   var _bl2 = React.useState(null); var blendThread2 = _bl2[0], setBlendThread2 = _bl2[1];
@@ -14940,16 +15212,120 @@ window.CreatorSidebar = function CreatorSidebar() {
     setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);
   }
 
-  var coloursSection = ctx.pat ? h(Section, {
-    title:"Colours", isOpen:ctx.colPickerOpen, onToggle:ctx.setColPickerOpen, badge:coloursBadge
-  },
-    h("div", {style:{marginTop:'var(--s-2)'}},
+  // ── Add colour picker (audit DRAW-05) ─────────────────────────────────────
+  // The pattern's own colours come first (above). The DMC catalogue sits
+  // behind Add colour, in three tabs: My stash, Suggested (close to the
+  // selected colour) and All DMC (search plus colour-family chips). With no
+  // colours yet (a blank scratch grid) the picker is simply open.
+  var PT = window.PaletteTools;
+  var palIsEmpty = !(ctx.pal && ctx.pal.length);
+  var pickerOpen = !!ctx.colPickerOpen || palIsEmpty;
+  var stashAvailable = typeof StashBridge !== "undefined";
+  var ownedThreads = React.useMemo(function() {
+    if (!stashAvailable || !ctx.globalStash) return [];
+    return DMC.filter(function(d) { return isColorOwned(ctx.globalStash["dmc:" + d.id]); });
+  }, [ctx.globalStash, stashAvailable]);
+  var familyOf = React.useMemo(function() {
+    var m = Object.create(null);
+    if (PT) DMC.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
+    return m;
+  }, [!!PT]);
+  var _pickTab = React.useState(null); var pickTabState = _pickTab[0], setPickTab = _pickTab[1];
+  var _family = React.useState(null); var familyFilter = _family[0], setFamilyFilter = _family[1];
+  var suggestBase = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
+    || (cv.hiId && ctx.cmap && ctx.cmap[cv.hiId])
+    || (ctx.displayPal && ctx.displayPal[0]) || null;
+  var pickTab = pickTabState
+    || (stashAvailable && ownedThreads.length ? "stash" : (!palIsEmpty && suggestBase ? "suggested" : "all"));
+  if (pickTab === "stash" && !stashAvailable) pickTab = "all";
+  var suggested = React.useMemo(function() {
+    if (!PT || !suggestBase || !suggestBase.lab) return [];
+    return PT.nearestThreads(suggestBase.lab, DMC, 12, ctx.cmap || {});
+  }, [suggestBase && suggestBase.id, ctx.cmap]);
+  var allList = ctx.dmcFiltered || [];
+  if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
+
+  function threadRow(d) {
+    var inPal = ctx.cmap && ctx.cmap[d.id];
+    return h("button", {
+      key: d.id, type: "button",
+      className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
+      "aria-label": (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      title: inPal ? "Already in this pattern" : "Add to this pattern",
+      onClick: function() { if (!inPal) ctx.addScratchColour(d); }
+    },
+      h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),
+      h("span", {className: "pal-pick-row__id"}, d.id),
+      h("span", {className: "pal-pick-row__name"}, d.name),
+      h("span", {className: "pal-pick-row__mark", "aria-hidden": "true"}, inPal ? Icons.check() : Icons.plus())
+    );
+  }
+  function threadList(list, emptyText) {
+    return h("div", {className: "pal-pick-list"},
+      list.slice(0, 60).map(threadRow),
+      list.length === 0 && h("div", {className: "pal-pick-empty"}, emptyText)
+    );
+  }
+  var tabs = [
+    stashAvailable ? { id: "stash", label: "My stash" } : null,
+    { id: "suggested", label: "Suggested" },
+    { id: "all", label: "All DMC" }
+  ].filter(Boolean);
+  var singlePicker = h(React.Fragment, null,
+    h("div", {className: "pal-pick-tabs", role: "tablist", "aria-label": "Where to find a colour"},
+      tabs.map(function(t) {
+        return h("button", {
+          key: t.id, type: "button", role: "tab",
+          className: "pal-pick-tab" + (pickTab === t.id ? " pal-pick-tab--on" : ""),
+          "aria-selected": pickTab === t.id ? "true" : "false",
+          onClick: function() { setPickTab(t.id); }
+        }, t.label);
+      })
+    ),
+    pickTab === "stash" && threadList(ownedThreads, "No DMC threads in your stash yet. Add them in the Stash Manager."),
+    pickTab === "suggested" && h(React.Fragment, null,
+      suggestBase
+        ? h("div", {className: "pal-pick-note"}, "Closest to DMC " + suggestBase.id + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        : null,
+      threadList(suggested, "Select a colour in the pattern to see threads close to it.")
+    ),
+    pickTab === "all" && h(React.Fragment, null,
+      h("input", {
+        type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
+        className: "pal-pick-search",
+        value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);}
+      }),
+      PT && h("div", {className: "pal-pick-families", role: "group", "aria-label": "Colour family"},
+        PT.FAMILIES.map(function(f) {
+          var on = familyFilter === f.id;
+          return h("button", {
+            key: f.id, type: "button",
+            className: "pal-pick-family" + (on ? " pal-pick-family--on" : ""),
+            "aria-pressed": on ? "true" : "false",
+            onClick: function() { setFamilyFilter(on ? null : f.id); }
+          }, f.label);
+        })
+      ),
+      threadList(allList, "No colours found")
+    )
+  );
+
+  var coloursSection = !ctx.pat ? null : !pickerOpen
+    ? h("div", {className: "pal-add"},
+        h("button", {type: "button", className: "pal-add__btn", onClick: function() { ctx.setColPickerOpen(true); }},
+          Icons.plus(), "Add colour"))
+    : h("div", {className: "pal-picker", role: "region", "aria-label": "Add colour"},
+      h("div", {className: "pal-picker__head"},
+        h("span", {className: "pal-picker__title"}, "Add colour"),
+        !palIsEmpty && h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close",
+          onClick: function() { ctx.setColPickerOpen(false); }}, Icons.x())
+      ),
       ctx.isScratchMode && h("div", {style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:'var(--s-1)',marginBottom:'var(--s-2)',padding:"6px 8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)'}},
         [["1","Add colour",true],["2","Select chip",true],["3","Paint!",false]].map(function(item,i) {
           return h(React.Fragment, {key:i},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)'}},
               h("span", {style:{width:16,height:16,borderRadius:"50%",background:"var(--accent)",color:"var(--surface)",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}, item[0]),
-              h("span", {style:{fontSize:10,color:"#52525b",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
+              h("span", {style:{fontSize:10,color:"var(--text-secondary)",fontWeight:500,whiteSpace:"nowrap"}}, item[1])
             ),
             item[2] && h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--text-tertiary)",display:"inline-flex"}}, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
           );
@@ -14970,33 +15346,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
         }, "Blend (2 threads)")
       ),
-      !blendMode ? h(React.Fragment, null,
-        h("input", {
-          type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
-          value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);},
-          style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
-        }),
-        h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
-          ctx.dmcFiltered.slice(0,60).map(function(d) {
-            var inPal = ctx.cmap && ctx.cmap[d.id];
-            return h(Tooltip, {key:d.id, text:inPal?"Already in your palette":"Click to add to your palette", width:160},
-              h("div", {
-                onClick:function(){ctx.addScratchColour(d);},
-                style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-                  background:inPal?"var(--accent-light)":"var(--surface)",
-                  border:inPal?"1px solid var(--accent-border)":"1px solid transparent",
-                  opacity:inPal?0.7:1,width:"100%"}
-              },
-                h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
-                h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
-                h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-                inPal ? h("span", {"aria-hidden":"true", style:{fontSize:10,color:"var(--accent)",display:"inline-flex"}}, window.Icons && window.Icons.check ? window.Icons.check() : null) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
-              )
-            );
-          }),
-          ctx.dmcFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
-        )
-      ) : h(React.Fragment, null,
+      !blendMode ? singlePicker : h(React.Fragment, null,
         // Blend mode UI: pick two threads
         h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:6,alignItems:"center"}},
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
@@ -15050,8 +15400,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
-    )
-  ) : null;
+    );
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");

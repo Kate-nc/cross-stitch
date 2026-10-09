@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.87';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.88',
+    date: 'October 2026',
+    notes: [
+      "The Pattern Creator's Palette tab now starts with your pattern's own colours, each with its symbol, number, name and stitch count. Add colour opens a picker with your stash, threads close to the selected colour, and all DMC threads with colour-family filters. You can change any colour's symbol (Undo puts it back), and the colour strip shows each thread's symbol on its swatch; press and hold a swatch to see its details.",
+    ]
+  },
+  {
     version: '1.0.87',
     date: 'October 2026',
     notes: [

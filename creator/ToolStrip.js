@@ -55,6 +55,24 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelRef = React.useRef(null);
   var moreBtnRef = React.useRef(null);
   var swatchRowRef = React.useRef(null);
+  // Long-press on a swatch shows "DMC 310 · Black · 1,204 stitches" (P1-4).
+  var _swTip = React.useState(null); var swatchTip = _swTip[0], setSwatchTip = _swTip[1];
+  var swatchPressRef = React.useRef(null);
+  function swatchPressStart(e, p) {
+    if (e.pointerType !== "touch") return;
+    var r = e.currentTarget.getBoundingClientRect();
+    var press = { id: p.id, fired: false, timer: null };
+    press.timer = setTimeout(function() {
+      press.fired = true;
+      setSwatchTip({ id: p.id, text: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id, x: r.left + r.width / 2, y: r.top - 6 });
+    }, (window.TouchConstants && window.TouchConstants.LONG_PRESS_MS) || 500);
+    swatchPressRef.current = press;
+  }
+  function swatchPressEnd() {
+    var press = swatchPressRef.current;
+    if (press && press.timer) clearTimeout(press.timer);
+    if (press && press.fired) setTimeout(function() { setSwatchTip(null); }, 1200);
+  }
   React.useEffect(function() {
     if (!morePanelOpen) return;
     function closeMp(e) {
@@ -618,8 +636,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         var isSel = cv.selectedColorId === p.id;
         return h("button", {
           key: p.id,
-          onClick: function() { cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id); },
-          title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : "") + (p.count ? " \xB7 " + p.count + " st" : ""),
+          onClick: function() {
+            // A long-press shows the tooltip; it doesn't also change the colour.
+            var press = swatchPressRef.current;
+            if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
+            cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
+          },
+          onPointerDown: function(e) { swatchPressStart(e, p); },
+          onPointerUp: swatchPressEnd,
+          onPointerCancel: swatchPressEnd,
+          onPointerLeave: swatchPressEnd,
+          onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
+          title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id,
           "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
           "aria-pressed": isSel,
           style:{
@@ -628,16 +656,21 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             background:"rgb("+p.rgb+")",
             border: isSel ? "2.5px solid var(--accent)" : "1.5px solid rgba(0,0,0,0.15)",
             boxShadow: isSel ? "0 0 0 2px #fff inset" : "none",
-            outline:"none"
+            outline:"none",
+            display:"inline-flex", alignItems:"center", justifyContent:"center"
           }
-        });
+        }, p.symbol ? h("span", {
+          className:"tb-swatch-sym tb-swatch-sym--" + (window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black"),
+          "aria-hidden":"true"
+        }, p.symbol) : null);
       })
     ),
     palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
       onClick:function(){ swatchRowRef.current && swatchRowRef.current.scrollBy({left:120,behavior:"smooth"}); },
       "aria-label":"Scroll swatches right", title:"Scroll right"
-    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null)
+    }, window.Icons && window.Icons.chevronRight ? window.Icons.chevronRight() : null),
+    swatchTip && h("div", {className:"tb-swatch-tip", role:"tooltip", style:{left:swatchTip.x, top:swatchTip.y}}, swatchTip.text)
   ) : null;
 
   // Clear selection — shown in pill when a selection is active (Wand/Lasso are in More panel)
