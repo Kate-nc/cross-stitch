@@ -710,31 +710,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     });
   }
   var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
-      h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
-      h("span", null, "Lock aspect ratio"),
-      h(InfoIcon, {text:"Keep width and height proportional when resizing", width:220})
-    ),
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-6,marginBottom:'var(--s-2)'}}, "Max: 500 \u00D7 500 stitches"),
-    ctx.arLock
-      ? h("div", null,
-          h(SliderRow, {label:"Size", value:ctx.sW, min:10, max:500, onChange:ctx.slRsz, suffix:" st"}),
-          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}, "Pattern will be "+ctx.sW+"\xD7"+ctx.sH+" stitches (aspect ratio preserved)")
-        )
-      : h(FieldWithHint, {hint:"Stitches across and down your pattern. At 14ct, every 14 stitches \u2248 1 inch (2.5\xa0cm). More stitches = more detail, but a larger and more time-consuming piece.",topic:"dimensions"},
-          h("div", {style:{display:"flex",gap:10}},
-            h("div", {style:{flex:1}},
-              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Width"),
-              h("input", {type:"number", value:ctx.sW, onChange:function(e){ctx.chgW(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
-            ),
-            h("div", {style:{flex:1}},
-              h("label", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",display:"block",marginBottom:2}}, "Height"),
-              h("input", {type:"number", value:ctx.sH, onChange:function(e){ctx.chgH(e.target.value);}, style:{width:"100%",padding:"5px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',fontSize:'var(--text-md)'}})
-            )
-          )
-        ),
+    // Stitches or finished size, frame presets and size notes (audit IMG-03).
+    window.CreatorSizeField ? h(window.CreatorSizeField, {
+      sW:ctx.sW, sH:ctx.sH, chgW:ctx.chgW, chgH:ctx.chgH, arLock:ctx.arLock, setArLock:ctx.setArLock, ar:ctx.ar,
+      fabricCt:ctx.fabricCt, origW:gen.origW, origH:gen.origH
+    }) : null,
+    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:'var(--s-1)'}}, "Between 10 and 500 stitches each way"),
     (ctx.sW > 250 || ctx.sH > 250) && h("div", {style:{fontSize:10,color:"var(--text-secondary)",background:"var(--surface-tertiary)",borderRadius:'var(--radius-sm)',padding:"4px 8px",marginTop:'var(--s-1)'}},
-      "Large pattern \u2014 keep colours to 15\u201325 for faster generation and a cleaner result."
+      "Large pattern \u2014 15 to 25 threads keep generation fast and the result clean."
     ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
     h("div", {style:{marginTop:'var(--s-1)'}},

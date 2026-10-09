@@ -54,7 +54,12 @@ The Creator guesses the type when you add the picture; choose another at any tim
 
 ### Dimensions
 
-Width and height in stitches (with an aspect-ratio lock), and the fabric count. The finished size updates as you change them. Larger patterns hold more detail but take longer to stitch.
+Set the size in **Stitches** (width and height, with an aspect-ratio lock) or as a **Finished size** in centimetres or inches on the chosen fabric: 18 cm wide on 14-count is 99 stitches. The fabric count is set alongside.
+
+- **Bookmark** (5 × 18 cm), **Card** (5 × 7 in), **15 cm hoop** and **A4** fit the picture inside that frame.
+- **Picture size** uses one stitch per pixel, scaled evenly to stay between 10 and 500 stitches.
+
+A new picture starts with its long side at 100 stitches, never more than the picture has pixels. The line underneath always shows the size in stitches and the finished size. A note appears when a very wide or tall picture leaves its short side under 20 stitches (try cropping), or when the pattern has more stitches than the picture has pixels and each pixel becomes a block. Larger patterns hold more detail but take longer to stitch.
 
 ### Palette
 

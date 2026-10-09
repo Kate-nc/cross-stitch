@@ -229,8 +229,14 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
   // Thin anti-aliasing shades between two main colours (or a main colour and
   // the skipped background) are folded into them. Part of Stitch Cleanup.
+  // Without dithering a thin in-between shade is anti-aliasing, so the fold
+  // allows more (EDGE_BLEND_MAX_DE_NO_DITHER, colour-utils.js). Mirrored in
+  // generate-worker.js.
   if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
-    mergeEdgeBlendColours(mapped, width, height, { bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null });
+    mergeEdgeBlendColours(mapped, width, height, {
+      bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null,
+      maxDeltaE: (!dith || dithAlgo === "off") && typeof EDGE_BLEND_MAX_DE_NO_DITHER === "number" ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
+    });
   }
 
   var preLabels = labelConnectedComponents(mapped, width, height);

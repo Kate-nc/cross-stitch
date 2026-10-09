@@ -50,6 +50,29 @@ describe('mergeEdgeBlendColours', () => {
     expect(mergeEdgeBlendColours(m, 20, 20)).toBe(0);
   });
 
+  test('without dithering, a seam further off the line still folds (P2-6)', () => {
+    // 15 off the RED–NAVY line in Lab: kept at the default ΔE 10, folded at 18.
+    const OFF = { id: '3803', type: 'solid', rgb: [120, 40, 80], lab: [33.5 + 15, 37.5, 5] };
+    const make = () => grid(40, 40, (x) => (x < 19 ? RED : x === 19 ? OFF : NAVY));
+    const a = make();
+    expect(mergeEdgeBlendColours(a, 40, 40)).toBe(0);
+    // colour-utils.js publishes it as a global for the page and the worker.
+    const EDGE_BLEND_MAX_DE_NO_DITHER = global.EDGE_BLEND_MAX_DE_NO_DITHER;
+    expect(EDGE_BLEND_MAX_DE_NO_DITHER).toBe(18);
+    const b = make();
+    expect(mergeEdgeBlendColours(b, 40, 40, { maxDeltaE: EDGE_BLEND_MAX_DE_NO_DITHER })).toBe(1);
+    expect(ids(b)).toEqual(['349', '820']);
+  });
+
+  test('the wider tolerance is used only when the pattern is not dithered, on the page and in the worker', () => {
+    const fs = require('fs');
+    const path = require('path');
+    for (const f of ['creator/generate.js', 'generate-worker.js']) {
+      const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+      expect(src).toMatch(/maxDeltaE: \(!dith \|\| dithAlgo === ['"]off['"]\) && typeof EDGE_BLEND_MAX_DE_NO_DITHER === ['"]number['"] \? EDGE_BLEND_MAX_DE_NO_DITHER : undefined/);
+    }
+  });
+
   test('empty input is a no-op', () => {
     expect(mergeEdgeBlendColours([], 0, 0)).toBe(0);
     expect(mergeEdgeBlendColours(grid(4, 4, () => SKIP), 4, 4)).toBe(0);

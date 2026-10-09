@@ -217,8 +217,12 @@ self.onmessage = function(e) {
     }
 
     // ── Edge-blend fold (mirrors runCleanupPipeline, audit IMG-01) ───────────
+    // Without dithering the fold allows more (EDGE_BLEND_MAX_DE_NO_DITHER).
     if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === 'function') {
-      mergeEdgeBlendColours(mapped, width, height, { bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null });
+      mergeEdgeBlendColours(mapped, width, height, {
+        bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null,
+        maxDeltaE: (!dith || dithAlgo === 'off') && typeof EDGE_BLEND_MAX_DE_NO_DITHER === 'number' ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
+      });
     }
 
     var preLabels   = labelConnectedComponents(mapped, width, height);

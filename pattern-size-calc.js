@@ -207,6 +207,135 @@ function fabricSizes(stitchesWide, stitchesHigh, fabricCount, units) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// Sizing a pattern from a picture (P2-6, audit IMG-03)
+// ════════════════════════════════════════════════════════════════════
+
+// Pattern sizes are kept between these, in stitches.
+var PATTERN_MIN_STITCHES = 10;
+var PATTERN_MAX_STITCHES = 500;
+// A new picture's long side starts at this many stitches.
+var INITIAL_LONG_SIDE_STITCHES = 100;
+// Below this many stitches the short side of a very wide or tall picture
+// is too thin to show much; the Creator suggests cropping.
+var SHORT_SIDE_NOTE_STITCHES = 20;
+
+function clampStitches(n) {
+  return Math.max(PATTERN_MIN_STITCHES, Math.min(PATTERN_MAX_STITCHES, Math.round(n)));
+}
+
+/**
+ * Scale a picture of srcW x srcH by `scale`, keeping its shape inside the
+ * 10-500 stitch limits: a picture too small for the 10-stitch minimum is
+ * scaled up evenly until its short side reaches 10, rather than having one
+ * side stretched. Only very long, thin pictures (more than 50:1) still lose
+ * their shape at the limits.
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function scaleKeepingShape(srcW, srcH, scale) {
+  var shortPx = Math.min(srcW, srcH);
+  if (shortPx * scale < PATTERN_MIN_STITCHES) scale = PATTERN_MIN_STITCHES / shortPx;
+  return { w: clampStitches(srcW * scale), h: clampStitches(srcH * scale) };
+}
+
+/**
+ * Starting size for a picture of srcW x srcH pixels: the long side fitted to
+ * 100 stitches, but never more stitches than the picture has pixels (a
+ * picture under 10 pixels across is scaled up evenly to the 10-stitch
+ * minimum).
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function initialPatternSize(srcW, srcH) {
+  if (!(srcW > 0) || !(srcH > 0)) return { w: 80, h: 80 };
+  var longPx = Math.max(srcW, srcH);
+  var longSt = Math.min(INITIAL_LONG_SIDE_STITCHES, longPx);
+  return scaleKeepingShape(srcW, srcH, longSt / longPx);
+}
+
+/**
+ * The Picture size preset: one stitch per pixel, scaled down evenly to fit
+ * 500 or up evenly to reach the 10-stitch minimum.
+ *
+ * @returns {{ w: number, h: number } | null}
+ */
+function pictureStitchSize(srcW, srcH) {
+  if (!(srcW > 0) || !(srcH > 0)) return null;
+  return scaleKeepingShape(srcW, srcH, Math.min(1, PATTERN_MAX_STITCHES / Math.max(srcW, srcH)));
+}
+
+/**
+ * Stitches needed to cover `length` (in 'cm' or 'in') on a fabric.
+ * 18 cm on 14-count: 18 / 2.54 x 14 = 99.2, so 99.
+ */
+function stitchesForLength(length, unit, fabricCount, stitchOver) {
+  var inches = unit === 'cm' ? length / CM_PER_INCH : length;
+  if (!(inches > 0)) return 0;
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  return Math.round(inches * calcEffectiveSPI(fabricCount, stitchOver));
+}
+
+/**
+ * Length (in 'cm' or 'in') that `stitches` cover on a fabric.
+ */
+function lengthForStitches(stitches, unit, fabricCount, stitchOver) {
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  var inches = stitches / calcEffectiveSPI(fabricCount, stitchOver);
+  return unit === 'cm' ? inches * CM_PER_INCH : inches;
+}
+
+/**
+ * The largest pattern with aspect ratio `ar` (width / height) that fits a
+ * frame of frameW x frameH (in 'cm' or 'in'). The frame is turned to match
+ * the picture: a landscape picture uses the frame's long side across.
+ *
+ * @returns {{ w: number, h: number }}
+ */
+function fitPatternToFrame(frameW, frameH, unit, ar, fabricCount, stitchOver) {
+  var a = Math.min(frameW, frameH), b = Math.max(frameW, frameH);
+  var landscape = ar >= 1;
+  if (stitchOver == null) stitchOver = (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+  var spi = calcEffectiveSPI(fabricCount, stitchOver);
+  function toIn(v) { return unit === 'cm' ? v / CM_PER_INCH : v; }
+  // Whole stitches that fit: rounded down, so the pattern never comes out
+  // larger than the frame (a tiny epsilon absorbs floating-point error).
+  function fits(len) { return Math.floor(toIn(len) * spi + 1e-9); }
+  var maxW = fits(landscape ? b : a), maxH = fits(landscape ? a : b);
+  // Only the 10-stitch minimum can push a pattern past a very small frame.
+  function clampDown(n) { return Math.max(PATTERN_MIN_STITCHES, Math.min(PATTERN_MAX_STITCHES, Math.floor(n + 1e-9))); }
+  if (!(ar > 0)) return { w: clampDown(maxW), h: clampDown(maxH) };
+  var w = maxW, h = maxW / ar;
+  if (h > maxH) { h = maxH; w = maxH * ar; }
+  return { w: clampDown(w), h: clampDown(h) };
+}
+
+/**
+ * Notes about a size for a picture of srcW x srcH pixels:
+ *   shortSide  — the short side is under 20 stitches on a very wide (or
+ *                tall) picture: { stitches, orientation: 'wide' | 'tall' }
+ *   enlarged   — the pattern has more stitches than the picture has pixels
+ *                across (or down): { px, block, axis: 'wide' | 'tall' }
+ */
+function patternSizeNotes(sW, sH, srcW, srcH) {
+  var out = { shortSide: null, enlarged: null };
+  if (!(srcW > 0) || !(srcH > 0)) return out;
+  var ratio = srcW / srcH;
+  if (Math.min(sW, sH) < SHORT_SIDE_NOTE_STITCHES && (ratio >= 2 || ratio <= 0.5)) {
+    out.shortSide = { stitches: Math.min(sW, sH), orientation: ratio >= 1 ? 'wide' : 'tall' };
+  }
+  var fx = sW / srcW, fy = sH / srcH;
+  if (fx > 1 || fy > 1) {
+    var acrossFirst = fx >= fy;
+    out.enlarged = {
+      px: acrossFirst ? srcW : srcH,
+      block: Math.max(1, Math.round(Math.max(fx, fy))),
+      axis: acrossFirst ? 'wide' : 'tall'
+    };
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════════════
 // Export (CommonJS for tests; browser globals for in-page use)
 // ════════════════════════════════════════════════════════════════════
 if (typeof module !== 'undefined' && module.exports) {
@@ -224,7 +353,15 @@ if (typeof module !== 'undefined' && module.exports) {
     defaultUnitsForLocale,
     preferredUnits,
     dualSizeText,
-    fabricSizes
+    fabricSizes,
+    PATTERN_MIN_STITCHES,
+    PATTERN_MAX_STITCHES,
+    initialPatternSize,
+    pictureStitchSize,
+    stitchesForLength,
+    lengthForStitches,
+    fitPatternToFrame,
+    patternSizeNotes
   };
 }
 if (typeof window !== 'undefined') {
@@ -237,4 +374,10 @@ if (typeof window !== 'undefined') {
   window.preferredUnits      = preferredUnits;
   window.dualSizeText        = dualSizeText;
   window.fabricSizes         = fabricSizes;
+  window.initialPatternSize  = initialPatternSize;
+  window.pictureStitchSize   = pictureStitchSize;
+  window.stitchesForLength   = stitchesForLength;
+  window.lengthForStitches   = lengthForStitches;
+  window.fitPatternToFrame   = fitPatternToFrame;
+  window.patternSizeNotes    = patternSizeNotes;
 }

@@ -62,9 +62,11 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await page.waitForURL(/create\.html/);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await openSettings(page);
-    await slider(page, 'Size').fill('120');
+    const width = page.locator('.size-field').getByLabel('Width in stitches');
+    await width.fill('120');
+    await width.press('Enter');
     await slider(page, 'Threads (max)').fill('12');
-    await expect(sliderValue(page, 'Size')).toHaveText('120 st');
+    await expect(width).toHaveValue('120');
     // Saved a second after the last change.
     await expect.poll(function() {
       return page.evaluate(async function() {
@@ -79,7 +81,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await dialog.getByRole('button', { name: 'Continue' }).click();
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await openSettings(page);
-    await expect(sliderValue(page, 'Size')).toHaveText('120 st');
+    await expect(page.locator('.size-field').getByLabel('Width in stitches')).toHaveValue('120');
     await expect(sliderValue(page, 'Threads (max)')).toHaveText('12');
 
     // The draft is gone once a pattern is made.

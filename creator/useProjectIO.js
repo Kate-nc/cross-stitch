@@ -50,6 +50,14 @@ function creatorHasTrace(state) {
 }
 window.creatorHasTrace = creatorHasTrace;
 
+// A new picture's starting size (audit IMG-03): the long side fitted to 100
+// stitches, never more stitches than the picture has pixels. The Pixel art
+// preset, applied after this, uses the picture's own size instead.
+function creatorInitialSize(w, h) {
+  if (typeof window.initialPatternSize === "function") return window.initialPatternSize(w, h);
+  return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };
+}
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   // The Convert draft this tab is working on: { id, blob, name, type,
   // createdAt, restore } (restore = settings to apply once the picture loads).
@@ -692,7 +700,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.userActedRef.current = true;
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
-                state.setSW(80); state.setSH(Math.round(80 / a));
+                var size = creatorInitialSize(targetW, targetH); state.setSW(size.w); state.setSH(size.h);
                 state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
@@ -702,7 +710,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.userActedRef.current = true;
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
-          state.setSW(80); state.setSH(Math.round(80 / a2));
+          var size2 = creatorInitialSize(i.width, i.height); state.setSW(size2.w); state.setSH(size2.h);
           state.setImg(i); state.resetAll(); nameFromImage(); examinePicture(i); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
