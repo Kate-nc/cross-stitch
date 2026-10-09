@@ -10598,7 +10598,37 @@ function creatorSavedSymbols(overrides, pal) {
 }
 window.creatorSavedSymbols = creatorSavedSymbols;
 
+// Convert drafts (audit COMMON-07): until the first pattern is generated the
+// picture and these settings are kept in IndexedDB (blob-store.js) as
+// draft:<id>, so a reload, a Back gesture or the OS closing the tab doesn't
+// lose them. They are the conversion settings in CONVERSION_STATE_KEYS
+// (creator/useCreatorState.js) that a person sets, plus the fabric colour.
+var DRAFT_SETTING_KEYS = [
+  'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
+  'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel'
+];
+function creatorDraftSettings(state) {
+  var o = {};
+  DRAFT_SETTING_KEYS.forEach(function(k) { if (state[k] !== undefined) o[k] = state[k]; });
+  return o;
+}
+function creatorApplyDraftSettings(state, o) {
+  if (!o) return;
+  DRAFT_SETTING_KEYS.forEach(function(k) {
+    if (o[k] === undefined) return;
+    var setter = state['set' + k.charAt(0).toUpperCase() + k.slice(1)];
+    if (typeof setter === 'function') setter(o[k]);
+  });
+}
+window.CREATOR_DRAFT_SETTING_KEYS = DRAFT_SETTING_KEYS;
+window.creatorDraftSettings = creatorDraftSettings;
+window.creatorApplyDraftSettings = creatorApplyDraftSettings;
+
 window.useProjectIO = function useProjectIO(state, history, options) {
+  // The Convert draft this tab is working on: { id, blob, name, type,
+  // createdAt, restore } (restore = settings to apply once the picture loads).
+  var draftRef = React.useRef({});
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
   // Tracks whether we have already performed an initial (no-debounce) save for the
@@ -11061,6 +11091,41 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   }
 
   // ─── handleFile ──────────────────────────────────────────────────────────────
+  // A picture is loaded: start (or resume) its Convert draft.
+  function startDraft(f) {
+    var BS = window.BlobStore;
+    if (!BS || !BS.available() || !f) return;
+    var d = draftRef.current || {};
+    if (d.restore) {
+      // Resuming: put back the settings it was saved with, after the
+      // picture's own defaults (size, background) have been applied.
+      creatorApplyDraftSettings(state, d.restore);
+      if (d.projectName && state.setAutoProjectName) state.setAutoProjectName(d.projectName);
+      draftRef.current = Object.assign({}, d, { restore: null });
+      try { sessionStorage.setItem('cs_active_draft', d.id); } catch (_) {}
+      return;
+    }
+    if (d.id) BS.delete(d.id).catch(function() {});
+    var id = BS.newId('draft');
+    draftRef.current = { id: id, blob: f, name: f.name || 'picture', type: f.type || 'image/jpeg', createdAt: Date.now() };
+    try { sessionStorage.setItem('cs_active_draft', id); } catch (_) {}
+    BS.put(id, { blob: f, name: draftRef.current.name, type: draftRef.current.type, createdAt: draftRef.current.createdAt,
+      settings: creatorDraftSettings(state) }).catch(function(err) { console.warn('[creator] could not save the Convert draft', err); });
+  }
+
+  // Open a saved draft: load its picture, then its settings.
+  function openDraft(rec) {
+    if (!rec || !rec.blob) return false;
+    var name = String(rec.name || 'picture').replace(/\.[a-z0-9]+$/i, '');
+    draftRef.current = { id: rec.id, blob: rec.blob, name: rec.name, type: rec.type, createdAt: rec.createdAt,
+      restore: rec.settings || {}, projectName: name };
+    var file;
+    try { file = new File([rec.blob], rec.name || 'picture', { type: rec.type || rec.blob.type || 'image/jpeg' }); }
+    catch (_) { file = rec.blob; file.name = rec.name; }
+    handleFile(file);
+    return true;
+  }
+
   function handleFile(e) {
     var f = e.target ? e.target.files[0] : e;
     if (!f) return;
@@ -11145,7 +11210,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -11155,7 +11220,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false);
+          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false); startDraft(f);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
@@ -11189,6 +11254,75 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       settle();
       return;
     }
+    var BS = window.BlobStore;
+    if (BS && BS.available()) BS.sweep('handoff:', BS.HANDOFF_TTL_MS).catch(function() {});
+    // A picture handed over from Home through IndexedDB (audit COMMON-07).
+    if (window.__pendingCreatorHandoffId && BS) {
+      var handoffId = window.__pendingCreatorHandoffId;
+      state.setIsUploading(true);
+      BS.get(handoffId).then(function(rec) {
+        delete window.__pendingCreatorHandoffId;
+        try { sessionStorage.removeItem('cs_pending_image_handoff'); } catch (_) {}
+        if (!rec || !rec.blob) {
+          state.setIsUploading(false);
+          if (state.addToast) state.addToast("That picture couldn\u2019t be opened. Please choose it again.", { type: "error", duration: 5000 });
+          return;
+        }
+        BS.delete(handoffId).catch(function() {});
+        var hf;
+        try { hf = new File([rec.blob], rec.name || 'image.jpg', { type: rec.type || rec.blob.type || 'image/jpeg' }); }
+        catch (_) { hf = rec.blob; hf.name = rec.name; }
+        handleFile(hf);
+      }).catch(function(err) {
+        delete window.__pendingCreatorHandoffId;
+        state.setIsUploading(false);
+        console.error('[creator] handoff read failed', err);
+      }).then(settle);
+      return;
+    }
+    // Continue a Convert draft from Home > Projects.
+    if (window.__pendingCreatorDraftId && BS) {
+      var draftId = window.__pendingCreatorDraftId;
+      delete window.__pendingCreatorDraftId;
+      state.setIsUploading(true);
+      BS.get(draftId).then(function(rec) {
+        if (!openDraft(rec)) {
+          state.setIsUploading(false);
+          if (state.addToast) state.addToast("That draft is no longer available.", { type: "error", duration: 4000 });
+        }
+      }).catch(function() { state.setIsUploading(false); }).then(settle);
+      return;
+    }
+    // This tab was setting up a conversion when it was reloaded (or closed
+    // by the system): offer to carry on.
+    var tabDraftId = null;
+    try { tabDraftId = sessionStorage.getItem('cs_active_draft'); } catch (_) {}
+    if (tabDraftId && BS && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
+      BS.get(tabDraftId).then(function(rec) {
+        if (!rec || !rec.blob) { try { sessionStorage.removeItem('cs_active_draft'); } catch (_) {} return false; }
+        var nice = String(rec.name || 'your picture').replace(/\.[a-z0-9]+$/i, '');
+        var CD = window.ConfirmDialog;
+        var ask = CD && CD.show
+          ? CD.show({ title: 'Continue setting up?', message: 'Continue setting up ' + nice + '?', confirmLabel: 'Continue', cancelLabel: 'Not now' })
+          : Promise.resolve(window.confirm('Continue setting up ' + nice + '?'));
+        return ask.then(function(ok) {
+          if (ok) { state.setIsUploading(true); openDraft(rec); return true; }
+          try { sessionStorage.removeItem('cs_active_draft'); } catch (_) {}
+          return false;
+        });
+      }).catch(function() { return false; }).then(function(opened) {
+        if (!opened) bootFromStorage();
+        else settle();
+      });
+      return;
+    }
+    bootFromStorage();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The rest of the boot: a pending file or JSON, a Tracker handoff, the
+  // active project, or the last session.
+  function bootFromStorage() {
+    function settle() { if (state.setBootSettled) state.setBootSettled(true); }
     if (window.__pendingCreatorFile) {
       var file = window.__pendingCreatorFile;
       delete window.__pendingCreatorFile;
@@ -11361,7 +11495,30 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         } catch (_) {}
       }
     }).then(settle, settle);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
+
+  // Keep the Convert draft's settings current, a second after the last change.
+  var draftSettingsKey = JSON.stringify(creatorDraftSettings(state)) + '|' + (state.projectName || '');
+  React.useEffect(function() {
+    var d = draftRef.current;
+    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return undefined;
+    var t = setTimeout(function() {
+      var cur = draftRef.current;
+      if (!cur || cur.id !== d.id || state.pat) return;
+      window.BlobStore.put(cur.id, { blob: cur.blob, name: cur.name, type: cur.type, createdAt: cur.createdAt,
+        settings: creatorDraftSettings(state) }).catch(function() {});
+    }, 1000);
+    return function() { clearTimeout(t); };
+  }, [draftSettingsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The first pattern makes a real project, so the draft is done.
+  React.useEffect(function() {
+    var d = draftRef.current;
+    if (!state.pat || !d || !d.id) return;
+    if (window.BlobStore) window.BlobStore.delete(d.id).catch(function() {});
+    try { if (sessionStorage.getItem('cs_active_draft') === d.id) sessionStorage.removeItem('cs_active_draft'); } catch (_) {}
+    draftRef.current = {};
+  }, [state.pat]);
 
   // Persist name/designer/description to localStorage so they survive a refresh
   // even before the first pattern is generated (when the full autosave is gated on pat/pal).

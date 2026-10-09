@@ -319,6 +319,54 @@
   // collapsing them into a `⋯` overflow menu would silently drop the
   // one-click Track CTA most users rely on, which we'd rather not regress
   // without explicit feedback.
+  // ── DraftsList ──────────────────────────────────────────────────────────
+  // Pictures set up in Convert but not generated yet (audit COMMON-07). They
+  // live in IndexedDB as draft:<id> records (blob-store.js), not as
+  // projects, so stats and sync never see them.
+  function DraftsList() {
+    var st = React.useState([]);
+    var drafts = st[0]; var setDrafts = st[1];
+    function load() {
+      var BS = window.BlobStore;
+      if (!BS || !BS.available()) return;
+      BS.list('draft:').then(setDrafts).catch(function () { setDrafts([]); });
+    }
+    React.useEffect(load, []);
+    if (!drafts.length) return null;
+    return h('section', { className: 'home-proj-list home-drafts', 'aria-labelledby': 'home-drafts-title' },
+      h('h2', { id: 'home-drafts-title', className: 'home-section__title' }, 'Not generated yet'),
+      h('div', { className: 'home-proj-list__rows' },
+        drafts.map(function (d) {
+          var name = String(d.name || 'Picture').replace(/\.[a-z0-9]+$/i, '');
+          return h('div', { key: d.id, className: 'home-proj-row home-draft-row' },
+            h('div', { className: 'home-proj-row__avatar', 'aria-hidden': 'true' },
+              window.Icons && window.Icons.image ? window.Icons.image() : null),
+            h('div', { className: 'home-proj-row__body' },
+              h('div', { className: 'home-proj-row__name' }, 'Draft \u00B7 ' + name + ' \u00B7 not generated yet'),
+              h('div', { className: 'home-proj-row__meta' }, (d.updatedAt || d.createdAt) ? timeAgo(new Date(d.updatedAt || d.createdAt).toISOString()) : '')
+            ),
+            h('div', { className: 'home-proj-row__actions' },
+              h('button', {
+                type: 'button', className: 'btn btn-primary btn-sm',
+                onClick: function () {
+                  window.__navigatingAway = true;
+                  window.location.href = 'create.html?action=draft&from=home&draft=' + encodeURIComponent(d.id);
+                }
+              }, 'Continue'),
+              h('button', {
+                type: 'button', className: 'btn btn-sm',
+                'aria-label': 'Discard draft ' + name,
+                onClick: function () {
+                  window.BlobStore.delete(d.id).then(load, load);
+                }
+              }, 'Discard')
+            )
+          );
+        })
+      )
+    );
+  }
+
   function ProjectsList(props) {
     var list = (props.projects || []).slice(0, 8);
     var openState = React.useState(null);
@@ -600,6 +648,52 @@
         }).finally(function () { setPending(false); });
         return;
       }
+      // Hand the picture to the Creator through IndexedDB (audit COMMON-07):
+      // no size limit, unlike the old sessionStorage data URL, which is kept
+      // below only for browsers without IndexedDB.
+      var BS = window.BlobStore;
+      if (BS && BS.available()) {
+        setPending(true);
+        handOffImage(file).catch(function (err) {
+          console.warn('[home] IndexedDB handoff failed; using sessionStorage:', err);
+          setPending(false);
+          handOffViaSession(file);
+        });
+        return;
+      }
+      handOffViaSession(file);
+    }
+
+    // Very large photos are scaled down before the handoff (conversion never
+    // uses more than 500 stitches across, so 4000 px is plenty).
+    var MAX_HANDOFF_PX = 4000;
+    function downscaleIfHuge(file) {
+      if (typeof createImageBitmap !== 'function' || typeof OffscreenCanvas !== 'function') return Promise.resolve(file);
+      return createImageBitmap(file).then(function (bmp) {
+        var long = Math.max(bmp.width, bmp.height);
+        if (long <= MAX_HANDOFF_PX) { if (bmp.close) bmp.close(); return file; }
+        var k = MAX_HANDOFF_PX / long;
+        var cnv = new OffscreenCanvas(Math.round(bmp.width * k), Math.round(bmp.height * k));
+        cnv.getContext('2d').drawImage(bmp, 0, 0, cnv.width, cnv.height);
+        if (bmp.close) bmp.close();
+        return cnv.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+      }).catch(function () { return file; });
+    }
+
+    function handOffImage(file) {
+      var BS = window.BlobStore;
+      var id = BS.newId('handoff');
+      return downscaleIfHuge(file).then(function (blob) {
+        return BS.put(id, { blob: blob, name: file.name || 'image.jpg', type: blob.type || file.type || 'image/jpeg', createdAt: Date.now() });
+      }).then(function () {
+        // Reload-safety marker: lets the Creator find the picture again if a
+        // service-worker reload strips ?handoff= from the URL.
+        try { sessionStorage.setItem('cs_pending_image_handoff', id); } catch (_) {}
+        navigateAfterPaint('create.html?action=home-image-pending&from=home&handoff=' + encodeURIComponent(id));
+      });
+    }
+
+    function handOffViaSession(file) {
       var reader = new FileReader();
       // Guard against very large images (> 4 MB raw) that would overflow the
       // ~5 MB sessionStorage quota once base64-encoded. Prompt the user to
@@ -1227,6 +1321,7 @@
         tab === 'projects' && h(React.Fragment, null,
           h(GreetingRow, { list: list, onTab: setTab }),
           h(ActiveProjectCard, { activeProject: active }),
+          h(DraftsList, null),
           h(ProjectsList, { projects: otherProjects }),
           h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
         ),
