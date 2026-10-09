@@ -4982,9 +4982,14 @@ function creatorFitBox(el) {
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
   // In compare mode the scroll box is a flex child of the fixed-height split
-  // pane, which has no max-height of its own.
+  // pane, which has no max-height of its own. Only a flex parent sets the
+  // box's height: an ordinary parent is as tall as the chart already is, so
+  // capping at it kept the fit at the current size and a small chart never
+  // grew to fill the window.
   var parent = el.parentElement;
-  if (parent && typeof parent.getBoundingClientRect === "function") {
+  var parentIsFlex = false;
+  try { parentIsFlex = !!parent && /flex/.test(getComputedStyle(parent).display); } catch (_) {}
+  if (parentIsFlex && typeof parent.getBoundingClientRect === "function") {
     var pr = parent.getBoundingClientRect();
     if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
   }
