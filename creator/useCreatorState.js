@@ -761,10 +761,15 @@ window.useCreatorState = function useCreatorState() {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
       maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null
+      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      bgCol: bgCol
     };
     for (var k in v) {
-      if (k === 'bgCol') continue;
+      // The background colour is an [r, g, b] array: compare by value.
+      if (k === 'bgCol') {
+        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
+        continue;
+      }
       if (cur[k] !== v[k]) return 'custom';
     }
     return presetApplied.id;

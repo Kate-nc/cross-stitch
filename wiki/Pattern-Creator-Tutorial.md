@@ -32,6 +32,18 @@ You can also open an image inside the Creator with **File > Open…**.
 
 Before a pattern exists, the right-hand sidebar shows the set-up tabs. The preview updates as you change settings.
 
+### What kind of picture is this?
+
+The first setting picks good starting values for the picture:
+
+| Type | Starting values |
+|------|-----------------|
+| **Graphic or logo** | Up to 8 threads, no shading, no blends; a plain border background is left unstitched |
+| **Photo** | Up to 20 threads, subtle shading, blends, balanced cleanup |
+| **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across) |
+
+The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**.
+
 ### Image
 
 - **Brightness / Contrast / Saturation** — tune the image before conversion.
@@ -46,9 +58,11 @@ Width and height in stitches (with an aspect-ratio lock), and the fabric count. 
 
 ### Palette
 
-**Max colours** — how many threads can appear (2–100).
+**Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
-| Colours | Use case |
+A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow.
+
+| Threads | Use case |
 |---------|----------|
 | **2–5** | Minimalist designs, logos |
 | **10–15** | Most photos — a good balance for beginners |

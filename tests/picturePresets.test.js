@@ -91,8 +91,8 @@ describe('the hook', () => {
   test('choosing a preset only sets values, and changing one shows Custom', () => {
     expect(src).toMatch(/setPresetApplied\(\{ id: id, values: v \}\);/);
     const derive = src.match(/var pictureType = \(function \(\) \{[\s\S]*?\n {2}\}\)\(\);/)[0];
-    const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', // eslint-disable-line no-new-func
-      derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup);
+    const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', 'bgCol', // eslint-disable-line no-new-func
+      derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol);
     const photoV = api.picturePresetValues('photo', null);
     const cur = { maxC: 20, dithMode: 'weak', allowBlends: true, skipBg: false, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'balanced' } };
     expect(run({ id: 'photo', values: photoV }, cur)).toBe('photo');
@@ -101,6 +101,22 @@ describe('the hook', () => {
     // Size isn't part of the Photo preset.
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { sW: 120 }))).toBe('photo');
     expect(run(null, cur)).toBe('custom');
+
+    // Graphic records the skipped background colour; picking another one is
+    // a change (compared by value, not by array identity).
+    const graphicV = api.picturePresetValues('graphic', api.analysePicture(logo));
+    const g = { maxC: 8, dithMode: 'off', allowBlends: false, skipBg: true, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'gentle' }, bgCol: [255, 255, 255] };
+    expect(run({ id: 'graphic', values: graphicV }, g)).toBe('graphic');
+    expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { bgCol: [255, 255, 255, 255] }))).toBe('graphic');
+    expect(run({ id: 'graphic', values: graphicV }, Object.assign({}, g, { bgCol: [240, 240, 240] }))).toBe('custom');
+  });
+
+  test('the picture-type radios have one Tab stop and arrow keys', () => {
+    const sb = loadSource('creator/Sidebar.js');
+    const sec = sb.slice(sb.indexOf('var pictureTypeSection'), sb.indexOf('// ── Palette section'));
+    expect(sec).toMatch(/tabIndex: tabbable \? 0 : -1/);
+    expect(sec).toMatch(/e\.key === "ArrowRight" \|\| e\.key === "ArrowDown"/);
+    expect(sec).toMatch(/gen\.applyPicturePreset\(next\);/);
   });
   test('the guess is applied on upload, before a resumed draft puts its own settings back', () => {
     const io = loadSource('creator/useProjectIO.js');

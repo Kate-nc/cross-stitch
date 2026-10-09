@@ -5668,10 +5668,15 @@ window.useCreatorState = function useCreatorState() {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
       maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null
+      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      bgCol: bgCol
     };
     for (var k in v) {
-      if (k === 'bgCol') continue;
+      // The background colour is an [r, g, b] array: compare by value.
+      if (k === 'bgCol') {
+        if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
+        continue;
+      }
       if (cur[k] !== v[k]) return 'custom';
     }
     return presetApplied.id;
@@ -16149,11 +16154,24 @@ window.CreatorSidebar = function CreatorSidebar() {
     ? h("div", {className:"picture-type"},
         h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
-          window.PICTURE_PRESET_ORDER.map(function(id) {
+          window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
             var on = gen.pictureType === id;
+            // One Tab stop (the chosen type, or the first while Custom), and
+            // arrow keys move between the types and choose them.
+            var tabbable = on || (order.indexOf(gen.pictureType) === -1 && i === 0);
             return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
               className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-picture-type":id,
-              onClick:function(){ gen.applyPicturePreset(id); }}, window.PICTURE_PRESETS[id].label);
+              tabIndex: tabbable ? 0 : -1,
+              onClick:function(){ gen.applyPicturePreset(id); },
+              onKeyDown:function(e){
+                var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+                if (!step) return;
+                e.preventDefault();
+                var next = order[(i + step + order.length) % order.length];
+                gen.applyPicturePreset(next);
+                var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-picture-type="' + next + '"]');
+                if (sib) sib.focus();
+              }}, window.PICTURE_PRESETS[id].label);
           }),
           h("button", {type:"button", role:"radio", "aria-checked":gen.pictureType === "custom" ? "true" : "false", disabled:true,
             className:"lp-seg" + (gen.pictureType === "custom" ? " lp-seg--on" : ""), "data-picture-type":"custom",
