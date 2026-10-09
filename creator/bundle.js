@@ -5176,7 +5176,7 @@ window.useCreatorState = function useCreatorState() {
   var _ar     = useState(1);          var ar     = _ar[0],     setAr     = _ar[1];
 
   // Generation parameters (initial values come from Preferences › Pattern Creator)
-  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 30); return (typeof v === "number" && v > 0) ? v : 30; });
+  var _maxC   = useState(function () { var v = loadUserPref("creatorDefaultPaletteSize", 15); return (typeof v === "number" && v > 0) ? v : 15; });
   var maxC   = _maxC[0],   setMaxC   = _maxC[1];
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
@@ -5198,6 +5198,9 @@ window.useCreatorState = function useCreatorState() {
     setDithMode(v);
   };
   var _skipBg = useState(false);      var skipBg = _skipBg[0], setSkipBg = _skipBg[1];
+  // True while skipBg was switched on by the automatic plain-background check
+  // (useProjectIO.handleFile) rather than by the user.
+  var bgAutoSkippedRef = useRef(false);
   var _bgTh   = useState(15);         var bgTh   = _bgTh[0],   setBgTh   = _bgTh[1];
   var _bgCol  = useState([255,255,255]); var bgCol = _bgCol[0], setBgCol = _bgCol[1];
   var _pickBg = useState(false);      var pickBg = _pickBg[0], setPickBg = _pickBg[1];
@@ -5413,9 +5416,12 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
+  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
+  // Adjust image and Project start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(true);    var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
+  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
   var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
@@ -6711,7 +6717,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
-    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgTh, setBgTh, bgCol, setBgCol,
+    dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
@@ -10312,6 +10318,40 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var fromFile = window.projectNameFromFile ? window.projectNameFromFile(f.name) : (f.name || "");
       state.setAutoProjectName(fromFile || "Untitled design");
     }
+    // Plain backgrounds are left unstitched automatically (audit IMG-01):
+    // if the outer 2% of the picture is one colour, skip it, with Undo.
+    function autoSkipBackground(imgEl) {
+      if (typeof window.detectUniformBorder !== "function" || !state.setSkipBg) return;
+      var found = null;
+      try {
+        var maxSide = 400;
+        var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
+        var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
+        var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
+        var c2 = cnv.getContext("2d");
+        if (!c2) return;
+        c2.drawImage(imgEl, 0, 0, cw, ch);
+        found = window.detectUniformBorder(c2.getImageData(0, 0, cw, ch));
+      } catch (err) { console.warn("useProjectIO: background check failed", err); return; }
+      var autoRef = state.bgAutoSkippedRef;
+      if (!found) {
+        // A skip we switched on for the previous picture shouldn't carry over.
+        if (autoRef && autoRef.current) { state.setSkipBg(false); autoRef.current = false; }
+        return;
+      }
+      state.setBgCol(found.rgb);
+      state.setSkipBg(true);
+      if (autoRef) autoRef.current = true;
+      if (state.addToast) {
+        state.addToast("Background left unstitched.", {
+          type: "info", duration: 8000,
+          action: { label: "Undo", onClick: function () {
+            state.setSkipBg(false);
+            if (autoRef) autoRef.current = false;
+          } }
+        });
+      }
+    }
     var rd = new FileReader();
     rd.onload = function(ev) {
       var i = new Image();
@@ -10340,7 +10380,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setOrigW(targetW); state.setOrigH(targetH);
                 var a = targetW / targetH; state.setAr(a);
                 state.setSW(80); state.setSH(Math.round(80 / a));
-                state.setImg(scaledImg); state.resetAll(); nameFromImage(); state.setIsUploading(false);
+                state.setImg(scaledImg); state.resetAll(); nameFromImage(); autoSkipBackground(scaledImg); state.setIsUploading(false);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
             scaledImg.src = c.toDataURL("image/jpeg", 0.85);
@@ -10350,7 +10390,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           state.setOrigW(i.width); state.setOrigH(i.height);
           var a2 = i.width / i.height; state.setAr(a2);
           state.setSW(80); state.setSH(Math.round(80 / a2));
-          state.setImg(i); state.resetAll(); nameFromImage(); state.setIsUploading(false);
+          state.setImg(i); state.resetAll(); nameFromImage(); autoSkipBackground(i); state.setIsUploading(false);
         } catch(err) { console.error("Image processing error:", err); state.setIsUploading(false); }
       };
       if (typeof i.decode === "function") {
@@ -14195,7 +14235,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
-  var dimSection = h(Section, {title:"Output", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -14242,7 +14282,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
@@ -14696,7 +14736,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // Background has its own section (bgSection) below; it used to be repeated
   // here as well (audit B-16).
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjust image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -15217,7 +15257,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
 
     // ── Project section — name/designer/description + live stats ──────────
-    var createProjectSection = h(Section, {title:"Project", defaultOpen:true},
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
       h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
         h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
@@ -15272,25 +15312,27 @@ window.CreatorSidebar = function CreatorSidebar() {
       })()
     );
 
-    // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
+    // ── Single scrollable settings panel (audit IMG-06: the choices that
+    //    matter most come first; image adjustments are rarely needed) ──
     var createPanel = h("div", {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      // 1. Image (source adjustments + background)
-      adjSection,
-      bgSection,
-      // 2. Output (dimensions + fabric)
+      // 1. Size & fabric (dimensions + fabric)
       dimSection,
-      // 3. Palette
+      // 2. Colours
       palSection,
+      // 3. Background
+      bgSection,
       // 4. Quality (dithering + cleanup)
       tidySection,
-      // 5. Palette swap (conditional)
+      // 5. Adjust image (collapsed by default)
+      adjSection,
+      // 6. Palette swap (conditional)
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 6. Project (info + summary)
+      // 7. Project (collapsed by default)
       createProjectSection
     );
 

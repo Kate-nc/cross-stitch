@@ -47,13 +47,13 @@
           heading: "Starting a pattern",
           body: "Start from Home > Create new. New from pattern file accepts an image (JPG, PNG, GIF, WebP or BMP), a saved .json project, an .oxs file or a PDF chart; New from scratch opens a blank grid. Inside the Creator you can also use File > Open….",
           bullets: [
-            ["Image, Dimensions and Palette tabs", "Until a pattern has been generated, the sidebar shows how the image will be converted: adjust the image, set the size in stitches and the fabric count, then choose the colours. The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
-            ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable."],
+            ["Convert settings", "Until a pattern has been generated, the sidebar shows how the image will be converted, in this order: Size & fabric (the size in stitches and the fabric count), Colours, Background, Quality, then Adjust image (brightness, contrast and sharpening, folded away because most pictures don't need it). The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
+            ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable. New patterns start at 15; change the starting value in Preferences > Pattern Creator."],
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
-            ["Dithering", "Off maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
+            ["Dithering", "Off (the default) maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
             ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
-            ["Skip background", "Treats a background colour as empty fabric. Press Pick, click the colour in the source image, then adjust Tolerance."],
+            ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
           ]
         },

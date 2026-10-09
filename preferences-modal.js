@@ -271,11 +271,11 @@
   // PATTERN CREATOR
   // --------------------------------------------------------------------
   function CreatorPanel() {
-    var pal = usePref("creatorDefaultPaletteSize", 24);
+    var pal = usePref("creatorDefaultPaletteSize", 15);
     var fab = usePref("creatorDefaultFabricCount", 16);
     var allowBlend = usePref("creatorAllowBlends", true);
     var stashOnly = usePref("creatorStashOnlyDefault", false);
-    var dith = usePref("creatorDefaultDithering", "balanced");
+    var dith = usePref("creatorDefaultDithering", "off");
     var smooth = usePref("creatorSmoothDithering", true);
     var orphan = usePref("creatorOrphanRemovalStrength", 2);
     var minStit = usePref("creatorMinStitchesPerColour", 6);
@@ -295,7 +295,7 @@
       h(Section, { title: "Generation defaults" },
         h(Row, { label: "Maximum colours", desc: "How many DMC colours the Creator may use when matching an image." },
           h("input", { type: "range", min: 2, max: 100, value: pal[0], onChange: function (e) { pal[1](parseInt(e.target.value, 10)); }, style: { width: 160 } }),
-          h("input", { type: "number", inputMode: "numeric", min: 2, max: 100, value: pal[0], onChange: function (e) { pal[1](Math.max(2, Math.min(100, parseInt(e.target.value, 10) || 24))); }, style: Object.assign({}, styles.input, { width: 64 }) })
+          h("input", { type: "number", inputMode: "numeric", min: 2, max: 100, value: pal[0], onChange: function (e) { pal[1](Math.max(2, Math.min(100, parseInt(e.target.value, 10) || 15))); }, style: Object.assign({}, styles.input, { width: 64 }) })
         ),
         h(Row, { label: "Fabric count", desc: "How many stitches per inch (Aida count). 14 and 16 are the most common.",
           soon: false },
@@ -312,7 +312,7 @@
       ),
 
       h(Section, { title: "Image preparation" },
-        h(Row, { label: "Dithering", desc: "How the Creator blends colours across pixels. Balanced suits most photos." },
+        h(Row, { label: "Dithering", desc: "How the Creator blends colours across pixels. Off (the default) gives the tidiest charts; Balanced suits photos." },
           h(Segmented, { value: dith[0], onChange: dith[1], options: [
             { value: "off", label: "Off" }, { value: "weak", label: "Weak" },
             { value: "balanced", label: "Balanced" }, { value: "strong", label: "Strong" }

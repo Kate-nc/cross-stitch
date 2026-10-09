@@ -601,7 +601,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Dimensions section ──────────────────────────────────────────────────────
   var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
-  var dimSection = h(Section, {title:"Output", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
+  var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)'}},
       h("input", {type:"checkbox", checked:ctx.arLock, onChange:function(e){ctx.setArLock(e.target.checked);}}),
       h("span", null, "Lock aspect ratio"),
@@ -648,7 +648,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   );
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Palette", isOpen:app.palOpen, onToggle:app.setPalOpen},
+  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"One colour = one DMC thread skein",
@@ -1102,7 +1102,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // Background has its own section (bgSection) below; it used to be repeated
   // here as well (audit B-16).
   var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
+  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjust image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Smooth", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
@@ -1623,7 +1623,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
 
     // ── Project section — name/designer/description + live stats ──────────
-    var createProjectSection = h(Section, {title:"Project", defaultOpen:true},
+    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
       h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
         h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
           "Pattern name",
@@ -1678,25 +1678,27 @@ window.CreatorSidebar = function CreatorSidebar() {
       })()
     );
 
-    // ── Single scrollable settings panel (Palette → Size & Fabric → Detail → Source) ──
+    // ── Single scrollable settings panel (audit IMG-06: the choices that
+    //    matter most come first; image adjustments are rarely needed) ──
     var createPanel = h("div", {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      // 1. Image (source adjustments + background)
-      adjSection,
-      bgSection,
-      // 2. Output (dimensions + fabric)
+      // 1. Size & fabric (dimensions + fabric)
       dimSection,
-      // 3. Palette
+      // 2. Colours
       palSection,
+      // 3. Background
+      bgSection,
       // 4. Quality (dithering + cleanup)
       tidySection,
-      // 5. Palette swap (conditional)
+      // 5. Adjust image (collapsed by default)
+      adjSection,
+      // 6. Palette swap (conditional)
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
       ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 6. Project (info + summary)
+      // 7. Project (collapsed by default)
       createProjectSection
     );
 

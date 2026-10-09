@@ -2069,4 +2069,64 @@ var DISAMBIG_LEVEL_MAP = {
 _colourUtilsGlobal.disambiguateSimilarNeighbours = disambiguateSimilarNeighbours;
 _colourUtilsGlobal.DISAMBIG_LEVEL_MAP = DISAMBIG_LEVEL_MAP;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP }; }
+// detectUniformBorder — is the image framed by one plain colour? (audit IMG-01)
+// Samples the outer `borderFrac` (default 2%) of pixels on every side and
+// finds the most common colour. If at least `minShare` (default 85%) of the
+// opaque border pixels are within ΔE76 `maxDeltaE` (default 8) of it, returns
+// { rgb, share }, else null. Transparent pixels (alpha < 128) are ignored.
+// `imageData` is anything shaped like ImageData: { data, width, height }.
+function detectUniformBorder(imageData, opts) {
+  opts = opts || {};
+  var borderFrac = opts.borderFrac != null ? opts.borderFrac : 0.02;
+  var minShare = opts.minShare != null ? opts.minShare : 0.85;
+  var maxDeltaE = opts.maxDeltaE != null ? opts.maxDeltaE : 8;
+  if (!imageData || !imageData.data || !imageData.width || !imageData.height) return null;
+  var w = imageData.width, h = imageData.height, d = imageData.data;
+  var bx = Math.max(1, Math.round(w * borderFrac)), by = Math.max(1, Math.round(h * borderFrac));
+  function lab(r, g, b) {
+    function lin(c) { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    var R = lin(r), G = lin(g), B = lin(b);
+    var X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
+    var Y = (R * 0.2126 + G * 0.7152 + B * 0.0722);
+    var Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+    function f(t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; }
+    var fx = f(X), fy = f(Y), fz = f(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  // Collect the border pixels (each once) and bucket them by 4-bit channels.
+  var px = [], buckets = {}, bestKey = null, bestCount = 0;
+  for (var y = 0; y < h; y++) {
+    var rowIsBorder = y < by || y >= h - by;
+    for (var x = 0; x < w; x++) {
+      if (!rowIsBorder && x >= bx && x < w - bx) { x = w - bx - 1; continue; }
+      var i = (y * w + x) * 4;
+      if (d[i + 3] < 128) continue;
+      var r = d[i], g = d[i + 1], b = d[i + 2];
+      px.push(r, g, b);
+      var key = (r >> 4) + "," + (g >> 4) + "," + (b >> 4);
+      var n = (buckets[key] = (buckets[key] || 0) + 1);
+      if (n > bestCount) { bestCount = n; bestKey = key; }
+    }
+  }
+  var total = px.length / 3;
+  if (!total) return null;
+  // Mean colour of the winning bucket, then count everything close to it.
+  var sr = 0, sg = 0, sb = 0, sn = 0, k;
+  for (k = 0; k < px.length; k += 3) {
+    if (((px[k] >> 4) + "," + (px[k + 1] >> 4) + "," + (px[k + 2] >> 4)) !== bestKey) continue;
+    sr += px[k]; sg += px[k + 1]; sb += px[k + 2]; sn++;
+  }
+  var rgb = [Math.round(sr / sn), Math.round(sg / sn), Math.round(sb / sn)];
+  var ref = lab(rgb[0], rgb[1], rgb[2]);
+  var close = 0;
+  for (k = 0; k < px.length; k += 3) {
+    var l = lab(px[k], px[k + 1], px[k + 2]);
+    var dl = l[0] - ref[0], da = l[1] - ref[1], db = l[2] - ref[2];
+    if (Math.sqrt(dl * dl + da * da + db * db) <= maxDeltaE) close++;
+  }
+  var share = close / total;
+  return share >= minShare ? { rgb: rgb, share: share } : null;
+}
+if (typeof window !== 'undefined') window.detectUniformBorder = detectUniformBorder;
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder }; }
