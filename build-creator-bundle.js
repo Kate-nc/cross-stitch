@@ -58,6 +58,7 @@ const ORDER = [
   'cleanupSharedHelpers.js',
   'useCleanupMode.js',
   'useDenoiseMode.js',
+  'Loupe.js',
   'useCanvasInteraction.js',
   'useKeyboardShortcuts.js',
   'useProjectIO.js',

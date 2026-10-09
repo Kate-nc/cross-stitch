@@ -235,6 +235,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),
 
+    // Touch loupe and precision cursor (fixed position; shown while drawing).
+    window.CreatorLoupe && h(window.CreatorLoupe, null),
+
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {
       var parts = [statusText];

@@ -7908,6 +7908,31 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .mode-toggle--block{display:flex;width:100%;}
 .mode-toggle--block .mode-toggle__btn{flex:1;}
 
+/* ═══ Touch loupe and precision cursor (audit DRAW-03) ═══════════════════
+   creator/Loupe.js positions these in viewport px while a finger draws. */
+.creator-loupe {
+  position: fixed;
+  z-index: 1200;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  outline: 1px solid var(--line);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  background: var(--surface-tertiary);
+  pointer-events: none;
+  touch-action: none;
+}
+.creator-precision-cursor {
+  position: fixed;
+  z-index: 1201;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  color: var(--text-primary);
+  filter: drop-shadow(0 0 1px var(--surface)) drop-shadow(0 0 1px var(--surface));
+  pointer-events: none;
+}
+.creator-precision-cursor svg { display: block; }
+
 /* ═══ Compact phone chrome (audit COMMON-03) ══════════════════════════════
    body.creator-compact is set by creator-main.js under 900px wide (phones and
    portrait tablets). One 48px top bar (creator/CompactBar.js) replaces the

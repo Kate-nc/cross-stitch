@@ -445,7 +445,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
       h("div", {key:"zoom-grp", className:"tb-grp"},
         h("input", {
-          type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+          type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
           onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
           style:{width:80}, title:"Zoom"
         }),
@@ -715,7 +715,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
     h("input", {
-      type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+      type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
       onChange:function(e){cv.setZoom(Number(e.target.value));},
       style:{width:55}
     }),
@@ -772,7 +772,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.25) * 100) / 100)); }}, window.Icons.minus()),
         h("span", {className:"tb-zoom-pct", "aria-live":"polite"}, Math.round(cv.zoom*100)+"%"),
         h("button", {className:"tb-btn", "aria-label":"Zoom in", title:"Zoom in",
-          onClick:function(){ cv.setZoom(Math.min(3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
+          onClick:function(){ cv.setZoom(Math.min(cv.maxZoom || 3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
         h("button", {className:"tb-btn", "aria-label":"Fit to screen", title:"Fit to screen",
           onClick:function(){ cv.fitZ(); setMorePanelOpen(false); }}, "Fit")
       ),
@@ -783,6 +783,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("button", {className:"tb-btn", style:{width:"100%",justifyContent:"flex-start"},
         onClick:function(){ setMorePanelOpen(false); if (app.setPanelOpen) app.setPanelOpen(true); }},
         window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
+    ),
+    // ── Touch placement aids (audit DRAW-03) ──
+    coarsePointer && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Touch"),
+      h("label", {className:"tb-more-check", title:"While drawing, show an enlarged view of the stitches under your finger"},
+        h("input", {type:"checkbox", checked:!!cv.magnifierOn, onChange:function(e){ if (cv.setMagnifierOn) cv.setMagnifierOn(e.target.checked); }}),
+        h("span", null, "Magnifier")
+      ),
+      h("label", {className:"tb-more-check", title:"Draw a crosshair above your finger; lift to place the stitch there"},
+        h("input", {type:"checkbox", checked:!!cv.precisionCursor, onChange:function(e){ if (cv.setPrecisionCursor) cv.setPrecisionCursor(e.target.checked); }}),
+        h("span", null, "Precision cursor")
+      )
     ),
     // ── Canvas management ──
     h("div", {className:"tb-more-panel__section"},
