@@ -53,8 +53,8 @@ window.creatorFitZoom = creatorFitZoom;
 
 // The part of the chart's scroll container that is actually on screen: its
 // width, and its height down to the bottom of the viewport or the top of the
-// phone bottom drawer, capped by its max-height. Returns null when the
-// container isn't mounted.
+// phone bottom drawer, capped by its max-height or parent pane. Returns null
+// when the container isn't mounted.
 function creatorFitBox(el) {
   if (!el || !el.clientWidth || typeof el.getBoundingClientRect !== "function") return null;
   var r = el.getBoundingClientRect();
@@ -68,6 +68,13 @@ function creatorFitBox(el) {
   var h = bottom - Math.max(0, r.top) - chrome;
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
+  // In compare mode the scroll box is a flex child of the fixed-height split
+  // pane, which has no max-height of its own.
+  var parent = el.parentElement;
+  if (parent && typeof parent.getBoundingClientRect === "function") {
+    var pr = parent.getBoundingClientRect();
+    if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
+  }
   // Container below the fold: fall back to its own size.
   if (!(h >= 120)) h = el.clientHeight || (isFinite(mh) ? mh : 0);
   return { w: el.clientWidth, h: h, outerH: Math.round(h + chrome) };
@@ -1262,6 +1269,7 @@ window.useCreatorState = function useCreatorState() {
     // Image / Dimensions / Palette sidebar tabs left users stranded in
     // create mode with no pattern to show. Now every successful generation
     // lands on the Palette tab in Edit mode (same as before, but consistently).
+    setPanelOpen(false);
     setAppMode("edit");
     setSidebarTab("palette");
     // Fallback zoom now; the real fit runs once the Edit view has mounted.

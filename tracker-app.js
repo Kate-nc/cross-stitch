@@ -3493,6 +3493,7 @@ function loadProject(e){
         if(typeof getOfficialMatch!=='function'&&typeof loadThreadConversions==='function'){
           try{await loadThreadConversions();}catch(_){}
         }
+        if (typeof window.loadThreadConversions === 'function') await window.loadThreadConversions();
         let result = parseOXS(ev.target.result);
         let project = importResultToProject(result, 14, baseName);
         const importedAt = Date.now();
