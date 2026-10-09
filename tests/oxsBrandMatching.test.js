@@ -14,6 +14,7 @@ global.DMC = [
   { id: '413', name: 'Pewter Gray Dark', rgb: [86, 86, 86] },
   { id: '414', name: 'Steel Gray Dark', rgb: [140, 140, 140] },
   { id: '666', name: 'Bright Red', rgb: [227, 29, 66] },
+  { id: 'BLANC', name: 'White', rgb: [255, 255, 255] },
 ].map((d) => Object.assign({ lab: d.rgb }, d));
 global.rgbToLab = (r, g, b) => [r, g, b];
 global.dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -56,6 +57,7 @@ describe('_oxsParseThreadRef', () => {
     ['Madeira 2400', { brand: 'madeira', id: '2400' }],
     ['666', { brand: null, id: '666' }],
     ['blanc', { brand: null, id: 'blanc' }],
+    ['DMC White', { brand: 'dmc', id: 'White' }],
   ])('%s', (text, expected) => {
     expect(_oxsParseThreadRef(text)).toEqual(expected);
   });
@@ -76,6 +78,12 @@ describe('parseOXS brand-aware palette matching', () => {
   test('a bare number is read as DMC', () => {
     const r = parseOXS(oxs([{ number: '666', hex: 'E31D42' }]));
     expect(r.pattern[0].id).toBe('666');
+    expect(r.warnings).toEqual([]);
+  });
+
+  test('"DMC White" gives DMC BLANC with no warning', () => {
+    const r = parseOXS(oxs([{ number: 'DMC White', hex: 'FFFFFF' }]));
+    expect(r.pattern[0].id).toBe('BLANC');
     expect(r.warnings).toEqual([]);
   });
 

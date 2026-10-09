@@ -107,7 +107,7 @@ function _oxsParseThreadRef(text) {
   var t = String(text).trim();
   if (!t) return null;
   if (/^(\d[\w-]*|blanc|ecru|white)$/i.test(t)) return { brand: null, id: t };
-  var m = t.match(/^([A-Za-z][A-Za-z&.' ]*?)\s*[:#-]?\s*(\d[\w-]*|blanc|ecru)$/i);
+  var m = t.match(/^([A-Za-z][A-Za-z&.' ]*?)\s*[:#-]?\s*(\d[\w-]*|blanc|ecru|white)$/i);
   if (!m) return null;
   return { brand: m[1].trim().toLowerCase(), id: m[2] };
 }
