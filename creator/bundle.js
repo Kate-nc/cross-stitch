@@ -5290,7 +5290,37 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   };
 }
 
+// Generation progress (audit IMG-07): the worker's stages (generate-worker.js
+// postProgress) as stitcher-facing text and a rough share of the work done.
+// 'preparing' is the page's own step before the worker starts.
+var GENERATE_STAGES = {
+  preparing:      { label: 'Preparing the picture\u2026',         pct: 5 },
+  smoothing:      { label: 'Preparing the picture\u2026',         pct: 10 },
+  quantizing:     { label: 'Choosing threads\u2026',              pct: 25 },
+  mapping:        { label: 'Matching colours\u2026',              pct: 45 },
+  dithering:      { label: 'Matching colours\u2026',              pct: 45 },
+  rarity:         { label: 'Matching colours\u2026',              pct: 60 },
+  cleanup:        { label: 'Cleaning up stray stitches\u2026',    pct: 70 },
+  disambiguating: { label: 'Separating similar neighbours\u2026', pct: 85 },
+  finalizing:     { label: 'Building the chart\u2026',            pct: 95 }
+};
+// Stop a generate worker for good. Its handlers are detached first: a worker
+// stopped while it is still loading its scripts raises an error, which must
+// not reach the page's error handler or mark workers as unavailable.
+function retireGenerateWorker(w) {
+  if (!w || w === 'unavailable') return;
+  w.onmessage = null;
+  w.onerror = function (ev) { if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); };
+  try { w.terminate(); } catch (_) {}
+}
+
+function generateStageInfo(stage) {
+  return GENERATE_STAGES[stage] || { label: 'Generating pattern\u2026', pct: null };
+}
+
 if (typeof window !== 'undefined') {
+  window.GENERATE_STAGES = GENERATE_STAGES;
+  window.generateStageInfo = generateStageInfo;
   window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
   window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
   window.PICTURE_PRESETS = PICTURE_PRESETS;
@@ -5422,6 +5452,8 @@ window.useCreatorState = function useCreatorState() {
   var _patternGeneratedThisVisit = useState(false);
   var patternGeneratedThisVisit = _patternGeneratedThisVisit[0], setPatternGeneratedThisVisit = _patternGeneratedThisVisit[1];
   var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
+  // The worker's current stage while generating (GENERATE_STAGES), or null.
+  var _progressStage = useState(null); var progressStage = _progressStage[0], setProgressStage = _progressStage[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -6609,6 +6641,7 @@ window.useCreatorState = function useCreatorState() {
           if (msg.type === 'progress') {
             if (msg.reqId === genReqIdRef.current) {
               setProgressMessage(msg.message || "");
+              setProgressStage(msg.stage || null);
             }
             return;
           }
@@ -6625,12 +6658,12 @@ window.useCreatorState = function useCreatorState() {
             console.error('Worker generation error:', msg.message, msg.stack || '');
             w.terminate();
             workerRef.current = null;
-            setProgressMessage("");
+            setProgressMessage(""); setProgressStage(null);
             setBusy(false);
             return;
           }
           if (msg.type === 'result') {
-            setProgressMessage("");
+            setProgressMessage(""); setProgressStage(null);
             applyResultRef.current(msg);
           }
           if (msg.type === 'disambiguate-result') {
@@ -6646,10 +6679,12 @@ window.useCreatorState = function useCreatorState() {
           }
         };
         w.onerror = function(err) {
+          // Handled here: fall back to the page instead of the error screen.
+          if (err && typeof err.preventDefault === 'function') err.preventDefault();
           console.error('Worker uncaught error:', err.message);
           w.terminate();
           workerRef.current = 'unavailable';
-          setProgressMessage("");
+          setProgressMessage(""); setProgressStage(null);
           setBusy(false);
         };
         workerRef.current = w;
@@ -6696,14 +6731,14 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
-    setBusy(true); setProgressMessage(""); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
     // burning CPU until done. Killing it frees the device and the next
     // getOrCreateWorker() rebuilds (worker startup is ~5 ms vs seconds
     // of wasted pipeline work).
     if (workerRef.current && workerRef.current !== 'unavailable') {
-      try { workerRef.current.terminate(); } catch (_) {}
+      retireGenerateWorker(workerRef.current);
       workerRef.current = null;
     }
     var reqId = ++genReqIdRef.current;
@@ -6738,6 +6773,8 @@ window.useCreatorState = function useCreatorState() {
     }
 
     var startGeneration = function() {
+      // Cancelled before the first frame: don't start at all.
+      if (reqId !== genReqIdRef.current) return;
       // Extract pixel data here (requires canvas — must stay on main thread)
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
@@ -6808,6 +6845,20 @@ window.useCreatorState = function useCreatorState() {
       setTimeout(startGeneration, 0);
     }
   }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+
+  // Cancel a generation (audit IMG-07): a new request id makes its result,
+  // progress and errors stale, so they are ignored; the worker is stopped
+  // and made again on the next Generate. The Convert screen and any pattern
+  // already made are left as they were.
+  var cancelGenerate = useCallback(function() {
+    genReqIdRef.current++;
+    if (workerRef.current && workerRef.current !== 'unavailable') {
+      retireGenerateWorker(workerRef.current);
+      workerRef.current = null;
+    }
+    setProgressMessage(""); setProgressStage(null);
+    setBusy(false);
+  }, []);
 
   // ─── Variation helpers: seeded Fisher-Yates shuffle → roulette subset ───────
   function _buildRoulette(pool, n, seed) {
@@ -7099,7 +7150,7 @@ window.useCreatorState = function useCreatorState() {
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
@@ -12713,6 +12764,50 @@ window.usePreview = function usePreview(state) {
     );
   };
 })();
+
+
+/* ─── GenerateProgress.js ─── */
+/* creator/GenerateProgress.js — what the Creator shows while it generates a
+ * pattern (audit IMG-07).
+ *
+ * A card in the style of the import progress card (import-engine/ui/
+ * ImportReviewModal.js showImportProgress): the stage in stitcher's words
+ * from the worker's progress messages (GENERATE_STAGES in
+ * useCreatorState.js), a progress bar, and Cancel. A light scrim keeps the
+ * Convert settings from being changed underneath it.
+ *
+ * Props: stage (a GENERATE_STAGES key or null), onCancel.
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+window.CreatorGenerateProgress = function CreatorGenerateProgress(props) {
+  var h = React.createElement;
+  var info = typeof window.generateStageInfo === "function"
+    ? window.generateStageInfo(props.stage)
+    : { label: "Generating pattern…", pct: null };
+  var _stopping = React.useState(false); var stopping = _stopping[0], setStopping = _stopping[1];
+  var cancelRef = React.useRef(null);
+
+  React.useEffect(function () {
+    function onKey(e) { if (e.key === "Escape" && props.onCancel) { setStopping(true); props.onCancel(); } }
+    document.addEventListener("keydown", onKey);
+    return function () { document.removeEventListener("keydown", onKey); };
+  }, [props.onCancel]);
+
+  var known = typeof info.pct === "number";
+  return h("div", { className: "generate-busy-scrim" },
+    h("div", { className: "generate-busy", role: "status", "aria-live": "polite", "data-generate-stage": props.stage || "" },
+      h("div", { className: "import-busy-title" }, "Generating pattern"),
+      h("div", { className: "import-busy-label" }, stopping ? "Stopping…" : info.label),
+      h("div", { className: "import-busy-track", role: "progressbar", "aria-label": "Generating pattern",
+          "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": known ? info.pct : undefined },
+        h("div", { className: "import-busy-bar" + (known ? "" : " indeterminate"), style: known ? { width: info.pct + "%" } : undefined })),
+      props.onCancel ? h("button", {
+        ref: cancelRef, type: "button", className: "g-btn import-busy-cancel", disabled: stopping,
+        onClick: function () { if (stopping) return; setStopping(true); props.onCancel(); }
+      }, "Cancel") : null
+    )
+  );
+};
 
 
 /* ─── PatternCanvas.js ─── */

@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.95';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.97',
+    date: 'October 2026',
+    notes: [
+      'While a pattern is generating, a card shows what the Creator is doing (choosing threads, matching colours, cleaning up stray stitches, building the chart) with a progress bar, and Cancel stops it and leaves your settings and any earlier pattern as they were. Large patterns with shading can take a minute or more on a phone.',
+    ]
+  },
+  {
     version: '1.0.96',
     date: 'October 2026',
     notes: [

@@ -44,7 +44,8 @@ describe('estimate label contrast', () => {
 describe('Convert preview block and generating overlay use tokens', () => {
   const main = loadSource('creator-main.js');
   const start = main.indexOf('{!state.pat&&state.img&&<div style={{display:"flex",gap:20');
-  const end = main.indexOf('Generating pattern\\u2026</div>');
+  // The block ends at the generating progress card (P2-8).
+  const end = main.indexOf('<window.CreatorGenerateProgress stage={state.progressStage}');
 
   test('no raw hex colours and no 10 px labels remain', () => {
     expect(start).toBeGreaterThan(0);

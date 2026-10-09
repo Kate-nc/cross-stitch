@@ -2537,37 +2537,10 @@ function CreatorApp({
       cursor: "pointer",
       fontFamily: "inherit"
     }
-  }, "Go to Convert")))), typeof window.CropModal !== "undefined" && /*#__PURE__*/React.createElement(window.CropModal, null)), state.busy && /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: "color-mix(in srgb, var(--surface) 85%, transparent)",
-      zIndex: 1000,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "column",
-      gap: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      width: 32,
-      height: 32,
-      border: "3px solid var(--line)",
-      borderTopColor: "var(--accent)",
-      borderRadius: "50%",
-      animation: "spin 0.8s linear infinite"
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 14,
-      color: "var(--text-secondary)",
-      fontWeight: 500
-    }
-  }, "Generating pattern\\u2026")), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
+  }, "Go to Convert")))), typeof window.CropModal !== "undefined" && /*#__PURE__*/React.createElement(window.CropModal, null)), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
+    stage: state.progressStage,
+    onCancel: state.cancelGenerate
+  }), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',
     body: _coarsePointer ? state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab, tap Paint in the toolbar, then tap a square on the grid. Until you pick a tool, one finger scrolls the chart.' : 'Tap Paint in the toolbar, choose a colour, then tap a square on the chart. Until you pick a tool, one finger scrolls the chart.' : state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
