@@ -157,7 +157,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
 // state stores. Mirrors the focus / ARIA pattern from
 // creator/ActionBar.js (Escape, click-outside, ArrowUp/Down/Home/End
 // roving focus, auto-focus first menuitem on open).
-function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
+function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRename }) {
   var h = React.createElement;
   var Icons = window.Icons || {};
   var openState = React.useState(false);
@@ -294,6 +294,22 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll }) {
       role: 'menu',
       'aria-label': 'Recent projects'
     },
+      // The name badge is hidden on phones, so the switcher carries Rename.
+      // The Creator and Tracker both open their rename dialog on cs:openRename.
+      canRename && h('button', {
+        type: 'button',
+        role: 'menuitem',
+        tabIndex: -1,
+        className: 'tb-proj-switcher__item tb-proj-switcher__item--rename',
+        onClick: function () {
+          setOpen(false);
+          window.dispatchEvent(new CustomEvent('cs:openRename'));
+        }
+      },
+        h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, Icons.pencil ? Icons.pencil() : null),
+        h('span', { className: 'tb-proj-switcher__item-text' },
+          h('span', { className: 'tb-proj-switcher__item-name' }, 'Rename \u201C' + label + '\u201D'))
+      ),
       recents.length === 0 && h('div', { className: 'tb-proj-switcher__empty' }, 'No other projects yet'),
       recents.map(function (p) {
         var pct = pctOf(p);
@@ -822,7 +838,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         React.createElement(HeaderProjectSwitcher, {
           activeProject: projSummary,
           projectName: propProjectName || projName,
-          onOpenAll: onOpenProject || undefined
+          onOpenAll: onOpenProject || undefined,
+          canRename: !!onNameChange
         }),
 
         // Active project badge — editable when onNameChange is provided

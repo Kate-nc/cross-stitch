@@ -246,6 +246,18 @@ function calcDifficulty(palLen,blendCount,totalSt,opts){
   return{label:label,color:color,stars:stars,score:score,factors:factors};
 }
 
+// Automatic project names (audit COMMON-05). A converted image is named after
+// its file ("IMG_2041.jpg" gives "IMG_2041"); a blank grid is "Untitled design".
+var UNTITLED_DESIGN_NAME="Untitled design";
+function projectNameFromFile(fileName){
+  var base=String(fileName==null?"":fileName).split(/[\\/]/).pop();
+  var dot=base.lastIndexOf(".");
+  if(dot>0)base=base.slice(0,dot);
+  base=base.replace(/\s+/g," ").trim().slice(0,60).trim();
+  return base||UNTITLED_DESIGN_NAME;
+}
+if(typeof window!=='undefined'){window.projectNameFromFile=projectNameFromFile;window.UNTITLED_DESIGN_NAME=UNTITLED_DESIGN_NAME;}
+
 // IndexedDB utility functions
 const DB_NAME = "CrossStitchDB";
 const STORE_NAME = "projects";

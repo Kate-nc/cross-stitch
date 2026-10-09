@@ -5869,6 +5869,7 @@ details[open] .creator-popover-difficulty__summary::before {
 @media (pointer: coarse) {
   .tb-proj-switcher__btn { min-height: 44px; }
   .tb-proj-switcher__item { min-height: 44px; }
+  .name-prompt-input { min-height: 44px; font-size: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
