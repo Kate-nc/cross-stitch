@@ -7,6 +7,8 @@
 //
 // Public API:
 //   window.HelpDrawer.open({ tab, context, query })
+//   window.HelpDrawer.open({ topic, section })  → a help topic's article,
+//     e.g. { topic: "creator", section: "What can I import?" }
 //   window.HelpDrawer.close()
 //   window.HelpDrawer.toggle(opts)
 //   window.HelpDrawer.isOpen() → boolean
@@ -53,6 +55,18 @@
             ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
             ["Skip background", "Treats a background colour as empty fabric. Press Pick, click the colour in the source image, then adjust Tolerance."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
+          ]
+        },
+        {
+          heading: "What can I import?",
+          body: "Import a file from Home > Create new > New from pattern file, by dropping it on the Creator, or with File > Open….",
+          bullets: [
+            ["PDF charts", "Charts saved as PDF by the designer, including Pattern Keeper-compatible PDFs. The colours, symbols and size are read from the chart and you can check them before saving. Scanned or photographed charts can't be read yet, and nor can password-protected PDFs."],
+            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross."],
+            ["stitchx .json files and backups", "Projects downloaded with File > Download (.json). A full backup of every project is restored with File > Restore from Backup… instead."],
+            ["Images", "JPG, PNG, GIF, WebP and BMP pictures are converted into a new pattern."],
+            ["Not supported yet", "Files saved in another program's own format: Pattern Maker (.xsd), PCStitch (.pat), XStitch Pro (.xsp) and others. Photos of a paper chart are converted as pictures, not read as charts."],
+            ["Exporting from another program", "In Pattern Maker, PCStitch, WinStitch or MacStitch, use the program's Export (or Save as) option and choose OXS. If OXS isn't offered, print the chart to PDF instead, then import that file here."]
           ]
         },
         {
@@ -642,7 +656,10 @@
     open: false,
     tab: "help",        // 'help' | 'shortcuts' | 'getting-started'
     context: null,      // 'creator' | 'tracker' | 'manager' | null
-    query: ""
+    query: "",
+    topic: null,        // help topic id to open on (with `section`)
+    section: null,      // section heading inside that topic
+    openSeq: 0          // bumped on every open() so the view resets
   };
   var subscribers = [];
   function setState(patch) {
@@ -678,7 +695,9 @@
   function open(opts) {
     opts = opts || {};
     var tab;
-    if (opts.tab === "help" || opts.tab === "shortcuts" || opts.tab === "getting-started") {
+    if (opts.topic) {
+      tab = "help";
+    } else if (opts.tab === "help" || opts.tab === "shortcuts" || opts.tab === "getting-started") {
       tab = opts.tab;
     } else if (opts.context === "creator" || opts.context === "tracker" || opts.context === "manager") {
       tab = "shortcuts";
@@ -691,7 +710,10 @@
       open: true,
       tab: tab,
       context: ctx,
-      query: typeof opts.query === "string" ? opts.query : ""
+      query: typeof opts.query === "string" ? opts.query : "",
+      topic: typeof opts.topic === "string" ? opts.topic : null,
+      section: typeof opts.section === "string" ? opts.section : null,
+      openSeq: state.openSeq + 1
     });
     persistTab(tab);
     try { window.dispatchEvent(new CustomEvent("cs:helpStateChange", { detail: { open: true } })); } catch (_) {}
@@ -1101,8 +1123,21 @@
     }, [state.open, state.tab]);
 
     React.useEffect(function () {
-      if (state.open) { setHelpView("landing"); setHelpCat(null); setHelpArt(null); }
-    }, [state.open]); // eslint-disable-line react-hooks/exhaustive-deps
+      if (!state.open) return;
+      // open({ topic, section }) lands on that article; otherwise the landing.
+      var topic = state.topic ? HELP_TOPICS.find(function (t) { return t.id === state.topic; }) : null;
+      if (topic) {
+        var idx = -1;
+        if (state.section) {
+          idx = topic.sections.findIndex(function (sec) { return sec.heading === state.section; });
+        }
+        setHelpCat(topic.id);
+        if (idx >= 0) { setHelpArt(idx); setHelpView("detail"); }
+        else { setHelpArt(null); setHelpView("list"); }
+        return;
+      }
+      setHelpView("landing"); setHelpCat(null); setHelpArt(null);
+    }, [state.open, state.openSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
     React.useEffect(function () {
       if (!state.open) return;

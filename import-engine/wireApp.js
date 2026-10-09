@@ -47,16 +47,24 @@
         var msg = (r && (r.message || r.toString && r.toString())) || '';
         if (/import|pattern|pdf|oxs/i.test(msg) || (r && r.code && /IMPORT|PATTERN/i.test(r.code))) {
           console.error('[ImportEngine] Unhandled rejection in import pipeline:', r);
-          if (window.Toast && typeof window.Toast.show === 'function') {
-            window.Toast.show({
-              message: 'Import failed: ' + msg,
-              type: 'error',
-              duration: 8000,
-            });
-          }
+          if (!(r && r.__importToastShown)) showFriendlyError(r, null);
         }
       } catch (_) {}
     });
+  }
+
+  // Plain-English error toast (import-engine/ui/importErrors.js); the raw
+  // message only goes to the console and the "Copy details" action.
+  function showFriendlyError(err, fileName) {
+    if (err && typeof err === 'object') {
+      if (err.__importToastShown) return;
+      try { err.__importToastShown = true; } catch (_) {}
+    }
+    if (window.ImportEngine && typeof window.ImportEngine.showImportError === 'function') {
+      window.ImportEngine.showImportError(err, fileName);
+    } else if (window.Toast && typeof window.Toast.show === 'function') {
+      window.Toast.show({ message: 'Something went wrong importing this file.', type: 'error', duration: 10000 });
+    }
   }
 
   function openImportPicker(opts) {
@@ -91,6 +99,13 @@
       }
       return Promise.reject(new Error(notLoaded));
     }
+    // Turn away files from other design programs before reading them.
+    if (typeof ENGINE.classifyFileForCreate === 'function' && file && ENGINE.classifyFileForCreate(file) === 'unsupported') {
+      var unsupported = new Error('Unsupported file type: ' + (file.name || ''));
+      unsupported.name = 'ImportUnsupportedError';
+      showFriendlyError(unsupported, file.name);
+      return Promise.resolve({ action: 'cancel', error: unsupported });
+    }
     // Say what is happening while the file is read: a large PDF or a scan
     // takes long enough to look stuck otherwise.
     var token = opts.cancelToken || (typeof ENGINE.makeAbortToken === 'function' ? ENGINE.makeAbortToken() : null);
@@ -112,16 +127,17 @@
         return { action: 'cancel', cancelled: true };
       }
       if (!result.ok) {
-        var msg = (result.error && result.error.message) || 'Import failed.';
         console.error('[import] pipeline returned not-ok:', result);
-        if (window.Toast && window.Toast.show) {
-          window.Toast.show({ message: 'Import failed: ' + msg, type: 'error', duration: 10000 });
-        } else if (window.toast && typeof window.toast.error === 'function') {
-          window.toast.error(msg);
-        } else if (typeof alert === 'function') {
-          alert('Import failed: ' + msg);
+        // A failed validation has no error object, only error-level warnings.
+        var failure = result.error;
+        if (!failure) {
+          var errs = (result.warnings || []).filter(function (w) { return w && w.severity === 'error'; });
+          failure = new Error(errs.map(function (w) { return w.message; }).join('; ') || 'Import failed.');
+          failure.name = 'ImportValidateError';
+          failure.details = { code: errs[0] && errs[0].code };
         }
-        return { action: 'cancel', error: result.error };
+        showFriendlyError(failure, file && file.name);
+        return { action: 'cancel', error: failure };
       }
       // A chart that prints no title is named after its file, not 'Imported
       // pattern'; the review's Details tab can change either.
@@ -157,17 +173,7 @@
       // Final safety net: anything thrown by importPattern, openReview, or
       // saveAndNavigate that wasn't already handled lands here.
       console.error('[import] unhandled error in importAndReview:', err);
-      try {
-        if (window.Toast && window.Toast.show) {
-          window.Toast.show({
-            message: 'Import failed: ' + ((err && err.message) || err),
-            type: 'error',
-            duration: 10000,
-          });
-        } else if (typeof alert === 'function') {
-          alert('Import failed: ' + ((err && err.message) || err));
-        }
-      } catch (_) {}
+      try { showFriendlyError(err, file && file.name); } catch (_) {}
       throw err;
     });
   }

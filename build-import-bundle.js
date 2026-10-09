@@ -30,6 +30,7 @@ const ORDER = [
   'ui/pageLayoutModel.js',
   'ui/threadPicker.js',
   'ui/ImportReviewModal.js',
+  'ui/importErrors.js',
   'wireApp.js',
   'index.js',
 ];

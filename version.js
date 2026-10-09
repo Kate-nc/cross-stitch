@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.80';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.81',
+    date: 'October 2026',
+    notes: [
+      'Clearer messages when a file can\u2019t be imported: they say what went wrong in plain English and link to a new help article, What can I import?. Files from other design programs (such as Pattern Maker .xsd or PCStitch .pat) are turned away with a note on how to export them as OXS or PDF, instead of failing as a picture.',
+    ]
+  },
+  {
     version: '1.0.80',
     date: 'October 2026',
     notes: [

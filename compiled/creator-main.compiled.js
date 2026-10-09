@@ -1455,6 +1455,18 @@ function CreatorApp({
     runNamedAction(key);
   }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
+  // Audit IMPORT-05: files from other design programs (.xsd, .pat, .xsp …)
+  // and other non-images are turned away with a plain-English toast instead
+  // of being handed to the image converter (import-engine/ui/importErrors.js).
+  const rejectUnsupportedFile = f => {
+    const IE = window.ImportEngine;
+    if (!f || !IE || typeof IE.classifyFileForCreate !== 'function') return false;
+    if (IE.classifyFileForCreate(f) !== 'unsupported') return false;
+    const err = new Error('Unsupported file type: ' + (f.name || ''));
+    err.name = 'ImportUnsupportedError';
+    if (typeof IE.showImportError === 'function') IE.showImportError(err, f.name);
+    return true;
+  };
   const exportData = useMemo(function () {
     return {
       pat: state.pat,
@@ -1544,6 +1556,10 @@ function CreatorApp({
       var f = e.target.files && e.target.files[0];
       if (!f) return;
       var n = (f.name || '').toLowerCase();
+      if (rejectUnsupportedFile(f)) {
+        e.target.value = '';
+        return;
+      }
       var isPattern = /\.(oxs|xml|pdf)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
         e.target.value = '';
@@ -1837,6 +1853,10 @@ function CreatorApp({
       state.setIsDragging(false);
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         var df = e.dataTransfer.files[0];
+        if (rejectUnsupportedFile(df)) {
+          e.dataTransfer.clearData();
+          return;
+        }
         var dn = (df.name || '').toLowerCase();
         var dImg = (df.type || '').indexOf('image/') === 0;
         var dPat = !dImg && /\.(oxs|xml|json|pdf)$/i.test(dn);
@@ -1976,6 +1996,10 @@ function CreatorApp({
       var f = e.target.files && e.target.files[0];
       if (!f) return;
       var n = (f.name || '').toLowerCase();
+      if (rejectUnsupportedFile(f)) {
+        e.target.value = '';
+        return;
+      }
       var isImage = (f.type || '').indexOf('image/') === 0;
       var isPattern = !isImage && /\.(oxs|xml|json|pdf)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
