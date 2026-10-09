@@ -389,9 +389,18 @@ var Platform = (function () {
     return Promise.resolve({ shared: false });
   }
 
+  // True when the main pointer is a finger (phones, most tablets). Used to
+  // swap mouse and keyboard instructions for touch ones (audit COMMON-06).
+  function isCoarsePointer() {
+    try {
+      return !!(typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    } catch (_) { return false; }
+  }
+
   return {
     isIOS: isIOS,
     isWebKit: isWebKit,
+    isCoarsePointer: isCoarsePointer,
     isStandalone: isStandalone,
     hasFolderSync: hasFolderSync,
     folderSyncUnavailableMessage: folderSyncUnavailableMessage,

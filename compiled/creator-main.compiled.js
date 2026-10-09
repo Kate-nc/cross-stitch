@@ -634,10 +634,10 @@ function ComparisonSlider({
       color: showHeatmap ? "#A53D3D" : "#5C5448",
       fontWeight: 500
     }
-  }, showHeatmap ? "Hide heatmap" : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.fire(), " Heatmap")), !zoomLocked && /*#__PURE__*/React.createElement("span", {
+  }, showHeatmap ? "Hide heatmap" : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.fire(), " Heatmap")), !zoomLocked && !(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer()) && /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Hold Alt to zoom")));
 }
@@ -2048,17 +2048,17 @@ function CreatorApp({
       padding: "7px 12px 4px",
       fontSize: 11,
       fontWeight: 600,
-      color: "#5C5448"
+      color: "var(--text-secondary)"
     }
   }, "Original Image"), state.pickBg && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 12px",
       fontSize: 11,
-      color: "#9a3412",
+      color: "var(--text-primary)",
       fontWeight: 600,
-      background: "#F8EFD8",
-      borderTop: "1px solid #E5C99A",
-      borderBottom: "1px solid #E5C99A",
+      background: "var(--warning-soft)",
+      borderTop: "1px solid var(--line)",
+      borderBottom: "1px solid var(--line)",
       display: "flex",
       alignItems: "center",
       gap: 8
@@ -2071,12 +2071,12 @@ function CreatorApp({
     onClick: () => state.setPickBg(false),
     title: "Cancel pick (Esc)",
     style: {
-      fontSize: 10,
+      fontSize: "var(--text-xs)",
       padding: "2px 7px",
-      border: "1px solid #D4A570",
+      border: "1px solid var(--line)",
       borderRadius: 6,
-      background: "#fff",
-      color: "#9a3412",
+      background: "var(--surface)",
+      color: "var(--text-primary)",
       cursor: "pointer",
       fontWeight: 600
     }
@@ -2095,12 +2095,12 @@ function CreatorApp({
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      borderTop: "0.5px solid #EFE7D6"
+      borderTop: "0.5px solid var(--line)"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, state.origW, "\xD7", state.origH, "px"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2113,22 +2113,22 @@ function CreatorApp({
       state.setCropRect(null);
     },
     style: {
-      fontSize: 10,
+      fontSize: "var(--text-xs)",
       padding: "2px 7px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: "#FBF8F3"
+      background: "var(--surface)"
     }
   }, "Crop"), /*#__PURE__*/React.createElement("button", {
     onClick: () => state.fRef.current.click(),
     style: {
-      fontSize: 10,
+      fontSize: "var(--text-xs)",
       padding: "2px 7px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: "#FBF8F3"
+      background: "var(--surface)"
     }
   }, "Change"))))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2143,7 +2143,7 @@ function CreatorApp({
     style: {
       padding: "24px 16px",
       textAlign: "center",
-      color: "#A89E89",
+      color: "var(--text-secondary)",
       fontSize: 12
     }
   }, "Adjust settings and generate a pattern to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement("div", {
@@ -2155,9 +2155,9 @@ function CreatorApp({
       padding: "6px 10px",
       fontSize: 11,
       fontWeight: 500,
-      color: "#A04E11",
-      background: "#F8EFD8",
-      border: "0.5px solid #E5DCCB",
+      color: "var(--text-primary)",
+      background: "var(--warning-soft)",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
       display: "flex",
       alignItems: "center",
@@ -2175,7 +2175,7 @@ function CreatorApp({
       padding: "8px 14px 4px",
       fontSize: 12,
       fontWeight: 600,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between"
@@ -2195,13 +2195,13 @@ function CreatorApp({
       display: "inline-flex",
       width: 12,
       height: 12,
-      color: "#A89E89"
+      color: "var(--text-secondary)"
     }
   }, Icons.spinner())), state.previewDims && /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 10,
+      fontSize: "var(--text-xs)",
       fontWeight: 500,
-      color: "#A89E89"
+      color: "var(--text-secondary)"
     }
   }, state.previewDims.pw, "\xD7", state.previewDims.ph, " px", state.previewDims.pw === state.sW ? " — full res" : " — " + Math.round(state.previewDims.pw / state.sW * 100) + "%"), state.stitchCleanup && state.stitchCleanup.enabled && state.previewUrl && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2217,9 +2217,9 @@ function CreatorApp({
       padding: "3px 8px",
       borderRadius: 6,
       cursor: "pointer",
-      border: state.showCleanupDiff ? "1px solid #B85C38" : "0.5px solid #E5DCCB",
-      background: state.showCleanupDiff ? "#F4DDCF" : "#fff",
-      color: state.showCleanupDiff ? "#B85C38" : "#5C5448",
+      border: state.showCleanupDiff ? "1px solid var(--accent)" : "0.5px solid var(--line)",
+      background: state.showCleanupDiff ? "var(--accent-soft)" : "var(--surface)",
+      color: state.showCleanupDiff ? "var(--accent)" : "var(--text-secondary)",
       fontWeight: state.showCleanupDiff ? 600 : 400,
       display: "flex",
       alignItems: "center",
@@ -2248,7 +2248,7 @@ function CreatorApp({
     style: {
       fontSize: 11,
       fontWeight: 600,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       textTransform: "uppercase",
       marginBottom: 8
     }
@@ -2260,80 +2260,80 @@ function CreatorApp({
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Stitchable"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.stitchable.toLocaleString('en-GB'))), state.skipBg && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Skipped"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.skipped.toLocaleString('en-GB'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Colours"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.uniqueColors)), state.previewStats.stashUsage && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Stash usage"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#B85C38"
+      color: "var(--accent)"
     }
   }, state.previewStats.stashUsage.used, " of ", state.previewStats.stashUsage.available)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Skeins (", state.fabricCt, "ct)"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.estSkeins)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Time"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, fmtTimeL(Math.round(state.previewStats.stitchable / state.stitchSpeed * 3600)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
-      color: "#A89E89"
+      fontSize: "var(--text-xs)",
+      color: "var(--text-secondary)"
     }
   }, "Thread Cost"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, "\xA3", (state.previewStats.estSkeins * state.skeinPrice).toFixed(2)))), state.previewStats.confettiPct != null && (() => {
     const t = confettiTier(state.previewStats.confettiPct);
@@ -2348,7 +2348,7 @@ function CreatorApp({
       style: {
         marginTop: 10,
         paddingTop: 10,
-        borderTop: "0.5px solid #E5DCCB"
+        borderTop: "0.5px solid var(--line)"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2360,8 +2360,8 @@ function CreatorApp({
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
-        color: "#A89E89",
+        fontSize: "var(--text-xs)",
+        color: "var(--text-secondary)",
         textTransform: "uppercase",
         fontWeight: 600
       }
@@ -2384,7 +2384,7 @@ function CreatorApp({
       style: {
         flex: 1,
         height: 5,
-        background: "#E5DCCB",
+        background: "var(--line)",
         borderRadius: 3,
         overflow: "hidden"
       }
@@ -2404,8 +2404,8 @@ function CreatorApp({
       }
     }, state.previewStats.confettiSingles.toLocaleString('en-GB'), " (", state.previewStats.confettiPct.toFixed(1), "%)")), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontSize: 10,
-        color: "#A89E89",
+        fontSize: "var(--text-xs)",
+        color: "var(--text-secondary)",
         marginTop: 4
       }
     }, tips[t.label] || "", state.previewStats.confettiCleanSingles != null && state.previewStats.confettiCleanSingles < state.previewStats.confettiSingles ? ` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup` : ""));
@@ -2413,13 +2413,13 @@ function CreatorApp({
     style: {
       marginTop: 12,
       paddingTop: 12,
-      borderTop: "0.5px solid #E5DCCB"
+      borderTop: "0.5px solid var(--line)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 10,
+      fontSize: "var(--text-xs)",
       fontWeight: 600,
-      color: "#A89E89",
+      color: "var(--text-secondary)",
       textTransform: "uppercase",
       marginBottom: 6
     }
@@ -2488,20 +2488,20 @@ function CreatorApp({
         borderRadius: 2,
         flexShrink: 0,
         background: 'rgb(' + pcol.rgb[0] + ',' + pcol.rgb[1] + ',' + pcol.rgb[2] + ')',
-        border: "0.5px solid rgba(0,0,0,0.12)"
+        border: "0.5px solid var(--line)"
       }
     }), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
+        fontSize: "var(--text-xs)",
         fontWeight: 600,
-        color: "#5C5448",
+        color: "var(--text-secondary)",
         flexShrink: 0,
         minWidth: 28
       }
     }, pcol.id), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
-        color: "#A89E89",
+        fontSize: "var(--text-xs)",
+        color: "var(--text-secondary)",
         flex: 1,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -2509,9 +2509,9 @@ function CreatorApp({
       }
     }, n ? n.name : ''), /*#__PURE__*/React.createElement("span", {
       style: {
-        fontSize: 10,
+        fontSize: "var(--text-xs)",
         fontWeight: 600,
-        color: "#1B1814",
+        color: "var(--text-primary)",
         flexShrink: 0
       }
     }, Math.round(pcol.count * sf).toLocaleString('en-GB')));
@@ -2608,7 +2608,7 @@ function CreatorApp({
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(255,255,255,0.8)",
+      background: "color-mix(in srgb, var(--surface) 85%, transparent)",
       zIndex: 1000,
       display: "flex",
       alignItems: "center",
@@ -2620,15 +2620,15 @@ function CreatorApp({
     style: {
       width: 32,
       height: 32,
-      border: "3px solid #E5DCCB",
-      borderTopColor: "#B85C38",
+      border: "3px solid var(--line)",
+      borderTopColor: "var(--accent)",
       borderRadius: "50%",
       animation: "spin 0.8s linear infinite"
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 14,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontWeight: 500
     }
   }, "Generating pattern\\u2026")), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {

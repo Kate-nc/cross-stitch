@@ -14003,7 +14003,9 @@ window.CreatorSidebar = function CreatorSidebar() {
             )
           : h(React.Fragment, null,
               h("span", {style:{fontSize:'var(--text-sm)'}}, Icons.pointing()),
-              h("span", {style:{color:"var(--accent-ink)"}}, "Select a colour to paint \u2014 or right-click the canvas")
+              h("span", {style:{color:"var(--accent-ink)"}}, (window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer())
+                ? "Select a colour to paint \u2014 or long-press a stitch"
+                : "Select a colour to paint \u2014 or right-click the canvas")
             )
       ),
       displayPal.length > 0
@@ -15999,7 +16001,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     return cv.paletteSwap.confirmView || null;
   }
 
-  // Build status text
+  // Build status text. Touch screens get touch wording (audit COMMON-06).
+  var coarse = !!(window.Platform && typeof window.Platform.isCoarsePointer === "function" && window.Platform.isCoarsePointer());
   var statusText;
   if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
@@ -16016,6 +16019,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       (cv.lassoMode === "freehand" ? "drag to paint selection." :
        cv.lassoMode === "polygon" ? "click to place anchor points. Click near start to close." :
        "click to place anchors; snaps to colour edges.");
+  } else if (coarse && (cv.stitchType === "cross" || !cv.stitchType)) {
+    // Touch screens: no right-click or keyboard; long-press opens the menu.
+    statusText = "Long-press a stitch for more options.";
   } else if (cv.stitchType === "cross") {
     if (!cv.selectedColorId) {
       statusText = "Cross stitch \u2014 select a colour in the panel, or right-click the canvas to pick one.";
@@ -16027,7 +16033,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
   } else if (cv.stitchType === "half-bck") {
     statusText = "Half stitch \\ \u2014 click cells to place.";
   } else if (cv.stitchType === "backstitch") {
-    statusText = "Backstitch \u2014 click grid intersections. Right-click to cancel.";
+    statusText = coarse
+      ? "Backstitch \u2014 tap grid intersections. Press and hold to cancel."
+      : "Backstitch \u2014 click grid intersections. Right-click to cancel.";
   } else if (cv.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {
@@ -16043,7 +16051,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",padding:"8px 12px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-2)',textAlign:"center"}
     }, "Add colours using the Colours panel on the right, then select Paint or Fill to begin."),
 
-    !app.shortcutsHintDismissed && h("div", {
+    !app.shortcutsHintDismissed && !coarse && h("div", {
       style:{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 10px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}
     },
       h("span", null, Icons.lightbulb(), " Press ", h("kbd", null, "?"), " for keyboard shortcuts"),
