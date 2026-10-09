@@ -5547,6 +5547,11 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
+  // Convert's Colour Breakdown highlights one colour in the preview: on hover
+  // with a mouse, or pinned by a tap/click so touch users get it too (audit
+  // B-17). A new preview clears the pin.
+  var _prevPin    = useState(null);  var pinnedPreviewColour = _prevPin[0], setPinnedPreviewColour = _prevPin[1];
+  useEffect(function() { setPinnedPreviewColour(null); }, [previewMapped]);
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -5676,6 +5681,9 @@ window.useCreatorState = function useCreatorState() {
   var pcRef      = useRef(null);
   var fRef       = useRef(null);
   var scrollRef  = useRef(null);
+  // creator-main.js points this at handleRequestBackToConvert (which asks
+  // first when there are edits), for the post-generate toast's action.
+  var backToConvertRef = useRef(null);
   var expRef     = useRef(null);
   var loadRef    = useRef(null);
   var prevSW     = useRef(sW);
@@ -5697,6 +5705,32 @@ window.useCreatorState = function useCreatorState() {
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
+
+  // Mask over the preview: the colour's cells lit, every other stitch dimmed.
+  // Returns a data URL, or null when there is no preview to mask.
+  function previewHighlightFor(tid) {
+    if (!tid || !previewMapped || !previewDims) return null;
+    var pw = previewDims.pw, ph = previewDims.ph;
+    var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
+    var hcx = hc.getContext("2d");
+    var hi = hcx.createImageData(pw, ph); var hd = hi.data;
+    for (var k = 0; k < previewMapped.length; k++) {
+      var kidx = k * 4, km = previewMapped[k];
+      if (km.id === tid) { hd[kidx] = 255; hd[kidx + 1] = 255; hd[kidx + 2] = 255; hd[kidx + 3] = 180; }
+      else if (km.id !== "__skip__" && km.id !== "__empty__") { hd[kidx] = 0; hd[kidx + 1] = 0; hd[kidx + 2] = 0; hd[kidx + 3] = 130; }
+    }
+    hcx.putImageData(hi, 0, 0);
+    return hc.toDataURL();
+  }
+  // Hovering shows a colour; leaving goes back to the pinned one, if any.
+  function hoverPreviewColour(tid) {
+    setPreviewHighlight(previewHighlightFor(tid || pinnedPreviewColour));
+  }
+  function togglePreviewColour(tid) {
+    var next = pinnedPreviewColour === tid ? null : tid;
+    setPinnedPreviewColour(next);
+    setPreviewHighlight(previewHighlightFor(next));
+  }
 
   // ─── Derived values ──────────────────────────────────────────────────────────
   var totalStitchable = useMemo(function() {
@@ -6168,10 +6202,14 @@ window.useCreatorState = function useCreatorState() {
     pendingFitRef.current = true;
     setBusy(false);
     // Toast on successful generation. Mentions the phase flip so users
-    // notice the sidebar tabs and canvas tools have changed; the action
-    // bar's "< Setup" button is the way back. (Polish B.)
+    // notice the sidebar tabs and canvas tools have changed; Convert is the
+    // way back, offered as the toast's action. (Polish B; audit B-06 \u2014 it
+    // used to name a "Setup" button that doesn't exist.)
     var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use Convert to revisit the image, size or palette.", {
+      type:"success", duration:5000,
+      action: { label: "Back to Convert", onClick: function() { if (backToConvertRef.current) backToConvertRef.current(); } }
+    });
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -6732,6 +6770,7 @@ window.useCreatorState = function useCreatorState() {
     previewHeatmap, setPreviewHeatmap,
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
+    pinnedPreviewColour, hoverPreviewColour, togglePreviewColour,
     previewLoading, setPreviewLoading,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
@@ -6752,7 +6791,7 @@ window.useCreatorState = function useCreatorState() {
     cleanupPendingMask, setCleanupPendingMask,
     cleanupAutoRunning, setCleanupAutoRunning,
     cleanupAutoError, setCleanupAutoError,
-    pcRef, fRef, scrollRef, expRef, loadRef,
+    pcRef, fRef, scrollRef, backToConvertRef, expRef, loadRef,
     prevSW, prevSH, isProjectLoadRef, projectIdRef, createdAtRef, trackerFieldsRef, userActedRef, stripRef,
     cleanupHandlersRef,
     denoisePendingMask, setDenoisePendingMask,
@@ -9712,7 +9751,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () { state.nudgeMove(1, 0); } },
     // View / canvas
     { id: "creator.view.cycle", keys: "v", scope: "creator.design",
-      description: "Cycle view: colour → symbol → both",
+      description: "Cycle view: colour / symbol / both",
       when: function () { return !!state.pat; },
       run: function () {
         state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });
@@ -12328,15 +12367,15 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:cv.undoEdit, disabled:!cv.editHistory.length,
       title:"Undo (Ctrl+Z)",
       "aria-label":"Undo",
-      style:{opacity:cv.editHistory.length?1:0.3}
-    }, "\u21A9"),
+      style:{opacity:cv.editHistory.length?1:0.3,fontSize:16}
+    }, window.Icons.undo()),
     h("button", {
       key:"redo", className:"tb-btn",
       onClick:cv.redoEdit, disabled:!cv.redoHistory.length,
       title:"Redo (Ctrl+Y)",
       "aria-label":"Redo",
-      style:{opacity:cv.redoHistory.length?1:0.3}
-    }, "\u21AA")
+      style:{opacity:cv.redoHistory.length?1:0.3,fontSize:16}
+    }, window.Icons.redo())
   ];
 
   // "More" panel — secondary tools + settings flyout (dropdown on desktop, bottom sheet on touch)
@@ -12709,7 +12748,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Deselect", cv.clearSelection,   { title: "Deselect all (Esc)" }),
-        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+Shift+I)" }),
         btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
@@ -12953,7 +12992,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Deselect", cv.clearSelection,  { title: "Deselect all (Esc)" }),
-        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+Shift+I)" }),
         btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
@@ -13742,7 +13781,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px 8px",cursor:"pointer",userSelect:"none"}
       },
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("span", {style:{fontSize:9,color:"var(--text-tertiary)",display:"inline-block",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {"aria-hidden":"true", style:{fontSize:12,color:"var(--text-tertiary)",display:"inline-flex",transform:palChipsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, window.Icons.chevronRight()),
           h("span", {style:{fontSize:'var(--text-sm)',fontWeight:600,color:"var(--text-secondary)"}}, "Palette")
         ),
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
@@ -14040,7 +14079,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             blendThread1 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {role:"button", tabIndex:0, "aria-label":"Remove thread 1", onClick:function(){setBlendThread1(null);},onKeyDown:function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();setBlendThread1(null);}},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2,display:"inline-flex"}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
           h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
@@ -14048,7 +14087,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             blendThread2 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
               h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {role:"button", tabIndex:0, "aria-label":"Remove thread 2", onClick:function(){setBlendThread2(null);},onKeyDown:function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();setBlendThread2(null);}},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2,display:"inline-flex"}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
         ),
@@ -14081,7 +14120,9 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+              (isSel1||isSel2)
+                ? h("span", {"aria-label":isSel1?"Thread 1":"Thread 2", style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:"50%",flexShrink:0,background:"var(--accent)",color:"var(--text-on-accent)",fontSize:10,fontWeight:700,lineHeight:1}}, isSel1?"1":"2")
+                : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
           blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
@@ -14275,7 +14316,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           },
           style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
         },
-          h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {"aria-hidden":"true", style:{fontSize:12,display:"inline-flex",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, window.Icons.chevronRight()),
           "Explore variations"
         ),
         gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
@@ -14927,8 +14968,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       }),
       app.coverageOverride!=null && h("button", {
         onClick:function(){app.setCoverageOverride(null);},
-        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)"}
-      }, "\u21BA Auto")
+        "aria-label":"Reset to automatic",
+        style:{fontSize:10,padding:"2px 6px",border:"1px solid var(--border)",borderRadius:4,background:"var(--surface)",cursor:"pointer",color:"var(--text-secondary)",display:"inline-flex",alignItems:"center",gap:3}
+      }, window.Icons.refresh(), "Auto")
     ),
     h("div", {style:{display:"flex",gap:3,marginBottom:'var(--s-3)'}},
       [["Sparse",0.25],["Standard",0.50],["Dense",0.80],["Full",0.95]].map(function(preset) {
@@ -16055,8 +16097,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     h("div", {style:{display:"flex",gap:'var(--s-1)',justifyContent:"flex-end",marginTop:'var(--s-1)',marginBottom:'var(--s-1)'}},
       cv.hiId && h("button", {
         onClick: function(){cv.setHiId(null);},
-        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer"}
-      }, "Clear \u2715")
+        style:{fontSize:'var(--text-xs)',padding:"4px 10px",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-sm)',background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:4}
+      }, "Clear", window.Icons.x())
     ),
 
   );

@@ -572,10 +572,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: sweeping ? "#B85C38" : "#FBF8F3",
-      color: sweeping ? "#fff" : "#5C5448",
+      background: sweeping ? "var(--accent)" : "var(--surface-secondary)",
+      color: sweeping ? "#fff" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, sweeping ? /*#__PURE__*/React.createElement(React.Fragment, null, Icons.pause(), " Pause") : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.play(), " Auto-sweep")), /*#__PURE__*/React.createElement("button", {
@@ -590,10 +590,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (zoomLocked ? "#A04E11" : "#E5DCCB"),
+      border: "0.5px solid " + (zoomLocked ? "var(--accent-hover)" : "var(--line)"),
       borderRadius: 6,
-      background: zoomLocked ? "#F8EFD8" : "#FBF8F3",
-      color: zoomLocked ? "#A04E11" : "#5C5448",
+      background: zoomLocked ? "var(--warning-soft)" : "var(--surface-secondary)",
+      color: zoomLocked ? "var(--accent-hover)" : "var(--text-secondary)",
       fontWeight: 500,
       display: "inline-flex",
       alignItems: "center",
@@ -610,10 +610,10 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (showDiff ? "#A04E11" : "#E5DCCB"),
+      border: "0.5px solid " + (showDiff ? "var(--accent-hover)" : "var(--line)"),
       borderRadius: 6,
-      background: showDiff ? "#F8EFD8" : "#FBF8F3",
-      color: showDiff ? "#A04E11" : "#5C5448",
+      background: showDiff ? "var(--warning-soft)" : "var(--surface-secondary)",
+      color: showDiff ? "var(--accent-hover)" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, showDiff ? "Hide changes" : "Show changes"), heatmapSrc && /*#__PURE__*/React.createElement("button", {
@@ -627,16 +627,16 @@ function ComparisonSlider({
       fontSize: 11,
       padding: "3px 10px",
       cursor: "pointer",
-      border: "0.5px solid " + (showHeatmap ? "#A53D3D" : "#E5DCCB"),
+      border: "0.5px solid " + (showHeatmap ? "var(--danger)" : "var(--line)"),
       borderRadius: 6,
-      background: showHeatmap ? "#FCEFEF" : "#FBF8F3",
-      color: showHeatmap ? "#A53D3D" : "#5C5448",
+      background: showHeatmap ? "var(--danger-soft)" : "var(--surface-secondary)",
+      color: showHeatmap ? "var(--danger)" : "var(--text-secondary)",
       fontWeight: 500
     }
   }, showHeatmap ? "Hide heatmap" : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.fire(), " Heatmap")), !zoomLocked && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Hold Alt to zoom")));
 }
@@ -873,6 +873,7 @@ function CreatorApp({
       state.setTab("pattern");
     }
   }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+  state.backToConvertRef.current = handleRequestBackToConvert;
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function () {
@@ -1482,6 +1483,12 @@ function CreatorApp({
   }, [state.sidebarTab, _coach.active]);
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // Coach-mark copy follows the device: under 900px the Palette tab is in the
+  // bottom sheet, not on the right, and touch users tap rather than click.
+  const _coachWide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
+  const _coachTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const _paletteWhere = _coachWide ? 'the Palette tab on the right' : 'the Palette tab at the bottom of the screen';
+  const _tapOrClick = _coachTouch ? 'tap' : 'click';
   return /*#__PURE__*/React.createElement(window.GenerationContext.Provider, {
     value: genCtx
   }, /*#__PURE__*/React.createElement(window.AppContext.Provider, {
@@ -1730,12 +1737,12 @@ function CreatorApp({
     className: "cs-page-content"
   }, state.loadError && /*#__PURE__*/React.createElement("div", {
     style: {
-      background: "#FCEFEF",
+      background: "var(--danger-soft)",
       border: "1px solid #ECC8C8",
       borderRadius: 8,
       padding: "8px 14px",
       fontSize: 12,
-      color: "#A53D3D",
+      color: "var(--danger)",
       marginBottom: 12
     }
   }, state.loadError), !state.img && !state.pat && (state.isUploading || window.__pendingCreatorFile || window.__pendingCreatorAction || window.__pendingCreatorJsonFile) && /*#__PURE__*/React.createElement("div", {
@@ -1748,15 +1755,15 @@ function CreatorApp({
       flexDirection: "column",
       alignItems: "center",
       gap: 14,
-      color: "#5C5448"
+      color: "var(--text-secondary)"
     },
     "aria-live": "polite"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       width: 32,
       height: 32,
-      border: "2.5px solid #E5DCCB",
-      borderTopColor: "#B85C38",
+      border: "2.5px solid var(--line)",
+      borderTopColor: "var(--accent)",
       borderRadius: "50%",
       animation: "spin 0.9s linear infinite"
     },
@@ -1772,9 +1779,9 @@ function CreatorApp({
       margin: "40px auto",
       textAlign: "center",
       padding: "40px",
-      border: state.isDragging ? "2px dashed #B85C38" : "2px dashed transparent",
+      border: state.isDragging ? "2px dashed var(--accent)" : "2px dashed transparent",
       borderRadius: "16px",
-      background: state.isDragging ? "#F4DDCF" : "transparent",
+      background: state.isDragging ? "var(--accent-light)" : "transparent",
       transition: "all 0.2s"
     },
     onDragOver: e => {
@@ -1813,13 +1820,13 @@ function CreatorApp({
     style: {
       fontSize: 28,
       fontWeight: 700,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 8
     }
   }, "Start a new pattern"), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 15,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       marginBottom: 32
     }
   }, "Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working."), /*#__PURE__*/React.createElement("div", {
@@ -1861,12 +1868,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Create New Pattern"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Upload an image, PDF, or pattern file"))), /*#__PURE__*/React.createElement("div", {
@@ -1888,12 +1895,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Load Existing Project"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Open a saved JSON, .oxs, .xml or PDF"))), /*#__PURE__*/React.createElement("div", {
@@ -1917,12 +1924,12 @@ function CreatorApp({
     style: {
       fontWeight: 600,
       fontSize: 18,
-      color: "#1B1814",
+      color: "var(--text-primary)",
       marginBottom: 4
     }
   }, "Design from Scratch"), /*#__PURE__*/React.createElement("div", {
     style: {
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontSize: 14
     }
   }, "Start with a blank grid and paint by hand"))))), /*#__PURE__*/React.createElement("input", {
@@ -1981,17 +1988,17 @@ function CreatorApp({
       padding: "7px 12px 4px",
       fontSize: 11,
       fontWeight: 600,
-      color: "#5C5448"
+      color: "var(--text-secondary)"
     }
   }, "Original Image"), state.pickBg && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 12px",
       fontSize: 11,
-      color: "#9a3412",
+      color: "var(--accent-hover)",
       fontWeight: 600,
-      background: "#F8EFD8",
-      borderTop: "1px solid #E5C99A",
-      borderBottom: "1px solid #E5C99A",
+      background: "var(--warning-soft)",
+      borderTop: "1px solid var(--warning)",
+      borderBottom: "1px solid var(--warning)",
       display: "flex",
       alignItems: "center",
       gap: 8
@@ -2006,10 +2013,10 @@ function CreatorApp({
     style: {
       fontSize: 10,
       padding: "2px 7px",
-      border: "1px solid #D4A570",
+      border: "1px solid var(--warning)",
       borderRadius: 6,
-      background: "#fff",
-      color: "#9a3412",
+      background: "var(--surface)",
+      color: "var(--accent-hover)",
       cursor: "pointer",
       fontWeight: 600
     }
@@ -2028,12 +2035,12 @@ function CreatorApp({
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      borderTop: "0.5px solid #EFE7D6"
+      borderTop: "0.5px solid var(--line)"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, state.origW, "\xD7", state.origH, "px"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2049,9 +2056,9 @@ function CreatorApp({
       fontSize: 10,
       padding: "2px 7px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: "#FBF8F3"
+      background: "var(--surface-secondary)"
     }
   }, "Crop"), /*#__PURE__*/React.createElement("button", {
     onClick: () => state.fRef.current.click(),
@@ -2059,9 +2066,9 @@ function CreatorApp({
       fontSize: 10,
       padding: "2px 7px",
       cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
-      background: "#FBF8F3"
+      background: "var(--surface-secondary)"
     }
   }, "Change"))))), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2076,7 +2083,7 @@ function CreatorApp({
     style: {
       padding: "24px 16px",
       textAlign: "center",
-      color: "#A89E89",
+      color: "var(--text-tertiary)",
       fontSize: 12
     }
   }, "Adjust settings and generate a pattern to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement("div", {
@@ -2088,9 +2095,9 @@ function CreatorApp({
       padding: "6px 10px",
       fontSize: 11,
       fontWeight: 500,
-      color: "#A04E11",
-      background: "#F8EFD8",
-      border: "0.5px solid #E5DCCB",
+      color: "var(--accent-hover)",
+      background: "var(--warning-soft)",
+      border: "0.5px solid var(--line)",
       borderRadius: 6,
       display: "flex",
       alignItems: "center",
@@ -2108,7 +2115,7 @@ function CreatorApp({
       padding: "8px 14px 4px",
       fontSize: 12,
       fontWeight: 600,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between"
@@ -2128,13 +2135,13 @@ function CreatorApp({
       display: "inline-flex",
       width: 12,
       height: 12,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, Icons.spinner())), state.previewDims && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       fontWeight: 500,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, state.previewDims.pw, "\xD7", state.previewDims.ph, " px", state.previewDims.pw === state.sW ? " — full res" : " — " + Math.round(state.previewDims.pw / state.sW * 100) + "%"), state.stitchCleanup && state.stitchCleanup.enabled && state.previewUrl && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -2150,9 +2157,9 @@ function CreatorApp({
       padding: "3px 8px",
       borderRadius: 6,
       cursor: "pointer",
-      border: state.showCleanupDiff ? "1px solid #B85C38" : "0.5px solid #E5DCCB",
-      background: state.showCleanupDiff ? "#F4DDCF" : "#fff",
-      color: state.showCleanupDiff ? "#B85C38" : "#5C5448",
+      border: state.showCleanupDiff ? "1px solid var(--accent)" : "0.5px solid var(--line)",
+      background: state.showCleanupDiff ? "var(--accent-light)" : "var(--surface)",
+      color: state.showCleanupDiff ? "var(--accent)" : "var(--text-secondary)",
       fontWeight: state.showCleanupDiff ? 600 : 400,
       display: "flex",
       alignItems: "center",
@@ -2181,7 +2188,7 @@ function CreatorApp({
     style: {
       fontSize: 11,
       fontWeight: 600,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       textTransform: "uppercase",
       marginBottom: 8
     }
@@ -2194,79 +2201,79 @@ function CreatorApp({
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Stitchable"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.stitchable.toLocaleString('en-GB'))), state.skipBg && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Skipped"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.skipped.toLocaleString('en-GB'))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Colours"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.uniqueColors)), state.previewStats.stashUsage && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Stash usage"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#B85C38"
+      color: "var(--accent)"
     }
   }, state.previewStats.stashUsage.used, " of ", state.previewStats.stashUsage.available)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Skeins (", state.fabricCt, "ct)"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, state.previewStats.estSkeins)), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Time"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, fmtTimeL(Math.round(state.previewStats.stitchable / state.stitchSpeed * 3600)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
-      color: "#A89E89"
+      color: "var(--text-tertiary)"
     }
   }, "Thread Cost"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
-      color: "#1B1814"
+      color: "var(--text-primary)"
     }
   }, "\xA3", (state.previewStats.estSkeins * state.skeinPrice).toFixed(2)))), state.previewStats.confettiPct != null && (() => {
     const t = confettiTier(state.previewStats.confettiPct);
@@ -2281,7 +2288,7 @@ function CreatorApp({
       style: {
         marginTop: 10,
         paddingTop: 10,
-        borderTop: "0.5px solid #E5DCCB"
+        borderTop: "0.5px solid var(--line)"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2294,7 +2301,7 @@ function CreatorApp({
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
-        color: "#A89E89",
+        color: "var(--text-tertiary)",
         textTransform: "uppercase",
         fontWeight: 600
       }
@@ -2317,7 +2324,7 @@ function CreatorApp({
       style: {
         flex: 1,
         height: 5,
-        background: "#E5DCCB",
+        background: "var(--line)",
         borderRadius: 3,
         overflow: "hidden"
       }
@@ -2338,7 +2345,7 @@ function CreatorApp({
     }, state.previewStats.confettiSingles.toLocaleString('en-GB'), " (", state.previewStats.confettiPct.toFixed(1), "%)")), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10,
-        color: "#A89E89",
+        color: "var(--text-tertiary)",
         marginTop: 4
       }
     }, tips[t.label] || "", state.previewStats.confettiCleanSingles != null && state.previewStats.confettiCleanSingles < state.previewStats.confettiSingles ? ` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup` : ""));
@@ -2346,13 +2353,13 @@ function CreatorApp({
     style: {
       marginTop: 12,
       paddingTop: 12,
-      borderTop: "0.5px solid #E5DCCB"
+      borderTop: "0.5px solid var(--line)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 10,
       fontWeight: 600,
-      color: "#A89E89",
+      color: "var(--text-tertiary)",
       textTransform: "uppercase",
       marginBottom: 6
     }
@@ -2361,7 +2368,7 @@ function CreatorApp({
       fontWeight: 400,
       textTransform: "none"
     }
-  }, "(hover to highlight)")), /*#__PURE__*/React.createElement("div", {
+  }, window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? "(tap a colour to highlight)" : "(hover or click to highlight)")), /*#__PURE__*/React.createElement("div", {
     style: {
       maxHeight: 200,
       overflowY: "auto",
@@ -2372,47 +2379,33 @@ function CreatorApp({
   }, state.previewColors.map(function (pcol) {
     var sf = state.previewDims ? state.sW * state.sH / (state.previewDims.pw * state.previewDims.ph) : 1;
     var n = findThreadInCatalog('dmc', pcol.id);
-    return /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
       key: pcol.id,
+      className: "convert-breakdown-row",
+      "aria-pressed": state.pinnedPreviewColour === pcol.id,
+      "aria-label": "Highlight " + pcol.id + (n ? " " + n.name : "") + " in the preview",
       style: {
         display: "flex",
         alignItems: "center",
         gap: 6,
         padding: "3px 4px",
         borderRadius: 4,
-        cursor: "default"
+        cursor: "pointer",
+        width: "100%",
+        textAlign: "left",
+        font: "inherit",
+        border: "none",
+        background: state.pinnedPreviewColour === pcol.id ? "var(--accent-light)" : "transparent"
+      },
+      onClick: function () {
+        state.togglePreviewColour(pcol.id);
       },
       onMouseEnter: function () {
-        if (!state.previewMapped || !state.previewDims) return;
-        var pw = state.previewDims.pw,
-          ph = state.previewDims.ph;
-        var hc = document.createElement('canvas');
-        hc.width = pw;
-        hc.height = ph;
-        var hcx = hc.getContext('2d');
-        var hi = hcx.createImageData(pw, ph);
-        var hd = hi.data;
-        var tid = pcol.id;
-        for (var k = 0; k < state.previewMapped.length; k++) {
-          var kidx = k * 4;
-          var km = state.previewMapped[k];
-          if (km.id === tid) {
-            hd[kidx] = 255;
-            hd[kidx + 1] = 255;
-            hd[kidx + 2] = 255;
-            hd[kidx + 3] = 180;
-          } else if (km.id !== '__skip__' && km.id !== '__empty__') {
-            hd[kidx] = 0;
-            hd[kidx + 1] = 0;
-            hd[kidx + 2] = 0;
-            hd[kidx + 3] = 130;
-          }
-        }
-        hcx.putImageData(hi, 0, 0);
-        state.setPreviewHighlight(hc.toDataURL());
+        state.hoverPreviewColour(pcol.id);
       },
       onMouseLeave: function () {
-        state.setPreviewHighlight(null);
+        state.hoverPreviewColour(null);
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2427,14 +2420,14 @@ function CreatorApp({
       style: {
         fontSize: 10,
         fontWeight: 600,
-        color: "#5C5448",
+        color: "var(--text-secondary)",
         flexShrink: 0,
         minWidth: 28
       }
     }, pcol.id), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
-        color: "#A89E89",
+        color: "var(--text-tertiary)",
         flex: 1,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -2444,7 +2437,7 @@ function CreatorApp({
       style: {
         fontSize: 10,
         fontWeight: 600,
-        color: "#1B1814",
+        color: "var(--text-primary)",
         flexShrink: 0
       }
     }, Math.round(pcol.count * sf).toLocaleString('en-GB')));
@@ -2553,21 +2546,21 @@ function CreatorApp({
     style: {
       width: 32,
       height: 32,
-      border: "3px solid #E5DCCB",
-      borderTopColor: "#B85C38",
+      border: "3px solid var(--line)",
+      borderTopColor: "var(--accent)",
       borderRadius: "50%",
       animation: "spin 0.8s linear infinite"
     }
   }), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 14,
-      color: "#5C5448",
+      color: "var(--text-secondary)",
       fontWeight: 500
     }
   }, "Generating pattern\\u2026")), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',
-    body: state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.' : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+    body: state.isScratchMode && !(state.pal && state.pal.length) ? 'Add a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the grid to paint it.' : 'Choose a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the chart to paint it.',
     placement: 'inside-bottom',
     target: '.canvas-area',
     showHighlight: false,
@@ -2579,7 +2572,7 @@ function CreatorApp({
     id: 'toolsTab_unlocked',
     target: '.creator-sidebar-tab[data-tab-id="tools"]',
     title: 'Tools and View are now unlocked',
-    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+    body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Convert, for the image, size and palette, is one ' + _tapOrClick + ' away.',
     placement: 'left',
     showHighlight: true,
     completeOnTargetClick: true,

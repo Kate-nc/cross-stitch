@@ -150,7 +150,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Deselect", cv.clearSelection,   { title: "Deselect all (Esc)" }),
-        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("Invert",   cv.invertSelection,  { title: "Invert selection (Ctrl+Shift+I)" }),
         btn("All",      cv.selectAll,        { title: "Select all stitches (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),
@@ -394,7 +394,7 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-sdiv" }),
       h("div", { className: "tb-grp" },
         btn("Deselect", cv.clearSelection,  { title: "Deselect all (Esc)" }),
-        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+\u21E7+I)" }),
+        btn("Invert",   cv.invertSelection, { title: "Invert selection (Ctrl+Shift+I)" }),
         btn("All",      cv.selectAll,       { title: "Select all (Ctrl+A)" })
       ),
       h("div", { className: "tb-sdiv" }),

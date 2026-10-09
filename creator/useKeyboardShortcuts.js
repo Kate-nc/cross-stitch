@@ -181,7 +181,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       run: function () { state.nudgeMove(1, 0); } },
     // View / canvas
     { id: "creator.view.cycle", keys: "v", scope: "creator.design",
-      description: "Cycle view: colour → symbol → both",
+      description: "Cycle view: colour / symbol / both",
       when: function () { return !!state.pat; },
       run: function () {
         state.setView(function (v) { return v === "color" ? "symbol" : v === "symbol" ? "both" : "color"; });

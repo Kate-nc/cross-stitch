@@ -45,7 +45,7 @@
           heading: "Starting a pattern",
           body: "Start from Home > Create new. New from pattern file accepts an image (JPG, PNG, GIF, WebP or BMP), a saved .json project, an .oxs file or a PDF chart; New from scratch opens a blank grid. Inside the Creator you can also use File > Open….",
           bullets: [
-            ["Image, Dimensions and Palette tabs", "Until a pattern has been generated, the sidebar shows how the image will be converted: adjust the image, set the size in stitches and the fabric count, then choose the colours. The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
+            ["Convert settings", "Until a pattern has been generated, the settings panel shows how the image will be converted, in sections: Image, Background, Output (size and fabric), Palette, Quality and Project. The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
             ["Max colours", "Limits the palette to between 2 and 100 colours, to keep the project manageable."],
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
             ["Dithering", "Off maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
@@ -57,7 +57,7 @@
         },
         {
           heading: "Painting and editing stitches",
-          body: "Once a pattern exists, the Tools and View tabs unlock in the sidebar. Choose a colour in the Palette tab, then pick a tool. Painting, filling and erasing are all undoable with Ctrl+Z.",
+          body: "Generate switches to Edit, where the Palette, Tools and View tabs are. Choose a colour in the Palette tab, then pick a tool. Use Convert to go back to the image, size or palette. Painting, filling and erasing are all undoable with Ctrl+Z.",
           bullets: [
             ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches in the tool strip. Press T to step through the stitch types."],
             ["Paint (P) and Fill (F)", "Paint colours the stitches you click or drag across; Fill colours a whole connected area."],

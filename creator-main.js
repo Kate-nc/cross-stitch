@@ -231,23 +231,23 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
         <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:sweeping?"var(--accent)":"var(--surface-secondary)",color:sweeping?"#fff":"var(--text-secondary)",fontWeight:500}}>
           {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
         </button>
         <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
           title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"var(--accent-hover)":"var(--line)"),borderRadius:6,background:zoomLocked?"var(--warning-soft)":"var(--surface-secondary)",color:zoomLocked?"var(--accent-hover)":"var(--text-secondary)",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
           {Icons.magnify()} Magnifier
         </button>
         {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"var(--accent-hover)":"var(--line)"),borderRadius:6,background:showDiff?"var(--warning-soft)":"var(--surface-secondary)",color:showDiff?"var(--accent-hover)":"var(--text-secondary)",fontWeight:500}}>
           {showDiff?"Hide changes":"Show changes"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
+          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"var(--danger)":"var(--line)"),borderRadius:6,background:showHeatmap?"var(--danger-soft)":"var(--surface-secondary)",color:showHeatmap?"var(--danger)":"var(--text-secondary)",fontWeight:500}}>
           {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
         </button>}
-        {!zoomLocked&&<span style={{fontSize:10,color:"#A89E89"}}>Hold Alt to zoom</span>}
+        {!zoomLocked&&<span style={{fontSize:10,color:"var(--text-tertiary)"}}>Hold Alt to zoom</span>}
       </div>
     </div>
   );
@@ -414,6 +414,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       state.setTab("pattern");
     }
   }, [state.editHistory, state.setConfirmBackToConvert, state.setAppMode, state.setTab]);
+  state.backToConvertRef.current = handleRequestBackToConvert;
 
   // ── GenerationContext value (image-to-pattern generation params & callbacks) ──
   const genCtx = useMemo(function() { return {
@@ -881,6 +882,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }, [state.sidebarTab, _coach.active]);
   const _showFirstStitchCoach = _coachReady && !_coachBlocked && _coach.active === 'firstStitch_creator';
   const _showToolsUnlockedCoach = _coachReady && !_coachBlocked && _coach.active === 'toolsTab_unlocked';
+  // Coach-mark copy follows the device: under 900px the Palette tab is in the
+  // bottom sheet, not on the right, and touch users tap rather than click.
+  const _coachWide = !window.matchMedia || window.matchMedia('(min-width: 900px)').matches;
+  const _coachTouch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const _paletteWhere = _coachWide ? 'the Palette tab on the right' : 'the Palette tab at the bottom of the screen';
+  const _tapOrClick = _coachTouch ? 'tap' : 'click';
 
   return (
     <window.GenerationContext.Provider value={genCtx}>
@@ -1067,7 +1074,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       />}
       <window.CreatorToolStrip/>
       <div className="cs-page-content">
-        {state.loadError&&<div style={{background:"#FCEFEF",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"#A53D3D",marginBottom:12}}>{state.loadError}</div>}
+        {state.loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid #ECC8C8",borderRadius:8,padding:"8px 14px",fontSize:12,color:"var(--danger)",marginBottom:12}}>{state.loadError}</div>}
         {/* Hide the legacy "Welcome to stitchx" card
             while a /home handoff is in flight (image being decoded, scratch
             project being built, JSON being loaded). Without this guard the
@@ -1076,32 +1083,32 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             carry an action= deep link (e.g. someone clicked "New project"
             inside the Creator and resetAll wiped the canvas). */}
         {!state.img&&!state.pat&&(state.isUploading||window.__pendingCreatorFile||window.__pendingCreatorAction||window.__pendingCreatorJsonFile)&&<div
-            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"#5C5448"}}
+            style={{maxWidth:700,margin:"80px auto",textAlign:"center",padding:"40px",display:"flex",flexDirection:"column",alignItems:"center",gap:14,color:"var(--text-secondary)"}}
             aria-live="polite">
-          <div style={{width:32,height:32,border:"2.5px solid #E5DCCB",borderTopColor:"#B85C38",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
+          <div style={{width:32,height:32,border:"2.5px solid var(--line)",borderTopColor:"var(--accent)",borderRadius:"50%",animation:"spin 0.9s linear infinite"}} aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
         </div>}
         {!state.img&&!state.pat&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&<div
-            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed #B85C38":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"#F4DDCF":"transparent",transition:"all 0.2s"}}
+            style={{maxWidth:700,margin:"40px auto",textAlign:"center",padding:"40px",border:state.isDragging?"2px dashed var(--accent)":"2px dashed transparent",borderRadius:"16px",background:state.isDragging?"var(--accent-light)":"transparent",transition:"all 0.2s"}}
             onDragOver={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragEnter={(e)=>{e.preventDefault();state.setIsDragging(true);}}
             onDragLeave={(e)=>{e.preventDefault();state.setIsDragging(false);}}
             onDrop={(e)=>{e.preventDefault();state.setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0){var df=e.dataTransfer.files[0];var dn=(df.name||'').toLowerCase();var dImg=(df.type||'').indexOf('image/')===0;var dPat=!dImg&&/\.(oxs|xml|json|pdf)$/i.test(dn);if(dPat&&window.ImportEngine&&typeof window.ImportEngine.importAndReview==='function'){window.ImportEngine.importAndReview(df,{navigateTo:'create.html?from=home'}).catch(function(err){console.error('[creator] Import failed:',err);});}else{io.handleFile(df);}e.dataTransfer.clearData();}}}
           >
-          <h1 style={{fontSize:28,fontWeight:700,color:"#1B1814",marginBottom:8}}>Start a new pattern</h1>
-          <p style={{fontSize:15,color:"#5C5448",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
+          <h1 style={{fontSize:28,fontWeight:700,color:"var(--text-primary)",marginBottom:8}}>Start a new pattern</h1>
+          <p style={{fontSize:15,color:"var(--text-secondary)",marginBottom:32}}>Drop an image anywhere here, pick one with the tile below, or load a saved project to keep working.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))",gap:24}}>
             <div onClick={()=>state.fRef.current.click()} className="upload-area" style={{position:"relative"}}>
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Create New Pattern</div><div style={{color:"#5C5448",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Create New Pattern</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Upload an image, PDF, or pattern file</div></div>
             </div>
             <div onClick={()=>state.loadRef.current.click()} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Load Existing Project</div><div style={{color:"#5C5448",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Load Existing Project</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Open a saved JSON, .oxs, .xml or PDF</div></div>
             </div>
             <div onClick={state.startScratch} className="upload-area">
               <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              <div><div style={{fontWeight:600,fontSize:18,color:"#1B1814",marginBottom:4}}>Design from Scratch</div><div style={{color:"#5C5448",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
+              <div><div style={{fontWeight:600,fontSize:18,color:"var(--text-primary)",marginBottom:4}}>Design from Scratch</div><div style={{color:"var(--text-secondary)",fontSize:14}}>Start with a blank grid and paint by hand</div></div>
             </div>
           </div>
         </div>}
@@ -1132,46 +1139,46 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {/* Left: source image with crop / change controls */}
               <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
                 <div className="card" style={{overflow:"hidden"}}>
-                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"#5C5448"}}>Original Image</div>
-                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"#9a3412",fontWeight:600,background:"#F8EFD8",borderTop:"1px solid #E5C99A",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>Original Image</div>
+                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--accent-hover)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--warning)",borderBottom:"1px solid var(--warning)",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
-                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid #D4A570",borderRadius:6,background:"#fff",color:"#9a3412",cursor:"pointer",fontWeight:600}}>Cancel</button>
+                    <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:10,padding:"2px 7px",border:"1px solid var(--warning)",borderRadius:6,background:"var(--surface)",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}}>Cancel</button>
                   </div>}
                   <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.pickBg?"crosshair":"default"}} onClick={canvas.srcClick}/>
-                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid #EFE7D6"}}>
-                    <span style={{fontSize:10,color:"#A89E89"}}>{state.origW}×{state.origH}px</span>
+                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--line)"}}>
+                    <span style={{fontSize:10,color:"var(--text-tertiary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Crop</button>
-                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:"#FBF8F3"}}>Change</button>
+                      <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface-secondary)"}}>Crop</button>
+                      <button onClick={()=>state.fRef.current.click()} style={{fontSize:10,padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface-secondary)"}}>Change</button>
                     </div>
                   </div>
                 </div>
               </div>
               {/* Right: preview comparison or placeholder */}
               <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
-                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"#A89E89",fontSize:12}}>
+                {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-tertiary)",fontSize:12}}>
                   Adjust settings and generate a pattern to see a preview here.
                 </div>}
                 {state.previewUrl&&<div className="card">
                   {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
-                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"#A04E11",background:"#F8EFD8",border:"0.5px solid #E5DCCB",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
+                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"var(--accent-hover)",background:"var(--warning-soft)",border:"0.5px solid var(--line)",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
                       <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
                       No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
                     </div>
                   )}
-                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"#5C5448",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
                       Preview
-                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"#A89E89"}}>{Icons.spinner()}</span>}
+                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"var(--text-tertiary)"}}>{Icons.spinner()}</span>}
                     </span>
-                    {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"#A89E89"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
+                    {state.previewDims&&<span style={{fontSize:10,fontWeight:500,color:"var(--text-tertiary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
                                 {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
                                   <button
                                     onClick={()=>state.setShowCleanupDiff(d=>!d)}
                                     style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-                                      border:state.showCleanupDiff?"1px solid #B85C38":"0.5px solid #E5DCCB",
-                                      background:state.showCleanupDiff?"#F4DDCF":"#fff",
-                                      color:state.showCleanupDiff?"#B85C38":"#5C5448",
+                                      border:state.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--line)",
+                                      background:state.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+                                      color:state.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
                                       fontWeight:state.showCleanupDiff?600:400,
                                       display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
                                   >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
@@ -1182,63 +1189,56 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   </div>
                 </div>}
                 {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"#5C5448",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
+                  <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:10,color:"#A89E89"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.uniqueColors}</div></div>
-                    {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"#A89E89"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"#B85C38"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:10,color:"#A89E89"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"#1B1814"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
+                    {state.skipBg&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
+                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Colours</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
+                    {state.previewStats.stashUsage&&<div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
+                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
+                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
+                    <div><div style={{fontSize:10,color:"var(--text-tertiary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
                   </div>
                   {state.previewStats.confettiPct!=null&&(()=>{
                     const t=confettiTier(state.previewStats.confettiPct);
                     const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
                     return(
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid #E5DCCB"}}>
+                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid var(--line)"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:10,color:"#A89E89",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
+                          <span style={{fontSize:10,color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
                           <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{flex:1,height:5,background:"#E5DCCB",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{flex:1,height:5,background:"var(--line)",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
                           </div>
                           <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
                         </div>
-                        <div style={{fontSize:10,color:"#A89E89",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+                        <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
                       </div>
                     );
                   })()}
-                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid #E5DCCB"}}>
-                    <div style={{fontSize:10,fontWeight:600,color:"#A89E89",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
+                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>{window.matchMedia&&window.matchMedia('(pointer: coarse)').matches?"(tap a colour to highlight)":"(hover or click to highlight)"}</span></div>
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                       {state.previewColors.map(function(pcol){
                         var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
                         var n=findThreadInCatalog('dmc',pcol.id);
                         return(
-                          <div key={pcol.id}
-                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
-                            onMouseEnter={function(){
-                              if(!state.previewMapped||!state.previewDims)return;
-                              var pw=state.previewDims.pw,ph=state.previewDims.ph;
-                              var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
-                              var hcx=hc.getContext('2d');
-                              var hi=hcx.createImageData(pw,ph);var hd=hi.data;
-                              var tid=pcol.id;
-                              for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
-                                if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
-                                else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
-                              }
-                              hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
-                            }}
-                            onMouseLeave={function(){state.setPreviewHighlight(null);}}>
+                          <button type="button" key={pcol.id}
+                            className="convert-breakdown-row"
+                            aria-pressed={state.pinnedPreviewColour===pcol.id}
+                            aria-label={"Highlight "+pcol.id+(n?" "+n.name:"")+" in the preview"}
+                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"pointer",width:"100%",textAlign:"left",font:"inherit",border:"none",
+                              background:state.pinnedPreviewColour===pcol.id?"var(--accent-light)":"transparent"}}
+                            onClick={function(){state.togglePreviewColour(pcol.id);}}
+                            onMouseEnter={function(){state.hoverPreviewColour(pcol.id);}}
+                            onMouseLeave={function(){state.hoverPreviewColour(null);}}>
                             <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid rgba(0,0,0,0.12)"}}/>
-                            <span style={{fontSize:10,fontWeight:600,color:"#5C5448",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                            <span style={{fontSize:10,color:"#A89E89",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                            <span style={{fontSize:10,fontWeight:600,color:"#1B1814",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
-                          </div>
+                            <span style={{fontSize:10,fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
+                            <span style={{fontSize:10,color:"var(--text-tertiary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
+                            <span style={{fontSize:10,fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
+                          </button>
                         );
                       })}
                     </div>
@@ -1280,19 +1280,19 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         flexDirection:"column",gap:12
       }}>
         <div style={{
-          width:32,height:32,border:"3px solid #E5DCCB",
-          borderTopColor:"#B85C38",borderRadius:"50%",
+          width:32,height:32,border:"3px solid var(--line)",
+          borderTopColor:"var(--accent)",borderRadius:"50%",
           animation:"spin 0.8s linear infinite"
         }}/>
-        <div style={{fontSize:14,color:"#5C5448",fontWeight:500}}>Generating pattern\u2026</div>
+        <div style={{fontSize:14,color:"var(--text-secondary)",fontWeight:500}}>Generating pattern\u2026</div>
       </div>}
       <window.CreatorToastContainer/>
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',
         title: 'Paint your first stitch',
         body: state.isScratchMode && !(state.pal && state.pal.length)
-          ? 'Add a colour in the Palette tab on the right, then click a square on the grid to paint it.'
-          : 'Choose a colour in the Palette tab on the right, then click a square on the chart to paint it.',
+          ? 'Add a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the grid to paint it.'
+          : 'Choose a colour in ' + _paletteWhere + ', then ' + _tapOrClick + ' a square on the chart to paint it.',
         placement: 'inside-bottom',
         target: '.canvas-area',
         showHighlight: false,
@@ -1305,7 +1305,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         id: 'toolsTab_unlocked',
         target: '.creator-sidebar-tab[data-tab-id="tools"]',
         title: 'Tools and View are now unlocked',
-        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Image, Dimensions and Palette stay one click away.',
+        body: 'Open the highlighted Tools tab to paint, fill, select, add part stitches and draw backstitch. Convert, for the image, size and palette, is one ' + _tapOrClick + ' away.',
         placement: 'left',
         showHighlight: true,
         completeOnTargetClick: true,
