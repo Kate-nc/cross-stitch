@@ -16,6 +16,20 @@ describe('options', () => {
     expect(o[1].current).toBe(true);
   });
 
+  test('with the aspect lock, the height is the one chgW gives for the width', () => {
+    // chgW: h = clamp(round(w / ar)). 100 x 67 at 1.5: +25% is 125 x 83, not 125 x 84.
+    const o = C.compareOptionsFor('size', { sW: 100, sH: 67, ar: 1.5, arLock: true });
+    expect(o[2].values).toEqual({ sW: 125, sH: 83 });
+    expect(o[0].values).toEqual({ sW: 75, sH: 50 });
+    const chgW = (w, ar) => ({ sW: Math.max(10, Math.min(500, w)), sH: Math.max(10, Math.min(500, Math.round(w / ar))) });
+    for (const x of [o[0], o[2]]) expect(x.values).toEqual(chgW(x.values.sW, 1.5));
+    // Near the limit too.
+    const near = C.compareOptionsFor('size', { sW: 450, sH: 225, ar: 2, arLock: true })[2].values;
+    expect(near).toEqual(chgW(500, 2));
+    // Unlocked, each side scales on its own.
+    expect(C.compareOptionsFor('size', { sW: 100, sH: 67, ar: 1.5, arLock: false })[2].values).toEqual({ sW: 125, sH: 84 });
+  });
+
   test('Threads: −5, current, +5', () => {
     const o = C.compareOptionsFor('threads', { sW: 100, sH: 80, maxC: 15 });
     expect(o.map((x) => x.values.maxC)).toEqual([10, 15, 20]);
@@ -69,12 +83,19 @@ describe('reduced preview size and stats', () => {
     expect(C.comparePreviewDims(200, 200)).toEqual({ pw: 100, ph: 100 });
     const d = C.comparePreviewDims(500, 125);
     expect(d.pw * d.ph).toBeLessThanOrEqual(10000);
+    // Rounded down: 22 x 475 used to give 22 x 465 (10,230 cells).
+    const t = C.comparePreviewDims(22, 475);
+    expect(t.pw * t.ph).toBeLessThanOrEqual(10000);
   });
 
-  test('stats scale stitches to the full size and estimate hours', () => {
+  test('stats scale stitches to the full size; hours come from the current stitching speed', () => {
     const pal = [{ id: '310', count: 10 }, { id: '310+550', type: 'blend', count: 5 }];
-    const s = C.compareStats(pal, 5000, 1, { w: 200, h: 200 }, { pw: 100, ph: 100 }, 40);
-    expect(s).toEqual({ stitches: 20000, threads: 2, hours: 500, tier: 'Excellent' });
+    const s = C.compareStats(pal, 5000, 1, { w: 200, h: 200 }, { pw: 100, ph: 100 });
+    expect(s).toEqual({ stitches: 20000, threads: 2, tier: 'Excellent' });
+    // Not cached with the preview, so changing the speed shows at once.
+    expect(C.compareHours(20000, 40)).toBe(500);
+    expect(C.compareHours(20000, 80)).toBe(250);
+    expect(C.compareHours(20000, 0)).toBeNull();
   });
 });
 
@@ -86,9 +107,19 @@ describe('wiring', () => {
     const strip = loadSource('creator/CompareStrip.js');
     expect(strip).toMatch(/new Worker\("generate-worker\.js"\)/);
     expect(strip).toMatch(/var batch = \+\+batchRef\.current;/);
-    expect(strip).toMatch(/if \(busyRef\.current\) stopWorker\(\);/);
     expect(strip).toMatch(/if \(batch !== batchRef\.current\) return;/);
     expect(strip).toMatch(/var _open = React\.useState\(!props\.compact\);/);
+    // Closing the strip ends the batch and stops a running job too.
+    expect(strip).toMatch(/var batch = \+\+batchRef\.current;\s*if \(busyRef\.current\) stopWorker\(\);\s*if \(!open \|\| /);
+    // Same pipeline settings as Generate, including the filter fallback and
+    // Separate similar neighbours.
+    expect(strip).toMatch(/disambig: s\.disambig, disambigLevel: s\.disambigLevel/);
+    expect(strip).toMatch(/_applyImageFilters\(data, s\.bri \|\| 0, s\.con \|\| 0, s\.sat \|\| 0\)/);
+    expect(strip).toMatch(/fmtHours\(window\.compareHours\(r\.stats\.stitches, props\.stitchSpeed\)\)/);
+    // A failing worker is handled here, never by the page's error handler,
+    // and the jobs fall back to the page after two failures.
+    expect(strip).toMatch(/w\.onerror = function \(ev\) \{\s*if \(ev && typeof ev\.preventDefault === "function"\) ev\.preventDefault\(\);/);
+    expect(strip).toMatch(/if \(failuresRef\.current >= 2\) workerRef\.current = "unavailable";/);
   });
 
   test('choosing an option applies its size or thread count', () => {

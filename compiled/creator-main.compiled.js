@@ -2164,6 +2164,7 @@ function CreatorApp({
     sH: state.sH,
     maxC: state.maxC,
     arLock: state.arLock,
+    ar: state.ar,
     stitchSpeed: state.stitchSpeed,
     compact: _compact,
     onApply: function (v) {

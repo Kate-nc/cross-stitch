@@ -12323,14 +12323,24 @@ window.usePreview = function usePreview(state) {
  *
  *   compareOptionsFor(dimension, s)   dimension 'size' (−25 %, current,
  *                                     +25 %) or 'threads' (−5, current, +5);
- *                                     s = { sW, sH, maxC }. Sizes stay within
- *                                     10–500 stitches, threads within 2–100.
+ *                                     s = { sW, sH, maxC, arLock, ar }. Sizes
+ *                                     stay within 10–500 stitches, threads
+ *                                     within 2–100. With the aspect lock the
+ *                                     height comes from the width exactly as
+ *                                     chgW works it out, so the size shown is
+ *                                     the size applied.
  *   compareCacheKey(imgKey, settings, values)
  *                                     one string per picture, conversion
  *                                     settings and option.
- *   comparePreviewDims(w, h)          the reduced size a preview job runs at.
- *   compareStats(pal, mappedLen, opt, dims, stitchSpeed)
- *                                     { stitches, threads, hours, tier }.
+ *   comparePreviewDims(w, h)          the reduced size a preview job runs at
+ *                                     (never more than 100 × 100 cells).
+ *   compareStats(pal, stitchedCells, confettiPct, full, dims)
+ *                                     { stitches, threads, tier }: pal and
+ *                                     stitchedCells at the preview size,
+ *                                     full = { w, h } of the option, dims =
+ *                                     { pw, ph } it ran at.
+ *   compareHours(stitches, stitchSpeed) estimated hours (not cached, so a
+ *                                     change of speed shows at once).
  *
  * Loaded as a plain <script> (concatenated into creator/bundle.js); also
  * require()-able for tests.
@@ -12357,13 +12367,17 @@ window.usePreview = function usePreview(state) {
         };
       });
     } else {
+      var locked = s.arLock && s.ar > 0;
       opts = SIZE_STEPS.map(function (step) {
         var f = 1 + step;
+        var w = step === 0 ? s.sW : clamp(s.sW * f, MIN_ST, MAX_ST);
+        // Locked: the height chgW(w) gives; unlocked: each side scaled.
+        var hgt = step === 0 ? s.sH : locked ? clamp(w / s.ar, MIN_ST, MAX_ST) : clamp(s.sH * f, MIN_ST, MAX_ST);
         return {
           id: step < 0 ? 'minus' : step > 0 ? 'plus' : 'current',
           label: step === 0 ? 'Current' : (step < 0 ? '−' : '+') + Math.round(Math.abs(step) * 100) + '%',
           current: step === 0,
-          values: { sW: clamp(s.sW * f, MIN_ST, MAX_ST), sH: clamp(s.sH * f, MIN_ST, MAX_ST) }
+          values: { sW: w, sH: hgt }
         };
       });
     }
@@ -12401,28 +12415,32 @@ window.usePreview = function usePreview(state) {
   function comparePreviewDims(w, h) {
     var pw = w, ph = h;
     if (pw * ph > COMPARE_MAX_AREA) {
+      // Rounded down, so the job never goes over the cap.
       var sc = Math.sqrt(COMPARE_MAX_AREA / (pw * ph));
-      pw = Math.round(pw * sc); ph = Math.round(ph * sc);
+      pw = Math.floor(pw * sc); ph = Math.floor(ph * sc);
     }
     return { pw: Math.max(1, pw), ph: Math.max(1, ph) };
   }
 
   // pal: palette entries with counts at the preview size; stitchedCells:
   // stitched cells at the preview size; confettiPct from the pipeline.
-  function compareStats(pal, stitchedCells, confettiPct, full, dims, stitchSpeed) {
+  function compareStats(pal, stitchedCells, confettiPct, full, dims) {
     var scale = (full.w * full.h) / Math.max(1, dims.pw * dims.ph);
     var stitches = Math.round(stitchedCells * scale);
     var threads = (typeof root.creatorThreadCounts === 'function')
       ? root.creatorThreadCounts(pal).threads
       : (pal || []).filter(function (p) { return p && p.id !== '__skip__'; }).length;
-    var hours = stitchSpeed > 0 ? stitches / stitchSpeed : null;
     var tier = (typeof root.confettiTier === 'function' && confettiPct != null) ? root.confettiTier(confettiPct).label : null;
-    return { stitches: stitches, threads: threads, hours: hours, tier: tier };
+    return { stitches: stitches, threads: threads, tier: tier };
+  }
+
+  function compareHours(stitches, stitchSpeed) {
+    return stitchSpeed > 0 ? stitches / stitchSpeed : null;
   }
 
   var api = {
     compareOptionsFor: compareOptionsFor, compareCacheKey: compareCacheKey,
-    comparePreviewDims: comparePreviewDims, compareStats: compareStats,
+    comparePreviewDims: comparePreviewDims, compareStats: compareStats, compareHours: compareHours,
     COMPARE_MAX_AREA: COMPARE_MAX_AREA
   };
   Object.keys(api).forEach(function (k) { root[k] = api[k]; });
@@ -12446,7 +12464,7 @@ window.usePreview = function usePreview(state) {
  * useCreatorState.generate). Without workers the jobs run on the page with
  * runCleanupPipeline.
  *
- * Props: img, settings (conversionSettings), sW, sH, maxC, arLock,
+ * Props: img, settings (conversionSettings), sW, sH, maxC, arLock, ar,
  *        stitchSpeed, compact, onApply({ sW, sH } | { maxC }).
  * On phones (compact) the strip is collapsed behind "Compare options".
  *
@@ -12470,11 +12488,17 @@ window.usePreview = function usePreview(state) {
     var cx = c.getContext("2d");
     cx.imageSmoothingEnabled = true;
     if ("imageSmoothingQuality" in cx) cx.imageSmoothingQuality = "high";
-    if (s.bri || s.con || s.sat) cx.filter = "brightness(" + (100 + (s.bri || 0)) + "%) contrast(" + (100 + (s.con || 0)) + "%) saturate(" + (100 + (s.sat || 0)) + "%)";
+    // Where ctx.filter isn't supported (Safari before 15) the adjustments
+    // are applied to the pixels afterwards, as generate does.
+    var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
+    var adjust = !!(s.bri || s.con || s.sat);
+    if (adjust && canFilter) cx.filter = "brightness(" + (100 + (s.bri || 0)) + "%) contrast(" + (100 + (s.con || 0)) + "%) saturate(" + (100 + (s.sat || 0)) + "%)";
     var src = s.preSharpen && typeof applyPreSharpenCanvas === "function" ? applyPreSharpenCanvas(img, pw, ph, { amount: s.preSharpenAmount }) : img;
     cx.drawImage(typeof prescaleForGrid === "function" ? prescaleForGrid(src, pw, ph) : src, 0, 0, pw, ph);
     cx.filter = "none";
-    return cx.getImageData(0, 0, pw, ph);
+    var data = cx.getImageData(0, 0, pw, ph);
+    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(data, s.bri || 0, s.con || 0, s.sat || 0);
+    return data;
   }
 
   function pipelineSettings(s, values) {
@@ -12484,7 +12508,8 @@ window.usePreview = function usePreview(state) {
       allowBlends: s.allowBlends, allowedPalette: s.allowedPalette,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
-      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed
+      stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
+      disambig: s.disambig, disambigLevel: s.disambigLevel
     };
   }
 
@@ -12516,9 +12541,10 @@ window.usePreview = function usePreview(state) {
     var batchRef = React.useRef(0);
     var workerRef = React.useRef(null);   // null | Worker | 'unavailable'
     var busyRef = React.useRef(false);
+    var failuresRef = React.useRef(0);
 
     var s = props.settings;
-    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC });
+    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar });
     var ik = imgKey(props.img);
     var keys = options.map(function (o) {
       var settings = Object.assign({}, s || {}, o.values);
@@ -12534,7 +12560,10 @@ window.usePreview = function usePreview(state) {
     }
     function stopWorker() {
       if (workerRef.current && workerRef.current !== "unavailable") {
-        try { workerRef.current.terminate(); } catch (_) {}
+        var old = workerRef.current;
+        old.onmessage = null;
+        old.onerror = function (ev) { if (ev && typeof ev.preventDefault === "function") ev.preventDefault(); };
+        try { old.terminate(); } catch (_) {}
         workerRef.current = null;
       }
       busyRef.current = false;
@@ -12570,7 +12599,16 @@ window.usePreview = function usePreview(state) {
           if (msg.type === "result") resolve({ mapped: msg.mapped, pal: msg.pal, confettiPct: msg.confettiData && msg.confettiData.clean ? msg.confettiData.clean.pct : null });
           else if (msg.type === "error") reject(new Error(msg.message));
         };
-        w.onerror = function (err) { reject(err); };
+        // A worker that fails (for example a script that didn't load) is
+        // handled here, so it never reaches the page's error handler; after
+        // two failures the jobs run on the page instead.
+        w.onerror = function (ev) {
+          if (ev && typeof ev.preventDefault === "function") ev.preventDefault();
+          stopWorker();
+          failuresRef.current++;
+          if (failuresRef.current >= 2) workerRef.current = "unavailable";
+          reject(new Error((ev && ev.message) || "worker failed"));
+        };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
           settings: pipelineSettings(s, job.values) }, [px.data.buffer]);
       });
@@ -12578,10 +12616,11 @@ window.usePreview = function usePreview(state) {
 
     var keySig = keys.join("\n");
     React.useEffect(function () {
-      if (!open || !props.img || !props.img.src || !s) return undefined;
+      // Any change, including closing the strip, ends the current batch and
+      // stops a job still running for it.
       var batch = ++batchRef.current;
-      // A job from an older batch is still running: stop it.
       if (busyRef.current) stopWorker();
+      if (!open || !props.img || !props.img.src || !s) return undefined;
       var timer = setTimeout(function () {
         var jobs = [];
         options.forEach(function (o, i) {
@@ -12605,7 +12644,7 @@ window.usePreview = function usePreview(state) {
             for (var i = 0; i < r.mapped.length; i++) if (r.mapped[i] && r.mapped[i].id !== "__skip__") stitched++;
             var entry = {
               url: renderUrl(r.mapped, job.dims.pw, job.dims.ph),
-              stats: window.compareStats(r.pal, stitched, r.confettiPct, job.full, job.dims, props.stitchSpeed)
+              stats: window.compareStats(r.pal, stitched, r.confettiPct, job.full, job.dims)
             };
             cacheRef.current.set(job.key, entry);
             if (cacheRef.current.size > CACHE_LIMIT) cacheRef.current.delete(cacheRef.current.keys().next().value);
@@ -12618,7 +12657,7 @@ window.usePreview = function usePreview(state) {
         })();
       }, 500);
       return function () { clearTimeout(timer); };
-    }, [open, keySig, props.img, props.stitchSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [open, keySig, props.img]); // eslint-disable-line react-hooks/exhaustive-deps
 
     var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }];
     var dimSwitch = h("div", { className: "lp-segmented compare-strip__dim", role: "radiogroup", "aria-label": "Compare by" },
@@ -12645,7 +12684,7 @@ window.usePreview = function usePreview(state) {
       var size = o.values.sW ? o.values.sW + " × " + o.values.sH : props.sW + " × " + props.sH;
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
-        r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(r.stats.hours),
+        r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
         r.stats.tier ? "Confetti: " + r.stats.tier : ""
       ] : [size + " stitches", "Working…"];
       var disabled = o.current || o.same || !r;

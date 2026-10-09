@@ -1280,7 +1280,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     counts, side by side; choosing one applies it. */}
                 {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip
                   img={state.img} settings={state.conversionSettings}
-                  sW={state.sW} sH={state.sH} maxC={state.maxC} arLock={state.arLock}
+                  sW={state.sW} sH={state.sH} maxC={state.maxC} arLock={state.arLock} ar={state.ar}
                   stitchSpeed={state.stitchSpeed} compact={_compact}
                   onApply={function(v){
                     if(v.maxC!=null){state.setMaxC(v.maxC);return;}
