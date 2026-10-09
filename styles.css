@@ -8359,11 +8359,11 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 /* Convert sidebar: technical names folded under "Advanced" (audit P2-9). */
 .convert-advanced { margin-top: 8px; font-size: var(--text-sm); color: var(--text-secondary); }
 .convert-advanced > summary {
+  /* Left as a list item so the disclosure triangle shows. */
   cursor: pointer; color: var(--text-secondary); font-weight: 500;
-  min-height: 32px; display: flex; align-items: center; gap: 6px;
-  border-radius: var(--radius-sm); list-style-position: inside;
+  padding: 6px 0; border-radius: var(--radius-sm);
 }
 .convert-advanced > summary:hover { color: var(--text-primary); }
 .convert-advanced > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .convert-advanced > p { margin: 4px 0 0; line-height: 1.45; }
-@media (pointer: coarse) { .convert-advanced > summary { min-height: 44px; } }
+@media (pointer: coarse) { .convert-advanced > summary { padding: 12px 0; } }
