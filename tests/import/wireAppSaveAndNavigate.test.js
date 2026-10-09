@@ -1,6 +1,6 @@
 /* tests/import/wireAppSaveAndNavigate.test.js
  *
- * Regression tests for the "Use this pattern" import action:
+ * Regression tests for the import review's confirm action (Start stitching / Edit first):
  *   - Pattern is saved to ProjectStorage before resolving.
  *   - Default destination is the Creator (create.html?from=home) so the
  *     user lands directly in the edit interface with the new project.

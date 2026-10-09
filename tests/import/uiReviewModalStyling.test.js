@@ -22,9 +22,17 @@ describe('Import review modal — button class regression', () => {
     );
   });
 
-  it('uses .g-btn primary for the "Use this pattern" confirm button', () => {
-    // The exact attribute string from the source.
-    expect(modalSrc).toMatch(/className:\s*'g-btn primary'[^,]*,\s*\n[^\n]*onClose\s*&&\s*props\.onClose\('confirm'/);
+  it('uses .g-btn primary for the main confirm button (Start stitching, or Edit first from the Creator)', () => {
+    // P1-5: two confirm buttons; the primary class follows props.preferEdit.
+    expect(modalSrc).toMatch(/className:\s*'g-btn import-review-edit' \+ \(props\.preferEdit \? ' primary' : ''\)/);
+    expect(modalSrc).toMatch(/className:\s*'g-btn import-review-stitch' \+ \(props\.preferEdit \? '' : ' primary'\)/);
+    expect(modalSrc).toMatch(/props\.onClose\('confirm', \{ project: working, edits: edits, destination: 'stitch' \}\)/);
+    expect(modalSrc).toMatch(/props\.onClose\('confirm', \{ project: working, edits: edits, destination: 'edit' \}\)/);
+  });
+
+  it('styles .g-btn.primary (it had no rule, so the confirm button looked secondary)', () => {
+    const css = fs.readFileSync(path.resolve(__dirname, '..', '..', 'styles.css'), 'utf8');
+    expect(css).toMatch(/\.g-btn--primary,\.g-btn\.primary\{background:var\(--accent\)/);
   });
 
   it('uses .g-btn for Cancel and the optional "Open guided wizard" button', () => {

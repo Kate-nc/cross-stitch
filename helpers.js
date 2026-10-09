@@ -1758,6 +1758,21 @@ function stripCellForSave(m){
 }
 if(typeof window!=='undefined')window.stripCellForSave=stripCellForSave;
 
+// A thread the importer could not identify (audit IMPORT-07): a symbol that
+// isn't in the chart's key gets a placeholder id "U1", "U2"… and an invented
+// colour until someone assigns a real thread. `placeholders` is the
+// importReport.placeholders list, when there is one.
+function isPlaceholderThread(id,placeholders){
+  if(id==null)return false;
+  id=String(id);
+  if(/^U\d+$/.test(id))return true;
+  if(Array.isArray(placeholders)){
+    for(var i=0;i<placeholders.length;i++){var p=placeholders[i];if(p&&String(p.id)===id)return true;}
+  }
+  return false;
+}
+if(typeof window!=='undefined')window.isPlaceholderThread=isPlaceholderThread;
+
 // Convenience wrapper for the common pat.map(...) site.
 //
 // PERF: memoised on the pattern's identity. The tracker rebuilds a full

@@ -158,13 +158,15 @@
         reviewMode: result.reviewMode,
         originalFileUrl: url,
         layoutSession: result.layoutSession || null,
+        preferEdit: cameFromCreator(opts),
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        var dest = destinationOpts(out.destination, opts);
         if (out.action === 'confirm' && out.project && out.projects && out.projects.length > 1) {
-          return saveAll(out.project, out.projects, opts);
+          return saveAll(out.project, out.projects, dest);
         }
         if (out.action === 'confirm' && out.project) {
-          return saveAndNavigate(out.project, opts);
+          return saveAndNavigate(out.project, dest);
         }
         return out;
       });
@@ -176,6 +178,23 @@
       try { showFriendlyError(err, file && file.name); } catch (_) {}
       throw err;
     });
+  }
+
+  // Imported from inside the Creator: Edit first stays the main action there.
+  function cameFromCreator(opts) {
+    if (opts && opts.navigateTo && /create\.html/i.test(opts.navigateTo)) return true;
+    return isCurrentPage('create.html');
+  }
+
+  // Where the review's buttons go (audit IMPORT-06): Start stitching opens
+  // the Tracker on the new project, Edit first keeps the caller's destination
+  // (the Creator by default), and a booklet imported whole goes to
+  // Home › Projects, since there are several patterns to choose from.
+  function destinationOpts(destination, opts) {
+    opts = opts || {};
+    if (destination === 'stitch') return Object.assign({}, opts, { navigateTo: 'stitch.html?from=home', appendId: true });
+    if (destination === 'home') return Object.assign({}, opts, { navigateTo: 'home.html?tab=projects', forceNav: true });
+    return opts;
   }
 
   // Returns true when `destination` (a relative URL like 'home.html') is
@@ -246,6 +265,12 @@
     // opts.navigateTo (e.g. 'stitch.html' to drop straight into the
     // tracker, or 'home.html' to return to the library).
     var destination = opts.navigateTo || 'create.html?from=home';
+    // The Tracker, like Home's project tiles, also takes the id in the URL in
+    // case the active-project pointer is lost during the navigation.
+    function destinationFor(id) {
+      if (!opts.appendId || !id) return destination;
+      return destination + (destination.indexOf('?') === -1 ? '?' : '&') + 'id=' + encodeURIComponent(id);
+    }
     var storage = window.ProjectStorage;
     if (!storage || typeof storage.save !== 'function') {
       // Fall back to legacy single-project storage if available.
@@ -256,7 +281,7 @@
         console.warn('[import] ProjectStorage unavailable — using legacy auto_save key. Pattern will not appear in the library.');
         return Promise.resolve(window.saveProjectToDB('auto_save', project)).then(function () {
           if (!opts.quiet) showImportToast(project, opts.toastMessage);
-          if (nav) window.location.href = destination;
+          if (nav) window.location.href = destinationFor(project.id);
           return { action: 'confirm', project: project };
         });
       }
@@ -343,15 +368,15 @@
         // required to swap the running React state for the new project.
         if (nav) {
           var skipSamePage = opts.skipSamePageNav === true
-            || (opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
+            || (!opts.forceNav && opts.navigateTo && isCurrentPage(opts.navigateTo) && /home\.html/i.test(opts.navigateTo));
           if (!skipSamePage) {
             // Signal to home-app.js that we are navigating away so the
             // self-heal in refreshAll() doesn't clear the fresh pointer
             // while the in-flight IDB query triggered by setActiveProject
             // above is still resolving.
             window.__navigatingAway = true;
-            try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destination, projectId: id })); } catch (_) {}
-            window.location.href = destination;
+            try { sessionStorage.setItem('__import_trace_navigate', JSON.stringify({ at: Date.now(), destination: destinationFor(id), projectId: id })); } catch (_) {}
+            window.location.href = destinationFor(id);
           }
         }
         return { action: 'confirm', project: project, id: id };
@@ -372,5 +397,6 @@
     saveAndNavigate: saveAndNavigate,
     saveAll: saveAll,
     _isCurrentPage: isCurrentPage,
+    _destinationOpts: destinationOpts,
   });
 })();

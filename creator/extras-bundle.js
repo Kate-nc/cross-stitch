@@ -2791,9 +2791,15 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                           });
                         }
                       },
-                      style:{width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
+                      // An imported symbol with no thread yet ("U1"): its colour
+                      // is invented, so show it as unassigned (IMPORT-07).
+                      style: (window.isPlaceholderThread && window.isPlaceholderThread(p.id))
+                        ? {width:20, height:20, cursor:"pointer", fontSize:20}
+                        : {width:20, height:20, borderRadius:3, background:"rgb("+p.rgb+")",
                               border:"0.5px solid var(--border)", display:"inline-block", cursor:"pointer"}
-                    })
+                    }, (window.isPlaceholderThread && window.isPlaceholderThread(p.id))
+                      ? h("span", {className:"thread-placeholder-swatch", title:"No thread yet", style:{width:20, height:20}}, window.Icons && window.Icons.help ? window.Icons.help() : null)
+                      : null)
                   ),
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
                   h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},

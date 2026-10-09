@@ -66,7 +66,10 @@
             ["stitchx .json files and backups", "Projects downloaded with File > Download (.json). A full backup of every project is restored with File > Restore from Backup… instead."],
             ["Images", "JPG, PNG, GIF, WebP and BMP pictures are converted into a new pattern."],
             ["Not supported yet", "Files saved in another program's own format: Pattern Maker (.xsd), PCStitch (.pat), XStitch Pro (.xsp) and others. Photos of a paper chart are converted as pictures, not read as charts."],
-            ["Exporting from another program", "In Pattern Maker, PCStitch, WinStitch or MacStitch, use the program's Export (or Save as) option and choose OXS. If OXS isn't offered, print the chart to PDF instead, then import that file here."]
+            ["Exporting from another program", "In Pattern Maker, PCStitch, WinStitch or MacStitch, use the program's Export (or Save as) option and choose OXS. If OXS isn't offered, print the chart to PDF instead, then import that file here."],
+            ["Checking an import", "A review opens before anything is saved: Pages (for a chart over several pages), Preview, Palette, Details and Compare with the original. The figure at the top says how much of the chart was matched to its colour key. On a phone the review fills the screen and any notes about the import fold into one line; tap it to read them."],
+            ["Symbols with no thread", "A symbol the chart's key doesn't list shows as a hatched square with a question mark, in the review and in the Creator's palette and legend, until you give it a thread: enter its number in the Palette tab, or choose its colour."],
+            ["Start stitching or Edit first", "Start stitching saves the pattern and opens it in the Stitch Tracker, ready to mark. Edit first opens it in the Pattern Creator instead, and is the main button when you import from inside the Creator. A PDF holding several designs can be imported all at once with Import all; they are then listed in Home > Projects."]
           ]
         },
         {

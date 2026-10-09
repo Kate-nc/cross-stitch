@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.88';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.89',
+    date: 'October 2026',
+    notes: [
+      'Importing a chart now ends with a choice: Start stitching opens it straight in the Stitch Tracker, Edit first in the Pattern Creator. On a phone the import review fits the screen, every tab is labelled and notes fold into one line, and symbols the chart\'s key doesn\'t list show as unassigned (a hatched square with a question mark) rather than as a made-up colour.',
+    ]
+  },
+  {
     version: '1.0.88',
     date: 'October 2026',
     notes: [
