@@ -908,6 +908,9 @@ function CreatorApp({
       setIsDragging: state.setIsDragging,
       maxC: state.maxC,
       setMaxC: state.setMaxC,
+      pictureType: state.pictureType,
+      pictureInfo: state.pictureInfo,
+      applyPicturePreset: state.applyPicturePreset,
       bri: state.bri,
       setBri: state.setBri,
       con: state.con,
@@ -1004,7 +1007,7 @@ function CreatorApp({
       srcClick: stableSrcClick,
       autoCrop: stableAutoCrop
     };
-  }, [state.img, state.isUploading, state.isDragging, state.maxC, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1435,6 +1438,7 @@ function CreatorApp({
       skeinData: state.skeinData,
       totalSkeins: state.totalSkeins,
       blendCount: state.blendCount,
+      threadCounts: state.threadCounts,
       difficulty: state.difficulty,
       doneCount: state.doneCount,
       dmcFiltered: state.dmcFiltered,
@@ -1444,7 +1448,7 @@ function CreatorApp({
       toBuyCount: state.toBuyCount,
       toBuyList: state.toBuyList
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
+  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
   // File > Export PDF… and Print PDF use the Export tab's saved settings
@@ -1819,6 +1823,7 @@ function CreatorApp({
     sH: state.sH,
     fabricCt: state.fabricCt,
     colourCount: state.pal ? state.pal.length : 0,
+    threadCounts: state.threadCounts,
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,
@@ -1831,6 +1836,7 @@ function CreatorApp({
     sH: state.sH,
     fabricCt: state.fabricCt,
     colourCount: state.pal ? state.pal.length : 0,
+    threadCounts: state.threadCounts,
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,

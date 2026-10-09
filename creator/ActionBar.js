@@ -285,7 +285,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           sW: props.sW,
           sH: props.sH,
           fabricCt: props.fabricCt,
-          colourCount: props.colourCount,
+          colourCount: props.colourCount, threadCounts: props.threadCounts,
           skeinEstimate: props.skeinEstimate,
           totalStitchable: props.totalStitchable,
           difficulty: props.difficulty,

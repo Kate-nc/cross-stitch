@@ -13195,7 +13195,7 @@ function TrackerApp({
       key: fc.ct,
       value: fc.ct
     }, fc.label)))), /*#__PURE__*/React.createElement(SliderRow, {
-      label: "Max Colours",
+      label: "Threads (max)",
       val: importMaxColours,
       setVal: setImportMaxColours,
       min: 5,

@@ -37,7 +37,12 @@ const TARGET_FILES = [
   "project-library.js",
   "stats-page.js",
   "stats-activity.js",
-  "backup-restore.js"
+  "backup-restore.js",
+  // Convert and the pattern summaries count threads and chart symbols (P2-5).
+  "creator/Sidebar.js",
+  "creator/PreviewCanvas.js",
+  "creator/PatternInfoPopover.js",
+  "creator/useCreatorState.js"
 ];
 
 // Forbidden → preferred. Each rule is matched as a whole word with the given
@@ -49,7 +54,10 @@ const FORBIDDEN = [
   { bad: "Inventory", good: "Stash",   caseSensitive: true,  note: "Use 'Stash' for the user's owned threads (per TERMINOLOGY.md)." },
   { bad: "Color",     good: "Colour",  caseSensitive: true,  note: "Use British English ('colour') in user-facing strings." },
   { bad: "Organize",  good: "Organise", caseSensitive: true, note: "Use British English ('organise')." },
-  { bad: "Favorite",  good: "Favourite", caseSensitive: true, note: "Use British English ('favourite')." }
+  { bad: "Favorite",  good: "Favourite", caseSensitive: true, note: "Use British English ('favourite')." },
+  // Max threads caps distinct threads; a blend is one chart symbol made of
+  // two threads, so counts say threads or symbols, never colours (audit IMG-02).
+  { bad: "Max colours", good: "Threads (max)", caseSensitive: false, note: "The limit is on threads; see TERMINOLOGY.md 'Thread vs. symbol'." }
 ];
 
 const ALLOW_COMMENT = "terminology-lint-allow";

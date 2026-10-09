@@ -87,7 +87,7 @@ function creatorFitBox(el) {
 }
 window.creatorFitBox = creatorFitBox;
 
-// One row per thread to buy, not per palette entry (audit B-05). Max colours
+// One row per thread to buy, not per palette entry (audit B-05). Threads (max)
 // caps distinct threads, so a blend such as 310+550 is two threads the user
 // may already be buying for solids: its stitches are added to each
 // component's row and it gets no row of its own. A blend stitch uses one
@@ -224,6 +224,119 @@ var CONVERSION_STATE_KEYS = [
   'disambig', 'disambigLevel',
 ];
 
+// ── Picture-type presets (audit IMG-01) ────────────────────────────────────
+// "What kind of picture is this?" at the top of Convert. Choosing one only
+// sets values; every control stays editable, and once a value differs from
+// what the preset set the control shows Custom. Pixel art takes its thread
+// count and size from the picture itself (picturePresetValues).
+var PICTURE_PRESETS = {
+  graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
+  photo:   { label: 'Photo', maxC: 20, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
+};
+var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
+
+// The values a preset sets for a picture. info is analysePicture's result
+// (null before a picture is loaded). Keys are useCreatorState setters' names
+// without "set": maxC, dithMode, allowBlends, cleanupStrength, skipBg, bgCol,
+// sW, sH.
+function picturePresetValues(id, info) {
+  var p = PICTURE_PRESETS[id];
+  if (!p) return null;
+  var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
+  if (p.maxC) v.maxC = p.maxC;
+  if (p.cleanupStrength) v.cleanupStrength = p.cleanupStrength;
+  if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
+  if (p.maxCFromSource) {
+    var n = info && info.distinct ? info.distinct : p.maxCFromSource;
+    v.maxC = Math.max(2, Math.min(p.maxCFromSource, n));
+  }
+  if (p.sizeFromSourceMax && info && info.w && info.h && info.w <= p.sizeFromSourceMax && info.h <= p.sizeFromSourceMax) {
+    v.sW = info.w; v.sH = info.h;
+  }
+  return v;
+}
+
+// Look at a picture once, on upload: its size, how many exact colours it
+// has (counted up to 4097), how much of it a few colours cover, how flat it
+// is, and whether its border is one colour. imageData is { data, width,
+// height } (RGBA); w and h are the picture's own size when imageData is a
+// scaled copy.
+function analysePicture(imageData, w, h) {
+  var d = imageData.data, iw = imageData.width, ih = imageData.height;
+  var exact = Object.create(null), distinct = 0;
+  var bins = Object.create(null), opaque = 0, same = 0, pairs = 0;
+  for (var y = 0; y < ih; y++) {
+    var prev = -1;
+    for (var x = 0; x < iw; x++) {
+      var i = (y * iw + x) * 4;
+      if (d[i + 3] < 128) { prev = -1; continue; }
+      opaque++;
+      var key = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      if (distinct <= 4096 && !exact[key]) { exact[key] = 1; distinct++; }
+      var bin = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+      bins[bin] = (bins[bin] || 0) + 1;
+      if (prev !== -1) { pairs++; if (prev === key) same++; }
+      prev = key;
+    }
+  }
+  var counts = Object.keys(bins).map(function (k) { return bins[k]; }).sort(function (a, b) { return b - a; });
+  var top8 = 0;
+  for (var k = 0; k < Math.min(8, counts.length); k++) top8 += counts[k];
+  var border = null;
+  try { if (typeof window !== 'undefined' && typeof window.detectUniformBorder === 'function') border = window.detectUniformBorder(imageData); } catch (_) {}
+  return {
+    w: w || iw, h: h || ih, distinct: distinct,
+    top8Cover: opaque ? top8 / opaque : 0,
+    flat: pairs ? same / pairs : 0,
+    border: border
+  };
+}
+
+// Few colours and large flat areas suggest a graphic; a tiny picture with
+// few colours suggests pixel art; anything else is treated as a photo.
+function guessPictureType(info) {
+  if (!info) return 'photo';
+  if (Math.max(info.w, info.h) <= 96 && info.distinct <= 64) return 'pixel';
+  if (info.top8Cover >= 0.95 && info.flat >= 0.6) return 'graphic';
+  return 'photo';
+}
+
+// Threads and chart symbols in a palette (audit IMG-02). Max threads caps
+// distinct threads; a blend such as 310+550 is one chart symbol made of two
+// threads the pattern may already use as solids. Uses the same decomposition
+// as skeinData and the shopping list.
+function creatorThreadCounts(pal) {
+  var ids = Object.create(null), threads = 0, symbols = 0, blends = 0;
+  function add(id, brand) { var k = (brand || 'dmc') + ':' + id; if (!ids[k]) { ids[k] = 1; threads++; } }
+  (pal || []).forEach(function (p) {
+    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
+    if (typeof p.count === 'number' && p.count <= 0) return;
+    symbols++;
+    if (p.type === 'blend') {
+      blends++;
+      var parts = (p.threads && p.threads.length) ? p.threads : String(p.id).split('+').map(function (id) { return { id: id }; });
+      parts.forEach(function (t) { add(t.id, t.brand || p.brand); });
+    } else {
+      add(p.id, p.brand);
+    }
+  });
+  return { threads: threads, symbols: symbols, blends: blends };
+}
+
+function _threadPlural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+// "24 threads, 40 chart symbols (16 are blends of two threads)", or
+// "24 threads" when there are no blends.
+function threadCountsSentence(c) {
+  var s = _threadPlural(c.threads, 'thread', 'threads');
+  if (!c.blends) return s;
+  return s + ', ' + _threadPlural(c.symbols, 'chart symbol', 'chart symbols') + ' (' + c.blends + (c.blends === 1 ? ' is a blend' : ' are blends') + ' of two threads)';
+}
+// "24 threads · 40 symbols"
+function threadCountsShort(c) {
+  return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
+}
+
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
 // every other call site funnels through this. Constrained to DMC threads only
@@ -262,6 +375,14 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
 if (typeof window !== 'undefined') {
   window._buildAllowedPaletteFromStash = _buildAllowedPaletteFromStash;
   window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
+  window.PICTURE_PRESETS = PICTURE_PRESETS;
+  window.PICTURE_PRESET_ORDER = PICTURE_PRESET_ORDER;
+  window.picturePresetValues = picturePresetValues;
+  window.analysePicture = analysePicture;
+  window.guessPictureType = guessPictureType;
+  window.creatorThreadCounts = creatorThreadCounts;
+  window.threadCountsSentence = threadCountsSentence;
+  window.threadCountsShort = threadCountsShort;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -610,6 +731,39 @@ window.useCreatorState = function useCreatorState() {
     } catch (_) {}
   }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
+
+  // ── Picture type (audit IMG-01) ─────────────────────────────────────────
+  // pictureInfo: analysePicture() of the loaded picture. presetApplied:
+  // { id, values } for the preset last chosen (or guessed on upload).
+  // pictureType is that id while every value it set is unchanged, else
+  // 'custom' (also 'custom' when no preset has been applied).
+  var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
+  var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
+  var pictureInfoRef = useRef(null);
+  pictureInfoRef.current = pictureInfo;
+  var applyPicturePreset = useCallback(function (id, info) {
+    var v = picturePresetValues(id, info === undefined ? pictureInfoRef.current : info);
+    if (!v) return;
+    if (v.maxC != null) setMaxC(v.maxC);
+    if (v.dithMode != null) setDithMode(v.dithMode);
+    if (v.allowBlends != null) setAllowBlends(v.allowBlends);
+    if (v.cleanupStrength) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: true, strength: v.cleanupStrength }); });
+    if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
+    if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
+    setPresetApplied({ id: id, values: v });
+  }, []);
+  var pictureType = (function () {
+    if (!presetApplied) return 'custom';
+    var v = presetApplied.values, cur = {
+      maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
+      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null
+    };
+    for (var k in v) {
+      if (k === 'bgCol') continue;
+      if (cur[k] !== v[k]) return 'custom';
+    }
+    return presetApplied.id;
+  })();
 
   // Crop state
   var _isCrop  = useState(false);    var isCropping = _isCrop[0], setIsCropping = _isCrop[1];
@@ -988,6 +1142,7 @@ window.useCreatorState = function useCreatorState() {
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
+  var threadCounts = useMemo(function() { return creatorThreadCounts(pal); }, [pal]);
 
   // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
   // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
@@ -1210,6 +1365,7 @@ window.useCreatorState = function useCreatorState() {
     _setFabricColourRaw(defaultFabricColour());
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
     // "materials" or "project" tab from a previous session hides the rpanel.
@@ -1512,8 +1668,10 @@ window.useCreatorState = function useCreatorState() {
     // Toast on successful generation. Mentions the phase flip so users
     // notice the sidebar tabs and canvas tools have changed; the action
     // bar's "< Setup" button is the way back. (Polish B.)
-    var colCount = result.pal ? result.pal.length : 0;
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + colCount + " colours). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
+    // Threads and chart symbols, not "colours": a blend is one symbol made of
+    // two threads (audit IMG-02).
+    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Setup button to revisit image, dimensions, or palette.", {type:"success", duration:5000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -2013,6 +2171,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
+    pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,

@@ -147,14 +147,9 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
     }
   }, [offscreenVersion, cs, sW, sH, previewShowGrid]);
 
-  // Count unique stitched colours for status bar
-  var colCount = 0;
-  if (pal) {
-    for (var pi = 0; pi < pal.length; pi++) {
-      var pe = pal[pi];
-      if (pe && pe.id && pe.id !== "__skip__" && pe.id !== "__empty__" && pe.count > 0) colCount++;
-    }
-  }
+  // Threads and chart symbols for the status bar (audit IMG-02).
+  var countsText = typeof window.threadCountsShort === "function"
+    ? window.threadCountsShort(window.creatorThreadCounts(pal)) : "";
 
   return h("div", {className: "preview-wrap"},
     h("canvas", {
@@ -162,7 +157,7 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
       className: "preview-canvas"
     }),
     h("div", {className: "preview-status-bar"},
-      sW + " \xD7 " + sH + " stitches \xB7 " + colCount + " colour" + (colCount !== 1 ? "s" : "")
+      sW + " \xD7 " + sH + " stitches" + (countsText ? " \xB7 " + countsText : "")
     )
   );
 };

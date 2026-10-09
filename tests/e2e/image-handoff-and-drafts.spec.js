@@ -63,7 +63,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await openSettings(page);
     await slider(page, 'Size').fill('120');
-    await slider(page, 'Max colours').fill('12');
+    await slider(page, 'Threads (max)').fill('12');
     await expect(sliderValue(page, 'Size')).toHaveText('120 st');
     // Saved a second after the last change.
     await expect.poll(function() {
@@ -80,7 +80,7 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
     await openSettings(page);
     await expect(sliderValue(page, 'Size')).toHaveText('120 st');
-    await expect(sliderValue(page, 'Max colours')).toHaveText('12');
+    await expect(sliderValue(page, 'Threads (max)')).toHaveText('12');
 
     // The draft is gone once a pattern is made.
     await page.locator('.rpanel-drawer-header').click();

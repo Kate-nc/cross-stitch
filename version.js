@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.93';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.94',
+    date: 'October 2026',
+    notes: [
+      'Convert now starts by asking what kind of picture it is: Graphic or logo, Photo or Pixel art. Each sets good starting values (pixel art keeps its own colours and size), and the Creator guesses the type when you add the picture. Every setting stays editable, and changing one shows Custom. The colour limit is now called Threads (max), and counts say threads and chart symbols instead of colours: a blend is one symbol made of two threads, so a pattern might use 24 threads and 40 chart symbols.',
+    ]
+  },
+  {
     version: '1.0.93',
     date: 'October 2026',
     notes: [

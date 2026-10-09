@@ -294,7 +294,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, displayPal.length + " colour" + (displayPal.length !== 1 ? "s" : ""))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
@@ -743,18 +743,38 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
+  // ── What kind of picture is this? (audit IMG-01) ─────────────────────────────
+  // Each choice applies a preset (useCreatorState PICTURE_PRESETS); Custom is
+  // shown once any value the preset set has been changed.
+  var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
+    ? h("div", {className:"picture-type"},
+        h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
+        h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
+          window.PICTURE_PRESET_ORDER.map(function(id) {
+            var on = gen.pictureType === id;
+            return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
+              className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-picture-type":id,
+              onClick:function(){ gen.applyPicturePreset(id); }}, window.PICTURE_PRESETS[id].label);
+          }),
+          h("button", {type:"button", role:"radio", "aria-checked":gen.pictureType === "custom" ? "true" : "false", disabled:true,
+            className:"lp-seg" + (gen.pictureType === "custom" ? " lp-seg--on" : ""), "data-picture-type":"custom",
+            title:"Your own settings. Pick a type to start again from its preset."}, "Custom")
+        )
+      )
+    : null;
+
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Max colours", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
-        helpText:"One colour = one DMC thread skein",
-        inlineHint:"Each colour = one skein of DMC thread. Fewer colours means less shopping and faster stitching — 10\u201315 is a good starting range for most photos.",
+      h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
+        helpText:"Each thread is one colour of stranded cotton",
+        inlineHint:"Each thread is one colour of stranded cotton. A blend uses two of these threads in one stitch, so the chart can have more symbols than threads. Fewer threads means less shopping and faster stitching.",
         helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
         "Clamped to " + gen.stashThreadCount + " (stash size)"
       ),
-      ctx.pal && ctx.pal.length > 0 && ctx.pal.length < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
-        ctx.pal.length + " of " + gen.effectiveMaxC + " colours used"
+      ctx.pal && ctx.threadCounts && ctx.threadCounts.threads > 0 && ctx.threadCounts.threads < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
+        ctx.threadCounts.threads + " of " + gen.effectiveMaxC + " threads used"
       )
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
@@ -778,7 +798,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
         (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
-          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " colours" : "")
+          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " threads" : "")
       ),
       gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
         h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
@@ -1669,7 +1689,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
           row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
           row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
-          row("Colours", ctx.pat ? (palLen + " colour" + (palLen === 1 ? "" : "s")) : "\u2014"),
+          row("Threads", ctx.pat ? window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal)) : "\u2014"),
           row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
           row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
           row("Estimated cost", ctx.pat && cost > 0
@@ -1766,7 +1786,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
           statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
           statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
-          statRow("Colours", palLen+" colour"+(palLen===1?"":"s")),
+          statRow("Threads", window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))),
           statRow("Stitches", stitchable.toLocaleString()),
           statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
           statRow("Est. cost", cost>0?("\u2248 "+(typeof window.AppPrefs!=="undefined"&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(cost):("\u00A3"+cost.toFixed(2)))):"\u2014")
@@ -1780,6 +1800,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      // 0. What kind of picture is this? (presets)
+      pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)
       dimSection,
       // 2. Colours
@@ -2178,7 +2200,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var moreContent = h(React.Fragment, null,
     h(Section, {title:"Project Info",defaultOpen:false},
       h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"4px 0"}},
-        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + (ctx.displayPal||ctx.pal||[]).length + " colours"
+        ctx.sW + " \xD7 " + ctx.sH + " stitches \u00B7 " + window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))
       )
     )
   );
@@ -2198,14 +2220,13 @@ window.CreatorSidebar = function CreatorSidebar() {
     return null;
   }
   if (ctx.pat && ctx.pal && app && app.tab === 'project') {
-    var palLen = (ctx.displayPal || ctx.pal || []).length;
     return h('aside', { className: 'cs-sidebar-fade', style: { padding: '12px', display: 'flex', flexDirection: 'column', gap: 10 } },
       h('div', { style: { fontSize:'var(--text-xs)', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: 0.4 } }, 'Project at a glance'),
       h('div', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 4, fontSize:'var(--text-sm)' } },
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Size'),
         h('span', null, ctx.sW + ' \u00D7 ' + ctx.sH + ' stitches'),
-        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Colours'),
-        h('span', null, palLen),
+        h('span', { style: { color: 'var(--text-tertiary)' } }, 'Threads'),
+        h('span', null, window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal))),
         h('span', { style: { color: 'var(--text-tertiary)' } }, 'Fabric'),
         h('span', null, (ctx.fabricCt || 14) + ' count'),
         ctx.totalSkeins != null && h('span', { style: { color: 'var(--text-tertiary)' } }, 'Skeins'),

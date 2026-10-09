@@ -441,6 +441,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isUploading: state.isUploading, setIsUploading: state.setIsUploading,
     isDragging: state.isDragging, setIsDragging: state.setIsDragging,
     maxC: state.maxC, setMaxC: state.setMaxC,
+    pictureType: state.pictureType, pictureInfo: state.pictureInfo, applyPicturePreset: state.applyPicturePreset,
     bri: state.bri, setBri: state.setBri,
     con: state.con, setCon: state.setCon,
     sat: state.sat, setSat: state.setSat,
@@ -498,7 +499,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
-    state.maxC, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
+    state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage,
@@ -816,7 +817,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     displayPal: state.displayPal,
     totalStitchable: state.totalStitchable,
     skeinData: state.skeinData, totalSkeins: state.totalSkeins,
-    blendCount: state.blendCount, difficulty: state.difficulty,
+    blendCount: state.blendCount, threadCounts: state.threadCounts, difficulty: state.difficulty,
     doneCount: state.doneCount, dmcFiltered: state.dmcFiltered,
     colourDoneCounts: state.colourDoneCounts,
     progressPct: state.progressPct,
@@ -836,7 +837,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.creatorStashFilter,
     state.displayPal, state.totalStitchable,
     state.skeinData, state.totalSkeins,
-    state.blendCount, state.difficulty,
+    state.blendCount, state.threadCounts, state.difficulty,
     state.doneCount, state.dmcFiltered,
     state.colourDoneCounts, state.progressPct,
     state.ownedCount, state.toBuyCount, state.toBuyList,
@@ -1136,7 +1137,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         stitchScoreNote={state.confettiData?(state.confettiData.clean.singles.toLocaleString('en-GB')+' isolated stitches'):null}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
-        colourCount={state.pal?state.pal.length:0}
+        colourCount={state.pal?state.pal.length:0} threadCounts={state.threadCounts}
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
@@ -1148,7 +1149,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         ready={!!(state.pat&&state.pal)}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
-        colourCount={state.pal?state.pal.length:0}
+        colourCount={state.pal?state.pal.length:0} threadCounts={state.threadCounts}
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}

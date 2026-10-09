@@ -8302,3 +8302,11 @@ body.creator-compact .creator-toast-container,body.creator-compact [data-toast-c
   body.creator-compact .tb-status{display:none;}
 }
 .creator-rail .tb-overflow-wrap > .tb-btn{position:relative;z-index:301;background:var(--surface);}
+
+/* ── What kind of picture is this? (audit IMG-01) ───────────────────────── */
+.picture-type{padding:12px 12px 4px;}
+.picture-type__label{font-size:var(--text-sm);font-weight:600;color:var(--text-primary);margin-bottom:6px;}
+.picture-type__seg{display:flex;width:100%;}
+.picture-type__seg .lp-seg{font-size:var(--text-xs);min-height:36px;padding:4px 6px;}
+.picture-type__seg .lp-seg:disabled{cursor:default;}
+.picture-type__seg .lp-seg:disabled:not(.lp-seg--on){color:var(--text-tertiary);}

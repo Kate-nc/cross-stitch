@@ -89,9 +89,13 @@ describe('defaults', () => {
 
   test('a new image runs the background check with an Undo toast', () => {
     const io = loadSource('creator/useProjectIO.js');
-    expect(io).toMatch(/window\.detectUniformBorder\(c2\.getImageData/);
+    // The picture is looked at once (P2-5): analysePicture includes the
+    // border check, then the skip and the picture-type guess are applied.
+    expect(io).toMatch(/window\.analysePicture\(data, imgEl\.width, imgEl\.height\)/);
+    expect(io).toMatch(/window\.detectUniformBorder\(data\)/);
+    expect(io).toMatch(/autoSkipBackground\(info \? info\.border : null\)/);
     expect(io).toMatch(/state\.addToast\("Background left unstitched\.", \{[\s\S]*?label: "Undo"/);
-    expect((io.match(/autoSkipBackground\((i|scaledImg)\)/g) || []).length).toBe(2);
+    expect((io.match(/examinePicture\((i|scaledImg)\)/g) || []).length).toBe(2);
   });
 });
 
