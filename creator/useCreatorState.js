@@ -69,9 +69,13 @@ function creatorFitBox(el) {
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);
   // In compare mode the scroll box is a flex child of the fixed-height split
-  // pane, which has no max-height of its own.
+  // pane, which has no max-height of its own. Only a box that grows to fill
+  // its parent (flex-grow) is bounded by it: in the normal Edit view the
+  // parent is sized by this box, so clamping to it would lock the fit to the
+  // fallback zoom's height.
   var parent = el.parentElement;
-  if (parent && typeof parent.getBoundingClientRect === "function") {
+  var grows = parseFloat(getComputedStyle(el).flexGrow) > 0;
+  if (grows && parent && typeof parent.getBoundingClientRect === "function") {
     var pr = parent.getBoundingClientRect();
     if (pr.bottom > r.top) h = Math.min(h, pr.bottom - Math.max(0, r.top) - chrome);
   }
