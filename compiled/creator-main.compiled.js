@@ -2539,7 +2539,8 @@ function CreatorApp({
     }
   }, "Go to Convert")))), typeof window.CropModal !== "undefined" && /*#__PURE__*/React.createElement(window.CropModal, null)), state.busy && window.CreatorGenerateProgress && /*#__PURE__*/React.createElement(window.CreatorGenerateProgress, {
     stage: state.progressStage,
-    onCancel: state.cancelGenerate
+    onCancel: state.cancelGenerate,
+    cancellable: state.generateCancellable
   }), /*#__PURE__*/React.createElement(window.CreatorToastContainer, null), _showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
     id: 'firstStitch_creator',
     title: 'Paint your first stitch',

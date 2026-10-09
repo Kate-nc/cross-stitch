@@ -541,6 +541,9 @@ window.useCreatorState = function useCreatorState() {
   var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   // The worker's current stage while generating (GENERATE_STAGES), or null.
   var _progressStage = useState(null); var progressStage = _progressStage[0], setProgressStage = _progressStage[1];
+  // False while a generation runs on the page (no workers): it can't be
+  // interrupted, so the progress card offers no Cancel.
+  var _genCancellable = useState(true); var generateCancellable = _genCancellable[0], setGenerateCancellable = _genCancellable[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -1818,7 +1821,7 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
-    setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setGenerateCancellable(true); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
     // burning CPU until done. Killing it frees the device and the next
@@ -1888,7 +1891,9 @@ window.useCreatorState = function useCreatorState() {
 
       var worker = getOrCreateWorker();
       if (!worker) {
-        // Fallback: run synchronously on main thread (e.g. file:// protocol)
+        // Fallback: run synchronously on main thread (e.g. file:// protocol).
+        // Once it starts nothing can interrupt it, so no Cancel is offered.
+        setGenerateCancellable(false);
         setTimeout(function() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
@@ -2105,7 +2110,7 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     return function() {
       if (workerRef.current && workerRef.current !== 'unavailable') {
-        workerRef.current.terminate();
+        retireGenerateWorker(workerRef.current);
         workerRef.current = null;
       }
     };
@@ -2237,7 +2242,7 @@ window.useCreatorState = function useCreatorState() {
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,

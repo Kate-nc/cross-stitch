@@ -114,10 +114,36 @@ describe('progress', () => {
 
   test('the Creator shows the progress card with Cancel instead of the old overlay', () => {
     const main = loadSource('creator-main.js');
-    expect(main).toMatch(/\{state\.busy&&window\.CreatorGenerateProgress&&<window\.CreatorGenerateProgress stage=\{state\.progressStage\} onCancel=\{state\.cancelGenerate\}\/>\}/);
+    expect(main).toMatch(/\{state\.busy&&window\.CreatorGenerateProgress&&<window\.CreatorGenerateProgress stage=\{state\.progressStage\} onCancel=\{state\.cancelGenerate\} cancellable=\{state\.generateCancellable\}\/>\}/);
     expect(main).not.toMatch(/Generating pattern\\u2026<\/div>/);
     const card = loadSource('creator/GenerateProgress.js');
     expect(card).toMatch(/"Cancel"/);
     expect(card).toMatch(/role: "status", "aria-live": "polite"/);
+  });
+
+  test('the card is a modal dialog: focus moves to Cancel, Tab stays inside, focus is restored', () => {
+    const card = loadSource('creator/GenerateProgress.js');
+    expect(card).toMatch(/role: "dialog", "aria-modal": "true",\s*"aria-labelledby": "generate-busy-title"/);
+    expect(card).toMatch(/"data-autofocus": ""/);
+    expect(card).toMatch(/if \(e\.key !== "Tab"\) return;/);
+    expect(card).toMatch(/prev\.focus\(/);
+  });
+
+  test('Escape cancels through the shared window.useEscape stack, not its own document listener', () => {
+    const card = loadSource('creator/GenerateProgress.js');
+    expect(card).toMatch(/window\.useEscape\(canCancel \? cancel : function \(\) \{\}\);/);
+    expect(card).not.toMatch(/addEventListener\("keydown", function[^)]*Escape/);
+    expect(card).not.toMatch(/document\.addEventListener/);
+  });
+
+  test('no Cancel when generation runs on the page, where it can\'t be interrupted', () => {
+    expect(src).toMatch(/if \(!worker\) \{\s*\/\/ Fallback: run synchronously on main thread[\s\S]{0,160}setGenerateCancellable\(false\);/);
+    expect(src).toMatch(/setProgressStage\("preparing"\); setGenerateCancellable\(true\);/);
+    expect(loadSource('creator/GenerateProgress.js')).toMatch(/var canCancel = props\.cancellable !== false && typeof props\.onCancel === "function";/);
+  });
+
+  test('leaving the Creator stops the worker the same safe way', () => {
+    expect(src).toMatch(/useEffect\(function\(\) \{\s*return function\(\) \{\s*if \(workerRef\.current && workerRef\.current !== 'unavailable'\) \{\s*retireGenerateWorker\(workerRef\.current\);/);
+    expect(src).not.toMatch(/workerRef\.current\.terminate\(\)/);
   });
 });

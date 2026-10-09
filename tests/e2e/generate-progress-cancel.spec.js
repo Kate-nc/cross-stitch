@@ -27,6 +27,9 @@ test.describe('Generating on desktop', function() {
     const tStage = Date.now() - t0;
     expect(tStage).toBeLessThanOrEqual(300);
     await expect(card.getByRole('progressbar')).toBeVisible();
+    // A modal dialog with focus on Cancel.
+    await expect(page.getByRole('dialog', { name: 'Generating pattern' })).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Cancel' })).toBeFocused();
 
     // Cancel within 500 ms.
     const t1 = Date.now();
@@ -40,6 +43,13 @@ test.describe('Generating on desktop', function() {
     await expect(width).toHaveValue('500');
     await expect(threadsSlider(page)).toHaveValue('60');
     expect(await page.evaluate(async function() { return !!(await ProjectStorage.getActiveProject()); })).toBe(false);
+
+    // Escape cancels too.
+    await clickGenerate(page);
+    await expect(card).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(card).toHaveCount(0, { timeout: 500 });
+    await expect(page.locator('.rpanel--edit')).toHaveCount(0);
 
     // And Generate works again afterwards.
     await width.fill('80');

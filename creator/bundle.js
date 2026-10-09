@@ -5454,6 +5454,9 @@ window.useCreatorState = function useCreatorState() {
   var _progressMessage = useState(""); var progressMessage = _progressMessage[0], setProgressMessage = _progressMessage[1];
   // The worker's current stage while generating (GENERATE_STAGES), or null.
   var _progressStage = useState(null); var progressStage = _progressStage[0], setProgressStage = _progressStage[1];
+  // False while a generation runs on the page (no workers): it can't be
+  // interrupted, so the progress card offers no Cancel.
+  var _genCancellable = useState(true); var generateCancellable = _genCancellable[0], setGenerateCancellable = _genCancellable[1];
   var _oW   = useState(0);            var origW = _oW[0],  setOrigW = _oW[1];
   var _oH   = useState(0);            var origH = _oH[0],  setOrigH = _oH[1];
 
@@ -6731,7 +6734,7 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
-    setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setHiId(null); setExportPage(0);
+    setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setGenerateCancellable(true); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
     // burning CPU until done. Killing it frees the device and the next
@@ -6801,7 +6804,9 @@ window.useCreatorState = function useCreatorState() {
 
       var worker = getOrCreateWorker();
       if (!worker) {
-        // Fallback: run synchronously on main thread (e.g. file:// protocol)
+        // Fallback: run synchronously on main thread (e.g. file:// protocol).
+        // Once it starts nothing can interrupt it, so no Cancel is offered.
+        setGenerateCancellable(false);
         setTimeout(function() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
@@ -7018,7 +7023,7 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     return function() {
       if (workerRef.current && workerRef.current !== 'unavailable') {
-        workerRef.current.terminate();
+        retireGenerateWorker(workerRef.current);
         workerRef.current = null;
       }
     };
@@ -7150,7 +7155,7 @@ window.useCreatorState = function useCreatorState() {
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
     orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
-    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate,
+    pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
     appMode, setAppMode, confirmBackToConvert, setConfirmBackToConvert, sidebarTab, setSidebarTab,
@@ -12773,10 +12778,17 @@ window.usePreview = function usePreview(state) {
  * A card in the style of the import progress card (import-engine/ui/
  * ImportReviewModal.js showImportProgress): the stage in stitcher's words
  * from the worker's progress messages (GENERATE_STAGES in
- * useCreatorState.js), a progress bar, and Cancel. A light scrim keeps the
- * Convert settings from being changed underneath it.
+ * useCreatorState.js), a progress bar, and Cancel. It is a modal dialog over
+ * a light scrim: focus moves to Cancel, Tab stays inside, Escape cancels
+ * through the shared window.useEscape stack, and focus goes back where it
+ * was when the card closes.
  *
- * Props: stage (a GENERATE_STAGES key or null), onCancel.
+ * Props:
+ *   stage       a GENERATE_STAGES key or null
+ *   onCancel    stops the generation
+ *   cancellable false when the generation runs on the page (no workers), where
+ *               it can't be interrupted; the card then offers no Cancel
+ *
  * Loaded as a plain <script> (concatenated into creator/bundle.js).
  */
 window.CreatorGenerateProgress = function CreatorGenerateProgress(props) {
@@ -12785,25 +12797,52 @@ window.CreatorGenerateProgress = function CreatorGenerateProgress(props) {
     ? window.generateStageInfo(props.stage)
     : { label: "Generating pattern…", pct: null };
   var _stopping = React.useState(false); var stopping = _stopping[0], setStopping = _stopping[1];
-  var cancelRef = React.useRef(null);
+  var cardRef = React.useRef(null);
+  var canCancel = props.cancellable !== false && typeof props.onCancel === "function";
 
+  var cancel = React.useCallback(function () {
+    if (!canCancel) return;
+    setStopping(true);
+    props.onCancel();
+  }, [canCancel, props.onCancel]);
+
+  // Escape goes through the shared stack, so nothing underneath also reacts.
+  if (typeof window.useEscape === "function") window.useEscape(canCancel ? cancel : function () {});
+
+  // Move focus in, keep Tab inside, and put focus back afterwards.
   React.useEffect(function () {
-    function onKey(e) { if (e.key === "Escape" && props.onCancel) { setStopping(true); props.onCancel(); } }
-    document.addEventListener("keydown", onKey);
-    return function () { document.removeEventListener("keydown", onKey); };
-  }, [props.onCancel]);
+    var card = cardRef.current;
+    if (!card) return undefined;
+    var prev = document.activeElement;
+    var target = card.querySelector("[data-autofocus]") || card;
+    try { target.focus({ preventScroll: true }); } catch (_) { try { target.focus(); } catch (__) {} }
+    function onKey(e) {
+      if (e.key !== "Tab") return;
+      var btn = card.querySelector("button:not([disabled])");
+      e.preventDefault();
+      (btn || card).focus();
+    }
+    card.addEventListener("keydown", onKey);
+    return function () {
+      card.removeEventListener("keydown", onKey);
+      if (prev && typeof prev.focus === "function" && document.contains(prev)) {
+        try { prev.focus({ preventScroll: true }); } catch (_) {}
+      }
+    };
+  }, []);
 
   var known = typeof info.pct === "number";
   return h("div", { className: "generate-busy-scrim" },
-    h("div", { className: "generate-busy", role: "status", "aria-live": "polite", "data-generate-stage": props.stage || "" },
-      h("div", { className: "import-busy-title" }, "Generating pattern"),
-      h("div", { className: "import-busy-label" }, stopping ? "Stopping…" : info.label),
+    h("div", { ref: cardRef, className: "generate-busy", role: "dialog", "aria-modal": "true",
+        "aria-labelledby": "generate-busy-title", tabIndex: -1, "data-generate-stage": props.stage || "" },
+      h("div", { id: "generate-busy-title", className: "import-busy-title" }, "Generating pattern"),
+      h("div", { className: "import-busy-label", role: "status", "aria-live": "polite" }, stopping ? "Stopping…" : info.label),
       h("div", { className: "import-busy-track", role: "progressbar", "aria-label": "Generating pattern",
           "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": known ? info.pct : undefined },
         h("div", { className: "import-busy-bar" + (known ? "" : " indeterminate"), style: known ? { width: info.pct + "%" } : undefined })),
-      props.onCancel ? h("button", {
-        ref: cancelRef, type: "button", className: "g-btn import-busy-cancel", disabled: stopping,
-        onClick: function () { if (stopping) return; setStopping(true); props.onCancel(); }
+      canCancel ? h("button", {
+        type: "button", className: "g-btn import-busy-cancel", disabled: stopping, "data-autofocus": "",
+        onClick: function () { if (!stopping) cancel(); }
       }, "Cancel") : null
     )
   );

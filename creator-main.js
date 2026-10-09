@@ -1380,7 +1380,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         {typeof window.CropModal!=="undefined"&&<window.CropModal/>}
       </div>
       {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
-      {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate}/>}
+      {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}
       <window.CreatorToastContainer/>
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',
