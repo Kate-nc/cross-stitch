@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.85';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.87',
+    date: 'October 2026',
+    notes: [
+      'Placing single stitches by touch in the Pattern Creator is more precise. While you draw, a magnifier above your finger shows the stitches under it, and a tap places its stitch when you lift your finger, so you can slide onto the right square first. An optional precision cursor draws a crosshair above your finger instead. Turn either on or off under More tools. In Navigate, double-tap to zoom in on a spot and double-tap again to fit the chart, and touch screens can now zoom in to 400%.',
+    ]
+  },
+  {
     version: '1.0.86',
     date: 'October 2026',
     notes: [

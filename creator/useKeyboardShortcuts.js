@@ -197,7 +197,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     { id: "creator.zoom.in", keys: ["=", "+"], scope: "creator.design",
       description: "Zoom in",
       when: function () { return !!state.pat; },
-      run: function () { state.setZoom(function (z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); } },
+      run: function () { state.setZoom(function (z) { return Math.min(state.maxZoom || 3, +(z + 0.1).toFixed(2)); }); } },
     { id: "creator.zoom.out", keys: "-", scope: "creator.design",
       description: "Zoom out",
       when: function () { return !!state.pat; },

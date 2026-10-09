@@ -275,6 +275,27 @@ function initialDrawMode() {
   if (saved === true || saved === false) return saved;
   return isFinePointerNow();
 }
+// Highest Creator zoom. Touch screens get 4 (80px cells) for precise
+// placement (audit DRAW-03) where the device can hold that canvas: the chart
+// canvas and its base cache are both full size, so the area is halved.
+function creatorMaxZoom(sW, sH, coarse) {
+  if (!coarse) return 3;
+  var cap = 4;
+  try {
+    if (sW > 0 && sH > 0 && typeof window.canvasSizeLimits === "function") {
+      var lim = window.canvasSizeLimits();
+      var pad = 30;
+      var cell = Math.min(
+        Math.floor((lim.side - pad) / sW),
+        Math.floor((lim.side - pad) / sH),
+        Math.floor(Math.sqrt(lim.area / 2 / (sW * sH)))
+      );
+      cap = Math.min(cap, cell / 20);
+    }
+  } catch (_) {}
+  return Math.max(3, Math.floor(cap * 100) / 100);
+}
+window.creatorMaxZoom = creatorMaxZoom;
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -617,6 +638,25 @@ window.useCreatorState = function useCreatorState() {
     _drawMode[1](v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
   }, []);
+  // Touch placement aids (audit DRAW-03). The loupe defaults to on for
+  // touch screens; the precision cursor is opt-in.
+  var _magnifier = useState(function () {
+    var v = loadUserPref("creator.magnifier", null);
+    return v === true || v === false ? v : !isFinePointerNow();
+  });
+  var magnifierOn = _magnifier[0];
+  var magnifierRef = useRef(magnifierOn);
+  var setMagnifierOn = useCallback(function (v) {
+    v = !!v; magnifierRef.current = v; _magnifier[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.magnifier", v); } catch (_) {}
+  }, []);
+  var _precision = useState(function () { return loadUserPref("creator.precisionCursor", false) === true; });
+  var precisionCursor = _precision[0];
+  var precisionCursorRef = useRef(precisionCursor);
+  var setPrecisionCursor = useCallback(function (v) {
+    v = !!v; precisionCursorRef.current = v; _precision[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -885,6 +925,7 @@ window.useCreatorState = function useCreatorState() {
   }, [pat]);
 
   var cs = useMemo(function() { return Math.max(2, Math.round(20 * zoom)); }, [zoom]);
+  var maxZoom = useMemo(function() { return creatorMaxZoom(sW, sH, !isFinePointerNow()); }, [sW, sH]);
 
   // The chart's scroll box is sized by its content (up to 550px), so a
   // fitted chart would shrink it. Keep it at the measured height instead.
@@ -1939,6 +1980,7 @@ window.useCreatorState = function useCreatorState() {
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
+    magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,

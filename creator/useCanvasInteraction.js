@@ -57,10 +57,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var pendingTapRef        = React.useRef(null);
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
+  var touchDrawRef         = React.useRef(null);  // one finger drawing (loupe / tap-on-lift)
+  var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
+  var navTapTimerRef       = React.useRef(null);
 
   var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
   var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
   var LONG_PRESS_MS = TC ? TC.LONG_PRESS_MS : 500;
+  var DOUBLE_TAP_MS = TC ? TC.DOUBLE_TAP_MAX_MS : 300;
+  var DOUBLE_TAP_DIST = TC ? TC.DOUBLE_TAP_MAX_DIST_PX : 24;
+  var DOUBLE_TAP_ZOOM = 3;
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
@@ -100,6 +106,94 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var idx = gc.gy * state.sW + gc.gx;
     state.setContextMenu({ x: clientX, y: clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: state.pat[idx] });
     return true;
+  }
+
+  // ─── Touch drawing (audit DRAW-03) ───────────────────────────────────────────
+  // With one finger in Draw mode these tools wait for the finger to lift: a
+  // tap places one stitch at the last target cell, so the finger can settle
+  // (with the loupe showing what is under it) and a second finger arriving
+  // for a pinch cancels cleanly. Beyond the tap slop, Paint, Erase and the
+  // half stitches stroke as they do with a mouse.
+  function touchDrawKind() {
+    var t = getActiveTool(), p = getPartialStitchTool();
+    if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
+    if (t === "paint" || t === "eraseAll") return "stroke";
+    if (t === "eyedropper") return "single";
+    return null;
+  }
+  function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
+  function magnifierOn() { return !!(state.magnifierRef && state.magnifierRef.current); }
+  function pointEvent(x, y) {
+    return { clientX: x, clientY: y, button: 0, pointerType: "touch", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, preventDefault: function() {}, stopPropagation: function() {} };
+  }
+  function loupeColour() {
+    var t = getActiveTool();
+    if (t === "eraseAll" || t === "eyedropper") return null;
+    var entry = state.selectedColorId && state.cmap ? state.cmap[state.selectedColorId] : null;
+    var rgb = entry && entry.rgb;
+    return rgb && rgb.length >= 3 ? "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")" : null;
+  }
+  // Show the loupe / precision cursor for a finger at (x, y), and the hover
+  // highlight on the target cell.
+  function showTouchTarget(x, y, precision, snap) {
+    var target = window.precisionTarget ? window.precisionTarget(x, y, precision) : { x: x, y: y };
+    var gc = state.pcRef && state.pcRef.current ? gridCoord(state.pcRef, { clientX: target.x, clientY: target.y }, state.cs, state.G, !!snap) : null;
+    if (gc) {
+      var hc = state.hoverCoords;
+      if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+    }
+    var loupe = window.creatorLoupe;
+    if (!loupe) return target;
+    var magnify = magnifierOn();
+    if (!gc || (!magnify && !precision)) { loupe.hide(); return target; }
+    loupe.show({
+      x: target.x, y: target.y, cell: gc, snap: !!snap,
+      cs: state.cs, G: state.G, source: state.pcRef.current,
+      magnifier: magnify, precision: precision, colour: loupeColour()
+    });
+    return target;
+  }
+  function hideTouchTarget() {
+    if (window.creatorLoupe) window.creatorLoupe.hide();
+  }
+  function cancelTouchDraw() {
+    if (!touchDrawRef.current) return;
+    touchDrawRef.current = null;
+    hideTouchTarget();
+  }
+  function clearNavTap() {
+    navTapRef.current = null;
+    if (navTapTimerRef.current) { clearTimeout(navTapTimerRef.current); navTapTimerRef.current = null; }
+  }
+
+  // Double-tap in Navigate: zoom to 300% centred on the tap, or back to Fit
+  // when already there.
+  function toggleDoubleTapZoom(clientX, clientY) {
+    var sc = state.scrollRef && state.scrollRef.current, pc = state.pcRef && state.pcRef.current;
+    if (!sc || !pc) return;
+    if (state.zoom >= DOUBLE_TAP_ZOOM - 0.01) {
+      if (typeof state.fitZ === "function") state.fitZ();
+      return;
+    }
+    var pRect = pc.getBoundingClientRect();
+    var fx = (clientX - pRect.left - state.G) / state.cs;
+    var fy = (clientY - pRect.top - state.G) / state.cs;
+    var newCs = Math.max(2, Math.round(20 * DOUBLE_TAP_ZOOM));
+    var wantW = state.sW * newCs + state.G + 2;
+    state.setZoom(DOUBLE_TAP_ZOOM);
+    var tries = 0;
+    function centre() {
+      var sc2 = state.scrollRef.current, pc2 = state.pcRef.current;
+      if (!sc2 || !pc2) return;
+      // The canvas resizes a frame or two after the zoom changes.
+      if (pc2.width < Math.min(wantW, 16384) && ++tries < 30) { requestAnimationFrame(centre); return; }
+      var cRect = sc2.getBoundingClientRect(), p2 = pc2.getBoundingClientRect();
+      var padX = p2.left - cRect.left + sc2.scrollLeft;
+      var padY = p2.top - cRect.top + sc2.scrollTop;
+      sc2.scrollLeft = padX + state.G + fx * newCs - sc2.clientWidth / 2;
+      sc2.scrollTop = padY + state.G + fy * newCs - sc2.clientHeight / 2;
+    }
+    requestAnimationFrame(centre);
   }
 
   function isPrimaryButton(e) {
@@ -189,7 +283,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var midY = (pts[0].y + pts[1].y) / 2;
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
-    var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
+    var nextZoom = Math.max(0.05, Math.min(state.maxZoom || 3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
     var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
     var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
@@ -798,6 +892,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (activePointersRef.current.size === 2) {
       if (isDraggingRef.current) cancelDragSession();
+      cancelTouchDraw();
+      clearNavTap();
       clearPendingTap();
       panStateRef.current = null;
       state.setHoverCoords(null);
@@ -848,7 +944,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    var tdKind = isTouchPointer(e) ? touchDrawKind() : null;
+    if (tdKind && state.pat && state.pcRef && state.pcRef.current) {
+      var tdPrecision = precisionOn();
+      touchDrawRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX, startY: e.clientY,
+        x: e.clientX, y: e.clientY,
+        precision: tdPrecision,
+        canStroke: tdKind === "stroke" && !tdPrecision,
+        promoted: false,
+      };
+      showTouchTarget(e.clientX, e.clientY, tdPrecision, false);
+      e.preventDefault();
+      return;
+    }
+
     if (isTouchPointer(e) && activeTool === "backstitch") {
+      showTouchTarget(e.clientX, e.clientY, precisionOn(), true);
       pendingTapRef.current = {
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -893,7 +1006,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
-      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); panStateRef.current.moved = true; }
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); clearNavTap(); panStateRef.current.moved = true; }
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -901,14 +1014,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    var td = touchDrawRef.current;
+    if (td && td.pointerId === e.pointerId) {
+      td.x = e.clientX; td.y = e.clientY;
+      if (!td.promoted && window.touchDrawOutcome &&
+          window.touchDrawOutcome({ x: td.startX, y: td.startY }, { x: td.x, y: td.y }, TOUCH_TAP_SLOP, td.canStroke) === "stroke") {
+        // A stroke: start it where the finger went down, as a mouse would.
+        td.promoted = true;
+        handlePatMouseDown(pointEvent(td.startX, td.startY));
+      }
+      if (td.promoted) handlePatMouseMove(e);
+      showTouchTarget(td.x, td.y, td.precision, false);
+      e.preventDefault();
+      return;
+    }
+
     if (pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId) {
       var moved = Math.hypot(e.clientX - pendingTapRef.current.startX, e.clientY - pendingTapRef.current.startY) > TOUCH_TAP_SLOP;
+      // With the precision cursor the finger is aiming, not cancelling.
       if (moved) {
-        pendingTapRef.current.moved = true;
         clearLongPressTimer();
+        if (!precisionOn()) pendingTapRef.current.moved = true;
       }
       e.preventDefault();
-      handlePatMouseMove(e);
+      var bsTarget = showTouchTarget(e.clientX, e.clientY, precisionOn(), true);
+      handlePatMouseMove(pointEvent(bsTarget.x, bsTarget.y));
       return;
     }
 
@@ -925,6 +1055,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var hadPinch = !!pinchStateRef.current;
     var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
     var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
+    var wasTouchDraw = touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId ? touchDrawRef.current : null;
 
     activePointersRef.current.delete(e.pointerId);
     if (e.target && e.target.releasePointerCapture) {
@@ -935,8 +1066,42 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var panTap = !wasPan.moved && !longPressTriggeredRef.current && !hadPinch;
       panStateRef.current = null;
       clearLongPressTimer();
-      // A tap in Navigate shows that stitch's thread (the stitch menu).
-      if (panTap && isTouchPointer(e) && isNavigate()) openCellMenuAt(e.clientX, e.clientY);
+      // A tap in Navigate shows that stitch's thread (the stitch menu), once
+      // it is clear it isn't the first half of a double-tap, which zooms.
+      if (panTap && isTouchPointer(e) && isNavigate()) {
+        var now = Date.now(), prev = navTapRef.current;
+        if (prev && now - prev.t <= DOUBLE_TAP_MS && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <= DOUBLE_TAP_DIST) {
+          clearNavTap();
+          toggleDoubleTapZoom(e.clientX, e.clientY);
+        } else {
+          clearNavTap();
+          var tapX = e.clientX, tapY = e.clientY;
+          navTapRef.current = { t: now, x: tapX, y: tapY };
+          navTapTimerRef.current = setTimeout(function() {
+            navTapTimerRef.current = null;
+            navTapRef.current = null;
+            openCellMenuAt(tapX, tapY);
+          }, DOUBLE_TAP_MS);
+        }
+      }
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (wasTouchDraw) {
+      touchDrawRef.current = null;
+      hideTouchTarget();
+      if (wasTouchDraw.promoted) {
+        handlePatMouseUp(e);
+      } else if (!hadPinch) {
+        // A tap: one stitch at the last target cell.
+        var tgt = window.precisionTarget ? window.precisionTarget(wasTouchDraw.x, wasTouchDraw.y, wasTouchDraw.precision) : { x: wasTouchDraw.x, y: wasTouchDraw.y };
+        var tapEv = pointEvent(tgt.x, tgt.y);
+        handlePatMouseDown(tapEv);
+        handlePatMouseUp(tapEv);
+      }
+      if (activePointersRef.current.size < 2) pinchStateRef.current = null;
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -944,8 +1109,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (wasPendingTap) {
       clearLongPressTimer();
+      hideTouchTarget();
       if (!wasPendingTap.moved && !longPressTriggeredRef.current && !hadPinch) {
-        handlePatClick(e);
+        var bsAt = window.precisionTarget ? window.precisionTarget(e.clientX, e.clientY, precisionOn()) : { x: e.clientX, y: e.clientY };
+        handlePatClick(bsAt.y === e.clientY ? e : pointEvent(bsAt.x, bsAt.y));
       }
       clearPendingTap();
       state.setHoverCoords(null);
@@ -973,6 +1140,18 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatPointerCancel(e) {
     activePointersRef.current.delete(e.pointerId);
+    hideTouchTarget();
+    clearNavTap();
+    if (touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId) {
+      // A cancelled tap places nothing; a cancelled stroke keeps what it drew.
+      var tdc = touchDrawRef.current;
+      touchDrawRef.current = null;
+      if (!tdc.promoted) {
+        if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+        state.setHoverCoords(null);
+        return;
+      }
+    }
     if (e.target && e.target.releasePointerCapture) {
       try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
     }

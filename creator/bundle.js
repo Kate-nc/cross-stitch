@@ -5173,6 +5173,27 @@ function initialDrawMode() {
   if (saved === true || saved === false) return saved;
   return isFinePointerNow();
 }
+// Highest Creator zoom. Touch screens get 4 (80px cells) for precise
+// placement (audit DRAW-03) where the device can hold that canvas: the chart
+// canvas and its base cache are both full size, so the area is halved.
+function creatorMaxZoom(sW, sH, coarse) {
+  if (!coarse) return 3;
+  var cap = 4;
+  try {
+    if (sW > 0 && sH > 0 && typeof window.canvasSizeLimits === "function") {
+      var lim = window.canvasSizeLimits();
+      var pad = 30;
+      var cell = Math.min(
+        Math.floor((lim.side - pad) / sW),
+        Math.floor((lim.side - pad) / sH),
+        Math.floor(Math.sqrt(lim.area / 2 / (sW * sH)))
+      );
+      cap = Math.min(cap, cell / 20);
+    }
+  } catch (_) {}
+  return Math.max(3, Math.floor(cap * 100) / 100);
+}
+window.creatorMaxZoom = creatorMaxZoom;
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
@@ -5515,6 +5536,25 @@ window.useCreatorState = function useCreatorState() {
     _drawMode[1](v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
   }, []);
+  // Touch placement aids (audit DRAW-03). The loupe defaults to on for
+  // touch screens; the precision cursor is opt-in.
+  var _magnifier = useState(function () {
+    var v = loadUserPref("creator.magnifier", null);
+    return v === true || v === false ? v : !isFinePointerNow();
+  });
+  var magnifierOn = _magnifier[0];
+  var magnifierRef = useRef(magnifierOn);
+  var setMagnifierOn = useCallback(function (v) {
+    v = !!v; magnifierRef.current = v; _magnifier[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.magnifier", v); } catch (_) {}
+  }, []);
+  var _precision = useState(function () { return loadUserPref("creator.precisionCursor", false) === true; });
+  var precisionCursor = _precision[0];
+  var precisionCursorRef = useRef(precisionCursor);
+  var setPrecisionCursor = useCallback(function (v) {
+    v = !!v; precisionCursorRef.current = v; _precision[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
+  }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -5783,6 +5823,7 @@ window.useCreatorState = function useCreatorState() {
   }, [pat]);
 
   var cs = useMemo(function() { return Math.max(2, Math.round(20 * zoom)); }, [zoom]);
+  var maxZoom = useMemo(function() { return creatorMaxZoom(sW, sH, !isFinePointerNow()); }, [sW, sH]);
 
   // The chart's scroll box is sized by its content (up to 550px), so a
   // fitted chart would shrink it. Keep it at the measured height instead.
@@ -6837,6 +6878,7 @@ window.useCreatorState = function useCreatorState() {
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
+    magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
@@ -8576,6 +8618,186 @@ window.DENOISE_THRESHOLD_MAX_DE = DENOISE_THRESHOLD_MAX_DE;
 window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
 
 
+/* ─── Loupe.js ─── */
+/* creator/Loupe.js — touch magnifier and precision cursor (audit DRAW-03).
+ *
+ * At the fitted zoom on a phone a cell is about 9 CSS px and a fingertip
+ * covers several of them. While one finger is down in Draw mode with Paint,
+ * Erase, a partial stitch, backstitch or the eyedropper,
+ * useCanvasInteraction.js calls window.creatorLoupe.show() with the target
+ * and this file draws:
+ *
+ *   - the loupe: a 110px circle 90px above the target (below it near the top
+ *     of the screen) showing the 7 x 7 cells around it, copied from the chart
+ *     canvas, with a crosshair in the current thread colour;
+ *   - the precision cursor (opt-in): a crosshair 40px above the finger. The
+ *     finger moves it and lifting places the stitch there.
+ *
+ * The pure helpers (loupeRect, loupePlacement, precisionTarget,
+ * touchDrawOutcome) are exported for tests. The Tracker could reuse the loupe
+ * later; it only needs a source canvas, a cell size and a gutter.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+
+(function () {
+  var LOUPE_SIZE = 110;        // CSS px across
+  var LOUPE_GAP = 90;          // centre of the loupe to the target, CSS px
+  var LOUPE_RADIUS_CELLS = 3;  // 3 cells each side of the target = 7 x 7
+  var PRECISION_OFFSET = 40;   // precision cursor above the finger, CSS px
+  var EDGE_MARGIN = 8;
+
+  // Source rectangle, in chart-canvas pixels, of the (2r+1) x (2r+1) cells
+  // centred on `cell`. `gutter` is the ruler width before the first cell.
+  function loupeRect(cell, cs, radiusCells, gutter) {
+    var r = radiusCells == null ? LOUPE_RADIUS_CELLS : radiusCells;
+    var g = gutter || 0;
+    var span = (2 * r + 1) * cs;
+    return { sx: g + (cell.gx - r) * cs, sy: g + (cell.gy - r) * cs, sw: span, sh: span };
+  }
+
+  // Where the loupe goes for a target at viewport point (x, y): centred
+  // LOUPE_GAP above it, or below it when that would leave the top of the
+  // screen, and kept inside the viewport horizontally. Its centre is always
+  // LOUPE_GAP (more than its radius) above or below the target, so it never
+  // covers it.
+  function loupePlacement(x, y, vw, vh, opts) {
+    var o = opts || {};
+    var size = o.size || LOUPE_SIZE;
+    var gap = o.gap || LOUPE_GAP;
+    var margin = o.margin == null ? EDGE_MARGIN : o.margin;
+    var flipped = y - gap - size / 2 < margin;
+    var cy = flipped ? y + gap : y - gap;
+    var left = x - size / 2;
+    if (vw > 0) left = Math.max(margin, Math.min(vw - margin - size, left));
+    return { left: left, top: cy - size / 2, size: size, flipped: flipped };
+  }
+
+  // The point a finger at (x, y) aims at: under it, or PRECISION_OFFSET above
+  // it with the precision cursor on.
+  function precisionTarget(x, y, precision) {
+    return precision ? { x: x, y: y - PRECISION_OFFSET } : { x: x, y: y };
+  }
+
+  // What lifting a finger does. Within the tap slop it is a tap, committed at
+  // the last target cell; beyond it a stroke-capable tool strokes as it does
+  // with a mouse. The precision cursor and single-cell tools never stroke:
+  // the finger only moves the target.
+  function touchDrawOutcome(start, now, slop, canStroke) {
+    var moved = Math.hypot(now.x - start.x, now.y - start.y) > slop;
+    return moved && canStroke ? "stroke" : "tap";
+  }
+
+  // ── Bus: the canvas handlers push the target; the component draws it ──
+  var current = null;
+  var listeners = [];
+  function notify() { listeners.slice().forEach(function (fn) { fn(current); }); }
+  var bus = {
+    show: function (info) { current = info; notify(); },
+    hide: function () { if (current) { current = null; notify(); } },
+    get: function () { return current; },
+    subscribe: function (fn) {
+      listeners.push(fn);
+      return function () { listeners = listeners.filter(function (f) { return f !== fn; }); };
+    }
+  };
+
+  function cssVar(name, fallback) {
+    try {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    } catch (_) { return fallback; }
+  }
+
+  function drawLoupe(canvas, info) {
+    var src = info.source;
+    if (!canvas || !src) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    var W = Math.round(LOUPE_SIZE * dpr);
+    if (canvas.width !== W) { canvas.width = W; canvas.height = W; }
+    var c = canvas.getContext("2d");
+    if (!c) return;
+    c.imageSmoothingEnabled = false;
+    c.fillStyle = cssVar("--surface-tertiary", "white");
+    c.fillRect(0, 0, W, W);
+    // The chart canvas may be scaled by CSS; read cells in its own pixels.
+    var scale = 1;
+    try {
+      var rect = src.getBoundingClientRect();
+      if (rect.width > 0) scale = src.width / rect.width;
+    } catch (_) {}
+    var cell = info.snap ? { gx: info.cell.gx - 0.5, gy: info.cell.gy - 0.5 } : info.cell;
+    var r = loupeRect(cell, info.cs, LOUPE_RADIUS_CELLS, info.G);
+    try { c.drawImage(src, r.sx * scale, r.sy * scale, r.sw * scale, r.sh * scale, 0, 0, W, W); } catch (_) {}
+
+    // Crosshair: a halo in the surface colour under the thread colour.
+    var unit = W / (2 * LOUPE_RADIUS_CELLS + 1);
+    var mid = W / 2;
+    var halo = cssVar("--surface", "white");
+    var ink = info.colour || cssVar("--text-primary", "black");
+    function strokeAll(width, colour) {
+      c.lineWidth = width * dpr;
+      c.strokeStyle = colour;
+      c.beginPath();
+      if (info.snap) {
+        c.arc(mid, mid, unit * 0.3, 0, Math.PI * 2);
+      } else {
+        c.rect(mid - unit / 2, mid - unit / 2, unit, unit);
+      }
+      var inner = info.snap ? unit * 0.3 : unit / 2;
+      c.moveTo(mid, 0); c.lineTo(mid, mid - inner - 2 * dpr);
+      c.moveTo(mid, W); c.lineTo(mid, mid + inner + 2 * dpr);
+      c.moveTo(0, mid); c.lineTo(mid - inner - 2 * dpr, mid);
+      c.moveTo(W, mid); c.lineTo(mid + inner + 2 * dpr, mid);
+      c.stroke();
+    }
+    strokeAll(3.5, halo);
+    strokeAll(1.6, ink);
+  }
+
+  window.CreatorLoupe = function CreatorLoupe() {
+    var h = React.createElement;
+    var st = React.useState(bus.get);
+    var info = st[0], setInfo = st[1];
+    var canvasRef = React.useRef(null);
+    React.useEffect(function () { return bus.subscribe(setInfo); }, []);
+    React.useEffect(function () {
+      if (info && info.magnifier) drawLoupe(canvasRef.current, info);
+    });
+    if (!info) return null;
+    var vw = window.innerWidth || 0, vh = window.innerHeight || 0;
+    var place = loupePlacement(info.x, info.y, vw, vh);
+    return h(React.Fragment, null,
+      info.magnifier ? h("canvas", {
+        ref: canvasRef,
+        className: "creator-loupe" + (place.flipped ? " creator-loupe--below" : ""),
+        "aria-hidden": "true",
+        style: { left: place.left, top: place.top, width: place.size, height: place.size }
+      }) : null,
+      info.precision ? h("div", {
+        className: "creator-precision-cursor",
+        "aria-hidden": "true",
+        style: { left: info.x, top: info.y }
+      }, h("svg", { viewBox: "0 0 24 24", width: 28, height: 28, fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round" },
+        h("circle", { cx: 12, cy: 12, r: 4 }),
+        h("path", { d: "M12 1v6M12 17v6M1 12h6M17 12h6" })
+      )) : null
+    );
+  };
+
+  window.creatorLoupe = bus;
+  window.loupeRect = loupeRect;
+  window.loupePlacement = loupePlacement;
+  window.precisionTarget = precisionTarget;
+  window.touchDrawOutcome = touchDrawOutcome;
+  window.CREATOR_LOUPE = { SIZE: LOUPE_SIZE, GAP: LOUPE_GAP, RADIUS_CELLS: LOUPE_RADIUS_CELLS, PRECISION_OFFSET: PRECISION_OFFSET };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = { loupeRect: loupeRect, loupePlacement: loupePlacement, precisionTarget: precisionTarget, touchDrawOutcome: touchDrawOutcome, bus: bus };
+  }
+})();
+
+
 /* ─── useCanvasInteraction.js ─── */
 /* creator/useCanvasInteraction.js — All canvas mouse handlers, brush application,
    and crop handlers. Extracted from CreatorApp.
@@ -8636,10 +8858,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var pendingTapRef        = React.useRef(null);
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
+  var touchDrawRef         = React.useRef(null);  // one finger drawing (loupe / tap-on-lift)
+  var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
+  var navTapTimerRef       = React.useRef(null);
 
   var TC = (typeof window !== 'undefined' && window.TouchConstants) || null;
   var TOUCH_TAP_SLOP = TC ? TC.TAP_SLOP_PX : 10;
   var LONG_PRESS_MS = TC ? TC.LONG_PRESS_MS : 500;
+  var DOUBLE_TAP_MS = TC ? TC.DOUBLE_TAP_MAX_MS : 300;
+  var DOUBLE_TAP_DIST = TC ? TC.DOUBLE_TAP_MAX_DIST_PX : 24;
+  var DOUBLE_TAP_ZOOM = 3;
 
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
@@ -8679,6 +8907,94 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var idx = gc.gy * state.sW + gc.gx;
     state.setContextMenu({ x: clientX, y: clientY, gx: gc.gx, gy: gc.gy, idx: idx, cell: state.pat[idx] });
     return true;
+  }
+
+  // ─── Touch drawing (audit DRAW-03) ───────────────────────────────────────────
+  // With one finger in Draw mode these tools wait for the finger to lift: a
+  // tap places one stitch at the last target cell, so the finger can settle
+  // (with the loupe showing what is under it) and a second finger arriving
+  // for a pinch cancels cleanly. Beyond the tap slop, Paint, Erase and the
+  // half stitches stroke as they do with a mouse.
+  function touchDrawKind() {
+    var t = getActiveTool(), p = getPartialStitchTool();
+    if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
+    if (t === "paint" || t === "eraseAll") return "stroke";
+    if (t === "eyedropper") return "single";
+    return null;
+  }
+  function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
+  function magnifierOn() { return !!(state.magnifierRef && state.magnifierRef.current); }
+  function pointEvent(x, y) {
+    return { clientX: x, clientY: y, button: 0, pointerType: "touch", shiftKey: false, altKey: false, ctrlKey: false, metaKey: false, preventDefault: function() {}, stopPropagation: function() {} };
+  }
+  function loupeColour() {
+    var t = getActiveTool();
+    if (t === "eraseAll" || t === "eyedropper") return null;
+    var entry = state.selectedColorId && state.cmap ? state.cmap[state.selectedColorId] : null;
+    var rgb = entry && entry.rgb;
+    return rgb && rgb.length >= 3 ? "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")" : null;
+  }
+  // Show the loupe / precision cursor for a finger at (x, y), and the hover
+  // highlight on the target cell.
+  function showTouchTarget(x, y, precision, snap) {
+    var target = window.precisionTarget ? window.precisionTarget(x, y, precision) : { x: x, y: y };
+    var gc = state.pcRef && state.pcRef.current ? gridCoord(state.pcRef, { clientX: target.x, clientY: target.y }, state.cs, state.G, !!snap) : null;
+    if (gc) {
+      var hc = state.hoverCoords;
+      if (!hc || hc.gx !== gc.gx || hc.gy !== gc.gy) state.setHoverCoords(gc);
+    }
+    var loupe = window.creatorLoupe;
+    if (!loupe) return target;
+    var magnify = magnifierOn();
+    if (!gc || (!magnify && !precision)) { loupe.hide(); return target; }
+    loupe.show({
+      x: target.x, y: target.y, cell: gc, snap: !!snap,
+      cs: state.cs, G: state.G, source: state.pcRef.current,
+      magnifier: magnify, precision: precision, colour: loupeColour()
+    });
+    return target;
+  }
+  function hideTouchTarget() {
+    if (window.creatorLoupe) window.creatorLoupe.hide();
+  }
+  function cancelTouchDraw() {
+    if (!touchDrawRef.current) return;
+    touchDrawRef.current = null;
+    hideTouchTarget();
+  }
+  function clearNavTap() {
+    navTapRef.current = null;
+    if (navTapTimerRef.current) { clearTimeout(navTapTimerRef.current); navTapTimerRef.current = null; }
+  }
+
+  // Double-tap in Navigate: zoom to 300% centred on the tap, or back to Fit
+  // when already there.
+  function toggleDoubleTapZoom(clientX, clientY) {
+    var sc = state.scrollRef && state.scrollRef.current, pc = state.pcRef && state.pcRef.current;
+    if (!sc || !pc) return;
+    if (state.zoom >= DOUBLE_TAP_ZOOM - 0.01) {
+      if (typeof state.fitZ === "function") state.fitZ();
+      return;
+    }
+    var pRect = pc.getBoundingClientRect();
+    var fx = (clientX - pRect.left - state.G) / state.cs;
+    var fy = (clientY - pRect.top - state.G) / state.cs;
+    var newCs = Math.max(2, Math.round(20 * DOUBLE_TAP_ZOOM));
+    var wantW = state.sW * newCs + state.G + 2;
+    state.setZoom(DOUBLE_TAP_ZOOM);
+    var tries = 0;
+    function centre() {
+      var sc2 = state.scrollRef.current, pc2 = state.pcRef.current;
+      if (!sc2 || !pc2) return;
+      // The canvas resizes a frame or two after the zoom changes.
+      if (pc2.width < Math.min(wantW, 16384) && ++tries < 30) { requestAnimationFrame(centre); return; }
+      var cRect = sc2.getBoundingClientRect(), p2 = pc2.getBoundingClientRect();
+      var padX = p2.left - cRect.left + sc2.scrollLeft;
+      var padY = p2.top - cRect.top + sc2.scrollTop;
+      sc2.scrollLeft = padX + state.G + fx * newCs - sc2.clientWidth / 2;
+      sc2.scrollTop = padY + state.G + fy * newCs - sc2.clientHeight / 2;
+    }
+    requestAnimationFrame(centre);
   }
 
   function isPrimaryButton(e) {
@@ -8768,7 +9084,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var midY = (pts[0].y + pts[1].y) / 2;
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
-    var nextZoom = Math.max(0.05, Math.min(3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
+    var nextZoom = Math.max(0.05, Math.min(state.maxZoom || 3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
     var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
     var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
@@ -9377,6 +9693,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (activePointersRef.current.size === 2) {
       if (isDraggingRef.current) cancelDragSession();
+      cancelTouchDraw();
+      clearNavTap();
       clearPendingTap();
       panStateRef.current = null;
       state.setHoverCoords(null);
@@ -9427,7 +9745,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    var tdKind = isTouchPointer(e) ? touchDrawKind() : null;
+    if (tdKind && state.pat && state.pcRef && state.pcRef.current) {
+      var tdPrecision = precisionOn();
+      touchDrawRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX, startY: e.clientY,
+        x: e.clientX, y: e.clientY,
+        precision: tdPrecision,
+        canStroke: tdKind === "stroke" && !tdPrecision,
+        promoted: false,
+      };
+      showTouchTarget(e.clientX, e.clientY, tdPrecision, false);
+      e.preventDefault();
+      return;
+    }
+
     if (isTouchPointer(e) && activeTool === "backstitch") {
+      showTouchTarget(e.clientX, e.clientY, precisionOn(), true);
       pendingTapRef.current = {
         pointerId: e.pointerId,
         startX: e.clientX,
@@ -9472,7 +9807,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
       var dy = e.clientY - panStateRef.current.startY;
-      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); panStateRef.current.moved = true; }
+      if (Math.hypot(dx, dy) > TOUCH_TAP_SLOP) { clearLongPressTimer(); clearNavTap(); panStateRef.current.moved = true; }
       state.scrollRef.current.scrollLeft = panStateRef.current.scrollLeft - dx;
       state.scrollRef.current.scrollTop = panStateRef.current.scrollTop - dy;
       state.setHoverCoords(null);
@@ -9480,14 +9815,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    var td = touchDrawRef.current;
+    if (td && td.pointerId === e.pointerId) {
+      td.x = e.clientX; td.y = e.clientY;
+      if (!td.promoted && window.touchDrawOutcome &&
+          window.touchDrawOutcome({ x: td.startX, y: td.startY }, { x: td.x, y: td.y }, TOUCH_TAP_SLOP, td.canStroke) === "stroke") {
+        // A stroke: start it where the finger went down, as a mouse would.
+        td.promoted = true;
+        handlePatMouseDown(pointEvent(td.startX, td.startY));
+      }
+      if (td.promoted) handlePatMouseMove(e);
+      showTouchTarget(td.x, td.y, td.precision, false);
+      e.preventDefault();
+      return;
+    }
+
     if (pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId) {
       var moved = Math.hypot(e.clientX - pendingTapRef.current.startX, e.clientY - pendingTapRef.current.startY) > TOUCH_TAP_SLOP;
+      // With the precision cursor the finger is aiming, not cancelling.
       if (moved) {
-        pendingTapRef.current.moved = true;
         clearLongPressTimer();
+        if (!precisionOn()) pendingTapRef.current.moved = true;
       }
       e.preventDefault();
-      handlePatMouseMove(e);
+      var bsTarget = showTouchTarget(e.clientX, e.clientY, precisionOn(), true);
+      handlePatMouseMove(pointEvent(bsTarget.x, bsTarget.y));
       return;
     }
 
@@ -9504,6 +9856,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var hadPinch = !!pinchStateRef.current;
     var wasPendingTap = pendingTapRef.current && pendingTapRef.current.pointerId === e.pointerId ? pendingTapRef.current : null;
     var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
+    var wasTouchDraw = touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId ? touchDrawRef.current : null;
 
     activePointersRef.current.delete(e.pointerId);
     if (e.target && e.target.releasePointerCapture) {
@@ -9514,8 +9867,42 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var panTap = !wasPan.moved && !longPressTriggeredRef.current && !hadPinch;
       panStateRef.current = null;
       clearLongPressTimer();
-      // A tap in Navigate shows that stitch's thread (the stitch menu).
-      if (panTap && isTouchPointer(e) && isNavigate()) openCellMenuAt(e.clientX, e.clientY);
+      // A tap in Navigate shows that stitch's thread (the stitch menu), once
+      // it is clear it isn't the first half of a double-tap, which zooms.
+      if (panTap && isTouchPointer(e) && isNavigate()) {
+        var now = Date.now(), prev = navTapRef.current;
+        if (prev && now - prev.t <= DOUBLE_TAP_MS && Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <= DOUBLE_TAP_DIST) {
+          clearNavTap();
+          toggleDoubleTapZoom(e.clientX, e.clientY);
+        } else {
+          clearNavTap();
+          var tapX = e.clientX, tapY = e.clientY;
+          navTapRef.current = { t: now, x: tapX, y: tapY };
+          navTapTimerRef.current = setTimeout(function() {
+            navTapTimerRef.current = null;
+            navTapRef.current = null;
+            openCellMenuAt(tapX, tapY);
+          }, DOUBLE_TAP_MS);
+        }
+      }
+      state.setHoverCoords(null);
+      e.preventDefault();
+      return;
+    }
+
+    if (wasTouchDraw) {
+      touchDrawRef.current = null;
+      hideTouchTarget();
+      if (wasTouchDraw.promoted) {
+        handlePatMouseUp(e);
+      } else if (!hadPinch) {
+        // A tap: one stitch at the last target cell.
+        var tgt = window.precisionTarget ? window.precisionTarget(wasTouchDraw.x, wasTouchDraw.y, wasTouchDraw.precision) : { x: wasTouchDraw.x, y: wasTouchDraw.y };
+        var tapEv = pointEvent(tgt.x, tgt.y);
+        handlePatMouseDown(tapEv);
+        handlePatMouseUp(tapEv);
+      }
+      if (activePointersRef.current.size < 2) pinchStateRef.current = null;
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -9523,8 +9910,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (wasPendingTap) {
       clearLongPressTimer();
+      hideTouchTarget();
       if (!wasPendingTap.moved && !longPressTriggeredRef.current && !hadPinch) {
-        handlePatClick(e);
+        var bsAt = window.precisionTarget ? window.precisionTarget(e.clientX, e.clientY, precisionOn()) : { x: e.clientX, y: e.clientY };
+        handlePatClick(bsAt.y === e.clientY ? e : pointEvent(bsAt.x, bsAt.y));
       }
       clearPendingTap();
       state.setHoverCoords(null);
@@ -9552,6 +9941,18 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
   function handlePatPointerCancel(e) {
     activePointersRef.current.delete(e.pointerId);
+    hideTouchTarget();
+    clearNavTap();
+    if (touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId) {
+      // A cancelled tap places nothing; a cancelled stroke keeps what it drew.
+      var tdc = touchDrawRef.current;
+      touchDrawRef.current = null;
+      if (!tdc.promoted) {
+        if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+        state.setHoverCoords(null);
+        return;
+      }
+    }
     if (e.target && e.target.releasePointerCapture) {
       try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
     }
@@ -9924,7 +10325,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
     { id: "creator.zoom.in", keys: ["=", "+"], scope: "creator.design",
       description: "Zoom in",
       when: function () { return !!state.pat; },
-      run: function () { state.setZoom(function (z) { return Math.min(3, +(z + 0.1).toFixed(2)); }); } },
+      run: function () { state.setZoom(function (z) { return Math.min(state.maxZoom || 3, +(z + 0.1).toFixed(2)); }); } },
     { id: "creator.zoom.out", keys: "-", scope: "creator.design",
       description: "Zoom out",
       when: function () { return !!state.pat; },
@@ -12521,7 +12922,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
       h("div", {key:"zoom-grp", className:"tb-grp"},
         h("input", {
-          type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+          type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
           onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
           style:{width:80}, title:"Zoom"
         }),
@@ -12791,7 +13192,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
     h("input", {
-      type:"range", min:0.05, max:3, step:0.05, value:cv.zoom,
+      type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
       onChange:function(e){cv.setZoom(Number(e.target.value));},
       style:{width:55}
     }),
@@ -12848,7 +13249,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.25) * 100) / 100)); }}, window.Icons.minus()),
         h("span", {className:"tb-zoom-pct", "aria-live":"polite"}, Math.round(cv.zoom*100)+"%"),
         h("button", {className:"tb-btn", "aria-label":"Zoom in", title:"Zoom in",
-          onClick:function(){ cv.setZoom(Math.min(3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
+          onClick:function(){ cv.setZoom(Math.min(cv.maxZoom || 3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
         h("button", {className:"tb-btn", "aria-label":"Fit to screen", title:"Fit to screen",
           onClick:function(){ cv.fitZ(); setMorePanelOpen(false); }}, "Fit")
       ),
@@ -12859,6 +13260,18 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h("button", {className:"tb-btn", style:{width:"100%",justifyContent:"flex-start"},
         onClick:function(){ setMorePanelOpen(false); if (app.setPanelOpen) app.setPanelOpen(true); }},
         window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
+    ),
+    // ── Touch placement aids (audit DRAW-03) ──
+    coarsePointer && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Touch"),
+      h("label", {className:"tb-more-check", title:"While drawing, show an enlarged view of the stitches under your finger"},
+        h("input", {type:"checkbox", checked:!!cv.magnifierOn, onChange:function(e){ if (cv.setMagnifierOn) cv.setMagnifierOn(e.target.checked); }}),
+        h("span", null, "Magnifier")
+      ),
+      h("label", {className:"tb-more-check", title:"Draw a crosshair above your finger; lift to place the stitch there"},
+        h("input", {type:"checkbox", checked:!!cv.precisionCursor, onChange:function(e){ if (cv.setPrecisionCursor) cv.setPrecisionCursor(e.target.checked); }}),
+        h("span", null, "Precision cursor")
+      )
     ),
     // ── Canvas management ──
     h("div", {className:"tb-more-panel__section"},
@@ -16605,6 +17018,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),
+
+    // Touch loupe and precision cursor (fixed position; shown while drawing).
+    window.CreatorLoupe && h(window.CreatorLoupe, null),
 
     // Enhanced status bar: tool hint + coordinates + colour-under-cursor
     (function() {
