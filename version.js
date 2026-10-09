@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.77';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.78',
+    date: 'October 2026',
+    notes: [
+      'On touch screens the chart now scrolls with one finger until you pick a drawing tool. Tap Paint, Fill or Erase again to go back to scrolling, and drag with two fingers to pan.',
+    ]
+  },
+  {
     version: '1.0.77',
     date: 'October 2026',
     notes: [

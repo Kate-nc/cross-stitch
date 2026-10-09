@@ -917,6 +917,9 @@ window.useCreatorState = function useCreatorState() {
       setActiveTool(null); setPartialStitchTool(null); setBsStart(null);
     }
   }
+  function isFinePointer() {
+    try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
+  }
   function setBrushAndActivate(mode) {
     setBrushMode(mode);
     setActiveTool(mode);
@@ -960,12 +963,17 @@ window.useCreatorState = function useCreatorState() {
     if (lassoCancelRef.current) lassoCancelRef.current();
   }
 
-  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet)
+  // Initialize paint tool/colour only on first pattern load (when no colour is selected yet).
+  // Only fine pointers get Paint armed: on touch, an armed tool turns the
+  // first swipe into stitches, so touch users start with no tool (one finger
+  // pans, long-press opens the context menu) and pick Paint themselves.
   useEffect(function() {
     if (!pat || !pal || pal.length === 0) return;
     if (selectedColorId != null) return;
-    setBrushAndActivate("paint");
-    selectStitchType("cross");
+    if (isFinePointer()) {
+      setBrushAndActivate("paint");
+      selectStitchType("cross");
+    }
     setSelectedColorId(pal[0].id);
   }, [pat, pal]);
 
@@ -1060,7 +1068,7 @@ window.useCreatorState = function useCreatorState() {
       return n;
     });
     setRedoHistory([]);
-    if (!activeTool && !partialStitchTool) setBrushAndActivate("paint");
+    if (!activeTool && !partialStitchTool && isFinePointer()) setBrushAndActivate("paint");
   }
 
   function removeScratchColour(id) {

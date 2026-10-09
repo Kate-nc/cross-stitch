@@ -211,4 +211,47 @@ describe('useCanvasInteraction pointer support', () => {
     expect(state.setCropRect).toHaveBeenNthCalledWith(1, { x: 10, y: 10, w: 0, h: 0 });
     expect(state.setCropRect).toHaveBeenNthCalledWith(2, { x: 10, y: 10, w: 50, h: 45 });
   });
+
+  it('pans with a steady two-finger drag (zoom unchanged)', () => {
+    const state = makeState();
+    const handlers = useCanvasInteraction(state, {});
+    const a = makePointerEvent({ pointerId: 1, clientX: 20, clientY: 20 });
+    const b = makePointerEvent({ pointerId: 2, clientX: 60, clientY: 20 });
+    handlers.handlePatPointerDown(a);
+    handlers.handlePatPointerDown(b);
+    handlers.handlePatPointerMove(makePointerEvent({ pointerId: 1, clientX: 70, clientY: 50, target: a.target }));
+    handlers.handlePatPointerMove(makePointerEvent({ pointerId: 2, clientX: 110, clientY: 50, target: b.target }));
+
+    expect(state.scrollRef.current.scrollLeft).toBe(30);
+    expect(state.scrollRef.current.scrollTop).toBe(10);
+  });
+});
+
+describe('computePinchScroll', () => {
+  let computePinchScroll;
+  beforeEach(() => {
+    loadHook();
+    computePinchScroll = global.window.computePinchScroll;
+  });
+
+  const base = { startScrollLeft: 200, startScrollTop: 100, startMidX: 150, startMidY: 120,
+    originX: 10, originY: 20, padX: 28, padY: 28 };
+
+  it('moves the scroll by the midpoint movement when the distance is constant', () => {
+    const r = computePinchScroll(base, 200, 120, 1);
+    expect(r.scrollLeft).toBe(150);
+    expect(r.scrollTop).toBe(100);
+  });
+
+  it('keeps the chart point under the midpoint while zooming', () => {
+    const r = computePinchScroll(base, 150, 120, 2);
+    // focal chart point (start zoom) = 200 + 140 - 28 = 312 → 624 at 2x
+    expect(r.scrollLeft).toBe(624 + 28 - 140);
+  });
+
+  it('never returns a negative scroll', () => {
+    const r = computePinchScroll(base, 900, 900, 1);
+    expect(r.scrollLeft).toBe(0);
+    expect(r.scrollTop).toBe(0);
+  });
 });
