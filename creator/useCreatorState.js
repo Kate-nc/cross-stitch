@@ -88,23 +88,24 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   opts = opts || {};
   var fabricCt = opts.fabricCt || 14;
   var stash = opts.stash || {};
-  var order = [], byId = {};
+  var order = [], byKey = {};
   (pal || []).forEach(function(p) {
     if (!p || p.id === '__skip__' || p.id === '__empty__') return;
     var count = p.count || 0;
     var parts;
     if (p.type === 'blend') {
       parts = (p.threads && p.threads.length)
-        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb }; })
-        : String(p.id).split('+').map(function(id) { return { id: id }; });
+        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
+        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
     } else {
-      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand }];
+      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
     }
     parts.forEach(function(t) {
-      var r = byId[t.id];
+      var key = t.brand + ':' + t.id;
+      var r = byKey[key];
       if (!r) {
-        r = byId[t.id] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand || 'dmc', stitches: 0, threadStitches: 0 };
-        order.push(t.id);
+        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
+        order.push(key);
       }
       if (!r.name && t.name) r.name = t.name;
       if (!r.rgb && t.rgb) r.rgb = t.rgb;
@@ -112,10 +113,10 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
       r.threadStitches += parts.length > 1 ? count / parts.length : count;
     });
   });
-  return order.map(function(id) {
-    var r = byId[id];
+  return order.map(function(key) {
+    var r = byKey[key];
     if (!r.rgb || !r.name) {
-      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, id) : null;
+      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
       if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
     }
     var needed;
@@ -128,12 +129,15 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     }
     // Any thread with stitches needs at least one skein.
     if (r.stitches > 0) needed = Math.max(1, needed);
-    var key = (typeof threadKey === 'function') ? threadKey(r.brand, id) : (r.brand + ':' + id);
-    var owned = (stash[key] && stash[key].owned) || 0;
+    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
+    var entry = stash[stashKey];
+    var owned = typeof stashEffectiveQty === 'function'
+      ? stashEffectiveQty(entry)
+      : ((entry && entry.owned) || 0);
     var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
     return {
-      p: { id: id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name },
-      key: key, owned: owned, needed: needed, status: status, name: r.name || id
+      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
+      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
     };
   });
 };

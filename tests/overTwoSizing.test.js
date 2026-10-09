@@ -76,8 +76,9 @@ describe('buildThreadShoppingRows', () => {
   const end = src.indexOf('\n};\n', start) + 3;
   const window = {};
   // eslint-disable-next-line no-new-func
-  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', src.slice(start, end))(
-    window, env.stitchesToSkeins, (b, id) => b + ':' + id, () => null);
+  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', src.slice(start, end))(
+    window, env.stitchesToSkeins, (b, id) => b + ':' + id, () => null,
+    (entry) => entry ? (entry.owned || 0) + ({ 'mostly-full': 0.75, 'about-half': 0.5, remnant: 0.25 }[entry.partialStatus] || 0) : 0);
   const build = window.buildThreadShoppingRows;
 
   const pal = [
@@ -99,6 +100,27 @@ describe('buildThreadShoppingRows', () => {
     const rows = build(pal, { fabricCt: 14, stash: { 'dmc:550': { owned: 5 } } });
     expect(rows.find((r) => r.p.id === '550').status).toBe('owned');
     expect(rows.find((r) => r.p.id === '310').status).toBe('needed');
+  });
+
+  test('separates equal numeric IDs by brand, including blend components', () => {
+    const rows = build([
+      { id: '403', type: 'solid', count: 100, brand: 'dmc' },
+      { id: '403', type: 'solid', count: 200, brand: 'anchor' },
+      { id: '403+310', type: 'blend', count: 80, threads: [
+        { id: '403', brand: 'anchor', name: 'Anchor 403' },
+        { id: '310', brand: 'dmc', name: 'DMC 310' }
+      ] }
+    ], { fabricCt: 14 });
+    expect(rows.map((r) => r.key)).toEqual(['dmc:403', 'anchor:403', 'dmc:310']);
+    expect(rows.map((r) => r.p.count)).toEqual([100, 280, 80]);
+    expect(rows.map((r) => r.p.brand)).toEqual(['dmc', 'anchor', 'dmc']);
+  });
+
+  test('counts fractional partial skeins toward owned quantity', () => {
+    const rows = build(pal, { fabricCt: 14, stash: { 'dmc:310': { owned: 0, partialStatus: 'mostly-full' } } });
+    const row = rows.find((r) => r.key === 'dmc:310');
+    expect(row.owned).toBe(0.75);
+    expect(row.status).toBe('partial');
   });
 
   test('skips background and empty cells', () => {
