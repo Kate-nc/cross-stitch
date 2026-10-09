@@ -970,6 +970,13 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
+  // Thin anti-aliasing shades between two main colours (or a main colour and
+  // the skipped background) are folded into them. Part of Stitch Cleanup.
+  if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
+    mergeEdgeBlendColours(mapped, width, height, { bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null });
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;
@@ -4955,6 +4962,12 @@ function creatorFitBox(el) {
   if (drawer && getComputedStyle(drawer).position === "fixed") {
     var dt = drawer.getBoundingClientRect().top;
     if (dt > r.top) bottom = Math.min(bottom, dt);
+  }
+  // The phone tool rail (compact layout, audit COMMON-03) covers the bottom.
+  var rail = document.querySelector(".creator-rail");
+  if (rail) {
+    var rt = rail.getBoundingClientRect().top;
+    if (rt > r.top) bottom = Math.min(bottom, rt);
   }
   var h = bottom - Math.max(0, r.top) - chrome;
   var mh = parseFloat(getComputedStyle(el).maxHeight);
@@ -11863,6 +11876,203 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 };
 
 
+/* ─── CompactBar.js ─── */
+/* creator/CompactBar.js — the Creator's compact phone chrome (audit COMMON-03).
+ *
+ * Under 900px wide the global header, the outcome action bar
+ * (creator/ActionBar.js), the tool strip and the Stitch Score banner used to
+ * stack up to more than half of a phone screen above the chart. In that
+ * layout this file supplies:
+ *
+ *   window.useCreatorCompact()  → true while the viewport is under 900px.
+ *   window.CreatorCompactTopBar → one 48px bar: Home, project name (tap to
+ *     rename), save status icon, Convert / Edit / Materials and a More
+ *     button. More opens a sheet with Print PDF, Export…, Open in Tracker,
+ *     Pattern info, the Stitch Score, Help and links to the other tools.
+ *
+ * The bottom tool rail lives in creator/ToolStrip.js (it shares the More
+ * panel there). CSS: the "Compact phone chrome" block in styles.css, keyed
+ * on body.creator-compact, which creator-main.js sets.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+
+(function () {
+  var COMPACT_QUERY = "(max-width: 899px)";
+
+  function matches() {
+    try { return !!(window.matchMedia && window.matchMedia(COMPACT_QUERY).matches); } catch (_) { return false; }
+  }
+
+  window.CREATOR_COMPACT_QUERY = COMPACT_QUERY;
+  window.useCreatorCompact = function useCreatorCompact() {
+    var st = React.useState(matches);
+    var compact = st[0], setCompact = st[1];
+    React.useEffect(function () {
+      if (!window.matchMedia) return undefined;
+      var mq = window.matchMedia(COMPACT_QUERY);
+      var on = function () { setCompact(mq.matches); };
+      on();
+      if (mq.addEventListener) mq.addEventListener("change", on); else if (mq.addListener) mq.addListener(on);
+      return function () {
+        if (mq.removeEventListener) mq.removeEventListener("change", on); else if (mq.removeListener) mq.removeListener(on);
+      };
+    }, []);
+    return compact;
+  };
+
+  function saveStatusIcon(status, savedAt, Icons) {
+    var effective = status || (savedAt ? "saved" : "idle");
+    if (effective === "saving" || effective === "pending") return { icon: Icons.spinner ? Icons.spinner() : null, label: effective === "saving" ? "Saving…" : "Editing…", tone: "muted" };
+    if (effective === "error") return { icon: Icons.cloudAlert ? Icons.cloudAlert() : Icons.warning(), label: "Save failed", tone: "danger" };
+    return { icon: Icons.cloudCheck ? Icons.cloudCheck() : Icons.check(), label: "All changes saved", tone: "ok" };
+  }
+
+  window.CreatorCompactTopBar = function CreatorCompactTopBar(props) {
+    var h = React.createElement;
+    var Icons = window.Icons || {};
+    var sheetState = React.useState(false);
+    var sheetOpen = sheetState[0], setSheetOpen = sheetState[1];
+    var exportState = React.useState(false);
+    var exportOpen = exportState[0], setExportOpen = exportState[1];
+    var infoState = React.useState(false);
+    var infoOpen = infoState[0], setInfoOpen = infoState[1];
+    var moreBtnRef = React.useRef(null);
+    var infoBtnRef = React.useRef(null);
+
+    var hasPat = !!props.pat;
+    var appMode = props.appMode;
+    var tab = props.tab;
+
+    // Escape closes the sheet.
+    React.useEffect(function () {
+      if (!sheetOpen) return undefined;
+      function onKey(e) { if (e.key === "Escape") { setSheetOpen(false); if (moreBtnRef.current) moreBtnRef.current.focus(); } }
+      document.addEventListener("keydown", onKey);
+      return function () { document.removeEventListener("keydown", onKey); };
+    }, [sheetOpen]);
+
+    function close() { setSheetOpen(false); setExportOpen(false); }
+    function run(fn) { return function () { close(); if (typeof fn === "function") fn(); }; }
+
+    var status = saveStatusIcon(props.saveStatus, props.savedAt, Icons);
+
+    // Convert / Edit / Materials — icon segmented control with labels for
+    // screen readers (visible labels sit in the More sheet's heading).
+    var modes = [
+      { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
+        disabled: !props.hasImage && !hasPat,
+        onClick: function () { if (appMode !== "create" && typeof props.onRequestBackToConvert === "function") props.onRequestBackToConvert(); } },
+      { id: "edit", label: "Edit", icon: Icons.pencil, active: appMode === "edit" && tab === "pattern", disabled: !hasPat,
+        onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("pattern"); } },
+      { id: "materials", label: "Materials", icon: Icons.layers, active: tab === "materials", disabled: !hasPat,
+        onClick: function () { if (typeof props.onTabChange === "function") props.onTabChange("materials"); } }
+    ];
+    var modeSwitch = h("div", { className: "cc-modes", role: "tablist", "aria-label": "Creator section" },
+      modes.map(function (m) {
+        return h("button", {
+          key: m.id, type: "button", role: "tab",
+          className: "cc-btn cc-mode" + (m.active ? " cc-mode--on" : ""),
+          "aria-selected": m.active ? "true" : "false",
+          "aria-label": m.label, title: m.label,
+          disabled: m.disabled,
+          onClick: m.onClick
+        }, m.icon ? m.icon() : m.label);
+      })
+    );
+
+    var bar = h("div", { className: "creator-compact-top", role: "toolbar", "aria-label": "Pattern" },
+      h("a", { href: "home.html", className: "cc-btn cc-home", "aria-label": "Home", title: "Home" },
+        Icons.chevronLeft ? Icons.chevronLeft() : null),
+      h("button", {
+        type: "button", className: "cc-name",
+        onClick: function () { window.dispatchEvent(new CustomEvent("cs:openRename")); },
+        disabled: !hasPat,
+        title: "Rename", "aria-label": "Rename “" + (props.projectName || "pattern") + "”"
+      },
+        h("span", { className: "cc-name__text" }, props.projectName || "New pattern"),
+        hasPat && Icons.pencil ? h("span", { className: "cc-name__icon", "aria-hidden": "true" }, Icons.pencil()) : null
+      ),
+      hasPat ? h("span", {
+        className: "cc-save cc-save--" + status.tone, role: "status", "aria-label": status.label, title: status.label
+      }, status.icon) : null,
+      // Convert: Generate stays one tap away (it is also in the settings drawer).
+      appMode === "create" && props.hasImage ? h("button", {
+        type: "button", className: "cc-generate",
+        "data-onboard": "creator-generate",
+        disabled: !!props.generatingPattern,
+        onClick: props.generatingPattern ? undefined : props.onGenerate,
+        "aria-label": props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate pattern" : "Generate pattern",
+        title: hasPat ? "Regenerate pattern" : "Generate pattern"
+      }, props.generatingPattern ? (Icons.spinner ? Icons.spinner() : null) : (Icons.refresh ? Icons.refresh() : null),
+        h("span", null, props.generatingPattern ? "Generating\u2026" : hasPat ? "Regenerate" : "Generate")) : modeSwitch,
+      h("button", {
+        ref: moreBtnRef, type: "button", className: "cc-btn cc-more",
+        "aria-haspopup": "dialog", "aria-expanded": sheetOpen ? "true" : "false",
+        "aria-label": "More actions", title: "More actions",
+        onClick: function () { setSheetOpen(!sheetOpen); }
+      }, Icons.more ? Icons.more() : Icons.menu())
+    );
+
+    var score = props.stitchScore;
+    var sheet = sheetOpen ? h(React.Fragment, null,
+      h("div", { className: "cc-sheet-backdrop", onClick: close }),
+      h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
+        h("div", { className: "cc-sheet__handle", "aria-hidden": "true" }),
+        hasPat ? h("button", { type: "button", className: "cc-sheet__item cc-sheet__item--primary", onClick: run(props.onPrintPdf) },
+          Icons.printer ? Icons.printer() : null, h("span", null, "Print PDF")) : null,
+        hasPat ? h("button", {
+          type: "button", className: "cc-sheet__item", "aria-expanded": exportOpen ? "true" : "false",
+          onClick: function () { setExportOpen(!exportOpen); }
+        }, Icons.document ? Icons.document() : null, h("span", null, "Export…"),
+          h("span", { className: "cc-sheet__chev", "aria-hidden": "true" }, exportOpen ? Icons.chevronUp() : Icons.chevronDown())) : null,
+        hasPat && exportOpen ? h("div", { className: "cc-sheet__sub" },
+          h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onSaveJson) },
+            Icons.save ? Icons.save() : null, h("span", null, "Save project (.json)")),
+          h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onMoreExports) },
+            Icons.archive ? Icons.archive() : null, h("span", null, "More export options…"))
+        ) : null,
+        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onTrackPattern) },
+          Icons.chevronRight ? Icons.chevronRight() : null, h("span", null, "Open in Tracker")) : null,
+        hasPat ? h("button", {
+          ref: infoBtnRef, type: "button", className: "cc-sheet__item",
+          onClick: function () { close(); setInfoOpen(true); }
+        }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
+          props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
+        score != null ? h("div", { className: "cc-sheet__score", title: "Higher score = easier to stitch: fewer isolated single stitches." },
+          h("span", { className: "cc-sheet__score-lbl" }, "Stitch Score"),
+          h("span", { className: "cc-sheet__score-val" }, score + "/100"),
+          props.stitchScoreNote ? h("span", { className: "cc-sheet__meta" }, props.stitchScoreNote) : null) : null,
+        h("div", { className: "cc-sheet__sep", role: "separator" }),
+        h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
+          Icons.help ? Icons.help() : null, h("span", null, "Help")),
+        typeof props.onPreferences === "function" ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(props.onPreferences) },
+          Icons.settings ? Icons.settings() : null, h("span", null, "Preferences")) : null,
+        h("div", { className: "cc-sheet__links" },
+          h("a", { href: "home.html", className: "cc-sheet__link" }, "Home"),
+          h("a", { href: "manager.html", className: "cc-sheet__link" }, "Stash"),
+          h("a", { href: "index.html?mode=stats&from=home", className: "cc-sheet__link" }, "Stats")
+        )
+      )
+    ) : null;
+
+    var info = infoOpen && typeof window.CreatorPatternInfoPopover !== "undefined"
+      ? h(window.CreatorPatternInfoPopover, {
+          open: true,
+          onClose: function () { setInfoOpen(false); },
+          triggerRef: moreBtnRef,
+          sW: props.sW, sH: props.sH, fabricCt: props.fabricCt,
+          colourCount: props.colourCount, skeinEstimate: props.skeinEstimate,
+          totalStitchable: props.totalStitchable, difficulty: props.difficulty,
+          solidPct: props.solidPct, stitchSpeed: props.stitchSpeed, doneCount: props.doneCount
+        })
+      : null;
+
+    return h(React.Fragment, null, bar, sheet, info);
+  };
+})();
+
+
 /* ─── ToolStrip.js ─── */
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
    Reads from CreatorContext and GenerationContext.
@@ -11875,6 +12085,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var app = window.useApp();
   var gen = window.useGeneration();
   var h = React.createElement;
+
+  // Compact phone chrome (audit COMMON-03): under 900px the Edit tools move
+  // to a bottom rail (see the end of this component and creator/CompactBar.js).
+  var compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // The colour strip is optional on phones; More › Show colour strip.
+  var _cs = React.useState(function() { try { return localStorage.getItem("creator.showColourStrip") === "1"; } catch (_) { return false; } });
+  var showColourStrip = _cs[0];
+  function setShowColourStrip(v) {
+    _cs[1](!!v);
+    try { localStorage.setItem("creator.showColourStrip", v ? "1" : "0"); } catch (_) {}
+  }
 
   // Local state
   // Click-to-toggle state for hover dropdowns (touch-friendly).
@@ -12618,6 +12839,27 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    // ── View (phone rail only): zoom moved here from the strip; pinch is
+    //    still the main way to zoom. ──
+    compact && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "View"),
+      h("div", {className:"tb-grp tb-more-zoom", style:{flexWrap:"wrap",gap:4,alignItems:"center"}},
+        h("button", {className:"tb-btn", "aria-label":"Zoom out", title:"Zoom out",
+          onClick:function(){ cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.25) * 100) / 100)); }}, window.Icons.minus()),
+        h("span", {className:"tb-zoom-pct", "aria-live":"polite"}, Math.round(cv.zoom*100)+"%"),
+        h("button", {className:"tb-btn", "aria-label":"Zoom in", title:"Zoom in",
+          onClick:function(){ cv.setZoom(Math.min(3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
+        h("button", {className:"tb-btn", "aria-label":"Fit to screen", title:"Fit to screen",
+          onClick:function(){ cv.fitZ(); setMorePanelOpen(false); }}, "Fit")
+      ),
+      h("label", {className:"tb-more-check"},
+        h("input", {type:"checkbox", checked:showColourStrip, onChange:function(e){ setShowColourStrip(e.target.checked); }}),
+        h("span", null, "Show colour strip")
+      ),
+      h("button", {className:"tb-btn", style:{width:"100%",justifyContent:"flex-start"},
+        onClick:function(){ setMorePanelOpen(false); if (app.setPanelOpen) app.setPanelOpen(true); }},
+        window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
+    ),
     // ── Canvas management ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Canvas"),
@@ -12786,12 +13028,58 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ setMorePanelOpen(function(o){ return !o; }); },
       title:"More tools", "aria-label":"More tools",
       "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
-    }, "More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null),
+    }, compact
+      ? (window.Icons.more ? window.Icons.more() : "More")
+      : ["More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null]),
     morePanelContent
   );
 
   // cleanupRow and denoiseRow are computed before the create-mode early return
   // above, so they are available here for both modes without duplication.
+
+  if (compact) {
+    // ── Bottom tool rail (phones and portrait tablets) ──
+    var selCol = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
+    var railBtn = function(key, label, icon, on, onClick, extra) {
+      return h("button", Object.assign({
+        key:key, type:"button",
+        className:"creator-rail__btn" + (on ? " creator-rail__btn--on" : ""),
+        "aria-label":label, title:label, "aria-pressed": on ? "true" : "false",
+        onClick:onClick
+      }, extra || {}), icon);
+    };
+    var railToggle = window.ModeToggle ? h(window.ModeToggle, {
+      compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
+      value: cv.drawMode ? "draw" : "navigate",
+      onChange:function(v){
+        if (v === "draw" && !cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+        cv.setDrawMode(v === "draw");
+      },
+      options:[
+        { value:"navigate", label:"Navigate", icon:window.Icons.hand(), title:"Navigate: drag to move around, tap a stitch to see its thread" },
+        { value:"draw", label:"Draw", icon:window.Icons.pencil(), title:"Draw: touches change the chart" }
+      ]
+    }) : null;
+    return h("div", {className:"creator-rail", role:"toolbar", "aria-label":"Edit tools"},
+      showColourStrip && swatchRow,
+      cleanupRow,
+      denoiseRow,
+      h("div", {className:"creator-rail__row"},
+        railToggle,
+        railBtn("paint", "Paint tool", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
+        railBtn("fill", "Fill tool", window.Icons.bucket(), fillOn, function(){ pickBrush("fill", fillOn); }),
+        railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        h("button", {
+          key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
+          "aria-label": selCol ? ("Colour DMC " + cv.selectedColorId + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
+          title: selCol ? ("DMC " + cv.selectedColorId + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
+          onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
+        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
+        railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        morePanelWrap
+      )
+    );
+  }
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
@@ -15876,6 +16164,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   };
 
   return h("div", {
+    className: "creator-toast-container",
     style: {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
       display: "flex", flexDirection: "column-reverse", gap:'var(--s-2)',
@@ -16229,7 +16518,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var score = Math.round(100 - cleanPct);
       var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
       var singles = app.confettiData.clean.singles;
-      return h("div", {style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
+      // On phones the score moves into the top bar's More sheet (COMMON-03).
+      return h("div", {className:"cc-hide-compact", style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
         h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
           h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
           h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
@@ -16275,6 +16565,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       ? h(window.CreatorSplitPane, null)
       : h("div", {
       ref:app.scrollRef,
+      className:"cs-chart-scroll",
       style:{overflow:"auto",maxHeight:550,minHeight:app.chartFitH ? Math.min(550, app.chartFitH) : undefined,border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',background:"var(--surface-tertiary)",cursor:(function(){
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";

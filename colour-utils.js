@@ -2129,4 +2129,103 @@ function detectUniformBorder(imageData, opts) {
 }
 if (typeof window !== 'undefined') window.detectUniformBorder = detectUniformBorder;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder }; }
+// mergeEdgeBlendColours — fold anti-aliasing colours into the colours they
+// blend between (audit IMG-01). Scaling a flat graphic (a logo, clip art)
+// down to stitches averages the pixels along every edge, and the quantiser
+// gives those in-between shades threads of their own: a four-colour logo came
+// out as twelve threads, eight of them only ever one stitch wide. A colour is
+// folded away only when all of these hold, so photos keep their shading:
+//   - it is minor: under `minorShare` (5%) of the stitches;
+//   - it is thin: at least `thinShare` (80%) of its stitches touch another
+//     colour (4-neighbours), i.e. it lines edges rather than filling areas;
+//   - it is a blend: within `maxDeltaE` (ΔE76 10) of the straight line in Lab
+//     between two main colours (each at least `minorShare`), or between a main
+//     colour and the skipped background (`opts.bgLab`).
+// Each of its stitches becomes whichever of the two it borders more (the
+// background means unstitched). `mapped` is changed in place; returns the
+// number of colours folded away. Pure apart from that.
+function mergeEdgeBlendColours(mapped, w, h, opts) {
+  opts = opts || {};
+  var minorShare = opts.minorShare != null ? opts.minorShare : 0.05;
+  var thinShare = opts.thinShare != null ? opts.thinShare : 0.8;
+  var maxDeltaE = opts.maxDeltaE != null ? opts.maxDeltaE : 10;
+  if (!mapped || !w || !h) return 0;
+  var SKIP = "__skip__";
+  var stats = {}, total = 0, skipCell = null, i;
+  for (i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (!m) continue;
+    if (m.id === SKIP) { if (!skipCell) skipCell = m; continue; }
+    if (m.id === "__empty__") continue;
+    total++;
+    var st = stats[m.id] || (stats[m.id] = { id: m.id, entry: m, count: 0, edge: 0 });
+    st.count++;
+    var x = i % w, y = (i / w) | 0, edge = false;
+    if (x > 0 && mapped[i - 1] && mapped[i - 1].id !== m.id) edge = true;
+    else if (x < w - 1 && mapped[i + 1] && mapped[i + 1].id !== m.id) edge = true;
+    else if (y > 0 && mapped[i - w] && mapped[i - w].id !== m.id) edge = true;
+    else if (y < h - 1 && mapped[i + w] && mapped[i + w].id !== m.id) edge = true;
+    if (edge) st.edge++;
+  }
+  if (!total) return 0;
+  var ids = Object.keys(stats);
+  var majors = ids.filter(function (id) { return stats[id].count >= total * minorShare && stats[id].entry.lab; });
+  if (!majors.length) return 0;
+  // End points a blend can lie between: the main colours, plus the background.
+  var ends = majors.map(function (id) { return { id: id, lab: stats[id].entry.lab }; });
+  if (opts.bgLab && skipCell) ends.push({ id: SKIP, lab: opts.bgLab });
+  function segDist(p, a, b) {
+    var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+    var len2 = dx * dx + dy * dy + dz * dz;
+    var t = len2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy + (p[2] - a[2]) * dz) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    var ex = a[0] + t * dx - p[0], ey = a[1] + t * dy - p[1], ez = a[2] + t * dz - p[2];
+    return Math.sqrt(ex * ex + ey * ey + ez * ez);
+  }
+  var targets = {}, merged = 0;
+  ids.forEach(function (id) {
+    var st = stats[id];
+    if (st.count >= total * minorShare || !st.entry.lab) return;
+    if (st.edge / st.count < thinShare) return;
+    var best = null, bestD = maxDeltaE;
+    for (var a = 0; a < ends.length; a++) {
+      for (var b = a + 1; b < ends.length; b++) {
+        var d = segDist(st.entry.lab, ends[a].lab, ends[b].lab);
+        if (d <= bestD) { bestD = d; best = [ends[a], ends[b]]; }
+      }
+    }
+    // One main colour and no background: a near-duplicate shade still folds in.
+    if (!best && ends.length === 1 && segDist(st.entry.lab, ends[0].lab, ends[0].lab) <= maxDeltaE) best = [ends[0], ends[0]];
+    if (best) { targets[id] = best; merged++; }
+  });
+  if (!merged) return 0;
+  var src = mapped.slice();
+  function entryFor(endId) { return endId === SKIP ? skipCell : stats[endId].entry; }
+  for (i = 0; i < src.length; i++) {
+    var c = src[i];
+    if (!c || !targets[c.id]) continue;
+    var pair = targets[c.id], na = 0, nb = 0;
+    var cx = i % w, cy = (i / w) | 0;
+    for (var oy = -1; oy <= 1; oy++) {
+      for (var ox = -1; ox <= 1; ox++) {
+        if (!ox && !oy) continue;
+        var nx = cx + ox, ny = cy + oy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        var n = src[ny * w + nx];
+        if (!n) continue;
+        if (n.id === pair[0].id) na++; else if (n.id === pair[1].id) nb++;
+      }
+    }
+    var pick;
+    if (na !== nb) pick = na > nb ? pair[0] : pair[1];
+    else {
+      var da = segDist(c.lab, pair[0].lab, pair[0].lab), db = segDist(c.lab, pair[1].lab, pair[1].lab);
+      pick = da <= db ? pair[0] : pair[1];
+    }
+    mapped[i] = Object.assign({}, entryFor(pick.id));
+  }
+  return merged;
+}
+_colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours }; }

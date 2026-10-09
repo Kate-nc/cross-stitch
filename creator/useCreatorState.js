@@ -65,6 +65,12 @@ function creatorFitBox(el) {
     var dt = drawer.getBoundingClientRect().top;
     if (dt > r.top) bottom = Math.min(bottom, dt);
   }
+  // The phone tool rail (compact layout, audit COMMON-03) covers the bottom.
+  var rail = document.querySelector(".creator-rail");
+  if (rail) {
+    var rt = rail.getBoundingClientRect().top;
+    if (rt > r.top) bottom = Math.min(bottom, rt);
+  }
   var h = bottom - Math.max(0, r.top) - chrome;
   var mh = parseFloat(getComputedStyle(el).maxHeight);
   if (isFinite(mh)) h = Math.min(h, mh - chrome);

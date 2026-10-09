@@ -686,6 +686,25 @@ window.Icons = (function() {
       );
     },
     // Settings — alias for gear (used by spec EL-SCR-062-* references)
+    // Paint brush — the Paint tool on the phone tool rail (P1-2)
+    brush: function() {
+      return svg(
+        p('M18.4 3.6a2 2 0 0 1 2.8 2.8l-8.2 8.2-2.8-2.8z'),
+        p('M10.2 11.8l-1.7 1.7A3 3 0 0 0 7.6 16c0 1.7-1.3 3-3 3 2 2 7 2 8.7-.7a3 3 0 0 0 .1-3.3')
+      );
+    },
+    // Eraser — the Erase tool on the phone tool rail (P1-2)
+    eraser: function() {
+      return svg(
+        p('M7 21h13'),
+        p('M5.6 15.6l9.2-9.2a2 2 0 0 1 2.8 0l2 2a2 2 0 0 1 0 2.8L12 18.8a2 2 0 0 1-1.4.6H7.4L4.6 16.6a.7.7 0 0 1 0-1z'),
+        l(9,12,14,17)
+      );
+    },
+    // Horizontal ellipsis — "More" menus (P1-2)
+    more: function() {
+      return svg(c(5,12,1), c(12,12,1), c(19,12,1));
+    },
     settings: function() {
       return svg(
         c(12,12,3),

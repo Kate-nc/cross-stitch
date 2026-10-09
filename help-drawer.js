@@ -52,7 +52,7 @@
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
             ["Dithering", "Off (the default) maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
-            ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
+            ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes. It also folds away the in-between shades that appear along the edges of logos and other flat pictures, where two colours (or a colour and the skipped background) meet, so they don't each need a thread of their own."],
             ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
           ]
@@ -80,6 +80,7 @@
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
             ["Navigate and Draw (H)", "The Navigate | Draw switch says what a touch or click will do, like Mark and Navigate in the Stitch Tracker. Navigate moves around without changing anything: drag the chart to pan it, tap a stitch to see its thread, and press and hold (or right-click) for its menu. Draw makes touches and clicks change the chart with the tool you picked. Choosing Paint, Fill, Erase or any other tool switches to Draw; choosing Navigate keeps your tool for next time. Press H to switch."],
+            ["On a phone", "The Creator keeps the chart as big as it can. The bar at the top has Home, the pattern's name (tap to rename it), whether your changes are saved, Convert / Edit / Materials and a More button for Print PDF, Export, Open in Tracker, Pattern info, the Stitch Score and Help. The bar at the bottom has Navigate | Draw, Paint, Fill, Erase, the current colour (tap it to open the palette), Undo and More. More has zoom (pinching works too), Fit, Show colour strip and the settings panels. The settings panel opens above the bottom bar and hides again when you close it."],
             ["On a touch screen", "The switch is the first control in the toolbar, and a new pattern opens in Navigate so the first swipe scrolls. In Draw, drag one finger to draw and use two fingers to pan and zoom; a second finger cancels a stroke you've started. Tapping the active Paint, Fill or Erase button again goes back to Navigate. On a computer the switch is in the Tools tab, and the Creator opens in Draw."]
           ]
         },

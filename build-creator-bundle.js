@@ -64,6 +64,7 @@ const ORDER = [
   'usePreview.js',
   'PatternCanvas.js',
   'SplitPane.js',
+  'CompactBar.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',

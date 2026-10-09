@@ -1,33 +1,11 @@
 // P0-5 (audit COMMON-06 hint part, COMMON-11 contrast part).
 const path = require('path');
-const { test, expect, devices } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 
-const LOGO = path.join(__dirname, '..', 'fixtures', 'logo.png');
-const pixel5 = Object.assign({}, devices['Pixel 5']);
-delete pixel5.defaultBrowserType;
-
-async function openConvert(page, opts) {
-  await page.addInitScript(function(o) {
-    try {
-      ['tracker', 'creator', 'manager', 'home'].forEach(function(k) { localStorage.setItem('cs_welcome_' + k + '_done', '1'); });
-      ['firstStitch_creator', 'toolsTab_unlocked', 'import', 'undo', 'progress', 'save'].forEach(function(k) {
-        localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true');
-      });
-    } catch (e) {}
-  }, opts || {});
-  await page.goto('/home.html?tab=create');
-  const skip = page.getByRole('button', { name: 'Skip tour' });
-  if (await skip.isVisible().catch(function() { return false; })) await skip.click();
-  await page.locator('input.home-create-file-input').setInputFiles(LOGO);
-  await page.waitForURL(/create\.html/);
-  await page.waitForSelector('.rpanel');
-}
-
-async function generate(page) {
-  await page.getByRole('button', { name: 'Generate pattern' }).first().click();
-  await page.waitForSelector('.rpanel--edit', { timeout: 20000 });
-  await page.waitForTimeout(500);
-}
+const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+const pixel5 = device('Pixel 5');
+const openConvert = (page) => openConvertWithLogo(page);
+async function generate(page) { await clickGenerate(page); await waitForEdit(page); }
 
 test.describe('Touch hints on Pixel 5', function() {
   test.use(pixel5);
@@ -48,7 +26,7 @@ test.describe('Touch hints on Pixel 5', function() {
 });
 
 test.describe('Desktop keeps keyboard hints', function() {
-  test.use({ viewport: { width: 1440, height: 900 } });
+  test.use(device('desktop'));
 
   test('the shortcuts hint still shows', async function({ page }) {
     await openConvert(page);

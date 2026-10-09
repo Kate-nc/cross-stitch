@@ -10,6 +10,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var gen = window.useGeneration();
   var h = React.createElement;
 
+  // Compact phone chrome (audit COMMON-03): under 900px the Edit tools move
+  // to a bottom rail (see the end of this component and creator/CompactBar.js).
+  var compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  // The colour strip is optional on phones; More › Show colour strip.
+  var _cs = React.useState(function() { try { return localStorage.getItem("creator.showColourStrip") === "1"; } catch (_) { return false; } });
+  var showColourStrip = _cs[0];
+  function setShowColourStrip(v) {
+    _cs[1](!!v);
+    try { localStorage.setItem("creator.showColourStrip", v ? "1" : "0"); } catch (_) {}
+  }
+
   // Local state
   // Click-to-toggle state for hover dropdowns (touch-friendly).
   var _od = React.useState(null); var openDrop = _od[0], setOpenDrop = _od[1];
@@ -752,6 +763,27 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    // ── View (phone rail only): zoom moved here from the strip; pinch is
+    //    still the main way to zoom. ──
+    compact && h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "View"),
+      h("div", {className:"tb-grp tb-more-zoom", style:{flexWrap:"wrap",gap:4,alignItems:"center"}},
+        h("button", {className:"tb-btn", "aria-label":"Zoom out", title:"Zoom out",
+          onClick:function(){ cv.setZoom(Math.max(0.05, Math.round((cv.zoom - 0.25) * 100) / 100)); }}, window.Icons.minus()),
+        h("span", {className:"tb-zoom-pct", "aria-live":"polite"}, Math.round(cv.zoom*100)+"%"),
+        h("button", {className:"tb-btn", "aria-label":"Zoom in", title:"Zoom in",
+          onClick:function(){ cv.setZoom(Math.min(3, Math.round((cv.zoom + 0.25) * 100) / 100)); }}, window.Icons.plus()),
+        h("button", {className:"tb-btn", "aria-label":"Fit to screen", title:"Fit to screen",
+          onClick:function(){ cv.fitZ(); setMorePanelOpen(false); }}, "Fit")
+      ),
+      h("label", {className:"tb-more-check"},
+        h("input", {type:"checkbox", checked:showColourStrip, onChange:function(e){ setShowColourStrip(e.target.checked); }}),
+        h("span", null, "Show colour strip")
+      ),
+      h("button", {className:"tb-btn", style:{width:"100%",justifyContent:"flex-start"},
+        onClick:function(){ setMorePanelOpen(false); if (app.setPanelOpen) app.setPanelOpen(true); }},
+        window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
+    ),
     // ── Canvas management ──
     h("div", {className:"tb-more-panel__section"},
       h("span", {className:"tb-ovf-lbl"}, "Canvas"),
@@ -920,12 +952,58 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       onClick:function(){ setMorePanelOpen(function(o){ return !o; }); },
       title:"More tools", "aria-label":"More tools",
       "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
-    }, "More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null),
+    }, compact
+      ? (window.Icons.more ? window.Icons.more() : "More")
+      : ["More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null]),
     morePanelContent
   );
 
   // cleanupRow and denoiseRow are computed before the create-mode early return
   // above, so they are available here for both modes without duplication.
+
+  if (compact) {
+    // ── Bottom tool rail (phones and portrait tablets) ──
+    var selCol = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
+    var railBtn = function(key, label, icon, on, onClick, extra) {
+      return h("button", Object.assign({
+        key:key, type:"button",
+        className:"creator-rail__btn" + (on ? " creator-rail__btn--on" : ""),
+        "aria-label":label, title:label, "aria-pressed": on ? "true" : "false",
+        onClick:onClick
+      }, extra || {}), icon);
+    };
+    var railToggle = window.ModeToggle ? h(window.ModeToggle, {
+      compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
+      value: cv.drawMode ? "draw" : "navigate",
+      onChange:function(v){
+        if (v === "draw" && !cv.selectedColorId && palData.length > 0) cv.setSelectedColorId(palData[0].id);
+        cv.setDrawMode(v === "draw");
+      },
+      options:[
+        { value:"navigate", label:"Navigate", icon:window.Icons.hand(), title:"Navigate: drag to move around, tap a stitch to see its thread" },
+        { value:"draw", label:"Draw", icon:window.Icons.pencil(), title:"Draw: touches change the chart" }
+      ]
+    }) : null;
+    return h("div", {className:"creator-rail", role:"toolbar", "aria-label":"Edit tools"},
+      showColourStrip && swatchRow,
+      cleanupRow,
+      denoiseRow,
+      h("div", {className:"creator-rail__row"},
+        railToggle,
+        railBtn("paint", "Paint tool", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
+        railBtn("fill", "Fill tool", window.Icons.bucket(), fillOn, function(){ pickBrush("fill", fillOn); }),
+        railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        h("button", {
+          key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
+          "aria-label": selCol ? ("Colour DMC " + cv.selectedColorId + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
+          title: selCol ? ("DMC " + cv.selectedColorId + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
+          onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
+        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
+        railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        morePanelWrap
+      )
+    );
+  }
 
   return h(React.Fragment, null,
     h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Edit mode tools"},
