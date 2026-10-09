@@ -2241,4 +2241,13 @@ function mergeEdgeBlendColours(mapped, w, h, opts) {
 }
 _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 
+// The fold's tolerance when the pattern isn't dithered (P2-6). The nearest
+// DMC thread to an anti-aliased edge colour can sit well off the straight
+// line between the two colours it blends: a logo at 100 stitches got edge
+// threads ΔE 11 and 16 off it. Without dithering such a thin, minor shade is
+// anti-aliasing, not shading, so it may fold from further away. Used by
+// creator/generate.js and generate-worker.js.
+var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
+_colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
+
 if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours }; }

@@ -12,6 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Set a pattern\'s size as a finished size in centimetres or inches as well as in stitches, or fit the picture to a Bookmark, Card, 15 cm hoop or A4 in one tap; Picture size uses one stitch per pixel. A new picture now starts with its long side at 100 stitches and is never enlarged beyond its own pixels, and the Creator tells you when a very wide picture leaves a thin short side or when each pixel will become a block of stitches.',
+      'Logos and other flat pictures come out cleaner at more sizes: when shading is off, the thin in-between shades along their edges are folded into the colours on either side more reliably, instead of becoming scattered stitches of extra threads.',
     ]
   },
   {
