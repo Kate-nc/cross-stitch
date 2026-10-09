@@ -216,6 +216,11 @@ self.onmessage = function(e) {
       }
     }
 
+    // ── Edge-blend fold (mirrors runCleanupPipeline, audit IMG-01) ───────────
+    if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === 'function') {
+      mergeEdgeBlendColours(mapped, width, height, { bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null });
+    }
+
     var preLabels   = labelConnectedComponents(mapped, width, height);
     var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
     var confettiClean = null;

@@ -226,6 +226,13 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     }
   }
 
+  // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
+  // Thin anti-aliasing shades between two main colours (or a main colour and
+  // the skipped background) are folded into them. Part of Stitch Cleanup.
+  if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
+    mergeEdgeBlendColours(mapped, width, height, { bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null });
+  }
+
   var preLabels = labelConnectedComponents(mapped, width, height);
   var confettiRaw = analyzeConfetti(mapped, width, height, preLabels);
   var confettiClean = null;

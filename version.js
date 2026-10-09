@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: '1.0.86',
     date: 'October 2026',
     notes: [
+      'Logos and other flat pictures convert to far fewer threads: the in-between shades along their edges are folded into the colours on either side instead of getting threads of their own. The sample logo now needs 5 threads instead of 12.',
       'On phones the Pattern Creator gives the chart most of the screen. One bar at the top holds the pattern name, the save status and a More menu (Print PDF, Export, Open in Tracker, Pattern info, Help); a bar at the bottom holds Navigate | Draw, Paint, Fill, Erase, your colour, Undo and More tools, which now has zoom and an optional colour strip. Tablets in landscape and computers are unchanged.',
     ]
   },

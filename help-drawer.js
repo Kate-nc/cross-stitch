@@ -52,7 +52,7 @@
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
             ["Dithering", "Off (the default) maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
-            ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes."],
+            ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes. It also folds away the in-between shades that appear along the edges of logos and other flat pictures, where two colours (or a colour and the skipped background) meet, so they don't each need a thread of their own."],
             ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
             ["Guided import (experimental)", "Preferences > Pattern Creator > Use guided import wizard walks you through Crop, Palette, Size, Preview and Confirm steps instead."]
           ]
