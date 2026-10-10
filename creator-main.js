@@ -660,6 +660,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     contextMenu: state.contextMenu, setContextMenu: state.setContextMenu,
     selectionModifier: state.selectionModifier, setSelectionModifier: state.setSelectionModifier,
     bsLines: state.bsLines, setBsLines: state.setBsLines,
+    knots: state.knots, setKnots: state.setKnots,
     bsStart: state.bsStart, setBsStart: state.setBsStart,
     bsContinuous: state.bsContinuous, setBsContinuous: state.setBsContinuous,
     editHistory: state.editHistory, setEditHistory: state.setEditHistory,
@@ -769,7 +770,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
     state.tintColor, state.tintOpacity, state.spotDimOpacity,
     state.antsOffset, state.contextMenu,
-    state.selectionModifier, state.bsLines, state.partialStitches, state.bsStart, state.bsContinuous,
+    state.selectionModifier, state.bsLines, state.knots, state.partialStitches, state.bsStart, state.bsContinuous,
     state.editHistory, state.redoHistory, state.stitchType, state.cs,
     state.paletteSwap,
     state.pat, state.cmap, state.sW, state.sH,
@@ -827,6 +828,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     totalTime: state.totalTime, setTotalTime: state.setTotalTime,
     sessions: state.sessions, setSessions: state.setSessions,
     partialStitches: state.partialStitches, setPartialStitches: state.setPartialStitches,
+    knots: state.knots, setKnots: state.setKnots,
     partialStitchTool: state.partialStitchTool, setPartialStitchTool: state.setPartialStitchTool,
     partialStitchToolRef: state.partialStitchToolRef,
     threadOwned: state.threadOwned, setThreadOwned: state.setThreadOwned,
@@ -862,7 +864,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.dmcSearch, state.colPickerOpen, state.symbolOverrides,
     state.parkMarkers, state.hlRow, state.hlCol,
     state.totalTime, state.sessions,
-    state.partialStitches, state.partialStitchTool,
+    state.partialStitches, state.partialStitchTool, state.knots,
     state.threadOwned, state.globalStash,
     state.kittingResult, state.altOpen,
     state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE,
@@ -931,7 +933,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
     skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed,
     done: state.done, bsLines: state.bsLines,
-    partialStitches: state.partialStitches,
+    partialStitches: state.partialStitches, knots: state.knots,
     threadOwned: state.threadOwned,
     totalStitchable: state.totalStitchable, skeinData: state.skeinData,
     totalSkeins: state.totalSkeins, blendCount: state.blendCount,
@@ -940,7 +942,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }; }, [
     state.pat, state.pal, state.cmap, state.sW, state.sH,
     state.fabricCt, state.skeinPrice, state.stitchSpeed,
-    state.done, state.bsLines, state.partialStitches,
+    state.done, state.bsLines, state.partialStitches, state.knots,
     state.threadOwned, state.totalStitchable, state.skeinData,
     state.totalSkeins, state.blendCount, state.difficulty,
     state.doneCount, state.totalTime, state.sessions,
@@ -1057,6 +1059,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         done:state.done,
         onClose:()=>state.setResizeCanvasOpen(false),
         onApply:function(spec){
+          // French knots and their Tracker done marks move with the cells.
+          var tf=state.trackerFieldsRef&&state.trackerFieldsRef.current;
+          function knotsDoneNow(){return tf&&Array.isArray(tf.knotsDone)?tf.knotsDone.slice():[];}
+          var resizedKnots=window.Knots?window.Knots.offset(state.knots,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):(state.knots||[]);
+          var resizedKnotsDone=window.Knots?window.Knots.offsetDone(knotsDoneNow(),spec.offsetX||0,spec.offsetY||0):knotsDoneNow();
           var result=window.applyCanvasResize(
             state.pat,state.bsLines,state.done,state.partialStitches,
             state.parkMarkers,state.sW,state.sH,spec
@@ -1067,14 +1074,18 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             pat:state.pat.slice(), bsLines:state.bsLines.slice(),
             done:state.done?Array.from(state.done):null,
             ps:[...state.partialStitches.entries()],
-            parkMarkers:state.parkMarkers.slice()
+            parkMarkers:state.parkMarkers.slice(),
+            knots:(state.knots||[]).slice(),
+            knotsDone:knotsDoneNow()
           };
           var nextSnap={
             sW:spec.newW, sH:spec.newH,
             pat:result.newPat, bsLines:result.newBsLines,
             done:result.newDone?Array.from(result.newDone):null,
             ps:[...result.newPartialStitches.entries()],
-            parkMarkers:result.newParkMarkers
+            parkMarkers:result.newParkMarkers,
+            knots:resizedKnots,
+            knotsDone:resizedKnotsDone
           };
           var builtPal=state.buildPaletteWithScratch(result.newPat);
           state.setSW(spec.newW); state.setSH(spec.newH);
@@ -1082,6 +1093,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           state.setDone(result.newDone);
           state.setPartialStitches(result.newPartialStitches);
           state.setParkMarkers(result.newParkMarkers);
+          if(state.setKnots)state.setKnots(resizedKnots);
+          if(tf)tf.knotsDone=resizedKnotsDone;
           state.setPal(builtPal.pal); state.setCmap(builtPal.cmap);
           state.setRedoHistory([]);
           state.setEditHistory(function(prev){

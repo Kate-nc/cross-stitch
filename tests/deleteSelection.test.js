@@ -12,6 +12,7 @@ const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 eval(read('creator/colourReplace.js')); // eslint-disable-line no-eval
 eval(read('creator/useEditHistory.js')); // eslint-disable-line no-eval
 eval(read('creator/useMagicWand.js')); // eslint-disable-line no-eval
+window.Knots = require('../knots.js');
 
 const BLACK = { id: '310', type: 'solid', rgb: [0, 0, 0] };
 const RED = { id: '321', type: 'solid', rgb: [199, 43, 59] };
@@ -35,7 +36,7 @@ function runWand(state, mask) {
 function makeStore(init) {
   const s = Object.assign({ editHistory: [], redoHistory: [], EDIT_HISTORY_MAX: 50, toasts: [] }, init);
   const setter = (k) => (v) => { s[k] = typeof v === 'function' ? v(s[k]) : v; };
-  ['pat', 'pal', 'cmap', 'partialStitches', 'bsLines', 'editHistory', 'redoHistory', 'selectionMask']
+  ['pat', 'pal', 'cmap', 'partialStitches', 'bsLines', 'knots', 'editHistory', 'redoHistory', 'selectionMask']
     .forEach(k => { s['set' + k.charAt(0).toUpperCase() + k.slice(1)] = setter(k); });
   s.addToast = (msg, opts) => s.toasts.push({ msg: msg, type: opts && opts.type });
   s.buildPaletteWithScratch = (p) => {
@@ -77,7 +78,7 @@ describe('deleteSelection', () => {
     // Edge between 0 and 3 (both selected) and the diagonal in 0 go;
     // the edge between 0 and 1 stays because cell 1 isn't selected.
     expect(s.bsLines).toEqual([{ x1: 1, y1: 0, x2: 1, y2: 1, colorId: '310' }]);
-    expect(res.counts).toEqual({ full: 2, partial: 0, backstitch: 2 });
+    expect(res.counts).toEqual({ full: 2, partial: 0, backstitch: 2, knot: 0 });
     expect(s.editHistory).toHaveLength(1);
     expect(s.editHistory[0].type).toBe('deleteSelection');
     expect(s.toasts.pop()).toEqual({ msg: 'Deleted 2 stitches and 2 backstitch lines.', type: 'success' });
@@ -143,5 +144,21 @@ describe('deleteSelection', () => {
     const s = fixture();
     expect(runWand(s, null).deleteSelection()).toBeNull();
     expect(s.editHistory).toHaveLength(0);
+  });
+
+  test('removes the French knots of selected cells, and Undo brings them back', () => {
+    const s = fixture();
+    // Centre of cell 0, the corner at the top left of cell 4, and the centre
+    // of cell 2 (not selected).
+    s.knots = [{ x: 1, y: 1, id: '310' }, { x: 2, y: 2, id: '321' }, { x: 5, y: 1, id: '321' }];
+    const mask = new Uint8Array([1, 0, 0, 0, 1, 0]);
+    const res = runWand(s, mask).deleteSelection();
+    expect(res.counts.knot).toBe(2);
+    expect(s.knots).toEqual([{ x: 5, y: 1, id: '321' }]);
+    expect(s.toasts.pop().msg).toMatch(/2 French knots\.$/);
+    expect(s.editHistory[0].knots).toHaveLength(3);
+    s.setKnots = (v) => { s.knots = v; };
+    window.useEditHistory(s).undoEdit();
+    expect(s.knots).toHaveLength(3);
   });
 });

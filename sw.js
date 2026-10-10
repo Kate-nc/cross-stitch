@@ -33,6 +33,7 @@ var PRECACHE_URLS = [
   './starter-kits.js',
   './colour-utils.js',
   './helpers.js',
+  './knots.js',
   './icons.js',
   './import-formats.js',
   './components.js',

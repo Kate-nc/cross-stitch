@@ -42,7 +42,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
 
   function current() {
     var s = stateRef.current;
-    return { pat: s.pat, ps: s.partialStitches || new Map(), bsLines: s.bsLines || [], mask: s.selectionMask };
+    return { pat: s.pat, ps: s.partialStitches || new Map(), bsLines: s.bsLines || [], knots: s.knots || [], mask: s.selectionMask };
   }
 
   function busyWithMove() {
@@ -69,6 +69,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     s.setPat(r.pat);
     s.setPartialStitches(r.ps);
     s.setBsLines(r.bsLines);
+    if (r.knots !== undefined && s.setKnots) s.setKnots(r.knots);
     s.setSelectionMask(r.mask);
     rebuildPalette(r.pat);
     setFloat({ w: f.clip.w, h: f.clip.h, ox: f.ox, oy: f.oy, clipped: r.clipped, origin: f.origin });
@@ -137,15 +138,16 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (staleFloat(f, opts && opts.keepTool)) return null;
     var s = stateRef.current;
     var r = opts && opts.withoutClip
-      ? { pat: f.base.pat, ps: f.base.ps, bsLines: f.base.bsLines, mask: null, clipped: false }
+      ? { pat: f.base.pat, ps: f.base.ps, bsLines: f.base.bsLines, knots: f.base.knots, mask: null, clipped: false }
       : T.placeClip(f.base, f.clip, f.ox, f.oy, s.sW, s.sH);
     s.setPat(r.pat); s.setPartialStitches(r.ps); s.setBsLines(r.bsLines); s.setSelectionMask(r.mask);
+    if (r.knots !== undefined && s.setKnots) s.setKnots(r.knots);
     rebuildPalette(r.pat);
     var d = T.diffForHistory(f.orig, r);
     if (!d.empty) {
       var MAX = s.EDIT_HISTORY_MAX;
       s.setEditHistory(function (prev) {
-        var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines,
+        var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines, knots: d.knots,
           prevMask: f.orig.mask || null, nextMask: r.mask }]);
         if (n.length > MAX) n = n.slice(n.length - MAX);
         return n;
@@ -167,6 +169,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (staleFloat(f)) return;
     var s = stateRef.current;
     s.setPat(f.orig.pat); s.setPartialStitches(f.orig.ps); s.setBsLines(f.orig.bsLines);
+    if (f.orig.knots && s.setKnots) s.setKnots(f.orig.knots);
     s.setSelectionMask(f.orig.mask || null);
     rebuildPalette(f.orig.pat);
     endFloat(f, true);
@@ -181,7 +184,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var f = floatRef.current;
     if (f) return f.clip;
     var c = current();
-    return c.mask ? T.extractClip(c.pat, c.ps, c.bsLines, c.mask, stateRef.current.sW, stateRef.current.sH) : null;
+    return c.mask ? T.extractClip(c.pat, c.ps, c.bsLines, c.mask, stateRef.current.sW, stateRef.current.sH, c.knots) : null;
   }
 
   function copy() {
@@ -214,9 +217,9 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var placedFrom = prevF ? commit({ keepTool: true }) : null;
     var c = current();
     var orig = placedFrom
-      ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, mask: placedFrom.mask }
+      ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, knots: placedFrom.knots !== undefined ? placedFrom.knots : c.knots, mask: placedFrom.mask }
       : c;
-    var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines };
+    var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines, knots: orig.knots };
     var o = pasteOrigin(clip, x, y);
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
@@ -273,9 +276,9 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (busyWithMove()) return false;
     var c = current(), s = stateRef.current;
     if (!c.mask) return false;
-    var clip = T.extractClip(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH);
+    var clip = T.extractClip(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH, c.knots);
     if (!clip) return false;
-    var base = T.liftSelection(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH);
+    var base = T.liftSelection(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH, c.knots);
     var turned2 = T.transformClip(clip, op);
     var o2 = (op === "rotCW" || op === "rotCCW") ? T.rotatedOrigin(clip, clip.srcX, clip.srcY) : { x: clip.srcX, y: clip.srcY };
     startFloat(c, base, turned2, o2.x, o2.y, "lift");

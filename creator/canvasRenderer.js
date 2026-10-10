@@ -226,6 +226,29 @@ function _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hiI
  * @param {number} gut   - Gutter size (space for axis labels)
  * @param {object} state - Snapshot of renderer state (from CreatorContext or similar)
  */
+// French knots (knots.js): a filled circle in the thread colour, the same in
+// every view, with a dark outline (a light one for dark threads, so a black
+// knot still shows on black stitches). x and y are in half-stitch units.
+window.drawKnotsOnCanvas = function drawKnotsOnCanvas(ctx2d, knots, offX, offY, dW, dH, cSz, gut, cmap) {
+  if (!knots || !knots.length) return;
+  var r = Math.max(1.5, cSz * 0.28);
+  ctx2d.lineWidth = Math.max(1, cSz * 0.07);
+  for (var i = 0; i < knots.length; i++) {
+    var k = knots[i];
+    var kx = k.x / 2 - offX, ky = k.y / 2 - offY;
+    if (kx < 0 || ky < 0 || kx > dW || ky > dH) continue;
+    var entry = cmap && cmap[k.id];
+    var rgb = k.rgb || (entry && entry.rgb) || [0, 0, 0];
+    ctx2d.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+    var lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+    ctx2d.strokeStyle = lum < 0.35 ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)";
+    ctx2d.beginPath();
+    ctx2d.arc(gut + kx * cSz, gut + ky * cSz, r, 0, Math.PI * 2);
+    ctx2d.fill();
+    ctx2d.stroke();
+  }
+};
+
 window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
   var pat         = state.pat;
   var cmap        = state.cmap;
@@ -477,6 +500,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       }
     });
   }
+
+  window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Backstitch start point + preview line
   if (bsStart && activeTool === "backstitch") {
@@ -781,6 +806,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     });
     ctx2d.stroke();
   }
+
+  window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Outer border
   ctx2d.strokeStyle = "rgba(0,0,0,0.4)";

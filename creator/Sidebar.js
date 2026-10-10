@@ -1953,7 +1953,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["half-fwd",      "Half /"],
     ["half-bck",      "Half \\"],
     ["three-quarter", "\u00BE Stitch"],
-    ["backstitch",    "Backstitch"]
+    ["backstitch",    "Backstitch"],
+    ["knot",          "French knot"]
   ];
   var curStitch = cv.stitchType || "cross";
   var stitchTypeSection = h("div", {style:{padding:"12px"}},

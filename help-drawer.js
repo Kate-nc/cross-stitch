@@ -75,7 +75,7 @@
           body: "Import a file from Home > Create new > Import a chart, by dropping it on the Create new tab or the Creator, or with File > Open….",
           bullets: [
             ["PDF charts", "Charts saved as PDF by the designer, including Pattern Keeper-compatible PDFs. The colours, symbols and size are read from the chart and you can check them before saving. Scanned or photographed charts can't be read yet, and nor can password-protected PDFs."],
-            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross."],
+            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross. French knots come in too; beads and other ornaments are left out, and the review says how many."],
             ["stitchx .json files and backups", "Projects downloaded with File > Download (.json). A full backup of every project is restored with File > Restore from Backup… instead."],
             ["Images", "JPG, PNG, GIF, WebP and BMP pictures are converted into a new pattern."],
             ["Not supported yet", "Files saved in another program's own format: Pattern Maker (.xsd), PCStitch (.pat), XStitch Pro (.xsp) and others. Photos of a paper chart are converted as pictures, not read as charts."],
@@ -89,7 +89,8 @@
           heading: "Painting and editing stitches",
           body: "Once a pattern exists, the Tools and View tabs unlock in the sidebar. Choose a colour in the Palette tab, then pick a tool. Painting, filling and erasing are all undoable with Ctrl+Z.",
           bullets: [
-            ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches in the tool strip. Press T to step through the stitch types."],
+            ["Stitch types", "Cross (1), Half / (2), Half \\ (3), Backstitch (4) and Erase (5), plus quarter and three-quarter stitches and French knots in the tool strip. Press T to step through the stitch types."],
+            ["French knots", "Choose French knot as the stitch type, then tap or click a grid corner or the middle of a stitch: the knot goes on the nearest one, in the selected colour. Tap a knot again to remove it. Knots copy, flip, rotate and mirror with the stitches around them, count towards the thread you need (each about as much as one cross stitch) and are listed under their thread in Materials. They are saved in .oxs files, and drawn in PDFs that use the Workshop print theme; the Pattern Keeper preset leaves them out, as Pattern Keeper doesn't track knots."],
             ["Paint (P) and Fill (F)", "Paint colours the stitches you click or drag across; Fill colours a whole connected area."],
             ["Backstitch", "Click one grid corner and then another to draw a line between them."],
             ["Brush size", "Paint, half stitches, Erase and shapes cover a square up to 10 × 10 stitches. Set the size in the Tools tab or under More tools."],
@@ -208,6 +209,7 @@
             ["Finding a parked thread", "Tap the P on a colour in the palette to jump to where that thread is parked; the guide crosshair marks the spot. If it is parked in more than one place, tap again for the next."],
             ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
             ["Undo", "Undo (Ctrl+Z) covers parking too: placing or removing a park marker, and Clear all, are steps like marking stitches."],
+            ["French knots", "In Mark mode, tap or click a knot to mark it done: it fills in. Tap it again to unmark it; Undo works too. Knots count towards your progress, one each, and the colours drawer shows them under their thread."],
             ["Colours drawer (D)", "Shows your progress per colour. Click a colour to highlight only those stitches on the chart."]
           ]
         },

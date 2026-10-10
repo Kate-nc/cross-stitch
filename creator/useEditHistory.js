@@ -14,12 +14,13 @@
          Change symbol (audit DRAW-05). Specific branch: re-applies the old /
          new symbol through state.applySymbol without recording history.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
-     - { type: "move", op?, changes, psChanges?, bsLines?, prevMask, nextMask }
+     - { type: "move", op?, changes, psChanges?, bsLines?, knots?, prevMask, nextMask }
          Move, and a placed paste / flip / rotate (useSelectionClipboard,
          op "paste" or "lift"). Generic loop plus the selection restore.
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
-         changes, psChanges?, bsLines? }
-         Generic fallthrough: handled by the same `last.changes` loop. The
+         changes, psChanges?, bsLines?, knots? }
+         `bsLines` and `knots` (French knots) are the whole old arrays,
+         swapped in and out. Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —
          any new edit type that produces a `changes` array will Just Work
          without touching this file. New types that need bespoke palette
@@ -32,6 +33,7 @@ window.useEditHistory = function useEditHistory(state) {
     var pat = state.pat;
     var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
+    var knots = state.knots || [];
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
@@ -112,6 +114,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(prev.sW); state.setSH(prev.sH);
       state.setPat(prev.pat);
       state.setBsLines(prev.bsLines);
+      if (state.setKnots) state.setKnots(prev.knots || []);
+      if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       state.setDone(prev.done ? new Uint8Array(prev.done) : null);
       state.setPartialStitches(new Map(prev.ps));
       state.setParkMarkers(prev.parkMarkers);
@@ -146,9 +150,15 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var redoKnots = null;
+    if (last.knots && state.setKnots) {
+      redoKnots = knots.slice();
+      state.setKnots(last.knots);
+    }
+
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines };
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -168,6 +178,7 @@ window.useEditHistory = function useEditHistory(state) {
     var pat = state.pat;
     var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
+    var knots = state.knots || [];
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
@@ -226,6 +237,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(next.sW); state.setSH(next.sH);
       state.setPat(next.pat);
       state.setBsLines(next.bsLines);
+      if (state.setKnots) state.setKnots(next.knots || []);
+      if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       state.setDone(next.done ? new Uint8Array(next.done) : null);
       state.setPartialStitches(new Map(next.ps));
       state.setParkMarkers(next.parkMarkers);
@@ -260,9 +273,15 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var undoKnots = null;
+    if (last.knots && state.setKnots) {
+      undoKnots = knots.slice();
+      state.setKnots(last.knots);
+    }
+
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines };
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);

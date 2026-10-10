@@ -11,19 +11,25 @@
  *     bs:    [lines]           backstitch lines with both ends inside the box,
  *                              in clip-local grid-vertex units (0..w, 0..h);
  *                              any other fields on a line (a thread id) are kept
+ *     kn:    [knots]          French knots belonging to selected cells, in
+ *                              clip-local half-stitch units (0..2w, 0..2h)
  *     srcX, srcY }            where the box's top-left cell was copied from
+ *
+ * A knot belongs to a cell as in knots.js: a centre to its own cell, a
+ * corner to the cell to its bottom right (or the last row / column). The
+ * knot arguments below are optional; without them knots are left alone.
  *
  * Part stitches are quadrants: a half stitch "/" is BL+TR and "\" is TL+BR,
  * so mapping the quadrants flips a half stitch's direction as it should.
  *
- *   extractClip(pat, ps, bsLines, mask, sW, sH)  -> clip | null
+ *   extractClip(pat, ps, bsLines, mask, sW, sH, knots?)  -> clip | null
  *   transformClip(clip, op)       op: "flipH" | "flipV" | "rotCW" | "rotCCW"
  *   rotatedOrigin(clip, ox, oy)   top-left that keeps a rotated clip centred
- *   liftSelection(pat, ps, bsLines, mask, sW, sH)
+ *   liftSelection(pat, ps, bsLines, mask, sW, sH, knots?)
  *                                 the pattern with the selection taken out
  *   placeClip(base, clip, ox, oy, sW, sH)
- *                                 base {pat, ps, bsLines} with the clip on top:
- *                                 { pat, ps, bsLines, mask, clipped }
+ *                                 base {pat, ps, bsLines, knots?} with the clip
+ *                                 on top: { pat, ps, bsLines, knots, mask, clipped }
  *   diffForHistory(before, after) one undo entry's changes between two states
  *   clipStitchCount(clip)         full stitches in the clip
  *
@@ -65,7 +71,12 @@
       ln.x2 >= b.minX && ln.x2 <= b.maxX + 1 && ln.y2 >= b.minY && ln.y2 <= b.maxY + 1;
   }
 
-  function extractClip(pat, ps, bsLines, mask, sW, sH) {
+  function knotSelected(k, mask, sW, sH) {
+    var cx = Math.min(sW - 1, k.x >> 1), cy = Math.min(sH - 1, k.y >> 1);
+    return !!mask[cy * sW + cx];
+  }
+
+  function extractClip(pat, ps, bsLines, mask, sW, sH, knots) {
     if (!pat || !mask) return null;
     var b = bboxOf(mask, sW, sH);
     if (!b) return null;
@@ -86,6 +97,8 @@
       if (!lineInBox(ln, b)) return;
       clip.bs.push(Object.assign({}, ln, { x1: ln.x1 - b.minX, y1: ln.y1 - b.minY, x2: ln.x2 - b.minX, y2: ln.y2 - b.minY }));
     });
+    clip.kn = (knots || []).filter(function (k) { return knotSelected(k, mask, sW, sH); })
+      .map(function (k) { return Object.assign({}, k, { x: k.x - 2 * b.minX, y: k.y - 2 * b.minY }); });
     return clip;
   }
 
@@ -138,6 +151,9 @@
       var a = vm(ln.x1, ln.y1), b = vm(ln.x2, ln.y2);
       out.bs.push(Object.assign({}, ln, { x1: a[0], y1: a[1], x2: b[0], y2: b[1] }));
     });
+    // Knots are on the half-stitch lattice: the same vertex map, doubled.
+    var km = vertexMap(op, 2 * clip.w, 2 * clip.h);
+    out.kn = (clip.kn || []).map(function (k) { var p = km(k.x, k.y); return Object.assign({}, k, { x: p[0], y: p[1] }); });
     return out;
   }
 
@@ -147,7 +163,7 @@
     return { x: ox + Math.round((clip.w - clip.h) / 2), y: oy + Math.round((clip.h - clip.w) / 2) };
   }
 
-  function liftSelection(pat, ps, bsLines, mask, sW, sH) {
+  function liftSelection(pat, ps, bsLines, mask, sW, sH, knots) {
     var np = pat.slice(), nps = new Map(ps || []);
     for (var i = 0; i < mask.length; i++) {
       if (!mask[i]) continue;
@@ -156,7 +172,9 @@
     }
     var b = bboxOf(mask, sW, sH);
     var nbs = b ? (bsLines || []).filter(function (ln) { return !lineInBox(ln, b); }) : (bsLines || []).slice();
-    return { pat: np, ps: nps, bsLines: nbs };
+    var out = { pat: np, ps: nps, bsLines: nbs };
+    if (knots) out.knots = knots.filter(function (k) { return !knotSelected(k, mask, sW, sH); });
+    return out;
   }
 
   function placeClip(base, clip, ox, oy, sW, sH) {
@@ -184,7 +202,20 @@
         [l.y1, l.y2].every(function (v) { return v >= 0 && v <= sH; });
       if (inside) nbs.push(l); else clipped = true;
     });
-    return { pat: np, ps: nps, bsLines: nbs, mask: mask, clipped: clipped };
+    // A pasted knot replaces one already on the same spot.
+    var nkn;
+    if (base.knots || (clip.kn && clip.kn.length)) {
+      var placed = [];
+      (clip.kn || []).forEach(function (k) {
+        var p = Object.assign({}, k, { x: k.x + 2 * ox, y: k.y + 2 * oy });
+        if (p.x < 0 || p.y < 0 || p.x > 2 * sW || p.y > 2 * sH) { clipped = true; return; }
+        placed.push(p);
+      });
+      var taken = {};
+      placed.forEach(function (p) { taken[p.x + "," + p.y] = true; });
+      nkn = (base.knots || []).filter(function (k) { return !taken[k.x + "," + k.y]; }).concat(placed);
+    }
+    return { pat: np, ps: nps, bsLines: nbs, knots: nkn, mask: mask, clipped: clipped };
   }
 
   // Whole stored values are compared, so a paste that swaps a stitch for
@@ -201,6 +232,15 @@
     for (var i = 0; i < a.length; i++) {
       if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) return false;
     }
+    return true;
+  }
+
+  // Knots compared as a set: lifting and placing reorders them.
+  function sameKnots(a, b) {
+    if (a.length !== b.length) return false;
+    function keyed(list) { return list.map(function (k) { return JSON.stringify([k.x, k.y, k.id, k.rgb || null]); }).sort(); }
+    var ka = keyed(a), kb = keyed(b);
+    for (var i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return false;
     return true;
   }
 
@@ -221,11 +261,14 @@
     if (before.ps) before.ps.forEach(function (_, idx) { cmp(idx); });
     if (after.ps) after.ps.forEach(function (_, idx) { cmp(idx); });
     var bsChanged = !sameLines(before.bsLines, after.bsLines);
+    var knChanged = (before.knots !== undefined || after.knots !== undefined) &&
+      !sameKnots(before.knots || [], after.knots || []);
     return {
       changes: changes,
       psChanges: psChanges.length ? psChanges : undefined,
       bsLines: bsChanged ? (before.bsLines || []).slice() : undefined,
-      empty: !changes.length && !psChanges.length && !bsChanged
+      knots: knChanged ? (before.knots || []).slice() : undefined,
+      empty: !changes.length && !psChanges.length && !bsChanged && !knChanged
     };
   }
 

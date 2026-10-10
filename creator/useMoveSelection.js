@@ -153,6 +153,23 @@ window.computeMovedBsLines = function computeMovedBsLines(bsLines, bbox, dx, dy,
   return { newBsLines: newBsLines, didChange: didChange };
 };
 
+// Moves the French knots of selected cells (knots.js) by whole cells; a moved
+// knot replaces one already at its new spot, and any that leave the pattern
+// are dropped. Returns { newKnots, didChange }.
+window.computeMovedKnots = function computeMovedKnots(knots, mask, dx, dy, sW, sH) {
+  if (!knots || !knots.length || !mask || !window.Knots) return { newKnots: knots, didChange: false };
+  var moved = [], kept = [];
+  knots.forEach(function(k) {
+    if (window.Knots.inSelection(k, mask, sW, sH)) moved.push(k); else kept.push(k);
+  });
+  if (!moved.length) return { newKnots: knots, didChange: false };
+  var placed = moved.map(function(k) { return Object.assign({}, k, { x: k.x + 2 * dx, y: k.y + 2 * dy }); })
+    .filter(function(k) { return k.x >= 0 && k.y >= 0 && k.x <= 2 * sW && k.y <= 2 * sH; });
+  var taken = {};
+  placed.forEach(function(k) { taken[k.x + "," + k.y] = true; });
+  return { newKnots: kept.filter(function(k) { return !taken[k.x + "," + k.y]; }).concat(placed), didChange: true };
+};
+
 // Shifts the selection mask by (dx, dy). Bits that move OOB are dropped.
 // Returns a new Uint8Array of the same length.
 window.computeMovedMask = function computeMovedMask(selectionMask, dx, dy, sW, sH) {
@@ -272,9 +289,11 @@ window.useMoveSelection = function useMoveSelection(state) {
     var patResult = window.computeMovedPattern(snap.pat, mask, dx, dy, sW, sH);
     var psResult  = window.computeMovedPartialStitches(snap.ps, mask, dx, dy, sW, sH);
     var bsResult  = window.computeMovedBsLines(snap.bsLines, bbox, dx, dy, sW, sH);
+    var knResult  = window.computeMovedKnots(snap.knots, mask, dx, dy, sW, sH);
     var nextMask  = window.computeMovedMask(mask, dx, dy, sW, sH);
 
     state.setPat(patResult.newPat);
+    if (knResult.didChange && state.setKnots) state.setKnots(knResult.newKnots);
     if (psResult.psChanges.length) state.setPartialStitches(psResult.newPs);
     if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
     state.setSelectionMask(nextMask);
@@ -292,6 +311,7 @@ window.useMoveSelection = function useMoveSelection(state) {
         changes: patResult.changes,
         psChanges: psResult.psChanges.length ? psResult.psChanges : undefined,
         bsLines: bsResult.didChange ? snap.bsLines : undefined,
+        knots: knResult.didChange ? snap.knots.slice() : undefined,
         prevMask: mask,
         nextMask: nextMask,
       };
@@ -319,6 +339,7 @@ window.useMoveSelection = function useMoveSelection(state) {
     state.setPat(snap.pat);
     state.setPartialStitches(snap.ps);
     state.setBsLines(snap.bsLines);
+    if (snap.knots && state.setKnots) state.setKnots(snap.knots);
     state.setSelectionMask(snap.selectionMask);
     if (state.buildPaletteWithScratch) {
       var rv = state.buildPaletteWithScratch(snap.pat);
@@ -335,6 +356,7 @@ window.useMoveSelection = function useMoveSelection(state) {
       pat: state.pat,
       ps: state.partialStitches,
       bsLines: state.bsLines,
+      knots: state.knots,
       selectionMask: state.selectionMask,
     };
     moveOriginRef.current = { gx: gx, gy: gy };
@@ -368,6 +390,7 @@ window.useMoveSelection = function useMoveSelection(state) {
         pat: state.pat,
         ps: state.partialStitches,
         bsLines: state.bsLines,
+        knots: state.knots,
         selectionMask: state.selectionMask,
       };
       setFloatActive(true);
@@ -387,11 +410,14 @@ window.useMoveSelection = function useMoveSelection(state) {
     var newPs  = window.computeFloatPartialStitches(snap.ps, mask, totalDx, totalDy, sW, sH);
     // Backstitches are moved (keeping source would create confusing duplicate lines).
     var bsResult = window.computeMovedBsLines(snap.bsLines, bbox, totalDx, totalDy, sW, sH);
+    // French knots move the same way.
+    var knResult = window.computeMovedKnots(snap.knots, mask, totalDx, totalDy, sW, sH);
     var nextMask = window.computeMovedMask(mask, totalDx, totalDy, sW, sH);
 
     state.setPat(newPat);
     if (newPs !== snap.ps) state.setPartialStitches(newPs);
     if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
+    if (knResult.didChange && state.setKnots) state.setKnots(knResult.newKnots);
     state.setSelectionMask(nextMask);
 
     if (state.buildPaletteWithScratch) {

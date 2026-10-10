@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.101';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.102',
+    date: 'October 2026',
+    notes: [
+      'French knots: choose French knot as the stitch type and tap a grid corner or the middle of a stitch to place one, or tap it again to remove it. Knots copy, flip, rotate and mirror with your stitches, count towards thread and appear under their thread in Materials. In the Stitch Tracker, tap a knot to mark it done; knots count towards your progress. They are read from and written to .oxs files, and the Workshop print theme draws them in PDFs.',
+    ]
+  },
+  {
     version: '1.0.101',
     date: 'October 2026',
     notes: [

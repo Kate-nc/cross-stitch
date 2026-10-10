@@ -251,6 +251,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
+      knots: ctx.knots && ctx.knots.length ? ctx.knots.slice() : undefined,
     };
   }
 
@@ -326,7 +327,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     try {
       oxsString = window.ZipBundle._serializeOxs({
         width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
-        bsLines: ctx.bsLines || [], palette: ctx.pal
+        bsLines: ctx.bsLines || [], palette: ctx.pal, knots: ctx.knots || []
       });
     } catch (e) {
       console.warn("Bundle: OXS serialise failed:", e);
@@ -554,7 +555,8 @@ window.CreatorExportTab = function CreatorExportTab() {
             w: ctx.sW, h: ctx.sH,
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
-            bsLines: ctx.bsLines || []
+            bsLines: ctx.bsLines || [],
+            knots: ctx.knots || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

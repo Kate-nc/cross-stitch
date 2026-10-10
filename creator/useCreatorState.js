@@ -870,6 +870,8 @@ window.useCreatorState = function useCreatorState() {
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
   }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
+  // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
+  var _knots    = useState([]);      var knots          = _knots[0],    setKnots          = _knots[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
   var _selColId = useState(null);    var selectedColorId = _selColId[0], setSelectedColorId = _selColId[1];
@@ -1172,7 +1174,9 @@ window.useCreatorState = function useCreatorState() {
   var skeinData = useMemo(function() {
     if (!pal) return [];
     var map = {};
-    pal.forEach(function(p) {
+    // French knots add their thread too (knots.js).
+    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
+    withKnots.forEach(function(p) {
       if (p.type === "solid") { map[p.id] = (map[p.id] || 0) + p.count; }
       else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count; }); }
     });
@@ -1183,7 +1187,7 @@ window.useCreatorState = function useCreatorState() {
         var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
-  }, [pal, fabricCt]);
+  }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
@@ -1282,6 +1286,7 @@ window.useCreatorState = function useCreatorState() {
   }
   var stitchType = effPartialStitchTool ? effPartialStitchTool
     : effActiveTool === "backstitch" ? "backstitch"
+    : effActiveTool === "knot" ? "knot"
     : effActiveTool === "eraseAll" ? "erase"
     : (effActiveTool === "paint" || effActiveTool === "fill" ||
        effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse" ||
@@ -1358,6 +1363,9 @@ window.useCreatorState = function useCreatorState() {
       setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
     } else if (t === "backstitch") {
       setActiveTool("backstitch"); setPartialStitchTool(null);
+    } else if (t === "knot") {
+      // French knots (audit DRAW-04): tap a corner or a centre.
+      setActiveTool("knot"); setPartialStitchTool(null); setBsStart(null);
     } else if (t === "erase") {
       setActiveTool("eraseAll"); setPartialStitchTool(null); setBsStart(null);
     } else {
@@ -1427,7 +1435,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
-    setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
+    setBsLines([]); setKnots([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
@@ -1683,8 +1691,9 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     // C-9: a regeneration changes the colour map, so any user-drawn
     // back-stitches now reference colour ids that may not exist or
-    // would render against the wrong palette entry. Clear them.
-    setBsLines([]); setBsStart(null);
+    // would render against the wrong palette entry. Clear them, and the
+    // French knots with them.
+    setBsLines([]); setBsStart(null); setKnots([]);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -2183,6 +2192,7 @@ window.useCreatorState = function useCreatorState() {
   var wand = useMagicWand({
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     setScratchPalette: setScratchPalette,
@@ -2210,6 +2220,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     sW: sW, sH: sH,
     buildPaletteWithScratch: buildPaletteWithScratch,
@@ -2228,6 +2239,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     sW: sW, sH: sH,
     buildPaletteWithScratch: buildPaletteWithScratch,
@@ -2319,6 +2331,7 @@ window.useCreatorState = function useCreatorState() {
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
+    knots, setKnots,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,

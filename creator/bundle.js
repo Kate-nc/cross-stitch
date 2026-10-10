@@ -1387,6 +1387,29 @@ function _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hiI
  * @param {number} gut   - Gutter size (space for axis labels)
  * @param {object} state - Snapshot of renderer state (from CreatorContext or similar)
  */
+// French knots (knots.js): a filled circle in the thread colour, the same in
+// every view, with a dark outline (a light one for dark threads, so a black
+// knot still shows on black stitches). x and y are in half-stitch units.
+window.drawKnotsOnCanvas = function drawKnotsOnCanvas(ctx2d, knots, offX, offY, dW, dH, cSz, gut, cmap) {
+  if (!knots || !knots.length) return;
+  var r = Math.max(1.5, cSz * 0.28);
+  ctx2d.lineWidth = Math.max(1, cSz * 0.07);
+  for (var i = 0; i < knots.length; i++) {
+    var k = knots[i];
+    var kx = k.x / 2 - offX, ky = k.y / 2 - offY;
+    if (kx < 0 || ky < 0 || kx > dW || ky > dH) continue;
+    var entry = cmap && cmap[k.id];
+    var rgb = k.rgb || (entry && entry.rgb) || [0, 0, 0];
+    ctx2d.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+    var lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+    ctx2d.strokeStyle = lum < 0.35 ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)";
+    ctx2d.beginPath();
+    ctx2d.arc(gut + kx * cSz, gut + ky * cSz, r, 0, Math.PI * 2);
+    ctx2d.fill();
+    ctx2d.stroke();
+  }
+};
+
 window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
   var pat         = state.pat;
   var cmap        = state.cmap;
@@ -1638,6 +1661,8 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
       }
     });
   }
+
+  window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Backstitch start point + preview line
   if (bsStart && activeTool === "backstitch") {
@@ -1942,6 +1967,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     });
     ctx2d.stroke();
   }
+
+  window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Outer border
   ctx2d.strokeStyle = "rgba(0,0,0,0.4)";
@@ -3342,6 +3369,7 @@ window.ColourReplace = (function() {
     if (c.full) parts.push(n(c.full, 'stitch', 'stitches'));
     if (c.partial) parts.push(n(c.partial, 'part stitch', 'part stitches'));
     if (c.backstitch) parts.push(n(c.backstitch, 'backstitch line', 'backstitch lines'));
+    if (c.knot) parts.push(n(c.knot, 'French knot', 'French knots'));
     if (!parts.length) return '0 stitches';
     if (parts.length === 1) return parts[0];
     return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
@@ -3990,7 +4018,12 @@ window.useMagicWand = function useMagicWand(state) {
     var keptBs = bsLines.filter(function(ln) { return !ln || !lineInside(ln); });
     var bsRemoved = bsLines.length - keptBs.length;
 
-    if (!changes.length && !psChanges.length && !bsRemoved) {
+    // French knots belonging to selected cells (knots.js).
+    var knots = state.knots || [];
+    var keptKnots = window.Knots ? knots.filter(function(k) { return !window.Knots.inSelection(k, mask, sW, sH); }) : knots;
+    var knotsRemoved = knots.length - keptKnots.length;
+
+    if (!changes.length && !psChanges.length && !bsRemoved && !knotsRemoved) {
       if (state.addToast) state.addToast("Nothing to delete in the selection.", {type: "info", duration: 2000});
       return null;
     }
@@ -3998,6 +4031,7 @@ window.useMagicWand = function useMagicWand(state) {
     var entry = { type: "deleteSelection", changes: changes };
     if (psChanges.length) entry.psChanges = psChanges;
     if (bsRemoved) entry.bsLines = bsLines.slice();
+    if (knotsRemoved) entry.knots = knots.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var n = prev.concat([entry]);
@@ -4040,8 +4074,9 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
+    if (knotsRemoved && state.setKnots) state.setKnots(keptKnots);
 
-    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved };
+    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved, knot: knotsRemoved };
     var CR = window.ColourReplace;
     var desc = CR && CR.describeCounts ? CR.describeCounts(counts) : (changes.length + " stitches");
     if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});
@@ -4717,6 +4752,23 @@ window.computeMovedBsLines = function computeMovedBsLines(bsLines, bbox, dx, dy,
   return { newBsLines: newBsLines, didChange: didChange };
 };
 
+// Moves the French knots of selected cells (knots.js) by whole cells; a moved
+// knot replaces one already at its new spot, and any that leave the pattern
+// are dropped. Returns { newKnots, didChange }.
+window.computeMovedKnots = function computeMovedKnots(knots, mask, dx, dy, sW, sH) {
+  if (!knots || !knots.length || !mask || !window.Knots) return { newKnots: knots, didChange: false };
+  var moved = [], kept = [];
+  knots.forEach(function(k) {
+    if (window.Knots.inSelection(k, mask, sW, sH)) moved.push(k); else kept.push(k);
+  });
+  if (!moved.length) return { newKnots: knots, didChange: false };
+  var placed = moved.map(function(k) { return Object.assign({}, k, { x: k.x + 2 * dx, y: k.y + 2 * dy }); })
+    .filter(function(k) { return k.x >= 0 && k.y >= 0 && k.x <= 2 * sW && k.y <= 2 * sH; });
+  var taken = {};
+  placed.forEach(function(k) { taken[k.x + "," + k.y] = true; });
+  return { newKnots: kept.filter(function(k) { return !taken[k.x + "," + k.y]; }).concat(placed), didChange: true };
+};
+
 // Shifts the selection mask by (dx, dy). Bits that move OOB are dropped.
 // Returns a new Uint8Array of the same length.
 window.computeMovedMask = function computeMovedMask(selectionMask, dx, dy, sW, sH) {
@@ -4836,9 +4888,11 @@ window.useMoveSelection = function useMoveSelection(state) {
     var patResult = window.computeMovedPattern(snap.pat, mask, dx, dy, sW, sH);
     var psResult  = window.computeMovedPartialStitches(snap.ps, mask, dx, dy, sW, sH);
     var bsResult  = window.computeMovedBsLines(snap.bsLines, bbox, dx, dy, sW, sH);
+    var knResult  = window.computeMovedKnots(snap.knots, mask, dx, dy, sW, sH);
     var nextMask  = window.computeMovedMask(mask, dx, dy, sW, sH);
 
     state.setPat(patResult.newPat);
+    if (knResult.didChange && state.setKnots) state.setKnots(knResult.newKnots);
     if (psResult.psChanges.length) state.setPartialStitches(psResult.newPs);
     if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
     state.setSelectionMask(nextMask);
@@ -4856,6 +4910,7 @@ window.useMoveSelection = function useMoveSelection(state) {
         changes: patResult.changes,
         psChanges: psResult.psChanges.length ? psResult.psChanges : undefined,
         bsLines: bsResult.didChange ? snap.bsLines : undefined,
+        knots: knResult.didChange ? snap.knots.slice() : undefined,
         prevMask: mask,
         nextMask: nextMask,
       };
@@ -4883,6 +4938,7 @@ window.useMoveSelection = function useMoveSelection(state) {
     state.setPat(snap.pat);
     state.setPartialStitches(snap.ps);
     state.setBsLines(snap.bsLines);
+    if (snap.knots && state.setKnots) state.setKnots(snap.knots);
     state.setSelectionMask(snap.selectionMask);
     if (state.buildPaletteWithScratch) {
       var rv = state.buildPaletteWithScratch(snap.pat);
@@ -4899,6 +4955,7 @@ window.useMoveSelection = function useMoveSelection(state) {
       pat: state.pat,
       ps: state.partialStitches,
       bsLines: state.bsLines,
+      knots: state.knots,
       selectionMask: state.selectionMask,
     };
     moveOriginRef.current = { gx: gx, gy: gy };
@@ -4932,6 +4989,7 @@ window.useMoveSelection = function useMoveSelection(state) {
         pat: state.pat,
         ps: state.partialStitches,
         bsLines: state.bsLines,
+        knots: state.knots,
         selectionMask: state.selectionMask,
       };
       setFloatActive(true);
@@ -4951,11 +5009,14 @@ window.useMoveSelection = function useMoveSelection(state) {
     var newPs  = window.computeFloatPartialStitches(snap.ps, mask, totalDx, totalDy, sW, sH);
     // Backstitches are moved (keeping source would create confusing duplicate lines).
     var bsResult = window.computeMovedBsLines(snap.bsLines, bbox, totalDx, totalDy, sW, sH);
+    // French knots move the same way.
+    var knResult = window.computeMovedKnots(snap.knots, mask, totalDx, totalDy, sW, sH);
     var nextMask = window.computeMovedMask(mask, totalDx, totalDy, sW, sH);
 
     state.setPat(newPat);
     if (newPs !== snap.ps) state.setPartialStitches(newPs);
     if (bsResult.didChange) state.setBsLines(bsResult.newBsLines);
+    if (knResult.didChange && state.setKnots) state.setKnots(knResult.newKnots);
     state.setSelectionMask(nextMask);
 
     if (state.buildPaletteWithScratch) {
@@ -5031,19 +5092,25 @@ window.useMoveSelection = function useMoveSelection(state) {
  *     bs:    [lines]           backstitch lines with both ends inside the box,
  *                              in clip-local grid-vertex units (0..w, 0..h);
  *                              any other fields on a line (a thread id) are kept
+ *     kn:    [knots]          French knots belonging to selected cells, in
+ *                              clip-local half-stitch units (0..2w, 0..2h)
  *     srcX, srcY }            where the box's top-left cell was copied from
+ *
+ * A knot belongs to a cell as in knots.js: a centre to its own cell, a
+ * corner to the cell to its bottom right (or the last row / column). The
+ * knot arguments below are optional; without them knots are left alone.
  *
  * Part stitches are quadrants: a half stitch "/" is BL+TR and "\" is TL+BR,
  * so mapping the quadrants flips a half stitch's direction as it should.
  *
- *   extractClip(pat, ps, bsLines, mask, sW, sH)  -> clip | null
+ *   extractClip(pat, ps, bsLines, mask, sW, sH, knots?)  -> clip | null
  *   transformClip(clip, op)       op: "flipH" | "flipV" | "rotCW" | "rotCCW"
  *   rotatedOrigin(clip, ox, oy)   top-left that keeps a rotated clip centred
- *   liftSelection(pat, ps, bsLines, mask, sW, sH)
+ *   liftSelection(pat, ps, bsLines, mask, sW, sH, knots?)
  *                                 the pattern with the selection taken out
  *   placeClip(base, clip, ox, oy, sW, sH)
- *                                 base {pat, ps, bsLines} with the clip on top:
- *                                 { pat, ps, bsLines, mask, clipped }
+ *                                 base {pat, ps, bsLines, knots?} with the clip
+ *                                 on top: { pat, ps, bsLines, knots, mask, clipped }
  *   diffForHistory(before, after) one undo entry's changes between two states
  *   clipStitchCount(clip)         full stitches in the clip
  *
@@ -5085,7 +5152,12 @@ window.useMoveSelection = function useMoveSelection(state) {
       ln.x2 >= b.minX && ln.x2 <= b.maxX + 1 && ln.y2 >= b.minY && ln.y2 <= b.maxY + 1;
   }
 
-  function extractClip(pat, ps, bsLines, mask, sW, sH) {
+  function knotSelected(k, mask, sW, sH) {
+    var cx = Math.min(sW - 1, k.x >> 1), cy = Math.min(sH - 1, k.y >> 1);
+    return !!mask[cy * sW + cx];
+  }
+
+  function extractClip(pat, ps, bsLines, mask, sW, sH, knots) {
     if (!pat || !mask) return null;
     var b = bboxOf(mask, sW, sH);
     if (!b) return null;
@@ -5106,6 +5178,8 @@ window.useMoveSelection = function useMoveSelection(state) {
       if (!lineInBox(ln, b)) return;
       clip.bs.push(Object.assign({}, ln, { x1: ln.x1 - b.minX, y1: ln.y1 - b.minY, x2: ln.x2 - b.minX, y2: ln.y2 - b.minY }));
     });
+    clip.kn = (knots || []).filter(function (k) { return knotSelected(k, mask, sW, sH); })
+      .map(function (k) { return Object.assign({}, k, { x: k.x - 2 * b.minX, y: k.y - 2 * b.minY }); });
     return clip;
   }
 
@@ -5158,6 +5232,9 @@ window.useMoveSelection = function useMoveSelection(state) {
       var a = vm(ln.x1, ln.y1), b = vm(ln.x2, ln.y2);
       out.bs.push(Object.assign({}, ln, { x1: a[0], y1: a[1], x2: b[0], y2: b[1] }));
     });
+    // Knots are on the half-stitch lattice: the same vertex map, doubled.
+    var km = vertexMap(op, 2 * clip.w, 2 * clip.h);
+    out.kn = (clip.kn || []).map(function (k) { var p = km(k.x, k.y); return Object.assign({}, k, { x: p[0], y: p[1] }); });
     return out;
   }
 
@@ -5167,7 +5244,7 @@ window.useMoveSelection = function useMoveSelection(state) {
     return { x: ox + Math.round((clip.w - clip.h) / 2), y: oy + Math.round((clip.h - clip.w) / 2) };
   }
 
-  function liftSelection(pat, ps, bsLines, mask, sW, sH) {
+  function liftSelection(pat, ps, bsLines, mask, sW, sH, knots) {
     var np = pat.slice(), nps = new Map(ps || []);
     for (var i = 0; i < mask.length; i++) {
       if (!mask[i]) continue;
@@ -5176,7 +5253,9 @@ window.useMoveSelection = function useMoveSelection(state) {
     }
     var b = bboxOf(mask, sW, sH);
     var nbs = b ? (bsLines || []).filter(function (ln) { return !lineInBox(ln, b); }) : (bsLines || []).slice();
-    return { pat: np, ps: nps, bsLines: nbs };
+    var out = { pat: np, ps: nps, bsLines: nbs };
+    if (knots) out.knots = knots.filter(function (k) { return !knotSelected(k, mask, sW, sH); });
+    return out;
   }
 
   function placeClip(base, clip, ox, oy, sW, sH) {
@@ -5204,7 +5283,20 @@ window.useMoveSelection = function useMoveSelection(state) {
         [l.y1, l.y2].every(function (v) { return v >= 0 && v <= sH; });
       if (inside) nbs.push(l); else clipped = true;
     });
-    return { pat: np, ps: nps, bsLines: nbs, mask: mask, clipped: clipped };
+    // A pasted knot replaces one already on the same spot.
+    var nkn;
+    if (base.knots || (clip.kn && clip.kn.length)) {
+      var placed = [];
+      (clip.kn || []).forEach(function (k) {
+        var p = Object.assign({}, k, { x: k.x + 2 * ox, y: k.y + 2 * oy });
+        if (p.x < 0 || p.y < 0 || p.x > 2 * sW || p.y > 2 * sH) { clipped = true; return; }
+        placed.push(p);
+      });
+      var taken = {};
+      placed.forEach(function (p) { taken[p.x + "," + p.y] = true; });
+      nkn = (base.knots || []).filter(function (k) { return !taken[k.x + "," + k.y]; }).concat(placed);
+    }
+    return { pat: np, ps: nps, bsLines: nbs, knots: nkn, mask: mask, clipped: clipped };
   }
 
   // Whole stored values are compared, so a paste that swaps a stitch for
@@ -5221,6 +5313,15 @@ window.useMoveSelection = function useMoveSelection(state) {
     for (var i = 0; i < a.length; i++) {
       if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) return false;
     }
+    return true;
+  }
+
+  // Knots compared as a set: lifting and placing reorders them.
+  function sameKnots(a, b) {
+    if (a.length !== b.length) return false;
+    function keyed(list) { return list.map(function (k) { return JSON.stringify([k.x, k.y, k.id, k.rgb || null]); }).sort(); }
+    var ka = keyed(a), kb = keyed(b);
+    for (var i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return false;
     return true;
   }
 
@@ -5241,11 +5342,14 @@ window.useMoveSelection = function useMoveSelection(state) {
     if (before.ps) before.ps.forEach(function (_, idx) { cmp(idx); });
     if (after.ps) after.ps.forEach(function (_, idx) { cmp(idx); });
     var bsChanged = !sameLines(before.bsLines, after.bsLines);
+    var knChanged = (before.knots !== undefined || after.knots !== undefined) &&
+      !sameKnots(before.knots || [], after.knots || []);
     return {
       changes: changes,
       psChanges: psChanges.length ? psChanges : undefined,
       bsLines: bsChanged ? (before.bsLines || []).slice() : undefined,
-      empty: !changes.length && !psChanges.length && !bsChanged
+      knots: knChanged ? (before.knots || []).slice() : undefined,
+      empty: !changes.length && !psChanges.length && !bsChanged && !knChanged
     };
   }
 
@@ -5310,7 +5414,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
 
   function current() {
     var s = stateRef.current;
-    return { pat: s.pat, ps: s.partialStitches || new Map(), bsLines: s.bsLines || [], mask: s.selectionMask };
+    return { pat: s.pat, ps: s.partialStitches || new Map(), bsLines: s.bsLines || [], knots: s.knots || [], mask: s.selectionMask };
   }
 
   function busyWithMove() {
@@ -5337,6 +5441,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     s.setPat(r.pat);
     s.setPartialStitches(r.ps);
     s.setBsLines(r.bsLines);
+    if (r.knots !== undefined && s.setKnots) s.setKnots(r.knots);
     s.setSelectionMask(r.mask);
     rebuildPalette(r.pat);
     setFloat({ w: f.clip.w, h: f.clip.h, ox: f.ox, oy: f.oy, clipped: r.clipped, origin: f.origin });
@@ -5405,15 +5510,16 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (staleFloat(f, opts && opts.keepTool)) return null;
     var s = stateRef.current;
     var r = opts && opts.withoutClip
-      ? { pat: f.base.pat, ps: f.base.ps, bsLines: f.base.bsLines, mask: null, clipped: false }
+      ? { pat: f.base.pat, ps: f.base.ps, bsLines: f.base.bsLines, knots: f.base.knots, mask: null, clipped: false }
       : T.placeClip(f.base, f.clip, f.ox, f.oy, s.sW, s.sH);
     s.setPat(r.pat); s.setPartialStitches(r.ps); s.setBsLines(r.bsLines); s.setSelectionMask(r.mask);
+    if (r.knots !== undefined && s.setKnots) s.setKnots(r.knots);
     rebuildPalette(r.pat);
     var d = T.diffForHistory(f.orig, r);
     if (!d.empty) {
       var MAX = s.EDIT_HISTORY_MAX;
       s.setEditHistory(function (prev) {
-        var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines,
+        var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines, knots: d.knots,
           prevMask: f.orig.mask || null, nextMask: r.mask }]);
         if (n.length > MAX) n = n.slice(n.length - MAX);
         return n;
@@ -5435,6 +5541,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (staleFloat(f)) return;
     var s = stateRef.current;
     s.setPat(f.orig.pat); s.setPartialStitches(f.orig.ps); s.setBsLines(f.orig.bsLines);
+    if (f.orig.knots && s.setKnots) s.setKnots(f.orig.knots);
     s.setSelectionMask(f.orig.mask || null);
     rebuildPalette(f.orig.pat);
     endFloat(f, true);
@@ -5449,7 +5556,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var f = floatRef.current;
     if (f) return f.clip;
     var c = current();
-    return c.mask ? T.extractClip(c.pat, c.ps, c.bsLines, c.mask, stateRef.current.sW, stateRef.current.sH) : null;
+    return c.mask ? T.extractClip(c.pat, c.ps, c.bsLines, c.mask, stateRef.current.sW, stateRef.current.sH, c.knots) : null;
   }
 
   function copy() {
@@ -5482,9 +5589,9 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var placedFrom = prevF ? commit({ keepTool: true }) : null;
     var c = current();
     var orig = placedFrom
-      ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, mask: placedFrom.mask }
+      ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, knots: placedFrom.knots !== undefined ? placedFrom.knots : c.knots, mask: placedFrom.mask }
       : c;
-    var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines };
+    var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines, knots: orig.knots };
     var o = pasteOrigin(clip, x, y);
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
@@ -5541,9 +5648,9 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (busyWithMove()) return false;
     var c = current(), s = stateRef.current;
     if (!c.mask) return false;
-    var clip = T.extractClip(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH);
+    var clip = T.extractClip(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH, c.knots);
     if (!clip) return false;
-    var base = T.liftSelection(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH);
+    var base = T.liftSelection(c.pat, c.ps, c.bsLines, c.mask, s.sW, s.sH, c.knots);
     var turned2 = T.transformClip(clip, op);
     var o2 = (op === "rotCW" || op === "rotCCW") ? T.rotatedOrigin(clip, clip.srcX, clip.srcY) : { x: clip.srcX, y: clip.srcY };
     startFloat(c, base, turned2, o2.x, o2.y, "lift");
@@ -6983,6 +7090,8 @@ window.useCreatorState = function useCreatorState() {
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.precisionCursor", v); } catch (_) {}
   }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
+  // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
+  var _knots    = useState([]);      var knots          = _knots[0],    setKnots          = _knots[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
   var _selColId = useState(null);    var selectedColorId = _selColId[0], setSelectedColorId = _selColId[1];
@@ -7285,7 +7394,9 @@ window.useCreatorState = function useCreatorState() {
   var skeinData = useMemo(function() {
     if (!pal) return [];
     var map = {};
-    pal.forEach(function(p) {
+    // French knots add their thread too (knots.js).
+    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
+    withKnots.forEach(function(p) {
       if (p.type === "solid") { map[p.id] = (map[p.id] || 0) + p.count; }
       else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count; }); }
     });
@@ -7296,7 +7407,7 @@ window.useCreatorState = function useCreatorState() {
         var t = findThreadInCatalog('dmc', id);
         return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
-  }, [pal, fabricCt]);
+  }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
@@ -7395,6 +7506,7 @@ window.useCreatorState = function useCreatorState() {
   }
   var stitchType = effPartialStitchTool ? effPartialStitchTool
     : effActiveTool === "backstitch" ? "backstitch"
+    : effActiveTool === "knot" ? "knot"
     : effActiveTool === "eraseAll" ? "erase"
     : (effActiveTool === "paint" || effActiveTool === "fill" ||
        effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse" ||
@@ -7471,6 +7583,9 @@ window.useCreatorState = function useCreatorState() {
       setPartialStitchTool(t); setActiveTool(null); setBsStart(null);
     } else if (t === "backstitch") {
       setActiveTool("backstitch"); setPartialStitchTool(null);
+    } else if (t === "knot") {
+      // French knots (audit DRAW-04): tap a corner or a centre.
+      setActiveTool("knot"); setPartialStitchTool(null); setBsStart(null);
     } else if (t === "erase") {
       setActiveTool("eraseAll"); setPartialStitchTool(null); setBsStart(null);
     } else {
@@ -7540,7 +7655,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
-    setBsLines([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
+    setBsLines([]); setKnots([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
@@ -7796,8 +7911,9 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     // C-9: a regeneration changes the colour map, so any user-drawn
     // back-stitches now reference colour ids that may not exist or
-    // would render against the wrong palette entry. Clear them.
-    setBsLines([]); setBsStart(null);
+    // would render against the wrong palette entry. Clear them, and the
+    // French knots with them.
+    setBsLines([]); setBsStart(null); setKnots([]);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -8296,6 +8412,7 @@ window.useCreatorState = function useCreatorState() {
   var wand = useMagicWand({
     pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     // Colour replacement also recolours half/quarter stitches.
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     setScratchPalette: setScratchPalette,
@@ -8323,6 +8440,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     sW: sW, sH: sH,
     buildPaletteWithScratch: buildPaletteWithScratch,
@@ -8341,6 +8459,7 @@ window.useCreatorState = function useCreatorState() {
     pat: pat, setPat: setPat,
     partialStitches: partialStitches, setPartialStitches: setPartialStitches,
     bsLines: bsLines, setBsLines: setBsLines,
+    knots: knots, setKnots: setKnots,
     selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
     sW: sW, sH: sH,
     buildPaletteWithScratch: buildPaletteWithScratch,
@@ -8432,6 +8551,7 @@ window.useCreatorState = function useCreatorState() {
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
+    knots, setKnots,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
     redoHistory, setRedoHistory, EDIT_HISTORY_MAX,
@@ -8702,12 +8822,13 @@ window.useCreatorState = function useCreatorState() {
          Change symbol (audit DRAW-05). Specific branch: re-applies the old /
          new symbol through state.applySymbol without recording history.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
-     - { type: "move", op?, changes, psChanges?, bsLines?, prevMask, nextMask }
+     - { type: "move", op?, changes, psChanges?, bsLines?, knots?, prevMask, nextMask }
          Move, and a placed paste / flip / rotate (useSelectionClipboard,
          op "paste" or "lift"). Generic loop plus the selection restore.
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
-         changes, psChanges?, bsLines? }
-         Generic fallthrough: handled by the same `last.changes` loop. The
+         changes, psChanges?, bsLines?, knots? }
+         `bsLines` and `knots` (French knots) are the whole old arrays,
+         swapped in and out. Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —
          any new edit type that produces a `changes` array will Just Work
          without touching this file. New types that need bespoke palette
@@ -8720,6 +8841,7 @@ window.useEditHistory = function useEditHistory(state) {
     var pat = state.pat;
     var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
+    var knots = state.knots || [];
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
@@ -8800,6 +8922,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(prev.sW); state.setSH(prev.sH);
       state.setPat(prev.pat);
       state.setBsLines(prev.bsLines);
+      if (state.setKnots) state.setKnots(prev.knots || []);
+      if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       state.setDone(prev.done ? new Uint8Array(prev.done) : null);
       state.setPartialStitches(new Map(prev.ps));
       state.setParkMarkers(prev.parkMarkers);
@@ -8834,9 +8958,15 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var redoKnots = null;
+    if (last.knots && state.setKnots) {
+      redoKnots = knots.slice();
+      state.setKnots(last.knots);
+    }
+
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines };
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -8856,6 +8986,7 @@ window.useEditHistory = function useEditHistory(state) {
     var pat = state.pat;
     var partialStitches = state.partialStitches;
     var bsLines = state.bsLines;
+    var knots = state.knots || [];
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
@@ -8914,6 +9045,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(next.sW); state.setSH(next.sH);
       state.setPat(next.pat);
       state.setBsLines(next.bsLines);
+      if (state.setKnots) state.setKnots(next.knots || []);
+      if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       state.setDone(next.done ? new Uint8Array(next.done) : null);
       state.setPartialStitches(new Map(next.ps));
       state.setParkMarkers(next.parkMarkers);
@@ -8948,9 +9081,15 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var undoKnots = null;
+    if (last.knots && state.setKnots) {
+      undoKnots = knots.slice();
+      state.setKnots(last.knots);
+    }
+
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines };
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -10680,6 +10819,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
     if (t === "text") return "single";
+    if (t === "knot") return "single";
     return null;
   }
   function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
@@ -11346,6 +11486,41 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     // quarter/three-quarter tools require hit-testing — delegate to handlePatClick (no drag)
     if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
       handlePatClick(e);
+      return;
+    }
+
+    // French knot (audit DRAW-04): a tap puts a knot on the nearest grid
+    // corner or stitch centre, or removes the knot already there. With mirror
+    // drawing on, the mirror images change with it. One undo step.
+    if (activeTool === "knot") {
+      if (!window.Knots || typeof state.setKnots !== "function") return;
+      var kW = state.sW, kH = state.sH, kMax = state.EDIT_HISTORY_MAX;
+      var kRect = pcRef.current.getBoundingClientRect();
+      var kfx = ((e.clientX - kRect.left) * (pcRef.current.width / (pcRef.current.clientWidth || 1)) - G) / cs;
+      var kfy = ((e.clientY - kRect.top) * (pcRef.current.height / (pcRef.current.clientHeight || 1)) - G) / cs;
+      if (kfx < -0.5 || kfy < -0.5 || kfx > kW + 0.5 || kfy > kH + 0.5) return;
+      var kp = window.Knots.snap(kfx, kfy, kW, kH);
+      var oldKnots = state.knots || [];
+      var removing = window.Knots.find(oldKnots, kp.x, kp.y) !== -1;
+      var kThread = selectedColorId && cmap ? cmap[selectedColorId] : null;
+      if (!removing && !kThread) {
+        if (state.addToast) state.addToast("Choose a colour first.", { type: "info", duration: 2000 });
+        return;
+      }
+      var newKnots = oldKnots;
+      window.Knots.mirrorKnot(kp.x, kp.y, state.mirror).forEach(function (pt) {
+        if (pt.x < 0 || pt.y < 0 || pt.x > 2 * kW || pt.y > 2 * kH) return;
+        var there = window.Knots.find(newKnots, pt.x, pt.y) !== -1;
+        if (there === removing) newKnots = window.Knots.toggle(newKnots, pt.x, pt.y, kThread || {}).knots;
+      });
+      if (newKnots === oldKnots) return;
+      state.setKnots(newKnots);
+      state.setEditHistory(function (prev) {
+        var n = prev.concat([{ type: "knot", changes: [], knots: oldKnots.slice() }]);
+        if (n.length > kMax) n = n.slice(n.length - kMax);
+        return n;
+      });
+      state.setRedoHistory([]);
       return;
     }
 
@@ -12154,7 +12329,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Cycle stitch type forward",
       when: function () { return !!state.pat; },
       run: function () {
-        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch","knot"];
         var cur = state.stitchType || "cross";
         var i = order.indexOf(cur);
         var next = order[(i < 0 ? 0 : (i + 1) % order.length)];
@@ -12164,7 +12339,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Cycle stitch type backward",
       when: function () { return !!state.pat; },
       run: function () {
-        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch","knot"];
         var cur = state.stitchType || "cross";
         var i = order.indexOf(cur);
         var prev = order[(i <= 0 ? order.length - 1 : i - 1)];
@@ -12330,6 +12505,12 @@ function creatorInitialSize(w, h) {
   return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };
 }
 
+// French knots (knots.js) are written only when there are some, so projects
+// without them save exactly as before.
+function creatorKnotsForSave(knots) {
+  return knots && knots.length ? knots.map(function (k) { return Object.assign({}, k); }) : undefined;
+}
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   // The Convert draft this tab is working on: { id, blob, name, type,
   // createdAt, restore } (restore = settings to apply once the picture loads).
@@ -12416,6 +12597,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !isScratchMode ? img.src : null, partialStitches: psArr,
+      knots: creatorKnotsForSave(state.knots),
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
     });
@@ -12481,6 +12663,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !state.isScratchMode ? img.src : null, partialStitches: psArr,
+      knots: creatorKnotsForSave(state.knots),
     });
     if (onSwitchToTrack) {
       var saveResult = null;
@@ -12592,6 +12775,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
     state.setBsLines(project.bsLines || []);
+    if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH) : []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
     state.setStashConstrained(!!s.stashConstrained);
@@ -12701,6 +12885,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       _tf.halfStitches = project.halfStitches;
     if (project.halfDone && project.halfDone.length > 0)
       _tf.halfDone = project.halfDone;
+    if (Array.isArray(project.knotsDone) && project.knotsDone.length > 0)
+      _tf.knotsDone = project.knotsDone;
     // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
     if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
     if (project.startedAt)            _tf.startedAt = project.startedAt;
@@ -13336,6 +13522,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         tf.halfStitches = freshProject.halfStitches;
       if (freshProject.halfDone && freshProject.halfDone.length > 0)
         tf.halfDone = freshProject.halfDone;
+      if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
+        tf.knotsDone = freshProject.knotsDone;
       // Refresh v3 stats fields
       if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;
       if (freshProject.startedAt)            tf.startedAt = freshProject.startedAt;
@@ -13399,6 +13587,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
       imgData: state.img && !state.isScratchMode ? state.img.src : null, partialStitches: psArr,
+      knots: creatorKnotsForSave(state.knots),
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
     });
@@ -13469,7 +13658,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.partialStitches, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.knots, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.symbolOverrides, state.fabricColour, state.overlayOpacity, state.showOverlay, state.isActive,
   ]);
@@ -14452,7 +14641,7 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
     cv.bsLines, app.tab, cv.showOverlay, cv.overlayOpacity,
-    gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
+    gen.img, ctx.partialStitches, ctx.knots, cv.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
@@ -16344,6 +16533,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
+  } else if (cv.stitchType === "knot") {
+    badgeLabel = "French knot"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.stitchType === "half-fwd") {
@@ -16424,7 +16615,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     { id:"half-fwd", label:"Half /" },
     { id:"half-bck", label:"Half \\" },
     { id:"three-quarter", label:"\u00BE St" },
-    { id:"backstitch", label:"Backstitch" }
+    { id:"backstitch", label:"Backstitch" },
+    { id:"knot", label:"French knot" }
   ];
 
   var morePanelContent = morePanelOpen ? h("div", {
@@ -20057,7 +20249,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     ["half-fwd",      "Half /"],
     ["half-bck",      "Half \\"],
     ["three-quarter", "\u00BE Stitch"],
-    ["backstitch",    "Backstitch"]
+    ["backstitch",    "Backstitch"],
+    ["knot",          "French knot"]
   ];
   var curStitch = cv.stitchType || "cross";
   var stitchTypeSection = h("div", {style:{padding:"12px"}},
@@ -20815,6 +21008,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = coarse
       ? "Backstitch \u2014 tap grid intersections. Press and hold to cancel."
       : "Backstitch \u2014 click grid intersections. Right-click to cancel.";
+  } else if (cv.stitchType === "knot") {
+    statusText = (coarse ? "French knot \u2014 tap" : "French knot \u2014 click") +
+      " a grid corner or the middle of a stitch to add a knot, or a knot to remove it.";
   } else if (cv.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {

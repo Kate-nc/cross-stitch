@@ -95,7 +95,7 @@ describe('Edit-mode toolbar consolidation — Tools sidebar tab', () => {
     expect(SHORTCUTS_SRC).toMatch(/id:\s*"creator\.stitch\.cycle"/);
     expect(SHORTCUTS_SRC).toMatch(/keys:\s*"t"/);
     expect(SHORTCUTS_SRC).toMatch(
-      /\["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"\]/
+      /\["cross","quarter","half-fwd","half-bck","three-quarter","backstitch","knot"\]/
     );
     expect(SHORTCUTS_SRC).toMatch(/state\.selectStitchType\(next\)/);
   });

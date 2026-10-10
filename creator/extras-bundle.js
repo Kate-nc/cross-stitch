@@ -1167,6 +1167,8 @@
       palette: pal,
       partialStitches: partialEntries,
       bsLines: ctx.bsLines || [],
+      // French knots; only the Workshop print theme draws them.
+      knots: ctx.knots && ctx.knots.length ? ctx.knots.map(function (k) { return { x: k.x, y: k.y, id: k.id, rgb: k.rgb }; }) : undefined,
       fabricCt: ctx.fabricCt || 14,
       skeinPrice: ctx.skeinPrice,
       coverPreviewJpeg: ctx.coverPreviewJpeg || null,
@@ -1373,7 +1375,7 @@
  *   window.ZipBundle._slugify(name)
  *   window.ZipBundle._filename(projectName, schemaVersion, date)
  *   window.ZipBundle._buildManifest({projectName, schemaVersion, generatedAt, files, appVersion})
- *   window.ZipBundle._serializeOxs(project)   // { width, height, pattern, bsLines, palette? }
+ *   window.ZipBundle._serializeOxs(project)   // { width, height, pattern, bsLines, palette?, knots? }
  *
  * Pure helpers are exported via module.exports for Jest tests; window
  * assignments handle the browser-side surface.
@@ -1486,6 +1488,17 @@
       }
     }
 
+    // French knots (knots.js) join the palette too; blends by their first
+    // thread, as for stitches.
+    var knots = project.knots || [];
+    var knotEntries = [];
+    for (var k = 0; k < knots.length; k++) {
+      var kn = knots[k];
+      if (!kn || !kn.id) continue;
+      var kidx = ensureEntry(String(kn.id).split('+')[0], kn.rgb);
+      if (kidx) knotEntries.push({ x: kn.x / 2, y: kn.y / 2, palindex: kidx });
+    }
+
     // Palette block.
     lines.push('  <palette>');
     for (var i = 0; i < palette.length; i++) {
@@ -1517,6 +1530,16 @@
           + ' x2="' + bl.x2 + '" y2="' + bl.y2 + '" palindex="1"/>');
       }
       lines.push('  </backstitches>');
+    }
+
+    // French knots, as ornaments (x1, y1 in stitches; see generateOXS).
+    if (knotEntries.length) {
+      lines.push('  <ornaments_inc_knots_and_beads>');
+      for (var ke = 0; ke < knotEntries.length; ke++) {
+        var o = knotEntries[ke];
+        lines.push('    <object x1="' + o.x + '" y1="' + o.y + '" palindex="' + o.palindex + '" objecttype="knot"/>');
+      }
+      lines.push('  </ornaments_inc_knots_and_beads>');
     }
 
     lines.push('</chart>');
@@ -2383,17 +2406,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // What to buy: one row per thread, blends folded into their components
   // (audit B-05). The legend below still lists each chart symbol, blends
   // included; the summary, stash status and shopping list use these.
+  // French knots add their thread to these counts (knots.js), and a thread
+  // used only for knots gets a row of its own.
+  var matPal = useMemo(function() {
+    if (!ctx.pal || !window.Knots) return ctx.pal;
+    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
+  }, [ctx.pal, ctx.knots]);
+
   var threadRows = useMemo(function() {
-    if (!(ctx.pat && ctx.pal)) return [];
-    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, ctx.pal, stash, fabricCt]);
+    if (!(ctx.pat && matPal)) return [];
+    return window.buildThreadShoppingRows(matPal, { fabricCt: fabricCt, stash: stash });
+  }, [ctx.pat, matPal, stash, fabricCt]);
 
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     var threadById = {};
     threadRows.forEach(function(r) { threadById[r.key] = r; });
     var rank = { needed: 0, partial: 1, owned: 2 };
-    return ctx.pal.map(function(p) {
+    return matPal.map(function(p) {
       var skResult = (typeof stitchesToSkeins === "function")
         ? stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2 })
         : null;
@@ -2425,7 +2455,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       var dc = (ctx.colourDoneCounts && ctx.colourDoneCounts[p.id]) || {total: 0, done: 0};
       return {p: p, owned: owned, needed: needed, status: status, name: name, confettiCount: confettiCount, dc: dc};
     });
-  }, [ctx.pat, ctx.pal, stash, fabricCt, threadRows, app.confettiData, ctx.colourDoneCounts]);
+  }, [ctx.pat, matPal, stash, fabricCt, threadRows, app.confettiData, ctx.colourDoneCounts]);
 
   var threadIdCollator = _LEGEND_THREAD_ID_COLLATOR;
   function compareThreadIds(aId, bId) {
@@ -2804,6 +2834,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
                   h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},
                     r.name,
+                    // French knots in this thread (their thread is in the counts).
+                    p.knots ? h("div", {className:"legend-knots", style:{fontSize:"var(--text-xs)", color:"var(--text-tertiary)"}},
+                      "French knots: " + p.knots.toLocaleString()) : null,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
@@ -3746,6 +3779,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
+      knots: ctx.knots && ctx.knots.length ? ctx.knots.slice() : undefined,
     };
   }
 
@@ -3821,7 +3855,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     try {
       oxsString = window.ZipBundle._serializeOxs({
         width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
-        bsLines: ctx.bsLines || [], palette: ctx.pal
+        bsLines: ctx.bsLines || [], palette: ctx.pal, knots: ctx.knots || []
       });
     } catch (e) {
       console.warn("Bundle: OXS serialise failed:", e);
@@ -4049,7 +4083,8 @@ window.CreatorExportTab = function CreatorExportTab() {
             w: ctx.sW, h: ctx.sH,
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
-            bsLines: ctx.bsLines || []
+            bsLines: ctx.bsLines || [],
+            knots: ctx.knots || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

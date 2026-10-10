@@ -170,10 +170,11 @@ With stitches selected (Magic Wand or Lasso), press `Delete` or `Backspace`, cli
 
 ### Stitch types
 
-Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus quarter and three-quarter stitches. `T` / `Shift+T` steps through them.
+Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus quarter and three-quarter stitches and French knots. `T` / `Shift+T` steps through them.
 
 - **Part stitches** — click the quadrant of a cell to place a quarter, half or three-quarter stitch.
 - **Backstitch** — click a grid corner, then another, to draw a line.
+- **French knot** — tap or click a grid corner or the middle of a stitch; the knot goes on the nearest one, in the selected colour. Tap a knot again to remove it. Each tap is one undo step, and mirror drawing places the mirrored knots too. Knots move, copy, flip and rotate with a selection, and **Delete** clears the knots of the selected stitches. Each knot adds about one cross stitch's worth of thread, and **Materials** lists *French knots* under their thread. Knots are saved in `.oxs` exports; PDFs draw them only with the **Workshop print theme**, since the *For Pattern Keeper* preset is kept exactly as Pattern Keeper expects.
 
 ### Undo & redo
 

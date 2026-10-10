@@ -10,6 +10,8 @@
  *       palette,         // [{id, name, rgb, type, threads?}, ...]
  *       partialStitches, // [[index, {TL?,TR?,BL?,BR?}], ...] (optional)
  *       bsLines,         // backstitch lines (optional, used for legend stitch-types only)
+ *       knots,           // French knots [{x, y, id, rgb}] in half-stitch units
+ *                        // (optional; drawn by the Workshop theme only)
  *       fabricCt,        // fabric count
  *       skeinPrice,      // GBP per skein (optional)
  *       coverPreviewJpeg // string data URL (optional, embedded on cover)
@@ -293,6 +295,15 @@ function legendPageCount(palette, codepoints) {
 }
 
 /**
+ * French knots (knots.js) are drawn only by the opt-in Workshop theme: the
+ * Pattern Keeper preset stays bit-identical, with or without knots.
+ */
+function workshopKnots(project, themeCols) {
+  if (!themeCols || !themeCols.pageBg) return null;
+  return project.knots && project.knots.length ? project.knots : null;
+}
+
+/**
  * UX-12 PR #14 — paint a full-page linen background when the Workshop
  * theme is active. No-op for the default PK-compat path so the byte
  * stream remains identical to current output.
@@ -483,6 +494,7 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
   if (hasFull)    { page.drawText("• Full cross-stitch", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   if (hasPartial) { page.drawText("• Partial / quarter stitches", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   if (hasBs)      { page.drawText("• Backstitch", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
+  if (workshopKnots(project, themeCols)) { page.drawText("• French knots", { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }); y -= 13; }
   y -= 16;
 
   // Designer notes / contact
@@ -567,6 +579,41 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
       // Count
       page.drawText(String(ent.count), { x: colCnt, y: rowY, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
     }
+  }
+  // French knots (Workshop theme): one row per thread, under the threads, or
+  // on a page of their own when the last legend page is full.
+  var knots = workshopKnots(project, themeCols);
+  if (knots) {
+    var byThread = {}, order = [];
+    knots.forEach(function (k) {
+      if (!byThread[k.id]) { byThread[k.id] = { id: k.id, rgb: k.rgb, n: 0 }; order.push(k.id); }
+      byThread[k.id].n++;
+    });
+    var lastRows = entries.length - (pages - 1) * rowsPerPage;
+    var ky = pageH - marginPt - 22 - 18 - 12 - lastRows * 18 - 14;
+    var kPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+    if (ky - (order.length + 1) * 18 < marginPt) {
+      kPage = pdfDoc.addPage([pageW, pageH]);
+      paintWorkshopBackground(kPage, pageW, pageH, rgbColor, themeCols);
+      ky = pageH - marginPt - 22;
+      pages++;
+    }
+    kPage.drawText("French knots", { x: marginPt, y: ky, size: 12, font: bold, color: rgbColor(0, 0, 0) });
+    ky -= 18;
+    order.forEach(function (id) {
+      var t = byThread[id];
+      var pe = (project.palette || []).find(function (p) { return p && p.id === id; }) || { id: id, name: "", type: "solid" };
+      var krgb = t.rgb || pe.rgb || [0, 0, 0];
+      kPage.drawCircle({
+        x: marginPt + 5, y: ky + 3.5, size: 4,
+        color: rgbColor(krgb[0] / 255, krgb[1] / 255, krgb[2] / 255),
+        borderColor: rgbColor(0.2, 0.2, 0.2), borderWidth: 0.5,
+      });
+      kPage.drawText(brandLabel(pe), { x: marginPt + 50, y: ky, size: 10, font: font, color: rgbColor(0, 0, 0) });
+      kPage.drawText((pe.name || "").substring(0, 28), { x: marginPt + 130, y: ky, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+      kPage.drawText(t.n + (t.n === 1 ? " knot" : " knots"), { x: pageW - marginPt - 60, y: ky, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+      ky -= 18;
+    });
   }
   return pages;
 }
@@ -701,6 +748,28 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
       thickness: isMajor2 ? 0.6 : 0.18,
       color: isMajor2 ? major : minor, opacity: isMajor2 ? 0.85 : 0.55,
     });
+  }
+
+  // ── French knots (Workshop theme only) ───────────────────────────────
+  // On a corner or a stitch centre (half-stitch units): a dot in the thread
+  // colour with a dark ring, or black in B&W.
+  var pageKnots = workshopKnots(project, themeCols);
+  if (pageKnots) {
+    for (var ki = 0; ki < pageKnots.length; ki++) {
+      var kn = pageKnots[ki];
+      var kx = kn.x / 2, kyy = kn.y / 2;
+      if (kx < seg.x0 || kx > seg.x1 || kyy < seg.y0 || kyy > seg.y1) continue;
+      var krgb2 = kn.rgb || [0, 0, 0];
+      // A light ring round dark threads, so a black knot shows on black.
+      var kDark = (0.299 * krgb2[0] + 0.587 * krgb2[1] + 0.114 * krgb2[2]) / 255 < 0.35;
+      page.drawCircle({
+        x: chartX0 + (kx - seg.x0) * cellPt, y: chartY1 - (kyy - seg.y0) * cellPt,
+        size: cellPt * 0.28,
+        color: mode === "colour" ? rgbColor(krgb2[0] / 255, krgb2[1] / 255, krgb2[2] / 255) : rgbColor(0, 0, 0),
+        borderColor: mode === "colour" && !kDark ? rgbColor(0.1, 0.1, 0.1) : rgbColor(1, 1, 1),
+        borderWidth: cellPt * 0.06,
+      });
+    }
   }
 
   // ── Row / col numbers ────────────────────────────────────────────────

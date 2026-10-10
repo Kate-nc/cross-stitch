@@ -204,12 +204,22 @@ const SyncEngine = (() => {
       if (project.bsLines && project.bsLines.length) {
         bsHash = "|bs:" + simpleHash(JSON.stringify(project.bsLines));
       }
+      // French knots are chart content too. They only enter the fingerprint
+      // when present, so charts without knots keep the fingerprints they
+      // already had; and their hash is appended whole rather than deflated,
+      // since the deflate fingerprint keeps only its first bytes and length
+      // and a moved knot would otherwise go unnoticed.
+      var knotHash = "";
+      if (Array.isArray(project.knots) && project.knots.length) {
+        knotHash = "_kn" + simpleHash(JSON.stringify(project.knots.map(function (k) { return [k.x, k.y, k.id]; })
+          .sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; })));
+      }
       const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
       if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
-        return "fp_" + w + "x" + h + "_" + simpleHash(raw);
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash;
       }
-      return computeDeflateFingerprint(stringToUint8Array(raw), w, h);
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash;
     } catch (e) {
       return "fp_error";
     }
@@ -1456,6 +1466,20 @@ const SyncEngine = (() => {
     // quarter/half stitches worked on one device never reached the other.
     merged.halfStitches = mergeIndexedPairs(local.halfStitches, remote.halfStitches);
     merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
+
+    // French knots: the fingerprints match, so both sides have the same knots;
+    // keep whichever side has the field. Done marks are a union of keys, so a
+    // knot finished on either device stays finished.
+    merged.knots = Array.isArray(local.knots) ? local.knots : remote.knots;
+    if (merged.knots === undefined) delete merged.knots;
+    if (Array.isArray(local.knotsDone) || Array.isArray(remote.knotsDone)) {
+      var kdSeen = Object.create(null), kd = [];
+      (local.knotsDone || []).concat(remote.knotsDone || []).forEach(function (kk) {
+        if (typeof kk !== "string" || kdSeen[kk]) return;
+        kdSeen[kk] = true; kd.push(kk);
+      });
+      merged.knotsDone = kd;
+    }
 
     // Merge per-day stitch history (sync fix #7). Drives lifetime totals and
     // the activity charts, and was previously local-only.

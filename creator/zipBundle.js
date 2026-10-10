@@ -16,7 +16,7 @@
  *   window.ZipBundle._slugify(name)
  *   window.ZipBundle._filename(projectName, schemaVersion, date)
  *   window.ZipBundle._buildManifest({projectName, schemaVersion, generatedAt, files, appVersion})
- *   window.ZipBundle._serializeOxs(project)   // { width, height, pattern, bsLines, palette? }
+ *   window.ZipBundle._serializeOxs(project)   // { width, height, pattern, bsLines, palette?, knots? }
  *
  * Pure helpers are exported via module.exports for Jest tests; window
  * assignments handle the browser-side surface.
@@ -129,6 +129,17 @@
       }
     }
 
+    // French knots (knots.js) join the palette too; blends by their first
+    // thread, as for stitches.
+    var knots = project.knots || [];
+    var knotEntries = [];
+    for (var k = 0; k < knots.length; k++) {
+      var kn = knots[k];
+      if (!kn || !kn.id) continue;
+      var kidx = ensureEntry(String(kn.id).split('+')[0], kn.rgb);
+      if (kidx) knotEntries.push({ x: kn.x / 2, y: kn.y / 2, palindex: kidx });
+    }
+
     // Palette block.
     lines.push('  <palette>');
     for (var i = 0; i < palette.length; i++) {
@@ -160,6 +171,16 @@
           + ' x2="' + bl.x2 + '" y2="' + bl.y2 + '" palindex="1"/>');
       }
       lines.push('  </backstitches>');
+    }
+
+    // French knots, as ornaments (x1, y1 in stitches; see generateOXS).
+    if (knotEntries.length) {
+      lines.push('  <ornaments_inc_knots_and_beads>');
+      for (var ke = 0; ke < knotEntries.length; ke++) {
+        var o = knotEntries[ke];
+        lines.push('    <object x1="' + o.x + '" y1="' + o.y + '" palindex="' + o.palindex + '" objecttype="knot"/>');
+      }
+      lines.push('  </ornaments_inc_knots_and_beads>');
     }
 
     lines.push('</chart>');

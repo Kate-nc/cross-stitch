@@ -1232,6 +1232,8 @@ function CreatorApp({
       setSelectionModifier: state.setSelectionModifier,
       bsLines: state.bsLines,
       setBsLines: state.setBsLines,
+      knots: state.knots,
+      setKnots: state.setKnots,
       bsStart: state.bsStart,
       setBsStart: state.setBsStart,
       bsContinuous: state.bsContinuous,
@@ -1377,7 +1379,7 @@ function CreatorApp({
       // Copy, paste, flip and rotate (useSelectionClipboard)
       clip: state.clip
     };
-  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
+  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.knots, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
 
   // ── HoverContext value (pointer hover coords only) ──
   // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
@@ -1443,6 +1445,8 @@ function CreatorApp({
       setSessions: state.setSessions,
       partialStitches: state.partialStitches,
       setPartialStitches: state.setPartialStitches,
+      knots: state.knots,
+      setKnots: state.setKnots,
       partialStitchTool: state.partialStitchTool,
       setPartialStitchTool: state.setPartialStitchTool,
       partialStitchToolRef: state.partialStitchToolRef,
@@ -1487,7 +1491,7 @@ function CreatorApp({
       toBuyCount: state.toBuyCount,
       toBuyList: state.toBuyList
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
+  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.knots, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
   // File > Export PDF… and Print PDF use the Export tab's saved settings
@@ -1556,6 +1560,7 @@ function CreatorApp({
       done: state.done,
       bsLines: state.bsLines,
       partialStitches: state.partialStitches,
+      knots: state.knots,
       threadOwned: state.threadOwned,
       totalStitchable: state.totalStitchable,
       skeinData: state.skeinData,
@@ -1566,7 +1571,7 @@ function CreatorApp({
       totalTime: state.totalTime,
       sessions: state.sessions
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.threadOwned, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
+  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.knots, state.threadOwned, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
 
   // ── Coachmark tips (Creator) ────────────────────────────────────────
   // One-off tips, only for a pattern made in this visit — never just for
@@ -1727,6 +1732,13 @@ function CreatorApp({
     done: state.done,
     onClose: () => state.setResizeCanvasOpen(false),
     onApply: function (spec) {
+      // French knots and their Tracker done marks move with the cells.
+      var tf = state.trackerFieldsRef && state.trackerFieldsRef.current;
+      function knotsDoneNow() {
+        return tf && Array.isArray(tf.knotsDone) ? tf.knotsDone.slice() : [];
+      }
+      var resizedKnots = window.Knots ? window.Knots.offset(state.knots, spec.offsetX || 0, spec.offsetY || 0, spec.newW, spec.newH) : state.knots || [];
+      var resizedKnotsDone = window.Knots ? window.Knots.offsetDone(knotsDoneNow(), spec.offsetX || 0, spec.offsetY || 0) : knotsDoneNow();
       var result = window.applyCanvasResize(state.pat, state.bsLines, state.done, state.partialStitches, state.parkMarkers, state.sW, state.sH, spec);
       if (!result) return;
       var prevSnap = {
@@ -1736,7 +1748,9 @@ function CreatorApp({
         bsLines: state.bsLines.slice(),
         done: state.done ? Array.from(state.done) : null,
         ps: [...state.partialStitches.entries()],
-        parkMarkers: state.parkMarkers.slice()
+        parkMarkers: state.parkMarkers.slice(),
+        knots: (state.knots || []).slice(),
+        knotsDone: knotsDoneNow()
       };
       var nextSnap = {
         sW: spec.newW,
@@ -1745,7 +1759,9 @@ function CreatorApp({
         bsLines: result.newBsLines,
         done: result.newDone ? Array.from(result.newDone) : null,
         ps: [...result.newPartialStitches.entries()],
-        parkMarkers: result.newParkMarkers
+        parkMarkers: result.newParkMarkers,
+        knots: resizedKnots,
+        knotsDone: resizedKnotsDone
       };
       var builtPal = state.buildPaletteWithScratch(result.newPat);
       state.setSW(spec.newW);
@@ -1755,6 +1771,8 @@ function CreatorApp({
       state.setDone(result.newDone);
       state.setPartialStitches(result.newPartialStitches);
       state.setParkMarkers(result.newParkMarkers);
+      if (state.setKnots) state.setKnots(resizedKnots);
+      if (tf) tf.knotsDone = resizedKnotsDone;
       state.setPal(builtPal.pal);
       state.setCmap(builtPal.cmap);
       state.setRedoHistory([]);
