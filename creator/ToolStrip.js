@@ -710,6 +710,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
+    badgeLabel = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool] + (cv.mirror && cv.mirror.on ? " \u00B7 Mirror" : "");
+    badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.activeTool === "float") {
     badgeLabel = "Place selection"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "move") {
@@ -793,7 +796,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || (!coarsePointer && !cv.drawMode) ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float";
+    cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float" ||
+    cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse" || !!(cv.mirror && cv.mirror.on);
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -923,6 +927,31 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.clip.paste(); setMorePanelOpen(false); },
           title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
         }, window.Icons.clipboard(), " Paste"),
+        // Shapes (audit DRAW-04): drag on the chart to draw one.
+        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]].map(function(t) {
+          var on = cv.activeTool === t[0];
+          return h("button", {
+            key:"shape-" + t[0], className:"tb-btn"+(on?" tb-btn--on":""),
+            onClick:function(){
+              if (on) cv.setActiveTool(null);
+              else {
+                cv.setActiveTool(t[0]); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+                if (cv.cancelLasso) cv.cancelLasso();
+                if (!cv.drawMode) cv.setDrawMode(true);
+              }
+              setMorePanelOpen(false);
+            },
+            title:t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
+            "aria-pressed": on ? "true" : "false"
+          }, t[2], " " + t[1]);
+        }),
+        // Mirror drawing (audit DRAW-04)
+        h("button", {
+          className:"tb-btn"+(cv.mirror && cv.mirror.on?" tb-btn--on":""),
+          onClick:function(){ if (cv.setMirror) cv.setMirror(function(m){ return Object.assign({}, m, { on: !m.on }); }); setMorePanelOpen(false); },
+          title:"Mirror drawing \u2014 axis in the Tools tab", "aria-label":"Mirror drawing",
+          "aria-pressed": cv.mirror && cv.mirror.on ? "true" : "false"
+        }, window.Icons.mirror(), " Mirror"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
           onClick:function(){

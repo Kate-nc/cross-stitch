@@ -875,6 +875,9 @@ function CreatorApp({
   const stableHandleCropPointerCancel = React.useCallback(function (e) {
     _cvHRef.current.handleCropPointerCancel(e);
   }, []);
+  const stableShapePreview = React.useCallback(function () {
+    return _cvHRef.current.shapePreview ? _cvHRef.current.shapePreview() : null;
+  }, []);
   const stableApplyCrop = React.useCallback(function () {
     _cvHRef.current.applyCrop();
   }, []);
@@ -1254,6 +1257,14 @@ function CreatorApp({
       handlePatPointerLeave: stableHandlePatPointerLeave,
       handlePatPointerCancel: stableHandlePatPointerCancel,
       isDraggingRef: canvas.isDraggingRef,
+      // Shapes and mirror drawing (audit DRAW-04)
+      shapePreview: stableShapePreview,
+      mirror: state.mirror,
+      setMirror: state.setMirror,
+      shapeFilled: state.shapeFilled,
+      setShapeFilled: state.setShapeFilled,
+      lineSnap: state.lineSnap,
+      setLineSnap: state.setLineSnap,
       paletteSwap: state.paletteSwap,
       selectionMask: state.selectionMask,
       setSelectionMask: state.setSelectionMask,
@@ -1364,7 +1375,7 @@ function CreatorApp({
       // Copy, paste, flip and rotate (useSelectionClipboard)
       clip: state.clip
     };
-  }, [state.clip, state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
+  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
 
   // ── HoverContext value (pointer hover coords only) ──
   // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a

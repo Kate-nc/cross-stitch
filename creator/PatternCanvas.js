@@ -158,7 +158,7 @@ window.PatternCanvas = function PatternCanvas() {
     app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
-  // ── Effect: dragging a floating paste / turn (audit DRAW-04). The drag
+  // ── Effect: dragging a floating paste / turn, or a shape (audit DRAW-04). The drag
   // only moves a ghost, so repaint the overlay, at most once a frame, instead
   // of rebuilding the pattern on every move.
   React.useEffect(function() {
@@ -176,8 +176,11 @@ window.PatternCanvas = function PatternCanvas() {
       });
     }
     window.addEventListener("cs:clip-ghost", onGhost);
+    // A Line / Rectangle / Ellipse being dragged is drawn the same way.
+    window.addEventListener("cs:shape-preview", onGhost);
     return function() {
       window.removeEventListener("cs:clip-ghost", onGhost);
+      window.removeEventListener("cs:shape-preview", onGhost);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
@@ -197,7 +200,7 @@ window.PatternCanvas = function PatternCanvas() {
       ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab, cv.selectedColorId, cv.bsStart,
       cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
       cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
-      cv.selectionMask, cv.confettiPreview, cv.cleanupPendingMask, cv.denoisePendingMask
+      cv.selectionMask, cv.confettiPreview, cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
     ];
     var prevKey = overlayKeyRef.current;
     overlayKeyRef.current = key;
@@ -243,7 +246,7 @@ window.PatternCanvas = function PatternCanvas() {
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
     cv.selectionMask, cv.confettiPreview,
-    cv.cleanupPendingMask, cv.denoisePendingMask
+    cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
   ]);
 
   return h("canvas", {

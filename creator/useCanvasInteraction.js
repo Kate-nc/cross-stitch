@@ -68,6 +68,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var DOUBLE_TAP_DIST = TC ? TC.DOUBLE_TAP_MAX_DIST_PX : 24;
   var DOUBLE_TAP_ZOOM = 3;
 
+  // Line / Rectangle / Ellipse being dragged (audit DRAW-04):
+  // { tool, x0, y0, x1, y1 } in cells, or null. Drawn as a preview by the
+  // canvas overlay (shapePreview); stitched when the pointer is released.
+  var shapeRef = React.useRef(null);
+  function isShapeTool(t) { return t === "line" || t === "rect" || t === "ellipse"; }
+  function notifyOverlay() {
+    try { window.dispatchEvent(new Event("cs:shape-preview")); } catch (_) {}
+  }
+  // A shape being dragged is dropped (not stitched) when the gesture turns
+  // into a pinch or the pointer is cancelled.
+  function cancelShape() {
+    if (!shapeRef.current) return;
+    shapeRef.current = null;
+    notifyOverlay();
+  }
+  function shapePreview() {
+    var sh = shapeRef.current;
+    if (!sh || !window.ShapeTools) return null;
+    return {
+      tool: sh.tool,
+      cells: window.ShapeTools.shapeCells(sh.tool, { x: sh.x0, y: sh.y0 }, { x: sh.x1, y: sh.y1 },
+        { snap: !!state.lineSnap, filled: !!state.shapeFilled })
+    };
+  }
+
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
 
@@ -118,6 +143,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var t = getActiveTool(), p = getPartialStitchTool();
     if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
     if (t === "paint" || t === "eraseAll") return "stroke";
+    if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
     return null;
   }
@@ -316,104 +342,116 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var nm = dragPartialStitchesRef.current;
     var colorEntry = selectedColorId && cmap ? cmap[selectedColorId] : null;
 
+    // Mirror drawing (audit DRAW-04): each brush cell is also stitched at
+    // its mirror images, half stitches turned to match.
+    var mirror = state.mirror, ST = window.ShapeTools;
+    var mirrorOn = !!(ST && mirror && mirror.on);
     for (var dy = 0; dy < brushSize; dy++) {
       for (var dx = 0; dx < brushSize; dx++) {
-        var x = gx + dx, y = gy + dy;
-        if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
-        var idx = y * sW + x;
-        if (dragCellsRef.current.has(idx)) continue;
-        dragCellsRef.current.add(idx);
-
-        if (action === "paint" && np) {
-          // Allow painting over both __empty__ (manually erased) and __skip__
-          // (background-removed) cells — users expect the brush to put a
-          // stitch back wherever they click, not silently skip it.
-          if (!colorEntry) continue;
-          var selMask = state.selectionMask;
-          if (selMask && !selMask[idx]) continue;
-          if (np[idx].id !== colorEntry.id) {
-            dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
-            np[idx] = Object.assign({}, colorEntry);
-            if (pcRef.current) {
-              var ctx2 = pcRef.current.getContext("2d");
-              ctx2.fillStyle = "rgb(" + colorEntry.rgb + ")";
-              ctx2.fillRect(G + x * cs, G + y * cs, cs, cs);
-              ctx2.strokeStyle = "rgba(0,0,0,0.1)";
-              ctx2.lineWidth = 0.5;
-              ctx2.strokeRect(G + x * cs, G + y * cs, cs, cs);
-            }
-          }
-        } else if (action === "eraseAll" && np) {
-          if (np[idx].id === "__skip__") continue;
-          var selMaskE = state.selectionMask;
-          if (selMaskE && !selMaskE[idx]) continue;
-          var changed = false;
-          if (np[idx].id !== "__empty__") {
-            dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
-            np[idx] = { id: "__empty__", rgb: [255, 255, 255] };
-            changed = true;
-          }
-          if (nm.has(idx)) { nm.delete(idx); changed = true; }
-          if (changed && pcRef.current) {
-            var ctx3 = pcRef.current.getContext("2d");
-            ctx3.fillStyle = "#ffffff";
-            ctx3.fillRect(G + x * cs, G + y * cs, cs, cs);
-            drawCk(ctx3, G + x * cs, G + y * cs, cs);
-            ctx3.strokeStyle = "rgba(0,0,0,0.1)";
-            ctx3.lineWidth = 0.5;
-            ctx3.strokeRect(G + x * cs, G + y * cs, cs, cs);
-          }
-          // Erase nearby backstitch
-          var prevBs = dragBsLinesRef.current;
-          if (prevBs && prevBs.length > 0) {
-            var closestIdx = -1, minD = Infinity;
-            prevBs.forEach(function(ln, i) {
-              var A = x - ln.x1, B = y - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
-              var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
-              if (lenSq !== 0) param = dot / lenSq;
-              var xx, yy;
-              if (param < 0) { xx = ln.x1; yy = ln.y1; }
-              else if (param > 1) { xx = ln.x2; yy = ln.y2; }
-              else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
-              var d = Math.sqrt(Math.pow(x - xx, 2) + Math.pow(y - yy, 2));
-              if (d < minD) { minD = d; closestIdx = i; }
-            });
-            if (minD <= 0.6 && closestIdx >= 0) {
-              var nBs = prevBs.slice();
-              nBs.splice(closestIdx, 1);
-              dragBsLinesRef.current = nBs;
-              if (pcRef.current) {
-                var ctx4 = pcRef.current.getContext("2d");
-                // Full redraw for backstitch erase
-                drawPatternOnCanvas(ctx4, 0, 0, sW, sH, cs, G, Object.assign({}, state, {
-                  pat: dragPatRef.current,
-                  partialStitches: dragPartialStitchesRef.current,
-                  bsLines: nBs,
-                }));
-              }
-            }
-          }
-        } else if (action && (action === "half-fwd" || action === "half-bck") && np) {
-          if (np[idx].id === "__skip__") continue;
-          var selMaskH = state.selectionMask;
-          if (selMaskH && !selMaskH[idx]) continue;
-          var quadsH = action === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
-          var ce = colorEntry;
-          if (!ce) {
-            var m = np[idx];
-            if (m && m.id !== "__empty__" && cmap) ce = cmap[m.id];
-          }
-          if (!ce) continue;
-          var existing = nm.get(idx) || {};
-          var newEntry = Object.assign({}, existing);
-          var allSameH = quadsH.every(function(q) { return existing[q] && existing[q].id === ce.id; });
-          if (allSameH) {
-            quadsH.forEach(function(q) { delete newEntry[q]; });
-          } else {
-            quadsH.forEach(function(q) { newEntry[q] = { id: ce.id, rgb: ce.rgb }; });
-          }
-          if (!newEntry.TL && !newEntry.TR && !newEntry.BL && !newEntry.BR) nm.delete(idx); else nm.set(idx, newEntry);
+        var bx = gx + dx, by = gy + dy;
+        if (!mirrorOn) { brushCell(bx, by, action); continue; }
+        var pts = ST.mirrorPoints(bx, by, mirror);
+        for (var pi = 0; pi < pts.length; pi++) {
+          brushCell(pts[pi].x, pts[pi].y, ST.mirrorHalf(action, pts[pi].flipH, pts[pi].flipV));
         }
+      }
+    }
+
+    function brushCell(x, y, action) {
+      if (x < 0 || x >= sW || y < 0 || y >= sH) return;
+      var idx = y * sW + x;
+      if (dragCellsRef.current.has(idx)) return;
+      dragCellsRef.current.add(idx);
+
+      if (action === "paint" && np) {
+        // Allow painting over both __empty__ (manually erased) and __skip__
+        // (background-removed) cells — users expect the brush to put a
+        // stitch back wherever they click, not silently skip it.
+        if (!colorEntry) return;
+        var selMask = state.selectionMask;
+        if (selMask && !selMask[idx]) return;
+        if (np[idx].id !== colorEntry.id) {
+          dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
+          np[idx] = Object.assign({}, colorEntry);
+          if (pcRef.current) {
+            var ctx2 = pcRef.current.getContext("2d");
+            ctx2.fillStyle = "rgb(" + colorEntry.rgb + ")";
+            ctx2.fillRect(G + x * cs, G + y * cs, cs, cs);
+            ctx2.strokeStyle = "rgba(0,0,0,0.1)";
+            ctx2.lineWidth = 0.5;
+            ctx2.strokeRect(G + x * cs, G + y * cs, cs, cs);
+          }
+        }
+      } else if (action === "eraseAll" && np) {
+        if (np[idx].id === "__skip__") return;
+        var selMaskE = state.selectionMask;
+        if (selMaskE && !selMaskE[idx]) return;
+        var changed = false;
+        if (np[idx].id !== "__empty__") {
+          dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
+          np[idx] = { id: "__empty__", rgb: [255, 255, 255] };
+          changed = true;
+        }
+        if (nm.has(idx)) { nm.delete(idx); changed = true; }
+        if (changed && pcRef.current) {
+          var ctx3 = pcRef.current.getContext("2d");
+          ctx3.fillStyle = "#ffffff";
+          ctx3.fillRect(G + x * cs, G + y * cs, cs, cs);
+          drawCk(ctx3, G + x * cs, G + y * cs, cs);
+          ctx3.strokeStyle = "rgba(0,0,0,0.1)";
+          ctx3.lineWidth = 0.5;
+          ctx3.strokeRect(G + x * cs, G + y * cs, cs, cs);
+        }
+        // Erase nearby backstitch
+        var prevBs = dragBsLinesRef.current;
+        if (prevBs && prevBs.length > 0) {
+          var closestIdx = -1, minD = Infinity;
+          prevBs.forEach(function(ln, i) {
+            var A = x - ln.x1, B = y - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
+            var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+            var xx, yy;
+            if (param < 0) { xx = ln.x1; yy = ln.y1; }
+            else if (param > 1) { xx = ln.x2; yy = ln.y2; }
+            else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
+            var d = Math.sqrt(Math.pow(x - xx, 2) + Math.pow(y - yy, 2));
+            if (d < minD) { minD = d; closestIdx = i; }
+          });
+          if (minD <= 0.6 && closestIdx >= 0) {
+            var nBs = prevBs.slice();
+            nBs.splice(closestIdx, 1);
+            dragBsLinesRef.current = nBs;
+            if (pcRef.current) {
+              var ctx4 = pcRef.current.getContext("2d");
+              // Full redraw for backstitch erase
+              drawPatternOnCanvas(ctx4, 0, 0, sW, sH, cs, G, Object.assign({}, state, {
+                pat: dragPatRef.current,
+                partialStitches: dragPartialStitchesRef.current,
+                bsLines: nBs,
+              }));
+            }
+          }
+        }
+      } else if (action && (action === "half-fwd" || action === "half-bck") && np) {
+        if (np[idx].id === "__skip__") return;
+        var selMaskH = state.selectionMask;
+        if (selMaskH && !selMaskH[idx]) return;
+        var quadsH = action === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
+        var ce = colorEntry;
+        if (!ce) {
+          var m = np[idx];
+          if (m && m.id !== "__empty__" && cmap) ce = cmap[m.id];
+        }
+        if (!ce) return;
+        var existing = nm.get(idx) || {};
+        var newEntry = Object.assign({}, existing);
+        var allSameH = quadsH.every(function(q) { return existing[q] && existing[q].id === ce.id; });
+        if (allSameH) {
+          quadsH.forEach(function(q) { delete newEntry[q]; });
+        } else {
+          quadsH.forEach(function(q) { newEntry[q] = { id: ce.id, rgb: ce.rgb }; });
+        }
+        if (!newEntry.TL && !newEntry.TR && !newEntry.BL && !newEntry.BR) nm.delete(idx); else nm.set(idx, newEntry);
       }
     }
   }
@@ -536,11 +574,52 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
-      var idx1 = gy * sW + gx;
       var nm1 = new Map(partialStitches);
       var ce1 = selectedColorId && cmap ? cmap[selectedColorId] : null;
-      if (!ce1) { var m1 = pat[idx1]; if (m1 && m1.id !== "__skip__" && m1.id !== "__empty__" && cmap) ce1 = cmap[m1.id]; }
+      if (!ce1) { var m1 = pat[gy * sW + gx]; if (m1 && m1.id !== "__skip__" && m1.id !== "__empty__" && cmap) ce1 = cmap[m1.id]; }
       if (!ce1) return;
+      // The quadrant under the pointer, for the quarter tools.
+      var hitQ = null;
+      if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
+        var rect1 = pcRef.current.getBoundingClientRect();
+        var scaleX1 = pcRef.current.width / (pcRef.current.clientWidth || 1);
+        var scaleY1 = pcRef.current.height / (pcRef.current.clientHeight || 1);
+        var localX1 = (e.clientX - rect1.left) * scaleX1 - G - gx * cs;
+        var localY1 = (e.clientY - rect1.top) * scaleY1 - G - gy * cs;
+        hitQ = hitTestQuadrant(localX1, localY1, cs);
+      }
+      // With mirror drawing on, the same part stitch goes at each mirror
+      // image, turned to match (audit DRAW-04).
+      var psPts = (window.ShapeTools && state.mirror && state.mirror.on)
+        ? window.ShapeTools.mirrorPoints(gx, gy, state.mirror) : [{ x: gx, y: gy, flipH: false, flipV: false }];
+      var tapped = [];
+      psPts.forEach(function(pt) {
+        if (pt.x < 0 || pt.x >= sW || pt.y < 0 || pt.y >= sH) return;
+        var tool = window.ShapeTools ? window.ShapeTools.mirrorHalf(partialStitchTool, pt.flipH, pt.flipV) : partialStitchTool;
+        var q = hitQ && window.ShapeTools ? window.ShapeTools.mirrorQuadrant(hitQ, pt.flipH, pt.flipV) : hitQ;
+        var at = pt.y * sW + pt.x;
+        if (tapped.indexOf(at) === -1) tapped.push(at);
+        placePartial(at, tool, q);
+      });
+      // One undo step for the tap and its mirror images.
+      var psChangesTap = [];
+      tapped.forEach(function(at) {
+        var ov = partialStitches.get(at), nv = nm1.get(at);
+        if (ov !== nv) psChangesTap.push({ idx: at, old: ov ? Object.assign({}, ov) : null });
+      });
+      state.setPartialStitches(nm1);
+      if (psChangesTap.length) {
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: partialStitchTool, changes: [], psChanges: psChangesTap }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
+      }
+      return;
+    }
+
+    function placePartial(idx1, partialStitchTool, hitQ) {
       var ex1 = nm1.get(idx1) || {};
       var upd1 = Object.assign({}, ex1);
       if (partialStitchTool === "half-fwd" || partialStitchTool === "half-bck") {
@@ -549,13 +628,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         if (allSame1) { quads1.forEach(function(q) { delete upd1[q]; }); }
         else { quads1.forEach(function(q) { upd1[q] = { id: ce1.id, rgb: ce1.rgb }; }); }
       } else {
-        // quarter or three-quarter — hit-test sub-cell position
-        var rect1 = pcRef.current.getBoundingClientRect();
-        var scaleX1 = pcRef.current.width / (pcRef.current.clientWidth || 1);
-        var scaleY1 = pcRef.current.height / (pcRef.current.clientHeight || 1);
-        var localX1 = (e.clientX - rect1.left) * scaleX1 - G - gx * cs;
-        var localY1 = (e.clientY - rect1.top) * scaleY1 - G - gy * cs;
-        var hitQ = hitTestQuadrant(localX1, localY1, cs);
+        // quarter or three-quarter, at the quadrant hit-tested above
         if (partialStitchTool === "quarter") {
           if (upd1[hitQ] && upd1[hitQ].id === ce1.id) delete upd1[hitQ];
           else upd1[hitQ] = { id: ce1.id, rgb: ce1.rgb };
@@ -568,8 +641,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         }
       }
       if (!upd1.TL && !upd1.TR && !upd1.BL && !upd1.BR) nm1.delete(idx1); else nm1.set(idx1, upd1);
-      state.setPartialStitches(nm1);
-      return;
     }
 
     if ((activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
@@ -580,21 +651,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var pe = cmap[selectedColorId]; if (!pe) return;
       var np2 = pat.slice();
       if (activeTool === "fill") {
-        var ch = [], vis = new Set(), q = [idx2], tid = pat[idx2].id;
-        if (tid === pe.id) return;
+        // With mirror drawing on, the same fill runs from each mirror image
+        // of the clicked cell, all in one undo step (audit DRAW-04).
+        var ch = [], vis = new Set();
         var selMask2 = state.selectionMask;
-        while (q.length) {
-          var id2 = q.pop();
-          if (vis.has(id2)) continue; vis.add(id2);
-          if (selMask2 && !selMask2[id2]) continue;
-          if (pat[id2].id !== tid) continue;
-          ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
-          var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
-          if (x2 > 0) q.push(id2 - 1);
-          if (x2 < sW - 1) q.push(id2 + 1);
-          if (y2 > 0) q.push(id2 - sW);
-          if (y2 < sH - 1) q.push(id2 + sW);
-        }
+        var fillSeeds = (window.ShapeTools && state.mirror && state.mirror.on)
+          ? window.ShapeTools.mirrorPoints(gx, gy, state.mirror) : [{ x: gx, y: gy }];
+        fillSeeds.forEach(function(sd) {
+          if (sd.x < 0 || sd.x >= sW || sd.y < 0 || sd.y >= sH) return;
+          var seed = sd.y * sW + sd.x, tid = pat[seed].id;
+          if (tid === pe.id || vis.has(seed)) return;
+          var q = [seed];
+          while (q.length) {
+            var id2 = q.pop();
+            if (vis.has(id2)) continue;
+            if (selMask2 && !selMask2[id2]) continue;
+            if (pat[id2].id !== tid) continue;
+            vis.add(id2);
+            ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
+            var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
+            if (x2 > 0) q.push(id2 - 1);
+            if (x2 < sW - 1) q.push(id2 + 1);
+            if (y2 > 0) q.push(id2 - sW);
+            if (y2 < sH - 1) q.push(id2 + sW);
+          }
+        });
         if (!ch.length) return;
         state.setEditHistory(function(prev) {
           var n = prev.concat([{ type: "fill", changes: ch }]);
@@ -733,6 +814,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (isShapeTool(activeTool)) {
+      if (!selectedColorId || !cmap || !cmap[selectedColorId]) {
+        if (state.addToast) state.addToast("Choose a colour first.", { type: "info", duration: 2000 });
+        return;
+      }
+      shapeRef.current = { tool: activeTool, x0: gx, y0: gy, x1: gx, y1: gy };
+      notifyOverlay();
+      return;
+    }
+
     isDraggingRef.current = true;
     lastDragCellRef.current = { gx: gx, gy: gy };
     dragChangesRef.current = [];
@@ -785,6 +876,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.clip && state.clip.isDragging()) state.clip.updateDrag(gc.gx, gc.gy);
       return;
     }
+    if (shapeRef.current) {
+      var shm = shapeRef.current;
+      if (shm.x1 !== gc.gx || shm.y1 !== gc.gy) { shm.x1 = gc.gx; shm.y1 = gc.gy; notifyOverlay(); }
+      return;
+    }
 
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
@@ -828,6 +924,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "float") {
       if (state.clip) state.clip.endDrag();
       return;
+    }
+    if (shapeRef.current) {
+      // Stitch the shape through the brush (so brush size and mirror
+      // drawing apply), then commit it below as one undo step.
+      var sh = shapeRef.current, prev = shapePreview();
+      shapeRef.current = null;
+      if (!state.pat || !prev) { notifyOverlay(); return; }
+      isDraggingRef.current = true;
+      lastDragCellRef.current = null;
+      dragChangesRef.current = [];
+      dragCellsRef.current.clear();
+      dragPatRef.current = state.pat.slice();
+      dragPartialStitchesRef.current = new Map(state.partialStitches);
+      dragBsLinesRef.current = state.bsLines;
+      dragActionRef.current = "paint";
+      prev.cells.forEach(function(c) { applyBrush(c.x, c.y, "paint"); });
+      dragActionRef.current = sh.tool;
+      notifyOverlay();
     }
     if (getActiveTool() === "lasso") {
       if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
@@ -910,6 +1024,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (activePointersRef.current.size === 2) {
       if (isDraggingRef.current) cancelDragSession();
+      cancelShape();
       cancelTouchDraw();
       clearNavTap();
       clearPendingTap();
@@ -1157,6 +1272,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerCancel(e) {
+    cancelShape();
     activePointersRef.current.delete(e.pointerId);
     hideTouchTarget();
     clearNavTap();
@@ -1317,6 +1433,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   return {
+    shapePreview: shapePreview,
     handlePatClick: handlePatClick,
     handlePatMouseDown: handlePatMouseDown,
     handlePatMouseMove: handlePatMouseMove,

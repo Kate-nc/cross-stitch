@@ -430,6 +430,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableHandleCropPointerMove  = React.useCallback(function(e){_cvHRef.current.handleCropPointerMove(e);},  []);
   const stableHandleCropPointerUp    = React.useCallback(function(e){_cvHRef.current.handleCropPointerUp(e);},    []);
   const stableHandleCropPointerCancel= React.useCallback(function(e){_cvHRef.current.handleCropPointerCancel(e);},[]);
+  const stableShapePreview = React.useCallback(function(){return _cvHRef.current.shapePreview?_cvHRef.current.shapePreview():null;},[]);
   const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
   const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
   const stableAutoCrop               = React.useCallback(function()  {_cvHRef.current.autoCrop();},               []);
@@ -676,6 +677,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handlePatPointerLeave: stableHandlePatPointerLeave,
     handlePatPointerCancel: stableHandlePatPointerCancel,
     isDraggingRef: canvas.isDraggingRef,
+    // Shapes and mirror drawing (audit DRAW-04)
+    shapePreview: stableShapePreview,
+    mirror: state.mirror, setMirror: state.setMirror,
+    shapeFilled: state.shapeFilled, setShapeFilled: state.setShapeFilled,
+    lineSnap: state.lineSnap, setLineSnap: state.setLineSnap,
     paletteSwap: state.paletteSwap,
     selectionMask: state.selectionMask, setSelectionMask: state.setSelectionMask,
     wandTolerance: state.wandTolerance, setWandTolerance: state.setWandTolerance,
@@ -754,7 +760,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: state.clip,
   }; }, [
-    state.clip,
+    state.clip, state.mirror, state.shapeFilled, state.lineSnap,
     state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,

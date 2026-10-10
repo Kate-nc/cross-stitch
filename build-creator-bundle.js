@@ -52,6 +52,7 @@ const ORDER = [
   // Copy, paste, flip and rotate for a selection (audit DRAW-04).
   'selectionTransforms.js',
   'useSelectionClipboard.js',
+  'shapeTools.js',
   'useCreatorState.js',
   // useImportWizard.js + ImportWizard.js intentionally REMOVED from this
   // list — they are bundled into creator/import-wizard-bundle.js below and
@@ -72,6 +73,8 @@ const ORDER = [
   'GenerateProgress.js',
   'PatternCanvas.js',
   'SelectionBar.js',
+  // Shapes and mirror drawing (audit DRAW-04).
+  'MirrorHandle.js',
   'SplitPane.js',
   'CompactBar.js',
   'ToolStrip.js',

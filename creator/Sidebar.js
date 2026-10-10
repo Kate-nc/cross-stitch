@@ -2024,7 +2024,60 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
-      "Applies to Cross and Half stitches, and the Erase tool.")
+      "Applies to Cross and Half stitches, the Erase tool and shapes.")
+  );
+
+  // Shapes and mirror drawing (audit DRAW-04)
+  function pickShapeTool(tool) {
+    if (cv.activeTool === tool) { cv.setActiveTool(null); return; }
+    cv.setActiveTool(tool); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+    if (cv.cancelLasso) cv.cancelLasso();
+    if (cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
+  }
+  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]];
+  var shapesSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Shapes"),
+    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+      shapeTools.map(function(t) {
+        var on = cv.activeTool === t[0];
+        return h("button", {key:t[0], type:"button", className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          "aria-pressed": on ? "true" : "false", onClick:function(){ pickShapeTool(t[0]); },
+          title: t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
+      })
+    ),
+    h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
+      [["outline", "Outline"], ["filled", "Filled"]].map(function(o) {
+        var on = (o[0] === "filled") === !!cv.shapeFilled;
+        return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
+          className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          onClick:function(){ if (cv.setShapeFilled) cv.setShapeFilled(o[0] === "filled"); }}, o[1]);
+      })
+    ),
+    h("label", {className:"cs-toolsec__check"},
+      h("input", {type:"checkbox", checked: !!cv.lineSnap, onChange:function(e){ if (cv.setLineSnap) cv.setLineSnap(e.target.checked); }}),
+      h("span", null, "Keep lines straight or at 45\u00B0")),
+    h("div", {className:"cs-toolsec__hint"}, "Shapes stitch whole crosses in the selected colour, as wide as the brush.")
+  );
+
+  var mir = cv.mirror || { on: false, axis: "v" };
+  function setMir(patch) { if (cv.setMirror) cv.setMirror(function(m) { return Object.assign({}, m, patch); }); }
+  var mirrorSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Mirror"),
+    h("label", {className:"cs-toolsec__check"},
+      h("input", {type:"checkbox", checked: !!mir.on, onChange:function(e){ setMir({ on: e.target.checked }); }}),
+      h("span", null, "Mirror drawing")),
+    h("div", {role:"radiogroup", "aria-label":"Mirror axis", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+      [["v", "Left\u2013right"], ["h", "Top\u2013bottom"], ["both", "Both"]].map(function(o) {
+        var on = mir.axis === o[0];
+        return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
+          className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          onClick:function(){ setMir({ axis: o[0], on: true }); }}, o[1]);
+      })
+    ),
+    mir.on && h("button", {type:"button", className:"cs-seltools__btn", style:{marginTop:6},
+      onClick:function(){ setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }}, "Centre the axis"),
+    h("div", {className:"cs-toolsec__hint"},
+      "Paint, Erase, Fill, shapes and part stitches are copied across the dashed axis. Drag its handle at the chart's edge to move it.")
   );
 
   var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
@@ -2210,6 +2263,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     stitchTypeSection,
     bsContSection,
     brushSizeSection,
+    shapesSection,
+    mirrorSection,
     selectionSection,
     correctSection
   );

@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.99';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.100',
+    date: 'October 2026',
+    notes: [
+      'Line, Rectangle and Ellipse tools: drag to draw a border, frame or circle in one go, outlined or filled and as wide as the brush, with lines that keep to straight and 45° on request. Mirror drawing copies what you paint, erase, fill or draw across a left–right or top–bottom axis, or both, with a handle to move the axis; half stitches turn to match, and each stroke is one undo step.',
+    ]
+  },
+  {
     version: '1.0.99',
     date: 'October 2026',
     notes: [

@@ -64,6 +64,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
+  } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
+    var shapeName = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool];
+    statusText = shapeName + " \u2014 " + (coarse ? "drag" : "drag on the chart") + (cv.activeTool === "line" ? " from one end to the other" : " from one corner to the other") +
+      (cv.activeTool === "line" && cv.lineSnap ? "; it keeps to straight and 45\u00B0 lines" : "") +
+      (cv.mirror && cv.mirror.on ? ". Mirror drawing is on." : ".");
   } else if (cv.activeTool === "float") {
     statusText = coarse
       ? "Drag the selection into place, then tap Done or tap outside it."
@@ -204,6 +209,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (cv.activeTool === "float") return "move";
+        if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") return "crosshair";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";
         if (cv.activeTool === "fill") return "cell";
@@ -239,6 +245,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),
+    // Grips for moving the mirror-drawing axes (audit DRAW-04)
+    window.CreatorMirrorHandle && h(window.CreatorMirrorHandle, null),
 
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),

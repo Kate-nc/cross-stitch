@@ -2348,6 +2348,55 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     }
   }
 
+  // ─── Shape being dragged, and the mirror axes (audit DRAW-04) ────────────────
+  var ST = (typeof window !== 'undefined') ? window.ShapeTools : null;
+  var mir = state.mirror && state.mirror.on ? state.mirror : null;
+  var shapeP = typeof state.shapePreview === 'function' ? state.shapePreview() : null;
+  if (shapeP && ST) {
+    var spCol = state.cmap && state.selectedColorId ? state.cmap[state.selectedColorId] : null;
+    var bSz = Math.max(1, state.brushSize || 1), spSW = state.sW, spSH = state.sH, spSeen = {};
+    ctx2d.save();
+    ctx2d.globalAlpha = 0.6;
+    ctx2d.fillStyle = spCol && spCol.rgb ? 'rgb(' + spCol.rgb + ')' : 'rgba(37,99,235,1)';
+    shapeP.cells.forEach(function (c) {
+      for (var by = 0; by < bSz; by++) for (var bx = 0; bx < bSz; bx++) {
+        ST.mirrorPoints(c.x + bx, c.y + by, mir).forEach(function (p) {
+          if (p.x < 0 || p.y < 0 || p.x >= spSW || p.y >= spSH) return;
+          var k = p.y * spSW + p.x;
+          if (spSeen[k]) return;
+          spSeen[k] = 1;
+          var px = p.x - offX, py = p.y - offY;
+          if (px < 0 || py < 0 || px >= dW || py >= dH) return;
+          ctx2d.fillRect(gut + px * cSz, gut + py * cSz, cSz, cSz);
+        });
+      }
+    });
+    ctx2d.restore();
+  }
+  if (mir) {
+    // The theme's accent colour, read from the page (canvas can't use a CSS
+    // variable directly).
+    var axisCol = 'rgba(184,92,56,0.9)';
+    try {
+      var acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      if (acc) axisCol = acc;
+    } catch (_) {}
+    ctx2d.save();
+    ctx2d.strokeStyle = axisCol;
+    ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+    ctx2d.setLineDash([Math.max(4, cSz * 0.6), Math.max(3, cSz * 0.4)]);
+    if (mir.axis === 'v' || mir.axis === 'both') {
+      var axX = gut + (mir.ax - offX) * cSz;
+      ctx2d.beginPath(); ctx2d.moveTo(axX, gut); ctx2d.lineTo(axX, gut + dH * cSz); ctx2d.stroke();
+    }
+    if (mir.axis === 'h' || mir.axis === 'both') {
+      var axY = gut + (mir.ay - offY) * cSz;
+      ctx2d.beginPath(); ctx2d.moveTo(gut, axY); ctx2d.lineTo(gut + dW * cSz, axY); ctx2d.stroke();
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
   // ─── Floating paste / turn being dragged (audit DRAW-04) ─────────────────────
   // Same look as the Move ghost: the float's current cells dimmed, the clip
   // drawn at 70% where the drag has reached, and a dashed box around it.
@@ -5550,6 +5599,152 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
 };
 
 
+/* ─── shapeTools.js ─── */
+/* creator/shapeTools.js — line, rectangle and ellipse cells, and mirror
+ * drawing (audit DRAW-04 items 3–4). Pure functions, no React or DOM.
+ *
+ *   snapLineEnd(x0, y0, x1, y1)        the end moved onto the nearest 0°, 45°
+ *                                      or 90° line from the start
+ *   shapeLineCells(x0, y0, x1, y1, snap)
+ *   rectCells(x0, y0, x1, y1, filled)  the box with those two corners
+ *   ellipseCells(x0, y0, x1, y1, filled)
+ *                                      the ellipse inside that box
+ *   shapeCells(tool, start, end, opts) one of the three, by tool name
+ *                                      ("line" | "rect" | "ellipse")
+ *
+ * Mirror drawing. `mirror` is { on, axis: "v" | "h" | "both", ax, ay }: ax is
+ * the vertical axis's x and ay the horizontal axis's y, in grid-line units,
+ * so a half-way value (7.5) runs through the middle of a column.
+ *
+ *   mirrorPoints(x, y, mirror)         the cell and its mirror images:
+ *                                      [{ x, y, flipH, flipV }], the cell
+ *                                      itself first; images that land on a
+ *                                      cell already in the list are dropped
+ *   mirrorQuadrant(q, flipH, flipV)    "TL" etc. as seen in a mirror image
+ *   mirrorHalf(action, flipH, flipV)   "half-fwd" / "half-bck" as seen in it
+ *                                      (one mirror swaps / and \, two don't)
+ *   centredMirror(sW, sH, axis)        a mirror about the pattern's centre
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js); also
+ * require()-able for tests.
+ */
+(function (root) {
+  function bresenham(x0, y0, x1, y1) {
+    var cells = [];
+    var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+    var sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    var err = dx + dy;
+    for (;;) {
+      cells.push({ x: x0, y: y0 });
+      if (x0 === x1 && y0 === y1) break;
+      var e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+    return cells;
+  }
+  // The same Bresenham line a paint stroke follows (useCanvasInteraction).
+  var lineCells = root.lineCells || bresenham;
+
+  function snapLineEnd(x0, y0, x1, y1) {
+    var dx = x1 - x0, dy = y1 - y0, ax = Math.abs(dx), ay = Math.abs(dy);
+    // tan(22.5°) ≈ 0.414: nearer the axis than the diagonal snaps to the axis.
+    if (ay <= ax * 0.414) return { x: x1, y: y0 };
+    if (ax <= ay * 0.414) return { x: x0, y: y1 };
+    var d = Math.round((ax + ay) / 2);
+    return { x: x0 + (dx < 0 ? -d : d), y: y0 + (dy < 0 ? -d : d) };
+  }
+
+  function shapeLineCells(x0, y0, x1, y1, snap) {
+    if (snap) { var e = snapLineEnd(x0, y0, x1, y1); x1 = e.x; y1 = e.y; }
+    return lineCells(x0, y0, x1, y1);
+  }
+
+  function rectCells(x0, y0, x1, y1, filled) {
+    var minX = Math.min(x0, x1), maxX = Math.max(x0, x1), minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+    var out = [];
+    for (var y = minY; y <= maxY; y++) {
+      for (var x = minX; x <= maxX; x++) {
+        if (filled || x === minX || x === maxX || y === minY || y === maxY) out.push({ x: x, y: y });
+      }
+    }
+    return out;
+  }
+
+  function ellipseCells(x0, y0, x1, y1, filled) {
+    var minX = Math.min(x0, x1), maxX = Math.max(x0, x1), minY = Math.min(y0, y1), maxY = Math.max(y0, y1);
+    var w = maxX - minX + 1, h = maxY - minY + 1;
+    var cx = minX + w / 2, cy = minY + h / 2, rx = w / 2, ry = h / 2;
+    function inside(x, y) {
+      if (x < minX || x > maxX || y < minY || y > maxY) return false;
+      var nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry;
+      return nx * nx + ny * ny <= 1.0001;
+    }
+    var out = [];
+    for (var y = minY; y <= maxY; y++) {
+      for (var x = minX; x <= maxX; x++) {
+        if (!inside(x, y)) continue;
+        // Outline: a cell of the ellipse with a side open to the outside.
+        if (filled || !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) out.push({ x: x, y: y });
+      }
+    }
+    return out;
+  }
+
+  function shapeCells(tool, start, end, opts) {
+    opts = opts || {};
+    if (tool === "line") return shapeLineCells(start.x, start.y, end.x, end.y, !!opts.snap);
+    if (tool === "rect") return rectCells(start.x, start.y, end.x, end.y, !!opts.filled);
+    if (tool === "ellipse") return ellipseCells(start.x, start.y, end.x, end.y, !!opts.filled);
+    return [];
+  }
+
+  function mirrorPoints(x, y, mirror) {
+    var out = [{ x: x, y: y, flipH: false, flipV: false }];
+    if (!mirror || !mirror.on) return out;
+    var mx = Math.round(2 * mirror.ax - x - 1), my = Math.round(2 * mirror.ay - y - 1);
+    var axis = mirror.axis;
+    if (axis === "v" || axis === "both") out.push({ x: mx, y: y, flipH: true, flipV: false });
+    if (axis === "h" || axis === "both") out.push({ x: x, y: my, flipH: false, flipV: true });
+    if (axis === "both") out.push({ x: mx, y: my, flipH: true, flipV: true });
+    var seen = {};
+    return out.filter(function (p) {
+      var k = p.x + "," + p.y;
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+  }
+
+  var FLIP_H = { TL: "TR", TR: "TL", BL: "BR", BR: "BL" };
+  var FLIP_V = { TL: "BL", BL: "TL", TR: "BR", BR: "TR" };
+  function mirrorQuadrant(q, flipH, flipV) {
+    if (flipH) q = FLIP_H[q];
+    if (flipV) q = FLIP_V[q];
+    return q;
+  }
+  function mirrorHalf(action, flipH, flipV) {
+    if (flipH === flipV) return action;
+    if (action === "half-fwd") return "half-bck";
+    if (action === "half-bck") return "half-fwd";
+    return action;
+  }
+
+  function centredMirror(sW, sH, axis) {
+    return { on: true, axis: axis || "v", ax: sW / 2, ay: sH / 2 };
+  }
+
+  var api = {
+    snapLineEnd: snapLineEnd, shapeLineCells: shapeLineCells, rectCells: rectCells,
+    ellipseCells: ellipseCells, shapeCells: shapeCells,
+    mirrorPoints: mirrorPoints, mirrorQuadrant: mirrorQuadrant, mirrorHalf: mirrorHalf,
+    centredMirror: centredMirror
+  };
+  root.ShapeTools = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+
 /* ─── useCreatorState.js ─── */
 /* creator/useCreatorState.js — All useState, useRef, useMemo, and derived
    helper functions for CreatorApp. Returned object becomes the base of
@@ -6836,8 +7031,33 @@ window.useCreatorState = function useCreatorState() {
   var stitchType = effPartialStitchTool ? effPartialStitchTool
     : effActiveTool === "backstitch" ? "backstitch"
     : effActiveTool === "eraseAll" ? "erase"
-    : (effActiveTool === "paint" || effActiveTool === "fill") ? "cross"
+    : (effActiveTool === "paint" || effActiveTool === "fill" ||
+       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse") ? "cross"
     : null;
+
+  // ─── Shapes and mirror drawing (audit DRAW-04) ─────────────────────────────
+  // Line, Rectangle and Ellipse are tools ("line" / "rect" / "ellipse") that
+  // stitch full crosses in the selected colour with the brush size. Shapes
+  // are outlines or filled; lines snap to 0/45/90 degrees (on by default on
+  // touch screens). Mirror drawing copies every Paint, Erase, Fill, shape and
+  // part stitch across a vertical or horizontal axis, or both; the axes start
+  // at the pattern's centre (see shapeTools.js for the units).
+  var _shapeFilled = useState(false);
+  var shapeFilled = _shapeFilled[0], setShapeFilled = _shapeFilled[1];
+  var _lineSnap = useState(function () { return !isFinePointerNow(); });
+  var lineSnap = _lineSnap[0], setLineSnap = _lineSnap[1];
+  var _mirror = useState(function () { return { on: false, axis: "v", ax: sW / 2, ay: sH / 2 }; });
+  var mirror = _mirror[0], setMirror = _mirror[1];
+  // Another project, or a new size, puts the axes back in the centre. The
+  // project id lives in a ref, so this checks after every render (cheap).
+  var mirrorKeyRef = useRef(null);
+  useEffect(function () {
+    var k = (projectIdRef.current || "") + "|" + sW + "x" + sH;
+    if (mirrorKeyRef.current === null) { mirrorKeyRef.current = k; return; }
+    if (mirrorKeyRef.current === k) return;
+    mirrorKeyRef.current = k;
+    setMirror(function (m) { return Object.assign({}, m, { ax: sW / 2, ay: sH / 2 }); });
+  });
 
   var ownedCount = useMemo(function() {
     return skeinData.filter(function(d) { return (threadOwned[d.id] || "") === "owned"; }).length;
@@ -8083,6 +8303,10 @@ window.useCreatorState = function useCreatorState() {
     cancelMove: move.cancelMove,
     nudgeMove: move.nudgeMove,
     revertFloat: move.revertFloat,
+    // Shapes and mirror drawing
+    shapeFilled: shapeFilled, setShapeFilled: setShapeFilled,
+    lineSnap: lineSnap, setLineSnap: setLineSnap,
+    mirror: mirror, setMirror: setMirror,
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: clip,
     clipFloatActive: clip.floatActive,
@@ -10008,6 +10232,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var DOUBLE_TAP_DIST = TC ? TC.DOUBLE_TAP_MAX_DIST_PX : 24;
   var DOUBLE_TAP_ZOOM = 3;
 
+  // Line / Rectangle / Ellipse being dragged (audit DRAW-04):
+  // { tool, x0, y0, x1, y1 } in cells, or null. Drawn as a preview by the
+  // canvas overlay (shapePreview); stitched when the pointer is released.
+  var shapeRef = React.useRef(null);
+  function isShapeTool(t) { return t === "line" || t === "rect" || t === "ellipse"; }
+  function notifyOverlay() {
+    try { window.dispatchEvent(new Event("cs:shape-preview")); } catch (_) {}
+  }
+  // A shape being dragged is dropped (not stitched) when the gesture turns
+  // into a pinch or the pointer is cancelled.
+  function cancelShape() {
+    if (!shapeRef.current) return;
+    shapeRef.current = null;
+    notifyOverlay();
+  }
+  function shapePreview() {
+    var sh = shapeRef.current;
+    if (!sh || !window.ShapeTools) return null;
+    return {
+      tool: sh.tool,
+      cells: window.ShapeTools.shapeCells(sh.tool, { x: sh.x0, y: sh.y0 }, { x: sh.x1, y: sh.y1 },
+        { snap: !!state.lineSnap, filled: !!state.shapeFilled })
+    };
+  }
+
   function getActiveTool() { return state.activeToolRef ? state.activeToolRef.current : state.activeTool; }
   function getPartialStitchTool() { return state.partialStitchToolRef ? state.partialStitchToolRef.current : state.partialStitchTool; }
 
@@ -10058,6 +10307,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var t = getActiveTool(), p = getPartialStitchTool();
     if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
     if (t === "paint" || t === "eraseAll") return "stroke";
+    if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
     return null;
   }
@@ -10256,104 +10506,116 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var nm = dragPartialStitchesRef.current;
     var colorEntry = selectedColorId && cmap ? cmap[selectedColorId] : null;
 
+    // Mirror drawing (audit DRAW-04): each brush cell is also stitched at
+    // its mirror images, half stitches turned to match.
+    var mirror = state.mirror, ST = window.ShapeTools;
+    var mirrorOn = !!(ST && mirror && mirror.on);
     for (var dy = 0; dy < brushSize; dy++) {
       for (var dx = 0; dx < brushSize; dx++) {
-        var x = gx + dx, y = gy + dy;
-        if (x < 0 || x >= sW || y < 0 || y >= sH) continue;
-        var idx = y * sW + x;
-        if (dragCellsRef.current.has(idx)) continue;
-        dragCellsRef.current.add(idx);
-
-        if (action === "paint" && np) {
-          // Allow painting over both __empty__ (manually erased) and __skip__
-          // (background-removed) cells — users expect the brush to put a
-          // stitch back wherever they click, not silently skip it.
-          if (!colorEntry) continue;
-          var selMask = state.selectionMask;
-          if (selMask && !selMask[idx]) continue;
-          if (np[idx].id !== colorEntry.id) {
-            dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
-            np[idx] = Object.assign({}, colorEntry);
-            if (pcRef.current) {
-              var ctx2 = pcRef.current.getContext("2d");
-              ctx2.fillStyle = "rgb(" + colorEntry.rgb + ")";
-              ctx2.fillRect(G + x * cs, G + y * cs, cs, cs);
-              ctx2.strokeStyle = "rgba(0,0,0,0.1)";
-              ctx2.lineWidth = 0.5;
-              ctx2.strokeRect(G + x * cs, G + y * cs, cs, cs);
-            }
-          }
-        } else if (action === "eraseAll" && np) {
-          if (np[idx].id === "__skip__") continue;
-          var selMaskE = state.selectionMask;
-          if (selMaskE && !selMaskE[idx]) continue;
-          var changed = false;
-          if (np[idx].id !== "__empty__") {
-            dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
-            np[idx] = { id: "__empty__", rgb: [255, 255, 255] };
-            changed = true;
-          }
-          if (nm.has(idx)) { nm.delete(idx); changed = true; }
-          if (changed && pcRef.current) {
-            var ctx3 = pcRef.current.getContext("2d");
-            ctx3.fillStyle = "#ffffff";
-            ctx3.fillRect(G + x * cs, G + y * cs, cs, cs);
-            drawCk(ctx3, G + x * cs, G + y * cs, cs);
-            ctx3.strokeStyle = "rgba(0,0,0,0.1)";
-            ctx3.lineWidth = 0.5;
-            ctx3.strokeRect(G + x * cs, G + y * cs, cs, cs);
-          }
-          // Erase nearby backstitch
-          var prevBs = dragBsLinesRef.current;
-          if (prevBs && prevBs.length > 0) {
-            var closestIdx = -1, minD = Infinity;
-            prevBs.forEach(function(ln, i) {
-              var A = x - ln.x1, B = y - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
-              var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
-              if (lenSq !== 0) param = dot / lenSq;
-              var xx, yy;
-              if (param < 0) { xx = ln.x1; yy = ln.y1; }
-              else if (param > 1) { xx = ln.x2; yy = ln.y2; }
-              else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
-              var d = Math.sqrt(Math.pow(x - xx, 2) + Math.pow(y - yy, 2));
-              if (d < minD) { minD = d; closestIdx = i; }
-            });
-            if (minD <= 0.6 && closestIdx >= 0) {
-              var nBs = prevBs.slice();
-              nBs.splice(closestIdx, 1);
-              dragBsLinesRef.current = nBs;
-              if (pcRef.current) {
-                var ctx4 = pcRef.current.getContext("2d");
-                // Full redraw for backstitch erase
-                drawPatternOnCanvas(ctx4, 0, 0, sW, sH, cs, G, Object.assign({}, state, {
-                  pat: dragPatRef.current,
-                  partialStitches: dragPartialStitchesRef.current,
-                  bsLines: nBs,
-                }));
-              }
-            }
-          }
-        } else if (action && (action === "half-fwd" || action === "half-bck") && np) {
-          if (np[idx].id === "__skip__") continue;
-          var selMaskH = state.selectionMask;
-          if (selMaskH && !selMaskH[idx]) continue;
-          var quadsH = action === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
-          var ce = colorEntry;
-          if (!ce) {
-            var m = np[idx];
-            if (m && m.id !== "__empty__" && cmap) ce = cmap[m.id];
-          }
-          if (!ce) continue;
-          var existing = nm.get(idx) || {};
-          var newEntry = Object.assign({}, existing);
-          var allSameH = quadsH.every(function(q) { return existing[q] && existing[q].id === ce.id; });
-          if (allSameH) {
-            quadsH.forEach(function(q) { delete newEntry[q]; });
-          } else {
-            quadsH.forEach(function(q) { newEntry[q] = { id: ce.id, rgb: ce.rgb }; });
-          }
-          if (!newEntry.TL && !newEntry.TR && !newEntry.BL && !newEntry.BR) nm.delete(idx); else nm.set(idx, newEntry);
+        var bx = gx + dx, by = gy + dy;
+        if (!mirrorOn) { brushCell(bx, by, action); continue; }
+        var pts = ST.mirrorPoints(bx, by, mirror);
+        for (var pi = 0; pi < pts.length; pi++) {
+          brushCell(pts[pi].x, pts[pi].y, ST.mirrorHalf(action, pts[pi].flipH, pts[pi].flipV));
         }
+      }
+    }
+
+    function brushCell(x, y, action) {
+      if (x < 0 || x >= sW || y < 0 || y >= sH) return;
+      var idx = y * sW + x;
+      if (dragCellsRef.current.has(idx)) return;
+      dragCellsRef.current.add(idx);
+
+      if (action === "paint" && np) {
+        // Allow painting over both __empty__ (manually erased) and __skip__
+        // (background-removed) cells — users expect the brush to put a
+        // stitch back wherever they click, not silently skip it.
+        if (!colorEntry) return;
+        var selMask = state.selectionMask;
+        if (selMask && !selMask[idx]) return;
+        if (np[idx].id !== colorEntry.id) {
+          dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
+          np[idx] = Object.assign({}, colorEntry);
+          if (pcRef.current) {
+            var ctx2 = pcRef.current.getContext("2d");
+            ctx2.fillStyle = "rgb(" + colorEntry.rgb + ")";
+            ctx2.fillRect(G + x * cs, G + y * cs, cs, cs);
+            ctx2.strokeStyle = "rgba(0,0,0,0.1)";
+            ctx2.lineWidth = 0.5;
+            ctx2.strokeRect(G + x * cs, G + y * cs, cs, cs);
+          }
+        }
+      } else if (action === "eraseAll" && np) {
+        if (np[idx].id === "__skip__") return;
+        var selMaskE = state.selectionMask;
+        if (selMaskE && !selMaskE[idx]) return;
+        var changed = false;
+        if (np[idx].id !== "__empty__") {
+          dragChangesRef.current.push({ idx: idx, old: Object.assign({}, np[idx]) });
+          np[idx] = { id: "__empty__", rgb: [255, 255, 255] };
+          changed = true;
+        }
+        if (nm.has(idx)) { nm.delete(idx); changed = true; }
+        if (changed && pcRef.current) {
+          var ctx3 = pcRef.current.getContext("2d");
+          ctx3.fillStyle = "#ffffff";
+          ctx3.fillRect(G + x * cs, G + y * cs, cs, cs);
+          drawCk(ctx3, G + x * cs, G + y * cs, cs);
+          ctx3.strokeStyle = "rgba(0,0,0,0.1)";
+          ctx3.lineWidth = 0.5;
+          ctx3.strokeRect(G + x * cs, G + y * cs, cs, cs);
+        }
+        // Erase nearby backstitch
+        var prevBs = dragBsLinesRef.current;
+        if (prevBs && prevBs.length > 0) {
+          var closestIdx = -1, minD = Infinity;
+          prevBs.forEach(function(ln, i) {
+            var A = x - ln.x1, B = y - ln.y1, C = ln.x2 - ln.x1, D = ln.y2 - ln.y1;
+            var dot = A * C + B * D, lenSq = C * C + D * D, param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+            var xx, yy;
+            if (param < 0) { xx = ln.x1; yy = ln.y1; }
+            else if (param > 1) { xx = ln.x2; yy = ln.y2; }
+            else { xx = ln.x1 + param * C; yy = ln.y1 + param * D; }
+            var d = Math.sqrt(Math.pow(x - xx, 2) + Math.pow(y - yy, 2));
+            if (d < minD) { minD = d; closestIdx = i; }
+          });
+          if (minD <= 0.6 && closestIdx >= 0) {
+            var nBs = prevBs.slice();
+            nBs.splice(closestIdx, 1);
+            dragBsLinesRef.current = nBs;
+            if (pcRef.current) {
+              var ctx4 = pcRef.current.getContext("2d");
+              // Full redraw for backstitch erase
+              drawPatternOnCanvas(ctx4, 0, 0, sW, sH, cs, G, Object.assign({}, state, {
+                pat: dragPatRef.current,
+                partialStitches: dragPartialStitchesRef.current,
+                bsLines: nBs,
+              }));
+            }
+          }
+        }
+      } else if (action && (action === "half-fwd" || action === "half-bck") && np) {
+        if (np[idx].id === "__skip__") return;
+        var selMaskH = state.selectionMask;
+        if (selMaskH && !selMaskH[idx]) return;
+        var quadsH = action === "half-fwd" ? ["BL", "TR"] : ["TL", "BR"];
+        var ce = colorEntry;
+        if (!ce) {
+          var m = np[idx];
+          if (m && m.id !== "__empty__" && cmap) ce = cmap[m.id];
+        }
+        if (!ce) return;
+        var existing = nm.get(idx) || {};
+        var newEntry = Object.assign({}, existing);
+        var allSameH = quadsH.every(function(q) { return existing[q] && existing[q].id === ce.id; });
+        if (allSameH) {
+          quadsH.forEach(function(q) { delete newEntry[q]; });
+        } else {
+          quadsH.forEach(function(q) { newEntry[q] = { id: ce.id, rgb: ce.rgb }; });
+        }
+        if (!newEntry.TL && !newEntry.TR && !newEntry.BL && !newEntry.BR) nm.delete(idx); else nm.set(idx, newEntry);
       }
     }
   }
@@ -10476,11 +10738,52 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (partialStitchTool) {
       if (gx < 0 || gx >= sW || gy < 0 || gy >= sH) return;
-      var idx1 = gy * sW + gx;
       var nm1 = new Map(partialStitches);
       var ce1 = selectedColorId && cmap ? cmap[selectedColorId] : null;
-      if (!ce1) { var m1 = pat[idx1]; if (m1 && m1.id !== "__skip__" && m1.id !== "__empty__" && cmap) ce1 = cmap[m1.id]; }
+      if (!ce1) { var m1 = pat[gy * sW + gx]; if (m1 && m1.id !== "__skip__" && m1.id !== "__empty__" && cmap) ce1 = cmap[m1.id]; }
       if (!ce1) return;
+      // The quadrant under the pointer, for the quarter tools.
+      var hitQ = null;
+      if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
+        var rect1 = pcRef.current.getBoundingClientRect();
+        var scaleX1 = pcRef.current.width / (pcRef.current.clientWidth || 1);
+        var scaleY1 = pcRef.current.height / (pcRef.current.clientHeight || 1);
+        var localX1 = (e.clientX - rect1.left) * scaleX1 - G - gx * cs;
+        var localY1 = (e.clientY - rect1.top) * scaleY1 - G - gy * cs;
+        hitQ = hitTestQuadrant(localX1, localY1, cs);
+      }
+      // With mirror drawing on, the same part stitch goes at each mirror
+      // image, turned to match (audit DRAW-04).
+      var psPts = (window.ShapeTools && state.mirror && state.mirror.on)
+        ? window.ShapeTools.mirrorPoints(gx, gy, state.mirror) : [{ x: gx, y: gy, flipH: false, flipV: false }];
+      var tapped = [];
+      psPts.forEach(function(pt) {
+        if (pt.x < 0 || pt.x >= sW || pt.y < 0 || pt.y >= sH) return;
+        var tool = window.ShapeTools ? window.ShapeTools.mirrorHalf(partialStitchTool, pt.flipH, pt.flipV) : partialStitchTool;
+        var q = hitQ && window.ShapeTools ? window.ShapeTools.mirrorQuadrant(hitQ, pt.flipH, pt.flipV) : hitQ;
+        var at = pt.y * sW + pt.x;
+        if (tapped.indexOf(at) === -1) tapped.push(at);
+        placePartial(at, tool, q);
+      });
+      // One undo step for the tap and its mirror images.
+      var psChangesTap = [];
+      tapped.forEach(function(at) {
+        var ov = partialStitches.get(at), nv = nm1.get(at);
+        if (ov !== nv) psChangesTap.push({ idx: at, old: ov ? Object.assign({}, ov) : null });
+      });
+      state.setPartialStitches(nm1);
+      if (psChangesTap.length) {
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: partialStitchTool, changes: [], psChanges: psChangesTap }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
+      }
+      return;
+    }
+
+    function placePartial(idx1, partialStitchTool, hitQ) {
       var ex1 = nm1.get(idx1) || {};
       var upd1 = Object.assign({}, ex1);
       if (partialStitchTool === "half-fwd" || partialStitchTool === "half-bck") {
@@ -10489,13 +10792,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         if (allSame1) { quads1.forEach(function(q) { delete upd1[q]; }); }
         else { quads1.forEach(function(q) { upd1[q] = { id: ce1.id, rgb: ce1.rgb }; }); }
       } else {
-        // quarter or three-quarter — hit-test sub-cell position
-        var rect1 = pcRef.current.getBoundingClientRect();
-        var scaleX1 = pcRef.current.width / (pcRef.current.clientWidth || 1);
-        var scaleY1 = pcRef.current.height / (pcRef.current.clientHeight || 1);
-        var localX1 = (e.clientX - rect1.left) * scaleX1 - G - gx * cs;
-        var localY1 = (e.clientY - rect1.top) * scaleY1 - G - gy * cs;
-        var hitQ = hitTestQuadrant(localX1, localY1, cs);
+        // quarter or three-quarter, at the quadrant hit-tested above
         if (partialStitchTool === "quarter") {
           if (upd1[hitQ] && upd1[hitQ].id === ce1.id) delete upd1[hitQ];
           else upd1[hitQ] = { id: ce1.id, rgb: ce1.rgb };
@@ -10508,8 +10805,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         }
       }
       if (!upd1.TL && !upd1.TR && !upd1.BL && !upd1.BR) nm1.delete(idx1); else nm1.set(idx1, upd1);
-      state.setPartialStitches(nm1);
-      return;
     }
 
     if ((activeTool === "paint" || activeTool === "fill") && selectedColorId && cmap) {
@@ -10520,21 +10815,31 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var pe = cmap[selectedColorId]; if (!pe) return;
       var np2 = pat.slice();
       if (activeTool === "fill") {
-        var ch = [], vis = new Set(), q = [idx2], tid = pat[idx2].id;
-        if (tid === pe.id) return;
+        // With mirror drawing on, the same fill runs from each mirror image
+        // of the clicked cell, all in one undo step (audit DRAW-04).
+        var ch = [], vis = new Set();
         var selMask2 = state.selectionMask;
-        while (q.length) {
-          var id2 = q.pop();
-          if (vis.has(id2)) continue; vis.add(id2);
-          if (selMask2 && !selMask2[id2]) continue;
-          if (pat[id2].id !== tid) continue;
-          ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
-          var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
-          if (x2 > 0) q.push(id2 - 1);
-          if (x2 < sW - 1) q.push(id2 + 1);
-          if (y2 > 0) q.push(id2 - sW);
-          if (y2 < sH - 1) q.push(id2 + sW);
-        }
+        var fillSeeds = (window.ShapeTools && state.mirror && state.mirror.on)
+          ? window.ShapeTools.mirrorPoints(gx, gy, state.mirror) : [{ x: gx, y: gy }];
+        fillSeeds.forEach(function(sd) {
+          if (sd.x < 0 || sd.x >= sW || sd.y < 0 || sd.y >= sH) return;
+          var seed = sd.y * sW + sd.x, tid = pat[seed].id;
+          if (tid === pe.id || vis.has(seed)) return;
+          var q = [seed];
+          while (q.length) {
+            var id2 = q.pop();
+            if (vis.has(id2)) continue;
+            if (selMask2 && !selMask2[id2]) continue;
+            if (pat[id2].id !== tid) continue;
+            vis.add(id2);
+            ch.push({ idx: id2, old: Object.assign({}, pat[id2]) });
+            var x2 = id2 % sW, y2 = Math.floor(id2 / sW);
+            if (x2 > 0) q.push(id2 - 1);
+            if (x2 < sW - 1) q.push(id2 + 1);
+            if (y2 > 0) q.push(id2 - sW);
+            if (y2 < sH - 1) q.push(id2 + sW);
+          }
+        });
         if (!ch.length) return;
         state.setEditHistory(function(prev) {
           var n = prev.concat([{ type: "fill", changes: ch }]);
@@ -10673,6 +10978,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    if (isShapeTool(activeTool)) {
+      if (!selectedColorId || !cmap || !cmap[selectedColorId]) {
+        if (state.addToast) state.addToast("Choose a colour first.", { type: "info", duration: 2000 });
+        return;
+      }
+      shapeRef.current = { tool: activeTool, x0: gx, y0: gy, x1: gx, y1: gy };
+      notifyOverlay();
+      return;
+    }
+
     isDraggingRef.current = true;
     lastDragCellRef.current = { gx: gx, gy: gy };
     dragChangesRef.current = [];
@@ -10725,6 +11040,11 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.clip && state.clip.isDragging()) state.clip.updateDrag(gc.gx, gc.gy);
       return;
     }
+    if (shapeRef.current) {
+      var shm = shapeRef.current;
+      if (shm.x1 !== gc.gx || shm.y1 !== gc.gy) { shm.x1 = gc.gx; shm.y1 = gc.gy; notifyOverlay(); }
+      return;
+    }
 
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
@@ -10768,6 +11088,24 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (getActiveTool() === "float") {
       if (state.clip) state.clip.endDrag();
       return;
+    }
+    if (shapeRef.current) {
+      // Stitch the shape through the brush (so brush size and mirror
+      // drawing apply), then commit it below as one undo step.
+      var sh = shapeRef.current, prev = shapePreview();
+      shapeRef.current = null;
+      if (!state.pat || !prev) { notifyOverlay(); return; }
+      isDraggingRef.current = true;
+      lastDragCellRef.current = null;
+      dragChangesRef.current = [];
+      dragCellsRef.current.clear();
+      dragPatRef.current = state.pat.slice();
+      dragPartialStitchesRef.current = new Map(state.partialStitches);
+      dragBsLinesRef.current = state.bsLines;
+      dragActionRef.current = "paint";
+      prev.cells.forEach(function(c) { applyBrush(c.x, c.y, "paint"); });
+      dragActionRef.current = sh.tool;
+      notifyOverlay();
     }
     if (getActiveTool() === "lasso") {
       if (state.lassoMode === "freehand" && state.lassoActive) state.finalizeLasso();
@@ -10850,6 +11188,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (activePointersRef.current.size === 2) {
       if (isDraggingRef.current) cancelDragSession();
+      cancelShape();
       cancelTouchDraw();
       clearNavTap();
       clearPendingTap();
@@ -11097,6 +11436,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerCancel(e) {
+    cancelShape();
     activePointersRef.current.delete(e.pointerId);
     hideTouchTarget();
     clearNavTap();
@@ -11257,6 +11597,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   return {
+    shapePreview: shapePreview,
     handlePatClick: handlePatClick,
     handlePatMouseDown: handlePatMouseDown,
     handlePatMouseMove: handlePatMouseMove,
@@ -13738,7 +14079,7 @@ window.PatternCanvas = function PatternCanvas() {
     app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
-  // ── Effect: dragging a floating paste / turn (audit DRAW-04). The drag
+  // ── Effect: dragging a floating paste / turn, or a shape (audit DRAW-04). The drag
   // only moves a ghost, so repaint the overlay, at most once a frame, instead
   // of rebuilding the pattern on every move.
   React.useEffect(function() {
@@ -13756,8 +14097,11 @@ window.PatternCanvas = function PatternCanvas() {
       });
     }
     window.addEventListener("cs:clip-ghost", onGhost);
+    // A Line / Rectangle / Ellipse being dragged is drawn the same way.
+    window.addEventListener("cs:shape-preview", onGhost);
     return function() {
       window.removeEventListener("cs:clip-ghost", onGhost);
+      window.removeEventListener("cs:shape-preview", onGhost);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
@@ -13777,7 +14121,7 @@ window.PatternCanvas = function PatternCanvas() {
       ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, app.tab, cv.selectedColorId, cv.bsStart,
       cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
       cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
-      cv.selectionMask, cv.confettiPreview, cv.cleanupPendingMask, cv.denoisePendingMask
+      cv.selectionMask, cv.confettiPreview, cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
     ];
     var prevKey = overlayKeyRef.current;
     overlayKeyRef.current = key;
@@ -13823,7 +14167,7 @@ window.PatternCanvas = function PatternCanvas() {
     cv.activeTool, cv.brushSize, cv.stitchType, ctx.partialStitchTool, cv.bsLines,
     cv.lassoMode, cv.lassoPoints, cv.lassoPreviewMask, cv.lassoCursor, cv.lassoInProgress,
     cv.selectionMask, cv.confettiPreview,
-    cv.cleanupPendingMask, cv.denoisePendingMask
+    cv.cleanupPendingMask, cv.denoisePendingMask, cv.mirror
   ]);
 
   return h("canvas", {
@@ -13978,6 +14322,105 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   },
     floating && h("span", { className: "cs-selbar__hint" }, "Drag to move"),
     items
+  );
+};
+
+
+/* ─── MirrorHandle.js ─── */
+/* creator/MirrorHandle.js — handles for moving the mirror-drawing axes
+ * (audit DRAW-04).
+ *
+ * While mirror drawing is on, each axis gets a grip at the edge of the
+ * chart's visible area: on the top edge for the left–right axis, on the left
+ * edge for the top–bottom one. Dragging a grip moves its axis in half-stitch
+ * steps (so it can run along a grid line or through the middle of a row or
+ * column); the arrow keys do the same, Home puts it back in the centre. The
+ * grips are fixed-position and follow the chart as it scrolls and zooms.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+window.CreatorMirrorHandle = function CreatorMirrorHandle() {
+  var h = React.createElement;
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var ctx = window.usePatternData();
+  var mir = cv.mirror;
+  var on = !!(mir && mir.on) && app.tab === "pattern" && !app.previewActive && !!ctx.pat;
+  var _tick = React.useState(0), bump = _tick[1];
+
+  // Re-place the grips when the chart scrolls or the window resizes.
+  React.useEffect(function () {
+    if (!on) return undefined;
+    function again() { bump(function (n) { return n + 1; }); }
+    var sc = app.scrollRef && app.scrollRef.current;
+    window.addEventListener("resize", again);
+    window.addEventListener("scroll", again, true);
+    if (sc) sc.addEventListener("scroll", again);
+    return function () {
+      window.removeEventListener("resize", again);
+      window.removeEventListener("scroll", again, true);
+      if (sc) sc.removeEventListener("scroll", again);
+    };
+  }, [on, app.scrollRef]);
+
+  if (!on || !cv.setMirror) return null;
+  var canvas = app.pcRef && app.pcRef.current;
+  if (!canvas) return null;
+  var r = canvas.getBoundingClientRect();
+  var view = app.scrollRef && app.scrollRef.current ? app.scrollRef.current.getBoundingClientRect() : r;
+  var G = app.G || 0, cs = cv.cs;
+
+  function setAxis(key, v) {
+    var max = key === "ax" ? ctx.sW : ctx.sH;
+    v = Math.max(0, Math.min(max, Math.round(v * 2) / 2));
+    // Same half-stitch: keep the same object, so nothing re-renders.
+    cv.setMirror(function (m) { if (m[key] === v) return m; var n = Object.assign({}, m); n[key] = v; return n; });
+  }
+
+  function grip(key) {
+    var vertical = key === "ax";
+    var value = mir[key];
+    var pos = vertical ? r.left + G + value * cs : r.top + G + value * cs;
+    // Only while the axis is inside the visible part of the chart.
+    if (vertical && (pos < view.left || pos > view.right)) return null;
+    if (!vertical && (pos < view.top || pos > view.bottom)) return null;
+    var style = vertical
+      ? { left: pos, top: Math.max(view.top, r.top + G) }
+      : { top: pos, left: Math.max(view.left, r.left + G) };
+    function onDown(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    function onMove(e) {
+      if (!e.currentTarget.hasPointerCapture || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      var rr = canvas.getBoundingClientRect();
+      var v = vertical ? (e.clientX - rr.left - G) / cs : (e.clientY - rr.top - G) / cs;
+      setAxis(key, v);
+    }
+    function onKey(e) {
+      var step = e.key === (vertical ? "ArrowRight" : "ArrowDown") ? 0.5 : e.key === (vertical ? "ArrowLeft" : "ArrowUp") ? -0.5 : 0;
+      if (e.key === "Home") { e.preventDefault(); setAxis(key, (vertical ? ctx.sW : ctx.sH) / 2); return; }
+      if (!step) return;
+      e.preventDefault();
+      setAxis(key, value + step * (e.shiftKey ? 10 : 1));
+    }
+    var label = vertical ? "Left–right mirror axis" : "Top–bottom mirror axis";
+    return h("div", {
+      key: key, role: "slider", tabIndex: 0,
+      className: "cs-mirror-grip cs-mirror-grip--" + (vertical ? "v" : "h"),
+      "aria-label": label, "aria-orientation": vertical ? "horizontal" : "vertical",
+      "aria-valuemin": 0, "aria-valuemax": vertical ? ctx.sW : ctx.sH, "aria-valuenow": value,
+      "aria-valuetext": (vertical ? "after column " : "after row ") + value,
+      title: label + ": drag to move it",
+      style: style,
+      onPointerDown: onDown, onPointerMove: onMove, onKeyDown: onKey
+    }, window.Icons.mirror());
+  }
+
+  return h(React.Fragment, null,
+    (mir.axis === "v" || mir.axis === "both") ? grip("ax") : null,
+    (mir.axis === "h" || mir.axis === "both") ? grip("ay") : null
   );
 };
 
@@ -15293,6 +15736,9 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
+    badgeLabel = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool] + (cv.mirror && cv.mirror.on ? " \u00B7 Mirror" : "");
+    badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.activeTool === "float") {
     badgeLabel = "Place selection"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "move") {
@@ -15376,7 +15822,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || (!coarsePointer && !cv.drawMode) ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float";
+    cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float" ||
+    cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse" || !!(cv.mirror && cv.mirror.on);
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -15506,6 +15953,31 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onClick:function(){ cv.clip.paste(); setMorePanelOpen(false); },
           title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
         }, window.Icons.clipboard(), " Paste"),
+        // Shapes (audit DRAW-04): drag on the chart to draw one.
+        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]].map(function(t) {
+          var on = cv.activeTool === t[0];
+          return h("button", {
+            key:"shape-" + t[0], className:"tb-btn"+(on?" tb-btn--on":""),
+            onClick:function(){
+              if (on) cv.setActiveTool(null);
+              else {
+                cv.setActiveTool(t[0]); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+                if (cv.cancelLasso) cv.cancelLasso();
+                if (!cv.drawMode) cv.setDrawMode(true);
+              }
+              setMorePanelOpen(false);
+            },
+            title:t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
+            "aria-pressed": on ? "true" : "false"
+          }, t[2], " " + t[1]);
+        }),
+        // Mirror drawing (audit DRAW-04)
+        h("button", {
+          className:"tb-btn"+(cv.mirror && cv.mirror.on?" tb-btn--on":""),
+          onClick:function(){ if (cv.setMirror) cv.setMirror(function(m){ return Object.assign({}, m, { on: !m.on }); }); setMorePanelOpen(false); },
+          title:"Mirror drawing \u2014 axis in the Tools tab", "aria-label":"Mirror drawing",
+          "aria-pressed": cv.mirror && cv.mirror.on ? "true" : "false"
+        }, window.Icons.mirror(), " Mirror"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
           onClick:function(){
@@ -19063,7 +19535,60 @@ window.CreatorSidebar = function CreatorSidebar() {
       })
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:6,lineHeight:1.4}},
-      "Applies to Cross and Half stitches, and the Erase tool.")
+      "Applies to Cross and Half stitches, the Erase tool and shapes.")
+  );
+
+  // Shapes and mirror drawing (audit DRAW-04)
+  function pickShapeTool(tool) {
+    if (cv.activeTool === tool) { cv.setActiveTool(null); return; }
+    cv.setActiveTool(tool); ctx.setPartialStitchTool(null); cv.setBsStart(null);
+    if (cv.cancelLasso) cv.cancelLasso();
+    if (cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
+  }
+  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]];
+  var shapesSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Shapes"),
+    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+      shapeTools.map(function(t) {
+        var on = cv.activeTool === t[0];
+        return h("button", {key:t[0], type:"button", className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          "aria-pressed": on ? "true" : "false", onClick:function(){ pickShapeTool(t[0]); },
+          title: t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
+      })
+    ),
+    h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
+      [["outline", "Outline"], ["filled", "Filled"]].map(function(o) {
+        var on = (o[0] === "filled") === !!cv.shapeFilled;
+        return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
+          className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          onClick:function(){ if (cv.setShapeFilled) cv.setShapeFilled(o[0] === "filled"); }}, o[1]);
+      })
+    ),
+    h("label", {className:"cs-toolsec__check"},
+      h("input", {type:"checkbox", checked: !!cv.lineSnap, onChange:function(e){ if (cv.setLineSnap) cv.setLineSnap(e.target.checked); }}),
+      h("span", null, "Keep lines straight or at 45\u00B0")),
+    h("div", {className:"cs-toolsec__hint"}, "Shapes stitch whole crosses in the selected colour, as wide as the brush.")
+  );
+
+  var mir = cv.mirror || { on: false, axis: "v" };
+  function setMir(patch) { if (cv.setMirror) cv.setMirror(function(m) { return Object.assign({}, m, patch); }); }
+  var mirrorSection = h("div", {className:"cs-toolsec"},
+    h("div", {className:"cs-toolsec__title"}, "Mirror"),
+    h("label", {className:"cs-toolsec__check"},
+      h("input", {type:"checkbox", checked: !!mir.on, onChange:function(e){ setMir({ on: e.target.checked }); }}),
+      h("span", null, "Mirror drawing")),
+    h("div", {role:"radiogroup", "aria-label":"Mirror axis", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+      [["v", "Left\u2013right"], ["h", "Top\u2013bottom"], ["both", "Both"]].map(function(o) {
+        var on = mir.axis === o[0];
+        return h("button", {key:o[0], type:"button", role:"radio", "aria-checked": on ? "true" : "false",
+          className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
+          onClick:function(){ setMir({ axis: o[0], on: true }); }}, o[1]);
+      })
+    ),
+    mir.on && h("button", {type:"button", className:"cs-seltools__btn", style:{marginTop:6},
+      onClick:function(){ setMir({ ax: ctx.sW / 2, ay: ctx.sH / 2 }); }}, "Centre the axis"),
+    h("div", {className:"cs-toolsec__hint"},
+      "Paint, Erase, Fill, shapes and part stitches are copied across the dashed axis. Drag its handle at the chart's edge to move it.")
   );
 
   var lassoModes = [["freehand","Lasso"],["polygon","Polygon"],["magnetic","Magnetic"]];
@@ -19249,6 +19774,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     stitchTypeSection,
     bsContSection,
     brushSizeSection,
+    shapesSection,
+    mirrorSection,
     selectionSection,
     correctSection
   );
@@ -19654,6 +20181,11 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
+  } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
+    var shapeName = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool];
+    statusText = shapeName + " \u2014 " + (coarse ? "drag" : "drag on the chart") + (cv.activeTool === "line" ? " from one end to the other" : " from one corner to the other") +
+      (cv.activeTool === "line" && cv.lineSnap ? "; it keeps to straight and 45\u00B0 lines" : "") +
+      (cv.mirror && cv.mirror.on ? ". Mirror drawing is on." : ".");
   } else if (cv.activeTool === "float") {
     statusText = coarse
       ? "Drag the selection into place, then tap Done or tap outside it."
@@ -19794,6 +20326,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
         if (cv.activeTool === "float") return "move";
+        if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") return "crosshair";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";
         if (cv.activeTool === "fill") return "cell";
@@ -19829,6 +20362,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),
+    // Grips for moving the mirror-drawing axes (audit DRAW-04)
+    window.CreatorMirrorHandle && h(window.CreatorMirrorHandle, null),
 
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),
