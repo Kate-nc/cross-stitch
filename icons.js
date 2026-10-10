@@ -714,6 +714,19 @@ window.Icons = (function() {
         p('M14 14h6M14 17h6M14 20h6')
       );
     },
+    // Drawing shapes and mirror drawing (audit DRAW-04).
+    shapeLine: function() {
+      return svg(l(5, 19, 19, 5), c(5, 19, 1.5), c(19, 5, 1.5));
+    },
+    shapeRect: function() {
+      return svg(rc(4, 6, 16, 12, 1));
+    },
+    shapeEllipse: function() {
+      return h('svg', SVG_PROPS, h('ellipse', { cx: 12, cy: 12, rx: 8, ry: 6 }));
+    },
+    mirror: function() {
+      return svg(p('M12 3v2'), p('M12 9v2'), p('M12 15v2'), p('M12 21v-1'), p('M9 6L4 12l5 6z'), p('M15 6l5 6-5 6'));
+    },
     // Selection editing (audit DRAW-04): cut, duplicate, flip and rotate.
     scissors: function() {
       return svg(c(6, 6, 3), c(6, 18, 3), l(20, 4, 8.12, 15.88), l(14.47, 14.48, 20, 20), l(8.12, 8.12, 12, 12));

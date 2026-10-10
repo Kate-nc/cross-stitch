@@ -1283,8 +1283,31 @@ window.useCreatorState = function useCreatorState() {
   var stitchType = effPartialStitchTool ? effPartialStitchTool
     : effActiveTool === "backstitch" ? "backstitch"
     : effActiveTool === "eraseAll" ? "erase"
-    : (effActiveTool === "paint" || effActiveTool === "fill") ? "cross"
+    : (effActiveTool === "paint" || effActiveTool === "fill" ||
+       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse") ? "cross"
     : null;
+
+  // ─── Shapes and mirror drawing (audit DRAW-04) ─────────────────────────────
+  // Line, Rectangle and Ellipse are tools ("line" / "rect" / "ellipse") that
+  // stitch full crosses in the selected colour with the brush size. Shapes
+  // are outlines or filled; lines snap to 0/45/90 degrees (on by default on
+  // touch screens). Mirror drawing copies every Paint, Erase, Fill, shape and
+  // part stitch across a vertical or horizontal axis, or both; the axes start
+  // at the pattern's centre (see shapeTools.js for the units).
+  var _shapeFilled = useState(false);
+  var shapeFilled = _shapeFilled[0], setShapeFilled = _shapeFilled[1];
+  var _lineSnap = useState(function () { return !isFinePointerNow(); });
+  var lineSnap = _lineSnap[0], setLineSnap = _lineSnap[1];
+  var _mirror = useState(function () { return { on: false, axis: "v", ax: sW / 2, ay: sH / 2 }; });
+  var mirror = _mirror[0], setMirror = _mirror[1];
+  // A new size (another project, a resize) puts the axes back in the centre.
+  var mirrorSizeRef = useRef(sW + "x" + sH);
+  useEffect(function () {
+    var k = sW + "x" + sH;
+    if (mirrorSizeRef.current === k) return;
+    mirrorSizeRef.current = k;
+    setMirror(function (m) { return Object.assign({}, m, { ax: sW / 2, ay: sH / 2 }); });
+  }, [sW, sH]);
 
   var ownedCount = useMemo(function() {
     return skeinData.filter(function(d) { return (threadOwned[d.id] || "") === "owned"; }).length;
@@ -2530,6 +2553,10 @@ window.useCreatorState = function useCreatorState() {
     cancelMove: move.cancelMove,
     nudgeMove: move.nudgeMove,
     revertFloat: move.revertFloat,
+    // Shapes and mirror drawing
+    shapeFilled: shapeFilled, setShapeFilled: setShapeFilled,
+    lineSnap: lineSnap, setLineSnap: setLineSnap,
+    mirror: mirror, setMirror: setMirror,
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: clip,
     clipFloatActive: clip.floatActive,

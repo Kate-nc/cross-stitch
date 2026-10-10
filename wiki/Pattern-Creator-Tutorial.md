@@ -138,6 +138,13 @@ Choose a colour in the **Palette** tab, then a tool:
 
 **More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), **Fix outline colours** and **Tidy stray stitches**.
 
+### Shapes and mirror drawing
+
+- **Line**, **Rectangle** and **Ellipse** are in the **Tools** tab under **Shapes**, and under **More tools**. Drag from one end, or corner, to the other; a preview follows you and the shape is stitched when you let go, in the selected colour and as wide as the brush. Rectangles and ellipses are an **Outline** or **Filled**. **Keep lines straight or at 45°** snaps lines to rows, columns and diagonals (on by default on touch screens).
+- **Mirror drawing** (Tools tab or More tools) copies Paint, Erase, Fill, shapes and part stitches across a dashed axis: **Left–right**, **Top–bottom** or **Both**. Half stitches turn to match. The axis starts at the centre; drag its round handle at the chart's edge, or use the arrow keys on it, to move it half a stitch at a time.
+
+Each shape, and each mirrored stroke with its copies, is one undo step.
+
 ### Brush size
 
 Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools > Brush size**. The outline under the cursor shows the area the brush will cover.

@@ -1187,6 +1187,55 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
     }
   }
 
+  // ─── Shape being dragged, and the mirror axes (audit DRAW-04) ────────────────
+  var ST = (typeof window !== 'undefined') ? window.ShapeTools : null;
+  var mir = state.mirror && state.mirror.on ? state.mirror : null;
+  var shapeP = typeof state.shapePreview === 'function' ? state.shapePreview() : null;
+  if (shapeP && ST) {
+    var spCol = state.cmap && state.selectedColorId ? state.cmap[state.selectedColorId] : null;
+    var bSz = Math.max(1, state.brushSize || 1), spSW = state.sW, spSH = state.sH, spSeen = {};
+    ctx2d.save();
+    ctx2d.globalAlpha = 0.6;
+    ctx2d.fillStyle = spCol && spCol.rgb ? 'rgb(' + spCol.rgb + ')' : 'rgba(37,99,235,1)';
+    shapeP.cells.forEach(function (c) {
+      for (var by = 0; by < bSz; by++) for (var bx = 0; bx < bSz; bx++) {
+        ST.mirrorPoints(c.x + bx, c.y + by, mir).forEach(function (p) {
+          if (p.x < 0 || p.y < 0 || p.x >= spSW || p.y >= spSH) return;
+          var k = p.y * spSW + p.x;
+          if (spSeen[k]) return;
+          spSeen[k] = 1;
+          var px = p.x - offX, py = p.y - offY;
+          if (px < 0 || py < 0 || px >= dW || py >= dH) return;
+          ctx2d.fillRect(gut + px * cSz, gut + py * cSz, cSz, cSz);
+        });
+      }
+    });
+    ctx2d.restore();
+  }
+  if (mir) {
+    // The theme's accent colour, read from the page (canvas can't use a CSS
+    // variable directly).
+    var axisCol = 'rgba(184,92,56,0.9)';
+    try {
+      var acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      if (acc) axisCol = acc;
+    } catch (_) {}
+    ctx2d.save();
+    ctx2d.strokeStyle = axisCol;
+    ctx2d.lineWidth = Math.max(1.5, cSz * 0.12);
+    ctx2d.setLineDash([Math.max(4, cSz * 0.6), Math.max(3, cSz * 0.4)]);
+    if (mir.axis === 'v' || mir.axis === 'both') {
+      var axX = gut + (mir.ax - offX) * cSz;
+      ctx2d.beginPath(); ctx2d.moveTo(axX, gut); ctx2d.lineTo(axX, gut + dH * cSz); ctx2d.stroke();
+    }
+    if (mir.axis === 'h' || mir.axis === 'both') {
+      var axY = gut + (mir.ay - offY) * cSz;
+      ctx2d.beginPath(); ctx2d.moveTo(gut, axY); ctx2d.lineTo(gut + dW * cSz, axY); ctx2d.stroke();
+    }
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
+
   // ─── Floating paste / turn being dragged (audit DRAW-04) ─────────────────────
   // Same look as the Move ghost: the float's current cells dimmed, the clip
   // drawn at 70% where the drag has reached, and a dashed box around it.
