@@ -6038,16 +6038,18 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var lineGap = opts.lineSpacing == null ? 1 : Math.max(0, opts.lineSpacing | 0);
     var lineH = font.capHeight + font.descent + lineGap;
     var missing = [];
-    var lines = String(text || "").split("\n").map(function (line) {
+    // Pasted text may bring Windows line ends and tabs.
+    var lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, " ").split("\n").map(function (line) {
       var x = 0, cells = [], first = true;
       Array.from(line).forEach(function (ch) {
         var adv;
         if (ch === " ") { adv = font.space; }
         else {
           var gc = glyphCells(font, ch);
-          if (!gc) gc = glyphCells(font, ch.toUpperCase() !== ch ? ch.toUpperCase() : "?");
-          if (!gc || !font.glyphs[ch] && !ACCENTED[ch]) { if (missing.indexOf(ch) === -1) missing.push(ch); }
-          if (!gc) return;
+          if (!gc) {
+            if (missing.indexOf(ch) === -1) missing.push(ch);
+            gc = glyphCells(font, "?");
+          }
           if (!first) x += ls;
           gc.cells.forEach(function (c) { cells.push({ x: x + c.x, y: c.y }); });
           adv = gc.w;
@@ -14848,6 +14850,8 @@ window.CreatorMirrorHandle = function CreatorMirrorHandle() {
  */
 window.CreatorTextToolSheet = function CreatorTextToolSheet() {
   var h = React.createElement;
+  // The font settings last chosen, for the next sheet (the text starts empty).
+  var LAST = window.CreatorTextToolSheet.last;
   var cv = window.useCanvas();
   var app = window.useApp();
   var ctx = window.usePatternData();
@@ -14855,13 +14859,28 @@ window.CreatorTextToolSheet = function CreatorTextToolSheet() {
   var at = cv.textSheet;
   var clip = cv.clip;
 
-  var _t = React.useState(""), text = _t[0], setText = _t[1];
-  var _f = React.useState("block"), fontId = _f[0], setFontId = _f[1];
-  var _ls = React.useState(1), letterSpacing = _ls[0], setLetterSpacing = _ls[1];
-  var _ln = React.useState(1), lineSpacing = _ln[0], setLineSpacing = _ln[1];
-  var _al = React.useState("left"), align = _al[0], setAlign = _al[1];
+  // The sheet's contents live in state.textSheet with the tapped stitch, not
+  // in this component: the Pattern tab unmounts on other tabs, and coming
+  // back must find the text as it was, still floating. `floating` says the
+  // float on the chart is this text's.
+  var text = at && at.text || "";
+  var fontId = at && at.fontId || LAST.fontId;
+  var letterSpacing = at && at.letterSpacing != null ? at.letterSpacing : LAST.letterSpacing;
+  var lineSpacing = at && at.lineSpacing != null ? at.lineSpacing : LAST.lineSpacing;
+  var align = at && at.align || LAST.align;
   var inputRef = React.useRef(null);
   var floatingRef = React.useRef(false);
+  floatingRef.current = !!(at && at.floating);
+
+  function update(patch) {
+    if (!cv.setTextSheet) return;
+    cv.setTextSheet(function (t) { return t ? Object.assign({}, t, patch) : t; });
+  }
+  function setting(key) {
+    return function (v) { LAST[key] = v; var p = {}; p[key] = v; update(p); };
+  }
+  var setFontId = setting("fontId"), setLetterSpacing = setting("letterSpacing"),
+    setLineSpacing = setting("lineSpacing"), setAlign = setting("align");
 
   var open = !!at && !!SF && app.tab === "pattern";
   var colour = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
@@ -14875,12 +14894,13 @@ window.CreatorTextToolSheet = function CreatorTextToolSheet() {
     if (!open || !clip) return;
     if (!rendered || !rendered.cells.length || !colour) {
       if (floatingRef.current && clip.floatActive) clip.cancel();
+      if (floatingRef.current) update({ floating: false });
       floatingRef.current = false;
       return;
     }
     var c = SF.textClip(rendered, Object.assign({}, colour));
     if (floatingRef.current && clip.floatActive) clip.replaceClip(c);
-    else floatingRef.current = clip.floatClip(c, at.x, at.y, "text");
+    else if (clip.floatClip(c, at.x, at.y, "text")) { floatingRef.current = true; update({ floating: true }); }
   }, [open, text, fontId, letterSpacing, lineSpacing, align, colour && colour.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The float was placed or cancelled from its own bar (or Esc / Undo /
@@ -14892,12 +14912,17 @@ window.CreatorTextToolSheet = function CreatorTextToolSheet() {
     }
   }, [clip && clip.floatActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A fresh sheet each time it opens.
+  // Another tool picked before any text was typed: the sheet goes with it.
+  // (Once text floats the tool is "float", and leaving that places it.)
   React.useEffect(function () {
-    if (!open) return;
-    setText("");
-    floatingRef.current = false;
-    setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (_) {} }, 30);
+    if (at && cv.activeTool !== "text" && cv.activeTool !== "float" && cv.setTextSheet) cv.setTextSheet(null);
+  }, [cv.activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus the text box when the sheet appears.
+  React.useEffect(function () {
+    if (!open) return undefined;
+    var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (_) {} }, 30);
+    return function () { clearTimeout(t); };
   }, [open, at && at.x, at && at.y]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
@@ -14959,7 +14984,13 @@ window.CreatorTextToolSheet = function CreatorTextToolSheet() {
     h("textarea", {
       ref: inputRef, className: "cs-textsheet__input", rows: 2, value: text, maxLength: 200,
       placeholder: "Type a name, a date or a word", "aria-label": "Text",
-      onChange: function (e) { setText(e.target.value); }
+      onChange: function (e) { update({ text: e.target.value }); },
+      // Undo, redo and select-all belong to the text box while typing, not
+      // to the chart (Ctrl+Z there would cancel the text being typed).
+      onKeyDown: function (e) {
+        var k = (e.key || "").toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && (k === "z" || k === "y" || k === "a")) e.stopPropagation();
+      }
     }),
     !colour && h("p", { className: "cs-textsheet__note" }, "Choose a colour in the palette first."),
     segmented("Font", fontId, setFontId, [["block", "Block"], ["serif", "Serif"]]),
@@ -14981,6 +15012,7 @@ window.CreatorTextToolSheet = function CreatorTextToolSheet() {
     h("p", { className: "cs-textsheet__hint" }, "After Place, drag the text into position and press Done.")
   );
 };
+window.CreatorTextToolSheet.last = { fontId: "block", letterSpacing: 1, lineSpacing: 1, align: "left" };
 
 
 /* ─── SplitPane.js ─── */

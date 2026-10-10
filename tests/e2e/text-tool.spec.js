@@ -131,4 +131,38 @@ test.describe('Text tool on a desktop', function() {
     await expect(page.locator('.cs-selbar[data-float="true"]')).toHaveCount(0);
     await expect.poll(async () => stitched(await saved(page)), { timeout: 10000 }).toBe(2);
   });
+
+  test('Ctrl+Z in the text box and a trip to another tab keep the text', async function({ page }) {
+    await openFixture(page);
+    await page.getByRole('button', { name: 'More tools' }).click();
+    await page.getByRole('button', { name: 'Text tool' }).click();
+    const p = await cellPoint(page, 2, 2);
+    await page.mouse.click(p.x, p.y);
+    const sheet = page.getByRole('dialog', { name: 'Add text' });
+    const box = sheet.getByRole('textbox', { name: 'Text' });
+    await box.pressSequentially('Hi');
+    const bar = page.locator('.cs-selbar[data-float="true"]');
+    await expect(bar).toBeVisible();
+    // Undo and select-all stay in the text box: Ctrl+Z undoes the typing
+    // (the box's own undo), not the chart, and the sheet stays open.
+    await box.press('Control+z');
+    await expect(sheet).toBeVisible();
+    await expect(box).not.toHaveValue('Hi');
+    await box.fill('Hi');
+    await expect(bar).toBeVisible();
+    await box.press('Control+a');
+    await expect(sheet).toBeVisible();
+    await expect(bar).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Materials' }).first().click();
+    await page.getByRole('tab', { name: 'Canvas' }).first().click();
+    await expect(sheet).toBeVisible();
+    await expect(box).toHaveValue('Hi');
+    await expect(bar).toBeVisible();
+    // Typing on doesn't stitch the earlier text: Cancel leaves the pattern as it was.
+    await box.pressSequentially('!');
+    await sheet.getByRole('button', { name: 'Cancel' }).last().click();
+    await expect(bar).toHaveCount(0);
+    await expect.poll(async () => stitched(await saved(page)), { timeout: 10000 }).toBe(2);
+  });
 });

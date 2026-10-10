@@ -272,16 +272,18 @@
     var lineGap = opts.lineSpacing == null ? 1 : Math.max(0, opts.lineSpacing | 0);
     var lineH = font.capHeight + font.descent + lineGap;
     var missing = [];
-    var lines = String(text || "").split("\n").map(function (line) {
+    // Pasted text may bring Windows line ends and tabs.
+    var lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, " ").split("\n").map(function (line) {
       var x = 0, cells = [], first = true;
       Array.from(line).forEach(function (ch) {
         var adv;
         if (ch === " ") { adv = font.space; }
         else {
           var gc = glyphCells(font, ch);
-          if (!gc) gc = glyphCells(font, ch.toUpperCase() !== ch ? ch.toUpperCase() : "?");
-          if (!gc || !font.glyphs[ch] && !ACCENTED[ch]) { if (missing.indexOf(ch) === -1) missing.push(ch); }
-          if (!gc) return;
+          if (!gc) {
+            if (missing.indexOf(ch) === -1) missing.push(ch);
+            gc = glyphCells(font, "?");
+          }
           if (!first) x += ls;
           gc.cells.forEach(function (c) { cells.push({ x: x + c.x, y: c.y }); });
           adv = gc.w;

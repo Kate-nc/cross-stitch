@@ -104,6 +104,16 @@ describe("rendering", () => {
     const r = F.renderText("A@", "block");
     expect(r.missing).toEqual(["@"]);
     expect(r.w).toBe(5 + 1 + 5);
+    // ß has no glyph and no single upper-case letter: still a ?, not nothing.
+    const ss = F.renderText("ß", "block");
+    expect(ss.missing).toEqual(["ß"]);
+    expect(ss.cells).toEqual(F.renderText("?", "block").cells);
+  });
+
+  test("pasted Windows line ends and tabs aren't treated as characters", () => {
+    expect(rows("I\r\nI", "block")).toEqual(rows("I\nI", "block"));
+    expect(F.renderText("A\r\nB", "block").missing).toEqual([]);
+    expect(rows("I\tI", "block")).toEqual(rows("I I", "block"));
   });
 
   test("width counts the widest line, for the too-wide warning", () => {
