@@ -1734,7 +1734,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
  * be cached as an ImageData and composited with drawPatternOverlayOnCanvas.
  * Signature identical to drawPatternOnCanvas.
  */
-window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
+window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state, cells) {
   var pat         = state.pat;
   var cmap        = state.cmap;
   var sW          = state.sW;
@@ -1754,15 +1754,48 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
 
   // color-2 (B3): fabric background colour (defaults to white).
   var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  // A large chart is drawn in parts (PatternCanvas): `cells` is
+  // {x0, y0, x1, y1, frame, lines, fill} — the stitches in that range (ends
+  // exclusive, in drawn cells), plus the frame (rulers and margins) and the
+  // lines on top (major grid, centre, backstitch, knots, border) unless
+  // `frame` / `lines` is false. The fabric under the range is filled first
+  // unless `fill` is false, or under the whole chart with `fill: "all"`. A
+  // frame with `fill: "all"`, then the stitches in bands top to bottom with
+  // `fill: false`, then the lines gives exactly the pixels of one full draw.
+  var doFrame = !cells || cells.frame !== false;
+  var doLines = !cells || cells.lines !== false;
+  var doCells = !cells || cells.x1 > cells.x0;
+  var fullW = gut + dW * cSz + 2, fullH = gut + dH * cSz + 2;
   ctx2d.fillStyle = fabricFill;
-  ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
+  if (!cells || cells.fill === "all") {
+    ctx2d.fillRect(0, 0, fullW, fullH);
+  } else {
+    if (doFrame) {
+      ctx2d.fillRect(0, 0, fullW, gut);
+      ctx2d.fillRect(0, 0, gut, fullH);
+      ctx2d.fillRect(gut + dW * cSz, 0, fullW - gut - dW * cSz, fullH);
+      ctx2d.fillRect(0, gut + dH * cSz, fullW, fullH - gut - dH * cSz);
+    }
+    if (doCells && cells.fill !== false) {
+      ctx2d.fillRect(gut + Math.max(0, cells.x0) * cSz, gut + Math.max(0, cells.y0) * cSz,
+        (Math.min(dW, cells.x1) - Math.max(0, cells.x0)) * cSz, (Math.min(dH, cells.y1) - Math.max(0, cells.y0)) * cSz);
+    }
+  }
 
-  if (showOverlayImg && img) {
+  if (showOverlayImg && img && doCells) {
+    ctx2d.save();
+    if (cells) {
+      ctx2d.beginPath();
+      ctx2d.rect(gut + cells.x0 * cSz, gut + cells.y0 * cSz, (cells.x1 - cells.x0) * cSz, (cells.y1 - cells.y0) * cSz);
+      ctx2d.clip();
+    }
     ctx2d.globalAlpha = op;
     ctx2d.drawImage(img, gut, gut, dW * cSz, dH * cSz);
     ctx2d.globalAlpha = 1.0;
+    ctx2d.restore();
   }
 
+  if (doFrame) {
   ctx2d.fillStyle = "#A89E89";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
@@ -1774,9 +1807,37 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   for (var y = 0; y < dH; y += 10) {
     ctx2d.fillText(String(offY + y + 1), gut - 3, gut + y * cSz + cSz / 2);
   }
+  }
 
-  for (var y2 = 0; y2 < dH; y2++) {
-    for (var x2 = 0; x2 < dW; x2++) {
+  // Which stitches to draw: all of them, or only `cells` ({x0, y0, x1, y1},
+  // ends exclusive, in drawn-cell coordinates) when PatternCanvas paints the
+  // visible part of a large chart first. Everything else is drawn in full.
+  var cx0 = 0, cy0 = 0, cx1 = dW, cy1 = dH;
+  if (cells) {
+    cx0 = Math.max(0, cells.x0); cy0 = Math.max(0, cells.y0);
+    cx1 = Math.min(dW, cells.x1); cy1 = Math.min(dH, cells.y1);
+  }
+  if (!doCells) { cx1 = cx0; cy1 = cy0; }
+
+  // PERF: on a large chart the per-stitch canvas state changes were most of
+  // a redraw (a 300 x 300 pattern took 200-700 ms, on every zoom step). A
+  // thread's colour string is built once, and fill, stroke, line width and
+  // font are set only when they change. The pixels drawn are the same.
+  var lastFill = null, lastStroke = null, lineOne = false, symFontSet = false;
+  var symFont = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+  var rgbaCache = new Map();
+  function rgbaOf(rgb, a) {
+    var byAlpha = rgbaCache.get(rgb);
+    if (!byAlpha) { byAlpha = {}; rgbaCache.set(rgb, byAlpha); }
+    return byAlpha[a] || (byAlpha[a] = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + a + ")");
+  }
+  function setFill(f) { if (f !== lastFill) { ctx2d.fillStyle = f; lastFill = f; } }
+  // After a helper that sets its own styles (the checker, highlights, part
+  // stitches), nothing about the context can be assumed.
+  function stylesChanged() { lastFill = null; lastStroke = null; lineOne = false; symFontSet = false; }
+
+  for (var y2 = cy0; y2 < cy1; y2++) {
+    for (var x2 = cx0; x2 < cx1; x2++) {
       var idx = (offY + y2) * sW + (offX + x2);
       var m = pat[idx];
       if (!m) continue;
@@ -1796,7 +1857,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
-          ctx2d.fillStyle = fabricFill;
+          setFill(fabricFill);
           ctx2d.fillRect(px, py, cSz, cSz);
           ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
@@ -1806,15 +1867,16 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
         var alpha = dimAlpha;
         if (!dim && showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
-        ctx2d.fillStyle = "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")";
+        // (A dimmed colour is a new array each time: not worth caching.)
+        setFill(dim ? "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")" : rgbaOf(fillRgb, alpha));
         ctx2d.fillRect(px, py, cSz, cSz);
       } else {
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
-        ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
+        setFill("rgba(255,255,255," + alpha2 + ")");
         ctx2d.fillRect(px, py, cSz, cSz);
         // Tint mode in symbol-only: draw small tinted square behind symbol
         if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
-          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          setFill(rgbaOf(hl.tintRgb, hl.tintOpacity));
           ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
         }
       }
@@ -1828,24 +1890,29 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
           var lum = luminance(m.rgb);
           symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
         }
-        ctx2d.fillStyle = symColor;
-        ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
-        ctx2d.textAlign = "center";
-        ctx2d.textBaseline = "middle";
+        setFill(symColor);
+        if (!symFontSet) {
+          ctx2d.font = symFont;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          symFontSet = true;
+        }
         ctx2d.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
       }
 
       if (cSz >= 4) {
         var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
-        ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
-        ctx2d.lineWidth = 1;
+        var sStroke = "rgba(0,0,0," + sAlpha + ")";
+        if (sStroke !== lastStroke) { ctx2d.strokeStyle = sStroke; lastStroke = sStroke; }
+        if (!lineOne) { ctx2d.lineWidth = 1; lineOne = true; }
         ctx2d.strokeRect(px, py, cSz, cSz);
       }
 
       // ── Highlight indicators for selected stitches (all modes) ───────────────
       if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
+        stylesChanged();
       }
 
       var psEntry = partialStitches.get(idx);
@@ -1871,6 +1938,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
               break;
           }
         });
+        stylesChanged();
       }
     }
   }
@@ -1892,8 +1960,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.save();
     ctx2d.translate(gut, gut);
     ctx2d.fillStyle = _bSheenPat;
-    for (var _bty = 0; _bty < dH; _bty++) {
-      for (var _btx = 0; _btx < dW; _btx++) {
+    for (var _bty = cy0; _bty < cy1; _bty++) {
+      for (var _btx = cx0; _btx < cx1; _btx++) {
         var _bti = (offY + _bty) * sW + (offX + _btx);
         var _btm = pat[_bti];
         if (!_btm || _btm.id === "__skip__" || _btm.id === "__empty__") continue;
@@ -1906,8 +1974,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // Cleanup diff overlay (magenta at 40%, below gridlines)
   if (showCleanupDiff && cleanupDiff && cleanupDiff.mask) {
     ctx2d.fillStyle = "rgba(255,0,255,0.4)";
-    for (var doy = 0; doy < dH; doy++) {
-      for (var dox = 0; dox < dW; dox++) {
+    for (var doy = cy0; doy < cy1; doy++) {
+      for (var dox = cx0; dox < cx1; dox++) {
         var doi = (offY + doy) * sW + (offX + dox);
         if (cleanupDiff.mask[doi] === 1) {
           var doPx = gut + dox * cSz;
@@ -1920,6 +1988,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
   }
+
+  if (!doLines) return;
 
   // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
@@ -10945,6 +11015,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function startPinchGesture() {
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
     if (!scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    if (pinchStateRef.current && pinchStateRef.current.previewing) commitPinchPreview(pinchStateRef.current);
     var pts = Array.from(activePointersRef.current.values());
     var midX = (pts[0].x + pts[1].x) / 2;
     var midY = (pts[0].y + pts[1].y) / 2;
@@ -10969,7 +11040,68 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       startMidY: midY,
       originX: originX, originY: originY,
       padX: padX, padY: padY,
+      canvasLeft: pRect ? pRect.left : 0, canvasTop: pRect ? pRect.top : 0,
     };
+  }
+
+  // While two fingers zoom, the chart is scaled with a CSS transform rather
+  // than redrawn: redrawing a large chart at every step made pinch-zoom lag
+  // badly (each step resizes and repaints a canvas thousands of pixels
+  // across). The zoom is applied once, when the fingers lift, and the scroll
+  // set so the stitch that was under them stays there (computePinchScroll).
+  function previewPinch(pinch, zoom, midX, midY) {
+    var canvas = state.pcRef.current;
+    if (!canvas) return;
+    if (!pinch.previewing) {
+      // Where the canvas is now (pans before the zoom started have scrolled
+      // it), measured before any transform.
+      var r = canvas.getBoundingClientRect();
+      pinch.previewing = true;
+      pinch.previewLeft = r.left; pinch.previewTop = r.top;
+      canvas.style.willChange = "transform";
+    }
+    pinch.pendingZoom = zoom;
+    pinch.lastMidX = midX; pinch.lastMidY = midY;
+    // The chart point that was under the starting midpoint, in canvas CSS
+    // pixels, is the transform origin; it moves to the current midpoint.
+    var px = pinch.startMidX - pinch.canvasLeft, py = pinch.startMidY - pinch.canvasTop;
+    var tx = midX - (pinch.previewLeft + px), ty = midY - (pinch.previewTop + py);
+    canvas.style.transformOrigin = px + "px " + py + "px";
+    canvas.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + (zoom / pinch.startZoom) + ")";
+  }
+  function commitPinchPreview(pinch) {
+    var canvas = state.pcRef.current, scrollRef = state.scrollRef;
+    pinch.previewing = false;
+    var zoom = pinch.pendingZoom;
+    var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom);
+    function settle() {
+      if (canvas) { canvas.style.transform = ""; canvas.style.transformOrigin = ""; canvas.style.willChange = ""; }
+      if (scrollRef.current) { scrollRef.current.scrollLeft = next.scrollLeft; scrollRef.current.scrollTop = next.scrollTop; }
+    }
+    if (zoom === state.zoom) { settle(); return; }
+    // Settle once PatternCanvas has resized the canvas for the new zoom (in
+    // the frame it draws it, before it is shown), so the scroll isn't clamped
+    // to the old size and the transform isn't applied to the new drawing;
+    // until then the transform keeps showing the zoomed view.
+    var done = false, fallback = null;
+    var canListen = typeof window.addEventListener === "function";
+    function onDrawn() {
+      if (done) return;
+      done = true;
+      if (canListen) window.removeEventListener("cs:chart-sized", onDrawn);
+      clearTimeout(fallback);
+      settle();
+    }
+    if (canListen) window.addEventListener("cs:chart-sized", onDrawn);
+    fallback = setTimeout(onDrawn, 1000);
+    state.setZoom(zoom);
+  }
+  // The pinch is over (fewer than two fingers): apply a previewed zoom.
+  function endPinchIfDone() {
+    if (activePointersRef.current.size >= 2) return;
+    var pinch = pinchStateRef.current;
+    pinchStateRef.current = null;
+    if (pinch && pinch.previewing) commitPinchPreview(pinch);
   }
 
   // The scroll position always follows the midpoint of the two fingers, so a
@@ -10985,21 +11117,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(state.maxZoom || 3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
-    var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
-    function applyScroll() {
-      if (!scrollRef.current) return;
-      scrollRef.current.scrollLeft = next.scrollLeft;
-      scrollRef.current.scrollTop = next.scrollTop;
+    // Zooming (now or earlier in this gesture): scale the drawn chart until
+    // the fingers lift. A steady two-finger drag still pans by scrolling.
+    if (nextZoom !== pinch.startZoom || pinch.previewing) {
+      previewPinch(pinch, nextZoom, midX, midY);
+      return;
     }
-    if (zoomChanged) {
-      state.setZoom(nextZoom);
-      // Wait for the canvas to resize before scrolling into the new range.
-      requestAnimationFrame(applyScroll);
-    } else {
-      applyScroll();
-    }
+    var next = window.computePinchScroll(pinch, midX, midY, 1);
+    scrollRef.current.scrollLeft = next.scrollLeft;
+    scrollRef.current.scrollTop = next.scrollTop;
   }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
@@ -11953,7 +12080,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         handlePatMouseDown(tapEv);
         handlePatMouseUp(tapEv);
       }
-      if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+      endPinchIfDone();
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -11972,7 +12099,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    endPinchIfDone();
     if (hadPinch) {
       state.setHoverCoords(null);
       e.preventDefault();
@@ -12000,7 +12127,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var tdc = touchDrawRef.current;
       touchDrawRef.current = null;
       if (!tdc.promoted) {
-        if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+        endPinchIfDone();
         state.setHoverCoords(null);
         return;
       }
@@ -12010,7 +12137,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     clearPendingTap();
     panStateRef.current = null;
-    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    endPinchIfDone();
     state.setHoverCoords(null);
     handlePatMouseUp(e);
   }
@@ -14520,6 +14647,30 @@ window.PatternCanvas = function PatternCanvas() {
   // requestAnimationFrame handle — used to coalesce rapid zoom-slider changes so
   // at most one full render fires per frame.
   var rafRef = React.useRef(null);
+  // Timer for finishing a render that drew only the visible stitches first.
+  var fullDrawRef = React.useRef(null);
+
+  // Large charts: the stitches inside the scroll area, plus half a screen
+  // round it, in cells ({x0, y0, x1, y1}, ends exclusive), or null to draw
+  // them all. Redrawing every stitch of a 300 x 300 chart takes a few hundred
+  // milliseconds; doing that on every zoom step made zooming lag, so the
+  // visible part is drawn at once and the rest when the changes stop.
+  function visibleCells(canvas, snap) {
+    var total = snap.sW * snap.sH;
+    var sc = app.scrollRef && app.scrollRef.current;
+    if (!sc || total < 20000 || !canvas.width) return null;
+    var sr = sc.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+    var k = cr.width / canvas.width || 1;   // CSS px per canvas px
+    var cs = snap.cs * k, g = G * k;
+    var mx = Math.ceil(sr.width / cs / 2), my = Math.ceil(sr.height / cs / 2);
+    var x0 = Math.floor((sr.left - cr.left - g) / cs) - mx, x1 = Math.ceil((sr.right - cr.left - g) / cs) + mx;
+    var y0 = Math.floor((sr.top - cr.top - g) / cs) - my, y1 = Math.ceil((sr.bottom - cr.top - g) / cs) + my;
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(snap.sW, x1); y1 = Math.min(snap.sH, y1);
+    if (x1 <= x0 || y1 <= y0) return null;
+    // Not worth splitting when most of the chart is on screen anyway.
+    if ((x1 - x0) * (y1 - y0) > total * 0.6) return null;
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
 
   // The hover position the canvas overlay currently shows, and the other
   // overlay inputs it was last drawn with by Effect 2. Together they let a
@@ -14628,15 +14779,66 @@ window.PatternCanvas = function PatternCanvas() {
       var cache = baseCacheRef.current || document.createElement("canvas");
       cache.width = canvas.width;   // also clears the previous base
       cache.height = canvas.height;
-      drawPatternBaseOnCanvas(cache.getContext("2d", { willReadFrequently: true }), 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
+      var cacheCtx = cache.getContext("2d", { willReadFrequently: true });
+      // A pinch-zoom waits for the canvas to take its new size to drop its
+      // preview transform and scroll to where the fingers were; that has to
+      // happen before the visible part is worked out (same frame, before
+      // anything is shown).
+      try { window.dispatchEvent(new Event("cs:chart-sized")); } catch (_) {}
+      var vis = visibleCells(canvas, snap);
+      drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, vis || undefined);
       baseCacheRef.current = cache;
       var context = canvas.getContext("2d");
-      restoreBase(context, 0, 0, canvas.width, canvas.height);
+      if (vis) {
+        // Copy just the drawn part: copying (and uploading) the whole of a
+        // chart-sized canvas was most of what was left of each zoom step.
+        var rx = Math.max(0, G + vis.x0 * snap.cs - 2), ry = Math.max(0, G + vis.y0 * snap.cs - 2);
+        restoreBase(context, rx, ry, Math.min(canvas.width - rx, (vis.x1 - vis.x0) * snap.cs + 4), Math.min(canvas.height - ry, (vis.y1 - vis.y0) * snap.cs + 4));
+      } else {
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+      }
       drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       shownHoverRef.current = snap.hoverCoords;
+      if (!vis) return;
+      // The rest of the chart, once nothing has changed for a moment (any
+      // change re-runs this effect and cancels it), and not mid-stroke: a
+      // drag paints straight onto the canvas until it is committed. It is
+      // drawn in bands of rows, a few milliseconds at a time, so the page
+      // stays responsive: the frame, then every row top to bottom, then the
+      // lines on top — the same pixels as one full draw. The fabric is filled
+      // once, under the whole chart, so that translucent (dimmed) stitches
+      // blend over the row above exactly as they do in a single draw.
+      var bandRows = Math.max(1, Math.floor(4000 / snap.sW));
+      var nextRow = -1;
+      function finish() {
+        fullDrawRef.current = null;
+        if (baseCacheRef.current !== cache || app.pcRef.current !== canvas) return;
+        var latest = ctxRef.current;
+        if (latest.isDraggingRef && latest.isDraggingRef.current) { fullDrawRef.current = setTimeout(finish, 180); return; }
+        var t0 = performance.now();
+        if (nextRow < 0) {
+          drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, { x0: 0, y0: 0, x1: 0, y1: 0, lines: false, fill: "all" });
+          nextRow = 0;
+        }
+        while (nextRow < snap.sH && performance.now() - t0 < 12) {
+          var y1 = Math.min(snap.sH, nextRow + bandRows);
+          drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap,
+            { x0: 0, y0: nextRow, x1: snap.sW, y1: y1, frame: false, lines: false, fill: false });
+          var by = Math.max(0, G + nextRow * snap.cs - 1);
+          restoreBase(context, 0, by, canvas.width, Math.min(canvas.height - by, (y1 - nextRow) * snap.cs + 2));
+          nextRow = y1;
+        }
+        if (nextRow < snap.sH) { fullDrawRef.current = setTimeout(finish, 0); return; }
+        drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, { x0: 0, y0: 0, x1: 0, y1: 0, frame: false });
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+        drawPatternOverlayOnCanvas(context, 0, 0, latest.sW, latest.sH, latest.cs, G, latest);
+        shownHoverRef.current = latest.hoverCoords;
+      }
+      fullDrawRef.current = setTimeout(finish, 180);
     });
     return function() {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      if (fullDrawRef.current) { clearTimeout(fullDrawRef.current); fullDrawRef.current = null; }
     };
   }, [
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
@@ -14680,6 +14882,10 @@ window.PatternCanvas = function PatternCanvas() {
   React.useEffect(function() {
     if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
+    // Effect 1 has a full render queued for the next frame (this commit
+    // changed the pattern, zoom or view): repainting from the old base now
+    // would clear and copy the whole canvas for nothing, on every zoom step.
+    if (rafRef.current) return;
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.
@@ -15853,6 +16059,52 @@ function toolStrictnessControl(h, levels, value, onPick, name) {
   );
 }
 
+// The zoom slider. Dragging it fired a zoom on every movement, and each one
+// redraws the chart: on a large pattern that is a few hundred milliseconds
+// apiece, so the slider stuck. It shows its own value while it moves and
+// applies the zoom once it rests for a moment, or at once on release.
+window.CreatorZoomSlider = function CreatorZoomSlider(props) {
+  var h = React.createElement;
+  var _v = React.useState(null), local = _v[0], setLocal = _v[1];
+  var timerRef = React.useRef(null);
+  var value = local == null ? props.zoom : local;
+  function apply(v) {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    setLocal(null);
+    if (v !== props.zoom) props.setZoom(v);
+  }
+  function onChange(e) {
+    var v = Number(e.target.value);
+    setLocal(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function () { apply(v); }, 150);
+  }
+  function commitNow() { if (local != null) apply(local); }
+  // The native change event (React's onChange is the input event) marks the
+  // end of a drag, a click on the track or a key press: apply then.
+  var inputRef = React.useRef(null);
+  var applyRef = React.useRef(apply);
+  applyRef.current = apply;
+  React.useEffect(function () {
+    var el = inputRef.current;
+    function onCommit() { applyRef.current(Number(el.value)); }
+    if (el) el.addEventListener("change", onCommit);
+    return function () {
+      if (el) el.removeEventListener("change", onCommit);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+  return h(React.Fragment, null,
+    h("input", {
+      ref: inputRef,
+      type: "range", min: 0.05, max: props.maxZoom || 3, step: 0.05, value: value,
+      onChange: onChange, onPointerUp: commitNow, onBlur: commitNow,
+      style: props.style, title: props.title, "aria-label": "Zoom"
+    }),
+    h("span", { className: props.labelClassName, style: props.labelStyle }, Math.round(value * 100) + "%")
+  );
+};
+
 window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = window.usePatternData();
   var cv = window.useCanvas();
@@ -16279,12 +16531,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     var createZoomGrp = [
       h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
       h("div", {key:"zoom-grp", className:"tb-grp"},
-        h("input", {
-          type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
-          onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
-          style:{width:80}, title:"Zoom"
-        }),
-        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
+        h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:80}, title:"Zoom",
+          labelStyle:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}),
         h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
@@ -16573,12 +16821,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
-    h("input", {
-      type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
-      onChange:function(e){cv.setZoom(Number(e.target.value));},
-      style:{width:55}
-    }),
-    h("span", {className:"tb-zoom-pct"}, Math.round(cv.zoom*100)+"%"),
+    h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:55}, labelClassName:"tb-zoom-pct"}),
     h("button", {className:"tb-fit-btn", onClick:cv.fitZ}, "Fit")
   );
 

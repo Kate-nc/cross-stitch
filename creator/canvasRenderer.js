@@ -573,7 +573,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
  * be cached as an ImageData and composited with drawPatternOverlayOnCanvas.
  * Signature identical to drawPatternOnCanvas.
  */
-window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
+window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state, cells) {
   var pat         = state.pat;
   var cmap        = state.cmap;
   var sW          = state.sW;
@@ -593,15 +593,48 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
 
   // color-2 (B3): fabric background colour (defaults to white).
   var fabricFill = (typeof state.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(state.fabricColour)) ? state.fabricColour : "#fff";
+  // A large chart is drawn in parts (PatternCanvas): `cells` is
+  // {x0, y0, x1, y1, frame, lines, fill} — the stitches in that range (ends
+  // exclusive, in drawn cells), plus the frame (rulers and margins) and the
+  // lines on top (major grid, centre, backstitch, knots, border) unless
+  // `frame` / `lines` is false. The fabric under the range is filled first
+  // unless `fill` is false, or under the whole chart with `fill: "all"`. A
+  // frame with `fill: "all"`, then the stitches in bands top to bottom with
+  // `fill: false`, then the lines gives exactly the pixels of one full draw.
+  var doFrame = !cells || cells.frame !== false;
+  var doLines = !cells || cells.lines !== false;
+  var doCells = !cells || cells.x1 > cells.x0;
+  var fullW = gut + dW * cSz + 2, fullH = gut + dH * cSz + 2;
   ctx2d.fillStyle = fabricFill;
-  ctx2d.fillRect(0, 0, gut + dW * cSz + 2, gut + dH * cSz + 2);
+  if (!cells || cells.fill === "all") {
+    ctx2d.fillRect(0, 0, fullW, fullH);
+  } else {
+    if (doFrame) {
+      ctx2d.fillRect(0, 0, fullW, gut);
+      ctx2d.fillRect(0, 0, gut, fullH);
+      ctx2d.fillRect(gut + dW * cSz, 0, fullW - gut - dW * cSz, fullH);
+      ctx2d.fillRect(0, gut + dH * cSz, fullW, fullH - gut - dH * cSz);
+    }
+    if (doCells && cells.fill !== false) {
+      ctx2d.fillRect(gut + Math.max(0, cells.x0) * cSz, gut + Math.max(0, cells.y0) * cSz,
+        (Math.min(dW, cells.x1) - Math.max(0, cells.x0)) * cSz, (Math.min(dH, cells.y1) - Math.max(0, cells.y0)) * cSz);
+    }
+  }
 
-  if (showOverlayImg && img) {
+  if (showOverlayImg && img && doCells) {
+    ctx2d.save();
+    if (cells) {
+      ctx2d.beginPath();
+      ctx2d.rect(gut + cells.x0 * cSz, gut + cells.y0 * cSz, (cells.x1 - cells.x0) * cSz, (cells.y1 - cells.y0) * cSz);
+      ctx2d.clip();
+    }
     ctx2d.globalAlpha = op;
     ctx2d.drawImage(img, gut, gut, dW * cSz, dH * cSz);
     ctx2d.globalAlpha = 1.0;
+    ctx2d.restore();
   }
 
+  if (doFrame) {
   ctx2d.fillStyle = "#A89E89";
   ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
   ctx2d.textAlign = "center";
@@ -613,9 +646,37 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   for (var y = 0; y < dH; y += 10) {
     ctx2d.fillText(String(offY + y + 1), gut - 3, gut + y * cSz + cSz / 2);
   }
+  }
 
-  for (var y2 = 0; y2 < dH; y2++) {
-    for (var x2 = 0; x2 < dW; x2++) {
+  // Which stitches to draw: all of them, or only `cells` ({x0, y0, x1, y1},
+  // ends exclusive, in drawn-cell coordinates) when PatternCanvas paints the
+  // visible part of a large chart first. Everything else is drawn in full.
+  var cx0 = 0, cy0 = 0, cx1 = dW, cy1 = dH;
+  if (cells) {
+    cx0 = Math.max(0, cells.x0); cy0 = Math.max(0, cells.y0);
+    cx1 = Math.min(dW, cells.x1); cy1 = Math.min(dH, cells.y1);
+  }
+  if (!doCells) { cx1 = cx0; cy1 = cy0; }
+
+  // PERF: on a large chart the per-stitch canvas state changes were most of
+  // a redraw (a 300 x 300 pattern took 200-700 ms, on every zoom step). A
+  // thread's colour string is built once, and fill, stroke, line width and
+  // font are set only when they change. The pixels drawn are the same.
+  var lastFill = null, lastStroke = null, lineOne = false, symFontSet = false;
+  var symFont = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+  var rgbaCache = new Map();
+  function rgbaOf(rgb, a) {
+    var byAlpha = rgbaCache.get(rgb);
+    if (!byAlpha) { byAlpha = {}; rgbaCache.set(rgb, byAlpha); }
+    return byAlpha[a] || (byAlpha[a] = "rgba(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + "," + a + ")");
+  }
+  function setFill(f) { if (f !== lastFill) { ctx2d.fillStyle = f; lastFill = f; } }
+  // After a helper that sets its own styles (the checker, highlights, part
+  // stitches), nothing about the context can be assumed.
+  function stylesChanged() { lastFill = null; lastStroke = null; lineOne = false; symFontSet = false; }
+
+  for (var y2 = cy0; y2 < cy1; y2++) {
+    for (var x2 = cx0; x2 < cx1; x2++) {
       var idx = (offY + y2) * sW + (offX + x2);
       var m = pat[idx];
       if (!m) continue;
@@ -635,7 +696,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
           drawCk(ctx2d, px, py, cSz);
           ctx2d.globalAlpha = 1.0;
         } else {
-          ctx2d.fillStyle = fabricFill;
+          setFill(fabricFill);
           ctx2d.fillRect(px, py, cSz, cSz);
           ctx2d.globalAlpha = 0.25;
           drawCk(ctx2d, px, py, cSz);
@@ -645,15 +706,16 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
         var fillRgb = dim ? _desatRgb(m.rgb, dimDesat) : m.rgb;
         var alpha = dimAlpha;
         if (!dim && showOverlayImg) alpha = view === "both" ? 0.4 : 0.5;
-        ctx2d.fillStyle = "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")";
+        // (A dimmed colour is a new array each time: not worth caching.)
+        setFill(dim ? "rgba(" + fillRgb[0] + "," + fillRgb[1] + "," + fillRgb[2] + "," + alpha + ")" : rgbaOf(fillRgb, alpha));
         ctx2d.fillRect(px, py, cSz, cSz);
       } else {
         var alpha2 = showOverlayImg ? 0.3 : 1.0;
-        ctx2d.fillStyle = "rgba(255,255,255," + alpha2 + ")";
+        setFill("rgba(255,255,255," + alpha2 + ")");
         ctx2d.fillRect(px, py, cSz, cSz);
         // Tint mode in symbol-only: draw small tinted square behind symbol
         if (hl.mode === "tint" && hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
-          ctx2d.fillStyle = "rgba(" + hl.tintRgb[0] + "," + hl.tintRgb[1] + "," + hl.tintRgb[2] + "," + hl.tintOpacity + ")";
+          setFill(rgbaOf(hl.tintRgb, hl.tintOpacity));
           ctx2d.fillRect(px + 1, py + 1, cSz - 2, cSz - 2);
         }
       }
@@ -667,24 +729,29 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
           var lum = luminance(m.rgb);
           symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
         }
-        ctx2d.fillStyle = symColor;
-        ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
-        ctx2d.textAlign = "center";
-        ctx2d.textBaseline = "middle";
+        setFill(symColor);
+        if (!symFontSet) {
+          ctx2d.font = symFont;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          symFontSet = true;
+        }
         ctx2d.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
       }
 
       if (cSz >= 4) {
         var sAlpha = dim ? (0.08 * (1 - hl.dimFraction) + 0.03 * hl.dimFraction) : 0.08;
         if (showOverlayImg) sAlpha = dim ? 0.01 : 0.04;
-        ctx2d.strokeStyle = "rgba(0,0,0," + sAlpha + ")";
-        ctx2d.lineWidth = 1;
+        var sStroke = "rgba(0,0,0," + sAlpha + ")";
+        if (sStroke !== lastStroke) { ctx2d.strokeStyle = sStroke; lastStroke = sStroke; }
+        if (!lineOne) { ctx2d.lineWidth = 1; lineOne = true; }
         ctx2d.strokeRect(px, py, cSz, cSz);
       }
 
       // ── Highlight indicators for selected stitches (all modes) ───────────────
       if (hl.hiId && isHi && m.id !== "__skip__" && m.id !== "__empty__") {
         _drawCellHighlight(ctx2d, px, py, cSz, m.rgb, hl);
+        stylesChanged();
       }
 
       var psEntry = partialStitches.get(idx);
@@ -710,6 +777,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
               break;
           }
         });
+        stylesChanged();
       }
     }
   }
@@ -731,8 +799,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.save();
     ctx2d.translate(gut, gut);
     ctx2d.fillStyle = _bSheenPat;
-    for (var _bty = 0; _bty < dH; _bty++) {
-      for (var _btx = 0; _btx < dW; _btx++) {
+    for (var _bty = cy0; _bty < cy1; _bty++) {
+      for (var _btx = cx0; _btx < cx1; _btx++) {
         var _bti = (offY + _bty) * sW + (offX + _btx);
         var _btm = pat[_bti];
         if (!_btm || _btm.id === "__skip__" || _btm.id === "__empty__") continue;
@@ -745,8 +813,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // Cleanup diff overlay (magenta at 40%, below gridlines)
   if (showCleanupDiff && cleanupDiff && cleanupDiff.mask) {
     ctx2d.fillStyle = "rgba(255,0,255,0.4)";
-    for (var doy = 0; doy < dH; doy++) {
-      for (var dox = 0; dox < dW; dox++) {
+    for (var doy = cy0; doy < cy1; doy++) {
+      for (var dox = cx0; dox < cx1; dox++) {
         var doi = (offY + doy) * sW + (offX + dox);
         if (cleanupDiff.mask[doi] === 1) {
           var doPx = gut + dox * cSz;
@@ -759,6 +827,8 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
   }
+
+  if (!doLines) return;
 
   // Grid lines (every 10) — batched into single path
   if (cSz >= 3) {
