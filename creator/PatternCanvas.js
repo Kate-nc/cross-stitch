@@ -30,6 +30,30 @@ window.PatternCanvas = function PatternCanvas() {
   // requestAnimationFrame handle — used to coalesce rapid zoom-slider changes so
   // at most one full render fires per frame.
   var rafRef = React.useRef(null);
+  // Timer for finishing a render that drew only the visible stitches first.
+  var fullDrawRef = React.useRef(null);
+
+  // Large charts: the stitches inside the scroll area, plus half a screen
+  // round it, in cells ({x0, y0, x1, y1}, ends exclusive), or null to draw
+  // them all. Redrawing every stitch of a 300 x 300 chart takes a few hundred
+  // milliseconds; doing that on every zoom step made zooming lag, so the
+  // visible part is drawn at once and the rest when the changes stop.
+  function visibleCells(canvas, snap) {
+    var total = snap.sW * snap.sH;
+    var sc = app.scrollRef && app.scrollRef.current;
+    if (!sc || total < 20000 || !canvas.width) return null;
+    var sr = sc.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+    var k = cr.width / canvas.width || 1;   // CSS px per canvas px
+    var cs = snap.cs * k, g = G * k;
+    var mx = Math.ceil(sr.width / cs / 2), my = Math.ceil(sr.height / cs / 2);
+    var x0 = Math.floor((sr.left - cr.left - g) / cs) - mx, x1 = Math.ceil((sr.right - cr.left - g) / cs) + mx;
+    var y0 = Math.floor((sr.top - cr.top - g) / cs) - my, y1 = Math.ceil((sr.bottom - cr.top - g) / cs) + my;
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(snap.sW, x1); y1 = Math.min(snap.sH, y1);
+    if (x1 <= x0 || y1 <= y0) return null;
+    // Not worth splitting when most of the chart is on screen anyway.
+    if ((x1 - x0) * (y1 - y0) > total * 0.6) return null;
+    return { x0: x0, y0: y0, x1: x1, y1: y1 };
+  }
 
   // The hover position the canvas overlay currently shows, and the other
   // overlay inputs it was last drawn with by Effect 2. Together they let a
@@ -138,15 +162,66 @@ window.PatternCanvas = function PatternCanvas() {
       var cache = baseCacheRef.current || document.createElement("canvas");
       cache.width = canvas.width;   // also clears the previous base
       cache.height = canvas.height;
-      drawPatternBaseOnCanvas(cache.getContext("2d", { willReadFrequently: true }), 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
+      var cacheCtx = cache.getContext("2d", { willReadFrequently: true });
+      // A pinch-zoom waits for the canvas to take its new size to drop its
+      // preview transform and scroll to where the fingers were; that has to
+      // happen before the visible part is worked out (same frame, before
+      // anything is shown).
+      try { window.dispatchEvent(new Event("cs:chart-sized")); } catch (_) {}
+      var vis = visibleCells(canvas, snap);
+      drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, vis || undefined);
       baseCacheRef.current = cache;
       var context = canvas.getContext("2d");
-      restoreBase(context, 0, 0, canvas.width, canvas.height);
+      if (vis) {
+        // Copy just the drawn part: copying (and uploading) the whole of a
+        // chart-sized canvas was most of what was left of each zoom step.
+        var rx = Math.max(0, G + vis.x0 * snap.cs - 2), ry = Math.max(0, G + vis.y0 * snap.cs - 2);
+        restoreBase(context, rx, ry, Math.min(canvas.width - rx, (vis.x1 - vis.x0) * snap.cs + 4), Math.min(canvas.height - ry, (vis.y1 - vis.y0) * snap.cs + 4));
+      } else {
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+      }
       drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
       shownHoverRef.current = snap.hoverCoords;
+      if (!vis) return;
+      // The rest of the chart, once nothing has changed for a moment (any
+      // change re-runs this effect and cancels it), and not mid-stroke: a
+      // drag paints straight onto the canvas until it is committed. It is
+      // drawn in bands of rows, a few milliseconds at a time, so the page
+      // stays responsive: the frame, then every row top to bottom, then the
+      // lines on top — the same pixels as one full draw. The fabric is filled
+      // once, under the whole chart, so that translucent (dimmed) stitches
+      // blend over the row above exactly as they do in a single draw.
+      var bandRows = Math.max(1, Math.floor(4000 / snap.sW));
+      var nextRow = -1;
+      function finish() {
+        fullDrawRef.current = null;
+        if (baseCacheRef.current !== cache || app.pcRef.current !== canvas) return;
+        var latest = ctxRef.current;
+        if (latest.isDraggingRef && latest.isDraggingRef.current) { fullDrawRef.current = setTimeout(finish, 180); return; }
+        var t0 = performance.now();
+        if (nextRow < 0) {
+          drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, { x0: 0, y0: 0, x1: 0, y1: 0, lines: false, fill: "all" });
+          nextRow = 0;
+        }
+        while (nextRow < snap.sH && performance.now() - t0 < 12) {
+          var y1 = Math.min(snap.sH, nextRow + bandRows);
+          drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap,
+            { x0: 0, y0: nextRow, x1: snap.sW, y1: y1, frame: false, lines: false, fill: false });
+          var by = Math.max(0, G + nextRow * snap.cs - 1);
+          restoreBase(context, 0, by, canvas.width, Math.min(canvas.height - by, (y1 - nextRow) * snap.cs + 2));
+          nextRow = y1;
+        }
+        if (nextRow < snap.sH) { fullDrawRef.current = setTimeout(finish, 0); return; }
+        drawPatternBaseOnCanvas(cacheCtx, 0, 0, snap.sW, snap.sH, snap.cs, G, snap, { x0: 0, y0: 0, x1: 0, y1: 0, frame: false });
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+        drawPatternOverlayOnCanvas(context, 0, 0, latest.sW, latest.sH, latest.cs, G, latest);
+        shownHoverRef.current = latest.hoverCoords;
+      }
+      fullDrawRef.current = setTimeout(finish, 180);
     });
     return function() {
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      if (fullDrawRef.current) { clearTimeout(fullDrawRef.current); fullDrawRef.current = null; }
     };
   }, [
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
@@ -190,6 +265,10 @@ window.PatternCanvas = function PatternCanvas() {
   React.useEffect(function() {
     if (!ctx.pat || !ctx.cmap || !app.pcRef.current || app.tab !== "pattern") return;
     if (!baseCacheRef.current) return; // base not ready yet — Effect 1 will draw everything
+    // Effect 1 has a full render queued for the next frame (this commit
+    // changed the pattern, zoom or view): repainting from the old base now
+    // would clear and copy the whole canvas for nothing, on every zoom step.
+    if (rafRef.current) return;
     // Skip restoring the base cache while a drag-draw is in progress: applyBrush
     // imperatively paints directly onto the canvas and the overlay-only redraw
     // must not overwrite those uncommitted pixels with the stale cached image.

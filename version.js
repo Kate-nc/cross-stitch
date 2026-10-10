@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.102';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.103',
+    date: 'October 2026',
+    notes: [
+      'Zooming a large pattern in the Pattern Creator is much smoother. Pinch-zoom follows your fingers straight away and redraws once when you lift them; the zoom slider applies when it comes to rest; and every zoom or edit draws the stitches on screen first and the rest of the chart a moment later, without freezing the page.',
+    ]
+  },
+  {
     version: '1.0.102',
     date: 'October 2026',
     notes: [

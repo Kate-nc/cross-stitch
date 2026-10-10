@@ -22,8 +22,8 @@ describe('PatternCanvas base cache', () => {
   });
 
   test('the base is drawn on the CPU-backed cache; the visible canvas stays GPU-backed', () => {
-    expect(patternCanvas).toMatch(
-      /drawPatternBaseOnCanvas\(cache\.getContext\("2d", \{ willReadFrequently: true \}\)/);
+    expect(patternCanvas).toMatch(/var cacheCtx = cache\.getContext\("2d", \{ willReadFrequently: true \}\);/);
+    expect(patternCanvas).toMatch(/drawPatternBaseOnCanvas\(cacheCtx,/);
     // willReadFrequently on the visible canvas forces a full-bitmap upload
     // on every hover repaint.
     expect(patternCanvas).not.toMatch(/canvas\.getContext\("2d", \{ willReadFrequently/);

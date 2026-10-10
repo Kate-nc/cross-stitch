@@ -46,6 +46,7 @@ function makeState(overrides) {
   const canvasContext = { fillRect: jest.fn(), strokeRect: jest.fn() };
   const pcRef = {
     current: {
+      style: {},
       getContext: jest.fn(function() { return canvasContext; }),
       getBoundingClientRect: jest.fn(function() {
         return { left: 0, top: 0, width: 200, height: 200 };
@@ -185,7 +186,7 @@ describe('useCanvasInteraction pointer support', () => {
     expect(state.setBsStart).toHaveBeenCalledWith(null);
   });
 
-  it('zooms on pinch gestures', () => {
+  it('zooms on pinch gestures: the chart is scaled while the fingers move, and zoomed when they lift', () => {
     const state = makeState();
     const handlers = useCanvasInteraction(state, {});
     const firstDown = makePointerEvent({ pointerId: 1, clientX: 20, clientY: 20 });
@@ -196,7 +197,15 @@ describe('useCanvasInteraction pointer support', () => {
     handlers.handlePatPointerDown(secondDown);
     handlers.handlePatPointerMove(moveSecond);
 
+    // A preview: no redraw at each step.
+    expect(state.setZoom).not.toHaveBeenCalled();
+    expect(state.pcRef.current.style.transform).toMatch(/scale\(2\)/);
+
+    handlers.handlePatPointerUp(makePointerEvent({ pointerId: 2, clientX: 100, clientY: 20, target: secondDown.target }));
     expect(state.setZoom).toHaveBeenCalledWith(2);
+    // Once the chart has been drawn at the new zoom, the preview goes.
+    jest.advanceTimersByTime(1000);
+    expect(state.pcRef.current.style.transform).toBe('');
   });
 
   it('updates crop rectangle through pointer drag', () => {
@@ -221,9 +230,13 @@ describe('useCanvasInteraction pointer support', () => {
     handlers.handlePatPointerDown(b);
     handlers.handlePatPointerMove(makePointerEvent({ pointerId: 1, clientX: 70, clientY: 50, target: a.target }));
     handlers.handlePatPointerMove(makePointerEvent({ pointerId: 2, clientX: 110, clientY: 50, target: b.target }));
+    // (Moving one finger first changed the spread for a moment; the chart is
+    // panned for good when the fingers lift.)
+    handlers.handlePatPointerUp(makePointerEvent({ pointerId: 2, clientX: 110, clientY: 50, target: b.target }));
 
     expect(state.scrollRef.current.scrollLeft).toBe(30);
     expect(state.scrollRef.current.scrollTop).toBe(10);
+    expect(state.pcRef.current.style.transform).toBe('');
   });
 });
 
