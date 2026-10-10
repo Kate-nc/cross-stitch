@@ -201,6 +201,16 @@ describe("placing a clip", () => {
     expect(d2.psChanges).toEqual([{ idx: 0, old: null }]);
   });
 
+  test("a same-id stitch with another colour or extra fields is still a change", () => {
+    const before = { pat: [{ id: "U1", type: "solid", rgb: [1, 2, 3] }], ps: new Map([[0, { TL: { id: "310", rgb: [0, 0, 0] } }]]), bsLines: [] };
+    const after = { pat: [{ id: "U1", type: "solid", rgb: [9, 9, 9] }], ps: new Map([[0, { TL: { id: "310", rgb: [5, 5, 5] } }]]), bsLines: [] };
+    const d = T.diffForHistory(before, after);
+    expect(d.changes).toEqual([{ idx: 0, old: { id: "U1", type: "solid", rgb: [1, 2, 3] } }]);
+    expect(d.psChanges).toEqual([{ idx: 0, old: { TL: { id: "310", rgb: [0, 0, 0] } } }]);
+    const withBrand = { pat: [{ id: "U1", type: "solid", rgb: [1, 2, 3], brand: "anchor" }], ps: before.ps, bsLines: [] };
+    expect(T.diffForHistory(before, withBrand).changes.length).toBe(1);
+  });
+
   test("a turned clip stays centred", () => {
     const clip = { w: 4, h: 2 };
     expect(T.rotatedOrigin(clip, 10, 10)).toEqual({ x: 11, y: 9 });

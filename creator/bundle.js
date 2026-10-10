@@ -2347,6 +2347,64 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       ctx2d.restore();
     }
   }
+
+  // ─── Floating paste / turn being dragged (audit DRAW-04) ─────────────────────
+  // Same look as the Move ghost: the float's current cells dimmed, the clip
+  // drawn at 70% where the drag has reached, and a dashed box around it.
+  var clipGhost = state.clip && typeof state.clip.dragGhost === 'function' ? state.clip.dragGhost() : null;
+  if (clipGhost) {
+    var gc = clipGhost.clip, gsW = state.sW, gsH = state.sH;
+    ctx2d.save();
+    ctx2d.fillStyle = 'rgba(255,255,255,0.6)';
+    for (var gy0 = 0; gy0 < gc.h; gy0++) for (var gx0 = 0; gx0 < gc.w; gx0++) {
+      if (!gc.sel[gy0 * gc.w + gx0]) continue;
+      var fx = clipGhost.fromX + gx0 - offX, fy = clipGhost.fromY + gy0 - offY;
+      if (fx < 0 || fy < 0 || fx >= dW || fy >= dH) continue;
+      ctx2d.fillRect(gut + fx * cSz, gut + fy * cSz, cSz, cSz);
+    }
+    ctx2d.globalAlpha = 0.7;
+    var half = cSz / 2;
+    for (var gy1 = 0; gy1 < gc.h; gy1++) for (var gx1 = 0; gx1 < gc.w; gx1++) {
+      var gli = gy1 * gc.w + gx1;
+      if (!gc.sel[gli]) continue;
+      var tx = clipGhost.x + gx1, ty = clipGhost.y + gy1;
+      if (tx < 0 || ty < 0 || tx >= gsW || ty >= gsH) continue;
+      var cx = tx - offX, cy = ty - offY;
+      if (cx < 0 || cy < 0 || cx >= dW || cy >= dH) continue;
+      var gcell = gc.cells[gli];
+      if (gcell && gcell.rgb) {
+        ctx2d.fillStyle = 'rgb(' + gcell.rgb + ')';
+        ctx2d.fillRect(gut + cx * cSz, gut + cy * cSz, cSz, cSz);
+      }
+      var gps = gc.ps[gli];
+      if (gps) {
+        [['TL', 0, 0], ['TR', 1, 0], ['BL', 0, 1], ['BR', 1, 1]].forEach(function (q) {
+          var e = gps[q[0]];
+          if (!e || !e.rgb) return;
+          ctx2d.fillStyle = 'rgb(' + e.rgb + ')';
+          ctx2d.fillRect(gut + cx * cSz + q[1] * half, gut + cy * cSz + q[2] * half, half, half);
+        });
+      }
+    }
+    ctx2d.globalAlpha = 1.0;
+    if (gc.bs.length) {
+      ctx2d.strokeStyle = 'rgba(40,40,40,0.8)';
+      ctx2d.lineWidth = Math.max(1.5, cSz * 0.15);
+      ctx2d.lineCap = 'round';
+      gc.bs.forEach(function (ln) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (clipGhost.x + ln.x1 - offX) * cSz, gut + (clipGhost.y + ln.y1 - offY) * cSz);
+        ctx2d.lineTo(gut + (clipGhost.x + ln.x2 - offX) * cSz, gut + (clipGhost.y + ln.y2 - offY) * cSz);
+        ctx2d.stroke();
+      });
+    }
+    ctx2d.strokeStyle = 'rgba(37,99,235,0.9)';
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    ctx2d.strokeRect(gut + (clipGhost.x - offX) * cSz, gut + (clipGhost.y - offY) * cSz, gc.w * cSz, gc.h * cSz);
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
 };
 
 
@@ -5100,16 +5158,14 @@ window.useMoveSelection = function useMoveSelection(state) {
     return { pat: np, ps: nps, bsLines: nbs, mask: mask, clipped: clipped };
   }
 
-  function sameCell(a, b) {
+  // Whole stored values are compared, so a paste that swaps a stitch for
+  // one with the same id but another colour or extra fields is still undone.
+  function sameValue(a, b) {
     if (a === b) return true;
     if (!a || !b) return false;
-    return a.id === b.id && a.type === b.type;
+    return JSON.stringify(a) === JSON.stringify(b);
   }
-  function samePartial(a, b) {
-    if (!a && !b) return true;
-    if (!a || !b) return false;
-    return QUADS.every(function (q) { return (!a[q] && !b[q]) || (a[q] && b[q] && a[q].id === b[q].id); });
-  }
+  var sameCell = sameValue, samePartial = sameValue;
   function sameLines(a, b) {
     if (a === b) return true;
     if (!a || !b || a.length !== b.length) return false;
@@ -5225,7 +5281,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
   }
 
   // Show the float where it is now.
-  function show(f, opts) {
+  function show(f) {
     var s = stateRef.current;
     var r = T.placeClip(f.base, f.clip, f.ox, f.oy, s.sW, s.sH);
     f.shown.add(r.pat);
@@ -5233,13 +5289,19 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     s.setPartialStitches(r.ps);
     s.setBsLines(r.bsLines);
     s.setSelectionMask(r.mask);
-    if (!(opts && opts.dragging)) rebuildPalette(r.pat);
+    rebuildPalette(r.pat);
     setFloat({ w: f.clip.w, h: f.clip.h, ox: f.ox, oy: f.oy, clipped: r.clipped, origin: f.origin });
     return r;
   }
 
-  function clampOrigin(clip, x, y) {
+  // Keep the requested place (the copy's own spot, or two stitches off for
+  // Duplicate) and let placeClip leave out what falls outside, unless none
+  // of it would land on the pattern at all, as when pasting from a larger
+  // project: then bring it just inside.
+  function pasteOrigin(clip, x, y) {
     var s = stateRef.current;
+    var visible = x < s.sW && y < s.sH && x + clip.w > 0 && y + clip.h > 0;
+    if (visible) return { x: x, y: y };
     return {
       x: Math.max(0, Math.min(x, Math.max(0, s.sW - clip.w))),
       y: Math.max(0, Math.min(y, Math.max(0, s.sH - clip.h)))
@@ -5345,7 +5407,10 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (!clip) return false;
     setClipboard(clip);
     var s = stateRef.current, n = T.clipStitchCount(clip);
-    if (s.addToast) s.addToast("Copied " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + ".", { type: "info", duration: 1500 });
+    // Part stitches and backstitch aren't counted, so a selection of only
+    // those is "the selection", not "0 stitches".
+    var msg = n > 0 ? "Copied " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + "." : "Copied the selection.";
+    if (s.addToast) s.addToast(msg, { type: "info", duration: 1500 });
     return true;
   }
 
@@ -5370,7 +5435,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
       ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, mask: placedFrom.mask }
       : c;
     var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines };
-    var o = clampOrigin(clip, x, y);
+    var o = pasteOrigin(clip, x, y);
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
     return r;
@@ -5427,25 +5492,41 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
   }
 
   // Dragging: whole stitches only.
+  // Dragging: whole stitches only. While the finger or mouse moves, the
+  // pattern isn't rebuilt: PatternCanvas draws a ghost of the clip at the
+  // drag position (dragGhost) over the chart, as Move does, and the float is
+  // placed there once, when the drag ends.
+  function notifyGhost() {
+    try { window.dispatchEvent(new Event("cs:clip-ghost")); } catch (_) {}
+  }
   function startDrag(gx, gy) {
     var f = floatRef.current;
     if (!f) return;
-    dragRef.current = { gx: gx, gy: gy, ox: f.ox, oy: f.oy };
+    dragRef.current = { gx: gx, gy: gy, x: f.ox, y: f.oy, moved: false };
   }
   function updateDrag(gx, gy) {
     var f = floatRef.current, d = dragRef.current;
     if (!f || !d) return;
-    if (staleFloat(f)) return;
-    var nx = d.ox + gx - d.gx, ny = d.oy + gy - d.gy;
-    if (nx === f.ox && ny === f.oy) return;
-    f.ox = nx; f.oy = ny;
-    show(f, { dragging: true });
+    var nx = f.ox + gx - d.gx, ny = f.oy + gy - d.gy;
+    if (nx === d.x && ny === d.y) return;
+    d.x = nx; d.y = ny; d.moved = true;
+    notifyGhost();
   }
   function endDrag() {
-    var f = floatRef.current;
-    if (!dragRef.current) return;
+    var f = floatRef.current, d = dragRef.current;
+    if (!d) return;
     dragRef.current = null;
-    if (f) show(f);
+    if (!f || !d.moved) { notifyGhost(); return; }
+    if (staleFloat(f)) { notifyGhost(); return; }
+    f.ox = d.x; f.oy = d.y;
+    show(f);
+    notifyGhost();
+  }
+  // { clip, fromX, fromY, x, y } while a drag has moved the float, else null.
+  function dragGhost() {
+    var f = floatRef.current, d = dragRef.current;
+    if (!f || !d || !d.moved) return null;
+    return { clip: f.clip, fromX: f.ox, fromY: f.oy, x: d.x, y: d.y };
   }
   function isInside(gx, gy) {
     var f = floatRef.current;
@@ -5463,7 +5544,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     float: float, floatActive: !!float,
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
-    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside,
+    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }
   }; }, [clipboard, float]); // eslint-disable-line react-hooks/exhaustive-deps
 };
@@ -11268,8 +11349,9 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       when: function () { return !!state.pat && !!state.hasSelection && !state.moveActive && !state.floatActive; },
       run: function () { state.deleteSelection(); } },
 
-    // Copy, paste, flip and rotate (audit DRAW-04). Copy, cut and paste
-    // leave text fields alone, and only act on a selection or the clipboard,
+    // Copy, paste, flip and rotate (audit DRAW-04). None of these fire in a
+    // text field (a capital H typed there must not flip the chart). Copy,
+    // cut and paste only act on a selection or the clipboard,
     // so the browser's own copy still works elsewhere.
     { id: "creator.copy", keys: "mod+c", scope: "creator.design", allowInInput: false,
       description: "Copy the selection",
@@ -11287,19 +11369,19 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Duplicate the selection",
       when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
       run: function () { state.clip.duplicate(); } },
-    { id: "creator.flipH", keys: "shift+h", scope: "creator.design",
+    { id: "creator.flipH", keys: "shift+h", scope: "creator.design", allowInInput: false,
       description: "Flip the selection left to right",
       when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
       run: function () { state.clip.transform("flipH"); } },
-    { id: "creator.flipV", keys: "shift+v", scope: "creator.design",
+    { id: "creator.flipV", keys: "shift+v", scope: "creator.design", allowInInput: false,
       description: "Flip the selection upside down",
       when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
       run: function () { state.clip.transform("flipV"); } },
-    { id: "creator.rotCW", keys: ".", scope: "creator.design",
+    { id: "creator.rotCW", keys: ".", scope: "creator.design", allowInInput: false,
       description: "Rotate the selection clockwise",
       when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
       run: function () { state.clip.transform("rotCW"); } },
-    { id: "creator.rotCCW", keys: ",", scope: "creator.design",
+    { id: "creator.rotCCW", keys: ",", scope: "creator.design", allowInInput: false,
       description: "Rotate the selection anticlockwise",
       when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
       run: function () { state.clip.transform("rotCCW"); } },
@@ -13656,6 +13738,30 @@ window.PatternCanvas = function PatternCanvas() {
     app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
+  // ── Effect: dragging a floating paste / turn (audit DRAW-04). The drag
+  // only moves a ghost, so repaint the overlay, at most once a frame, instead
+  // of rebuilding the pattern on every move.
+  React.useEffect(function() {
+    var raf = null;
+    function onGhost() {
+      if (raf) return;
+      raf = requestAnimationFrame(function() {
+        raf = null;
+        var canvas = app.pcRef.current;
+        if (!canvas || !baseCacheRef.current) return;
+        var snap = ctxRef.current;
+        var context = canvas.getContext("2d");
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+        drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
+      });
+    }
+    window.addEventListener("cs:clip-ghost", onGhost);
+    return function() {
+      window.removeEventListener("cs:clip-ghost", onGhost);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base then repaints just the hover elements.
   React.useEffect(function() {
@@ -13781,14 +13887,25 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     cv.activeTool !== "move" && !cv.contextMenu;
   var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive;
 
-  var bbox = React.useMemo(function () {
-    if (!show || !cv.selectionMask || !window.SelectionTransforms) return null;
+  var maskBox = React.useMemo(function () {
+    if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
     return window.SelectionTransforms.selectionBBox(cv.selectionMask, ctx.sW, ctx.sH);
-  }, [show, cv.selectionMask, ctx.sW, ctx.sH]);
+  }, [show, floating, cv.selectionMask, ctx.sW, ctx.sH]);
+  var fl = floating ? clip.float : null;
+
+  // The cells the bar sits over: where a drag has reached, else the float's
+  // own box (which may hang off the pattern, or lie wholly outside it, so
+  // it isn't taken from the selection mask), else the selection's box.
+  function currentBox() {
+    var g = clip && clip.dragGhost ? clip.dragGhost() : null;
+    if (g) return { minX: g.x, minY: g.y, maxX: g.x + g.clip.w - 1, maxY: g.y + g.clip.h - 1 };
+    if (fl) return { minX: fl.ox, minY: fl.oy, maxX: fl.ox + fl.w - 1, maxY: fl.oy + fl.h - 1 };
+    return maskBox;
+  }
 
   // Above the selection, or below it, inside the chart's visible area.
   var place = React.useCallback(function () {
-    var bar = barRef.current, canvas = app.pcRef && app.pcRef.current;
+    var bar = barRef.current, canvas = app.pcRef && app.pcRef.current, bbox = currentBox();
     if (!bar || !canvas || !bbox) return;
     var r = canvas.getBoundingClientRect();
     var view = app.scrollRef && app.scrollRef.current ? app.scrollRef.current.getBoundingClientRect()
@@ -13803,7 +13920,7 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     top = Math.max(8, Math.min(top, window.innerHeight - bh - 8));
     var left = Math.max(8, Math.min(selMid - bw / 2, window.innerWidth - bw - 8));
     setPos(function (p) { return p && p.top === top && p.left === left ? p : { top: top, left: left }; });
-  }, [bbox, cv.cs, app.G, app.pcRef, app.scrollRef]);
+  }, [maskBox, fl, cv.cs, app.G, app.pcRef, app.scrollRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useLayoutEffect(function () {
     if (!show) { setPos(null); return undefined; }
@@ -13811,15 +13928,17 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     var sc = app.scrollRef && app.scrollRef.current;
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    window.addEventListener("cs:clip-ghost", place);
     if (sc) sc.addEventListener("scroll", place);
     return function () {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      window.removeEventListener("cs:clip-ghost", place);
       if (sc) sc.removeEventListener("scroll", place);
     };
   }, [show, place, floating]);
 
-  if (!show || !bbox) return null;
+  if (!show || (!floating && !maskBox)) return null;
 
   function btn(label, icon, onClick, opts) {
     opts = opts || {};

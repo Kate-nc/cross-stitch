@@ -62,7 +62,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
   }
 
   // Show the float where it is now.
-  function show(f, opts) {
+  function show(f) {
     var s = stateRef.current;
     var r = T.placeClip(f.base, f.clip, f.ox, f.oy, s.sW, s.sH);
     f.shown.add(r.pat);
@@ -70,13 +70,19 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     s.setPartialStitches(r.ps);
     s.setBsLines(r.bsLines);
     s.setSelectionMask(r.mask);
-    if (!(opts && opts.dragging)) rebuildPalette(r.pat);
+    rebuildPalette(r.pat);
     setFloat({ w: f.clip.w, h: f.clip.h, ox: f.ox, oy: f.oy, clipped: r.clipped, origin: f.origin });
     return r;
   }
 
-  function clampOrigin(clip, x, y) {
+  // Keep the requested place (the copy's own spot, or two stitches off for
+  // Duplicate) and let placeClip leave out what falls outside, unless none
+  // of it would land on the pattern at all, as when pasting from a larger
+  // project: then bring it just inside.
+  function pasteOrigin(clip, x, y) {
     var s = stateRef.current;
+    var visible = x < s.sW && y < s.sH && x + clip.w > 0 && y + clip.h > 0;
+    if (visible) return { x: x, y: y };
     return {
       x: Math.max(0, Math.min(x, Math.max(0, s.sW - clip.w))),
       y: Math.max(0, Math.min(y, Math.max(0, s.sH - clip.h)))
@@ -182,7 +188,10 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     if (!clip) return false;
     setClipboard(clip);
     var s = stateRef.current, n = T.clipStitchCount(clip);
-    if (s.addToast) s.addToast("Copied " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + ".", { type: "info", duration: 1500 });
+    // Part stitches and backstitch aren't counted, so a selection of only
+    // those is "the selection", not "0 stitches".
+    var msg = n > 0 ? "Copied " + n.toLocaleString() + " stitch" + (n === 1 ? "" : "es") + "." : "Copied the selection.";
+    if (s.addToast) s.addToast(msg, { type: "info", duration: 1500 });
     return true;
   }
 
@@ -207,7 +216,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
       ? { pat: placedFrom.pat, ps: placedFrom.ps, bsLines: placedFrom.bsLines, mask: placedFrom.mask }
       : c;
     var base = { pat: orig.pat, ps: orig.ps, bsLines: orig.bsLines };
-    var o = clampOrigin(clip, x, y);
+    var o = pasteOrigin(clip, x, y);
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
     return r;
@@ -264,25 +273,41 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
   }
 
   // Dragging: whole stitches only.
+  // Dragging: whole stitches only. While the finger or mouse moves, the
+  // pattern isn't rebuilt: PatternCanvas draws a ghost of the clip at the
+  // drag position (dragGhost) over the chart, as Move does, and the float is
+  // placed there once, when the drag ends.
+  function notifyGhost() {
+    try { window.dispatchEvent(new Event("cs:clip-ghost")); } catch (_) {}
+  }
   function startDrag(gx, gy) {
     var f = floatRef.current;
     if (!f) return;
-    dragRef.current = { gx: gx, gy: gy, ox: f.ox, oy: f.oy };
+    dragRef.current = { gx: gx, gy: gy, x: f.ox, y: f.oy, moved: false };
   }
   function updateDrag(gx, gy) {
     var f = floatRef.current, d = dragRef.current;
     if (!f || !d) return;
-    if (staleFloat(f)) return;
-    var nx = d.ox + gx - d.gx, ny = d.oy + gy - d.gy;
-    if (nx === f.ox && ny === f.oy) return;
-    f.ox = nx; f.oy = ny;
-    show(f, { dragging: true });
+    var nx = f.ox + gx - d.gx, ny = f.oy + gy - d.gy;
+    if (nx === d.x && ny === d.y) return;
+    d.x = nx; d.y = ny; d.moved = true;
+    notifyGhost();
   }
   function endDrag() {
-    var f = floatRef.current;
-    if (!dragRef.current) return;
+    var f = floatRef.current, d = dragRef.current;
+    if (!d) return;
     dragRef.current = null;
-    if (f) show(f);
+    if (!f || !d.moved) { notifyGhost(); return; }
+    if (staleFloat(f)) { notifyGhost(); return; }
+    f.ox = d.x; f.oy = d.y;
+    show(f);
+    notifyGhost();
+  }
+  // { clip, fromX, fromY, x, y } while a drag has moved the float, else null.
+  function dragGhost() {
+    var f = floatRef.current, d = dragRef.current;
+    if (!f || !d || !d.moved) return null;
+    return { clip: f.clip, fromX: f.ox, fromY: f.oy, x: d.x, y: d.y };
   }
   function isInside(gx, gy) {
     var f = floatRef.current;
@@ -300,7 +325,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     float: float, floatActive: !!float,
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
-    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside,
+    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }
   }; }, [clipboard, float]); // eslint-disable-line react-hooks/exhaustive-deps
 };

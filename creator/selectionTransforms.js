@@ -187,16 +187,14 @@
     return { pat: np, ps: nps, bsLines: nbs, mask: mask, clipped: clipped };
   }
 
-  function sameCell(a, b) {
+  // Whole stored values are compared, so a paste that swaps a stitch for
+  // one with the same id but another colour or extra fields is still undone.
+  function sameValue(a, b) {
     if (a === b) return true;
     if (!a || !b) return false;
-    return a.id === b.id && a.type === b.type;
+    return JSON.stringify(a) === JSON.stringify(b);
   }
-  function samePartial(a, b) {
-    if (!a && !b) return true;
-    if (!a || !b) return false;
-    return QUADS.every(function (q) { return (!a[q] && !b[q]) || (a[q] && b[q] && a[q].id === b[q].id); });
-  }
+  var sameCell = sameValue, samePartial = sameValue;
   function sameLines(a, b) {
     if (a === b) return true;
     if (!a || !b || a.length !== b.length) return false;

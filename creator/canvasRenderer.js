@@ -1186,4 +1186,62 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
       ctx2d.restore();
     }
   }
+
+  // ─── Floating paste / turn being dragged (audit DRAW-04) ─────────────────────
+  // Same look as the Move ghost: the float's current cells dimmed, the clip
+  // drawn at 70% where the drag has reached, and a dashed box around it.
+  var clipGhost = state.clip && typeof state.clip.dragGhost === 'function' ? state.clip.dragGhost() : null;
+  if (clipGhost) {
+    var gc = clipGhost.clip, gsW = state.sW, gsH = state.sH;
+    ctx2d.save();
+    ctx2d.fillStyle = 'rgba(255,255,255,0.6)';
+    for (var gy0 = 0; gy0 < gc.h; gy0++) for (var gx0 = 0; gx0 < gc.w; gx0++) {
+      if (!gc.sel[gy0 * gc.w + gx0]) continue;
+      var fx = clipGhost.fromX + gx0 - offX, fy = clipGhost.fromY + gy0 - offY;
+      if (fx < 0 || fy < 0 || fx >= dW || fy >= dH) continue;
+      ctx2d.fillRect(gut + fx * cSz, gut + fy * cSz, cSz, cSz);
+    }
+    ctx2d.globalAlpha = 0.7;
+    var half = cSz / 2;
+    for (var gy1 = 0; gy1 < gc.h; gy1++) for (var gx1 = 0; gx1 < gc.w; gx1++) {
+      var gli = gy1 * gc.w + gx1;
+      if (!gc.sel[gli]) continue;
+      var tx = clipGhost.x + gx1, ty = clipGhost.y + gy1;
+      if (tx < 0 || ty < 0 || tx >= gsW || ty >= gsH) continue;
+      var cx = tx - offX, cy = ty - offY;
+      if (cx < 0 || cy < 0 || cx >= dW || cy >= dH) continue;
+      var gcell = gc.cells[gli];
+      if (gcell && gcell.rgb) {
+        ctx2d.fillStyle = 'rgb(' + gcell.rgb + ')';
+        ctx2d.fillRect(gut + cx * cSz, gut + cy * cSz, cSz, cSz);
+      }
+      var gps = gc.ps[gli];
+      if (gps) {
+        [['TL', 0, 0], ['TR', 1, 0], ['BL', 0, 1], ['BR', 1, 1]].forEach(function (q) {
+          var e = gps[q[0]];
+          if (!e || !e.rgb) return;
+          ctx2d.fillStyle = 'rgb(' + e.rgb + ')';
+          ctx2d.fillRect(gut + cx * cSz + q[1] * half, gut + cy * cSz + q[2] * half, half, half);
+        });
+      }
+    }
+    ctx2d.globalAlpha = 1.0;
+    if (gc.bs.length) {
+      ctx2d.strokeStyle = 'rgba(40,40,40,0.8)';
+      ctx2d.lineWidth = Math.max(1.5, cSz * 0.15);
+      ctx2d.lineCap = 'round';
+      gc.bs.forEach(function (ln) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(gut + (clipGhost.x + ln.x1 - offX) * cSz, gut + (clipGhost.y + ln.y1 - offY) * cSz);
+        ctx2d.lineTo(gut + (clipGhost.x + ln.x2 - offX) * cSz, gut + (clipGhost.y + ln.y2 - offY) * cSz);
+        ctx2d.stroke();
+      });
+    }
+    ctx2d.strokeStyle = 'rgba(37,99,235,0.9)';
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    ctx2d.strokeRect(gut + (clipGhost.x - offX) * cSz, gut + (clipGhost.y - offY) * cSz, gc.w * cSz, gc.h * cSz);
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  }
 };

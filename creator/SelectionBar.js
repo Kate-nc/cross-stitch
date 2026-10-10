@@ -34,14 +34,25 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     cv.activeTool !== "move" && !cv.contextMenu;
   var show = !!clip && (floating || selecting) && app.tab === "pattern" && !app.previewActive;
 
-  var bbox = React.useMemo(function () {
-    if (!show || !cv.selectionMask || !window.SelectionTransforms) return null;
+  var maskBox = React.useMemo(function () {
+    if (!show || floating || !cv.selectionMask || !window.SelectionTransforms) return null;
     return window.SelectionTransforms.selectionBBox(cv.selectionMask, ctx.sW, ctx.sH);
-  }, [show, cv.selectionMask, ctx.sW, ctx.sH]);
+  }, [show, floating, cv.selectionMask, ctx.sW, ctx.sH]);
+  var fl = floating ? clip.float : null;
+
+  // The cells the bar sits over: where a drag has reached, else the float's
+  // own box (which may hang off the pattern, or lie wholly outside it, so
+  // it isn't taken from the selection mask), else the selection's box.
+  function currentBox() {
+    var g = clip && clip.dragGhost ? clip.dragGhost() : null;
+    if (g) return { minX: g.x, minY: g.y, maxX: g.x + g.clip.w - 1, maxY: g.y + g.clip.h - 1 };
+    if (fl) return { minX: fl.ox, minY: fl.oy, maxX: fl.ox + fl.w - 1, maxY: fl.oy + fl.h - 1 };
+    return maskBox;
+  }
 
   // Above the selection, or below it, inside the chart's visible area.
   var place = React.useCallback(function () {
-    var bar = barRef.current, canvas = app.pcRef && app.pcRef.current;
+    var bar = barRef.current, canvas = app.pcRef && app.pcRef.current, bbox = currentBox();
     if (!bar || !canvas || !bbox) return;
     var r = canvas.getBoundingClientRect();
     var view = app.scrollRef && app.scrollRef.current ? app.scrollRef.current.getBoundingClientRect()
@@ -56,7 +67,7 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     top = Math.max(8, Math.min(top, window.innerHeight - bh - 8));
     var left = Math.max(8, Math.min(selMid - bw / 2, window.innerWidth - bw - 8));
     setPos(function (p) { return p && p.top === top && p.left === left ? p : { top: top, left: left }; });
-  }, [bbox, cv.cs, app.G, app.pcRef, app.scrollRef]);
+  }, [maskBox, fl, cv.cs, app.G, app.pcRef, app.scrollRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useLayoutEffect(function () {
     if (!show) { setPos(null); return undefined; }
@@ -64,15 +75,17 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
     var sc = app.scrollRef && app.scrollRef.current;
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    window.addEventListener("cs:clip-ghost", place);
     if (sc) sc.addEventListener("scroll", place);
     return function () {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      window.removeEventListener("cs:clip-ghost", place);
       if (sc) sc.removeEventListener("scroll", place);
     };
   }, [show, place, floating]);
 
-  if (!show || !bbox) return null;
+  if (!show || (!floating && !maskBox)) return null;
 
   function btn(label, icon, onClick, opts) {
     opts = opts || {};
