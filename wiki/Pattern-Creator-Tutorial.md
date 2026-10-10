@@ -145,6 +145,10 @@ Choose a colour in the **Palette** tab, then a tool:
 
 Each shape, and each mirrored stroke with its copies, is one undo step.
 
+### Text
+
+Choose **Text** (Tools tab, under Shapes, or **More tools**), tap or click where the text should start, and type. The text appears on the chart as you type, in the selected colour. Choose the **Block** (7 stitches tall) or **Serif** (9 stitches tall) font, the letter and line spacing, and the alignment. Capitals, small letters, numbers, common punctuation (including £ and &) and accented letters are covered. **Place** leaves the text floating to drag into position; **Done** stitches it as ordinary cross stitches in one undo step. Text wider than the pattern is flagged, with **Resize canvas** and **Use a smaller font**.
+
 ### Brush size
 
 Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools > Brush size**. The outline under the cursor shows the area the brush will cover.

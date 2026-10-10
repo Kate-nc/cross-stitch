@@ -682,6 +682,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     mirror: state.mirror, setMirror: state.setMirror,
     shapeFilled: state.shapeFilled, setShapeFilled: state.setShapeFilled,
     lineSnap: state.lineSnap, setLineSnap: state.setLineSnap,
+    textSheet: state.textSheet, setTextSheet: state.setTextSheet,
     paletteSwap: state.paletteSwap,
     selectionMask: state.selectionMask, setSelectionMask: state.setSelectionMask,
     wandTolerance: state.wandTolerance, setWandTolerance: state.setWandTolerance,
@@ -760,7 +761,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: state.clip,
   }; }, [
-    state.clip, state.mirror, state.shapeFilled, state.lineSnap,
+    state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet,
     state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,

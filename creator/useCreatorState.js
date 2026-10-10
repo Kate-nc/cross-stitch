@@ -1284,7 +1284,8 @@ window.useCreatorState = function useCreatorState() {
     : effActiveTool === "backstitch" ? "backstitch"
     : effActiveTool === "eraseAll" ? "erase"
     : (effActiveTool === "paint" || effActiveTool === "fill" ||
-       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse") ? "cross"
+       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse" ||
+       effActiveTool === "text") ? "cross"
     : null;
 
   // ─── Shapes and mirror drawing (audit DRAW-04) ─────────────────────────────
@@ -1294,6 +1295,9 @@ window.useCreatorState = function useCreatorState() {
   // touch screens). Mirror drawing copies every Paint, Erase, Fill, shape and
   // part stitch across a vertical or horizontal axis, or both; the axes start
   // at the pattern's centre (see shapeTools.js for the units).
+  // Text tool (audit DRAW-04): where the text sheet was opened, or null.
+  var _textSheet = useState(null);
+  var textSheet = _textSheet[0], setTextSheet = _textSheet[1];
   var _shapeFilled = useState(false);
   var shapeFilled = _shapeFilled[0], setShapeFilled = _shapeFilled[1];
   var _lineSnap = useState(function () { return !isFinePointerNow(); });
@@ -2559,6 +2563,7 @@ window.useCreatorState = function useCreatorState() {
     shapeFilled: shapeFilled, setShapeFilled: setShapeFilled,
     lineSnap: lineSnap, setLineSnap: setLineSnap,
     mirror: mirror, setMirror: setMirror,
+    textSheet: textSheet, setTextSheet: setTextSheet,
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: clip,
     clipFloatActive: clip.floatActive,

@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.99';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.101',
+    date: 'October 2026',
+    notes: [
+      'A Text tool for names, dates and words: tap the chart, type, and the text appears in stitches in the selected colour, in a Block or Serif stitch font with your choice of letter spacing, line spacing and alignment. Drag it into place and press Done; one Undo takes it away. Accented letters, £ and & are included, and you are told if the text is wider than the pattern.',
+    ]
+  },
+  {
     version: '1.0.100',
     date: 'October 2026',
     notes: [

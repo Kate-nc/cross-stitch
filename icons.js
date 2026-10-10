@@ -730,6 +730,9 @@ window.Icons = (function() {
     shapeEllipse: function() {
       return h('svg', SVG_PROPS_16, h('ellipse', { cx: 12, cy: 12, rx: 8, ry: 6 }));
     },
+    textTool: function() {
+      return svg16(p('M5 6V4h14v2'), p('M12 4v16'), p('M9 20h6'));
+    },
     mirror: function() {
       return svg16(p('M12 3v2'), p('M12 9v2'), p('M12 15v2'), p('M12 21v-1'), p('M9 6L4 12l5 6z'), p('M15 6l5 6-5 6'));
     },

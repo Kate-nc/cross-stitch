@@ -19,6 +19,7 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   var ctx = window.usePatternData();
   var clip = cv.clip;
   var barRef = React.useRef(null);
+  var pressRef = React.useRef(null);
   var _pos = React.useState(null); var pos = _pos[0], setPos = _pos[1];
 
   var coarse = (function () {
@@ -87,15 +88,40 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
 
   if (!show || (!floating && !maskBox)) return null;
 
+  // The buttons act when a pointer is pressed and released on them, not on
+  // the click: Chrome swallows the click of a tap that lands while a flick
+  // across the chart is still settling (it uses that tap to stop the
+  // fling), so Done could need a second tap right after dragging the copy.
+  // Click still serves the keyboard (Enter / Space). The click that follows
+  // a pointer press is skipped, whichever button it lands on: after Done the
+  // bar re-renders as the selection bar, and that click would otherwise hit
+  // the new button under the finger (Delete, say).
   function btn(label, icon, onClick, opts) {
     opts = opts || {};
     return h("button", {
       key: label, type: "button",
       className: "cs-selbar__btn" + (opts.primary ? " cs-selbar__btn--primary" : "") + (opts.text ? " cs-selbar__btn--text" : ""),
       "aria-label": label, title: opts.title || label,
-      // Keep focus (and the selection) where it is on a mouse press.
-      onPointerDown: function (e) { e.stopPropagation(); },
-      onClick: function (e) { e.stopPropagation(); onClick(); }
+      onPointerDown: function (e) {
+        // Keep focus (and the selection) where it is on a press.
+        e.stopPropagation();
+        if (e.button === 0 || e.pointerType !== "mouse") pressRef.current = { label: label, id: e.pointerId };
+      },
+      onPointerUp: function (e) {
+        e.stopPropagation();
+        var p = pressRef.current;
+        pressRef.current = null;
+        if (!p || p.label !== label || p.id !== e.pointerId) return;
+        window.CreatorSelectionBar._pointerActedAt = Date.now();
+        onClick();
+      },
+      onPointerCancel: function () { pressRef.current = null; },
+      onClick: function (e) {
+        e.stopPropagation();
+        var t = window.CreatorSelectionBar._pointerActedAt || 0;
+        if (e.detail > 0 && Date.now() - t < 1000) return;
+        onClick();
+      }
     }, icon ? icon : null, opts.text ? h("span", null, opts.text) : null);
   }
   var I = window.Icons;

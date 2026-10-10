@@ -145,6 +145,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (t === "paint" || t === "eraseAll") return "stroke";
     if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
+    if (t === "text") return "single";
     return null;
   }
   function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
@@ -811,6 +812,15 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     // quarter/three-quarter tools require hit-testing — delegate to handlePatClick (no drag)
     if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
       handlePatClick(e);
+      return;
+    }
+
+    // Text tool (audit DRAW-04): a tap opens the text sheet with the text's
+    // top-left corner at that stitch.
+    if (activeTool === "text") {
+      if (typeof state.setTextSheet === "function") {
+        state.setTextSheet({ x: Math.max(0, Math.min(state.sW - 1, gx)), y: Math.max(0, Math.min(state.sH - 1, gy)) });
+      }
       return;
     }
 

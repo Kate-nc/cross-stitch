@@ -53,6 +53,7 @@ const ORDER = [
   'selectionTransforms.js',
   'useSelectionClipboard.js',
   'shapeTools.js',
+  'stitchFonts.js',
   'useCreatorState.js',
   // useImportWizard.js + ImportWizard.js intentionally REMOVED from this
   // list — they are bundled into creator/import-wizard-bundle.js below and
@@ -75,6 +76,7 @@ const ORDER = [
   'SelectionBar.js',
   // Shapes and mirror drawing (audit DRAW-04).
   'MirrorHandle.js',
+  'TextToolSheet.js',
   'SplitPane.js',
   'CompactBar.js',
   'ToolStrip.js',
