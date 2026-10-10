@@ -14,6 +14,9 @@
          Change symbol (audit DRAW-05). Specific branch: re-applies the old /
          new symbol through state.applySymbol without recording history.
      - { type: "colourReplace", changes }    // British spelling — see DEFECT-005.
+     - { type: "move", op?, changes, psChanges?, bsLines?, prevMask, nextMask }
+         Move, and a placed paste / flip / rotate (useSelectionClipboard,
+         op "paste" or "lift"). Generic loop plus the selection restore.
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines? }
          Generic fallthrough: handled by the same `last.changes` loop. The
@@ -32,6 +35,9 @@ window.useEditHistory = function useEditHistory(state) {
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
+    // Undo while a pasted or turned selection floats puts it back: the float
+    // isn't in the history until it is placed.
+    if (state.clipFloatActive && typeof state.cancelClipFloat === "function") { state.cancelClipFloat(); return; }
     if (!editHistory.length) return;
     var last = editHistory[editHistory.length - 1];
 
@@ -165,6 +171,7 @@ window.useEditHistory = function useEditHistory(state) {
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     var buildPaletteWithScratch = state.buildPaletteWithScratch;
 
+    if (state.clipFloatActive) return;
     if (!redoHistory.length) return;
     var last = redoHistory[redoHistory.length - 1];
 

@@ -710,6 +710,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "float") {
+    badgeLabel = "Place selection"; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "move") {
     badgeLabel = "Move"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--accent)"; badgeDot = "var(--accent)";
   } else if (cv.activeTool === "colourReplace") {
@@ -791,7 +793,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var morePanelHasActiveTool = cv.activeTool === "eyedropper" || (!coarsePointer && !cv.drawMode) ||
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
-    cv.activeTool === "denoise" || cv.activeTool === "move";
+    cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float";
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -915,6 +917,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           "aria-pressed": cv.activeTool==="move"?"true":"false",
           "aria-disabled": !cv.hasSelection
         }, window.Icons&&window.Icons.move?window.Icons.move():null, " Move"),
+        // Paste the copied stitches (audit DRAW-04); only once something is copied.
+        cv.clip && cv.clip.hasClipboard && h("button", {
+          className:"tb-btn",
+          onClick:function(){ cv.clip.paste(); setMorePanelOpen(false); },
+          title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
+        }, window.Icons.clipboard(), " Paste"),
         h("button", {
           className:"tb-btn"+(cv.activeTool==="colourReplace"?" tb-btn--on":""),
           onClick:function(){

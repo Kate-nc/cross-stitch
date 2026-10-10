@@ -64,6 +64,10 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
+  } else if (cv.activeTool === "float") {
+    statusText = coarse
+      ? "Drag the selection into place, then tap Done or tap outside it."
+      : "Drag the selection into place, then press Done or click outside it. Esc puts it back.";
   } else if (cv.activeTool === "eyedropper") {
     statusText = "Eyedropper \u2014 click a cell to sample its colour.";
   } else if (cv.activeTool === "colourReplace") {
@@ -199,6 +203,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var selTool = cv.activeTool === "magicWand" || cv.activeTool === "lasso";
         if (cv.activeTool === "hand" || cv.drawMode === false) return "grab";
         if (cv.activeTool === "eyedropper") return "copy";
+        if (cv.activeTool === "float") return "move";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";
         if (cv.activeTool === "fill") return "cell";
@@ -231,6 +236,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         ? (app.previewMode === "realistic" ? h(window.CreatorRealisticCanvas, null) : h(window.CreatorPreviewCanvas, null))
         : h(window.PatternCanvas, null)
     ),
+
+    // Copy / paste / flip / rotate bar over the selection (audit DRAW-04)
+    window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),
 
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),

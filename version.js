@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.98';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.99',
+    date: 'October 2026',
+    notes: [
+      'Copy, cut, paste and duplicate a selection, and flip or rotate it. The copy floats on the chart until you drag it into place and press Done; half and quarter stitches and backstitch lines turn with it, and each paste or turn is one undo step. On a touch screen the actions are on a bar over the selection; on a computer they are in the Tools tab, the right-click menu and on Ctrl+C, Ctrl+X, Ctrl+V, Ctrl+D, Shift+H, Shift+V and the comma and full stop keys.',
+    ]
+  },
+  {
     version: '1.0.98',
     date: 'October 2026',
     notes: [

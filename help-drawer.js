@@ -109,7 +109,9 @@
             ["Lasso", "Draw a freehand, polygon or magnetic selection. Choose the lasso and its mode in the Tools tab."],
             ["Select all and invert", "Ctrl+A selects every stitch; Ctrl+Shift+I inverts the selection. Esc clears it."],
             ["Deleting a selection", "Press Delete or Backspace, or choose Delete on the selection bar, to clear every stitch in the selection, including part stitches and backstitch lines that sit inside it. Ctrl+Z brings them back."],
-            ["Moving a selection", "Choose Move in More tools, then drag the selection or nudge it one stitch at a time with the arrow keys."]
+            ["Moving a selection", "Choose Move in More tools, then drag the selection or nudge it one stitch at a time with the arrow keys."],
+            ["Copy, cut and paste", "With stitches selected, Copy (Ctrl+C) keeps them, including part stitches and the backstitch lines inside the selection, and Cut (Ctrl+X) keeps them and clears them. Paste (Ctrl+V, or Paste in More tools) puts the copy back where it came from, floating on top of the chart: drag it into place, then press Done or tap outside it. Cancel or Esc puts it back. Anything that lands outside the pattern is left out, and you are told. The copy stays while you switch to another project in the same tab, so you can paste it there."],
+            ["Duplicate, flip and rotate", "Duplicate (Ctrl+D) floats a copy two stitches down and to the right. Flip horizontally (Shift+H), Flip vertically (Shift+V), Rotate left (,) and Rotate right (.) work on the floating copy, or lift the selection and turn it where it is; half stitches change direction and quarter stitches change corner to match. On a touch screen these actions are on the bar over the selection; on a computer they are in the Tools tab and the right-click menu. Placing it is one undo step, however much it was moved and turned."]
           ]
         },
         {
@@ -506,6 +508,14 @@
     { id: "c.invert", scope: "creator", keys: ["Ctrl+Shift+I", "⌘⇧I"], description: "Invert selection" },
     { id: "c.delSel", scope: "creator", keys: ["Delete", "Backspace"], description: "Delete the stitches in the selection" },
     { id: "c.move",   scope: "creator", keys: ["←", "↑", "→", "↓"], description: "Move tool: nudge the selection one stitch" },
+    { id: "c.copy",   scope: "creator", keys: ["Ctrl+C", "⌘C"], description: "Copy the selection" },
+    { id: "c.cut",    scope: "creator", keys: ["Ctrl+X", "⌘X"], description: "Cut the selection" },
+    { id: "c.paste",  scope: "creator", keys: ["Ctrl+V", "⌘V"], description: "Paste, then drag it into place" },
+    { id: "c.dup",    scope: "creator", keys: ["Ctrl+D", "⌘D"], description: "Duplicate the selection" },
+    { id: "c.flipH",  scope: "creator", keys: ["Shift+H"], description: "Flip the selection left to right" },
+    { id: "c.flipV",  scope: "creator", keys: ["Shift+V"], description: "Flip the selection upside down" },
+    { id: "c.rotCW",  scope: "creator", keys: ["."], description: "Rotate the selection clockwise" },
+    { id: "c.rotCCW", scope: "creator", keys: [","], description: "Rotate the selection anticlockwise" },
 
     // Tracker
     { id: "t.track",   scope: "tracker", keys: ["T"], description: "Switch to Mark mode (mark stitches done)" },

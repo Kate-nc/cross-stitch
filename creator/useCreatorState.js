@@ -2191,6 +2191,25 @@ window.useCreatorState = function useCreatorState() {
   };
   var move = useMoveSelection(_moveStateProxy);
 
+  // ─── Copy, paste, flip and rotate (audit DRAW-04) ──────────────────────────
+  var clip = window.useSelectionClipboard({
+    activeTool: effActiveTool, setActiveTool: setActiveTool,
+    drawMode: drawMode, setDrawMode: setDrawMode,
+    setPartialStitchTool: setPartialStitchTool, setBsStart: setBsStart,
+    pat: pat, setPat: setPat,
+    partialStitches: partialStitches, setPartialStitches: setPartialStitches,
+    bsLines: bsLines, setBsLines: setBsLines,
+    selectionMask: wand.selectionMask, setSelectionMask: wand.setSelectionMask,
+    sW: sW, sH: sH,
+    buildPaletteWithScratch: buildPaletteWithScratch,
+    setPal: setPal, setCmap: setCmap,
+    setEditHistory: setEditHistory, setRedoHistory: setRedoHistory,
+    EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    moveFloatActive: move.floatActive,
+    deleteSelection: wand.deleteSelection,
+    addToast: addToast
+  });
+
   // Syncs op mode across both selection tools
   function setSelectionOpMode(mode) {
     wand.setWandOpMode(mode);
@@ -2475,6 +2494,7 @@ window.useCreatorState = function useCreatorState() {
     // A floating move is rebuilt from its start snapshot when it commits, so a
     // delete made mid-move would be silently overwritten. Block it instead.
     deleteSelection: function() {
+      if (clip.floatActive) return clip.deleteFloat();
       if (move.floatActive) {
         addToast("Finish the move first: switch to another tool to keep it, or press Esc to cancel it.", {type: "info", duration: 3000});
         return null;
@@ -2510,5 +2530,9 @@ window.useCreatorState = function useCreatorState() {
     cancelMove: move.cancelMove,
     nudgeMove: move.nudgeMove,
     revertFloat: move.revertFloat,
+    // Copy, paste, flip and rotate (useSelectionClipboard)
+    clip: clip,
+    clipFloatActive: clip.floatActive,
+    cancelClipFloat: clip.cancel,
   };
 };

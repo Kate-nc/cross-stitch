@@ -127,6 +127,16 @@ window.CreatorContextMenu = function CreatorContextMenu() {
       if (cellInfo) cv.setColourReplaceModal({ srcId: cellInfo.id, srcName: cellInfo.name || cellInfo.id, srcRgb: cellInfo.rgb });
     }, {disabled: !hasCellColour, k: 'replace'}),
 
+    // Copy, paste, flip and rotate (audit DRAW-04)
+    cv.clip && cv.hasSelection && item([Icons.copy(), " Copy"], function() { cv.clip.copy(); }, {k: 'copy'}),
+    cv.clip && cv.hasSelection && item([Icons.scissors(), " Cut"], function() { cv.clip.cut(); }, {k: 'cut'}),
+    cv.clip && cv.clip.hasClipboard && item([Icons.clipboard(), " Paste"], function() { cv.clip.paste(); }, {k: 'paste'}),
+    cv.clip && cv.hasSelection && item([Icons.duplicate(), " Duplicate"], function() { cv.clip.duplicate(); }, {k: 'dup'}),
+    cv.clip && cv.hasSelection && item([Icons.flipHorizontal(), " Flip horizontally"], function() { cv.clip.transform("flipH"); }, {k: 'flipH'}),
+    cv.clip && cv.hasSelection && item([Icons.flipVertical(), " Flip vertically"], function() { cv.clip.transform("flipV"); }, {k: 'flipV'}),
+    cv.clip && cv.hasSelection && item([Icons.rotateCcw(), " Rotate left"], function() { cv.clip.transform("rotCCW"); }, {k: 'rotCCW'}),
+    cv.clip && cv.hasSelection && item([Icons.rotateCw(), " Rotate right"], function() { cv.clip.transform("rotCW"); }, {k: 'rotCW'}),
+
     // Delete everything in the current selection
     cv.hasSelection && item([Icons.trash(), " Delete selected stitches"], function() {
       cv.deleteSelection();

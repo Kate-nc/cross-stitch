@@ -29,6 +29,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
         if (state.morePanelOpen) { state.setMorePanelOpen(false); return; }
         // Background-pick mode: ESC backs out without sampling.
         if (state.pickBg) { state.setPickBg(false); return; }
+        if (state.clipFloatActive) { state.cancelClipFloat(); return; }
         if (state.moveActive) { state.cancelMove(); return; }
         if (state.floatActive && state.activeTool === 'move') { state.revertFloat(); return; }
         if (state.lassoInProgress) { state.cancelLasso(); return; }
@@ -62,6 +63,42 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Delete stitches in the selection",
       when: function () { return !!state.pat && !!state.hasSelection && !state.moveActive && !state.floatActive; },
       run: function () { state.deleteSelection(); } },
+
+    // Copy, paste, flip and rotate (audit DRAW-04). Copy, cut and paste
+    // leave text fields alone, and only act on a selection or the clipboard,
+    // so the browser's own copy still works elsewhere.
+    { id: "creator.copy", keys: "mod+c", scope: "creator.design", allowInInput: false,
+      description: "Copy the selection",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.copy(); } },
+    { id: "creator.cut", keys: "mod+x", scope: "creator.design", allowInInput: false,
+      description: "Cut the selection",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.cut(); } },
+    { id: "creator.paste", keys: "mod+v", scope: "creator.design", allowInInput: false,
+      description: "Paste, then drag it into place",
+      when: function () { return !!state.pat && !!state.clip && state.clip.hasClipboard; },
+      run: function () { state.clip.paste(); } },
+    { id: "creator.duplicate", keys: "mod+d", scope: "creator.design", allowInInput: false,
+      description: "Duplicate the selection",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.duplicate(); } },
+    { id: "creator.flipH", keys: "shift+h", scope: "creator.design",
+      description: "Flip the selection left to right",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.transform("flipH"); } },
+    { id: "creator.flipV", keys: "shift+v", scope: "creator.design",
+      description: "Flip the selection upside down",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.transform("flipV"); } },
+    { id: "creator.rotCW", keys: ".", scope: "creator.design",
+      description: "Rotate the selection clockwise",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.transform("rotCW"); } },
+    { id: "creator.rotCCW", keys: ",", scope: "creator.design",
+      description: "Rotate the selection anticlockwise",
+      when: function () { return !!state.pat && !!state.clip && (!!state.hasSelection || state.clipFloatActive); },
+      run: function () { state.clip.transform("rotCCW"); } },
 
     // Help / shortcuts
     { id: "creator.shortcuts", keys: "?", scope: "creator.design",
@@ -218,6 +255,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       state.splitPaneEnabled, state.stitchType,
       state.moveActive, state.nudgeMove, state.cancelMove,
       state.floatActive, state.revertFloat, state.deleteSelection,
+      state.clip, state.clipFloatActive,
       history.undoEdit, history.redoEdit, io.saveProject,
     ]);
   }
