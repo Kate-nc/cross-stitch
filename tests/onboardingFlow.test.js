@@ -41,6 +41,17 @@ describe("welcome walkthrough targets exist on their own page", () => {
     });
   });
 
+  // A saved project sets its pattern at once and its picture later (in
+  // Image.onload), so the pattern has to decide the tour, or a saved picture
+  // project would be locked into the wrong one on the in-between render.
+  test("an existing pattern picks the chart tour before its picture loads", () => {
+    const src = read("creator-main.js");
+    const line = src.split("\n").find(l => /const tourWayIn=/.test(l));
+    expect(line).toBeDefined();
+    expect(line.indexOf("state.pat")).toBeGreaterThan(-1);
+    expect(line.indexOf("state.pat")).toBeLessThan(line.indexOf("state.img"));
+  });
+
   test("the Creator walkthrough no longer describes Home", () => {
     const text = JSON.stringify(STEPS.creator);
     expect(text).not.toMatch(/Projects tab|Create new tab|home-from-image/);

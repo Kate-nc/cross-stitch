@@ -43,12 +43,25 @@
   } catch (_) {}
 
   // ─── The Creator's tours (audit COMMON-06) ────────────────────────────────
-  // One per way in: converting a picture, drawing on a blank grid, or an
-  // imported chart. Each names only controls that exist on this device: "Tap"
-  // on touch screens and "Click" otherwise; the Settings sheet on phones and
-  // upright tablets, the panel on the right on wider screens; Print PDF and
-  // Open in Tracker in the top bar's More menu on phones. Built when the tour
-  // opens (creatorDevice()), at most 4 steps each.
+  // One per way in: converting a picture, drawing on a blank grid, or a
+  // chart that is already there (imported, or a saved project). Each names
+  // only controls that exist on this device: "Tap" on touch screens and
+  // "Click" otherwise; the Settings sheet on phones and upright tablets, the
+  // panel on the right on wider screens; Print PDF and Open in Tracker in the
+  // top bar's More menu on phones; Generate as its button reads. Built when
+  // the tour opens (creatorDevice()), at most 4 steps each.
+  function creatorDeviceWords(coarse, compact) {
+    return {
+      coarse: coarse, compact: compact,
+      Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
+      settings: compact ? "the Settings sheet" : "the panel on the right",
+      actions: compact ? "the More menu at the top" : "the bar at the top",
+      // The compact bar's button is labelled Generate, the action bar's
+      // Generate Pattern.
+      generate: compact ? "Generate" : "Generate Pattern"
+    };
+  }
+
   function creatorDevice() {
     var coarse = false, compact = false;
     try {
@@ -57,12 +70,7 @@
         : !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
     } catch (_) {}
     try { compact = !!(document.body && document.body.classList.contains("creator-compact")); } catch (_) {}
-    return {
-      coarse: coarse, compact: compact,
-      Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
-      settings: compact ? "the Settings sheet" : "the panel on the right",
-      actions: compact ? "the More menu at the top" : "the bar at the top"
-    };
+    return creatorDeviceWords(coarse, compact);
   }
 
   var CREATOR_TOURS = {
@@ -74,7 +82,7 @@
         },
         {
           title: "Generate",
-          body: "When the preview looks right, " + d.tap + " Generate. You can cancel while it works.",
+          body: "When the preview looks right, " + d.tap + " " + d.generate + ". You can cancel while it works.",
           tip: "Pressing the highlighted button generates the pattern and closes this tour.",
           target: "[data-onboard=\"creator-generate\"]",
           placement: "bottom",
@@ -105,7 +113,7 @@
     import: function (d) {
       return [
         {
-          title: "Your imported chart",
+          title: "Your chart",
           body: "Check the chart, then use Edit to change stitches and Materials to see the threads you need."
         },
         {
@@ -579,6 +587,7 @@
   WelcomeWizard.STEPS = STEPS;
   WelcomeWizard.stepsFor = stepsFor;
   WelcomeWizard.creatorDevice = creatorDevice;
+  WelcomeWizard.creatorDeviceWords = creatorDeviceWords;
   WelcomeWizard.CREATOR_TOURS = CREATOR_TOURS;
 
   window.WelcomeWizard = WelcomeWizard;

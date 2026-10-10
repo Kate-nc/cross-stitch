@@ -78,6 +78,6 @@ test.describe('Creator tours on a desktop', function() {
 
     await card.getByRole('button', { name: 'Next' }).click();
     await expect(card.getByRole('heading', { name: 'Generate' })).toBeVisible();
-    expect(await card.innerText()).toMatch(/click Generate/);
+    expect(await card.innerText()).toMatch(/click Generate Pattern/);
   });
 });

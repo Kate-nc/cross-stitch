@@ -680,7 +680,11 @@ function CreatorApp({
   // Picked once the Creator knows what it opened: a scratch grid (after the
   // New design sheet), a picture to convert, or a chart with no picture (an
   // import). null = not decided yet; '' = no tour.
-  const tourWayIn = state.isScratchMode ? 'scratch' : state.img && state.img.src ? 'convert' : state.pat ? 'import' : null;
+  // A pattern already there (an imported chart or a saved project) wins over
+  // its picture: a saved project's picture is restored after the pattern
+  // (useProjectIO's Image.onload), and its tour is about the chart, not
+  // about generating.
+  const tourWayIn = state.isScratchMode ? 'scratch' : state.pat ? 'import' : state.img && state.img.src ? 'convert' : null;
   const [tourPage, setTourPage] = React.useState(null);
   React.useEffect(() => {
     if (tourPage !== null || !state.bootSettled || state.newDesignOpen || !tourWayIn) return;

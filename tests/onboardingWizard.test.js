@@ -28,12 +28,7 @@ function allCreatorBodies() {
   const W = window.WelcomeWizard;
   const out = [];
   [{ coarse: false, compact: false }, { coarse: true, compact: true }].forEach(dev => {
-    const d = {
-      coarse: dev.coarse, compact: dev.compact,
-      Tap: dev.coarse ? 'Tap' : 'Click', tap: dev.coarse ? 'tap' : 'click',
-      settings: dev.compact ? 'the Settings sheet' : 'the panel on the right',
-      actions: dev.compact ? 'the More menu at the top' : 'the bar at the top'
-    };
+    const d = W.creatorDeviceWords(dev.coarse, dev.compact);
     Object.keys(W.CREATOR_TOURS).forEach(k => W.CREATOR_TOURS[k](d).forEach(s => out.push(s.body || '')));
   });
   return out;
@@ -155,14 +150,22 @@ describe('WelcomeWizard', () => {
   });
 
   test('tours name controls for the device: Tap and the Settings sheet on a phone', () => {
-    const d = { coarse: true, compact: true, Tap: 'Tap', tap: 'tap', settings: 'the Settings sheet', actions: 'the More menu at the top' };
+    const d = window.WelcomeWizard.creatorDeviceWords(true, true);
     const phone = JSON.stringify(window.WelcomeWizard.CREATOR_TOURS.convert(d));
     expect(phone).toMatch(/Settings sheet/);
     expect(phone).not.toMatch(/\bclick\b/i);
-    const d2 = { coarse: false, compact: false, Tap: 'Click', tap: 'click', settings: 'the panel on the right', actions: 'the bar at the top' };
+    const d2 = window.WelcomeWizard.creatorDeviceWords(false, false);
     const desk = JSON.stringify(window.WelcomeWizard.CREATOR_TOURS.scratch(d2));
     expect(desk).not.toMatch(/\btap\b/i);
     expect(desk).not.toMatch(/Settings sheet/);
+  });
+
+  test('the Generate step names the button as it reads on that screen', () => {
+    const W = window.WelcomeWizard;
+    const wide = W.CREATOR_TOURS.convert(W.creatorDeviceWords(false, false))[1].body;
+    const phone = W.CREATOR_TOURS.convert(W.creatorDeviceWords(true, true))[1].body;
+    expect(wide).toMatch(/click Generate Pattern\./);
+    expect(phone).toMatch(/tap Generate\./);
   });
 
   test('creatorDevice reads the pointer and the compact layout', () => {

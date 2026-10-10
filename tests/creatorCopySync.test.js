@@ -17,7 +17,8 @@ const read = (f) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
 // Name used in copy → the file that renders it and the label as it appears
 // there (a string literal, so `"Edit"` or `"Generate Pattern"`).
 const CONTROLS = {
-  "Generate":        [["creator/ActionBar.js", "Generate Pattern"], ["creator/CompactBar.js", "Generate"]],
+  "Generate":        [["creator/CompactBar.js", "Generate"]],
+  "Generate Pattern": [["creator/ActionBar.js", "Generate Pattern"]],
   "Compare options": [["creator/CompareStrip.js", "Compare options"]],
   "Convert":         [["creator/ActionBar.js", "Convert"], ["creator/CompactBar.js", "Convert"]],
   "Canvas":          [["creator/ActionBar.js", "Canvas"], ["creator/CompactBar.js", "Canvas"]],
@@ -57,10 +58,7 @@ function tourCopy() {
   const doc = { getElementById: () => ({}), createElement: () => ({}), head: { appendChild: () => {} } };
   new Function("window", "React", "document", "localStorage", read("onboarding-wizard.js"))(win, React, doc, {});
   const tours = win.WelcomeWizard.CREATOR_TOURS;
-  const devices = [
-    { coarse: true, compact: true, Tap: "Tap", tap: "tap", settings: "the Settings sheet", actions: "the More menu at the top" },
-    { coarse: false, compact: false, Tap: "Click", tap: "click", settings: "the panel on the right", actions: "the bar at the top" }
-  ];
+  const devices = [[true, true], [false, false], [false, true]].map(a => win.WelcomeWizard.creatorDeviceWords(a[0], a[1]));
   const out = [];
   Object.keys(tours).forEach(k => devices.forEach(d => tours[k](d).forEach(s => {
     out.push({ where: "tour " + k, text: s.title + ". " + s.body + (s.tip ? " " + s.tip : "") });
