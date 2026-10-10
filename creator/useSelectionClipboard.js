@@ -153,7 +153,8 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
       s.setRedoHistory([]);
     }
     if (r.clipped && s.addToast) {
-      s.addToast(f.origin === "paste" ? "Part of the paste was outside the pattern, so it was left out."
+      s.addToast(f.origin === "text" ? "Part of the text was outside the pattern, so it was left out."
+        : f.origin === "paste" ? "Part of the paste was outside the pattern, so it was left out."
         : "Part of the selection went outside the pattern, so it was left out.", { type: "info", duration: 3500 });
     }
     endFloat(f, !(opts && opts.keepTool));
@@ -220,6 +221,22 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
     return r;
+  }
+
+  // A clip made elsewhere (the text tool, audit DRAW-04) floated at (x, y)
+  // without touching the clipboard; origin names it in the toasts.
+  function floatClip(clip, x, y, origin) {
+    if (!clip || !stateRef.current.pat || busyWithMove()) return false;
+    pasteAt(clip, x, y, origin || "text");
+    return true;
+  }
+  // Swap the floating clip for another where it is (the text being typed).
+  function replaceClip(clip) {
+    var f = floatRef.current;
+    if (!f || !clip || staleFloat(f)) return false;
+    f.clip = clip;
+    show(f);
+    return true;
   }
 
   function paste() {
@@ -324,6 +341,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     clipboard: clipboard, hasClipboard: !!clipboard,
     float: float, floatActive: !!float,
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
+    floatClip: floatClip, replaceClip: replaceClip,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
     startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }

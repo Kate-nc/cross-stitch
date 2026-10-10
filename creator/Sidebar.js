@@ -2034,15 +2034,15 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (cv.cancelLasso) cv.cancelLasso();
     if (cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
   }
-  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]];
+  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]];
   var shapesSection = h("div", {className:"cs-toolsec"},
     h("div", {className:"cs-toolsec__title"}, "Shapes"),
-    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
       shapeTools.map(function(t) {
         var on = cv.activeTool === t[0];
         return h("button", {key:t[0], type:"button", className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
           "aria-pressed": on ? "true" : "false", onClick:function(){ pickShapeTool(t[0]); },
-          title: t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
+          title: t[0] === "text" ? "Text: tap where it should start, then type" : t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
       })
     ),
     h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},

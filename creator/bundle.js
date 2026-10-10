@@ -5421,7 +5421,8 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
       s.setRedoHistory([]);
     }
     if (r.clipped && s.addToast) {
-      s.addToast(f.origin === "paste" ? "Part of the paste was outside the pattern, so it was left out."
+      s.addToast(f.origin === "text" ? "Part of the text was outside the pattern, so it was left out."
+        : f.origin === "paste" ? "Part of the paste was outside the pattern, so it was left out."
         : "Part of the selection went outside the pattern, so it was left out.", { type: "info", duration: 3500 });
     }
     endFloat(f, !(opts && opts.keepTool));
@@ -5488,6 +5489,22 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var r = startFloat(orig, base, clip, o.x, o.y, origin);
     if (prevF && floatRef.current) { floatRef.current.prevTool = prevF.prevTool; floatRef.current.prevDrawMode = prevF.prevDrawMode; }
     return r;
+  }
+
+  // A clip made elsewhere (the text tool, audit DRAW-04) floated at (x, y)
+  // without touching the clipboard; origin names it in the toasts.
+  function floatClip(clip, x, y, origin) {
+    if (!clip || !stateRef.current.pat || busyWithMove()) return false;
+    pasteAt(clip, x, y, origin || "text");
+    return true;
+  }
+  // Swap the floating clip for another where it is (the text being typed).
+  function replaceClip(clip) {
+    var f = floatRef.current;
+    if (!f || !clip || staleFloat(f)) return false;
+    f.clip = clip;
+    show(f);
+    return true;
   }
 
   function paste() {
@@ -5592,6 +5609,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     clipboard: clipboard, hasClipboard: !!clipboard,
     float: float, floatActive: !!float,
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
+    floatClip: floatClip, replaceClip: replaceClip,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
     startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }
@@ -5741,6 +5759,353 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     centredMirror: centredMirror
   };
   root.ShapeTools = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+
+/* ─── stitchFonts.js ─── */
+/* creator/stitchFonts.js — bitmap fonts for the text tool (audit DRAW-04
+ * item 5), and the renderer that turns text into stitches.
+ *
+ * Both fonts are original designs drawn for stitchx (2026) and are released
+ * under the same licence as the rest of the app. Each glyph is a list of
+ * rows, "#" for a stitch and "." for none; `top` is the row of the glyph's
+ * first row, counted from the top of a capital letter (0), so lowercase
+ * letters start lower and descenders go below the baseline. Letters may be
+ * different widths.
+ *
+ *   Block  5 × 7   capitals 7 stitches tall, descenders 2 more
+ *   Serif  7 × 9   capitals 9 stitches tall with serifs, descenders 2 more
+ *
+ * Accented letters (à á â ä ã å ç è é ê ë ì í î ï ñ ò ó ô ö õ ù ú û ü ý ÿ
+ * and their capitals) are built from the plain letter and an accent above
+ * it (a cedilla below).
+ *
+ *   StitchFonts.FONTS                  { block, serif }
+ *   StitchFonts.renderText(text, fontId, opts)
+ *        opts { letterSpacing = 1, lineSpacing = 1, align = "left" }
+ *        -> { w, h, cells: [{ x, y }], missing: [chars], lineWidths }
+ *        Lines are split on "\n". The result is cropped to the rows that
+ *        hold stitches, so text without descenders isn't padded.
+ *   StitchFonts.textWidth(text, fontId, opts)   width of the widest line
+ *   StitchFonts.textClip(rendered, cell)        a SelectionTransforms-style
+ *        clip (for a floating selection) with `cell` in every stitch
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js); also
+ * require()-able for tests.
+ */
+(function (root) {
+  function G(top, rows) { return { top: top, rows: rows }; }
+
+  // ─── Block 5 × 7 ──────────────────────────────────────────────────────────
+  var BLOCK = {
+    id: "block", name: "Block", capHeight: 7, descent: 2, space: 3,
+    glyphs: {
+      A: G(0, [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"]),
+      B: G(0, ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."]),
+      C: G(0, [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."]),
+      D: G(0, ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."]),
+      E: G(0, ["#####", "#....", "#....", "####.", "#....", "#....", "#####"]),
+      F: G(0, ["#####", "#....", "#....", "####.", "#....", "#....", "#...."]),
+      G: G(0, [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"]),
+      H: G(0, ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"]),
+      I: G(0, ["###", ".#.", ".#.", ".#.", ".#.", ".#.", "###"]),
+      J: G(0, ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."]),
+      K: G(0, ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"]),
+      L: G(0, ["#....", "#....", "#....", "#....", "#....", "#....", "#####"]),
+      M: G(0, ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"]),
+      N: G(0, ["#...#", "#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#"]),
+      O: G(0, [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."]),
+      P: G(0, ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."]),
+      Q: G(0, [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"]),
+      R: G(0, ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"]),
+      S: G(0, [".####", "#....", "#....", ".###.", "....#", "....#", "####."]),
+      T: G(0, ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."]),
+      U: G(0, ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."]),
+      V: G(0, ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."]),
+      W: G(0, ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "#.#.#", ".#.#."]),
+      X: G(0, ["#...#", "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "#...#"]),
+      Y: G(0, ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."]),
+      Z: G(0, ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"]),
+
+      a: G(2, [".###.", "....#", ".####", "#...#", ".####"]),
+      b: G(0, ["#....", "#....", "####.", "#...#", "#...#", "#...#", "####."]),
+      c: G(2, [".###.", "#....", "#....", "#...#", ".###."]),
+      d: G(0, ["....#", "....#", ".####", "#...#", "#...#", "#...#", ".####"]),
+      e: G(2, [".###.", "#...#", "#####", "#....", ".###."]),
+      f: G(0, ["..##", ".#..", "####", ".#..", ".#..", ".#..", ".#.."]),
+      g: G(2, [".####", "#...#", "#...#", "#...#", ".####", "....#", ".###."]),
+      h: G(0, ["#....", "#....", "####.", "#...#", "#...#", "#...#", "#...#"]),
+      i: G(0, ["#", ".", "#", "#", "#", "#", "#"]),
+      j: G(0, ["..#", "...", "..#", "..#", "..#", "..#", "..#", "#.#", ".#."]),
+      k: G(0, ["#...", "#...", "#..#", "#.#.", "##..", "#.#.", "#..#"]),
+      l: G(0, ["#", "#", "#", "#", "#", "#", "#"]),
+      m: G(2, ["##.#.", "#.#.#", "#.#.#", "#.#.#", "#.#.#"]),
+      n: G(2, ["####.", "#...#", "#...#", "#...#", "#...#"]),
+      o: G(2, [".###.", "#...#", "#...#", "#...#", ".###."]),
+      p: G(2, ["####.", "#...#", "#...#", "#...#", "####.", "#....", "#...."]),
+      q: G(2, [".####", "#...#", "#...#", "#...#", ".####", "....#", "....#"]),
+      r: G(2, ["#.##", "##..", "#...", "#...", "#..."]),
+      s: G(2, [".####", "#....", ".###.", "....#", "####."]),
+      t: G(0, [".#..", ".#..", "####", ".#..", ".#..", ".#..", "..##"]),
+      u: G(2, ["#...#", "#...#", "#...#", "#..##", ".##.#"]),
+      v: G(2, ["#...#", "#...#", "#...#", ".#.#.", "..#.."]),
+      w: G(2, ["#...#", "#...#", "#.#.#", "#.#.#", ".#.#."]),
+      x: G(2, ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"]),
+      y: G(2, ["#...#", "#...#", "#...#", "#...#", ".####", "....#", ".###."]),
+      z: G(2, ["#####", "...#.", "..#..", ".#...", "#####"]),
+      "ı": G(2, ["#", "#", "#", "#", "#"]),
+
+      "0": G(0, [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."]),
+      "1": G(0, [".#.", "##.", ".#.", ".#.", ".#.", ".#.", "###"]),
+      "2": G(0, [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"]),
+      "3": G(0, ["####.", "....#", "....#", ".###.", "....#", "....#", "####."]),
+      "4": G(0, ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."]),
+      "5": G(0, ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."]),
+      "6": G(0, ["..##.", ".#...", "#....", "####.", "#...#", "#...#", ".###."]),
+      "7": G(0, ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."]),
+      "8": G(0, [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."]),
+      "9": G(0, [".###.", "#...#", "#...#", ".####", "....#", "...#.", ".##.."]),
+
+      ".": G(6, ["#"]),
+      ",": G(5, [".#", ".#", "#."]),
+      "!": G(0, ["#", "#", "#", "#", "#", ".", "#"]),
+      "?": G(0, [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."]),
+      "'": G(0, ["#", "#"]),
+      "’": G(0, ["#", "#"]),
+      "\"": G(0, ["#.#", "#.#"]),
+      "-": G(3, ["####"]),
+      "&": G(0, [".##..", "#..#.", "#.#..", ".#...", "#.#.#", "#..#.", ".##.#"]),
+      "£": G(0, ["..##.", ".#..#", ".#...", "###..", ".#...", ".#...", "#####"]),
+      ":": G(2, ["#", ".", ".", "#"]),
+      ";": G(2, [".#", "..", "..", ".#", ".#", "#."]),
+      "/": G(0, ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."]),
+      "(": G(0, [".#", "#.", "#.", "#.", "#.", "#.", ".#"]),
+      ")": G(0, ["#.", ".#", ".#", ".#", ".#", ".#", "#."]),
+      "+": G(1, ["..#..", "..#..", "#####", "..#..", "..#.."]),
+      "=": G(2, ["####", "....", "####"])
+    }
+  };
+
+  // ─── Serif 7 × 9 ──────────────────────────────────────────────────────────
+  var SERIF = {
+    id: "serif", name: "Serif", capHeight: 9, descent: 3, space: 4,
+    glyphs: {
+      A: G(0, ["...#...", "...#...", "..#.#..", "..#.#..", ".#...#.", ".#####.", ".#...#.", "#.....#", "##...##"]),
+      B: G(0, ["######.", ".#....#", ".#....#", ".#....#", ".#####.", ".#....#", ".#....#", ".#....#", "######."]),
+      C: G(0, ["..####.", ".#....#", "#......", "#......", "#......", "#......", "#......", ".#....#", "..####."]),
+      D: G(0, ["#####..", ".#...#.", ".#....#", ".#....#", ".#....#", ".#....#", ".#....#", ".#...#.", "#####.."]),
+      E: G(0, ["#######", ".#....#", ".#.....", ".#..#..", ".####..", ".#..#..", ".#.....", ".#....#", "#######"]),
+      F: G(0, ["#######", ".#....#", ".#.....", ".#..#..", ".####..", ".#..#..", ".#.....", ".#.....", "###...."]),
+      G: G(0, ["..####.", ".#....#", "#......", "#......", "#...###", "#.....#", "#.....#", ".#....#", "..####."]),
+      H: G(0, ["###.###", ".#...#.", ".#...#.", ".#...#.", ".#####.", ".#...#.", ".#...#.", ".#...#.", "###.###"]),
+      I: G(0, ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"]),
+      J: G(0, ["...####", ".....#.", ".....#.", ".....#.", ".....#.", ".....#.", "#....#.", "#....#.", ".####.."]),
+      K: G(0, ["###..##", ".#...#.", ".#..#..", ".#.#...", ".##....", ".#.#...", ".#..#..", ".#...#.", "###..##"]),
+      L: G(0, ["###....", ".#.....", ".#.....", ".#.....", ".#.....", ".#.....", ".#.....", ".#....#", "#######"]),
+      M: G(0, ["##...##", ".##.##.", ".#.#.#.", ".#.#.#.", ".#...#.", ".#...#.", ".#...#.", ".#...#.", "###.###"]),
+      N: G(0, ["##..###", ".##..#.", ".#.#.#.", ".#.#.#.", ".#..##.", ".#..##.", ".#...#.", ".#...#.", "###..#."]),
+      O: G(0, ["..###..", ".#...#.", "#.....#", "#.....#", "#.....#", "#.....#", "#.....#", ".#...#.", "..###.."]),
+      P: G(0, ["######.", ".#....#", ".#....#", ".#....#", ".#####.", ".#.....", ".#.....", ".#.....", "###...."]),
+      Q: G(0, ["..###..", ".#...#.", "#.....#", "#.....#", "#.....#", "#...#.#", "#....#.", ".#...##", "..###.#"]),
+      R: G(0, ["######.", ".#....#", ".#....#", ".#....#", ".#####.", ".#..#..", ".#...#.", ".#....#", "###...#"]),
+      S: G(0, [".####.#", "#....##", "#......", ".#.....", "..###..", ".....#.", "......#", "##....#", "#.####."]),
+      T: G(0, ["#######", "#..#..#", "...#...", "...#...", "...#...", "...#...", "...#...", "...#...", "..###.."]),
+      U: G(0, ["###.###", ".#...#.", ".#...#.", ".#...#.", ".#...#.", ".#...#.", ".#...#.", ".#...#.", "..###.."]),
+      V: G(0, ["###.###", ".#...#.", ".#...#.", ".#...#.", "..#.#..", "..#.#..", "..#.#..", "...#...", "...#..."]),
+      W: G(0, ["###.###", ".#...#.", ".#...#.", ".#...#.", ".#.#.#.", ".#.#.#.", ".#.#.#.", ".##.##.", ".#...#."]),
+      X: G(0, ["###.###", ".#...#.", "..#.#..", "..#.#..", "...#...", "..#.#..", "..#.#..", ".#...#.", "###.###"]),
+      Y: G(0, ["###.###", ".#...#.", "..#.#..", "..#.#..", "...#...", "...#...", "...#...", "...#...", "..###.."]),
+      Z: G(0, ["#######", "#....#.", "....#..", "...#...", "...#...", "..#....", ".#.....", "#.....#", "#######"]),
+
+      a: G(3, [".####.", ".....#", ".#####", "#....#", "#...##", ".###.#"]),
+      b: G(0, ["##....", ".#....", ".#....", ".####.", ".#...#", ".#...#", ".#...#", ".#...#", "#.###."]),
+      c: G(3, [".####.", "#....#", "#.....", "#.....", "#....#", ".####."]),
+      d: G(0, ["....##", ".....#", ".....#", ".####.", "#....#", "#....#", "#....#", "#....#", ".#####"]),
+      e: G(3, [".####.", "#....#", "######", "#.....", "#....#", ".####."]),
+      f: G(0, ["..###", ".#...", ".#...", "####.", ".#...", ".#...", ".#...", ".#...", "###.."]),
+      g: G(3, [".#####", "#....#", "#....#", "#....#", ".#####", ".....#", "#....#", ".####."]),
+      h: G(0, ["##....", ".#....", ".#....", ".####.", ".#...#", ".#...#", ".#...#", ".#...#", "###.##"]),
+      i: G(0, [".#.", "...", "...", "##.", ".#.", ".#.", ".#.", ".#.", "###"]),
+      j: G(0, ["..#.", "....", "....", ".##.", "..#.", "..#.", "..#.", "..#.", "..#.", "#.#.", ".#.."]),
+      k: G(0, ["##....", ".#....", ".#....", ".#..##", ".#.#..", ".##...", ".#.#..", ".#..#.", "##..##"]),
+      l: G(0, ["##.", ".#.", ".#.", ".#.", ".#.", ".#.", ".#.", ".#.", "###"]),
+      m: G(3, ["##.#.#.", ".##.#.#", ".#..#.#", ".#..#.#", ".#..#.#", "###.#.#"]),
+      n: G(3, ["##.##.", ".##..#", ".#...#", ".#...#", ".#...#", "###.##"]),
+      o: G(3, [".####.", "#....#", "#....#", "#....#", "#....#", ".####."]),
+      p: G(3, ["##.##.", ".##..#", ".#...#", ".#...#", ".####.", ".#....", ".#....", "###..."]),
+      q: G(3, [".##.##", "#..##.", "#...#.", "#...#.", ".####.", "....#.", "....#.", "...###"]),
+      r: G(3, ["##.##", ".##..", ".#...", ".#...", ".#...", "###.."]),
+      s: G(3, [".#####", "#.....", ".####.", ".....#", "#....#", "#####."]),
+      t: G(1, [".#...", ".#...", "####.", ".#...", ".#...", ".#...", ".#..#", "..##."]),
+      u: G(3, ["##..##", ".#...#", ".#...#", ".#...#", ".#..##", "..##.#"]),
+      v: G(3, ["##...##", ".#...#.", ".#...#.", "..#.#..", "..#.#..", "...#..."]),
+      w: G(3, ["##...##", ".#...#.", ".#.#.#.", ".#.#.#.", ".#.#.#.", "..#.#.."]),
+      x: G(3, ["##..##", ".#..#.", "..##..", "..##..", ".#..#.", "##..##"]),
+      y: G(3, ["##..##", ".#..#.", ".#..#.", "..##..", "..##..", "..#...", ".#....", "##...."]),
+      z: G(3, ["######", "#...#.", "...#..", "..#...", ".#...#", "######"]),
+      "ı": G(3, ["##.", ".#.", ".#.", ".#.", ".#.", "###"]),
+
+      "0": G(0, [".####.", "#....#", "#...##", "#..#.#", "#.#..#", "##...#", "#....#", "#....#", ".####."]),
+      "1": G(0, ["..#..", ".##..", "#.#..", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"]),
+      "2": G(0, [".####.", "#....#", ".....#", ".....#", "....#.", "..##..", ".#....", "#.....", "######"]),
+      "3": G(0, [".####.", "#....#", ".....#", ".....#", "..###.", ".....#", ".....#", "#....#", ".####."]),
+      "4": G(0, ["....#.", "...##.", "..#.#.", ".#..#.", "#...#.", "######", "....#.", "....#.", "...###"]),
+      "5": G(0, ["######", "#.....", "#.....", "#####.", ".....#", ".....#", ".....#", "#....#", ".####."]),
+      "6": G(0, ["..###.", ".#....", "#.....", "#.....", "#####.", "#....#", "#....#", "#....#", ".####."]),
+      "7": G(0, ["######", "#....#", ".....#", "....#.", "...#..", "..#...", "..#...", "..#...", "..#..."]),
+      "8": G(0, [".####.", "#....#", "#....#", "#....#", ".####.", "#....#", "#....#", "#....#", ".####."]),
+      "9": G(0, [".####.", "#....#", "#....#", "#....#", ".#####", ".....#", ".....#", "....#.", ".###.."]),
+
+      ".": G(7, ["##", "##"]),
+      ",": G(7, ["##", "##", ".#", "#."]),
+      "!": G(0, ["##", "##", "##", "##", "##", "##", "..", "##", "##"]),
+      "?": G(0, [".####.", "#....#", ".....#", "....#.", "...#..", "...#..", "......", "...#..", "...#.."]),
+      "'": G(0, ["##", "##", ".#", "#."]),
+      "’": G(0, ["##", "##", ".#", "#."]),
+      "\"": G(0, ["#.#", "#.#"]),
+      "-": G(4, ["#####"]),
+      "&": G(0, ["..##...", ".#..#..", ".#..#..", "..##...", ".##..#.", "#..#.#.", "#...#..", "#..#.#.", ".##...#"]),
+      "£": G(0, ["...##.", "..#..#", "..#...", "..#...", "#####.", "..#...", "..#...", ".#....", "######"]),
+      ":": G(3, ["##", "##", "..", "..", "##", "##"]),
+      ";": G(3, ["##", "##", "..", "..", "##", "##", ".#", "#."]),
+      "/": G(0, ["....#", "....#", "...#.", "...#.", "..#..", ".#...", ".#...", "#....", "#...."]),
+      "(": G(0, ["..#", ".#.", "#..", "#..", "#..", "#..", "#..", ".#.", "..#"]),
+      ")": G(0, ["#..", ".#.", "..#", "..#", "..#", "..#", "..#", ".#.", "#.."]),
+      "+": G(2, ["..#..", "..#..", "#####", "..#..", "..#.."]),
+      "=": G(3, ["#####", ".....", "#####"])
+    }
+  };
+
+  // Accents, drawn above the letter (a cedilla below it).
+  var ACCENTS = {
+    acute: [".#", "#."], grave: ["#.", ".#"], circumflex: [".#.", "#.#"],
+    diaeresis: ["#.#"], tilde: [".#.#", "#.#."], ring: [".#.", "#.#", ".#."],
+    cedilla: [".#", "#."]
+  };
+  var ACCENTED = {
+    "à": ["a", "grave"], "á": ["a", "acute"], "â": ["a", "circumflex"], "ä": ["a", "diaeresis"],
+    "ã": ["a", "tilde"], "å": ["a", "ring"], "ç": ["c", "cedilla"],
+    "è": ["e", "grave"], "é": ["e", "acute"], "ê": ["e", "circumflex"], "ë": ["e", "diaeresis"],
+    "ì": ["ı", "grave"], "í": ["ı", "acute"], "î": ["ı", "circumflex"], "ï": ["ı", "diaeresis"],
+    "ñ": ["n", "tilde"],
+    "ò": ["o", "grave"], "ó": ["o", "acute"], "ô": ["o", "circumflex"], "ö": ["o", "diaeresis"], "õ": ["o", "tilde"],
+    "ù": ["u", "grave"], "ú": ["u", "acute"], "û": ["u", "circumflex"], "ü": ["u", "diaeresis"],
+    "ý": ["y", "acute"], "ÿ": ["y", "diaeresis"],
+    "À": ["A", "grave"], "Á": ["A", "acute"], "Â": ["A", "circumflex"], "Ä": ["A", "diaeresis"],
+    "Ã": ["A", "tilde"], "Å": ["A", "ring"], "Ç": ["C", "cedilla"],
+    "È": ["E", "grave"], "É": ["E", "acute"], "Ê": ["E", "circumflex"], "Ë": ["E", "diaeresis"],
+    "Ì": ["I", "grave"], "Í": ["I", "acute"], "Î": ["I", "circumflex"], "Ï": ["I", "diaeresis"],
+    "Ñ": ["N", "tilde"],
+    "Ò": ["O", "grave"], "Ó": ["O", "acute"], "Ô": ["O", "circumflex"], "Ö": ["O", "diaeresis"], "Õ": ["O", "tilde"],
+    "Ù": ["U", "grave"], "Ú": ["U", "acute"], "Û": ["U", "circumflex"], "Ü": ["U", "diaeresis"],
+    "Ý": ["Y", "acute"]
+  };
+
+  var FONTS = { block: BLOCK, serif: SERIF };
+
+  // A glyph as a list of cells relative to (its left edge, cap top), and its
+  // width; null when the font can't draw the character.
+  function glyphCells(font, ch) {
+    var g = font.glyphs[ch], accent = null;
+    if (!g && ACCENTED[ch]) {
+      g = font.glyphs[ACCENTED[ch][0]];
+      accent = ACCENTS[ACCENTED[ch][1]];
+    }
+    if (!g) return null;
+    var w = 0, cells = [];
+    g.rows.forEach(function (row, r) {
+      if (row.length > w) w = row.length;
+      for (var x = 0; x < row.length; x++) if (row.charAt(x) === "#") cells.push({ x: x, y: g.top + r });
+    });
+    if (accent) {
+      var aw = accent[0].length, ax = Math.max(0, Math.floor((w - aw) / 2));
+      var below = ACCENTED[ch][1] === "cedilla";
+      var baseBottom = g.top + g.rows.length;          // first row under the letter
+      var ay = below ? baseBottom : g.top - accent.length;
+      accent.forEach(function (row, r) {
+        for (var x = 0; x < row.length; x++) if (row.charAt(x) === "#") cells.push({ x: ax + x, y: ay + r });
+      });
+      if (aw > w) w = aw;
+    }
+    return { w: w, cells: cells };
+  }
+
+  function layout(text, fontId, opts) {
+    var font = FONTS[fontId] || BLOCK;
+    opts = opts || {};
+    var ls = opts.letterSpacing == null ? 1 : Math.max(0, opts.letterSpacing | 0);
+    var lineGap = opts.lineSpacing == null ? 1 : Math.max(0, opts.lineSpacing | 0);
+    var lineH = font.capHeight + font.descent + lineGap;
+    var missing = [];
+    // Pasted text may bring Windows line ends and tabs.
+    var lines = String(text || "").replace(/\r\n?/g, "\n").replace(/\t/g, " ").split("\n").map(function (line) {
+      var x = 0, cells = [], first = true;
+      Array.from(line).forEach(function (ch) {
+        var adv;
+        if (ch === " ") { adv = font.space; }
+        else {
+          var gc = glyphCells(font, ch);
+          if (!gc) {
+            if (missing.indexOf(ch) === -1) missing.push(ch);
+            gc = glyphCells(font, "?");
+          }
+          if (!first) x += ls;
+          gc.cells.forEach(function (c) { cells.push({ x: x + c.x, y: c.y }); });
+          adv = gc.w;
+          x += adv;
+          first = false;
+          return;
+        }
+        if (!first) x += ls;
+        x += adv;
+        first = false;
+      });
+      return { width: x, cells: cells };
+    });
+    return { font: font, lines: lines, lineH: lineH, missing: missing };
+  }
+
+  function textWidth(text, fontId, opts) {
+    return layout(text, fontId, opts).lines.reduce(function (m, l) { return Math.max(m, l.width); }, 0);
+  }
+
+  function renderText(text, fontId, opts) {
+    opts = opts || {};
+    var L = layout(text, fontId, opts);
+    var maxW = L.lines.reduce(function (m, l) { return Math.max(m, l.width); }, 0);
+    var cells = [];
+    L.lines.forEach(function (line, i) {
+      var off = opts.align === "centre" || opts.align === "center" ? Math.floor((maxW - line.width) / 2)
+        : opts.align === "right" ? maxW - line.width : 0;
+      line.cells.forEach(function (c) { cells.push({ x: c.x + off, y: c.y + i * L.lineH }); });
+    });
+    if (!cells.length) return { w: maxW, h: 0, cells: [], missing: L.missing, lineWidths: L.lines.map(function (l) { return l.width; }) };
+    var minY = Infinity, maxY = -Infinity;
+    cells.forEach(function (c) { if (c.y < minY) minY = c.y; if (c.y > maxY) maxY = c.y; });
+    // Remove duplicates (accents can't overlap letters, but be safe) and crop.
+    var seen = {}, out = [];
+    cells.forEach(function (c) {
+      var k = c.x + "," + (c.y - minY);
+      if (seen[k]) return;
+      seen[k] = 1;
+      out.push({ x: c.x, y: c.y - minY });
+    });
+    return { w: maxW, h: maxY - minY + 1, cells: out, missing: L.missing, lineWidths: L.lines.map(function (l) { return l.width; }) };
+  }
+
+  // A clip for a floating selection: the text's box, with `cell` in each
+  // stitch and nothing (see-through) between the letters.
+  function textClip(rendered, cell) {
+    var w = Math.max(1, rendered.w), h = Math.max(1, rendered.h), n = w * h;
+    var clip = { w: w, h: h, sel: new Uint8Array(n), cells: new Array(n), ps: new Array(n), bs: [], srcX: 0, srcY: 0 };
+    for (var i = 0; i < n; i++) { clip.sel[i] = 1; clip.cells[i] = null; clip.ps[i] = null; }
+    rendered.cells.forEach(function (c) { clip.cells[c.y * w + c.x] = Object.assign({}, cell); });
+    return clip;
+  }
+
+  var api = { FONTS: FONTS, renderText: renderText, textWidth: textWidth, textClip: textClip, glyphCells: glyphCells };
+  root.StitchFonts = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof window !== "undefined" ? window : globalThis);
 
@@ -7032,7 +7397,8 @@ window.useCreatorState = function useCreatorState() {
     : effActiveTool === "backstitch" ? "backstitch"
     : effActiveTool === "eraseAll" ? "erase"
     : (effActiveTool === "paint" || effActiveTool === "fill" ||
-       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse") ? "cross"
+       effActiveTool === "line" || effActiveTool === "rect" || effActiveTool === "ellipse" ||
+       effActiveTool === "text") ? "cross"
     : null;
 
   // ─── Shapes and mirror drawing (audit DRAW-04) ─────────────────────────────
@@ -7042,6 +7408,9 @@ window.useCreatorState = function useCreatorState() {
   // touch screens). Mirror drawing copies every Paint, Erase, Fill, shape and
   // part stitch across a vertical or horizontal axis, or both; the axes start
   // at the pattern's centre (see shapeTools.js for the units).
+  // Text tool (audit DRAW-04): where the text sheet was opened, or null.
+  var _textSheet = useState(null);
+  var textSheet = _textSheet[0], setTextSheet = _textSheet[1];
   var _shapeFilled = useState(false);
   var shapeFilled = _shapeFilled[0], setShapeFilled = _shapeFilled[1];
   var _lineSnap = useState(function () { return !isFinePointerNow(); });
@@ -8307,6 +8676,7 @@ window.useCreatorState = function useCreatorState() {
     shapeFilled: shapeFilled, setShapeFilled: setShapeFilled,
     lineSnap: lineSnap, setLineSnap: setLineSnap,
     mirror: mirror, setMirror: setMirror,
+    textSheet: textSheet, setTextSheet: setTextSheet,
     // Copy, paste, flip and rotate (useSelectionClipboard)
     clip: clip,
     clipFloatActive: clip.floatActive,
@@ -10309,6 +10679,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (t === "paint" || t === "eraseAll") return "stroke";
     if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
+    if (t === "text") return "single";
     return null;
   }
   function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
@@ -10975,6 +11346,15 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     // quarter/three-quarter tools require hit-testing — delegate to handlePatClick (no drag)
     if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
       handlePatClick(e);
+      return;
+    }
+
+    // Text tool (audit DRAW-04): a tap opens the text sheet with the text's
+    // top-left corner at that stitch.
+    if (activeTool === "text") {
+      if (typeof state.setTextSheet === "function") {
+        state.setTextSheet({ x: Math.max(0, Math.min(state.sW - 1, gx)), y: Math.max(0, Math.min(state.sH - 1, gy)) });
+      }
       return;
     }
 
@@ -14216,6 +14596,7 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
   var ctx = window.usePatternData();
   var clip = cv.clip;
   var barRef = React.useRef(null);
+  var pressRef = React.useRef(null);
   var _pos = React.useState(null); var pos = _pos[0], setPos = _pos[1];
 
   var coarse = (function () {
@@ -14284,15 +14665,40 @@ window.CreatorSelectionBar = function CreatorSelectionBar() {
 
   if (!show || (!floating && !maskBox)) return null;
 
+  // The buttons act when a pointer is pressed and released on them, not on
+  // the click: Chrome swallows the click of a tap that lands while a flick
+  // across the chart is still settling (it uses that tap to stop the
+  // fling), so Done could need a second tap right after dragging the copy.
+  // Click still serves the keyboard (Enter / Space). The click that follows
+  // a pointer press is skipped, whichever button it lands on: after Done the
+  // bar re-renders as the selection bar, and that click would otherwise hit
+  // the new button under the finger (Delete, say).
   function btn(label, icon, onClick, opts) {
     opts = opts || {};
     return h("button", {
       key: label, type: "button",
       className: "cs-selbar__btn" + (opts.primary ? " cs-selbar__btn--primary" : "") + (opts.text ? " cs-selbar__btn--text" : ""),
       "aria-label": label, title: opts.title || label,
-      // Keep focus (and the selection) where it is on a mouse press.
-      onPointerDown: function (e) { e.stopPropagation(); },
-      onClick: function (e) { e.stopPropagation(); onClick(); }
+      onPointerDown: function (e) {
+        // Keep focus (and the selection) where it is on a press.
+        e.stopPropagation();
+        if (e.button === 0 || e.pointerType !== "mouse") pressRef.current = { label: label, id: e.pointerId };
+      },
+      onPointerUp: function (e) {
+        e.stopPropagation();
+        var p = pressRef.current;
+        pressRef.current = null;
+        if (!p || p.label !== label || p.id !== e.pointerId) return;
+        window.CreatorSelectionBar._pointerActedAt = Date.now();
+        onClick();
+      },
+      onPointerCancel: function () { pressRef.current = null; },
+      onClick: function (e) {
+        e.stopPropagation();
+        var t = window.CreatorSelectionBar._pointerActedAt || 0;
+        if (e.detail > 0 && Date.now() - t < 1000) return;
+        onClick();
+      }
     }, icon ? icon : null, opts.text ? h("span", null, opts.text) : null);
   }
   var I = window.Icons;
@@ -14423,6 +14829,190 @@ window.CreatorMirrorHandle = function CreatorMirrorHandle() {
     (mir.axis === "h" || mir.axis === "both") ? grip("ay") : null
   );
 };
+
+
+/* ─── TextToolSheet.js ─── */
+/* creator/TextToolSheet.js — the text tool's sheet (audit DRAW-04 item 5).
+ *
+ * Tapping the chart with the Text tool opens this sheet (state.textSheet
+ * holds the tapped stitch). As you type, the text is shown on the chart as a
+ * floating selection in the current colour (useSelectionClipboard
+ * floatClip / replaceClip), built from the bitmap fonts in stitchFonts.js.
+ * Place closes the sheet and leaves the text floating, to drag into
+ * position and finish with Done; Cancel removes it. Once placed it is
+ * ordinary cross stitches, no longer editable as text.
+ *
+ * Text wider than the pattern gets a warning with Resize canvas and Use a
+ * smaller font. The sheet isn't modal, so the chart stays usable: on phones
+ * it sits at the bottom above the tool rail, on wider screens it's a card.
+ *
+ * Loaded as a plain <script> (concatenated into creator/bundle.js).
+ */
+window.CreatorTextToolSheet = function CreatorTextToolSheet() {
+  var h = React.createElement;
+  // The font settings last chosen, for the next sheet (the text starts empty).
+  var LAST = window.CreatorTextToolSheet.last;
+  var cv = window.useCanvas();
+  var app = window.useApp();
+  var ctx = window.usePatternData();
+  var SF = window.StitchFonts;
+  var at = cv.textSheet;
+  var clip = cv.clip;
+
+  // The sheet's contents live in state.textSheet with the tapped stitch, not
+  // in this component: the Pattern tab unmounts on other tabs, and coming
+  // back must find the text as it was, still floating. `floating` says the
+  // float on the chart is this text's.
+  var text = at && at.text || "";
+  var fontId = at && at.fontId || LAST.fontId;
+  var letterSpacing = at && at.letterSpacing != null ? at.letterSpacing : LAST.letterSpacing;
+  var lineSpacing = at && at.lineSpacing != null ? at.lineSpacing : LAST.lineSpacing;
+  var align = at && at.align || LAST.align;
+  var inputRef = React.useRef(null);
+  var floatingRef = React.useRef(false);
+  floatingRef.current = !!(at && at.floating);
+
+  function update(patch) {
+    if (!cv.setTextSheet) return;
+    cv.setTextSheet(function (t) { return t ? Object.assign({}, t, patch) : t; });
+  }
+  function setting(key) {
+    return function (v) { LAST[key] = v; var p = {}; p[key] = v; update(p); };
+  }
+  var setFontId = setting("fontId"), setLetterSpacing = setting("letterSpacing"),
+    setLineSpacing = setting("lineSpacing"), setAlign = setting("align");
+
+  var open = !!at && !!SF && app.tab === "pattern";
+  var colour = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
+  var opts = { letterSpacing: letterSpacing, lineSpacing: lineSpacing, align: align };
+  var rendered = open && text ? SF.renderText(text, fontId, opts) : null;
+  var width = rendered ? rendered.w : 0;
+  var tooWide = !!rendered && width > ctx.sW;
+
+  // Each change re-draws the floating text where it is.
+  React.useEffect(function () {
+    if (!open || !clip) return;
+    if (!rendered || !rendered.cells.length || !colour) {
+      if (floatingRef.current && clip.floatActive) clip.cancel();
+      if (floatingRef.current) update({ floating: false });
+      floatingRef.current = false;
+      return;
+    }
+    var c = SF.textClip(rendered, Object.assign({}, colour));
+    if (floatingRef.current && clip.floatActive) clip.replaceClip(c);
+    else if (clip.floatClip(c, at.x, at.y, "text")) { floatingRef.current = true; update({ floating: true }); }
+  }, [open, text, fontId, letterSpacing, lineSpacing, align, colour && colour.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The float was placed or cancelled from its own bar (or Esc / Undo /
+  // another tool): the sheet's job is done.
+  React.useEffect(function () {
+    if (floatingRef.current && clip && !clip.floatActive) {
+      floatingRef.current = false;
+      if (cv.setTextSheet) cv.setTextSheet(null);
+    }
+  }, [clip && clip.floatActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Another tool picked before any text was typed: the sheet goes with it.
+  // (Once text floats the tool is "float", and leaving that places it.)
+  React.useEffect(function () {
+    if (at && cv.activeTool !== "text" && cv.activeTool !== "float" && cv.setTextSheet) cv.setTextSheet(null);
+  }, [cv.activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus the text box when the sheet appears.
+  React.useEffect(function () {
+    if (!open) return undefined;
+    var t = setTimeout(function () { try { inputRef.current && inputRef.current.focus(); } catch (_) {} }, 30);
+    return function () { clearTimeout(t); };
+  }, [open, at && at.x, at && at.y]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!open) return null;
+
+  function close() { if (cv.setTextSheet) cv.setTextSheet(null); }
+  function cancel() {
+    if (floatingRef.current && clip && clip.floatActive) clip.cancel();
+    floatingRef.current = false;
+    close();
+  }
+  function place() {
+    // Leave the text floating for dragging; Done on its bar places it.
+    floatingRef.current = false;
+    close();
+  }
+  function smaller() {
+    if (fontId !== "block") { setFontId("block"); return; }
+    if (letterSpacing > 0) setLetterSpacing(0);
+  }
+  var canShrink = fontId !== "block" || letterSpacing > 0;
+
+  function stepper(label, value, set, min, max) {
+    return h("div", { className: "cs-textsheet__row" },
+      h("span", { className: "cs-textsheet__label" }, label),
+      h("div", { className: "cs-textsheet__stepper", role: "group", "aria-label": label },
+        h("button", { type: "button", "aria-label": "Less " + label.toLowerCase(), disabled: value <= min,
+          onClick: function () { set(Math.max(min, value - 1)); } }, window.Icons.minus()),
+        h("span", { "aria-live": "polite" }, value),
+        h("button", { type: "button", "aria-label": "More " + label.toLowerCase(), disabled: value >= max,
+          onClick: function () { set(Math.min(max, value + 1)); } }, window.Icons.plus())
+      )
+    );
+  }
+  function segmented(label, value, set, options) {
+    return h("div", { className: "cs-textsheet__row" },
+      h("span", { className: "cs-textsheet__label" }, label),
+      h("div", { role: "radiogroup", "aria-label": label, className: "cs-textsheet__seg" },
+        options.map(function (o) {
+          var on = value === o[0];
+          return h("button", { key: o[0], type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+            className: on ? "is-on" : "", onClick: function () { set(o[0]); } }, o[1]);
+        })
+      )
+    );
+  }
+
+  return h("div", { className: "cs-textsheet", role: "dialog", "aria-modal": "false", "aria-labelledby": "cs-textsheet-title",
+      onKeyDown: function (e) { if (e.key === "Escape") { e.stopPropagation(); cancel(); } } },
+    // Place sits in the header, so it's in reach without scrolling the
+    // sheet on a phone.
+    h("div", { className: "cs-textsheet__head" },
+      h("span", { id: "cs-textsheet-title", className: "cs-textsheet__title" }, "Add text"),
+      h("div", { className: "cs-textsheet__head-actions" },
+        h("button", { type: "button", className: "cs-textsheet__btn cs-textsheet__btn--primary", disabled: !rendered || !colour,
+          onClick: place }, "Place"),
+        h("button", { type: "button", className: "cs-textsheet__close", "aria-label": "Cancel", onClick: cancel }, window.Icons.x())
+      )
+    ),
+    h("textarea", {
+      ref: inputRef, className: "cs-textsheet__input", rows: 2, value: text, maxLength: 200,
+      placeholder: "Type a name, a date or a word", "aria-label": "Text",
+      onChange: function (e) { update({ text: e.target.value }); },
+      // Undo, redo and select-all belong to the text box while typing, not
+      // to the chart (Ctrl+Z there would cancel the text being typed).
+      onKeyDown: function (e) {
+        var k = (e.key || "").toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && (k === "z" || k === "y" || k === "a")) e.stopPropagation();
+      }
+    }),
+    !colour && h("p", { className: "cs-textsheet__note" }, "Choose a colour in the palette first."),
+    segmented("Font", fontId, setFontId, [["block", "Block"], ["serif", "Serif"]]),
+    stepper("Letter spacing", letterSpacing, setLetterSpacing, 0, 4),
+    stepper("Line spacing", lineSpacing, setLineSpacing, 0, 4),
+    segmented("Align", align, setAlign, [["left", "Left"], ["centre", "Centre"], ["right", "Right"]]),
+    rendered && h("p", { className: "cs-textsheet__size" },
+      width + " × " + rendered.h + " stitches, " + rendered.cells.length.toLocaleString() + " stitch" + (rendered.cells.length === 1 ? "" : "es")),
+    rendered && rendered.missing.length > 0 && h("p", { className: "cs-textsheet__note" },
+      "Not in this font, shown as a question mark: " + rendered.missing.join(" ")),
+    tooWide && h("div", { className: "cs-textsheet__warn", role: "status" },
+      h("span", { className: "cs-textsheet__warn-icon", "aria-hidden": "true" }, window.Icons.warning()),
+      h("span", null, "This text is " + width + " stitches wide; your pattern is " + ctx.sW + "."),
+      h("div", { className: "cs-textsheet__warn-actions" },
+        h("button", { type: "button", onClick: function () { if (app.openResizeCanvas) app.openResizeCanvas(); } }, "Resize canvas"),
+        canShrink && h("button", { type: "button", onClick: smaller }, "Use a smaller font")
+      )
+    ),
+    h("p", { className: "cs-textsheet__hint" }, "After Place, drag the text into position and press Done.")
+  );
+};
+window.CreatorTextToolSheet.last = { fontId: "block", letterSpacing: 1, lineSpacing: 1, align: "left" };
 
 
 /* ─── SplitPane.js ─── */
@@ -15736,6 +16326,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "lasso") {
     var lm = cv.lassoMode === "polygon" ? "Polygon" : cv.lassoMode === "magnetic" ? "Magnetic" : "Freehand";
     badgeLabel = "Lasso \xB7 " + lm; badgeBg = "var(--accent-soft)"; badgeColor = "var(--accent-hover)"; badgeDot = "var(--accent)";
+  } else if (cv.activeTool === "text") {
+    badgeLabel = "Text"; badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
   } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
     badgeLabel = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool] + (cv.mirror && cv.mirror.on ? " \u00B7 Mirror" : "");
     badgeBg = "var(--success-soft)"; badgeColor = "var(--success)"; badgeDot = "var(--success)";
@@ -15823,7 +16415,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     cv.activeTool === "magicWand" || cv.activeTool === "lasso" ||
     cv.activeTool === "colourReplace" || cv.activeTool === "cleanup" ||
     cv.activeTool === "denoise" || cv.activeTool === "move" || cv.activeTool === "float" ||
-    cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse" || !!(cv.mirror && cv.mirror.on);
+    cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse" || cv.activeTool === "text" ||
+    !!(cv.mirror && cv.mirror.on);
 
   var stitchTypeOptions = [
     { id:"cross", label:"Cross" },
@@ -15954,7 +16547,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           title:"Paste, then drag it into place (Ctrl+V)", "aria-label":"Paste"
         }, window.Icons.clipboard(), " Paste"),
         // Shapes (audit DRAW-04): drag on the chart to draw one.
-        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]].map(function(t) {
+        [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]].map(function(t) {
           var on = cv.activeTool === t[0];
           return h("button", {
             key:"shape-" + t[0], className:"tb-btn"+(on?" tb-btn--on":""),
@@ -15967,7 +16560,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               }
               setMorePanelOpen(false);
             },
-            title:t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
+            title: t[0] === "text" ? "Text \u2014 tap where it should start, then type" : t[1] + " \u2014 drag on the chart; outline or filled in the Tools tab", "aria-label":t[1] + " tool",
             "aria-pressed": on ? "true" : "false"
           }, t[2], " " + t[1]);
         }),
@@ -19545,15 +20138,15 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (cv.cancelLasso) cv.cancelLasso();
     if (cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
   }
-  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()]];
+  var shapeTools = [["line", "Line", window.Icons.shapeLine()], ["rect", "Rectangle", window.Icons.shapeRect()], ["ellipse", "Ellipse", window.Icons.shapeEllipse()], ["text", "Text", window.Icons.textTool()]];
   var shapesSection = h("div", {className:"cs-toolsec"},
     h("div", {className:"cs-toolsec__title"}, "Shapes"),
-    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr 1fr"}},
+    h("div", {className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
       shapeTools.map(function(t) {
         var on = cv.activeTool === t[0];
         return h("button", {key:t[0], type:"button", className:"cs-seltools__btn" + (on ? " cs-seltools__btn--on" : ""),
           "aria-pressed": on ? "true" : "false", onClick:function(){ pickShapeTool(t[0]); },
-          title: t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
+          title: t[0] === "text" ? "Text: tap where it should start, then type" : t[1] + ": drag on the chart"}, t[2], h("span", null, t[1]));
       })
     ),
     h("div", {role:"radiogroup", "aria-label":"Rectangle and ellipse", className:"cs-seltools", style:{gridTemplateColumns:"1fr 1fr"}},
@@ -20181,6 +20774,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       : "Navigate \u2014 drag to pan the chart. Right-click a stitch for its menu. Press H or choose Draw to edit.";
   } else if (app.eyedropperEmpty) {
     statusText = "That cell is empty \u2014 no colour to sample.";
+  } else if (cv.activeTool === "text") {
+    statusText = (coarse ? "Text \u2014 tap" : "Text \u2014 click") + " where the text should start, then type it.";
   } else if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") {
     var shapeName = { line: "Line", rect: "Rectangle", ellipse: "Ellipse" }[cv.activeTool];
     statusText = shapeName + " \u2014 " + (coarse ? "drag" : "drag on the chart") + (cv.activeTool === "line" ? " from one end to the other" : " from one corner to the other") +
@@ -20327,6 +20922,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         if (cv.activeTool === "eyedropper") return "copy";
         if (cv.activeTool === "float") return "move";
         if (cv.activeTool === "line" || cv.activeTool === "rect" || cv.activeTool === "ellipse") return "crosshair";
+        if (cv.activeTool === "text") return "text";
         if (selTool) return "crosshair";
         if (app.previewActive) return "default";
         if (cv.activeTool === "fill") return "cell";
@@ -20364,6 +20960,8 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     window.CreatorSelectionBar && h(window.CreatorSelectionBar, null),
     // Grips for moving the mirror-drawing axes (audit DRAW-04)
     window.CreatorMirrorHandle && h(window.CreatorMirrorHandle, null),
+    // The text tool's sheet (audit DRAW-04)
+    window.CreatorTextToolSheet && h(window.CreatorTextToolSheet, null),
 
     // Context menu overlay
     cv.contextMenu && h(window.CreatorContextMenu, null),
