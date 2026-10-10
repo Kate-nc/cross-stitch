@@ -61,6 +61,29 @@ Counts say which they mean, never "colours":
 `{ threads, symbols, blends }`; `threadCountsSentence` and
 `threadCountsShort` format it. The terminology lint flags "Max colours".
 
+### Plain names for the settings
+Settings and tools are named for what they do to the pattern, not for the
+algorithm behind them. The technical name may appear only inside an
+**Advanced** disclosure in the Convert sidebar, for people who want it.
+
+| Control | Plain name | Not |
+|---|---|---|
+| Convert section | **Clean-up** | Quality |
+| Dither setting | **Shading**: Off, **Smooth blend** (Subtle, Balanced, Strong), **Pattern blend** (Coarse, Medium, Fine) | Dithering, Atkinson, Bayer, 2×2/4×4/8×8 |
+| Smooth-dither clean-up | **Fewer single stitches in blends** | Smooth dithering |
+| Pre-smoothing | **Soften grainy photos** | Smooth, Median, Gaussian |
+| Pre-sharpening | **Sharpen details** | Pre-sharpen, luminance, chroma |
+| Symbol separation | **Keep look-alike colours apart**, **How strict** | Separate similar neighbours, Separation strength |
+| Colour distance | **Difference** | ΔE, delta-E, dE |
+| Line-art clean-up tool | **Fix outline colours** | Cleanup mode |
+| Denoise tool | **Tidy stray stitches** | Denoise mode |
+| Tool thresholds | **How strict**: Gentle, Balanced, Strong | Tol, Thr, ΔE values |
+
+The terminology lint flags ΔE (and its source escape), luminance, chroma,
+Gaussian, Bayer and Atkinson in string literals in the Creator, the help
+drawer and the welcome tours. Add `// terminology-lint-allow` to a line
+inside an Advanced disclosure.
+
 ---
 
 ## Verbs (Save vs. Download vs. Export)
@@ -124,6 +147,7 @@ opts in once per device.
 | File (when you mean an entry in storage) | Project / Pattern |
 | Convert (without context) | Convert palette / Convert to Anchor |
 | Max colours, "N colours" for a palette count | Threads (max); "N threads · M symbols" |
+| ΔE, luminance, chroma, Gaussian, Bayer, Atkinson | Plain names (see "Plain names for the settings") |
 
 ---
 

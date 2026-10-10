@@ -170,7 +170,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       var hasResult = gen.disambigData != null;
       var canRun = ctx.pat && ctx.pal && !app.busy;
       return h("div", {style:{padding:"8px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}},
-        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Separate similar neighbours"),
+        h("span", {style:{flex:1,color:"var(--text-secondary)",fontWeight:500}}, "Keep look-alike colours apart"),
         hasResult && gen.disambigData.swaps > 0 && h("span", {style:{color:"var(--text-tertiary)"}},
           gen.disambigData.swaps.toLocaleString(), " cell", gen.disambigData.swaps !== 1 ? "s" : "", " corrected"
         ),

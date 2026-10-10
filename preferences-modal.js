@@ -321,13 +321,13 @@
       ),
 
       h(Section, { title: "Image preparation" },
-        h(Row, { label: "Dithering", desc: "How the Creator blends colours across pixels. Off (the default) gives the tidiest charts; Balanced suits photos. Used when the picture type isn't guessed." },
+        h(Row, { label: "Shading", desc: "How the Creator blends neighbouring threads for soft gradients. Off (the default) gives the tidiest charts; Balanced suits photos. Used when the picture type isn't guessed." },
           h(Segmented, { value: dith[0], onChange: dith[1], options: [
-            { value: "off", label: "Off" }, { value: "weak", label: "Weak" },
+            { value: "off", label: "Off" }, { value: "weak", label: "Subtle" },
             { value: "balanced", label: "Balanced" }, { value: "strong", label: "Strong" }
           ]})
         ),
-        h(Row, { label: "Smooth dithering", desc: "Tidies up the speckled look you can get with strong dithering." },
+        h(Row, { label: "Fewer single stitches in blends", desc: "Keeps shading in small clumps instead of scattered single stitches." },
           h(Switch, { checked: smooth[0], onChange: smooth[1] })
         ),
         h(Row, { last: true, label: "Reference image opacity", desc: "How visible your source photo is when overlaid on the chart." },

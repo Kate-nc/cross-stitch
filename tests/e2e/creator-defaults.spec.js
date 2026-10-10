@@ -4,7 +4,7 @@
 const { test, expect } = require('@playwright/test');
 
 const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
-const SECTION_TITLES = ['Size & fabric', 'Colours', 'Background', 'Quality', 'Adjust image', 'Project'];
+const SECTION_TITLES = ['Size & fabric', 'Colours', 'Background', 'Clean-up', 'Adjust image', 'Project'];
 
 // The value under an estimate label in the Preview Estimates card.
 async function estimate(page, label) {

@@ -285,6 +285,28 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // never reach IndexedDB or the Stash Manager — pattern saves only happen via
   // the explicit handleOpenInTracker handoff (which bypasses the guard).
   const io = useProjectIOHook(Object.assign({}, state, {isActive: isActive}), history, {onSwitchToTrack});
+
+  // ── First-visit tour, by way in (audit COMMON-06) ──
+  // Picked once the Creator knows what it opened: a scratch grid (after the
+  // New design sheet), a picture to convert, or a chart with no picture (an
+  // import). null = not decided yet; '' = no tour.
+  // A pattern already there (an imported chart or a saved project) wins over
+  // its picture: a saved project's picture is restored after the pattern
+  // (useProjectIO's Image.onload), and its tour is about the chart, not
+  // about generating.
+  const tourWayIn=state.isScratchMode?'scratch':state.pat?'import':(state.img&&state.img.src)?'convert':null;
+  const[tourPage,setTourPage]=React.useState(null);
+  React.useEffect(()=>{
+    if(tourPage!==null||!state.bootSettled||state.newDesignOpen||!tourWayIn)return;
+    const page='creator-'+tourWayIn;
+    setTourPage(window.WelcomeWizard&&window.WelcomeWizard.shouldShow(page)?page:'');
+  },[tourPage,state.bootSettled,state.newDesignOpen,tourWayIn]);
+  // Help > Getting started and Preferences replay the tour for the current way in.
+  React.useEffect(()=>{
+    function onShow(e){if(e&&e.detail&&e.detail.page==='creator')setTourPage('creator-'+(tourWayIn||'convert'));}
+    window.addEventListener('cs:showWelcome',onShow);
+    return()=>window.removeEventListener('cs:showWelcome',onShow);
+  },[tourWayIn]);
   usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
 
@@ -1382,6 +1404,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {/* Generating: the stage, a progress bar and Cancel (audit IMG-07). */}
       {state.busy&&window.CreatorGenerateProgress&&<window.CreatorGenerateProgress stage={state.progressStage} onCancel={state.cancelGenerate} cancellable={state.generateCancellable}/>}
       <window.CreatorToastContainer/>
+      {/* The tour for the way in (audit COMMON-06): converting a picture,
+          drawing on a blank grid, or an imported chart. */}
+      {tourPage&&isActive&&window.WelcomeWizard&&<window.WelcomeWizard key={tourPage} page={tourPage} onClose={()=>setTourPage('')}/>}
       {_showFirstStitchCoach && window.Coachmark && React.createElement(window.Coachmark, {
         id: 'firstStitch_creator',
         title: 'Paint your first stitch',
@@ -1594,14 +1619,8 @@ function UnifiedApp(){
   },[]);
 
   const[statsModal,setStatsModal]=React.useState(null);
-  const[welcomeOpen,setWelcomeOpen]=React.useState(()=>!!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('creator')));
   // Global "?" shortcut → open Help Centre. Routes to home or design depending
   // on which mode the user is currently viewing.
-  React.useEffect(()=>{
-    function onShow(e){if(e&&e.detail&&e.detail.page==='creator') setWelcomeOpen(true);}
-    window.addEventListener('cs:showWelcome',onShow);
-    return()=>window.removeEventListener('cs:showWelcome',onShow);
-  },[]);
   React.useEffect(()=>{
     const h=()=>{
       if(mode==='stats'){setStatsModal('help');}
@@ -1652,7 +1671,6 @@ function UnifiedApp(){
       {statsModal==='help'&&<SharedModals.Help defaultTab="creator" onClose={()=>setStatsModal(null)} />}
       {statsModal==='shortcuts'&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setStatsModal(null)} />}
     </div>}
-    {welcomeOpen&&mode==='design'&&window.WelcomeWizard&&<window.WelcomeWizard page="creator" onClose={()=>setWelcomeOpen(false)}/>}
     {window.HelpHintBanner&&<window.HelpHintBanner/>}
   </>;
 }

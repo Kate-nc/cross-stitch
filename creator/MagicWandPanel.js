@@ -205,8 +205,8 @@ window.MagicWandPanel = function MagicWandPanel() {
       h("div", { className: "tb-grp" },
         btn("Target count", function() { cv.setReduceMode("count"); cv.setReducePreview(null); },
           { active: cv.reduceMode === "count", title: "Reduce to a specific number of colours", style: { fontSize: 10 } }),
-        btn("Near-duplicates (\u0394E)", function() { cv.setReduceMode("threshold"); cv.setReducePreview(null); },
-          { active: cv.reduceMode === "threshold", title: "Merge any pair of colours closer than a \u0394E threshold", style: { fontSize: 10 } })
+        btn("Near-duplicates", function() { cv.setReduceMode("threshold"); cv.setReducePreview(null); },
+          { active: cv.reduceMode === "threshold", title: "Merge colours that are almost the same", style: { fontSize: 10 } })
       ),
       // Count mode: target number input
       cv.reduceMode !== "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
@@ -217,9 +217,9 @@ window.MagicWandPanel = function MagicWandPanel() {
           style: { width: 50, padding: "1px 4px" }
         })
       ),
-      // Threshold mode: ΔE slider
+      // Threshold mode: how close colours must be to merge
       cv.reduceMode === "threshold" && h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
-        "\u0394E\u2264",
+        "Closer than",
         h("input", {
           type: "range", min: 1, max: 20, step: 0.5, value: cv.reduceThreshold,
           onChange: function(e) { cv.setReduceThreshold(Number(e.target.value)); },
@@ -254,15 +254,15 @@ window.MagicWandPanel = function MagicWandPanel() {
           swatch(toE ? toE.rgb : null), h("span", null, m.to + " " + m.toName),
           h("span", { style: { color: "var(--text-tertiary)" } }, "(" + m.count + " stitches)"),
           de != null && h("span", {
-            title: "CIEDE2000 colour distance between these two threads",
+            title: "How different these two threads look (lower is more alike)",
             style: { fontSize: 9, fontWeight: 600, color: deBadgeColor,
               border: "1px solid " + deBadgeColor, borderRadius: 3, padding: "0 3px", lineHeight: "14px" }
-          }, "\u0394E\u00a0" + de)
+          }, "Difference" + "\u00a0" + de)
         );
       })
     ) : cv.reducePreview && cv.reducePreview.length === 0 ? h("div", {
       style: { paddingTop: 6, color: "var(--success)", fontStyle: "italic" }
-    }, cv.reduceMode === "threshold" ? "No colour pairs are within this \u0394E threshold." : "Already at target — no merges needed.")
+    }, cv.reduceMode === "threshold" ? "No colours are this close." : "Already at target — no merges needed.")
     : null
   ) : null;
 

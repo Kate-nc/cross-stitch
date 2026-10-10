@@ -88,12 +88,12 @@
     var label = (window.MatchQuality && window.MatchQuality.tierLabel(t.tier)) || t.tier;
     var diff = (window.MatchQuality && props.sourceLab && t.lab)
       ? window.MatchQuality.describeLabDiff(props.sourceLab, t.lab) : '';
-    var title = label + ' (\u0394E ' + (t.deltaE != null ? t.deltaE : '?') + ')' + (diff ? ' \u2014 ' + diff : '');
+    var title = label + ' (difference ' + (t.deltaE != null ? t.deltaE : '?') + ')' + (diff ? ' \u2014 ' + diff : '');
     return h('span', { className: 'cs-adapt-chip', style: chipBase(token), title: title },
       h('span', { style: dotStyle(token) }),
       label,
       h('span', { style: { opacity: 0.7, marginLeft: 4, fontVariantNumeric: 'tabular-nums' } },
-        '\u0394E ' + (t.deltaE != null ? t.deltaE : '?'))
+        'Difference ' + (t.deltaE != null ? t.deltaE : '?'))
     );
   }
   function chipBase(token) {
@@ -604,7 +604,7 @@
                   style: { width: 140 }
                 }),
                 h('span', { style: { fontVariantNumeric: 'tabular-nums', fontWeight: 500, color: 'var(--text-primary)' } },
-                  '\u0394E ' + threshold)
+                  'Difference ' + threshold)
               ),
               Object.keys(overrides).length > 0 && h('button', {
                 onClick: handleResetOverrides,

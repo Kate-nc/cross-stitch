@@ -48,14 +48,16 @@
           body: "Start from Home > Create new, which has three ways in. Turn a photo into a pattern takes a picture (JPG, PNG, GIF, WebP or BMP) and chooses the threads for you. Draw on a blank grid asks first for the size (Small motif 30 × 30, Card 50 × 70, Medium 100 × 100, Large 150 × 150 or your own), the fabric, and optionally a picture to trace over, then opens an empty grid to design stitch by stitch. Import a chart opens a PDF or .oxs chart, or a saved .json project. If you pick a file that suits a different tile, you're asked whether to use that one instead. You can also drop a file onto the Create new tab, or use File > Open… inside the Creator.",
           bullets: [
             ["What kind of picture is this?", "The first Convert setting picks good starting values for the picture. Graphic or logo uses up to 8 threads, no shading and no blends, and leaves a plain border background unstitched. Photo uses up to 20 threads, subtle shading, blends and balanced cleanup. Pixel art uses the picture's own colours (up to 30) at its own size, one stitch per pixel, for pictures up to 500 pixels across. The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows Custom. To start every picture from your own defaults instead, turn off Guess the picture type in Preferences > Pattern Creator."],
-            ["Convert settings", "Until a pattern has been generated, the sidebar shows how the image will be converted, in this order: What kind of picture is this?, Size & fabric (the size in stitches and the fabric count), Colours, Background, Quality, then Adjust image (brightness, contrast and sharpening, folded away because most pictures don't need it). The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
+            ["Convert settings", "Until a pattern has been generated, the sidebar shows how the image will be converted, in this order: What kind of picture is this?, Size & fabric (the size in stitches and the fabric count), Colours, Background, Clean-up, then Adjust image (brightness, contrast and sharpening, folded away because most pictures don't need it). The technical names for a few settings are kept in an Advanced section under them, for anyone who wants them. The preview updates as you change them. On a phone, or a tablet held upright, the sidebar is a sheet at the bottom of the screen: tap Settings to open it."],
             ["Generating", "While a pattern is being made, a card shows each step (choosing threads, matching colours, cleaning up stray stitches, building the chart) and how far along it is. Large patterns with shading can take a minute or more on a phone. Cancel, or the Escape key, stops it and leaves your settings, and any pattern you already had, as they were."],
             ["Compare options", "Under the preview, Compare options shows the picture at three neighbouring settings side by side: Size (25% smaller, the current size and 25% larger) or Threads (5 fewer, the current number and 5 more). Each shows its stitches, threads, about how many hours it would take and how much confetti it has. Choose one to use its setting. The previews are smaller versions made in the background, so the real pattern can differ slightly. On a phone, tap Compare options to open it, then swipe sideways."],
             ["Pattern size", "Set the size in Stitches (width × height, with Lock aspect ratio) or as a Finished size in centimetres or inches on the chosen fabric: type 18 cm wide on 14-count and the pattern becomes 99 stitches wide. The chips fit the picture to a Bookmark (5 × 18 cm), Card (5 × 7 in), 15 cm hoop or A4, and Picture size uses one stitch per pixel, scaled evenly to stay between 10 and 500 stitches. A new picture starts with its long side at 100 stitches, or fewer if the picture is smaller than that (a picture under 10 pixels across is scaled up evenly to the 10-stitch minimum). The line underneath always shows the size in stitches and the finished size. You'll see a note if a very wide or tall picture leaves its short side under 20 stitches (cropping helps), or if the pattern has more stitches than the picture has pixels, when each pixel becomes a block of stitches. Sizes go from 10 to 500 stitches each way."],
             ["Threads (max)", "Limits the pattern to between 2 and 100 threads. Each thread is one colour of stranded cotton, so this is how many to buy. The picture type sets a starting value; with Guess the picture type turned off in Preferences > Pattern Creator, pictures start from the value set there (15 unless you change it)."],
             ["Threads and symbols", "A blend stitches two threads together in one stitch, and gets its own symbol on the chart. So a pattern can have more chart symbols than threads: 24 threads, 40 chart symbols (16 are blends of two threads) means 24 threads to buy and 40 symbols to follow."],
             ["Use only stash threads", "Restricts colour matching to the DMC and Anchor threads you own in the Stash Manager."],
-            ["Dithering", "Off (the default) maps each pixel to its closest thread. Atkinson (Subtle, Balanced or Strong) blends neighbouring colours for smoother gradients; Bayer (2×2, 4×4 or 8×8) blends with a regular pattern. More dithering means more isolated stitches."],
+            ["Shading", "Off (the default) gives each pixel its closest thread. Smooth blend (Subtle, Balanced or Strong) mixes neighbouring threads for softer gradients; Pattern blend (Coarse, Medium or Fine) mixes them in a regular pattern. More shading means more single stitches. With Smooth blend, Fewer single stitches in blends keeps the mix in small clumps."],
+            ["Keep look-alike colours apart", "Gives colours that look almost the same next to each other different chart symbols that are easy to tell apart. How strict sets how alike two colours must be before this happens."],
+            ["Soften grainy photos and Sharpen details", "In Adjust image, Soften grainy photos smooths away noise before the threads are chosen, which helps photos taken in low light. Sharpen details brings out fine lines and edges."],
             ["Min stitches per colour", "Drops colours that are only used a few times — useful for tidying up speckled areas."],
             ["Confetti Cleanup", "Merges isolated single stitches into the surrounding colour, so there are fewer thread changes. It also folds away the in-between shades that appear along the edges of logos and other flat pictures, where two colours (or a colour and the skipped background) meet, so they don't each need a thread of their own."],
             ["Skip background", "Treats a background colour as empty fabric. When the edges of a picture are one plain colour this is switched on for you, with an Undo button in the message that appears. To choose the colour yourself, press Pick, click it in the source image, then adjust Tolerance."],
@@ -149,22 +151,22 @@
           ]
         },
         {
-          heading: "Cleanup mode",
-          body: "Cleanup mode removes dark border lines left over from converting a line-art illustration. Open More tools in the tool strip and choose Cleanup mode.",
+          heading: "Fix outline colours",
+          body: "Fix outline colours removes dark border lines left over from converting a line-art illustration. Open More tools in the tool strip and choose Fix outline colours.",
           bullets: [
-            ["Auto", "Detects the main dark line colour and shows an overlay of the stitches that will be replaced. Adjust the tolerance to widen or narrow the selection."],
+            ["Auto", "Finds the main dark line colour and shows an overlay of the stitches that will be replaced. How strict (Gentle, Balanced or Strong) narrows or widens the selection."],
             ["Brush", "Paint the stitches you want to clean up by hand — useful when only a small area needs it."],
             ["Apply", "Nothing changes until you press Apply, and the whole clean-up is a single undo step."]
           ]
         },
         {
-          heading: "Denoise mode",
-          body: "Converting an image always introduces some noise. Denoise mode finds and fixes three kinds of artefact without repainting by hand. Open it from More tools in the tool strip.",
+          heading: "Tidy stray stitches",
+          body: "Converting a picture always leaves some stray stitches. Tidy stray stitches finds and fixes three kinds without repainting by hand. Open it from More tools in the tool strip.",
           bullets: [
-            ["Palette", "Merges near-duplicate threads that colour matching created by accident — for example two almost identical yellows. The slider (0 to 30) sets how close two colours must be; the more-used colour absorbs the rarer one."],
-            ["Speckle (off by default)", "Removes stray groups of up to 3 stitches completely surrounded by one colour. Off by default because dithering looks like speckle; a warning appears if your pattern looks heavily dithered."],
+            ["Palette", "Merges threads that are almost the same, which colour matching sometimes picks by accident — for example two almost identical yellows. How strict (Gentle, Balanced or Strong) sets how close two colours must be; the more-used colour absorbs the rarer one."],
+            ["Speckle (off by default)", "Removes stray groups of up to 3 stitches completely surrounded by one colour. Off by default because shading looks like speckle; a warning appears if your pattern has a lot of shading."],
             ["Fringe", "Smooths the thin band of in-between colours that forms along the edges of solid areas in an anti-aliased image."],
-            ["Auto and Brush", "Auto shows an overlay of every stitch that would change, with counts for each operation; press Re-run after changing settings. Brush lets you paint the area to fix by hand."],
+            ["Auto and Brush", "Auto shows an overlay of every stitch that would change, with counts for each kind; press Look again after changing settings. Brush lets you paint the area to fix by hand."],
             ["Apply / Cancel", "Nothing changes until you press Apply, and the whole operation is one undo step."]
           ]
         },
@@ -172,7 +174,7 @@
           heading: "Adapting to your stash or another brand",
           body: "Adapt makes a copy of the pattern that uses threads you own, or a different brand. Use Adapt to my stash or Adapt to brand on the Project tab.",
           bullets: [
-            ["Suggestions", "Each colour is matched to the nearest available thread by ΔE, a measure of how different two colours look — lower is closer. Review the suggestions before confirming."],
+            ["Suggestions", "Each colour is matched to the available thread that looks most like it; the difference shown is how far apart they look, and lower is closer. Review the suggestions before confirming."],
             ["A new project", "The adapted pattern is saved as a separate project, so the original is untouched."]
           ]
         },
@@ -396,7 +398,7 @@
             ["Stitch Score", "A 0–100 rating shown on the Pattern tab: 100 minus the percentage of confetti stitches. Higher is easier to stitch."],
             ["Fabric count", "Stitches per inch of fabric. Common values: 11 count (large stitches), 14 count (standard — 14 stitches ≈ 1 inch), 18 count (fine), 28 count (very fine, usually worked over two threads)."],
             ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Shown in the pattern as two DMC numbers joined with '+', e.g. '310+550'."],
-            ["ΔE (delta-E)", "A measure of how different two colours look — lower means a closer match. Used when matching image colours to threads and when suggesting replacement threads."]
+            ["Difference", "How different two colours look — lower means a closer match. Shown when matching picture colours to threads and when suggesting replacement threads."]
           ]
         },
         {
@@ -436,7 +438,7 @@
           body: "The Stitch Score (0–100) on the Pattern tab rates how pleasant the pattern will be to stitch before you start.",
           bullets: [
             ["How it is worked out", "100 minus the percentage of stitches that are confetti (isolated single stitches or tiny clusters)."],
-            ["Improving the score", "Use Confetti Cleanup and Min stitches per colour in the Creator, or Denoise mode on a finished pattern."]
+            ["Improving the score", "Use Confetti Cleanup and Min stitches per colour in the Creator, or Tidy stray stitches on a finished pattern."]
           ]
         }
       ]
@@ -577,7 +579,7 @@
     {
       id: "creator-walkthrough",
       heading: "Take the Creator walkthrough",
-      body: "A short guided tour of where things live and how to start a new pattern.",
+      body: "A short tour for the way you are working: turning a picture into a pattern, drawing on a blank grid, or an imported chart. It names the buttons as they appear on your device.",
       action: { label: "Replay the Creator walkthrough", kind: "wizard", page: "creator" }
     },
     {

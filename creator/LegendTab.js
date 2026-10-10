@@ -470,7 +470,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
-                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 \u0394E\u2080\u2080 " + similarPairs[p.id].dE.toFixed(1),
+                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
                       "aria-label": "Compare with similar colour DMC " + similarPairs[p.id].otherId,
                       role: "button",
                       tabIndex: 0,

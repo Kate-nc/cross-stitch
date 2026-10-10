@@ -3,6 +3,51 @@
    Loaded as a plain <script> before the main Babel script.
    Depends on: CreatorContext, GenerationContext (context.js) */
 
+// "How strict" for Fix outline colours and Tidy stray stitches (audit
+// COMMON-09): three steps mapped onto the tools' existing values (outline
+// tolerance 0-100, default 40; stray-stitch colour distance 1-30, default 5),
+// so no colour-science numbers are shown.
+var TOOL_STRICTNESS = {
+  outline: [{ id: "gentle", label: "Gentle", value: 20 }, { id: "balanced", label: "Balanced", value: 40 }, { id: "strong", label: "Strong", value: 70 }],
+  tidy:    [{ id: "gentle", label: "Gentle", value: 3 },  { id: "balanced", label: "Balanced", value: 5 },  { id: "strong", label: "Strong", value: 10 }]
+};
+// The step nearest to a stored value (older projects may hold any number).
+function toolStrictnessLevel(levels, value) {
+  var best = levels[1];
+  levels.forEach(function (l) { if (Math.abs(l.value - value) < Math.abs(best.value - value)) best = l; });
+  return best;
+}
+window.TOOL_STRICTNESS = TOOL_STRICTNESS;
+window.toolStrictnessLevel = toolStrictnessLevel;
+
+function toolStrictnessControl(h, levels, value, onPick, name) {
+  var cur = toolStrictnessLevel(levels, value);
+  return h(React.Fragment, null,
+    h("span", {
+      style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
+    }, "How strict"),
+    h("div", { role: "radiogroup", "aria-label": name + ": how strict", style: { display: "inline-flex", gap: 2 } },
+      levels.map(function (l, i) {
+        var on = l.id === cur.id;
+        return h("button", {
+          key: l.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false", tabIndex: on ? 0 : -1,
+          className: "tb-btn" + (on ? " tb-btn--on" : ""), style: { padding: "1px 8px", fontSize: 11 },
+          onClick: function () { onPick(l.value); },
+          onKeyDown: function (e) {
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
+            e.preventDefault();
+            var next = levels[(i + step + levels.length) % levels.length];
+            onPick(next.value);
+            var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.children[(i + step + levels.length) % levels.length];
+            if (sib) sib.focus();
+          }
+        }, l.label);
+      })
+    )
+  );
+}
+
 window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = window.usePatternData();
   var cv = window.useCanvas();
@@ -171,7 +216,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     cleanupRow = h("div", {
       className: "swatch-strip-row",
       role: "group",
-      "aria-label": "Cleanup mode controls",
+      "aria-label": "Fix outline colours controls",
       style: { gap: "var(--s-2)", paddingTop: "var(--s-1)", alignItems: "center" }
     },
       // ── Target colour chip ────────────────────────────────────────────────
@@ -179,18 +224,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5}
       }, "Target"),
       cleanupTgtChip,
-      // ── Tolerance slider ──────────────────────────────────────────────────
-      h("span", {
-        style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
-      }, "Tol"),
-      h("input", {
-        type:"range", min:0, max:100, step:1, value: cv.cleanupTolerance,
-        onChange: function(e){ cv.setCleanupTolerance(Number(e.target.value)); },
-        style:{width:60},
-        title:"Colour tolerance: " + cv.cleanupTolerance + " (\u0394E \u2248" + Math.round(cv.cleanupTolerance / 100 * 30) + ")",
-        "aria-label": "Colour tolerance"
-      }),
-      h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:20,textAlign:"right"}}, cv.cleanupTolerance),
+      // ── How strict ────────────────────────────────────────────────────────
+      toolStrictnessControl(h, TOOL_STRICTNESS.outline, cv.cleanupTolerance, function (v) { cv.setCleanupTolerance(v); }, "Fix outline colours"),
       // ── Sub-tool radios ───────────────────────────────────────────────────
       h("span", {
         style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",flexShrink:0,letterSpacing:0.5,marginLeft:4}
@@ -245,8 +280,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:"tb-btn tb-btn--primary",
         onClick: function(){ if (cv.applyCleanup) cv.applyCleanup(); },
         disabled: !hasPending,
-        title: hasPending ? "Apply cleanup (" + pendingCt.toLocaleString("en-GB") + " cells)" : "No cells selected",
-        "aria-label": "Apply cleanup",
+        title: hasPending ? "Apply (" + pendingCt.toLocaleString("en-GB") + " stitches)" : "No stitches selected",
+        "aria-label": "Apply outline fixes",
         "aria-disabled": !hasPending,
         style:{
           marginLeft:8, opacity: hasPending ? 1 : 0.4,
@@ -261,8 +296,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (cv.cancelCleanup) cv.cancelCleanup();
           if (cv.exitCleanup) cv.exitCleanup();
         },
-        title:"Cancel cleanup mode",
-        "aria-label":"Cancel cleanup mode",
+        title:"Stop fixing outline colours",
+        "aria-label":"Stop fixing outline colours",
         style:{marginLeft:4}
       }, "Cancel")
     );
@@ -287,7 +322,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
       role: 'group',
-      'aria-label': 'Denoise mode controls',
+      'aria-label': 'Tidy stray stitches controls',
       style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
     },
       // ── Dither warning banner ────────────────────────────────────────────
@@ -297,12 +332,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                  background:'var(--accent-2,#fffbe6)', border:'1px solid var(--line)',
                  borderRadius:'var(--radius-sm)', fontSize:11, color:'var(--text-primary)', flexShrink:0 }
       },
-        h('span', null, 'Pattern may be heavily dithered — results may be approximate.'),
+        h('span', null, 'This pattern has a lot of shading, so the results may be approximate.'),
         h('button', {
           className: 'tb-btn',
           onClick: function() { if (cv.dismissDitherWarning) cv.dismissDitherWarning(); },
           style: { padding:'1px 6px', fontSize:10 },
-          'aria-label': 'Dismiss dither warning'
+          'aria-label': 'Dismiss shading warning'
         }, 'Dismiss')
       ),
       // ── Operations checkboxes ────────────────────────────────────────────
@@ -328,35 +363,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       // ── Palette threshold stepper (when Palette op is on) ──────────────
       // +/− buttons instead of a range input to avoid toolbar layout jitter.
       dnOps.palette && h(React.Fragment, null,
-        h('span', {
-          style:{fontSize:10,color:'var(--text-tertiary)',fontWeight:600,textTransform:'uppercase',flexShrink:0,letterSpacing:0.5,marginLeft:4}
-        }, 'Thr'),
-        window.Icons && window.Icons.info && h('button', {
-          className: 'tb-btn',
-          style: { padding:'1px 4px', lineHeight:1, opacity:0.65, flexShrink:0 },
-          title: 'Higher \u0394E = merges more similar colours (more aggressive). Lower \u0394E = only merges near-identical colours (conservative). Default \u22485\u0394E.',
-          onClick: function() { if (window.HelpDrawer) window.HelpDrawer.open({ tab: 'help', query: 'denoise mode' }); },
-          'aria-label': 'Help: palette consolidation threshold'
-        }, window.Icons.info()),
-        h('button', {
-          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
-          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.max(1, (cv.denoiseThreshold||5)-1)); },
-          'aria-label':'Decrease palette threshold',
-          title:'Decrease threshold',
-          disabled:(cv.denoiseThreshold||5) <= 1
-        }, window.Icons && window.Icons.minus ? window.Icons.minus() : '\u2212'),
-        h('span', {
-          style:{fontSize:11,minWidth:32,textAlign:'center',color:'var(--text-secondary)',userSelect:'none'},
-          title:'Palette threshold: \u0394E ' + (cv.denoiseThreshold||5) + '\nHigher = merges more colours. Lower = more conservative.'
-        }, '\u0394E\u2009' + (cv.denoiseThreshold||5)),
-        h('button', {
-          className:'tb-btn', style:{padding:'1px 7px',fontSize:12},
-          onClick:function(){ cv.setDenoiseThreshold && cv.setDenoiseThreshold(Math.min(30, (cv.denoiseThreshold||5)+1)); },
-          'aria-label':'Increase palette threshold',
-          title:'Increase threshold',
-          disabled:(cv.denoiseThreshold||5) >= 30
-        }, window.Icons && window.Icons.plus ? window.Icons.plus() : '+'),
-        // UX-fix — the raw ΔE number is abstract on its own; show the concrete
+        toolStrictnessControl(h, TOOL_STRICTNESS.tidy, cv.denoiseThreshold || 5, function (v) { if (cv.setDenoiseThreshold) cv.setDenoiseThreshold(v); }, "Tidy stray stitches"),
+        // UX-fix — the raw colour-distance number is abstract on its own; show the concrete
         // effect (how many colours this threshold would merge away) so the
         // slider stops requiring guesswork. While auto-running, the hint stays
         // visible but swaps to "Recalculating…" until the next merge count
@@ -383,7 +391,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           className: 'tb-btn' + (isActive ? ' tb-btn--on' : ''),
           onClick: function(){ cv.setDenoiseSelTool && cv.setDenoiseSelTool(st.id); },
           title: st.label + ' mode',
-          'aria-label': st.label + ' denoise mode',
+          'aria-label': st.label + ' selection',
           'aria-pressed': isActive,
           style:{padding:'1px 8px',fontSize:11}
         }, st.label);
@@ -412,8 +420,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:'tb-btn',
         onClick: function(){ if (cv.runDenoiseAutoDetect) cv.runDenoiseAutoDetect(); },
         disabled: cv.denoiseAutoRunning,
-        title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run denoise detection',
-        'aria-label': 'Re-run denoise detection',
+        title: cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Look again',
+        'aria-label': 'Look again',
         style:{marginLeft:4}
       }, cv.denoiseAutoRunning ? 'Detecting\u2026' : 'Re-run'),
       // ── Preview report counts ────────────────────────────────────────────
@@ -434,8 +442,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         className:'tb-btn tb-btn--primary',
         onClick: function(){ if (cv.applyDenoise) cv.applyDenoise(); },
         disabled: !dnCanApply,
-        title: dnCanApply ? 'Apply denoise (' + dnPendingCt.toLocaleString('en-GB') + ' cells)' : 'No cells selected',
-        'aria-label': 'Apply denoise',
+        title: dnCanApply ? 'Apply (' + dnPendingCt.toLocaleString('en-GB') + ' stitches)' : 'No stitches selected',
+        'aria-label': 'Apply stray-stitch fixes',
         'aria-disabled': !dnCanApply,
         style:{
           marginLeft:8, opacity: dnCanApply ? 1 : 0.4,
@@ -450,8 +458,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (cv.cancelDenoise) cv.cancelDenoise();
           if (cv.exitDenoise) cv.exitDenoise();
         },
-        title:'Cancel denoise mode',
-        'aria-label':'Cancel denoise mode',
+        title:'Stop tidying stray stitches',
+        'aria-label':'Stop tidying stray stitches',
         style:{marginLeft:4}
       }, 'Cancel')
     );
@@ -494,10 +502,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
               else { if (cv.enterCleanup) cv.enterCleanup(); }
             },
-            title:"Cleanup Mode — remove lineart pixels averaged into stitch colours",
-            "aria-label":"Cleanup mode",
+            title:"Fix outline colours: replace stitches where an outline was blended into the colours around it",
+            "aria-label":"Fix outline colours",
             "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
-          }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Cleanup"),
+          }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Fix outline colours"),
           // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
           ctx.pat && h("button", {
             className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
@@ -505,10 +513,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
               else { if (cv.enterDenoise) cv.enterDenoise(); }
             },
-            title:"Denoise Mode — remove conversion noise (speckle, fringe, palette duplicates)",
-            "aria-label":"Denoise mode",
+            title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads",
+            "aria-label":"Tidy stray stitches",
             "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
-          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Denoise"),
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Tidy stray stitches"),
           // Zoom
           createZoomGrp
         )
@@ -709,7 +717,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   } else if (cv.activeTool === "cleanup") {
     var pendingCount = 0;
     if (cv.cleanupPendingMask) { for (var ci2 = 0; ci2 < cv.cleanupPendingMask.length; ci2++) { if (cv.cleanupPendingMask[ci2]) pendingCount++; } }
-    badgeLabel = "Cleanup" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
+    badgeLabel = "Fix outlines" + (pendingCount > 0 ? " \xb7 " + pendingCount.toLocaleString() + " sel" : "");
     badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
@@ -928,10 +936,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterCleanup) cv.enterCleanup(); }
           setMorePanelOpen(false);
         },
-        title:"Cleanup Mode \u2014 remove stray lineart pixels", "aria-label":"Cleanup mode",
+        title:"Fix outline colours: replace stitches where an outline was blended into the colours around it", "aria-label":"Fix outline colours",
         "aria-pressed": cv.activeTool==="cleanup"?"true":"false",
         style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Cleanup mode")
+      }, window.Icons&&window.Icons.cleanup?window.Icons.cleanup():null, " Fix outline colours")
     ),
     // ── Denoise ──
     h("div", {className:"tb-more-panel__section"},
@@ -942,10 +950,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
           setMorePanelOpen(false);
         },
-        title:"Denoise Mode \u2014 fix conversion noise (speckle, fringe, palette)", "aria-label":"Denoise mode",
+        title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads", "aria-label":"Tidy stray stitches",
         "aria-pressed": cv.activeTool==="denoise"?"true":"false",
         style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Denoise mode")
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Tidy stray stitches")
     ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},

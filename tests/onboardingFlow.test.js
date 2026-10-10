@@ -11,7 +11,10 @@ function loadSteps() {
   const React = { createElement: () => ({}), useState: (v) => [v, () => {}] };
   const doc = { getElementById: () => ({}), createElement: () => ({}), head: { appendChild: () => {} } };
   new Function("window", "React", "document", "localStorage", read("onboarding-wizard.js"))(win, React, doc, {});
-  return win.WelcomeWizard.STEPS;
+  // Creator tours are built per device; resolve every page to its steps.
+  const W = win.WelcomeWizard, out = {};
+  Object.keys(W.STEPS).forEach(p => { out[p] = W.stepsFor(p); });
+  return out;
 }
 
 describe("welcome walkthrough targets exist on their own page", () => {
@@ -19,6 +22,9 @@ describe("welcome walkthrough targets exist on their own page", () => {
   // Where each page's walkthrough is mounted, and the files that render it.
   const PAGE_SOURCES = {
     creator: ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
+    "creator-convert": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
+    "creator-scratch": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
+    "creator-import": ["creator/Sidebar.js", "creator/ActionBar.js", "header.js", "creator-main.js"],
     manager: ["manager-app.js"],
     tracker: ["tracker-app.js"]
   };
@@ -33,6 +39,17 @@ describe("welcome walkthrough targets exist on their own page", () => {
         expect(src).toMatch(re);
       });
     });
+  });
+
+  // A saved project sets its pattern at once and its picture later (in
+  // Image.onload), so the pattern has to decide the tour, or a saved picture
+  // project would be locked into the wrong one on the in-between render.
+  test("an existing pattern picks the chart tour before its picture loads", () => {
+    const src = read("creator-main.js");
+    const line = src.split("\n").find(l => /const tourWayIn=/.test(l));
+    expect(line).toBeDefined();
+    expect(line.indexOf("state.pat")).toBeGreaterThan(-1);
+    expect(line.indexOf("state.pat")).toBeLessThan(line.indexOf("state.img"));
   });
 
   test("the Creator walkthrough no longer describes Home", () => {

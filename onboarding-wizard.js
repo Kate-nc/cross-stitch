@@ -42,37 +42,93 @@
     }
   } catch (_) {}
 
+  // ─── The Creator's tours (audit COMMON-06) ────────────────────────────────
+  // One per way in: converting a picture, drawing on a blank grid, or a
+  // chart that is already there (imported, or a saved project). Each names
+  // only controls that exist on this device: "Tap" on touch screens and
+  // "Click" otherwise; the Settings sheet on phones and upright tablets, the
+  // panel on the right on wider screens; Print PDF and Open in Tracker in the
+  // top bar's More menu on phones; Generate as its button reads. Built when
+  // the tour opens (creatorDevice()), at most 4 steps each.
+  function creatorDeviceWords(coarse, compact) {
+    return {
+      coarse: coarse, compact: compact,
+      Tap: coarse ? "Tap" : "Click", tap: coarse ? "tap" : "click",
+      settings: compact ? "the Settings sheet" : "the panel on the right",
+      actions: compact ? "the More menu at the top" : "the bar at the top",
+      // The compact bar's button is labelled Generate, the action bar's
+      // Generate Pattern.
+      generate: compact ? "Generate" : "Generate Pattern"
+    };
+  }
+
+  function creatorDevice() {
+    var coarse = false, compact = false;
+    try {
+      coarse = window.Platform && typeof window.Platform.isCoarsePointer === "function"
+        ? window.Platform.isCoarsePointer()
+        : !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    } catch (_) {}
+    try { compact = !!(document.body && document.body.classList.contains("creator-compact")); } catch (_) {}
+    return creatorDeviceWords(coarse, compact);
+  }
+
+  var CREATOR_TOURS = {
+    convert: function (d) {
+      return [
+        {
+          title: "Turn your picture into a pattern",
+          body: "Choose what kind of picture it is, then set the size, fabric and threads in " + d.settings + ". The preview updates as you go, and Compare options shows neighbouring sizes and thread counts side by side."
+        },
+        {
+          title: "Generate",
+          body: "When the preview looks right, " + d.tap + " " + d.generate + ". You can cancel while it works.",
+          tip: "Pressing the highlighted button generates the pattern and closes this tour.",
+          target: "[data-onboard=\"creator-generate\"]",
+          placement: "bottom",
+          dismissOnTargetClick: true
+        },
+        {
+          title: "Edit, then print or stitch",
+          body: "Edit has the drawing tools and Materials lists the threads to buy. Print PDF and Open in Tracker are in " + d.actions + " once the pattern is made. Press ? at any time for help."
+        }
+      ];
+    },
+    scratch: function (d) {
+      return [
+        {
+          title: "Draw your design",
+          body: d.Tap + " a thread in the Palette, then " + d.tap + " or drag on the grid to stitch. Add more threads to the Palette whenever you need them."
+        },
+        {
+          title: "Canvas: size and fabric",
+          body: "The Canvas tab holds the grid size, the fabric and an optional tracing picture to draw over. Its settings open in " + d.settings + "."
+        },
+        {
+          title: "Print or stitch it",
+          body: "Once the grid has stitches, Print PDF and Open in Tracker appear in " + d.actions + ". Press ? at any time for help."
+        }
+      ];
+    },
+    import: function (d) {
+      return [
+        {
+          title: "Your chart",
+          body: "Check the chart, then use Edit to change stitches and Materials to see the threads you need."
+        },
+        {
+          title: "Print or stitch it",
+          body: "Print PDF makes a printable chart and Open in Tracker lets you mark stitches as you go; both are in " + d.actions + ". Press ? at any time for help."
+        }
+      ];
+    }
+  };
+
   // ─── Step content per page ───────────────────────────────────────────────
   // A step's `target` must exist on the page the walkthrough runs on; if it
   // doesn't (e.g. no image loaded yet), the card is centred and its tip,
   // which talks about the highlight, is left out.
   var STEPS = {
-    creator: [
-      {
-        title: "Welcome to the Pattern Creator",
-        body: "Turn an image into a cross-stitch chart, then edit it stitch by stitch. Everything runs in your browser — your photos never leave this device."
-      },
-      {
-        title: "Set up the conversion",
-        body: "The Image, Dimensions and Palette tabs control how your image becomes a pattern: adjust and crop it, set the size in stitches and the fabric, and choose how many colours to use. The preview updates as you go.",
-        target: "[data-onboard=\"creator-sidebar-tabs\"]",
-        placement: "left"
-      },
-      {
-        title: "Generate the pattern",
-        body: "When the preview looks right, press Generate Pattern. The Tools and View tabs then unlock so you can paint, fill, select and add backstitch.",
-        tip: "Pressing the highlighted button generates the pattern and closes this tour.",
-        target: "[data-onboard=\"creator-generate\"]",
-        placement: "bottom",
-        dismissOnTargetClick: true
-      },
-      {
-        title: "Threads and export",
-        body: "Switch pages here. Materials & Output lists the threads you need and what to buy, and exports a printable PDF, a PNG or an .oxs file. Press ? at any time for help.",
-        target: "[data-onboard=\"creator-pages\"]",
-        placement: "bottom"
-      }
-    ],
     manager: [
       {
         title: "Welcome to the Stash Manager",
@@ -109,6 +165,21 @@
     ]
   };
 
+  // The Creator's tours, by way in. "creator" is the picture tour, kept for
+  // callers and replays that name the page only.
+  STEPS["creator-convert"] = CREATOR_TOURS.convert;
+  STEPS["creator-scratch"] = CREATOR_TOURS.scratch;
+  STEPS["creator-import"] = CREATOR_TOURS.import;
+  STEPS.creator = CREATOR_TOURS.convert;
+  var CREATOR_VARIANTS = ["creator-convert", "creator-scratch", "creator-import"];
+
+  // A page's steps: an array, or a function of the device for the Creator.
+  function stepsFor(page) {
+    var st = STEPS[page];
+    if (typeof st === "function") st = st(creatorDevice());
+    return Array.isArray(st) ? st : [];
+  }
+
   function flagKey(page) { return "cs_welcome_" + page + "_done"; }
 
   function shouldShow(page) {
@@ -117,7 +188,13 @@
     // cookies, quota exceeded), we can't tell whether the user has seen
     // the wizard before. Showing it is the friendlier default — at worst
     // a returning private-browsing user sees a brief tour twice.
-    try { return !localStorage.getItem(flagKey(page)); } catch (_) { return true; }
+    try {
+      if (localStorage.getItem(flagKey(page))) return false;
+      // Someone who saw the Creator tour before it was split by way in
+      // isn't shown another.
+      if (page.indexOf("creator-") === 0 && localStorage.getItem(flagKey("creator"))) return false;
+      return true;
+    } catch (_) { return true; }
   }
 
   function markDone(page) {
@@ -125,7 +202,11 @@
   }
 
   function reset(page) {
-    try { localStorage.removeItem(flagKey(page)); } catch (_) {}
+    try {
+      localStorage.removeItem(flagKey(page));
+      // Replaying "the Creator tour" replays every way in.
+      if (page === "creator") CREATOR_VARIANTS.forEach(function (v) { localStorage.removeItem(flagKey(v)); });
+    } catch (_) {}
   }
 
   // Clear ALL walkthrough flags (every page plus the Tracker style picker).
@@ -159,7 +240,9 @@
     // entry may be either a regular { title, body, ... } step or a custom step
     // { customComponent: Fn, onCommit: fn }.
     var extraSteps = Array.isArray(props.extraSteps) ? props.extraSteps : [];
-    var steps = (STEPS[page] || []).concat(extraSteps);
+    // Built once per tour, so the device wording doesn't change mid-tour.
+    var _base = React.useState(function () { return stepsFor(page); });
+    var steps = _base[0].concat(extraSteps);
     var _idx = React.useState(0);
     var idx = _idx[0], setIdx = _idx[1];
     var step = steps.length ? steps[Math.min(idx, steps.length - 1)] : {};
@@ -502,6 +585,10 @@
   WelcomeWizard.reset = reset;
   WelcomeWizard.resetAll = resetAll;
   WelcomeWizard.STEPS = STEPS;
+  WelcomeWizard.stepsFor = stepsFor;
+  WelcomeWizard.creatorDevice = creatorDevice;
+  WelcomeWizard.creatorDeviceWords = creatorDeviceWords;
+  WelcomeWizard.CREATOR_TOURS = CREATOR_TOURS;
 
   window.WelcomeWizard = WelcomeWizard;
 })();

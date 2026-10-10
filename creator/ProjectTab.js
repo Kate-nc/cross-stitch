@@ -310,7 +310,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                         h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid var(--border)"}}),
                         h("span", {style:{fontWeight:600}}, "DMC "+a.id),
                         h("span", {style:{color:"var(--text-secondary)"}}, a.name),
-                        h("span", {style:{color:"var(--text-tertiary)"}}, "\u0394E "+a.deltaE),
+                        h("span", {style:{color:"var(--text-tertiary)"}}, "Difference "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
                     })

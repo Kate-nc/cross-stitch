@@ -554,9 +554,9 @@
       var s = wizard.settings;
       var DITH_OPTS = [
         { value: 'off',       label: 'Off' },
-        { value: 'atkinson',  label: 'Atkinson (default)' },
-        { value: 'riemersma', label: 'Riemersma (fewer isolated stitches)' },
-        { value: 'bayer',     label: 'Bayer (geometric)' },
+        { value: 'atkinson',  label: 'Smooth blend (default)' },
+        { value: 'riemersma', label: 'Curved blend (fewer single stitches)' },
+        { value: 'bayer',     label: 'Pattern blend' },
       ];
       function setDithAlgo(v) { wizard.setSettings(Object.assign({}, s, { dithAlgo: v })); }
       function setPreSmooth() { wizard.setSettings(Object.assign({}, s, { preSmooth: !s.preSmooth })); }
@@ -572,7 +572,7 @@
           h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
         ) : null,
         h("div", { className: "iw-row" },
-          h("label", { className: "iw-field-label", htmlFor: "iw-dith" }, "Dithering"),
+          h("label", { className: "iw-field-label", htmlFor: "iw-dith" }, "Shading"),
           h("select", {
             id: "iw-dith", value: curDithAlgo,
             onChange: function (e) { setDithAlgo(e.target.value); },
@@ -641,7 +641,7 @@
             h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
             h("dt", null, "Palette"), h("dd", null, paletteText),
             h("dt", null, "Blends"), h("dd", null, p.allowBlends ? "Allowed" : "Off"),
-            h("dt", null, "Dithering"), h("dd", null, (function() { var a = st.dithAlgo || (st.dither ? 'atkinson' : 'off'); return a === 'off' ? 'Off' : a.charAt(0).toUpperCase() + a.slice(1); })()),
+            h("dt", null, "Shading"), h("dd", null, (function() { var a = st.dithAlgo || (st.dither ? 'atkinson' : 'off'); return ({ off: 'Off', atkinson: 'Smooth blend', riemersma: 'Curved blend', bayer: 'Pattern blend' })[a] || 'Off'; })()),
             h("dt", null, "Skip background"), h("dd", null, st.skipBg ? ("On (tolerance " + st.bgThreshold + ")") : "Off"),
             h("dt", null, "Estimate"), h("dd", null, skeinText),
             stitchStats && stitchStats.label ? h(React.Fragment, null,
