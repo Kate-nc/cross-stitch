@@ -1209,6 +1209,10 @@ const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
 const[halfDone,setHalfDone]=useState(new Map());
 const[partialStitches,setPartialStitches]=useState(new Map());
+// French knots (knots.js): [{x, y, id, rgb}] in half-stitch units, and the
+// keys ("x,y") of those marked done.
+const[knots,setKnots]=useState([]);
+const[knotsDone,setKnotsDone]=useState([]);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const hoverRefs = useRef({ row: null, col: null });
@@ -1836,12 +1840,18 @@ const halfStitchCounts=useMemo(()=>{
   return{total,done:dn};
 },[halfStitches,halfDone]);
 
-// Combined progress: full stitches + half stitches weighted at 0.5
-const combinedTotal=totalStitchable+halfStitchCounts.total*0.5;
-const combinedDone=doneCount+halfStitchCounts.done*0.5;
+// French knots: {total, done}, and per thread.
+const knotDoneSet=useMemo(()=>new Set(knotsDone),[knotsDone]);
+const knotCounts=useMemo(()=>window.Knots?window.Knots.progress(knots,knotsDone):{total:0,done:0},[knots,knotsDone]);
+const knotsByThread=useMemo(()=>window.Knots?window.Knots.byThread(knots,knotsDone):{},[knots,knotsDone]);
+
+// Combined progress: full stitches + half stitches weighted at 0.5 + French
+// knots (one each)
+const combinedTotal=totalStitchable+halfStitchCounts.total*0.5+knotCounts.total;
+const combinedDone=doneCount+halfStitchCounts.done*0.5+knotCounts.done;
 // Effective progress respects visible-layer filter
-const effectiveCombinedTotal=statsCountMode==='visible'?(layerVis.full?totalStitchable:0)+(layerVis.half?halfStitchCounts.total*0.5:0):combinedTotal;
-const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:0)+(layerVis.half?halfStitchCounts.done*0.5:0):combinedDone;
+const effectiveCombinedTotal=statsCountMode==='visible'?(layerVis.full?totalStitchable:0)+(layerVis.half?halfStitchCounts.total*0.5:0)+(layerVis.french_knot?knotCounts.total:0):combinedTotal;
+const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:0)+(layerVis.half?halfStitchCounts.done*0.5:0)+(layerVis.french_knot?knotCounts.done:0):combinedDone;
 const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
@@ -1907,7 +1917,7 @@ useEffect(()=>{
   const next=pal&&pal.find(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;});
   setFocusColour(next?next.id:null);
 },[areaColourCounts,focusColour,pal]);
-const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:0,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length]);
+const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:knots.length,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
@@ -1921,18 +1931,20 @@ const legendRows=useMemo(()=>{
   const shown=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;}):pal;
   const rows=shown.map(p=>{
     const dc=src[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
-    const totalWH=dc.total+dc.halfTotal*0.5;
-    const doneWH=dc.done+dc.halfDone*0.5;
+    // French knots count one each (not in a work area's counts).
+    const kn=!areaColourCounts&&knotsByThread[p.id]||{total:0,done:0};
+    const totalWH=dc.total+dc.halfTotal*0.5+kn.total;
+    const doneWH=dc.done+dc.halfDone*0.5+kn.done;
     const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
     const remaining=Math.max(0,totalWH-doneWH);
     const complete=doneWH>=totalWH&&totalWH>0;
-    return {p,dc,pct,remaining,complete};
+    return {p,dc,kn,pct,remaining,complete};
   });
   if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort,areaColourCounts]);
+},[pal,countsVer,legendSort,areaColourCounts,knotsByThread]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -2309,15 +2321,20 @@ useEffect(()=>{
     // justLoadedRef is now cleared by the countsVer useEffect above, which fires
     // after recomputeAllCounts and snaps prevAutoCountRef to the real loaded counts.
     // The prevDone<0 sentinel guards the first auto-detect fire before that effect runs.
+    // French knots count one each. The seeds elsewhere don't carry a knot
+    // count; a missing one is taken as "no change" and set from here on.
+    const curKnot=knotCounts.done;
+    const prevKnot=typeof prev.knotDone==="number"?prev.knotDone:curKnot;
     if(prevDone<0||prevHalf<0){
-      prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+      prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
       return;
     }
     const doneDiff=curDone-prevDone;
     const halfDiff=curHalf-prevHalf;
-    if(doneDiff!==0||halfDiff!==0){
-      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff);
-      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff);
+    const knotDiff=curKnot-prevKnot;
+    if(doneDiff!==0||halfDiff!==0||knotDiff!==0){
+      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff)+Math.max(0,knotDiff);
+      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff);
       if(completed>0||undone>0)recordAutoActivity(completed,undone);
       // Milestone detection
       if(completed>0&&totalStitchable>0){
@@ -2370,9 +2387,9 @@ useEffect(()=>{
         }
       }catch(e){}
     }
-    prevAutoCountRef.current={done:curDone,halfDone:curHalf};
+    prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
   }catch(e){}
-},[doneCount,halfStitchCounts.done]);
+},[doneCount,halfStitchCounts.done,knotCounts.done]);
 // Goal-completion detection — fire a celebration when any goal is first reached in this session
 useEffect(()=>{
   try{
@@ -2646,6 +2663,7 @@ function copyProgressSummary(){
   lines.push("Project: "+(projectName||sW+"\u00D7"+sH+" pattern"));
   lines.push("Progress: "+doneCount+"/"+totalStitchable+" stitches ("+progressPct.toFixed(1)+"%)");
   if(halfStitchCounts.total>0)lines.push("Half stitches: "+halfStitchCounts.done+"/"+halfStitchCounts.total);
+  if(knotCounts.total>0)lines.push("French knots: "+knotCounts.done+"/"+knotCounts.total);
   lines.push("Colours: "+coloursComplete+"/"+totalColours+" colours complete");
   if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+(statsSessions?statsSessions.length:0)+" sessions)");
   else lines.push("Time stitched: Not tracked yet");
@@ -2678,9 +2696,20 @@ function pushBulkToggleHistory(changes, source){
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
+// A French knot marked or unmarked: {type:"KNOT", key:"x,y"}. Undo and redo
+// both flip it back.
+function flipKnotDone(key){
+  setKnotsDone(prev=>prev.indexOf(key)===-1?prev.concat([key]):prev.filter(x=>x!==key));
+}
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let lastEntry=trackHistory[trackHistory.length-1];
+  if(lastEntry&&lastEntry.type==="KNOT"){
+    flipKnotDone(lastEntry.key);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="PARK"){
     applyParkEntry(lastEntry,false);
     setTrackHistory(prev=>prev.slice(0,-1));
@@ -2704,6 +2733,12 @@ function undoTrack(){
 function redoTrack(){
   if(!redoStack.length||!done)return;
   let lastEntry=redoStack[redoStack.length-1];
+  if(lastEntry&&lastEntry.type==="KNOT"){
+    flipKnotDone(lastEntry.key);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="PARK"){
     applyParkEntry(lastEntry,true);
     setRedoStack(prev=>prev.slice(0,-1));
@@ -2924,6 +2959,8 @@ function doSaveProject(finalName){
     halfStitches: hsArr,
     halfDone: hdArr,
     partialStitches: psArr,
+    knots: knotsForSave(knots),
+    knotsDone: knotsDone.length?knotsDone.slice():undefined,
     statsSessions,
     statsSettings,
     achievedMilestones,
@@ -2960,7 +2997,7 @@ function doExportOxs(){
     window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
     return;
   }
-  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],name:projectName||'pattern'});
+  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],knots:knots,name:projectName||'pattern'});
   if(result.warnings&&result.warnings.length>0){
     window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
   }
@@ -3004,6 +3041,7 @@ function handleEditInCreator(){
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
             halfStitches:project.halfStitches, halfDone:project.halfDone,
+            knotsDone:project.knotsDone,
             finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
             lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
             stitchLog:_v3h.stitchLog
@@ -3203,9 +3241,17 @@ function processLoadedProject(project){
   const savedSyms=project.symbols&&typeof project.symbols==="object"?project.symbols:null;
   symbolsRef.current=savedSyms;
   if(savedSyms)restored=restored.map(c=>c&&savedSyms[c.id]?{...c,symbol:savedSyms[c.id]}:c);
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells));
+  // French knots: their threads join the palette (one count each, as the
+  // part stitches' quarters do), so they show in the key and the thread totals.
+  const kW=(project.settings&&project.settings.sW)||project.w,kH=(project.settings&&project.settings.sH)||project.h;
+  const knotList=window.Knots?window.Knots.normalise(project.knots,kW,kH):[];
+  const knotCells=knotList.map(k=>restoreStitch({id:k.id,type:k.id.includes('+')?'blend':'solid',rgb:k.rgb}));
+  knotList.forEach((k,i)=>{if(!k.rgb&&knotCells[i].rgb)k.rgb=knotCells[i].rgb;});
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   setPartialStitches(partialMap);
+  setKnots(knotList);
+  setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
@@ -3867,6 +3913,7 @@ const buildSnapshot = () => {
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
+    knots: knotsForSave(knots), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
@@ -3903,6 +3950,7 @@ useEffect(() => {
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
               halfStitches:project.halfStitches, halfDone:project.halfDone,
+              knotsDone:project.knotsDone,
               finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
               lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
               stitchLog:_v3.stitchLog
@@ -3925,7 +3973,7 @@ useEffect(() => {
   }, 5000);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits,
+    halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
@@ -4032,6 +4080,7 @@ useEffect(() => {
       updatedAt: new Date().toISOString(),
       settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined },
       partialStitches: psArr,
+      knots: knotsForSave(knots), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
       breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea
     };
@@ -4056,7 +4105,7 @@ useEffect(() => {
     };
   };
 }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
-    halfStitches, halfDone, partialStitches, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
+    halfStitches, halfDone, partialStitches, knots, knotsDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
     threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
 
@@ -4073,6 +4122,12 @@ function tierSymFontSz(cSz){
   if(cSz<=12)return 7;
   if(cSz<=24)return Math.round(7+(cSz-12)*7/12);
   return Math.round(14+(cSz-24)*0.5);
+}
+
+// French knots as saved: {x, y, id, rgb}, or nothing when there are none, so
+// projects without knots save exactly as before.
+function knotsForSave(knots) {
+  return knots && knots.length ? knots.map(k => ({ x: k.x, y: k.y, id: k.id, rgb: k.rgb })) : undefined;
 }
 
 // ═══ Half-stitch cell rendering ═══
@@ -4401,6 +4456,29 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
     ctx.restore();
   }
+  // French knots: a ring in the thread colour until done, then filled. In
+  // highlight view, other colours' knots are faded like their stitches.
+  if(knots.length>0&&layerVis.french_knot){
+    const kr=Math.max(2,cSz*0.3);
+    ctx.save();
+    knots.forEach(k=>{
+      const kx=k.x/2,ky=k.y/2;
+      if(kx<startX-0.5||kx>endX+0.5||ky<startY-0.5||ky>endY+0.5)return;
+      const rgb=k.rgb||(cmap&&cmap[k.id]&&cmap[k.id].rgb)||[0,0,0];
+      const col="rgb("+rgb[0]+","+rgb[1]+","+rgb[2]+")";
+      const kDone=knotDoneSet.has(k.x+","+k.y);
+      ctx.globalAlpha=stitchView==="highlight"&&focusColour&&k.id!==focusColour?0.25:1;
+      ctx.beginPath();ctx.arc(gut+kx*cSz,gut+ky*cSz,kr,0,Math.PI*2);
+      if(kDone){
+        ctx.fillStyle=col;ctx.fill();
+        ctx.lineWidth=Math.max(1,cSz*0.06);ctx.strokeStyle="rgba(0,0,0,0.55)";ctx.stroke();
+      }else{
+        ctx.fillStyle="rgba(255,255,255,0.9)";ctx.fill();
+        ctx.lineWidth=Math.max(1.5,cSz*0.1);ctx.strokeStyle=col;ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
   // Work area: fade the margin (context only — it cannot be marked) and
   // outline the area. The outline sits entirely outside the area, on margin
@@ -4509,7 +4587,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -5535,6 +5613,9 @@ function handleStitchMouseDown(e){
   if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return;
   let idx=gy*sW+gx;
 
+  // A press on a French knot is the knot's (stitchPointerHandlers).
+  if(knotPressRef.current)return;
+
   // ═══ Tracker: Marking half stitches as done (track mode) ═══
   // If cell has half stitches and NO full stitch (or full is done), handle half marking
   const cellHasHalf=halfStitches.has(idx);
@@ -6483,12 +6564,62 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
     isEditMode:!_dragMarkActive,
   })
   :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
-const dragMarkHandlers=_dragMark.handlers;
+const _dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
 const dragMarkReset=_dragMark.reset||(()=>{});
 // Keep the keyup/blur listener (registered once, on mount, above) calling
 // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
 dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
+
+// French knots (knots.js): in Mark mode a press on a knot marks it done (or
+// not done) when it's released there, instead of starting a drag-mark on the
+// stitch underneath. Every other press goes to useDragMark as before. These
+// wrapped handlers are the ones the chart canvas spreads.
+const knotPressRef=useRef(null);
+function knotAtPoint(cx,cy){
+  if(!_dragMarkActive||!knots.length||!layerVis.french_knot||!window.Knots||!stitchRef.current)return null;
+  const rect=stitchRef.current.getBoundingClientRect();
+  const ct=chartTileRef.current||{x:0,y:0};
+  const fx=(cx-rect.left+ct.x-G)/scs,fy=(cy-rect.top+ct.y-G)/scs;
+  // About a finger's width at small zooms, never more than half a stitch.
+  const k=window.Knots.hitTest(knots,fx,fy,Math.min(0.45,Math.max(0.3,12/scs)));
+  if(!k)return null;
+  if(isColourLocked()&&k.id!==focusColour)return null;
+  if(areaOn&&!window.WorkArea.contains(workArea,Math.min(sW-1,k.x>>1),Math.min(sH-1,k.y>>1)))return null;
+  return k;
+}
+function toggleKnotDone(k){
+  const key=k.x+","+k.y;
+  flipKnotDone(key);
+  if(k.id)pendingColoursRef.current.add(k.id);
+  setTrackHistory(prev=>{let n=[...prev,{type:"KNOT",key}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
+const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
+  onPointerDown:e=>{
+    const k=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey?knotAtPoint(e.clientX,e.clientY):null;
+    if(k){knotPressRef.current={k,id:e.pointerId,x:e.clientX,y:e.clientY};return;}
+    knotPressRef.current=null;
+    if(_dragMarkHandlers.onPointerDown)_dragMarkHandlers.onPointerDown(e);
+  },
+  onPointerMove:e=>{
+    if(knotPressRef.current&&knotPressRef.current.id===e.pointerId)return;
+    if(_dragMarkHandlers.onPointerMove)_dragMarkHandlers.onPointerMove(e);
+  },
+  onPointerUp:e=>{
+    const p=knotPressRef.current;
+    if(p&&p.id===e.pointerId){
+      knotPressRef.current=null;
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12)toggleKnotDone(p.k);
+      return;
+    }
+    if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
+  },
+  onPointerCancel:e=>{
+    knotPressRef.current=null;
+    if(_dragMarkHandlers.onPointerCancel)_dragMarkHandlers.onPointerCancel(e);
+  }
+});
 
 
 // C3: useDragMark now owns both touch AND mouse pointer events. The
@@ -6937,7 +7068,7 @@ return(
       {pal&&<div className="ppal-tile-list" role="list">
         {(()=>{
           const rows=legendRows||[];
-          return rows.map(({p,dc,pct,complete})=>{
+          return rows.map(({p,dc,kn,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
             return <div key={p.id} role="button" tabIndex={0}
@@ -6959,7 +7090,7 @@ return(
                 </div>
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
-                  <span className="ppal-tile-count">{dc.done}/{dc.total}{dc.halfTotal>0?" · "+dc.halfDone+"/"+dc.halfTotal+" half":""}</span>
+                  <span className="ppal-tile-count">{dc.done}/{dc.total}{dc.halfTotal>0?" · "+dc.halfDone+"/"+dc.halfTotal+" half":""}{kn&&kn.total>0?" · "+kn.done+"/"+kn.total+" knots":""}</span>
                   <div className="ppal-tile-actions">
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
@@ -7785,7 +7916,7 @@ return(
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<PdfExportModal onClose={()=>setModal(null)} onExport={()=>{
-    if(window.ExportPdf)window.ExportPdf.run({pat,pal,sW,sH,bsLines,partialStitches,fabricCt,skeinPrice,projectName,projectDesigner});
+    if(window.ExportPdf)window.ExportPdf.run({pat,pal,sW,sH,bsLines,partialStitches,knots,fabricCt,skeinPrice,projectName,projectDesigner});
   }}/>}
 
   {modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setModal(null)} />}

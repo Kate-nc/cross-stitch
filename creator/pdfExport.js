@@ -171,6 +171,8 @@
       palette: pal,
       partialStitches: partialEntries,
       bsLines: ctx.bsLines || [],
+      // French knots; only the Workshop print theme draws them.
+      knots: ctx.knots && ctx.knots.length ? ctx.knots.map(function (k) { return { x: k.x, y: k.y, id: k.id, rgb: k.rgb }; }) : undefined,
       fabricCt: ctx.fabricCt || 14,
       skeinPrice: ctx.skeinPrice,
       coverPreviewJpeg: ctx.coverPreviewJpeg || null,

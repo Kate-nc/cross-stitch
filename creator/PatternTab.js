@@ -105,6 +105,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     statusText = coarse
       ? "Backstitch \u2014 tap grid intersections. Press and hold to cancel."
       : "Backstitch \u2014 click grid intersections. Right-click to cancel.";
+  } else if (cv.stitchType === "knot") {
+    statusText = (coarse ? "French knot \u2014 tap" : "French knot \u2014 click") +
+      " a grid corner or the middle of a stitch to add a knot, or a knot to remove it.";
   } else if (cv.stitchType === "erase") {
     statusText = "Erase \u2014 click to remove stitches. Use backstitch erase (Bs tool) for backstitch lines.";
   } else {

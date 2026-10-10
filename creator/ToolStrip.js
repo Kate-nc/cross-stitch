@@ -728,6 +728,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeBg = "var(--warning-soft)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--warning)";
   } else if (cv.stitchType === "erase" || cv.activeTool === "eraseAll" || cv.activeTool === "eraseBs") {
     badgeLabel = "Erase"; badgeBg = "var(--danger-soft)"; badgeColor = "var(--danger)"; badgeDot = "var(--danger)";
+  } else if (cv.stitchType === "knot") {
+    badgeLabel = "French knot"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.stitchType === "backstitch") {
     badgeLabel = "Backstitch"; badgeBg = "var(--surface-secondary)"; badgeColor = "var(--text-primary)"; badgeDot = "var(--text-tertiary)";
   } else if (cv.stitchType === "half-fwd") {
@@ -808,7 +810,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     { id:"half-fwd", label:"Half /" },
     { id:"half-bck", label:"Half \\" },
     { id:"three-quarter", label:"\u00BE St" },
-    { id:"backstitch", label:"Backstitch" }
+    { id:"backstitch", label:"Backstitch" },
+    { id:"knot", label:"French knot" }
   ];
 
   var morePanelContent = morePanelOpen ? h("div", {

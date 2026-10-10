@@ -44,17 +44,24 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // What to buy: one row per thread, blends folded into their components
   // (audit B-05). The legend below still lists each chart symbol, blends
   // included; the summary, stash status and shopping list use these.
+  // French knots add their thread to these counts (knots.js), and a thread
+  // used only for knots gets a row of its own.
+  var matPal = useMemo(function() {
+    if (!ctx.pal || !window.Knots) return ctx.pal;
+    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
+  }, [ctx.pal, ctx.knots]);
+
   var threadRows = useMemo(function() {
-    if (!(ctx.pat && ctx.pal)) return [];
-    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, ctx.pal, stash, fabricCt]);
+    if (!(ctx.pat && matPal)) return [];
+    return window.buildThreadShoppingRows(matPal, { fabricCt: fabricCt, stash: stash });
+  }, [ctx.pat, matPal, stash, fabricCt]);
 
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
     var threadById = {};
     threadRows.forEach(function(r) { threadById[r.key] = r; });
     var rank = { needed: 0, partial: 1, owned: 2 };
-    return ctx.pal.map(function(p) {
+    return matPal.map(function(p) {
       var skResult = (typeof stitchesToSkeins === "function")
         ? stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2 })
         : null;
@@ -86,7 +93,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       var dc = (ctx.colourDoneCounts && ctx.colourDoneCounts[p.id]) || {total: 0, done: 0};
       return {p: p, owned: owned, needed: needed, status: status, name: name, confettiCount: confettiCount, dc: dc};
     });
-  }, [ctx.pat, ctx.pal, stash, fabricCt, threadRows, app.confettiData, ctx.colourDoneCounts]);
+  }, [ctx.pat, matPal, stash, fabricCt, threadRows, app.confettiData, ctx.colourDoneCounts]);
 
   var threadIdCollator = _LEGEND_THREAD_ID_COLLATOR;
   function compareThreadIds(aId, bId) {
@@ -465,6 +472,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
                   h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},
                     r.name,
+                    // French knots in this thread (their thread is in the counts).
+                    p.knots ? h("div", {className:"legend-knots", style:{fontSize:"var(--text-xs)", color:"var(--text-tertiary)"}},
+                      "French knots: " + p.knots.toLocaleString()) : null,
                     r.confettiCount ? h("span", {
                       title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}

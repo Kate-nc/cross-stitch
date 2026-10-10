@@ -57,6 +57,21 @@ const ProjectStorage = (() => {
     return n;
   }
 
+  // French knots (knots.js) count as stitches in the library's progress, as
+  // they do in the Tracker: `knots` [{x, y, id}] and `knotsDone` ["x,y", ...].
+  // Inlined rather than calling window.Knots, which pages without the Creator
+  // or Tracker don't load.
+  function knotCounts(p) {
+    const knots = p && Array.isArray(p.knots) ? p.knots : null;
+    if (!knots || !knots.length) return { total: 0, done: 0 };
+    const doneKeys = new Set(Array.isArray(p.knotsDone) ? p.knotsDone : []);
+    let done = 0;
+    for (let i = 0; i < knots.length; i++) {
+      if (knots[i] && doneKeys.has(knots[i].x + "," + knots[i].y)) done++;
+    }
+    return { total: knots.length, done: done };
+  }
+
   // Build a lightweight stats summary for the global dashboard.
   // PERF-REVIEW (perf-6 #3): statsSessions duplicates the full project sessions
   // array and palette[].rgb duplicates DMC lookup. Stripping would shrink the
@@ -64,8 +79,11 @@ const ProjectStorage = (() => {
   // currently read sessions[] directly from the summary. Needs a consumer audit
   // before removal — leaving as-is until then.
   function buildStatsSummary(p) {
-    const totalSt = countTotalStitches(p);
-    const completedSt = p.done ? countCompletedStitches(p.done) : (p.completedStitches || 0);
+    // Knots only add to counts taken from the chart itself, not to stored
+    // totals (which already include them).
+    const kc = (p.pattern || p.p) ? knotCounts(p) : { total: 0, done: 0 };
+    const totalSt = countTotalStitches(p) + kc.total;
+    const completedSt = p.done ? countCompletedStitches(p.done) + kc.done : (p.completedStitches || 0);
     return {
       id: p.id,
       name: p.name || 'Untitled',
@@ -135,8 +153,9 @@ const ProjectStorage = (() => {
     // countTotalStitches accepts both `.pattern` and the compact `.p` grid;
     // gate on either so compact-format projects don't report 0 stitches and
     // land in the dashboard's catch-all bucket.
-    const totalSt = (p.pattern || p.p) ? countTotalStitches(p) : 0;
-    const completedSt = p.done ? countCompletedStitches(p.done) : 0;
+    const kcm = knotCounts(p);
+    const totalSt = ((p.pattern || p.p) ? countTotalStitches(p) : 0) + kcm.total;
+    const completedSt = (p.done ? countCompletedStitches(p.done) : 0) + kcm.done;
     const sessions = p.statsSessions || [];
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
     const totalMinutes = Math.round(totalSeconds / 60);

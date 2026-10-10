@@ -148,7 +148,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Cycle stitch type forward",
       when: function () { return !!state.pat; },
       run: function () {
-        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch","knot"];
         var cur = state.stitchType || "cross";
         var i = order.indexOf(cur);
         var next = order[(i < 0 ? 0 : (i + 1) % order.length)];
@@ -158,7 +158,7 @@ window.useKeyboardShortcuts = function useKeyboardShortcuts(state, history, io) 
       description: "Cycle stitch type backward",
       when: function () { return !!state.pat; },
       run: function () {
-        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch"];
+        var order = ["cross","quarter","half-fwd","half-bck","three-quarter","backstitch","knot"];
         var cur = state.stitchType || "cross";
         var i = order.indexOf(cur);
         var prev = order[(i <= 0 ? order.length - 1 : i - 1)];

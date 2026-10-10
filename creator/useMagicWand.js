@@ -571,7 +571,12 @@ window.useMagicWand = function useMagicWand(state) {
     var keptBs = bsLines.filter(function(ln) { return !ln || !lineInside(ln); });
     var bsRemoved = bsLines.length - keptBs.length;
 
-    if (!changes.length && !psChanges.length && !bsRemoved) {
+    // French knots belonging to selected cells (knots.js).
+    var knots = state.knots || [];
+    var keptKnots = window.Knots ? knots.filter(function(k) { return !window.Knots.inSelection(k, mask, sW, sH); }) : knots;
+    var knotsRemoved = knots.length - keptKnots.length;
+
+    if (!changes.length && !psChanges.length && !bsRemoved && !knotsRemoved) {
       if (state.addToast) state.addToast("Nothing to delete in the selection.", {type: "info", duration: 2000});
       return null;
     }
@@ -579,6 +584,7 @@ window.useMagicWand = function useMagicWand(state) {
     var entry = { type: "deleteSelection", changes: changes };
     if (psChanges.length) entry.psChanges = psChanges;
     if (bsRemoved) entry.bsLines = bsLines.slice();
+    if (knotsRemoved) entry.knots = knots.slice();
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
     state.setEditHistory(function(prev) {
       var n = prev.concat([entry]);
@@ -621,8 +627,9 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (nm) state.setPartialStitches(nm);
     if (bsRemoved) state.setBsLines(keptBs);
+    if (knotsRemoved && state.setKnots) state.setKnots(keptKnots);
 
-    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved };
+    var counts = { full: changes.length, partial: psChanges.length, backstitch: bsRemoved, knot: knotsRemoved };
     var CR = window.ColourReplace;
     var desc = CR && CR.describeCounts ? CR.describeCounts(counts) : (changes.length + " stitches");
     if (state.addToast) state.addToast("Deleted " + desc + ".", {type: "success", duration: 2000});

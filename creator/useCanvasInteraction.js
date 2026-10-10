@@ -146,6 +146,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (isShapeTool(t)) return "stroke";
     if (t === "eyedropper") return "single";
     if (t === "text") return "single";
+    if (t === "knot") return "single";
     return null;
   }
   function precisionOn() { return !!(state.precisionCursorRef && state.precisionCursorRef.current); }
@@ -812,6 +813,41 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     // quarter/three-quarter tools require hit-testing — delegate to handlePatClick (no drag)
     if (partialStitchTool === "quarter" || partialStitchTool === "three-quarter") {
       handlePatClick(e);
+      return;
+    }
+
+    // French knot (audit DRAW-04): a tap puts a knot on the nearest grid
+    // corner or stitch centre, or removes the knot already there. With mirror
+    // drawing on, the mirror images change with it. One undo step.
+    if (activeTool === "knot") {
+      if (!window.Knots || typeof state.setKnots !== "function") return;
+      var kW = state.sW, kH = state.sH, kMax = state.EDIT_HISTORY_MAX;
+      var kRect = pcRef.current.getBoundingClientRect();
+      var kfx = ((e.clientX - kRect.left) * (pcRef.current.width / (pcRef.current.clientWidth || 1)) - G) / cs;
+      var kfy = ((e.clientY - kRect.top) * (pcRef.current.height / (pcRef.current.clientHeight || 1)) - G) / cs;
+      if (kfx < -0.5 || kfy < -0.5 || kfx > kW + 0.5 || kfy > kH + 0.5) return;
+      var kp = window.Knots.snap(kfx, kfy, kW, kH);
+      var oldKnots = state.knots || [];
+      var removing = window.Knots.find(oldKnots, kp.x, kp.y) !== -1;
+      var kThread = selectedColorId && cmap ? cmap[selectedColorId] : null;
+      if (!removing && !kThread) {
+        if (state.addToast) state.addToast("Choose a colour first.", { type: "info", duration: 2000 });
+        return;
+      }
+      var newKnots = oldKnots;
+      window.Knots.mirrorKnot(kp.x, kp.y, state.mirror).forEach(function (pt) {
+        if (pt.x < 0 || pt.y < 0 || pt.x > 2 * kW || pt.y > 2 * kH) return;
+        var there = window.Knots.find(newKnots, pt.x, pt.y) !== -1;
+        if (there === removing) newKnots = window.Knots.toggle(newKnots, pt.x, pt.y, kThread || {}).knots;
+      });
+      if (newKnots === oldKnots) return;
+      state.setKnots(newKnots);
+      state.setEditHistory(function (prev) {
+        var n = prev.concat([{ type: "knot", changes: [], knots: oldKnots.slice() }]);
+        if (n.length > kMax) n = n.slice(n.length - kMax);
+        return n;
+      });
+      state.setRedoHistory([]);
       return;
     }
 

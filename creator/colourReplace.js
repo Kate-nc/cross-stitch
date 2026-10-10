@@ -194,6 +194,7 @@ window.ColourReplace = (function() {
     if (c.full) parts.push(n(c.full, 'stitch', 'stitches'));
     if (c.partial) parts.push(n(c.partial, 'part stitch', 'part stitches'));
     if (c.backstitch) parts.push(n(c.backstitch, 'backstitch line', 'backstitch lines'));
+    if (c.knot) parts.push(n(c.knot, 'French knot', 'French knots'));
     if (!parts.length) return '0 stitches';
     if (parts.length === 1) return parts[0];
     return parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];

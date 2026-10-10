@@ -38,6 +38,7 @@ The first time you open the Tracker, a short welcome tour explains Mark and Navi
 - **Drag** across stitches to mark them all.
 - **Rectangle:** hold **Shift** and click a stitch to mark everything between it and the last stitch you marked (Shift-drag shows the rectangle first). On a touch screen, press and hold a stitch, then tap the opposite corner.
 - **On a touch screen**, one finger marks and **two fingers** pan and pinch-zoom.
+- **French knots:** tap or click a knot to mark it done (it fills in); again to unmark. Knots count towards progress, one each, and **Undo** covers them.
 
 ### Navigate mode (`N`)
 
@@ -145,7 +146,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 | Format | Notes |
 |--------|-------|
 | **.json** | stitchx project file |
-| **.oxs** | Pattern Keeper, KG-Chart, MacStitch, WinStitch |
+| **.oxs** | Pattern Keeper, KG-Chart, MacStitch, WinStitch. French knots are read; beads and other ornaments are not. |
 | **Image** | Converted into a pattern |
 | **PDF** | Multi-page, scanned and booklet charts. A review screen shows how many stitches matched the colour key and lets you fix pages and threads before saving. |
 

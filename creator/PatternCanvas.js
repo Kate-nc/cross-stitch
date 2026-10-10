@@ -151,7 +151,7 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
     cv.bsLines, app.tab, cv.showOverlay, cv.overlayOpacity,
-    gen.img, ctx.partialStitches, cv.stitchType, ctx.partialStitchTool,
+    gen.img, ctx.partialStitches, ctx.knots, cv.stitchType, ctx.partialStitchTool,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
