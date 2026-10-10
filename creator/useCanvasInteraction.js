@@ -691,6 +691,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
+    // A floating paste / flip / rotate: drag it from inside, place it by
+    // pressing outside (audit DRAW-04).
+    if (activeTool === "float") {
+      var clipF = state.clip;
+      if (!clipF) return;
+      if (clipF.isInside(gx, gy)) clipF.startDrag(gx, gy);
+      else clipF.commit();
+      return;
+    }
+
     if (activeTool === "move") {
       if (gx < 0 || gx >= state.sW || gy < 0 || gy >= state.sH) return;
       var selMaskM = state.selectionMask;
@@ -771,6 +781,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.moveActive) state.updateMove(gc.gx, gc.gy);
       return;
     }
+    if (activeTool === "float") {
+      if (state.clip && state.clip.isDragging()) state.clip.updateDrag(gc.gx, gc.gy);
+      return;
+    }
 
     if (activeTool === "lasso") {
       if (gc.gx >= 0 && gc.gx < state.sW && gc.gy >= 0 && gc.gy < state.sH) {
@@ -809,6 +823,10 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     if (getActiveTool() === "move") {
       if (state.moveActive) state.commitMove();
+      return;
+    }
+    if (getActiveTool() === "float") {
+      if (state.clip) state.clip.endDrag();
       return;
     }
     if (getActiveTool() === "lasso") {

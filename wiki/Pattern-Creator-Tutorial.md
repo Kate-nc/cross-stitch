@@ -142,6 +142,17 @@ Choose a colour in the **Palette** tab, then a tool:
 
 Paint, half stitches and Erase cover a square of stitches from 1×1 up to 10×10. Set the size with the slider or the quick sizes (1, 2, 3, 5, 7, 10) in the **Tools** tab, or under **More tools > Brush size**. The outline under the cursor shows the area the brush will cover.
 
+### Copy, paste, flip and rotate
+
+With stitches selected:
+
+- **Copy** (`Ctrl+C`) and **Cut** (`Ctrl+X`) keep the stitches, part stitches and the backstitch lines inside the selection; Cut also clears them.
+- **Paste** (`Ctrl+V`, or **Paste** in More tools) puts the copy back where it came from, floating on the chart. Drag it into place, then press **Done** or tap outside it; **Cancel** or `Esc` puts it back. Anything outside the pattern is left out.
+- **Duplicate** (`Ctrl+D`) floats a copy two stitches down and to the right.
+- **Flip horizontally** (`Shift+H`), **Flip vertically** (`Shift+V`), **Rotate left** (`,`) and **Rotate right** (`.`) turn the floating copy, or lift the selection and turn it where it is. Half stitches change direction and quarter stitches change corner to match.
+
+On a phone or tablet these actions sit on a bar over the selection; on a computer they are in the Tools tab and the right-click menu. Placing a paste or a turn is one undo step.
+
 ### Deleting a selection
 
 With stitches selected (Magic Wand or Lasso), press `Delete` or `Backspace`, click **Delete** on the selection bar, or right-click and choose **Delete selected stitches**. Every stitch in the selection is cleared, along with part stitches in those cells and backstitch lines lying entirely inside the selection; lines along its edge are kept. It is one undo step, and the selection stays in place so you can paint into the cleared area.

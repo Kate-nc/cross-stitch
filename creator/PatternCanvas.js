@@ -158,6 +158,30 @@ window.PatternCanvas = function PatternCanvas() {
     app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
 
+  // ── Effect: dragging a floating paste / turn (audit DRAW-04). The drag
+  // only moves a ghost, so repaint the overlay, at most once a frame, instead
+  // of rebuilding the pattern on every move.
+  React.useEffect(function() {
+    var raf = null;
+    function onGhost() {
+      if (raf) return;
+      raf = requestAnimationFrame(function() {
+        raf = null;
+        var canvas = app.pcRef.current;
+        if (!canvas || !baseCacheRef.current) return;
+        var snap = ctxRef.current;
+        var context = canvas.getContext("2d");
+        restoreBase(context, 0, 0, canvas.width, canvas.height);
+        drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, G, snap);
+      });
+    }
+    window.addEventListener("cs:clip-ghost", onGhost);
+    return function() {
+      window.removeEventListener("cs:clip-ghost", onGhost);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // ── Effect 2: Overlay-only render. Fires cheaply on every mouse-move (hoverCoords).
   // Restores the cached base then repaints just the hover elements.
   React.useEffect(function() {

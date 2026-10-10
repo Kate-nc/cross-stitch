@@ -751,7 +751,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleDenoisePointerDown: denoiseMode ? denoiseMode.handleDenoisePointerDown : null,
     handleDenoisePointerMove: denoiseMode ? denoiseMode.handleDenoisePointerMove : null,
     handleDenoisePointerUp: denoiseMode ? denoiseMode.handleDenoisePointerUp : null,
+    // Copy, paste, flip and rotate (useSelectionClipboard)
+    clip: state.clip,
   }; }, [
+    state.clip,
     state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,

@@ -129,11 +129,13 @@ describe('deleteSelection', () => {
     expect(s.toasts.pop().type).toBe('info');
   });
 
+  // A pasted or turned selection (useSelectionClipboard) is deleted as a
+  // whole instead: a lifted one is removed, a paste discarded.
   test('is blocked while a moved selection is still floating', () => {
     // A floating move is rebuilt from its start snapshot on commit, which would
     // silently overwrite a delete made mid-move.
     expect(read('creator/useCreatorState.js')).toMatch(
-      /deleteSelection: function\(\) \{\s*if \(move\.floatActive\) \{[\s\S]*?return null;\s*\}\s*return wand\.deleteSelection\(\);/);
+      /deleteSelection: function\(\) \{\s*if \(clip\.floatActive\) return clip\.deleteFloat\(\);\s*if \(move\.floatActive\) \{[\s\S]*?return null;\s*\}\s*return wand\.deleteSelection\(\);/);
     expect(read('creator/useKeyboardShortcuts.js')).toMatch(/creator\.deleteSel[\s\S]*?!state\.floatActive/);
   });
 

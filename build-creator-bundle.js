@@ -49,6 +49,9 @@ const ORDER = [
   'useMagicWand.js',
   'useLassoSelect.js',
   'useMoveSelection.js',
+  // Copy, paste, flip and rotate for a selection (audit DRAW-04).
+  'selectionTransforms.js',
+  'useSelectionClipboard.js',
   'useCreatorState.js',
   // useImportWizard.js + ImportWizard.js intentionally REMOVED from this
   // list — they are bundled into creator/import-wizard-bundle.js below and
@@ -68,6 +71,7 @@ const ORDER = [
   'CompareStrip.js',
   'GenerateProgress.js',
   'PatternCanvas.js',
+  'SelectionBar.js',
   'SplitPane.js',
   'CompactBar.js',
   'ToolStrip.js',

@@ -8367,3 +8367,46 @@ body.creator-compact .compare-strip__option{flex:0 0 44%;scroll-snap-align:start
 .convert-advanced > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .convert-advanced > p { margin: 4px 0 0; line-height: 1.45; }
 @media (pointer: coarse) { .convert-advanced > summary { padding: 12px 0; } }
+
+/* Selection action bar: copy, paste, flip and rotate (audit DRAW-04).
+   Fixed over the chart, just above (or below) the selection; under the
+   phone tool rail and its More sheet. */
+.cs-selbar {
+  position: fixed; z-index: 505;
+  display: flex; align-items: center; gap: 2px;
+  padding: 4px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  max-width: calc(100vw - 16px); flex-wrap: wrap;
+}
+.cs-selbar__hint { font-size: var(--text-xs); color: var(--text-tertiary); padding: 0 6px; }
+@media (max-width: 480px) { .cs-selbar__hint { display: none; } }
+.cs-selbar__btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 36px; min-height: 36px; padding: 0 8px;
+  border: none; border-radius: var(--radius-sm); background: transparent;
+  color: var(--text-primary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.cs-selbar__btn svg { width: 18px; height: 18px; }
+.cs-selbar__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cs-selbar__btn--primary { background: var(--accent); color: var(--text-on-accent); font-weight: 600; }
+@media (hover: hover) {
+  .cs-selbar__btn:hover { background: var(--surface-secondary); }
+  .cs-selbar__btn--primary:hover { background: var(--accent-hover); }
+}
+@media (pointer: coarse) {
+  .cs-selbar__btn { min-width: 44px; min-height: 44px; }
+}
+/* The same actions in the Tools tab's Selection section. */
+.cs-seltools { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: var(--s-2); }
+.cs-seltools__btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px;
+  font: inherit; font-size: var(--text-xs); color: var(--text-secondary);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+}
+.cs-seltools__btn:disabled { opacity: 0.45; cursor: default; }
+.cs-seltools__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cs-seltools__btn--primary { background: var(--accent); border-color: var(--accent); color: var(--text-on-accent); font-weight: 600; }
+.cs-seltools__float { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--text-xs); color: var(--text-secondary); }
+.cs-seltools__float > span { flex: 1 1 100%; }
+@media (hover: hover) { .cs-seltools__btn:not(:disabled):hover { color: var(--text-primary); background: var(--surface-secondary); } }

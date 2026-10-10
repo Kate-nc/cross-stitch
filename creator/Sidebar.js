@@ -2093,6 +2093,33 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("div", {style:{fontSize:10,color:"var(--text-tertiary)",lineHeight:1.4}},
       "Modifier hint: Shift = add to selection, Alt = subtract."),
+    // Copy, paste, flip and rotate (audit DRAW-04)
+    cv.clip && (function() {
+      var clip = cv.clip, I = window.Icons;
+      var canSel = !!cv.hasSelection || clip.floatActive;
+      var acts = [
+        ["Copy", "Copy (Ctrl+C)", I.copy(), canSel, function(){ clip.copy(); }],
+        ["Cut", "Cut (Ctrl+X)", I.scissors(), canSel, function(){ clip.cut(); }],
+        ["Paste", "Paste, then drag it into place (Ctrl+V)", I.clipboard(), clip.hasClipboard, function(){ clip.paste(); }],
+        ["Duplicate", "Duplicate (Ctrl+D)", I.duplicate(), canSel, function(){ clip.duplicate(); }],
+        ["Flip horizontally", "Flip left to right (Shift+H)", I.flipHorizontal(), canSel, function(){ clip.transform("flipH"); }],
+        ["Flip vertically", "Flip upside down (Shift+V)", I.flipVertical(), canSel, function(){ clip.transform("flipV"); }],
+        ["Rotate left", "Rotate anticlockwise (,)", I.rotateCcw(), canSel, function(){ clip.transform("rotCCW"); }],
+        ["Rotate right", "Rotate clockwise (.)", I.rotateCw(), canSel, function(){ clip.transform("rotCW"); }]
+      ];
+      return h("div", {className:"cs-seltools", role:"group", "aria-label":"Selection actions"},
+        acts.map(function(a, i) {
+          return h("button", {
+            key:i, type:"button", className:"cs-seltools__btn", disabled:!a[3],
+            title:a[1], onClick:a[4]
+          }, a[2], h("span", null, a[0]));
+        }),
+        clip.floatActive && h("div", {className:"cs-seltools__float"},
+          h("span", null, "Drag the selection to move it."),
+          h("button", {type:"button", className:"cs-seltools__btn", onClick:function(){ clip.cancel(); }}, "Cancel"),
+          h("button", {type:"button", className:"cs-seltools__btn cs-seltools__btn--primary", onClick:function(){ clip.commit(); }}, I.check(), h("span", null, "Done")))
+      );
+    })(),
     cv.hasSelection && h("button", {
       onClick:function(){ if (cv.deleteSelection) cv.deleteSelection(); },
       title:"Delete the stitches in the selection (Delete)",

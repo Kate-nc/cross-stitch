@@ -714,6 +714,25 @@ window.Icons = (function() {
         p('M14 14h6M14 17h6M14 20h6')
       );
     },
+    // Selection editing (audit DRAW-04): cut, duplicate, flip and rotate.
+    scissors: function() {
+      return svg(c(6, 6, 3), c(6, 18, 3), l(20, 4, 8.12, 15.88), l(14.47, 14.48, 20, 20), l(8.12, 8.12, 12, 12));
+    },
+    duplicate: function() {
+      return svg(rc(8, 8, 13, 13, 2), p('M4 16V5a2 2 0 0 1 2-2h11'), l(14.5, 11.5, 14.5, 17.5), l(11.5, 14.5, 17.5, 14.5));
+    },
+    flipHorizontal: function() {
+      return svg(l(12, 3, 12, 21), p('M9 7L3 17h6z'), p('M15 7l6 10h-6z'));
+    },
+    flipVertical: function() {
+      return svg(l(3, 12, 21, 12), p('M7 9l10-6v6z'), p('M7 15l10 6v-6z'));
+    },
+    rotateCw: function() {
+      return svg(p('M20 12a8 8 0 1 1-2.34-5.66'), pl('20 4 20 9 15 9'));
+    },
+    rotateCcw: function() {
+      return svg(p('M4 12a8 8 0 1 0 2.34-5.66'), pl('4 4 4 9 9 9'));
+    },
     settings: function() {
       return svg(
         c(12,12,3),
