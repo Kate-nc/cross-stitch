@@ -7048,14 +7048,16 @@ window.useCreatorState = function useCreatorState() {
   var lineSnap = _lineSnap[0], setLineSnap = _lineSnap[1];
   var _mirror = useState(function () { return { on: false, axis: "v", ax: sW / 2, ay: sH / 2 }; });
   var mirror = _mirror[0], setMirror = _mirror[1];
-  // A new size (another project, a resize) puts the axes back in the centre.
-  var mirrorSizeRef = useRef(sW + "x" + sH);
+  // Another project, or a new size, puts the axes back in the centre. The
+  // project id lives in a ref, so this checks after every render (cheap).
+  var mirrorKeyRef = useRef(null);
   useEffect(function () {
-    var k = sW + "x" + sH;
-    if (mirrorSizeRef.current === k) return;
-    mirrorSizeRef.current = k;
+    var k = (projectIdRef.current || "") + "|" + sW + "x" + sH;
+    if (mirrorKeyRef.current === null) { mirrorKeyRef.current = k; return; }
+    if (mirrorKeyRef.current === k) return;
+    mirrorKeyRef.current = k;
     setMirror(function (m) { return Object.assign({}, m, { ax: sW / 2, ay: sH / 2 }); });
-  }, [sW, sH]);
+  });
 
   var ownedCount = useMemo(function() {
     return skeinData.filter(function(d) { return (threadOwned[d.id] || "") === "owned"; }).length;
@@ -10238,6 +10240,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function notifyOverlay() {
     try { window.dispatchEvent(new Event("cs:shape-preview")); } catch (_) {}
   }
+  // A shape being dragged is dropped (not stitched) when the gesture turns
+  // into a pinch or the pointer is cancelled.
+  function cancelShape() {
+    if (!shapeRef.current) return;
+    shapeRef.current = null;
+    notifyOverlay();
+  }
   function shapePreview() {
     var sh = shapeRef.current;
     if (!sh || !window.ShapeTools) return null;
@@ -10747,13 +10756,30 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       // image, turned to match (audit DRAW-04).
       var psPts = (window.ShapeTools && state.mirror && state.mirror.on)
         ? window.ShapeTools.mirrorPoints(gx, gy, state.mirror) : [{ x: gx, y: gy, flipH: false, flipV: false }];
+      var tapped = [];
       psPts.forEach(function(pt) {
         if (pt.x < 0 || pt.x >= sW || pt.y < 0 || pt.y >= sH) return;
         var tool = window.ShapeTools ? window.ShapeTools.mirrorHalf(partialStitchTool, pt.flipH, pt.flipV) : partialStitchTool;
         var q = hitQ && window.ShapeTools ? window.ShapeTools.mirrorQuadrant(hitQ, pt.flipH, pt.flipV) : hitQ;
-        placePartial(pt.y * sW + pt.x, tool, q);
+        var at = pt.y * sW + pt.x;
+        if (tapped.indexOf(at) === -1) tapped.push(at);
+        placePartial(at, tool, q);
+      });
+      // One undo step for the tap and its mirror images.
+      var psChangesTap = [];
+      tapped.forEach(function(at) {
+        var ov = partialStitches.get(at), nv = nm1.get(at);
+        if (ov !== nv) psChangesTap.push({ idx: at, old: ov ? Object.assign({}, ov) : null });
       });
       state.setPartialStitches(nm1);
+      if (psChangesTap.length) {
+        state.setEditHistory(function(prev) {
+          var n = prev.concat([{ type: partialStitchTool, changes: [], psChanges: psChangesTap }]);
+          if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+          return n;
+        });
+        state.setRedoHistory([]);
+      }
       return;
     }
 
@@ -11162,6 +11188,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
 
     if (activePointersRef.current.size === 2) {
       if (isDraggingRef.current) cancelDragSession();
+      cancelShape();
       cancelTouchDraw();
       clearNavTap();
       clearPendingTap();
@@ -11409,6 +11436,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerCancel(e) {
+    cancelShape();
     activePointersRef.current.delete(e.pointerId);
     hideTouchTarget();
     clearNavTap();

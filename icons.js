@@ -25,6 +25,12 @@ window.Icons = (function() {
     var children = Array.prototype.slice.call(arguments);
     return h.apply(null, ['svg', SVG_PROPS].concat(children));
   }
+  // The house weight for new icons (AGENTS.md): 1.6 rather than 2.
+  var SVG_PROPS_16 = Object.assign({}, SVG_PROPS, { strokeWidth: '1.6' });
+  function svg16() {
+    var children = Array.prototype.slice.call(arguments);
+    return h.apply(null, ['svg', SVG_PROPS_16].concat(children));
+  }
   function p(d) { return h('path', { d: d }); }
   function c(cx, cy, r, extra) { return h('circle', Object.assign({ cx: cx, cy: cy, r: r }, extra || {})); }
   function l(x1, y1, x2, y2) { return h('line', { x1: x1, y1: y1, x2: x2, y2: y2 }); }
@@ -716,16 +722,16 @@ window.Icons = (function() {
     },
     // Drawing shapes and mirror drawing (audit DRAW-04).
     shapeLine: function() {
-      return svg(l(5, 19, 19, 5), c(5, 19, 1.5), c(19, 5, 1.5));
+      return svg16(l(5, 19, 19, 5), c(5, 19, 1.5), c(19, 5, 1.5));
     },
     shapeRect: function() {
-      return svg(rc(4, 6, 16, 12, 1));
+      return svg16(rc(4, 6, 16, 12, 1));
     },
     shapeEllipse: function() {
-      return h('svg', SVG_PROPS, h('ellipse', { cx: 12, cy: 12, rx: 8, ry: 6 }));
+      return h('svg', SVG_PROPS_16, h('ellipse', { cx: 12, cy: 12, rx: 8, ry: 6 }));
     },
     mirror: function() {
-      return svg(p('M12 3v2'), p('M12 9v2'), p('M12 15v2'), p('M12 21v-1'), p('M9 6L4 12l5 6z'), p('M15 6l5 6-5 6'));
+      return svg16(p('M12 3v2'), p('M12 9v2'), p('M12 15v2'), p('M12 21v-1'), p('M9 6L4 12l5 6z'), p('M15 6l5 6-5 6'));
     },
     // Selection editing (audit DRAW-04): cut, duplicate, flip and rotate.
     scissors: function() {

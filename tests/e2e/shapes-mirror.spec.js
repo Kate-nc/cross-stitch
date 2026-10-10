@@ -159,5 +159,19 @@ test.describe('Shapes and mirror on a desktop', function() {
     await expect.poll(async () => stitched(await saved(page)), { timeout: 10000 }).toBe(before + 2);
     ids = await saved(page);
     expect(ids[20 * SW + 13]).not.toBe('__empty__');
+
+    // A quarter stitch tapped with mirror drawing on lands at its mirror
+    // image too, and one Undo takes both away.
+    const partials = () => page.evaluate(async function() {
+      const p = await ProjectStorage.getActiveProject();
+      return (p.partialStitches || []).length;
+    });
+    await page.locator('button', { hasText: 'Tools' }).first().click();
+    await page.getByRole('radio', { name: /Stitch$/ }).first().click();
+    const q = await cellPoint(page, 22, 25);
+    await page.mouse.click(q.x - 3, q.y - 3);
+    await expect.poll(partials, { timeout: 10000 }).toBe(2);
+    await page.keyboard.press('Control+z');
+    await expect.poll(partials, { timeout: 10000 }).toBe(0);
   });
 });

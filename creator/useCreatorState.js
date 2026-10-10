@@ -1300,14 +1300,16 @@ window.useCreatorState = function useCreatorState() {
   var lineSnap = _lineSnap[0], setLineSnap = _lineSnap[1];
   var _mirror = useState(function () { return { on: false, axis: "v", ax: sW / 2, ay: sH / 2 }; });
   var mirror = _mirror[0], setMirror = _mirror[1];
-  // A new size (another project, a resize) puts the axes back in the centre.
-  var mirrorSizeRef = useRef(sW + "x" + sH);
+  // Another project, or a new size, puts the axes back in the centre. The
+  // project id lives in a ref, so this checks after every render (cheap).
+  var mirrorKeyRef = useRef(null);
   useEffect(function () {
-    var k = sW + "x" + sH;
-    if (mirrorSizeRef.current === k) return;
-    mirrorSizeRef.current = k;
+    var k = (projectIdRef.current || "") + "|" + sW + "x" + sH;
+    if (mirrorKeyRef.current === null) { mirrorKeyRef.current = k; return; }
+    if (mirrorKeyRef.current === k) return;
+    mirrorKeyRef.current = k;
     setMirror(function (m) { return Object.assign({}, m, { ax: sW / 2, ay: sH / 2 }); });
-  }, [sW, sH]);
+  });
 
   var ownedCount = useMemo(function() {
     return skeinData.filter(function(d) { return (threadOwned[d.id] || "") === "owned"; }).length;
