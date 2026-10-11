@@ -35,3 +35,20 @@ Baseline (medians, ms): load to canvas 1,309; tap 20; drag 60 moves 1,077; drag 
 
 ### Tests added
 `tests/statsScriptsCoexist.test.js` (3, fails on the old files with the exact error), `tests/shippedFilesEncoding.test.js` (4), `tests/phase2Batch1.test.js` (7), `tests/e2e/phase2-batch1.spec.js` (5: Activity opens, tall pattern fits, snapshot on a new day with a faked clock, Home offers the reminder, Home does not offer it when nothing is stitched).
+
+### Performance, batch 1
+Two measurements, because the first looked worse and needed explaining.
+
+1. Sequential (baseline run at the start, "after" run an hour later, 7 runs each): load to canvas +7.3% (1,309 to 1,404 ms), project Stats +9.1% (66 to 72 ms), tap -15%, drag -0.3%, frame gap 0%, global Stats -5%. Two medians were over the 5% line, but both sit inside the baseline's own spread (load 1,232 to 1,395 ms) and the machine drifts between runs: the "main" build measured later in the same session loaded in 1,436 ms.
+2. Interleaved A/B (main in a worktree on port 8001, this branch on 8000, alternating A,B,A,B,A,B with 4 runs each, 12 runs per side; raw files in `reports/tracking-audit/perf/batch1-ab/`):
+
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn 300x300 chart | 1,436 ms (1,341 to 1,595) | 1,429 ms (1,317 to 1,508) | -0.5% |
+| Tap latency | 16 ms (14 to 27) | 17 ms (14 to 24) | +6.2% (1 ms; the timer's resolution; ranges overlap) |
+| 60-move drag | 1,078 ms | 1,062 ms | -1.4% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 76 ms | 68 ms | -10.6% |
+| Global Stats open (500 sessions) | 682 ms | 672 ms | -1.6% |
+
+Reading: no measurable regression. The tap difference is one millisecond, within the spread of both builds, and the batch changes nothing on the tap path; it is reported rather than hidden. Method lesson for the later batches: compare interleaved, never against an old baseline file.
