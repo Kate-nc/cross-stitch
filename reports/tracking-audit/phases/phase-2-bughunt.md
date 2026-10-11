@@ -19,3 +19,6 @@
 
 ### Not verified
 Safari and Firefox; real devices; the Activity tab with a very large history (the 500-session project was timed for Stats open, not Activity).
+
+### CI round (batch 1)
+- CI failed on the first push: `creator/bundle.js` was stale (I had edited `creator/useCreatorState.js` and not rebuilt the bundle). `npm test` did not catch it because the staleness check is a CI step, not a test. Rebuilt and pushed, and added `tests/bundlesUpToDate.test.js`, which runs the same builds and fails (leaving the tree unchanged) if a committed bundle would differ; checked by appending a line to a Creator source file.
