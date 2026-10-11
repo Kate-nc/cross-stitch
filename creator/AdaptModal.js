@@ -32,6 +32,22 @@
   var RATIO_PREF_KEY = 'creator.adaptModalSplitRatio';
 
   // ─── Helpers ────────────────────────────────────────────────────────────
+  // The one brand every stitch of a pattern is in, or null for a mix.
+  function _patternBrand(pattern) {
+    var only = null;
+    for (var i = 0; i < (pattern || []).length; i++) {
+      var c = pattern[i];
+      if (!c || c.id === '__skip__' || c.id === '__empty__') continue;
+      var parts = c.type === 'blend' && c.threads ? c.threads : [c];
+      for (var j = 0; j < parts.length; j++) {
+        var b = parts[j].brand || c.brand || 'dmc';
+        if (only === null) only = b;
+        else if (only !== b) return null;
+      }
+    }
+    return only || 'dmc';
+  }
+
   function _stitchesByKey(pattern) {
     var out = Object.create(null);
     if (!Array.isArray(pattern)) return out;
@@ -485,6 +501,13 @@
         if (window.Toast) window.Toast.show({ message: 'Adapt failed: ' + (err && err.message), type: 'error' });
         return;
       }
+      // A pattern whose stitches are now all one brand's threads is saved as
+      // that brand's project (settings.threadBrand, P4-5), so it reopens in
+      // that brand. A mix of brands stays as it was.
+      var onlyBrand = _patternBrand(adapted.pattern);
+      adapted.settings = Object.assign({}, adapted.settings);
+      if (onlyBrand && onlyBrand !== 'dmc') adapted.settings.threadBrand = onlyBrand;
+      else delete adapted.settings.threadBrand;
       // Disambiguate the auto-suffixed name against existing projects.
       var saveAndOpen = function (finalName) {
         adapted.name = finalName;
@@ -725,4 +748,6 @@
   var thStyle = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 };
 
   window.AdaptModal = AdaptModal;
+  // For tests.
+  window.AdaptModal.patternBrand = _patternBrand;
 })();

@@ -458,15 +458,25 @@ function generateOXS(project) {
     '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
   }[c]));
 
+  // The pattern's thread brand (P4-5): a DMC pattern's numbers are bare ids,
+  // as before; another brand's carry its name ("Anchor 403"), which
+  // parseOXS reads back as that brand.
+  const brand = (project.threadBrand && String(project.threadBrand).toLowerCase() !== 'dmc')
+    ? String(project.threadBrand).toLowerCase() : null;
+  function threadInfo(id) {
+    if (!brand) return _importDmcById(id);
+    return typeof findThreadInCatalog === 'function' ? findThreadInCatalog(brand, id) : null;
+  }
+
   // ── Pass 1: build palette ─────────────────────────────────────────────────
-  // palMap: dmcId (string) → { index, name, number, r, g, b }
+  // palMap: thread id (string) → { index, name, number, r, g, b }
   const palMap = {};
   const blendWarnings = [];   // blend ids that were downgraded
   let palIndex = 0;
 
   function registerThread(id, rgb, threadName) {
     if (palMap[id]) return;
-    palMap[id] = { index: palIndex++, name: threadName || id, number: id, r: rgb[0], g: rgb[1], b: rgb[2] };
+    palMap[id] = { index: palIndex++, name: threadName || id, number: brand ? _oxsBrandLabel(brand) + ' ' + id : id, r: rgb[0], g: rgb[1], b: rgb[2] };
   }
 
   for (let i = 0; i < pattern.length; i++) {
@@ -478,8 +488,8 @@ function generateOXS(project) {
       const primaryId = cell.id.split('+')[0];
       if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
       if (!palMap[primaryId]) {
-        // Look up the primary DMC entry for accurate colour values.
-        const dmc = _importDmcById(primaryId);
+        // Look up the primary thread for accurate colour values.
+        const dmc = threadInfo(primaryId);
         const rgb = dmc ? dmc.rgb : (cell.rgb || [0, 0, 0]);
         registerThread(primaryId, rgb, dmc ? dmc.name : primaryId);
       }
@@ -505,7 +515,7 @@ function generateOXS(project) {
   for (const line of bsLines) {
     const tid = bsThreadId(line);
     if (tid && !palMap[tid]) {
-      const dmc = _importDmcById(tid);
+      const dmc = threadInfo(tid);
       if (dmc) registerThread(dmc.id, dmc.rgb, dmc.name);
     }
   }
@@ -516,7 +526,7 @@ function generateOXS(project) {
     const tid = knotThreadId(k);
     if (tid !== k.id && blendWarnings.indexOf(k.id) === -1) blendWarnings.push(k.id);
     if (!palMap[tid]) {
-      const dmc = _importDmcById(tid);
+      const dmc = threadInfo(tid);
       registerThread(tid, dmc ? dmc.rgb : (k.rgb || [0, 0, 0]), dmc ? dmc.name : tid);
     }
   }

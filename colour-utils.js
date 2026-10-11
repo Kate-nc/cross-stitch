@@ -652,7 +652,7 @@ function buildPalette(patArr){
   let symbolMap={};
   for(let i=0;i<patArr.length;i++){
     let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};}
+    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
     usage[m.id].count++;
     if(m.symbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
   }
@@ -689,16 +689,28 @@ function rebuildPaletteCounts(patArr, existingPal) {
   return existingPal.map(p => ({ ...p, count: counts[p.id] || 0 }));
 }
 
-function restoreStitch(m){
+// Rebuilds a stored cell. `brand` is the project's thread brand (P4-5):
+// ids are looked up in that brand's catalogue, and cells of a brand other
+// than DMC carry `brand` so later code knows which catalogue they're in.
+// Anything else in `brand` (absent, or an index from .map) means DMC.
+function restoreStitch(m,brand){
   if(m.id==="__skip__")return{type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
   if(m.id==="__empty__")return{type:"solid",id:"__empty__",rgb:[255,255,255],lab:[100,0,0]};
+  var b=typeof normaliseThreadBrand==="function"?normaliseThreadBrand(brand):(brand==="anchor"?"anchor":"dmc");
+  var tag=b==="dmc"?null:b;
   if(m.type==="blend"){
-    let ids=splitBlendId(m.id),t0=findThreadInCatalog('dmc',ids[0]),t1=findThreadInCatalog('dmc',ids[1]);
-    if(t0&&t1)return{type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+    let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
+    if(t0&&t1){
+      let out={type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+      if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
+      return out;
+    }
   }
-  let dmc=findThreadInCatalog('dmc',m.id);
-  if(dmc)return{type:"solid",id:dmc.id,name:dmc.name,rgb:dmc.rgb,lab:dmc.lab,dist:0,symbol:m.symbol};
-  return{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
+  let t=findThreadInCatalog(b,m.id);
+  let out=t?{type:"solid",id:t.id,name:t.name,rgb:t.rgb,lab:t.lab,dist:0,symbol:m.symbol}
+    :{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
+  if(tag)out.brand=tag;
+  return out;
 }
 
 function applyMedianFilterCore(data, w, h, radius, buf) {

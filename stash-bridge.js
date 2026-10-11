@@ -675,7 +675,8 @@ const StashBridge = (() => {
                     name: d.name,
                     qty: d.stitches,
                     unit: "stitches",
-                    brand: "DMC"
+                    // The project's thread brand (P4-5): "DMC" or "Anchor".
+                    brand: typeof threadBrandLabel === "function" ? threadBrandLabel(d.brand) : "DMC"
                   }))
                 };
                 if (existingIdx >= 0) patterns[existingIdx] = entry;

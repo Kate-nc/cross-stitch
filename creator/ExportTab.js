@@ -247,7 +247,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       description: app.projectDescription || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt },
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: ctx.threadBrand && ctx.threadBrand !== "dmc" ? ctx.threadBrand : undefined },
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
@@ -556,7 +556,8 @@ window.CreatorExportTab = function CreatorExportTab() {
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
-            knots: ctx.knots || []
+            knots: ctx.knots || [],
+            threadBrand: ctx.threadBrand
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

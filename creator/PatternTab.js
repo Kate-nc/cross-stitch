@@ -271,7 +271,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
-          parts.push("DMC " + info.id + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+          parts.push(threadLabel(info) + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
         }
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},

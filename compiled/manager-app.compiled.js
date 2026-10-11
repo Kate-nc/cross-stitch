@@ -2069,7 +2069,7 @@ function ManagerApp() {
       if (!pat) return null;
       const reqThreads = pat.threads || [];
       const missing = reqThreads.filter(t => {
-        const k = normaliseStashKey(t.id);
+        const k = libraryThreadKey(t);
         return !((threads[k] || {}).owned > 0);
       });
       // Pull progress + weekly sparkline data from the linked
@@ -2510,11 +2510,11 @@ function ManagerApp() {
   }, viewingPattern ? "Pattern Detail" : "Pattern Detail")), viewingPattern ? (() => {
     const p = viewingPattern;
     const coverage = p.threads && p.threads.length > 0 ? Math.round(p.threads.filter(t => {
-      const k = normaliseStashKey(t.id);
+      const k = libraryThreadKey(t);
       return (threads[k] || {}).owned > 0;
     }).length / p.threads.length * 100) : 0;
     const missingThreads = p.threads ? p.threads.filter(t => {
-      const k = normaliseStashKey(t.id);
+      const k = libraryThreadKey(t);
       return !(threads[k] || {}).owned;
     }) : [];
     return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
@@ -2580,7 +2580,7 @@ function ManagerApp() {
         color: "var(--text-tertiary)"
       }
     }, p.threads ? p.threads.filter(t => {
-      const k = normaliseStashKey(t.id);
+      const k = libraryThreadKey(t);
       return (threads[k] || {}).owned > 0;
     }).length : 0, " of ", p.threads ? p.threads.length : 0, " threads in your stash. ", missingThreads.length, " missing.")), missingThreads.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "rp-s"
@@ -2590,15 +2590,15 @@ function ManagerApp() {
       className: "used-in"
     }, missingThreads.map(t => {
       // PERF (perf-4 #1): O(1) map lookup vs O(n) DMC.find
-      const dmc = typeof getDmcById === 'function' ? getDmcById(t.id) : DMC.find(x => x.id === t.id);
-      const compositeKey = normaliseStashKey(t.id);
+      const dmc = findThreadInCatalog(libraryThreadBrand(t), t.id);
+      const compositeKey = libraryThreadKey(t);
       return /*#__PURE__*/React.createElement("div", {
         key: t.id,
         className: "ui-row",
         style: {
           cursor: "pointer"
         },
-        title: "Open thread card for DMC " + t.id,
+        title: "Open thread card for " + threadBrandLabel(libraryThreadBrand(t)) + " " + t.id,
         onClick: () => {
           setTab("inventory");
           setThreadFilter("all");
@@ -2625,7 +2625,7 @@ function ManagerApp() {
         marginTop: 8
       },
       onClick: () => {
-        const keys = missingThreads.map(t => normaliseStashKey(t.id));
+        const keys = missingThreads.map(t => libraryThreadKey(t));
         StashBridge.markManyToBuy(keys, true).then(changed => {
           if (window.Toast) {
             const alreadyPresent = Math.max(0, missingThreads.length - changed);
@@ -3403,7 +3403,7 @@ function PatternModal({
       overflowY: "auto"
     }
   }, edited.threads.map((t, idx) => {
-    const info = findThreadInCatalog('dmc', t.id);
+    const info = findThreadInCatalog(libraryThreadBrand(t), t.id);
     // Backward compatibility for old format
     const unit = t.unit || "skeins";
     const displayUnit = unit === "stitches" ? "st" : "sk";
@@ -3573,7 +3573,7 @@ function PatternDetailsModal({
       wasteFactor: pattern.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
     };
     return pattern.threads.map(t => {
-      const info = findThreadInCatalog('dmc', t.id);
+      const info = findThreadInCatalog(libraryThreadBrand(t), t.id);
       let skExact = 0;
       let skToBuy = 0;
       let skBExact = 0;

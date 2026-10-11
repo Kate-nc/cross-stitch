@@ -1849,6 +1849,13 @@ function formatTimingModeDescription(mode) {
   if (mode === 'manual') return 'Manual timer: runs until you pause, hide the tab, or the idle timeout ends the session.';
   return 'Classic timing: uses a fixed cap on how long a break still counts as stitching time.';
 }
+
+// Projects whose thread brand's catalogue processLoadedProject has already
+// tried to load (P4-5), so a failed load doesn't loop.
+var _trackerBrandLoadTried = typeof WeakSet === "function" ? new WeakSet() : {
+  has: () => true,
+  add: () => {}
+};
 function TrackerApp({
   onSwitchToDesign = null,
   onGoHome = null,
@@ -2492,6 +2499,9 @@ function TrackerApp({
   // pointer crossed re-rendered all of TrackerApp — ~1 200 elements per cell.
   const hoverCellRef = useRef(null); // {row, col}, 0-based, or null
   const hoverInfoRef = useRef(null); // {row, col, id, name}, 1-based, or null
+  // The pattern's thread brand (settings.threadBrand, P4-5): 'dmc' unless the
+  // project says otherwise. Cells of another brand carry it too.
+  const [threadBrand, setThreadBrand] = useState("dmc");
   const hoverBarRef = useRef(null);
   function renderHoverBar() {
     const el = hoverBarRef.current;
@@ -2501,7 +2511,7 @@ function TrackerApp({
     let text = "—";
     if (c) {
       text = "Row: " + (c.row + 1) + "   Col: " + (c.col + 1);
-      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   DMC " + info.id + " " + info.name;
+      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   " + threadLabel(info, threadBrand) + " " + info.name;
     } else {
       // Nothing under the pointer (always the case on touch): describe the
       // guide crosshair, if there is one.
@@ -2514,13 +2524,14 @@ function TrackerApp({
     }
     if (el.textContent !== text) el.textContent = text;
   }
-  // "DMC 310 Black" for a stitch, or "" for an empty / skipped cell.
+  // "DMC 310 Black" (or "Anchor 403 ...") for a stitch, or "" for an empty /
+  // skipped cell.
   function cellThreadLabel(idx) {
     const cell = pat && pat[idx];
     if (!cell || cell.id === "__skip__" || cell.id === "__empty__") return "";
-    if (cell.type === "blend" && cell.threads) return "DMC " + cell.id + " " + cell.threads[0].name + "+" + cell.threads[1].name;
+    if (cell.type === "blend" && cell.threads) return threadLabel(cell) + " " + cell.threads[0].name + "+" + cell.threads[1].name;
     const ci = cmap && cmap[cell.id];
-    return "DMC " + cell.id + (ci && ci.name ? " " + ci.name : "");
+    return threadLabel(cell) + (ci && ci.name ? " " + ci.name : "");
   }
   function setHoverInfo(info) {
     const prev = hoverInfoRef.current;
@@ -3741,7 +3752,7 @@ function TrackerApp({
       if (nextColor) {
         setFocusColour(nextColor.id);
         const label = nextColor.type === "blend" ? nextColor.threads[0].name + "+" + nextColor.threads[1].name : nextColor.name;
-        setAdvanceToast(`DMC ${nextColor.id} — ${label}`);
+        setAdvanceToast(`${threadLabel(nextColor, threadBrand)} — ${label}`);
         setTimeout(() => setAdvanceToast(null), 2500);
         return;
       }
@@ -3833,16 +3844,18 @@ function TrackerApp({
       if (na && nb) return na - nb;
       return a[0].localeCompare(b[0]);
     }).map(([id, ct]) => {
-      let t = findThreadInCatalog('dmc', id);
+      let t = findThreadInCatalog(threadBrand, id);
       return {
         id,
+        brand: threadBrand,
+        key: threadKey(threadBrand, id),
         name: t ? t.name : "",
         rgb: t ? t.rgb : [128, 128, 128],
         stitches: ct,
         skeins: skeinEst(ct, fabricCt)
       };
     });
-  }, [pal, fabricCt]);
+  }, [pal, fabricCt, threadBrand]);
   useEffect(() => {
     function loadStash() {
       if (typeof StashBridge !== "undefined") {
@@ -3957,14 +3970,15 @@ function TrackerApp({
     skeinData.forEach(d => {
       const dn = threadDone[d.id] || 0;
       const skeinsConsumed = dn * effectiveCostIn / SKEIN_TOTAL_IN;
-      const snapEntry = snap['dmc:' + d.id] || snap[d.id] || null;
+      const snapEntry = snap[d.key] || snap[d.id] || null;
       const ownedSkeins = snapEntry && typeof snapEntry.owned === 'number' ? snapEntry.owned : null;
       const skeinsRemaining = ownedSkeins != null ? ownedSkeins - skeinsConsumed : null;
       out[d.id] = {
         skeinsConsumed,
         skeinsRemaining,
         ownedSkeins,
-        effectiveCostIn
+        effectiveCostIn,
+        key: d.key
       };
     });
     return out;
@@ -3995,7 +4009,7 @@ function TrackerApp({
         if (!c || c.skeinsConsumed <= 0 || c.ownedSkeins == null) continue;
         const newOwned = Math.max(0, c.ownedSkeins - c.skeinsConsumed);
         try {
-          await StashBridge.updateThreadOwned(id, newOwned);
+          await StashBridge.updateThreadOwned(c.key || id, newOwned);
           wrote = true;
         } catch (e) {
           console.warn('RT stash write failed for ' + id + ':', e);
@@ -4183,7 +4197,7 @@ function TrackerApp({
         rtLowToastedRef.current.add(d.id);
         if (typeof window.Toast !== 'undefined' && window.Toast.show) {
           window.Toast.show({
-            message: 'Low thread: DMC ' + d.id + (d.name ? ' \u2014 ' + d.name : '') + '. Only ' + curr.skeinsRemaining.toFixed(2) + ' skeins remaining.',
+            message: 'Low thread: ' + threadLabel(d) + (d.name ? ' \u2014 ' + d.name : '') + '. Only ' + curr.skeinsRemaining.toFixed(2) + ' skeins remaining.',
             type: 'warning',
             duration: 10000
           });
@@ -5306,7 +5320,8 @@ function TrackerApp({
         skeinPrice,
         stitchSpeed,
         wastePrefs,
-        fabricColour: projectFabricColour || undefined
+        fabricColour: projectFabricColour || undefined,
+        threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
       },
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
       pattern: window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
@@ -5383,7 +5398,8 @@ function TrackerApp({
       pattern: pat,
       bsLines: bsLines || [],
       knots: knots,
-      name: projectName || 'pattern'
+      name: projectName || 'pattern',
+      threadBrand
     });
     if (result.warnings && result.warnings.length > 0) {
       window.Toast && Toast.show({
@@ -5592,6 +5608,17 @@ function TrackerApp({
         window.CrossTabCoord.noteSeen(project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
+    // P4-5: a project in another brand's numbering needs that catalogue for
+    // its thread names. Load it first, then come back; if it can't load, carry
+    // on with the colours the cells hold.
+    const brand = window.projectThreadBrand ? window.projectThreadBrand(project) : "dmc";
+    if (brand !== "dmc" && !_trackerBrandLoadTried.has(project) && window.threadCatalogue && !window.threadCatalogue(brand) && window.loadThreadBrand) {
+      _trackerBrandLoadTried.add(project);
+      window.loadThreadBrand(brand, {
+        failMessage: "Could not load the " + window.threadBrandLabel(brand) + " catalogue for this pattern. Reload and try again."
+      }).then(() => processLoadedProject(project), () => processLoadedProject(project));
+      return;
+    }
     // Install the loaded project's identity before any downstream work so a
     // later render-time failure can't cause the next auto-save to mint a copy.
     projectIdRef.current = project.id || null;
@@ -5609,6 +5636,7 @@ function TrackerApp({
     setSH(nextH);
     setBsLines(project.bsLines || project.bs || []);
     if (s.fabricCt) setFabricCt(s.fabricCt);else if (project.fc) setFabricCt(project.fc);
+    setThreadBrand(brand);
     setProjectFabricColour(typeof s.fabricColour === "string" && /^#[0-9a-fA-F]{6}$/.test(s.fabricColour) ? s.fabricColour : null);
     if (s.skeinPrice != null) setSkeinPrice(s.skeinPrice);
     if (s.stitchSpeed) setStitchSpeed(s.stitchSpeed);
@@ -5661,15 +5689,15 @@ function TrackerApp({
         if (m[1] === 'b') return restoreStitch({
           type: "blend",
           id: m[0]
-        });
+        }, brand);
         return restoreStitch({
           type: "solid",
           id: m[0]
-        });
+        }, brand);
       });
     } else {
       // Normal JSON format
-      restored = p.map(restoreStitch);
+      restored = p.map(m => restoreStitch(m, brand));
     }
     const partialMap = new Map();
     const partialCells = [];
@@ -5682,7 +5710,7 @@ function TrackerApp({
           id: quarter.id,
           type: quarter.id.includes('+') ? 'blend' : 'solid',
           rgb: quarter.rgb
-        });
+        }, brand);
         restoredQuarters[corner] = {
           id: stitch.id,
           rgb: stitch.rgb,
@@ -5711,7 +5739,7 @@ function TrackerApp({
       id: k.id,
       type: k.id.includes('+') ? 'blend' : 'solid',
       rgb: k.rgb
-    }));
+    }, brand));
     knotList.forEach((k, i) => {
       if (!k.rgb && knotCells[i].rgb) k.rgb = knotCells[i].rgb;
     });
@@ -5744,7 +5772,7 @@ function TrackerApp({
             id: hs.fwd.id,
             type: hs.fwd.id.includes('+') ? 'blend' : 'solid',
             rgb: hs.fwd.rgb
-          });
+          }, brand);
           entry.fwd = {
             id: restored.id,
             rgb: restored.rgb,
@@ -5758,7 +5786,7 @@ function TrackerApp({
             id: hs.bck.id,
             type: hs.bck.id.includes('+') ? 'blend' : 'solid',
             rgb: hs.bck.rgb
-          });
+          }, brand);
           entry.bck = {
             id: restored.id,
             rgb: restored.rgb,
@@ -6575,7 +6603,8 @@ function TrackerApp({
         skeinPrice,
         stitchSpeed,
         wastePrefs,
-        fabricColour: projectFabricColour || undefined
+        fabricColour: projectFabricColour || undefined,
+        threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
       },
       pattern: window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
         id: m.id
@@ -6816,7 +6845,8 @@ function TrackerApp({
           skeinPrice,
           stitchSpeed,
           wastePrefs,
-          fabricColour: projectFabricColour || undefined
+          fabricColour: projectFabricColour || undefined,
+          threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
         },
         partialStitches: psArr,
         knots: knotsForSave(knots),
@@ -9588,7 +9618,9 @@ function TrackerApp({
     if (foundX < 0 || foundY < 0) {
       try {
         if (window.Toast && window.Toast.show) window.Toast.show({
-          message: "No remaining stitches for DMC " + target + (areaOn ? " in this work area" : ""),
+          message: "No remaining stitches for " + threadLabel({
+            id: target
+          }, threadBrand) + (areaOn ? " in this work area" : ""),
           type: "info"
         });
       } catch (_) {}
@@ -9764,7 +9796,9 @@ function TrackerApp({
       if (!vb || m.x < vb.x0 || m.x >= vb.x1 || m.y < vb.y0 || m.y >= vb.y1) {
         try {
           if (window.Toast && window.Toast.show) window.Toast.show({
-            message: "DMC " + colorId + " is parked outside this work area, at row " + (m.y + 1) + ", column " + (m.x + 1) + ".",
+            message: threadLabel({
+              id: colorId
+            }, threadBrand) + " is parked outside this work area, at row " + (m.y + 1) + ", column " + (m.x + 1) + ".",
             type: "info",
             duration: 4000
           });
@@ -11395,7 +11429,7 @@ function TrackerApp({
     className: "ppal-sort-row",
     role: "group",
     "aria-label": "Sort colour list"
-  }, [["count", "Remaining"], ["done", "% done"], ["id", "DMC ID"]].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
+  }, [["count", "Remaining"], ["done", "% done"], ["id", threadBrandLabel(threadBrand) + " ID"]].map(([k, l]) => /*#__PURE__*/React.createElement("button", {
     key: k,
     className: "ppal-sort-btn" + (legendSort === k ? " ppal-sort-btn--on" : ""),
     onClick: () => setLegendSort(k),
@@ -11432,7 +11466,9 @@ function TrackerApp({
       className: "ppal-active-info"
     }, /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-id"
-    }, "DMC ", focusColour), /*#__PURE__*/React.createElement("span", {
+    }, threadLabel({
+      id: focusColour
+    }, threadBrand)), /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-name"
     }, fc.type === "blend" ? fc.threads[0].name + "+" + fc.threads[1].name : fc.name), /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-count"
@@ -11440,7 +11476,9 @@ function TrackerApp({
       className: "ppal-find-btn",
       onClick: jumpToNextStitch,
       title: "Jump to next remaining stitch",
-      "aria-label": "Find next unfinished stitch of DMC " + focusColour
+      "aria-label": "Find next unfinished stitch of " + threadLabel({
+        id: focusColour
+      }, threadBrand)
     }, Icons.magnify()));
   })() : /*#__PURE__*/React.createElement("div", {
     className: "ppal-active-none"
@@ -11485,8 +11523,8 @@ function TrackerApp({
             if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width:899px)").matches) setLeftSidebarOpen(false);
           }
         },
-        "aria-label": "Select DMC " + p.id,
-        title: "DMC " + p.id + (complete ? " (done)" : "")
+        "aria-label": "Select " + threadLabel(p, threadBrand),
+        title: threadLabel(p, threadBrand) + (complete ? " (done)" : "")
       }, /*#__PURE__*/React.createElement("div", {
         className: "ppal-tile-swatch",
         style: {
@@ -11494,7 +11532,7 @@ function TrackerApp({
         },
         role: "button",
         tabIndex: 0,
-        "aria-label": "View DMC " + p.id + " detail",
+        "aria-label": "View " + threadLabel(p, threadBrand) + " detail",
         onClick: e => {
           e.stopPropagation();
           const r = e.currentTarget.getBoundingClientRect();
@@ -11561,8 +11599,8 @@ function TrackerApp({
           e.stopPropagation();
           goToParkedThread(p.id);
         },
-        title: "Go to where DMC " + p.id + " is parked" + (parkCountsByColour[p.id] > 1 ? " (" + parkCountsByColour[p.id] + " places; press again for the next)" : ""),
-        "aria-label": "Go to where DMC " + p.id + " is parked",
+        title: "Go to where " + threadLabel(p, threadBrand) + " is parked" + (parkCountsByColour[p.id] > 1 ? " (" + parkCountsByColour[p.id] + " places; press again for the next)" : ""),
+        "aria-label": "Go to where " + threadLabel(p, threadBrand) + " is parked",
         style: {
           background: isParkLayerVisible(p.id) ? swRgb : undefined,
           borderColor: isParkLayerVisible(p.id) ? swRgb : "var(--border)",
@@ -11574,7 +11612,7 @@ function TrackerApp({
           e.stopPropagation();
           if (!complete) {
             const u = dc.total - dc.done;
-            if (u > 50 && !confirm("Mark all " + u + " stitches of DMC " + p.id + (areaOn ? " in this work area" : "") + " as done?")) return;
+            if (u > 50 && !confirm("Mark all " + u + " stitches of " + threadLabel(p, threadBrand) + (areaOn ? " in this work area" : "") + " as done?")) return;
           }
           markColourDone(p.id, !complete);
         },
@@ -12318,7 +12356,9 @@ function TrackerApp({
     style: {
       background: "rgb(" + cmap[focusColour].rgb + ")"
     }
-  }), /*#__PURE__*/React.createElement("span", null, "DMC ", focusColour)) : /*#__PURE__*/React.createElement("button", {
+  }), /*#__PURE__*/React.createElement("span", null, threadLabel({
+    id: focusColour
+  }, threadBrand))) : /*#__PURE__*/React.createElement("button", {
     className: "ppal-phone-chip ppal-phone-chip--empty",
     onClick: cycleLeftSidebar,
     "aria-label": "Open colour palette panel"
@@ -13748,11 +13788,11 @@ function TrackerApp({
         const stash = await StashBridge.getGlobalStash();
         for (const d of skeinData) {
           // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-          const gs = stash['dmc:' + d.id] || stash[d.id] || {
+          const gs = stash[d.key] || stash[d.id] || {
             owned: 0
           };
           const newOwned = Math.max(0, gs.owned - d.skeins);
-          await StashBridge.updateThreadOwned(d.id, newOwned);
+          await StashBridge.updateThreadOwned(d.key, newOwned);
         }
         setGlobalStash(await StashBridge.getGlobalStash());
         if (typeof ProjectStorage !== 'undefined' && ProjectStorage.markProjectFinished && projectIdRef.current) {
@@ -13786,12 +13826,12 @@ function TrackerApp({
         const stash = await StashBridge.getGlobalStash();
         for (const d of skeinData) {
           // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-          const gs = stash['dmc:' + d.id] || stash[d.id] || {
+          const gs = stash[d.key] || stash[d.id] || {
             owned: 0
           };
           const deduct = Math.max(0, d.skeins - 1);
           const newOwned = Math.max(0, gs.owned - deduct);
-          await StashBridge.updateThreadOwned(d.id, newOwned);
+          await StashBridge.updateThreadOwned(d.key, newOwned);
         }
         setGlobalStash(await StashBridge.getGlobalStash());
         if (typeof ProjectStorage !== 'undefined' && ProjectStorage.markProjectFinished && projectIdRef.current) {
@@ -13938,7 +13978,7 @@ function TrackerApp({
           const c = consumption[id];
           if (!c || c.ownedSkeins == null) continue;
           try {
-            await StashBridge.updateThreadOwned(id, c.ownedSkeins);
+            await StashBridge.updateThreadOwned(c.key || id, c.ownedSkeins);
           } catch (e) {
             console.warn('RT restore failed for ' + id + ':', e);
           }
@@ -14092,7 +14132,7 @@ function TrackerApp({
         display: 'inline-block',
         flexShrink: 0
       }
-    }), 'DMC ' + d.id + (d.name ? ' \u2014 ' + d.name : '')), React.createElement('td', {
+    }), threadLabel(d) + (d.name ? ' \u2014 ' + d.name : '')), React.createElement('td', {
       style: {
         padding: '5px 10px',
         textAlign: 'right',
@@ -14222,7 +14262,7 @@ function TrackerApp({
         fontWeight: 600,
         fontSize: 'var(--text-md)'
       }
-    }, "DMC ", currentEntry.id), /*#__PURE__*/React.createElement("span", {
+    }, threadLabel(currentEntry, threadBrand)), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 'var(--text-sm)',
         color: "var(--text-secondary)",
@@ -14289,7 +14329,7 @@ function TrackerApp({
           fontSize: 'var(--text-md)',
           minWidth: 52
         }
-      }, "DMC ", p.id), /*#__PURE__*/React.createElement("span", {
+      }, threadLabel(p, threadBrand)), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 'var(--text-sm)',
           color: "var(--text-secondary)",

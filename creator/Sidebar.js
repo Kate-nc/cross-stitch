@@ -108,10 +108,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
     var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
-    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for DMC " + entry.id},
+    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
-        h("span", {className: "pal-symbols__title"}, "Symbol for DMC " + entry.id),
+        h("span", {className: "pal-symbols__title"}, "Symbol for " + threadLabel(entry)),
         h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close", onClick: function() { setSymbolPickerFor(null); }}, Icons.x())
       ),
       free.length
@@ -215,7 +215,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         role: "button",
         tabIndex: 0,
         "aria-pressed": ips || ihs,
-        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : ("DMC " + p.id),
+        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
         className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
@@ -241,7 +241,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
-          "aria-label": "Change symbol for DMC " + p.id,
+          "aria-label": "Change symbol for " + threadLabel(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
         }, Icons.symbols ? Icons.symbols() : null),
@@ -250,7 +250,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
-          title: "Replace DMC " + p.id + " with another colour",
+          title: "Replace " + threadLabel(p) + " with another colour",
           "aria-label": "Replace " + (p.name || p.id) + " with another colour",
           onClick: function(e) {
             e.stopPropagation();
@@ -261,7 +261,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Remove from palette",
-          "aria-label": "Remove DMC " + p.id + " from the palette",
+          "aria-label": "Remove " + threadLabel(p) + " from the palette",
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); }
         }, Icons.x())
       );
@@ -381,7 +381,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         selInfo
           ? h(React.Fragment, null,
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, "DMC " + selInfo.id),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo, ctx.threadBrand)),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},

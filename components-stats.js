@@ -58,7 +58,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
         var chips = session.coloursWorked.slice(0, 14).map(function(cid) {
           var cm = colourMap[cid];
           var rgb = cm ? cm.rgb : [128, 128, 128];
-          return React.createElement("span", {key:cid, title:"DMC " + cid, style:{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0}});
+          return React.createElement("span", {key:cid, title:threadLabel(cm || {id: cid}), style:{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0}});
         });
         contentChildren.push(React.createElement("div", {key:"chips", style:{display:'flex',gap:3,flexWrap:'wrap',marginTop:'var(--s-1)'}}, chips));
       }
@@ -628,7 +628,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       var remaining = Math.max(0, dc.total - dc.done);
       var pct = dc.total > 0 ? Math.round(dc.done / dc.total * 100) : 0;
       if (remaining === 0 && dc.total > 0) coloursComplete++;
-      colourStats.push({id:p.id, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total, halfTotal:dc.halfTotal||0, halfDone:dc.halfDone||0});
+      colourStats.push({id:p.id, brand:p.brand, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total, halfTotal:dc.halfTotal||0, halfDone:dc.halfDone||0});
     }
     colourStats.sort(function(a,b){ return b.remaining - a.remaining; });
     var avgSessionStitches = 0;
@@ -646,9 +646,9 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       React.createElement("div", {className:"stats-colour-summary"},
         React.createElement("span", null, coloursComplete + " / " + totalColours + " colour" + (totalColours !== 1 ? "s" : "") + " complete"),
         mostRemaining && React.createElement("span", null,
-          "Most remaining: DMC " + mostRemaining.id + " (" + mostRemaining.remaining.toLocaleString('en-GB') + " stitches)"),
+          "Most remaining: " + threadLabel(mostRemaining) + " (" + mostRemaining.remaining.toLocaleString('en-GB') + " stitches)"),
         leastRemaining && leastRemaining !== mostRemaining && React.createElement("span", null,
-          "Least remaining: DMC " + leastRemaining.id + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
+          "Least remaining: " + threadLabel(leastRemaining) + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
       ),
       React.createElement("div", {className:"stats-colour-list"},
         colourStats.map(function(c){
@@ -656,7 +656,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
           var rgb = c.rgb || [128,128,128];
           return React.createElement("div", {key:c.id, className:"stats-colour-row"},
             React.createElement("span", {className:"colour-swatch", style:{background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'}}),
-            React.createElement("span", {className:"colour-id"}, "DMC " + c.id),
+            React.createElement("span", {className:"colour-id"}, threadLabel(c)),
             React.createElement("span", {className:"colour-name"}, nameStr),
             React.createElement("div", {className:"colour-bar"},
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
@@ -788,7 +788,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
             sectionThreads.map(function(t){
               var cm=colourMap[t.id];
               var rgb=(cm&&cm.rgb)||[128,128,128];
-              var name=cm?cm.name:('DMC '+t.id);
+              var name=cm?cm.name:threadLabel(t);
               var remaining=t.total-t.doneCount;
               var pct=t.total>0?Math.round(t.doneCount/t.total*100):100;
               return React.createElement("div",{key:t.id,style:{display:'flex',alignItems:'center',gap:6}},
@@ -1818,7 +1818,9 @@ if (typeof window !== 'undefined') window.StatsErrorBoundary = StatsErrorBoundar
 function restoreStoredPattern(project) {
   var raw = project && (project.pattern || project.p);
   if (!Array.isArray(raw)) return null;
-  var restore = typeof restoreStitch === 'function' ? restoreStitch : function(m) { return m; };
+  // The project's thread brand (P4-5) picks the catalogue ids are read from.
+  var brand = typeof projectThreadBrand === 'function' ? projectThreadBrand(project) : 'dmc';
+  var restore = typeof restoreStitch === 'function' ? function(m) { return restoreStitch(m, brand); } : function(m) { return m; };
   if (raw.length > 0 && Array.isArray(raw[0])) {
     return raw.map(function(m) {
       if (m[1] === 'k') return restore({id: '__skip__'});

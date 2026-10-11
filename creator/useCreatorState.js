@@ -708,6 +708,12 @@ window.useCreatorState = function useCreatorState() {
     if (typeof v !== "string" || !/^#[0-9a-fA-F]{6}$/.test(v)) return;
     _setFabricColourRaw(v);
   }
+  // P4-5 / audit IMG-04: the thread brand the pattern's ids belong to
+  // ('dmc' | 'anchor'), saved as settings.threadBrand. Projects without it
+  // are DMC, and so is every new pattern for now.
+  var _thBrand = useState("dmc");
+  var threadBrand = _thBrand[0];
+  function setThreadBrand(v) { _thBrand[1](window.normaliseThreadBrand ? window.normaliseThreadBrand(v) : (v === "anchor" ? "anchor" : "dmc")); }
   // color-11: thread-sheen texture toggle. Read from UserPrefs; updated via
   // a cs:prefsChanged listener so the canvas re-renders when the prefs modal
   // toggles the option without a full page reload.
@@ -1184,10 +1190,10 @@ window.useCreatorState = function useCreatorState() {
       .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
       .map(function(e) {
         var id = e[0], ct = e[1];
-        var t = findThreadInCatalog('dmc', id);
-        return { id: id, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
+        var t = findThreadInCatalog(threadBrand, id);
+        return { id: id, brand: threadBrand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
       });
-  }, [pal, fabricCt, knots]);
+  }, [pal, fabricCt, knots, threadBrand]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
@@ -1445,6 +1451,7 @@ window.useCreatorState = function useCreatorState() {
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
+    _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
     setPictureInfo(null); setPresetApplied(null);
@@ -1688,6 +1695,8 @@ window.useCreatorState = function useCreatorState() {
     setConfettiData(result.confettiData);
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
+    // Conversion picks DMC threads.
+    _thBrand[1]("dmc");
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     // C-9: a regeneration changes the colour map, so any user-drawn
     // back-stitches now reference colour ids that may not exist or
@@ -2315,6 +2324,7 @@ window.useCreatorState = function useCreatorState() {
     previewActive, setPreviewActive, previewShowGrid, setPreviewShowGrid, previewFabricBg, setPreviewFabricBg,
     previewMode, setPreviewMode, realisticLevel, setRealisticLevel, coverageOverride, setCoverageOverride,
     fabricColour, setFabricColour, canvasTexture,
+    threadBrand, setThreadBrand,
     splitPaneEnabled, setSplitPaneEnabled, splitPaneRatio, setSplitPaneRatio,
     splitPaneSyncEnabled, setSplitPaneSyncEnabled, rightPaneMode, setRightPaneMode,
     bgDimOpacity, setBgDimOpacity, hiAdvanced, setHiAdvanced,

@@ -211,6 +211,8 @@ Press `\` (or the split-pane button) to see the editable chart and a realistic p
 3. Review the table of original and replacement threads; override any suggestion, and use the difference limit to control how close matches must be.
 4. Press **Save adapted copy** — this creates a **new project**; the original is unchanged.
 
+When **Convert to brand** moves every colour to Anchor, the copy is an **Anchor pattern**: it keeps Anchor numbers and names when you reopen it, in the palette, Materials, shopping list, Stitch Tracker, PDF key and `.oxs` export.
+
 ## Materials & Output
 
 ### Threads

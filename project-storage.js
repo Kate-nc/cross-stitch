@@ -478,10 +478,13 @@ const ProjectStorage = (() => {
                   counts[cell.id] = (counts[cell.id] || 0) + 1;
                 }
                 const fc = (project.settings && project.settings.fabricCt) || 14;
+                // The project's thread brand (P4-5); absent means DMC.
+                const brand = typeof projectThreadBrand === "function" ? projectThreadBrand(project) : 'dmc';
                 const skeinData = Object.entries(counts).map(([id, stitches]) => {
-                  const dmcEntry = typeof findThreadInCatalog === "function" ? findThreadInCatalog('dmc', id) : null;
+                  const dmcEntry = typeof findThreadInCatalog === "function" ? findThreadInCatalog(brand, id) : null;
                   return {
                     id,
+                    brand,
                     name: dmcEntry ? dmcEntry.name : id,
                     stitches,
                     skeins: typeof skeinEst === "function" ? skeinEst(stitches, fc) : 1,
@@ -1283,8 +1286,11 @@ const ProjectStorage = (() => {
               // Prefer the per-project palMap, then try the global DMC catalogue.
               // PERF (action plan §2E.1): use cached id-map; Array.find left as last fallback.
               let info = palMap[tid];
-              if (!info && typeof getDmcById === 'function') info = getDmcById(tid);
-              if (!info && typeof DMC !== 'undefined') {
+              // Another brand's ids (P4-5) aren't DMC numbers.
+              const projBrand = typeof projectThreadBrand === 'function' ? projectThreadBrand(proj) : 'dmc';
+              if (!info && projBrand !== 'dmc') info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(projBrand, tid) : null;
+              if (!info && projBrand === 'dmc' && typeof getDmcById === 'function') info = getDmcById(tid);
+              if (!info && projBrand === 'dmc' && typeof DMC !== 'undefined') {
                 const dmcEntry = DMC.find ? DMC.find(d => d.id === tid) : null;
                 if (dmcEntry) info = dmcEntry;
               }

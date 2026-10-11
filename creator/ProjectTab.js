@@ -265,7 +265,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ctx.skeinData.map(function(d) {
           var st = ctx.threadOwned[d.id] || "";
           var isOwned = st === "owned";
-          var gs = ctx.globalStash[d.id] || {};
+          var gs = ctx.globalStash[threadKey(d.brand || 'dmc', d.id)] || ctx.globalStash[d.id] || {};
           var owned = stashEffectiveQty(gs);
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
@@ -275,7 +275,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 border:"1px solid "+(isOwned?"var(--success-soft)":"var(--surface-tertiary)")}
             },
               h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',minWidth:44}}, "DMC "+d.id),
+              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',minWidth:44}}, threadLabel(d)),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
@@ -301,14 +301,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               }, "\u2248")
             ),
             ctx.altOpen === d.id && (function() {
-              var alts = StashBridge.suggestAlternatives(d.id, 5, ctx.globalStash);
+              var alts = StashBridge.suggestAlternatives(threadKey(d.brand || 'dmc', d.id), 5, ctx.globalStash);
               return alts.length > 0
                 ? h("div", {style:{padding:"6px 12px 8px 36px",display:"flex",gap:6,flexWrap:"wrap",fontSize:'var(--text-xs)',alignItems:"center"}},
                     h("span", {style:{color:"var(--text-secondary)",fontWeight:600}}, "Similar in stash:"),
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',padding:"2px 8px",borderRadius:'var(--radius-lg)',background:"#f0f0ff",border:"1px solid #e0e7ff"}},
                         h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid var(--border)"}}),
-                        h("span", {style:{fontWeight:600}}, "DMC "+a.id),
+                        h("span", {style:{fontWeight:600}}, threadLabel(a)),
                         h("span", {style:{color:"var(--text-secondary)"}}, a.name),
                         h("span", {style:{color:"var(--text-tertiary)"}}, "Difference "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
@@ -342,12 +342,13 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var stashEntry2 = stash[d.id];
+                var stashEntry2 = stash[threadKey(d.brand || 'dmc', d.id)] || stash[d.id];
                 var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
-                var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog('dmc', d.id) : null;
+                var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(d.brand || 'dmc', d.id) : null;
                 var rgb2 = info2 ? info2.rgb : null;
-                if (owned2 === 0) missing.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (need "+d.skeins+"sk)"});
-                else if (owned2 < d.skeins) short.push({id:d.id, rgb:rgb2, label:"DMC "+d.id+" (have "+owned2+", need "+d.skeins+"sk)"});
+                var label2 = threadLabel(d);
+                if (owned2 === 0) missing.push({id:d.id, key:threadKey(d.brand || 'dmc', d.id), rgb:rgb2, label:label2+" (need "+d.skeins+"sk)"});
+                else if (owned2 < d.skeins) short.push({id:d.id, key:threadKey(d.brand || 'dmc', d.id), rgb:rgb2, label:label2+" (have "+owned2+", need "+d.skeins+"sk)"});
               });
               ctx.setKittingResult({missing:missing, short:short, total:ctx.skeinData.length});
             });
@@ -395,6 +396,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           typeof StashBridge !== "undefined" && h("button", {
             onClick:function(){
               var toBuy2 = ctx.kittingResult.missing.concat(ctx.kittingResult.short).map(function(l){
+                if (l && l.key) return l.key;
                 var str = l.label || l; var m = str.match(/DMC (\S+)/); return m ? m[1] : null;
               }).filter(Boolean);
               Promise.all(toBuy2.map(function(id){return StashBridge.updateThreadToBuy(id, true);}))
@@ -411,14 +413,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{display:"flex",gap:6,marginTop:10}},
         h("button", {
           onClick:function(){
-            var txt=ctx.toBuyList.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
+            var txt=ctx.toBuyList.map(function(d){return threadLabel(d)+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "shopping");
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
-            var txt=ctx.skeinData.map(function(d){return "DMC "+d.id+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
+            var txt=ctx.skeinData.map(function(d){return threadLabel(d)+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "full");
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontWeight:500}

@@ -1412,7 +1412,7 @@ function ManagerApp() {
                     if (!pat) return null;
                     const reqThreads = pat.threads || [];
                     const missing = reqThreads.filter(t => {
-                      const k = normaliseStashKey(t.id);
+                      const k = libraryThreadKey(t);
                       return !((threads[k] || {}).owned > 0);
                     });
                     // Pull progress + weekly sparkline data from the linked
@@ -1650,9 +1650,9 @@ function ManagerApp() {
             {viewingPattern ? (() => {
               const p = viewingPattern;
               const coverage = p.threads && p.threads.length > 0
-                ? Math.round(p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
+                ? Math.round(p.threads.filter(t => { const k = libraryThreadKey(t); return (threads[k] || {}).owned > 0; }).length / p.threads.length * 100)
                 : 0;
-              const missingThreads = p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return !(threads[k] || {}).owned; }) : [];
+              const missingThreads = p.threads ? p.threads.filter(t => { const k = libraryThreadKey(t); return !(threads[k] || {}).owned; }) : [];
               return <>
                 <div className="rp-s">
                   <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2 }}>{p.title || "Untitled"}</div>
@@ -1673,7 +1673,7 @@ function ManagerApp() {
                   <div style={{ height: 6, background: "#EFE7D6", borderRadius: 3, overflow: "hidden", border: "1px solid var(--border)", marginBottom: 8 }}>
                     <div style={{ height: "100%", width: coverage + "%", background: "#B85C38", borderRadius: 3 }} />
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{p.threads ? p.threads.filter(t => { const k = normaliseStashKey(t.id); return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
+                  <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{p.threads ? p.threads.filter(t => { const k = libraryThreadKey(t); return (threads[k] || {}).owned > 0; }).length : 0} of {p.threads ? p.threads.length : 0} threads in your stash. {missingThreads.length} missing.</div>
                 </div>
                 {missingThreads.length > 0 && (
                   <div className="rp-s">
@@ -1681,10 +1681,10 @@ function ManagerApp() {
                     <div className="used-in">
                       {missingThreads.map(t => {
                         // PERF (perf-4 #1): O(1) map lookup vs O(n) DMC.find
-                        const dmc = (typeof getDmcById === 'function') ? getDmcById(t.id) : DMC.find(x => x.id === t.id);
-                        const compositeKey = normaliseStashKey(t.id);
+                        const dmc = findThreadInCatalog(libraryThreadBrand(t), t.id);
+                        const compositeKey = libraryThreadKey(t);
                         return (
-                          <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for DMC " + t.id}
+                          <div key={t.id} className="ui-row" style={{ cursor: "pointer" }} title={"Open thread card for " + threadBrandLabel(libraryThreadBrand(t)) + " " + t.id}
                             onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(compositeKey); }}>
                             <div style={{ width: 12, height: 12, borderRadius: 3, background: dmc ? `rgb(${dmc.rgb})` : "#ccc", border: "1px solid var(--border)" }} />
                             {t.id} {dmc ? dmc.name : ""} <span className="need">{t.qty ? t.qty + " sk" : ""}</span>
@@ -1697,7 +1697,7 @@ function ManagerApp() {
                         className="g-btn"
                         style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
                         onClick={() => {
-                          const keys = missingThreads.map(t => normaliseStashKey(t.id));
+                          const keys = missingThreads.map(t => libraryThreadKey(t));
                           StashBridge.markManyToBuy(keys, true).then(changed => {
                             if (window.Toast) {
                               const alreadyPresent = Math.max(0, missingThreads.length - changed);
@@ -2046,7 +2046,7 @@ function PatternModal({ pattern, onSave, onClose, inventoryThreads, userProfile 
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 250, overflowY: "auto" }}>
               {edited.threads.map((t, idx) => {
-                const info = findThreadInCatalog('dmc', t.id);
+                const info = findThreadInCatalog(libraryThreadBrand(t), t.id);
                 // Backward compatibility for old format
                 const unit = t.unit || "skeins";
                 const displayUnit = unit === "stitches" ? "st" : "sk";
@@ -2112,7 +2112,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
     };
 
     return pattern.threads.map(t => {
-       const info = findThreadInCatalog('dmc', t.id);
+       const info = findThreadInCatalog(libraryThreadBrand(t), t.id);
        let skExact = 0;
        let skToBuy = 0;
        let skBExact = 0;

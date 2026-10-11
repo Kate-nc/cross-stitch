@@ -83,7 +83,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     },
       h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
         background:"rgb("+cellInfo.rgb+")"}}),
-      "DMC " + cellInfo.id + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
+      threadLabel(cellInfo) + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
     ),
     !hasCellColour && h("div", {
       style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)",borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}

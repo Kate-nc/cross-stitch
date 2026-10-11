@@ -1691,6 +1691,59 @@ function normaliseStashKey(idOrKey){
 }
 if(typeof window!=='undefined')window.normaliseStashKey=normaliseStashKey;
 
+// ═══ Project thread brand (P4-5, audit IMG-04) ══════════════════════════════
+// A project's cell ids are numbers in one brand's range, named by the
+// optional settings.threadBrand. Projects without it (every project before
+// P4-5) are DMC. Cells restored from an Anchor project carry brand:'anchor',
+// so code holding a cell or palette entry can tell which catalogue it is in.
+// Adding a brand is a catalogue file plus an entry here.
+var THREAD_BRANDS={
+  dmc:{id:'dmc',label:'DMC',catalogue:function(){return typeof DMC!=='undefined'?DMC:null;},load:null},
+  anchor:{id:'anchor',label:'Anchor',catalogue:function(){return typeof ANCHOR!=='undefined'?ANCHOR:null;},load:'loadAnchorData'}
+};
+// Any value that isn't a known brand (absent, '', an array index from
+// .map) is DMC.
+function normaliseThreadBrand(b){
+  b=typeof b==='string'?b.toLowerCase():'';
+  return Object.prototype.hasOwnProperty.call(THREAD_BRANDS,b)?b:'dmc';
+}
+function projectThreadBrand(project){return normaliseThreadBrand(project&&project.settings&&project.settings.threadBrand);}
+function threadBrandLabel(brand){return THREAD_BRANDS[normaliseThreadBrand(brand)].label;}
+// The brand's catalogue array, or null while it hasn't loaded.
+function threadCatalogue(brand){return THREAD_BRANDS[normaliseThreadBrand(brand)].catalogue();}
+// Resolves once the brand's catalogue is available (DMC always is).
+function loadThreadBrand(brand,opts){
+  var b=THREAD_BRANDS[normaliseThreadBrand(brand)];
+  if(b.catalogue())return Promise.resolve();
+  var fn=b.load&&typeof window!=='undefined'?window[b.load]:null;
+  if(typeof fn!=='function')return Promise.reject(new Error('No loader for '+b.label+' threads'));
+  return fn(opts||{});
+}
+// A thread in a Stash Manager library pattern ({id, brand: "DMC" | "Anchor"
+// | absent}): its brand id and its stash key.
+function libraryThreadBrand(t){return normaliseThreadBrand(t&&t.brand);}
+function libraryThreadKey(t){
+  if(!t||t.id==null)return null;
+  var id=String(t.id);
+  return id.indexOf(':')>=0?id:(libraryThreadBrand(t)+':'+id);
+}
+// "DMC 310" / "Anchor 403" for a cell or palette entry.
+function threadLabel(entry,fallbackBrand){
+  if(!entry)return'';
+  return threadBrandLabel(entry.brand||fallbackBrand)+' '+entry.id;
+}
+if(typeof window!=='undefined'){
+  window.THREAD_BRANDS=THREAD_BRANDS;
+  window.normaliseThreadBrand=normaliseThreadBrand;
+  window.projectThreadBrand=projectThreadBrand;
+  window.threadBrandLabel=threadBrandLabel;
+  window.threadCatalogue=threadCatalogue;
+  window.loadThreadBrand=loadThreadBrand;
+  window.threadLabel=threadLabel;
+  window.libraryThreadBrand=libraryThreadBrand;
+  window.libraryThreadKey=libraryThreadKey;
+}
+
 // ── Premium feature gate ─────────────────────────────────────────
 // Stub: always returns true. Flip this to add gating later.
 function isPremium(){return true;}
@@ -1733,6 +1786,9 @@ function stripCellForSave(m){
   }
   // Cell already lacks rgb (nothing to strip; pass through cleanly).
   if(!m.rgb)return{id:m.id,type:m.type};
+  // Cells of another brand (P4-5) keep their rgb: it lets any reader draw
+  // the right colour without loading that brand's catalogue first.
+  if(m.brand&&m.brand!=='dmc')return{id:m.id,type:m.type,rgb:m.rgb};
   var mr=m.rgb;
   // Blends: only safe to strip when both halves are DMC and the stored rgb
   // matches the per-channel average — that is exactly what restoreStitch

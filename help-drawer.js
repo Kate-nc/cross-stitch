@@ -181,7 +181,8 @@
           body: "Adapt makes a copy of the pattern that uses threads you own, or a different brand. Use Adapt to my stash or Adapt to brand on the Project tab.",
           bullets: [
             ["Suggestions", "Each colour is matched to the available thread that looks most like it; the difference shown is how far apart they look, and lower is closer. Review the suggestions before confirming."],
-            ["A new project", "The adapted pattern is saved as a separate project, so the original is untouched."]
+            ["A new project", "The adapted pattern is saved as a separate project, so the original is untouched."],
+            ["Anchor patterns", "When Adapt to brand moves every colour to Anchor, the copy is an Anchor pattern: the palette, Materials, shopping list, Stitch Tracker, PDF key and .oxs files show Anchor numbers and names."]
           ]
         },
         {

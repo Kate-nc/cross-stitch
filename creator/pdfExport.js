@@ -139,13 +139,18 @@
   function buildExportProject(ctx) {
     if (!ctx) return null;
     var pal = (ctx.pal || ctx.palette || []).map(function (e) {
-      return e ? {
+      if (!e) return null;
+      var out = {
         id: e.id,
         name: e.name,
         rgb: e.rgb,
         type: e.type,
         threads: e.threads ? e.threads.map(function (t) { return { id: t.id, name: t.name, rgb: t.rgb }; }) : undefined,
-      } : null;
+      };
+      // Another brand's threads (P4-5) are labelled with it in the key.
+      // DMC entries stay exactly as before.
+      if (e.brand && e.brand !== "dmc") out.brand = e.brand;
+      return out;
     }).filter(function (e) { return e && e.id; });
 
     var pattern = (ctx.pat || []).map(function (c) {
