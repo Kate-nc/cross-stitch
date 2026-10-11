@@ -112,10 +112,14 @@ test.describe('Tracker save badge', () => {
     await other.goto('/stitch.html?id=' + id);
     await other.waitForSelector(TRACKER_CANVAS);
     await other.waitForTimeout(800);
-    // The other tab saves first...
+    // The other tab saves first, changing more than stitches (marks alone are merged without a question)...
     await other.bringToFront();
-    await markRow(other, 3, 2, 8);
-    await other.waitForTimeout(6500);
+    await other.evaluate(async id => {
+      const p = await ProjectStorage.get(id);
+      p.name = 'Renamed in the other tab';
+      await ProjectStorage.save(p);
+    }, id);
+    await other.waitForTimeout(500);
     // ...then this one changes the same project.
     await page.bringToFront();
     await markRow(page, 5, 2, 6);
