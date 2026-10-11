@@ -4017,10 +4017,13 @@ window.useMagicWand = function useMagicWand(state) {
     if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return null;
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
-      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      // From the pattern's brand (P4-5); another brand's entry carries it.
+      var wb = window.normaliseThreadBrand ? window.normaliseThreadBrand(state.threadBrand) : 'dmc';
+      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog(wb, dstId);
+      if (dstEntry && wb !== 'dmc') dstEntry = Object.assign({}, dstEntry, { brand: wb });
       // PERF (action plan §2E.1): O(1) id-map lookup; Array.find kept as final fallback.
-      if (!dstEntry && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
-      if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
+      if (!dstEntry && wb === 'dmc' && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
+      if (!dstEntry && wb === 'dmc' && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
     }
     if (!dstEntry) {
       // DEFECT-002: surface to the user instead of silently no-opping. Reachable
@@ -4041,7 +4044,7 @@ window.useMagicWand = function useMagicWand(state) {
     if (opts && opts.swap) {
       var srcEntry = cmap[srcId];
       if (!srcEntry) {
-        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        if (state.addToast) state.addToast("Can't swap: " + (window.threadLabel ? window.threadLabel({ id: srcId, brand: state.threadBrand }) : "DMC " + srcId) + " isn't in the palette.", {type: "error", duration: 3500});
         return null;
       }
       mapping = CR.swapMapping(srcEntry, dstEntry);
@@ -6572,7 +6575,7 @@ var CONVERSION_STATE_KEYS = [
   'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'stashConstrained', 'globalStash',
+  'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
   'fabricCt',
   'disambig', 'disambigLevel',
@@ -6693,14 +6696,12 @@ function threadCountsShort(c) {
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
-// every other call site funnels through this. Constrained to DMC threads only
-// because the conversion pipeline (quantize/buildPalette/doMap/doDither) keys
-// colours by bare `id` alone, and many Anchor ids overlap DMC ids (e.g. both
-// have '310'), which would silently merge distinct colours and corrupt output.
-// Non-DMC threads require namespaced ids throughout the pipeline + save format
-// before they can be safely included here. Returns
-// { palette: Array|null, count: number, threads: Array }.
-function _buildAllowedPaletteFromStash(globalStash, subset) {
+// every other call site funnels through this. Only threads of the brand the
+// pattern is converted to (`brand`, P4-5; DMC by default) are used, because
+// the conversion pipeline (quantize/buildPalette/doMap/doDither) keys colours
+// by bare `id` alone and many Anchor ids overlap DMC ids (e.g. both have
+// '310'). Returns { palette: Array|null, count: number, threads: Array }.
+function _buildAllowedPaletteFromStash(globalStash, subset, brand) {
   if (subset && subset.length) {
     return { palette: subset, count: subset.length, threads: subset };
   }
@@ -6710,14 +6711,15 @@ function _buildAllowedPaletteFromStash(globalStash, subset) {
   Object.keys(globalStash).forEach(function(key) {
     if (!isColorOwned(globalStash[key])) return;
     var parts = _splitStashKey(key);
-    if (!parts || parts.brand !== 'dmc') return; // DMC-only: pipeline uses bare ids
+    var want = typeof normaliseThreadBrand === 'function' ? normaliseThreadBrand(brand) : (brand || 'dmc');
+    if (!parts || parts.brand !== want) return; // one brand: pipeline uses bare ids
     if (seen[parts.id]) return;
     var entry = (typeof findThreadInCatalog === 'function')
-      ? findThreadInCatalog('dmc', parts.id)
+      ? findThreadInCatalog(want, parts.id)
       : null;
     if (!entry) return;
     seen[parts.id] = true;
-    palette.push(Object.assign({}, entry, { brand: 'dmc' }));
+    palette.push(Object.assign({}, entry, { brand: want }));
   });
   return {
     palette: palette.length ? palette : null,
@@ -7293,6 +7295,32 @@ window.useCreatorState = function useCreatorState() {
   });
   var stashConstrained = _stashOnly[0];
   function setStashConstrained(v) { _stashOnly[1](v); try { localStorage.setItem("cs_stashConstrained", v ? "true" : "false"); } catch(_) {} }
+  // The thread brand a conversion chooses from (P4-5 / audit IMG-04): 'dmc'
+  // or 'anchor'. The last choice is remembered. Anchor's catalogue loads on
+  // demand, so the choice takes effect once it has loaded.
+  var _cvBrand = useState(function() {
+    var v = null;
+    try { v = localStorage.getItem("cs_convertBrand"); } catch (_) {}
+    v = window.normaliseThreadBrand ? window.normaliseThreadBrand(v) : "dmc";
+    return v !== "dmc" && window.threadCatalogue && !window.threadCatalogue(v) ? "dmc" : v;
+  });
+  var convertBrand = _cvBrand[0];
+  var _cvBrandWant = useRef(convertBrand);
+  function setConvertBrand(v, opts) {
+    var b = window.normaliseThreadBrand ? window.normaliseThreadBrand(v) : "dmc";
+    _cvBrandWant.current = b;
+    if (!(opts && opts.remember === false)) { try { localStorage.setItem("cs_convertBrand", b); } catch (_) {} }
+    var apply = function() { if (_cvBrandWant.current === b) _cvBrand[1](b); };
+    if (b === "dmc" || !window.loadThreadBrand) { apply(); return Promise.resolve(); }
+    return window.loadThreadBrand(b, { failMessage: "Could not load the " + window.threadBrandLabel(b) + " catalogue. Reload and try again." })
+      .then(apply, function() { if (_cvBrandWant.current === b) _cvBrandWant.current = convertBrand; });
+  }
+  useEffect(function() {
+    // A remembered Anchor choice whose catalogue wasn't loaded at start.
+    var want = null;
+    try { want = localStorage.getItem("cs_convertBrand"); } catch (_) {}
+    if (want && want !== convertBrand && window.normaliseThreadBrand && window.normaliseThreadBrand(want) === want) setConvertBrand(want, { remember: false });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Canvas resize modal open flag (distinct from the image-crop isCropping
   // which lives in GenerationContext and applies to the source image).
   var _rszOpen = useState(false); var resizeCanvasOpen = _rszOpen[0], setResizeCanvasOpen = _rszOpen[1];
@@ -7488,6 +7516,7 @@ window.useCreatorState = function useCreatorState() {
   var stripRef   = useRef(null);
   var workerRef      = useRef(null); // null | Worker | 'unavailable'
   var applyResultRef = useRef(null); // updated each render, captures fresh state
+  var genBrandRef = useRef(null);    // { reqId, brand }: the brand a generation chose from
   var genReqIdRef    = useRef(0);    // incremented per generation; stale results are discarded
 
   var G = 28;
@@ -7592,11 +7621,13 @@ window.useCreatorState = function useCreatorState() {
     var c = 0; for (var i = 0; i < done.length; i++) if (done[i]) c++; return c;
   }, [done]);
 
+  // The catalogue of the pattern's brand (P4-5), searched.
   var dmcFiltered = useMemo(function() {
-    if (!dmcSearch.trim()) return DMC;
+    var list = window.projectThreadList ? window.projectThreadList(threadBrand) : DMC;
+    if (!dmcSearch.trim()) return list;
     var q = dmcSearch.toLowerCase();
-    return DMC.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [dmcSearch]);
+    return list.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
+  }, [dmcSearch, threadBrand]);
 
   var displayPal = useMemo(function() {
     if (!pal) return pal;
@@ -7915,6 +7946,8 @@ window.useCreatorState = function useCreatorState() {
     } else {
       entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
     }
+    // Another brand's thread (P4-5) keeps its brand.
+    if (d.brand && d.brand !== "dmc") entry.brand = d.brand;
     setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== d.id; }).concat([entry]); });
     setPal(function(prev) { return prev ? prev.concat([entry]) : [entry]; });
     setCmap(function(prev) { return prev ? Object.assign({}, prev, { [d.id]: entry }) : { [d.id]: entry }; });
@@ -8040,13 +8073,19 @@ window.useCreatorState = function useCreatorState() {
     // Discard results from a superseded generation or a mismatched grid size
     if (result.reqId !== genReqIdRef.current) { setBusy(false); return; }
     if (result.mapped && result.mapped.length !== sW * sH) { setBusy(false); return; }
+    // The brand this generation chose from (P4-5): its cells and palette
+    // carry it, and the pattern is saved in it.
+    var resBrand = genBrandRef.current && genBrandRef.current.reqId === result.reqId ? genBrandRef.current.brand : "dmc";
+    if (window.tagThreadBrand) {
+      window.tagThreadBrand(result.mapped, resBrand); window.tagThreadBrand(result.pal, resBrand);
+      if (result.cmap) window.tagThreadBrand(Object.keys(result.cmap).map(function(k) { return result.cmap[k]; }), resBrand);
+    }
     setPatternCreatedThisVisit(true);
     setPatternGeneratedThisVisit(true);
     setConfettiData(result.confettiData);
     setPal(result.pal); setCmap(result.cmap); setPat(result.mapped);
     setDone(new Uint8Array(result.mapped.length));
-    // Conversion picks DMC threads.
-    _thBrand[1]("dmc");
+    _thBrand[1](resBrand);
     setParkMarkers([]); setTab("pattern"); setThreadOwned({});
     // C-9: a regeneration changes the colour map, so any user-drawn
     // back-stitches now reference colour ids that may not exist or
@@ -8229,6 +8268,7 @@ window.useCreatorState = function useCreatorState() {
       workerRef.current = null;
     }
     var reqId = ++genReqIdRef.current;
+    genBrandRef.current = { reqId: reqId, brand: convertBrand };
 
     var _seed   = (overrides && overrides.seed   != null)      ? overrides.seed   : variationSeed;
     var _subset = (overrides && overrides.subset !== undefined) ? overrides.subset : variationSubset;
@@ -8237,14 +8277,21 @@ window.useCreatorState = function useCreatorState() {
     // Funnels through the central _buildAllowedPaletteFromStash so the
     // generate path and the preview/conversionSettings path stay consistent
     // and brand-aware (DMC + Anchor + future brands).
-    var allowedPalette = null;
+    // Another brand's catalogue (P4-5) when not stash-only; null is DMC.
+    var genBrand = convertBrand;
+    if (genBrand !== "dmc" && !(window.threadCatalogue && window.threadCatalogue(genBrand))) {
+      addToast("The " + window.threadBrandLabel(genBrand) + " threads haven't loaded yet. Try again in a moment.", {type: "warning", duration: 3000});
+      setBusy(false);
+      return;
+    }
+    var allowedPalette = window.threadBrandPool ? window.threadBrandPool(genBrand) : null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
     if (stashConstrained && globalStash) {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {
-        var stashInfo = _buildAllowedPaletteFromStash(globalStash, null);
+        var stashInfo = _buildAllowedPaletteFromStash(globalStash, null, convertBrand);
         allowedPalette = stashInfo.palette;
       }
       if (!allowedPalette || allowedPalette.length === 0) {
@@ -8333,7 +8380,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, variationSeed, variationSubset]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8362,7 +8409,7 @@ window.useCreatorState = function useCreatorState() {
     if (!stashConstrained || !img) return;
     var newSeed = ((Math.random() * 0xFFFFFFFE) + 1) >>> 0;
     // Brand-aware via the central helper (DMC + Anchor + future brands).
-    var pool = _buildAllowedPaletteFromStash(globalStash, null).threads;
+    var pool = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
     if (!pool.length) return;
     var effN = Math.min(maxC, pool.length);
     // Always sub-sample so the selected colour set changes even when stash <= maxC.
@@ -8379,7 +8426,7 @@ window.useCreatorState = function useCreatorState() {
     setVariationSeed(newSeed);
     setVariationSubset(newSubset);
     generate({seed: newSeed, subset: newSubset});
-  }, [stashConstrained, img, globalStash, maxC, previewUrl, variationSeed, variationSubset, hasGenerated, generate]);
+  }, [stashConstrained, img, globalStash, convertBrand, maxC, previewUrl, variationSeed, variationSubset, hasGenerated, generate]);
 
   var applyVariationSeed = useCallback(function(seed, subset) {
     var s = (seed != null ? seed : 1337) >>> 0;
@@ -8405,7 +8452,7 @@ window.useCreatorState = function useCreatorState() {
     if (!img || !stashConstrained) return;
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     // Brand-aware via the central helper.
-    var pool = _buildAllowedPaletteFromStash(globalStash, null).threads;
+    var pool = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
     if (!pool.length) return;
     setGallerySlots(newSeeds.map(function(s) { return {seed: s, loading: true, url: null, threadCount: 0, subset: null}; }));
     var effN = Math.min(maxC, pool.length);
@@ -8463,7 +8510,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash]);
+  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -8517,7 +8564,7 @@ window.useCreatorState = function useCreatorState() {
   useEffect(function() {
     if (!stashConstrained || !img || !img.src) { setCoverageGaps(null); return; }
     // Brand-aware via the central helper.
-    var stashPal = _buildAllowedPaletteFromStash(globalStash, null).threads;
+    var stashPal = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
     if (!stashPal.length) { setCoverageGaps(null); return; }
     var timer = setTimeout(function() {
       if (typeof analyseColourCoverage === 'function') {
@@ -8525,7 +8572,7 @@ window.useCreatorState = function useCreatorState() {
       }
     }, 300);
     return function() { clearTimeout(timer); };
-  }, [stashConstrained, img, globalStash]);
+  }, [stashConstrained, img, globalStash, convertBrand]);
 
   // ─── Palette swap integration ────────────────────────────────────────────────
   var paletteSwap = usePaletteSwap({
@@ -8549,7 +8596,7 @@ window.useCreatorState = function useCreatorState() {
 
   // ─── Magic Wand integration ──────────────────────────────────────────────────
   var wand = useMagicWand({
-    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt,
+    pat: pat, cmap: cmap, sW: sW, sH: sH, fabricCt: fabricCt, threadBrand: threadBrand,
     bsLines: bsLines, setBsLines: setBsLines,
     knots: knots, setKnots: setKnots,
     // Colour replacement also recolours half/quarter stitches.
@@ -8714,6 +8761,7 @@ window.useCreatorState = function useCreatorState() {
     adaptModalMode, setAdaptModalMode,
     adaptMaxDeltaE, setAdaptMaxDeltaE,
     stashConstrained, setStashConstrained,
+    convertBrand, setConvertBrand,
     creatorStashFilter, setCreatorStashFilter,
     coverageGaps, setCoverageGaps,
     variationSeed, setVariationSeed,
@@ -8769,18 +8817,18 @@ window.useCreatorState = function useCreatorState() {
     // Stash-constrained derived values (QW1, QW3, QW8)
     stashThreadCount: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      return _buildAllowedPaletteFromStash(globalStash, null).count;
-    }, [stashConstrained, globalStash]),
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
+    }, [stashConstrained, globalStash, convertBrand]),
 
     effectiveMaxC: useMemo(function() {
       if (!stashConstrained) return maxC;
-      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
+      var count = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
       return count === 0 ? maxC : Math.min(maxC, count);
-    }, [stashConstrained, globalStash, maxC]),
+    }, [stashConstrained, globalStash, convertBrand, maxC]),
 
     stashPalette: useMemo(function() {
       if (!stashConstrained || !globalStash) return null;
-      var threads = _buildAllowedPaletteFromStash(globalStash, null).threads;
+      var threads = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
       var entries = threads.map(function(t, i) {
         var key = (t.brand || 'dmc') + ':' + t.id;
         return {
@@ -8794,19 +8842,27 @@ window.useCreatorState = function useCreatorState() {
         return hA - hB;
       });
       return entries;
-    }, [stashConstrained, globalStash]),
+    }, [stashConstrained, globalStash, convertBrand]),
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      return _buildAllowedPaletteFromStash(globalStash, null).count < 6;
-    }, [stashConstrained, globalStash]),
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count < 6;
+    }, [stashConstrained, globalStash, convertBrand]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
-      var count = _buildAllowedPaletteFromStash(globalStash, null).count;
+      var count = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
       if (count < 6) return false;
       return allowBlends;
-    }, [stashConstrained, globalStash, allowBlends]),
+    }, [stashConstrained, globalStash, convertBrand, allowBlends]),
+
+    // The thread pool a conversion in `brand` chooses from (P4-5): the stash's
+    // threads of that brand when stash-only, else that brand's catalogue
+    // (null for DMC, the pipeline's default). For the compare strip.
+    convertPaletteFor: useCallback(function(brand) {
+      if (stashConstrained) return _buildAllowedPaletteFromStash(globalStash, null, brand).palette;
+      return window.threadBrandPool ? window.threadBrandPool(brand) : null;
+    }, [stashConstrained, globalStash]),
 
     // ─── Canonical conversion settings bundle ────────────────────────────────
     // ALL conversion settings flow through this useMemo. Any code path that
@@ -8815,7 +8871,7 @@ window.useCreatorState = function useCreatorState() {
     // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
     conversionSettings: useMemo(function() {
       var stashInfo = stashConstrained
-        ? _buildAllowedPaletteFromStash(globalStash, variationSubset)
+        ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
         : { palette: null, count: 0, threads: [] };
       var effMaxC = stashConstrained && stashInfo.count > 0
         ? Math.min(maxC, stashInfo.count)
@@ -8834,7 +8890,9 @@ window.useCreatorState = function useCreatorState() {
         maxC: effMaxC,
         dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
         allowBlends: effAllowBlends,
-        allowedPalette: stashInfo.palette,
+        // Another brand's catalogue when not stash-only (P4-5); null is DMC.
+        allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
+        convertBrand: convertBrand,
         // Background
         skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
         // Cleanup
@@ -8853,7 +8911,7 @@ window.useCreatorState = function useCreatorState() {
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,
-      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt,
+      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
     ]),
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
@@ -12669,7 +12727,7 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel'
+  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
 ];
 function creatorDraftSettings(state) {
   var o = {};
@@ -13004,6 +13062,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (s.stitchSpeed) state.setStitchSpeed(s.stitchSpeed);
 
     if (state.setThreadBrand) state.setThreadBrand(brand);
+    // Converting this picture again chooses from the same brand.
+    if (state.setConvertBrand) state.setConvertBrand(brand, { remember: false });
     var restored = project.pattern.map(function(m) { return restoreStitch(m, brand); });
     // Symbols chosen with Change symbol ride on their cells (buildPalette
     // keeps a symbol its cells carry).
@@ -14127,7 +14187,12 @@ window.usePreview = function usePreview(state) {
       var stashUsage = null;
       if (stashConstrained && globalStash) {
         var availableCount = 0;
-        Object.keys(globalStash).forEach(function(id) { if (isColorOwned(globalStash[id])) availableCount++; });
+        // Threads of the brand being converted to (P4-5); bare keys are DMC.
+        var stashBrand = settings.convertBrand || 'dmc';
+        Object.keys(globalStash).forEach(function(id) {
+          var keyBrand = id.indexOf(':') < 0 ? 'dmc' : id.slice(0, id.indexOf(':'));
+          if (keyBrand === stashBrand && isColorOwned(globalStash[id])) availableCount++;
+        });
         stashUsage = { used: uniqueColors, available: availableCount };
       }
 
@@ -14223,8 +14288,10 @@ window.usePreview = function usePreview(state) {
  * previews, and the stats under each.
  *
  *   compareOptionsFor(dimension, s)   dimension 'size' (−25 %, current,
- *                                     +25 %) or 'threads' (−5, current, +5);
- *                                     s = { sW, sH, maxC, arLock, ar }. Sizes
+ *                                     +25 %), 'threads' (−5, current, +5) or
+ *                                     'brand' (each thread brand, P4-5);
+ *                                     s = { sW, sH, maxC, arLock, ar,
+ *                                     convertBrand }. Sizes
  *                                     stay within 10–500 stitches, threads
  *                                     within 2–100. With the aspect lock the
  *                                     height comes from the width exactly as
@@ -14257,6 +14324,21 @@ window.usePreview = function usePreview(state) {
 
   function compareOptionsFor(dimension, s) {
     var opts;
+    if (dimension === 'brand') {
+      // One option per thread brand; the current one first.
+      var brands = root.THREAD_BRANDS ? Object.keys(root.THREAD_BRANDS) : ['dmc', 'anchor'];
+      var cur = s.convertBrand || 'dmc';
+      brands.sort(function (a, b) { return (a === cur ? 0 : 1) - (b === cur ? 0 : 1); });
+      return brands.map(function (b) {
+        return {
+          id: b,
+          label: root.threadBrandLabel ? root.threadBrandLabel(b) : (b === 'dmc' ? 'DMC' : b.charAt(0).toUpperCase() + b.slice(1)),
+          current: b === cur,
+          same: false,
+          values: { convertBrand: b }
+        };
+      });
+    }
     if (dimension === 'threads') {
       opts = THREAD_STEPS.map(function (step) {
         var m = clamp((s.maxC || 0) + step, MIN_THREADS, MAX_THREADS);
@@ -14353,9 +14435,10 @@ window.usePreview = function usePreview(state) {
 /* creator/CompareStrip.js — Compare options under the Convert preview
  * (audit IMG-05).
  *
- * Three thumbnails for a chosen dimension, Size (−25 %, current, +25 %) or
- * Threads (−5, current, +5), each with its stitches, threads, estimated
- * hours and confetti tier. Choosing one applies its values.
+ * Thumbnails for a chosen dimension, Size (−25 %, current, +25 %), Threads
+ * (−5, current, +5) or Brand (each thread brand, P4-5), each with its
+ * stitches, threads, estimated hours and confetti tier. Choosing one applies
+ * its values.
  *
  * The thumbnails are rendered at reduced size (CompareOptions.js
  * comparePreviewDims) by a generate-worker.js of their own, one job at a
@@ -14366,7 +14449,9 @@ window.usePreview = function usePreview(state) {
  * runCleanupPipeline.
  *
  * Props: img, settings (conversionSettings), sW, sH, maxC, arLock, ar,
- *        stitchSpeed, compact, onApply({ sW, sH } | { maxC }).
+ *        stitchSpeed, compact, paletteFor(brand) (the thread pool a
+ *        conversion in that brand chooses from, null for DMC),
+ *        onApply({ sW, sH } | { maxC } | { convertBrand }).
  * On phones (compact) the strip is collapsed behind "Compare options".
  *
  * Loaded as a plain <script> (concatenated into creator/bundle.js).
@@ -14402,11 +14487,13 @@ window.usePreview = function usePreview(state) {
     return data;
   }
 
-  function pipelineSettings(s, values) {
+  function pipelineSettings(s, values, paletteFor) {
+    var pool = s.allowedPalette;
+    if (values.convertBrand && values.convertBrand !== s.convertBrand && typeof paletteFor === "function") pool = paletteFor(values.convertBrand);
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, allowedPalette: s.allowedPalette,
+      allowBlends: s.allowBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
@@ -14445,7 +14532,19 @@ window.usePreview = function usePreview(state) {
     var failuresRef = React.useRef(0);
 
     var s = props.settings;
-    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar });
+    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand });
+    // A brand's thread list loads on demand: until it has, its option waits.
+    var _cat = React.useState(0); var setCatTick = _cat[1];
+    var waiting = dimension === "brand" ? options.filter(function (o) {
+      return o.values.convertBrand !== "dmc" && window.threadCatalogue && !window.threadCatalogue(o.values.convertBrand);
+    }) : [];
+    React.useEffect(function () {
+      if (!waiting.length || !window.loadThreadBrand) return undefined;
+      var live = true;
+      Promise.all(waiting.map(function (o) { return window.loadThreadBrand(o.values.convertBrand); }))
+        .then(function () { if (live) setCatTick(function (n) { return n + 1; }); }, function () {});
+      return function () { live = false; };
+    }, [dimension, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
     var ik = imgKey(props.img);
     var keys = options.map(function (o) {
       var settings = Object.assign({}, s || {}, o.values);
@@ -14486,7 +14585,7 @@ window.usePreview = function usePreview(state) {
                 else if (s.smoothType === "bilateral" && typeof applyBilateralFilter === "function") applyBilateralFilter(raw, dims.pw, dims.ph);
                 else applyMedianFilter(raw, dims.pw, dims.ph, s.smooth);
               }
-              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values));
+              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
@@ -14511,7 +14610,7 @@ window.usePreview = function usePreview(state) {
           reject(new Error((ev && ev.message) || "worker failed"));
         };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
-          settings: pipelineSettings(s, job.values) }, [px.data.buffer]);
+          settings: pipelineSettings(s, job.values, props.paletteFor) }, [px.data.buffer]);
       });
     }
 
@@ -14527,6 +14626,7 @@ window.usePreview = function usePreview(state) {
         options.forEach(function (o, i) {
           var cached = cacheRef.current.get(keys[i]);
           if (cached) return;
+          if (waiting.indexOf(o) !== -1) return;
           var full = o.values.sW ? { w: o.values.sW, h: o.values.sH } : { w: props.sW, h: props.sH };
           jobs.push({ batch: batch, index: i, key: keys[i], values: o.values, full: full, dims: window.comparePreviewDims(full.w, full.h) });
         });
@@ -14558,9 +14658,9 @@ window.usePreview = function usePreview(state) {
         })();
       }, 500);
       return function () { clearTimeout(timer); };
-    }, [open, keySig, props.img]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [open, keySig, props.img, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }];
+    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }];
     var dimSwitch = h("div", { className: "lp-segmented compare-strip__dim", role: "radiogroup", "aria-label": "Compare by" },
       dims.map(function (d, i) {
         var on = dimension === d.id;
@@ -14569,9 +14669,10 @@ window.usePreview = function usePreview(state) {
           className: "lp-seg" + (on ? " lp-seg--on" : ""), "data-compare-dim": d.id, tabIndex: on ? 0 : -1,
           onClick: function () { setDimension(d.id); },
           onKeyDown: function (e) {
-            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) === -1) return;
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
             e.preventDefault();
-            var next = dims[1 - i].id;
+            var next = dims[(i + step + dims.length) % dims.length].id;
             setDimension(next);
             var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-compare-dim="' + next + '"]');
             if (sib) sib.focus();
@@ -17647,7 +17748,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   },
     h("strong", { style: { color: "var(--text-primary)" } }, "Generate Backstitch Outline"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
-      "Outline thread (DMC):",
+      "Outline thread (" + (window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC") + "):",
       h("input", {
         type: "text", value: cv.outlineColor,
         onChange: function(e) { cv.setOutlineColor(e.target.value.trim()); },
@@ -17655,10 +17756,10 @@ window.MagicWandPanel = function MagicWandPanel() {
       })
     ),
     (function() {
-      var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
+      var dmcEntry = findThreadInCatalog(ctx.threadBrand || 'dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "var(--text-secondary)" } }, dmcEntry.name)
-      ) : h("span", { style: { color: "var(--danger)" } }, "Unknown DMC");
+      ) : h("span", { style: { color: "var(--danger)" } }, "Unknown " + (window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC") + " number");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,
@@ -19149,22 +19250,24 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _blSearch = React.useState(""); var blendSearch = _blSearch[0], setBlendSearch = _blSearch[1];
   var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
 
+  // The pattern's thread brand (P4-5): new colours and blends come from that
+  // brand's catalogue, and stash lookups use its brand:id keys.
+  var patBrand = window.normaliseThreadBrand ? window.normaliseThreadBrand(ctx.threadBrand) : "dmc";
+  var brandName = window.threadBrandLabel ? window.threadBrandLabel(patBrand) : "DMC";
+  var catList = window.projectThreadList ? window.projectThreadList(patBrand) : DMC;
   var blendFiltered = React.useMemo(function() {
-    var base = DMC;
+    var base = catList;
     // Brief D — when "limit to stash" is on, restrict to owned threads.
-    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
-    // key here is intentional. If the blend picker grows Anchor support,
-    // switch to the brand-aware resolver used above.
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
-      base = DMC.filter(function(d) {
-        var entry = ctx.globalStash['dmc:' + d.id];
+      base = catList.filter(function(d) {
+        var entry = ctx.globalStash[patBrand + ':' + d.id];
         return isColorOwned(entry);
       });
     }
     if (!blendSearch.trim()) return base;
     var q = blendSearch.toLowerCase();
     return base.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash]);
+  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash, catList, patBrand]);
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
@@ -19177,28 +19280,30 @@ window.CreatorSidebar = function CreatorSidebar() {
       lab: [(blendThread1.lab[0] + blendThread2.lab[0]) / 2, (blendThread1.lab[1] + blendThread2.lab[1]) / 2, (blendThread1.lab[2] + blendThread2.lab[2]) / 2],
       threads: [blendThread1, blendThread2]
     };
+    if (patBrand !== "dmc") blendEntry.brand = patBrand;
     ctx.addScratchColour(blendEntry);
     setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);
   }
 
   // ── Add colour picker (audit DRAW-05) ─────────────────────────────────────
-  // The pattern's own colours come first (above). The DMC catalogue sits
-  // behind Add colour, in three tabs: My stash, Suggested (close to the
-  // selected colour) and All DMC (search plus colour-family chips). With no
-  // colours yet (a blank scratch grid) the picker is simply open.
+  // The pattern's own colours come first (above). The catalogue of the
+  // pattern's brand sits behind Add colour, in three tabs: My stash,
+  // Suggested (close to the selected colour) and All (search plus
+  // colour-family chips). With no colours yet (a blank scratch grid) the
+  // picker is simply open.
   var PT = window.PaletteTools;
   var palIsEmpty = !(ctx.pal && ctx.pal.length);
   var pickerOpen = !!ctx.colPickerOpen || palIsEmpty;
   var stashAvailable = typeof StashBridge !== "undefined";
   var ownedThreads = React.useMemo(function() {
     if (!stashAvailable || !ctx.globalStash) return [];
-    return DMC.filter(function(d) { return isColorOwned(ctx.globalStash["dmc:" + d.id]); });
-  }, [ctx.globalStash, stashAvailable]);
+    return catList.filter(function(d) { return isColorOwned(ctx.globalStash[patBrand + ":" + d.id]); });
+  }, [ctx.globalStash, stashAvailable, catList, patBrand]);
   var familyOf = React.useMemo(function() {
     var m = Object.create(null);
-    if (PT) DMC.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
+    if (PT) catList.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
     return m;
-  }, [!!PT]);
+  }, [!!PT, catList]);
   var _pickTab = React.useState(null); var pickTabState = _pickTab[0], setPickTab = _pickTab[1];
   var _family = React.useState(null); var familyFilter = _family[0], setFamilyFilter = _family[1];
   var suggestBase = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
@@ -19209,21 +19314,21 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (pickTab === "stash" && !stashAvailable) pickTab = "all";
   var suggested = React.useMemo(function() {
     if (!PT || !suggestBase || !suggestBase.lab) return [];
-    return PT.nearestThreads(suggestBase.lab, DMC, 12, ctx.cmap || {});
-  }, [suggestBase && suggestBase.id, ctx.cmap]);
+    return PT.nearestThreads(suggestBase.lab, catList, 12, ctx.cmap || {});
+  }, [suggestBase && suggestBase.id, ctx.cmap, catList]);
   var allList = ctx.dmcFiltered || [];
   if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
 
   function threadRow(d) {
-    // The palette is keyed by number, so a DMC thread can't join a pattern
-    // that already has that number, even in another brand (P4-5).
+    // The palette is keyed by number, so a thread can't join a pattern that
+    // already has that number in another brand (P4-5).
     var inPal = ctx.cmap && ctx.cmap[d.id];
-    var clash = inPal && inPal.brand && inPal.brand !== "dmc";
+    var clash = inPal && (inPal.brand || "dmc") !== (d.brand || "dmc");
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": clash ? ("DMC " + d.id + " " + d.name + ": this pattern already has " + threadLabel(inPal))
-        : (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      "aria-label": clash ? (threadLabel(d) + " " + d.name + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + threadLabel(d) + " " + d.name,
       title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
@@ -19242,7 +19347,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var tabs = [
     stashAvailable ? { id: "stash", label: "My stash" } : null,
     { id: "suggested", label: "Suggested" },
-    { id: "all", label: "All DMC" }
+    { id: "all", label: "All " + brandName }
   ].filter(Boolean);
   var singlePicker = h(React.Fragment, null,
     h("div", {className: "pal-pick-tabs", role: "tablist", "aria-label": "Where to find a colour"},
@@ -19255,16 +19360,16 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, t.label);
       })
     ),
-    pickTab === "stash" && threadList(ownedThreads, "No DMC threads in your stash yet. Add them in the Stash Manager."),
+    pickTab === "stash" && threadList(ownedThreads, "No " + brandName + " threads in your stash yet. Add them in the Stash Manager."),
     pickTab === "suggested" && h(React.Fragment, null,
       suggestBase
-        ? h("div", {className: "pal-pick-note"}, "Closest to DMC " + suggestBase.id + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        ? h("div", {className: "pal-pick-note"}, "Closest to " + threadLabel(suggestBase) + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
         : null,
       threadList(suggested, "Select a colour in the pattern to see threads close to it.")
     ),
     pickTab === "all" && h(React.Fragment, null,
       h("input", {
-        type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
+        type:"text", "aria-label":"Search " + brandName + " palette", placeholder:"Search by " + brandName + " # or name\u2026",
         className: "pal-pick-search",
         value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);}
       }),
@@ -19345,7 +19450,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
         blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
         h("input", {
-          type:"text", "aria-label":"Search DMC threads", placeholder:"Search DMC threads\u2026",
+          type:"text", "aria-label":"Search " + brandName + " threads", placeholder:"Search " + brandName + " threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
           style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
@@ -19439,6 +19544,29 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
+    // Which brand's threads the pattern is made from (P4-5 / audit IMG-04).
+    gen.setConvertBrand && window.THREAD_BRANDS && h("div", {className:"thread-brand"},
+      h("div", {id:"thread-brand-label", className:"thread-brand__label"}, "Threads"),
+      h("div", {className:"lp-segmented thread-brand__seg", role:"radiogroup", "aria-labelledby":"thread-brand-label"},
+        Object.keys(window.THREAD_BRANDS).map(function(id, i, order) {
+          var on = gen.convertBrand === id;
+          return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
+            className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-thread-brand":id,
+            tabIndex: on ? 0 : -1,
+            onClick:function(){ gen.setConvertBrand(id); },
+            onKeyDown:function(e){
+              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              var next = order[(i + step + order.length) % order.length];
+              gen.setConvertBrand(next);
+              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-thread-brand="' + next + '"]');
+              if (sib) sib.focus();
+            }}, window.THREAD_BRANDS[id].label);
+        })
+      ),
+      h("div", {className:"thread-brand__hint"}, "Colours are matched to " + window.threadBrandLabel(gen.convertBrand) + " stranded cotton.")
+    ),
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"Each thread is one colour of stranded cotton",
@@ -19454,7 +19582,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:220})
+      h(InfoIcon, {text:"Allow the algorithm to blend two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " colours in a single stitch for smoother gradients", width:220})
     ),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
@@ -19464,7 +19592,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
-      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:220})
+      h(InfoIcon, {text:"Constrains the palette to the " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads you own. Produces a pattern you can stitch immediately without buying anything.", width:220})
     ),
     typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
       "Enable to generate patterns using only threads you already own."
@@ -19507,28 +19635,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("input", {
             type:"text", value:qaVal,
-            placeholder:"DMC number\u2026",
+            // In the brand being converted to (P4-5).
+            placeholder:(window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " number\u2026",
             onChange:function(e){setQaVal(e.target.value);},
             style:{flex:1,padding:"4px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = findThreadInCatalog('dmc', qaVal.trim());
-            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+            var dmc = findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim());
+            return dmc ? h(Tooltip, {text:threadLabel({ id: dmc.id, brand: gen.convertBrand }) + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
           h("button", {
-            disabled:qaLoading || !findThreadInCatalog('dmc', qaVal.trim()),
+            disabled:qaLoading || !findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim()),
             onClick:function(){
               var trimmed = qaVal.trim();
-              if (!trimmed || !findThreadInCatalog('dmc', trimmed)) return;
+              var qaBrand = gen.convertBrand || 'dmc';
+              if (!trimmed || !findThreadInCatalog(qaBrand, trimmed)) return;
+              var qaKey = qaBrand + ':' + trimmed;
               setQaLoading(true);
-              StashBridge.addToStash(trimmed, 1).then(function(){
+              StashBridge.addToStash(qaKey, 1).then(function(){
                 setQaVal(""); setQaLoading(false);
                 ctx.setGlobalStash(function(s){
                   var n = Object.assign({}, s);
-                  if (!n[trimmed]) n[trimmed] = {};
-                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  if (!n[qaKey]) n[qaKey] = {};
+                  n[qaKey] = Object.assign({}, n[qaKey], {owned: (n[qaKey].owned || 0) + 1});
                   return n;
                 });
               }).catch(function(){ setQaLoading(false); });
@@ -22411,7 +22542,10 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
 
     var CR = window.ColourReplace;
-    var dmcList = typeof DMC !== 'undefined' ? DMC : [];
+    // The pattern's thread brand (P4-5): replacements come from its catalogue.
+    var brandName = window.threadBrandLabel ? window.threadBrandLabel(props.threadBrand) : 'DMC';
+    var lbl = function (t) { return window.threadLabel ? window.threadLabel(t) : 'DMC ' + t.id; };
+    var dmcList = window.projectThreadList ? window.projectThreadList(props.threadBrand) : (typeof DMC !== 'undefined' ? DMC : []);
 
     // Colours already in the pattern (excluding the source). Picking one
     // merges the two colours, so they're listed first and flagged.
@@ -22432,7 +22566,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       var rank = function(list, opts) { return CR && CR.rankBySimilarity ? CR.rankBySimilarity(srcRgb, list, opts) : list.map(function(t) { return { thread: t, dE: null }; }); };
       if (q) {
         var match = function(t) { return t.id.toLowerCase().indexOf(q) !== -1 || (t.name || '').toLowerCase().indexOf(q) !== -1; };
-        // Palette-only entries (e.g. blends) aren't in DMC, so search them too.
+        // Palette-only entries (e.g. blends) aren't in the catalogue, so search them too.
         var extra = palEntries.filter(function(p) { return match(p) && !dmcList.some(function(d) { return d.id === p.id; }); });
         var items = extra.concat(dmcList.filter(match)).map(function(t) { return { thread: t, dE: null }; });
         return [{ key: 'results', title: null, items: items }];
@@ -22442,7 +22576,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       var exclude = new Set(palIds); if (srcId) exclude.add(srcId);
       var closest = rank(dmcList, { limit: 8, excludeIds: exclude });
       if (closest.length) out.push({ key: 'closest', title: 'Closest matches', items: closest });
-      out.push({ key: 'all', title: 'All DMC threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
+      out.push({ key: 'all', title: 'All ' + brandName + ' threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
       return out;
     }, [search, palEntries, palIds, srcId, srcRgb && srcRgb.join(','), dmcList]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -22741,14 +22875,14 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
         h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
-        h('span', { id: 'colour-replace-mode-label' }, 'DMC ' + pickedId + ' is already in your palette.'),
+        h('span', { id: 'colour-replace-mode-label' }, lbl(picked || { id: pickedId }) + ' is already in your palette.'),
         h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-mode-label' },
           modeSeg('merge', 'Merge into it'),
           modeSeg('swap', 'Swap the two colours'))
       ),
       h('div', { className: 'colour-replace-mode-help', style: { marginTop: 4, color: 'var(--text-tertiary)' } },
         swapping
-          ? 'Every DMC ' + srcId + ' stitch becomes DMC ' + pickedId + ', and every DMC ' + pickedId + ' stitch becomes DMC ' + srcId + '.'
+          ? 'Every ' + lbl(srcEntry || { id: srcId }) + ' stitch becomes ' + lbl(picked || { id: pickedId }) + ', and every ' + lbl(picked || { id: pickedId }) + ' stitch becomes ' + lbl(srcEntry || { id: srcId }) + '.'
           : 'These stitches will merge into it, leaving one colour where there were two.')
     ) : null;
 
@@ -22796,7 +22930,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
-            ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
+            ariaLabel: picked ? 'Pattern after replacing with ' + lbl(picked) : 'Pattern preview, no replacement chosen'
           })
         ),
 
@@ -22807,7 +22941,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
           'aria-controls': 'colour-replace-listbox',
           'aria-autocomplete': 'list',
           'aria-activedescendant': activeKey ? optionDomId(activeKey) : null,
-          placeholder: 'Search by DMC code or colour name…',
+          placeholder: 'Search by ' + brandName + ' number or colour name…',
           'aria-label': 'Search threads',
           value: search,
           onChange: function(e) { setSearch(e.target.value); setActiveKey(null); },
@@ -22865,7 +22999,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
           }),
           h('span', null,
-            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, 'DMC ' + picked.id + ' ' + picked.name) : 'Pick a thread',
+            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, lbl(picked) + ' ' + picked.name) : 'Pick a thread',
             countText ? ' \u00B7 ' + countText : '')
         ),
         mergeNote,

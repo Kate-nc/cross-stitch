@@ -123,7 +123,12 @@ window.usePreview = function usePreview(state) {
       var stashUsage = null;
       if (stashConstrained && globalStash) {
         var availableCount = 0;
-        Object.keys(globalStash).forEach(function(id) { if (isColorOwned(globalStash[id])) availableCount++; });
+        // Threads of the brand being converted to (P4-5); bare keys are DMC.
+        var stashBrand = settings.convertBrand || 'dmc';
+        Object.keys(globalStash).forEach(function(id) {
+          var keyBrand = id.indexOf(':') < 0 ? 'dmc' : id.slice(0, id.indexOf(':'));
+          if (keyBrand === stashBrand && isColorOwned(globalStash[id])) availableCount++;
+        });
         stashUsage = { used: uniqueColors, available: availableCount };
       }
 

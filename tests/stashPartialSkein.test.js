@@ -29,7 +29,7 @@ const { PARTIAL_STATUS_FRACTIONS, LOW_STASH_SKEIN_THRESHOLD, stashEffectiveQty, 
 // ── Extract _buildAllowedPaletteFromStash from useCreatorState.js ─────────────
 function extractBuilderFn(src) {
   const helperMatch   = src.match(/function _splitStashKey\(key\)[\s\S]*?\n\}/);
-  const builderMatch  = src.match(/function _buildAllowedPaletteFromStash\(globalStash, subset\)[\s\S]*?\n\}/);
+  const builderMatch  = src.match(/function _buildAllowedPaletteFromStash\(globalStash, subset, brand\)[\s\S]*?\n\}/);
   if (!helperMatch)  throw new Error('_splitStashKey not found in useCreatorState.js');
   if (!builderMatch) throw new Error('_buildAllowedPaletteFromStash not found in useCreatorState.js');
   // findThreadInCatalog and isColorOwned are injected as parameters.

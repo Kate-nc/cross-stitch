@@ -504,6 +504,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     gallerySlots: state.gallerySlots,
     galleryOpen: state.galleryOpen, setGalleryOpen: state.setGalleryOpen,
     stashConstrained: state.stashConstrained, setStashConstrained: state.setStashConstrained,
+    convertBrand: state.convertBrand, setConvertBrand: state.setConvertBrand,
     coverageGaps: state.coverageGaps, setCoverageGaps: state.setCoverageGaps,
     cleanupDiff: state.cleanupDiff, setCleanupDiff: state.setCleanupDiff,
     showCleanupDiff: state.showCleanupDiff, setShowCleanupDiff: state.setShowCleanupDiff,
@@ -532,7 +533,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.promoteVariation, state.applyVariationSeed,
     state.variationSeed, state.variationSubset, state.variationHistory,
     state.gallerySlots, state.galleryOpen,
-    state.stashConstrained, state.coverageGaps,
+    state.stashConstrained, state.convertBrand, state.coverageGaps,
     state.cleanupDiff, state.showCleanupDiff,
     state.stashThreadCount, state.effectiveMaxC, state.stashPalette,
     state.blendsAutoDisabled, state.effectiveAllowBlends,
@@ -1032,7 +1033,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
       {state.colourReplaceModal&&typeof window.ColourReplaceModal!=='undefined'&&React.createElement(window.ColourReplaceModal,{
         modal:state.colourReplaceModal,
         onClose:()=>state.setColourReplaceModal(null),
-        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal,
+        pat:state.pat, sW:state.sW, sH:state.sH, pal:state.pal, threadBrand:state.threadBrand,
         partialStitches:state.partialStitches, bsLines:state.bsLines, fabricColour:state.fabricColour,
         selectionMask:state.hasSelection?state.selectionMask:null,
         onApply:function(dstThread,opts){
@@ -1042,7 +1043,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id,{scope:opts&&opts.scope==='selection'?'selection':'all',alsoIds:swap?[]:alsoIds,swap:swap});
           state.setColourReplaceModal(null);
           if(!res||!state.addToast)return;
-          state.addToast((swap?"Swapped DMC "+src.srcId+" and DMC "+res.dst.id:"Replaced DMC "+src.srcId+(alsoIds.length?" and "+alsoIds.length+" similar shade"+(alsoIds.length===1?"":"s"):"")+" with DMC "+res.dst.id)+" ("+(window.ColourReplace&&res.counts?window.ColourReplace.describeCounts(res.counts):res.count.toLocaleString()+" stitches")+(opts&&opts.scope==='selection'?" in selection":"")+")",{
+          var srcLbl=threadLabel((state.cmap&&state.cmap[src.srcId])||(res.src)||{id:src.srcId}),dstLbl=threadLabel(res.dst);
+          state.addToast((swap?"Swapped "+srcLbl+" and "+dstLbl:"Replaced "+srcLbl+(alsoIds.length?" and "+alsoIds.length+" similar shade"+(alsoIds.length===1?"":"s"):"")+" with "+dstLbl)+" ("+(window.ColourReplace&&res.counts?window.ColourReplace.describeCounts(res.counts):res.count.toLocaleString()+" stitches")+(opts&&opts.scope==='selection'?" in selection":"")+")",{
             type:"success", duration:6000,
             action:{label:"Undo", onClick:function(){
               // Only undo while this replacement is still the newest edit, so
@@ -1328,7 +1330,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   img={state.img} settings={state.conversionSettings}
                   sW={state.sW} sH={state.sH} maxC={state.maxC} arLock={state.arLock} ar={state.ar}
                   stitchSpeed={state.stitchSpeed} compact={_compact}
+                  paletteFor={state.convertPaletteFor}
                   onApply={function(v){
+                    if(v.convertBrand){state.setConvertBrand(v.convertBrand);return;}
                     if(v.maxC!=null){state.setMaxC(v.maxC);return;}
                     state.chgW(v.sW);
                     if(!state.arLock)state.chgH(v.sH);

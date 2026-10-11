@@ -57,13 +57,13 @@ describe('C1 — useCreatorState composite-key extraction', () => {
   });
 });
 
-describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
+describe('C1b — Create-from-stash uses one brand (pipeline id-safety)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'creator', 'useCreatorState.js'), 'utf8');
 
   // Extract the central helper. It depends on findThreadInCatalog and isColorOwned,
   // which we stub / source in the eval context.
   const helperMatch = src.match(/function _splitStashKey\(key\)[\s\S]*?\n\}/);
-  const builderMatch = src.match(/function _buildAllowedPaletteFromStash\(globalStash, subset\)[\s\S]*?\n\}/);
+  const builderMatch = src.match(/function _buildAllowedPaletteFromStash\(globalStash, subset, brand\)[\s\S]*?\n\}/);
 
   it('helpers are present in source', () => {
     expect(helperMatch).not.toBeNull();
@@ -114,6 +114,13 @@ describe('C1b — Create-from-stash is DMC-only (pipeline id-safety)', () => {
     const got = _build({ 'anchor:403': { owned: 2 } }, null);
     expect(got.count).toBe(0);
     expect(got.palette).toBeNull();
+  });
+
+  it('with Anchor chosen (P4-5), only Anchor threads, keyed anchor:', () => {
+    const got = _build({ 'dmc:310': { owned: 1 }, 'anchor:403': { owned: 1 }, '310': { owned: 1 } }, null, 'anchor');
+    expect(got.count).toBe(1);
+    expect(got.palette[0].id).toBe('403');
+    expect(got.palette[0].brand).toBe('anchor');
   });
 
   it('only counts DMC threads when stash has mixed brands', () => {

@@ -122,8 +122,19 @@ describe('wiring', () => {
     expect(strip).toMatch(/if \(failuresRef\.current >= 2\) workerRef\.current = "unavailable";/);
   });
 
-  test('choosing an option applies its size or thread count', () => {
+  test('choosing an option applies its brand, size or thread count', () => {
     const main = loadSource('creator-main.js');
-    expect(main).toMatch(/<window\.CreatorCompareStrip[\s\S]{0,400}onApply=\{function\(v\)\{\s*if\(v\.maxC!=null\)\{state\.setMaxC\(v\.maxC\);return;\}\s*state\.chgW\(v\.sW\);\s*if\(!state\.arLock\)state\.chgH\(v\.sH\);/);
+    expect(main).toMatch(/<window\.CreatorCompareStrip[\s\S]{0,500}onApply=\{function\(v\)\{\s*if\(v\.convertBrand\)\{state\.setConvertBrand\(v\.convertBrand\);return;\}\s*if\(v\.maxC!=null\)\{state\.setMaxC\(v\.maxC\);return;\}\s*state\.chgW\(v\.sW\);\s*if\(!state\.arLock\)state\.chgH\(v\.sH\);/);
+  });
+});
+
+describe('brand options (P4-5)', () => {
+  test('one option per brand, the current brand first', () => {
+    const { compareOptionsFor } = require('../creator/CompareOptions.js');
+    const opts = compareOptionsFor('brand', { sW: 50, sH: 50, maxC: 20, convertBrand: 'anchor' });
+    expect(opts.map((o) => o.id)).toEqual(['anchor', 'dmc']);
+    expect(opts[0].current).toBe(true);
+    expect(opts[1].values).toEqual({ convertBrand: 'dmc' });
+    expect(opts.every((o) => !o.same)).toBe(true);
   });
 });

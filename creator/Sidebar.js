@@ -475,22 +475,24 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _blSearch = React.useState(""); var blendSearch = _blSearch[0], setBlendSearch = _blSearch[1];
   var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
 
+  // The pattern's thread brand (P4-5): new colours and blends come from that
+  // brand's catalogue, and stash lookups use its brand:id keys.
+  var patBrand = window.normaliseThreadBrand ? window.normaliseThreadBrand(ctx.threadBrand) : "dmc";
+  var brandName = window.threadBrandLabel ? window.threadBrandLabel(patBrand) : "DMC";
+  var catList = window.projectThreadList ? window.projectThreadList(patBrand) : DMC;
   var blendFiltered = React.useMemo(function() {
-    var base = DMC;
+    var base = catList;
     // Brief D — when "limit to stash" is on, restrict to owned threads.
-    // Blends are DMC-only today (no Anchor blend picker), so the 'dmc:'
-    // key here is intentional. If the blend picker grows Anchor support,
-    // switch to the brand-aware resolver used above.
     if (ctx.creatorStashFilter && ctx.globalStash && Object.keys(ctx.globalStash).length > 0) {
-      base = DMC.filter(function(d) {
-        var entry = ctx.globalStash['dmc:' + d.id];
+      base = catList.filter(function(d) {
+        var entry = ctx.globalStash[patBrand + ':' + d.id];
         return isColorOwned(entry);
       });
     }
     if (!blendSearch.trim()) return base;
     var q = blendSearch.toLowerCase();
     return base.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash]);
+  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash, catList, patBrand]);
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
@@ -503,28 +505,30 @@ window.CreatorSidebar = function CreatorSidebar() {
       lab: [(blendThread1.lab[0] + blendThread2.lab[0]) / 2, (blendThread1.lab[1] + blendThread2.lab[1]) / 2, (blendThread1.lab[2] + blendThread2.lab[2]) / 2],
       threads: [blendThread1, blendThread2]
     };
+    if (patBrand !== "dmc") blendEntry.brand = patBrand;
     ctx.addScratchColour(blendEntry);
     setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);
   }
 
   // ── Add colour picker (audit DRAW-05) ─────────────────────────────────────
-  // The pattern's own colours come first (above). The DMC catalogue sits
-  // behind Add colour, in three tabs: My stash, Suggested (close to the
-  // selected colour) and All DMC (search plus colour-family chips). With no
-  // colours yet (a blank scratch grid) the picker is simply open.
+  // The pattern's own colours come first (above). The catalogue of the
+  // pattern's brand sits behind Add colour, in three tabs: My stash,
+  // Suggested (close to the selected colour) and All (search plus
+  // colour-family chips). With no colours yet (a blank scratch grid) the
+  // picker is simply open.
   var PT = window.PaletteTools;
   var palIsEmpty = !(ctx.pal && ctx.pal.length);
   var pickerOpen = !!ctx.colPickerOpen || palIsEmpty;
   var stashAvailable = typeof StashBridge !== "undefined";
   var ownedThreads = React.useMemo(function() {
     if (!stashAvailable || !ctx.globalStash) return [];
-    return DMC.filter(function(d) { return isColorOwned(ctx.globalStash["dmc:" + d.id]); });
-  }, [ctx.globalStash, stashAvailable]);
+    return catList.filter(function(d) { return isColorOwned(ctx.globalStash[patBrand + ":" + d.id]); });
+  }, [ctx.globalStash, stashAvailable, catList, patBrand]);
   var familyOf = React.useMemo(function() {
     var m = Object.create(null);
-    if (PT) DMC.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
+    if (PT) catList.forEach(function(d) { m[d.id] = PT.colourFamily(d.lab); });
     return m;
-  }, [!!PT]);
+  }, [!!PT, catList]);
   var _pickTab = React.useState(null); var pickTabState = _pickTab[0], setPickTab = _pickTab[1];
   var _family = React.useState(null); var familyFilter = _family[0], setFamilyFilter = _family[1];
   var suggestBase = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
@@ -535,21 +539,21 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (pickTab === "stash" && !stashAvailable) pickTab = "all";
   var suggested = React.useMemo(function() {
     if (!PT || !suggestBase || !suggestBase.lab) return [];
-    return PT.nearestThreads(suggestBase.lab, DMC, 12, ctx.cmap || {});
-  }, [suggestBase && suggestBase.id, ctx.cmap]);
+    return PT.nearestThreads(suggestBase.lab, catList, 12, ctx.cmap || {});
+  }, [suggestBase && suggestBase.id, ctx.cmap, catList]);
   var allList = ctx.dmcFiltered || [];
   if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
 
   function threadRow(d) {
-    // The palette is keyed by number, so a DMC thread can't join a pattern
-    // that already has that number, even in another brand (P4-5).
+    // The palette is keyed by number, so a thread can't join a pattern that
+    // already has that number in another brand (P4-5).
     var inPal = ctx.cmap && ctx.cmap[d.id];
-    var clash = inPal && inPal.brand && inPal.brand !== "dmc";
+    var clash = inPal && (inPal.brand || "dmc") !== (d.brand || "dmc");
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": clash ? ("DMC " + d.id + " " + d.name + ": this pattern already has " + threadLabel(inPal))
-        : (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      "aria-label": clash ? (threadLabel(d) + " " + d.name + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + threadLabel(d) + " " + d.name,
       title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
@@ -568,7 +572,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   var tabs = [
     stashAvailable ? { id: "stash", label: "My stash" } : null,
     { id: "suggested", label: "Suggested" },
-    { id: "all", label: "All DMC" }
+    { id: "all", label: "All " + brandName }
   ].filter(Boolean);
   var singlePicker = h(React.Fragment, null,
     h("div", {className: "pal-pick-tabs", role: "tablist", "aria-label": "Where to find a colour"},
@@ -581,16 +585,16 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, t.label);
       })
     ),
-    pickTab === "stash" && threadList(ownedThreads, "No DMC threads in your stash yet. Add them in the Stash Manager."),
+    pickTab === "stash" && threadList(ownedThreads, "No " + brandName + " threads in your stash yet. Add them in the Stash Manager."),
     pickTab === "suggested" && h(React.Fragment, null,
       suggestBase
-        ? h("div", {className: "pal-pick-note"}, "Closest to DMC " + suggestBase.id + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        ? h("div", {className: "pal-pick-note"}, "Closest to " + threadLabel(suggestBase) + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
         : null,
       threadList(suggested, "Select a colour in the pattern to see threads close to it.")
     ),
     pickTab === "all" && h(React.Fragment, null,
       h("input", {
-        type:"text", "aria-label":"Search DMC palette", placeholder:"Search by DMC # or name\u2026",
+        type:"text", "aria-label":"Search " + brandName + " palette", placeholder:"Search by " + brandName + " # or name\u2026",
         className: "pal-pick-search",
         value:ctx.dmcSearch, onChange:function(e){ctx.setDmcSearch(e.target.value);}
       }),
@@ -671,7 +675,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
         blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
         h("input", {
-          type:"text", "aria-label":"Search DMC threads", placeholder:"Search DMC threads\u2026",
+          type:"text", "aria-label":"Search " + brandName + " threads", placeholder:"Search " + brandName + " threads\u2026",
           value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
           style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
@@ -765,6 +769,29 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ── Palette section (non-scratch) ───────────────────────────────────────────
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
+    // Which brand's threads the pattern is made from (P4-5 / audit IMG-04).
+    gen.setConvertBrand && window.THREAD_BRANDS && h("div", {className:"thread-brand"},
+      h("div", {id:"thread-brand-label", className:"thread-brand__label"}, "Threads"),
+      h("div", {className:"lp-segmented thread-brand__seg", role:"radiogroup", "aria-labelledby":"thread-brand-label"},
+        Object.keys(window.THREAD_BRANDS).map(function(id, i, order) {
+          var on = gen.convertBrand === id;
+          return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
+            className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-thread-brand":id,
+            tabIndex: on ? 0 : -1,
+            onClick:function(){ gen.setConvertBrand(id); },
+            onKeyDown:function(e){
+              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              var next = order[(i + step + order.length) % order.length];
+              gen.setConvertBrand(next);
+              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-thread-brand="' + next + '"]');
+              if (sib) sib.focus();
+            }}, window.THREAD_BRANDS[id].label);
+        })
+      ),
+      h("div", {className:"thread-brand__hint"}, "Colours are matched to " + window.threadBrandLabel(gen.convertBrand) + " stranded cotton.")
+    ),
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
         helpText:"Each thread is one colour of stranded cotton",
@@ -780,7 +807,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two DMC colours in a single stitch for smoother gradients", width:220})
+      h(InfoIcon, {text:"Allow the algorithm to blend two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " colours in a single stitch for smoother gradients", width:220})
     ),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
@@ -790,7 +817,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
-      h(InfoIcon, {text:"Constrains the palette to threads you physically own. Produces a pattern you can stitch immediately without buying anything.", width:220})
+      h(InfoIcon, {text:"Constrains the palette to the " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads you own. Produces a pattern you can stitch immediately without buying anything.", width:220})
     ),
     typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
       "Enable to generate patterns using only threads you already own."
@@ -833,28 +860,31 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{display:"flex",alignItems:"center",gap:6}},
           h("input", {
             type:"text", value:qaVal,
-            placeholder:"DMC number\u2026",
+            // In the brand being converted to (P4-5).
+            placeholder:(window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " number\u2026",
             onChange:function(e){setQaVal(e.target.value);},
             style:{flex:1,padding:"4px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",fontFamily:"inherit"}
           }),
           (function(){
-            var dmc = findThreadInCatalog('dmc', qaVal.trim());
-            return dmc ? h(Tooltip, {text:"DMC " + dmc.id + " \u2014 " + dmc.name, width:160},
+            var dmc = findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim());
+            return dmc ? h(Tooltip, {text:threadLabel({ id: dmc.id, brand: gen.convertBrand }) + " \u2014 " + dmc.name, width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
           h("button", {
-            disabled:qaLoading || !findThreadInCatalog('dmc', qaVal.trim()),
+            disabled:qaLoading || !findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim()),
             onClick:function(){
               var trimmed = qaVal.trim();
-              if (!trimmed || !findThreadInCatalog('dmc', trimmed)) return;
+              var qaBrand = gen.convertBrand || 'dmc';
+              if (!trimmed || !findThreadInCatalog(qaBrand, trimmed)) return;
+              var qaKey = qaBrand + ':' + trimmed;
               setQaLoading(true);
-              StashBridge.addToStash(trimmed, 1).then(function(){
+              StashBridge.addToStash(qaKey, 1).then(function(){
                 setQaVal(""); setQaLoading(false);
                 ctx.setGlobalStash(function(s){
                   var n = Object.assign({}, s);
-                  if (!n[trimmed]) n[trimmed] = {};
-                  n[trimmed] = Object.assign({}, n[trimmed], {owned: (n[trimmed].owned || 0) + 1});
+                  if (!n[qaKey]) n[qaKey] = {};
+                  n[qaKey] = Object.assign({}, n[qaKey], {owned: (n[qaKey].owned || 0) + 1});
                   return n;
                 });
               }).catch(function(){ setQaLoading(false); });

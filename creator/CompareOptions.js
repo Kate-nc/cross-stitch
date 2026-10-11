@@ -3,8 +3,10 @@
  * previews, and the stats under each.
  *
  *   compareOptionsFor(dimension, s)   dimension 'size' (−25 %, current,
- *                                     +25 %) or 'threads' (−5, current, +5);
- *                                     s = { sW, sH, maxC, arLock, ar }. Sizes
+ *                                     +25 %), 'threads' (−5, current, +5) or
+ *                                     'brand' (each thread brand, P4-5);
+ *                                     s = { sW, sH, maxC, arLock, ar,
+ *                                     convertBrand }. Sizes
  *                                     stay within 10–500 stitches, threads
  *                                     within 2–100. With the aspect lock the
  *                                     height comes from the width exactly as
@@ -37,6 +39,21 @@
 
   function compareOptionsFor(dimension, s) {
     var opts;
+    if (dimension === 'brand') {
+      // One option per thread brand; the current one first.
+      var brands = root.THREAD_BRANDS ? Object.keys(root.THREAD_BRANDS) : ['dmc', 'anchor'];
+      var cur = s.convertBrand || 'dmc';
+      brands.sort(function (a, b) { return (a === cur ? 0 : 1) - (b === cur ? 0 : 1); });
+      return brands.map(function (b) {
+        return {
+          id: b,
+          label: root.threadBrandLabel ? root.threadBrandLabel(b) : (b === 'dmc' ? 'DMC' : b.charAt(0).toUpperCase() + b.slice(1)),
+          current: b === cur,
+          same: false,
+          values: { convertBrand: b }
+        };
+      });
+    }
     if (dimension === 'threads') {
       opts = THREAD_STEPS.map(function (step) {
         var m = clamp((s.maxC || 0) + step, MIN_THREADS, MAX_THREADS);

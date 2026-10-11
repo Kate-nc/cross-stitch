@@ -1753,6 +1753,40 @@ function whenProjectBrandReady(project,load,onError){
   loadThreadBrand(brand,{failMessage:'Could not load the '+threadBrandLabel(brand)+' catalogue for this pattern. Reload and try again.'}).then(resume,resume);
   return false;
 }
+// Marks the cells (and palette entries) a conversion produced in `brand`'s
+// threads (P4-5): the conversion pipeline's colour matching returns plain
+// {id, name, rgb, lab} entries. DMC needs no mark. Blends' threads are
+// marked too. Changes the objects in place and returns the array.
+function tagThreadBrand(list,brand){
+  var b=normaliseThreadBrand(brand);
+  if(b==='dmc'||!list)return list;
+  for(var i=0;i<list.length;i++){
+    var m=list[i];
+    if(!m||m.id==='__skip__'||m.id==='__empty__'||m.brand===b)continue;
+    m.brand=b;
+    if(m.threads)m.threads=m.threads.map(function(t){return t.brand===b?t:Object.assign({},t,{brand:b});});
+  }
+  return list;
+}
+// The catalogue entries a conversion in `brand` chooses from, each marked
+// with its brand, or null for DMC (the pipeline's default) or a catalogue
+// that hasn't loaded.
+var _brandPools={};
+function threadBrandPool(brand){
+  var b=normaliseThreadBrand(brand);
+  if(b==='dmc')return null;
+  var cat=threadCatalogue(b);
+  if(!cat)return null;
+  if(!_brandPools[b]||_brandPools[b].src!==cat)_brandPools[b]={src:cat,pool:cat.map(function(t){return Object.assign({},t,{brand:b});})};
+  return _brandPools[b].pool;
+}
+// The threads a pattern in `brand` is edited with (P4-5): the DMC catalogue,
+// or another brand's entries marked with their brand (empty until it loads).
+function projectThreadList(brand){
+  var b=normaliseThreadBrand(brand);
+  if(b==='dmc')return typeof DMC!=='undefined'?DMC:[];
+  return threadBrandPool(b)||[];
+}
 // settings.threadBrand as saved: written only for a brand other than DMC,
 // so DMC projects save exactly as before.
 function threadBrandForSave(brand){var b=normaliseThreadBrand(brand);return b==='dmc'?undefined:b;}
@@ -1783,6 +1817,9 @@ if(typeof window!=='undefined'){
   window.threadBrandForSave=threadBrandForSave;
   window.whenProjectBrandReady=whenProjectBrandReady;
   window.stashEntryFor=stashEntryFor;
+  window.tagThreadBrand=tagThreadBrand;
+  window.threadBrandPool=threadBrandPool;
+  window.projectThreadList=projectThreadList;
 }
 
 // ── Premium feature gate ─────────────────────────────────────────

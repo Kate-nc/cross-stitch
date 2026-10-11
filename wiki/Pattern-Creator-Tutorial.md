@@ -63,6 +63,8 @@ A new picture starts with its long side at 100 stitches, never more than the pic
 
 ### Palette
 
+**Threads** — **DMC** or **Anchor**. The pattern's colours are matched to that brand's stranded cotton, and its key, shopping list, Stitch Tracker, PDF and `.oxs` files use that brand's numbers.
+
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
 A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow.
@@ -74,7 +76,7 @@ A blend stitches two threads together in one stitch and gets its own chart symbo
 | **20–40** | Complex photos, detailed artwork |
 | **50–100** | Photo-realistic patterns |
 
-**Use only stash threads** — match only to DMC and Anchor threads you own.
+**Use only stash threads** — match only to threads you own, in the brand chosen under **Threads**.
 
 **Shading** (in **Clean-up**) — mixes neighbouring threads to suggest in-between colours.
 
@@ -97,7 +99,8 @@ With Smooth blend, **Fewer single stitches in blends** keeps the mix in small cl
 Under the preview, **Compare options** shows the picture at three neighbouring settings side by side:
 
 - **Size**: 25% smaller, the current size, 25% larger;
-- **Threads**: 5 fewer, the current number, 5 more.
+- **Threads**: 5 fewer, the current number, 5 more;
+- **Brand**: the picture in DMC and in Anchor.
 
 Each shows its stitches, threads, roughly how many hours it would take and its confetti level. Choose one to use its setting. The previews are smaller versions made in the background, so the real pattern can differ slightly. On a phone, tap **Compare options** to open it, then swipe sideways.
 

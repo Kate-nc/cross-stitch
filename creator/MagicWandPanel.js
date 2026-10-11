@@ -333,7 +333,7 @@ window.MagicWandPanel = function MagicWandPanel() {
   },
     h("strong", { style: { color: "var(--text-primary)" } }, "Generate Backstitch Outline"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
-      "Outline thread (DMC):",
+      "Outline thread (" + (window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC") + "):",
       h("input", {
         type: "text", value: cv.outlineColor,
         onChange: function(e) { cv.setOutlineColor(e.target.value.trim()); },
@@ -341,10 +341,10 @@ window.MagicWandPanel = function MagicWandPanel() {
       })
     ),
     (function() {
-      var dmcEntry = findThreadInCatalog('dmc', cv.outlineColor);
+      var dmcEntry = findThreadInCatalog(ctx.threadBrand || 'dmc', cv.outlineColor);
       return dmcEntry ? h("span", { style: { display: "flex", alignItems: "center", gap: 3 } },
         swatch(dmcEntry.rgb), h("span", { style: { color: "var(--text-secondary)" } }, dmcEntry.name)
-      ) : h("span", { style: { color: "var(--danger)" } }, "Unknown DMC");
+      ) : h("span", { style: { color: "var(--danger)" } }, "Unknown " + (window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC") + " number");
     })(),
     btn("Generate", cv.applyOutlineGeneration, {
       green: true,

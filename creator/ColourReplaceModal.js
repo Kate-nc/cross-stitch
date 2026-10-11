@@ -99,7 +99,10 @@
     var srcRgb = modal && modal.srcRgb ? modal.srcRgb : [128, 128, 128];
 
     var CR = window.ColourReplace;
-    var dmcList = typeof DMC !== 'undefined' ? DMC : [];
+    // The pattern's thread brand (P4-5): replacements come from its catalogue.
+    var brandName = window.threadBrandLabel ? window.threadBrandLabel(props.threadBrand) : 'DMC';
+    var lbl = function (t) { return window.threadLabel ? window.threadLabel(t) : 'DMC ' + t.id; };
+    var dmcList = window.projectThreadList ? window.projectThreadList(props.threadBrand) : (typeof DMC !== 'undefined' ? DMC : []);
 
     // Colours already in the pattern (excluding the source). Picking one
     // merges the two colours, so they're listed first and flagged.
@@ -120,7 +123,7 @@
       var rank = function(list, opts) { return CR && CR.rankBySimilarity ? CR.rankBySimilarity(srcRgb, list, opts) : list.map(function(t) { return { thread: t, dE: null }; }); };
       if (q) {
         var match = function(t) { return t.id.toLowerCase().indexOf(q) !== -1 || (t.name || '').toLowerCase().indexOf(q) !== -1; };
-        // Palette-only entries (e.g. blends) aren't in DMC, so search them too.
+        // Palette-only entries (e.g. blends) aren't in the catalogue, so search them too.
         var extra = palEntries.filter(function(p) { return match(p) && !dmcList.some(function(d) { return d.id === p.id; }); });
         var items = extra.concat(dmcList.filter(match)).map(function(t) { return { thread: t, dE: null }; });
         return [{ key: 'results', title: null, items: items }];
@@ -130,7 +133,7 @@
       var exclude = new Set(palIds); if (srcId) exclude.add(srcId);
       var closest = rank(dmcList, { limit: 8, excludeIds: exclude });
       if (closest.length) out.push({ key: 'closest', title: 'Closest matches', items: closest });
-      out.push({ key: 'all', title: 'All DMC threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
+      out.push({ key: 'all', title: 'All ' + brandName + ' threads', items: dmcList.map(function(t) { return { thread: t, dE: null }; }) });
       return out;
     }, [search, palEntries, palIds, srcId, srcRgb && srcRgb.join(','), dmcList]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -429,14 +432,14 @@
     },
       h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
         h('span', { 'aria-hidden': 'true', style: { display: 'inline-flex', color: 'var(--text-tertiary)' } }, window.Icons && window.Icons.info ? window.Icons.info() : null),
-        h('span', { id: 'colour-replace-mode-label' }, 'DMC ' + pickedId + ' is already in your palette.'),
+        h('span', { id: 'colour-replace-mode-label' }, lbl(picked || { id: pickedId }) + ' is already in your palette.'),
         h('div', { className: 'lp-segmented', role: 'radiogroup', 'aria-labelledby': 'colour-replace-mode-label' },
           modeSeg('merge', 'Merge into it'),
           modeSeg('swap', 'Swap the two colours'))
       ),
       h('div', { className: 'colour-replace-mode-help', style: { marginTop: 4, color: 'var(--text-tertiary)' } },
         swapping
-          ? 'Every DMC ' + srcId + ' stitch becomes DMC ' + pickedId + ', and every DMC ' + pickedId + ' stitch becomes DMC ' + srcId + '.'
+          ? 'Every ' + lbl(srcEntry || { id: srcId }) + ' stitch becomes ' + lbl(picked || { id: pickedId }) + ', and every ' + lbl(picked || { id: pickedId }) + ' stitch becomes ' + lbl(srcEntry || { id: srcId }) + '.'
           : 'These stitches will merge into it, leaving one colour where there were two.')
     ) : null;
 
@@ -484,7 +487,7 @@
             swapRgb: swapping ? srcRgb : null,
             dimmed: !picked,
             caption: picked ? 'After' : 'Pick a thread to preview',
-            ariaLabel: picked ? 'Pattern after replacing with DMC ' + picked.id : 'Pattern preview, no replacement chosen'
+            ariaLabel: picked ? 'Pattern after replacing with ' + lbl(picked) : 'Pattern preview, no replacement chosen'
           })
         ),
 
@@ -495,7 +498,7 @@
           'aria-controls': 'colour-replace-listbox',
           'aria-autocomplete': 'list',
           'aria-activedescendant': activeKey ? optionDomId(activeKey) : null,
-          placeholder: 'Search by DMC code or colour name…',
+          placeholder: 'Search by ' + brandName + ' number or colour name…',
           'aria-label': 'Search threads',
           value: search,
           onChange: function(e) { setSearch(e.target.value); setActiveKey(null); },
@@ -553,7 +556,7 @@
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
           }),
           h('span', null,
-            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, 'DMC ' + picked.id + ' ' + picked.name) : 'Pick a thread',
+            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, lbl(picked) + ' ' + picked.name) : 'Pick a thread',
             countText ? ' \u00B7 ' + countText : '')
         ),
         mergeNote,
