@@ -96,3 +96,30 @@ test('restoring into a browser with no database yet leaves it upgradeable to the
   expect(Array.from(db.objectStoreNames)).toEqual(expect.arrayContaining(['projects', 'importerTelemetry', 'pendingImports']));
   expect((await get(db, 'projects', 'proj_a')).done).toEqual([1]);
 });
+
+test('a version-5 database that lacks a store is never upgraded by backup or restore', async () => {
+  const idb = new IDBFactory();
+  // A broken database: version 5 but without sync_snapshots.
+  const db = await new Promise((resolve, reject) => {
+    const req = idb.open('CrossStitchDB', 5);
+    req.onupgradeneeded = e => ['projects', 'project_meta', 'stats_summaries'].forEach(n => e.target.result.createObjectStore(n));
+    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  });
+  await put(db, 'projects', 'proj_a', { id: 'proj_a', pattern: [{ id: '310' }], done: [1] });
+  db.close();
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const BackupRestore = load(idb);
+
+  const backup = await BackupRestore.createBackup();
+  expect(backup.databases.CrossStitchDB.projects).toHaveLength(1);       // still backed up
+  expect(backup.databases.CrossStitchDB.sync_snapshots).toEqual([]);     // missing store reads as empty
+
+  await expect(BackupRestore.restore(backup)).rejects.toThrow(/missing sync_snapshots/);
+
+  // The app must still be able to open it at its own version (a bump to 6 would make this fail).
+  const reopened = await new Promise((resolve, reject) => {
+    const req = idb.open('CrossStitchDB', 5);
+    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  });
+  expect(reopened.version).toBe(5);
+});

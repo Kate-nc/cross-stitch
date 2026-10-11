@@ -31,14 +31,21 @@ describe('__flushProjectToIDB', () => {
 describe('snapshotNow', () => {
   const fn = block('function snapshotNow()', 'useEffect(() => {\n  if (!pat || !pal) return;\n  autoSaveDirtyRef');
 
-  test('uses the synchronously updated done ref and applies an uncommitted drag', () => {
+  test('uses the synchronously updated done ref', () => {
     expect(fn).toContain('doneRef.current');
-    expect(fn).toContain('dragChangesRef.current');
   });
 
-  test('does not mutate drag state', () => {
-    expect(fn).not.toMatch(/dragChangesRef\.current\s*=/);
-    expect(fn).not.toMatch(/isDragging\s*=/);
+  test('reads the live drag gesture from useDragMark, not the unused legacy refs', () => {
+    expect(fn).toContain('dragMarkGetStateRef.current');
+    expect(fn).toContain("g.mode === 'drag'");
+    // dragStateRef/dragChangesRef are never populated; relying on them was a no-op.
+    expect(fn).not.toMatch(/dragChangesRef|dragStateRef/);
+  });
+
+  test('applies the same filters as the drag commit and does not change drag state', () => {
+    expect(fn).toContain('dragCommitFilterRef.current');
+    expect(src).toMatch(/dragCommitFilterRef\.current=function\(idx\)\{return !\(isColourLocked\(\)&&!fullStitchMatchesFocus\(idx\)\);\};/);
+    expect(fn).not.toMatch(/\.reset\(|dragMarkReset/);
   });
 });
 
@@ -59,11 +66,20 @@ describe('unload and hidden saves', () => {
     expect(h).toContain('snapshotNow()');
   });
 
-  test('the tab-hidden handler flushes only when there are unsaved changes', () => {
+  test('the tab-hidden handler flushes only when something changed since the last write', () => {
     const v = block('function onVisibility()', "document.addEventListener('visibilitychange', onVisibility)");
     expect(v).toContain("'hidden'");
-    expect(v).toContain('autoSaveDirtyRef.current');
+    expect(v).toContain('autoSaveGenRef.current === flushedGenRef.current');
     expect(v).toContain('__flushProjectToIDB');
+    // It must not touch the debounce's own dirty flags.
+    expect(v).not.toMatch(/autoSaveDirtyRef|autoSaveFirstDirtyRef/);
+  });
+
+  test('both the flush and the autosave record the generation they wrote, only on success', () => {
+    const flush = block('window.__flushProjectToIDB = async function() {\n    if (isUnloadingRef', '// Save when the tab is hidden');
+    expect(flush).toMatch(/flushedGenRef\.current = Math\.max\(flushedGenRef\.current, _gen\)/);
+    expect(flush).toContain('saveResult.ok !== false');
+    expect(src).toMatch(/flushedGenRef\.current=Math\.max\(flushedGenRef\.current,_gen\)/);
   });
 
   test('a bfcache restore clears the unloading flag', () => {

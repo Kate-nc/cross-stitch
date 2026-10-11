@@ -24,7 +24,7 @@ Working agreement: [phase-00-working-agreement.md](phase-00-working-agreement.md
 
 ## Batch 1
 
-Status: PR open, waiting for review and merge.
+Status: PR [#275](https://github.com/Kate-nc/cross-stitch/pull/275) open, review round 1 addressed, waiting for merge.
 
 ### What changed
 - `tracker-app.js`: new `snapshotNow()` (a full snapshot using the synchronously updated `doneRef` and any uncommitted drag, reads refs only, never touches drag state); `__flushProjectToIDB` now saves that instead of a hand-built partial record on top of the last autosave; stands aside while the unload handler runs; tab-hidden handler saves when there are unsaved changes; `pageshow` clears the unloading flag after a back/forward-cache restore (it used to stay set and block new sessions); the debounce has a maximum wait.
@@ -57,6 +57,14 @@ No regression. Cost of the new work, 300x300 chart (90,000 cells): a flush (what
 
 ### Data and migration statement
 No schema change, no new stored fields, no migration. Existing projects and history are untouched. The `save()` guard only blocks writes that would have erased a pattern.
+
+### Review round 1 (Copilot code review on PR 275; all four findings verified and fixed)
+- **High, backup could bump the app's schema.** `openDB(..., null)` repaired a missing store by upgrading to version 6, after which the app's own open at version 5 would fail with `VersionError`. `openDB` now takes `repair === false` for `CrossStitchDB`: backup reads a missing store as empty, restore stops with a clear message instead of upgrading. Test: a v5 database missing `sync_snapshots` is still backed up, restore refuses, and the app can still open it at 5.
+- **Medium, `snapshotNow` did not include an in-progress drag.** True: `dragStateRef`/`dragChangesRef` are never populated (the pre-existing unload code that used them was dead too, and is removed). `useDragMark` now exposes a synchronous `getDragState()`; `snapshotNow` applies cells of a `drag` in progress (not unconfirmed ranges) with the same filters as `_commitBulk` (skip/empty cells, colour lock). New e2e test flushes mid-drag; the source test no longer passes on dead code.
+- **Medium, hidden-tab flush left the dirty flags set.** Replaced with change/flush generation counters; the hidden handler writes only when something changed since the last successful write and never touches the debounce. A failed or conflicted save does not count as flushed. New e2e test: hiding twice writes once.
+- **Low, release note.** Now states both limits (10 s, 20 s over 40,000 stitches).
+
+Both new e2e tests fail on the previous head and pass now. Perf re-measured after the changes: load 1,512-1,714 ms, drag 1,197-1,264 ms (baseline 1,513-1,719 / 1,215-1,340): no regression.
 
 ## Open questions
 - None blocking. Batch 2 will propose the exact layout of the progress record (compressed `done` array vs run-length encoding) with measured sizes.

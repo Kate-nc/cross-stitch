@@ -11,7 +11,7 @@ window.APP_CHANGELOG = [
     version: '1.0.106',
     date: 'October 2026',
     notes: [
-      'Stitches you mark are now kept safe much more reliably in the Stitch Tracker. Refreshing, closing the tab or switching away right after marking no longer loses them, a long run of marking is saved at least every 10 seconds, and Backup and sync export always include your latest marks.',
+      'Stitches you mark are now kept safe much more reliably in the Stitch Tracker. Refreshing, closing the tab or switching away right after marking no longer loses them, a long run of marking is saved at least every 10 seconds (every 20 seconds on charts over 40,000 stitches), and Backup and sync export always include your latest marks.',
       'Export Backup and Restore now include your projects. They were opening the project database at an old version and failing, so a backup file held no patterns or progress.',
       'The Stitch Tracker can no longer overwrite a saved pattern with an empty record. A save that would have erased a pattern is refused and you are told.',
     ]

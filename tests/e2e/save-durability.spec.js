@@ -99,6 +99,43 @@ test.describe('Tracker saves', () => {
     await expect.poll(async () => (await stored(page)).done, { timeout: 2000 }).toBe(10);
   });
 
+  test('a drag that has not been released yet is included when the tab is hidden', async ({ page }) => {
+    await loadTrackerFixture(page);
+    const a = await trackerCellPoint(page, 2, 3), b = await trackerCellPoint(page, 7, 3);
+    await page.mouse.move(a.x - 3, a.y);
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(a.x + (b.x - a.x) * i / 10, a.y);
+    // Still holding the button: nothing committed yet.
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(async () => (await stored(page)).done, { timeout: 2000 }).toBe(6);   // cells 2..7
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    expect(await trackerDoneCount(page)).toBe(6);
+  });
+
+  test('hiding the tab twice writes once', async ({ page }) => {
+    await loadTrackerFixture(page);
+    await markRow(page, 3, 2, 11);
+    const hide = () => page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.evaluate(() => {
+      window.__puts = 0;
+      const orig = ProjectStorage.save.bind(ProjectStorage);
+      ProjectStorage.save = function () { window.__puts++; return orig.apply(null, arguments); };
+    });
+    await hide();
+    await expect.poll(() => page.evaluate(() => window.__puts), { timeout: 2000 }).toBe(1);
+    await hide(); await hide();
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => window.__puts)).toBe(1);
+  });
+
   test('steady marking is saved at least every 10 seconds', async ({ page }) => {
     test.setTimeout(60000);
     await loadTrackerFixture(page);

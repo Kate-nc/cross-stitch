@@ -17,5 +17,8 @@
 - **Known limitation, by design for this batch:** a hard kill can still lose marks made since the last save (up to the debounce, 5 s after the last mark, never more than the cap of 10 s, or 20 s above 40,000 stitches). Batch 2 closes this with a small progress record.
 - **Unverified:** iOS Safari and Android behaviour of the tab-hidden save (only Chromium available); real-device timing.
 
+### Review round 1
+A code review of the PR found four real issues in my own batch (backup could upgrade the app's database to a version the app cannot open; the in-progress-drag support did nothing because it read refs that are never written; the hidden-tab flush repeated on every tab switch; changelog understated the 20 s cap). All fixed with tests that fail on the previous head. Lesson recorded for later batches: a source-text test can pass on dead code, so each durability claim now has a behavioural e2e test as well.
+
 ### Not exercised yet (later batches / phases)
 Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Creator: planned for the Phase 1 closing bug hunt, after batches 2-5.

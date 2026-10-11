@@ -3283,6 +3283,14 @@ function TrackerApp({
   // When the oldest unsaved change happened. The save timer is a debounce; this caps
   // how long continuous marking can postpone it (see the autosave effect).
   const autoSaveFirstDirtyRef = useRef(null);
+  // Change generation: bumped by every autosave-effect run; flushedGenRef is the newest
+  // generation known to be written. The tab-hidden save compares the two, so it writes
+  // only when something changed since the last write and never touches the debounce.
+  const autoSaveGenRef = useRef(0);
+  const flushedGenRef = useRef(-1);
+  // The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
+  const dragMarkGetStateRef = useRef(null);
+  const dragCommitFilterRef = useRef(null);
   const session = window.useAutoSession({
     projectIdRef,
     v3FieldsRef,
@@ -6680,19 +6688,27 @@ function TrackerApp({
   buildSnapshotRef.current = buildSnapshot;
   // The project exactly as it is now. buildSnapshot() reads `done` from the last
   // render; doneRef is updated synchronously on every mark, so use that, and apply
-  // a drag that has not committed yet. Reads refs only and never touches drag state,
-  // so it is safe from the unload, tab-hidden and backup/sync flush paths.
+  // a drag that has not been released yet. Reads refs only and never changes drag
+  // state, so it is safe from the unload, tab-hidden and backup/sync flush paths.
   function snapshotNow() {
     const fresh = buildSnapshotRef.current ? buildSnapshotRef.current() : null;
     if (!fresh) return lastSnapshotRef.current;
     const live = doneRef.current;
     if (!live || !fresh.pattern || live.length !== fresh.pattern.length) return fresh;
     const d = Array.from(live);
-    if (dragStateRef.current.isDragging && dragChangesRef.current.length > 0) {
-      const dVal = dragStateRef.current.dragVal;
-      for (const {
-        idx
-      } of dragChangesRef.current) d[idx] = dVal;
+    // A drag that has not been released yet: cells it has crossed are committed on
+    // release (_commitBulk), so include them with the same filters. Ranges are not
+    // included; they are only a selection until confirmed.
+    const g = dragMarkGetStateRef.current ? dragMarkGetStateRef.current() : null;
+    if (g && g.mode === 'drag' && g.path && g.path.size) {
+      const want = g.intent === 'mark' ? 1 : 0;
+      const allowed = dragCommitFilterRef.current;
+      g.path.forEach(idx => {
+        const c = fresh.pattern[idx];
+        if (!c || c.id === '__skip__' || c.id === '__empty__') return;
+        if (allowed && !allowed(idx)) return;
+        d[idx] = want;
+      });
     }
     return {
       ...fresh,
@@ -6707,6 +6723,7 @@ function TrackerApp({
     // until the first 5 s pause. A full save of a very large chart costs about
     // 150 ms of main thread (structured clone of the whole record), so charts over
     // 40,000 stitches get a longer cap rather than a hitch every 10 s.
+    autoSaveGenRef.current++;
     if (!autoSaveFirstDirtyRef.current) autoSaveFirstDirtyRef.current = Date.now();
     const _autoSaveCap = pat.length > 40000 ? 20000 : 10000;
     const _autoSaveDelay = Math.max(0, Math.min(5000, _autoSaveCap - (Date.now() - autoSaveFirstDirtyRef.current)));
@@ -6714,10 +6731,12 @@ function TrackerApp({
       autoSaveFirstDirtyRef.current = null;
       if (!autoSaveDirtyRef.current) return;
       autoSaveDirtyRef.current = false;
+      const _gen = autoSaveGenRef.current;
       const project = buildSnapshot();
       if (!project) return;
       lastSnapshotRef.current = project;
       persistProjectRecord(project).then(function (saveResult) {
+        if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
         if (saveResult && saveResult.reason === 'reloaded') return null;
         try {
           if (projectIdRef.current) localStorage.removeItem('cs_pending_session_' + projectIdRef.current);
@@ -6783,23 +6802,6 @@ function TrackerApp({
         if (!project) project = lastSnapshotRef.current;
         if (!project) return;
         let projectToSave = project;
-        // If a drag is in progress, apply the pending in-place mutations to a fresh done copy
-        if (dragStateRef.current.isDragging && dragChangesRef.current.length > 0) {
-          const dVal = dragStateRef.current.dragVal;
-          const freshDone = project.done ? project.done.slice() : null;
-          if (freshDone) {
-            for (const {
-              idx
-            } of dragChangesRef.current) freshDone[idx] = dVal;
-          }
-          projectToSave = {
-            ...project,
-            done: freshDone,
-            updatedAt: new Date().toISOString()
-          };
-          dragChangesRef.current = [];
-          dragStateRef.current.isDragging = false;
-        }
         // Finalise any active auto-session and merge into the snapshot
         const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current() : null;
         if (finalisedSession) {
@@ -6863,7 +6865,9 @@ function TrackerApp({
       const project = snapshotNow();
       if (!project) return;
       lastSnapshotRef.current = project;
+      const _gen = autoSaveGenRef.current;
       const saveResult = await persistProjectRecord(project);
+      if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
       if (!saveResult || saveResult.reason !== 'reloaded') {
         await saveProjectToDB(project).catch(e => {
           console.error('Save failed:', e);
@@ -6902,12 +6906,13 @@ function TrackerApp({
 
   // Save when the tab is hidden (switching app, locking the phone, switching tab).
   // This is the one event mobile browsers reliably deliver before they suspend or
-  // discard a page; unload events often never fire there. Only writes when there
-  // are unsaved changes, so merely switching tabs costs nothing.
+  // discard a page; unload events often never fire there. Only writes when something
+  // changed since the last write (generation counters), so merely switching tabs
+  // costs nothing and a successful flush is not repeated on every later hide.
   useEffect(() => {
     function onVisibility() {
       if (document.visibilityState !== 'hidden') return;
-      if (!autoSaveDirtyRef.current) return;
+      if (autoSaveGenRef.current === flushedGenRef.current) return;
       try {
         const r = window.__flushProjectToIDB && window.__flushProjectToIDB();
         if (r && r.catch) r.catch(function () {});
@@ -10495,6 +10500,11 @@ function TrackerApp({
   // Keep the keyup/blur listener (registered once, on mount, above) calling
   // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
   dragMarkNotifyShiftUpRef.current = _dragMark.notifyShiftUp || null;
+  dragMarkGetStateRef.current = _dragMark.getDragState || null;
+  // Same filters as _commitBulk applies when a drag is released.
+  dragCommitFilterRef.current = function (idx) {
+    return !(isColourLocked() && !fullStitchMatchesFocus(idx));
+  };
 
   // French knots (knots.js): in Mark mode a press on a knot marks it done (or
   // not done) when it's released there, instead of starting a drag-mark on the
