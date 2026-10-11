@@ -183,3 +183,24 @@ None. No stored data changes.
 ### Decisions
 - Stale-tab banner (audit recommendation 2) is not built: with the merge the other tab's save no longer needs a decision, and the existing broadcast already triggers it at once. A pure "refresh" banner would add a prompt where none is now needed.
 - Backup reminder moved to its own batch.
+
+## Batch 5 (backup reminder, TRACK-03 recommendation 3)
+
+### What changed
+- `BackupReminder` in `helpers.js` (loaded on every page): `label()`, `due()` (pure), `maybeRemind()`. `downloadBackup()` records `cs_last_backup_at` after the download is started.
+- File menu: a quiet line under Export Backup ("Last backed up 5 days ago", "Not backed up yet").
+- Tracker: once stitches exist, 4 s after the first mark of a session, if 14 days have passed since the last backup (or since the first marks, for someone who never backed up), one Toast with "Back up now" and "Not now" (snoozes 7 days). At most once per session. Help text and changelog 1.0.111.
+- No IndexedDB or project reads; three small localStorage keys (`cs_last_backup_at`, `cs_backup_clock_start`, `cs_backup_snooze_until`).
+
+### Tests added
+`tests/backupReminder.test.js` (11) and `tests/e2e/backup-reminder.spec.js` (3: offered after 20 days and Not now snoozes; a 3-day-old backup shows no offer and the menu line; Export Backup records the time).
+
+### Decisions
+- The reminder is time-based only (not size or stitch-count based) and never blocks; it does not reappear within a session or while snoozed.
+- Folder sync is not counted as a backup: it is an optional second copy and `.csync` folders can be disconnected; only a downloaded backup file resets the clock.
+
+### Data and migration statement
+None for project data. Three new localStorage keys, not included in backups.
+
+### Known gaps
+Home and the Creator do not show the reminder (only the File menu line); only the Tracker offers it. Safari/Firefox untested.

@@ -494,6 +494,75 @@ if (typeof window !== 'undefined') {
   }, { once: true });
 }
 
+// ── Backup reminder ─────────────────────────────────────────────────────────
+// Projects live in this browser only, so a backup file is the one safety net. We note when a
+// backup was last downloaded (backup-restore.js writes it), show it in the File menu, and,
+// once, per session, after BACKUP_REMIND_DAYS without a backup, offer one in the Tracker.
+// "Not now" snoozes the offer for a week. Nothing here reads a project or touches IndexedDB.
+var BACKUP_REMIND_DAYS = 14;
+var BACKUP_SNOOZE_DAYS = 7;
+var BACKUP_LAST_KEY = 'cs_last_backup_at';
+var BACKUP_CLOCK_KEY = 'cs_backup_clock_start';
+var BACKUP_SNOOZE_KEY = 'cs_backup_snooze_until';
+var BackupReminder = (function () {
+  var DAY = 86400000;
+  function num(key) {
+    try { var v = Number(localStorage.getItem(key)); return isFinite(v) && v > 0 ? v : 0; } catch (_) { return 0; }
+  }
+  function lastAt() { return num(BACKUP_LAST_KEY); }
+  // Whole days between two dates by calendar day, so "yesterday evening" reads as 1 day ago.
+  function daysBetween(then, now) {
+    var a = new Date(then), b = new Date(now);
+    return Math.round((new Date(b.getFullYear(), b.getMonth(), b.getDate()) - new Date(a.getFullYear(), a.getMonth(), a.getDate())) / DAY);
+  }
+  function label(now) {
+    var last = lastAt();
+    if (!last) return 'Not backed up yet';
+    var d = daysBetween(last, now == null ? Date.now() : now);
+    return d <= 0 ? 'Last backed up today' : d === 1 ? 'Last backed up yesterday' : 'Last backed up ' + d + ' days ago';
+  }
+  // Pure: should the reminder show? `start` is when we first saw work worth protecting.
+  function due(now, last, start, snoozeUntil) {
+    var ref = last || start;
+    if (!ref) return false;
+    if (snoozeUntil && now < snoozeUntil) return false;
+    return now - ref >= BACKUP_REMIND_DAYS * DAY;
+  }
+  function maybeRemind() {
+    try {
+      if (sessionStorage.getItem('cs_backup_reminded')) return;
+      var now = Date.now();
+      // The clock starts the first time stitches are marked, so a new user is not nagged.
+      if (!num(BACKUP_CLOCK_KEY)) { try { localStorage.setItem(BACKUP_CLOCK_KEY, String(now)); } catch (_) {} }
+      if (!due(now, lastAt(), num(BACKUP_CLOCK_KEY), num(BACKUP_SNOOZE_KEY))) return;
+      if (!window.Toast || !window.Toast.show) return;
+      try { sessionStorage.setItem('cs_backup_reminded', '1'); } catch (_) {}
+      var last = lastAt();
+      window.Toast.show({
+        message: last
+          ? 'Your last backup was ' + daysBetween(last, now) + ' days ago. Your projects are stored only in this browser, so a backup file keeps your progress safe.'
+          : 'You have not backed up your projects yet. They are stored only in this browser, so a backup file keeps your progress safe.',
+        type: 'info',
+        duration: 20000,
+        actions: [
+          { label: 'Back up now', onClick: function () {
+              if (window.BackupRestore && window.BackupRestore.downloadBackup) {
+                window.BackupRestore.downloadBackup().catch(function (e) {
+                  window.Toast.show({ message: 'Backup failed: ' + (e && e.message), type: 'error' });
+                });
+              }
+            } },
+          { label: 'Not now', onClick: function () {
+              try { localStorage.setItem(BACKUP_SNOOZE_KEY, String(Date.now() + BACKUP_SNOOZE_DAYS * DAY)); } catch (_) {}
+            } }
+        ]
+      });
+    } catch (_) {}
+  }
+  return { lastAt: lastAt, label: label, due: due, maybeRemind: maybeRemind, daysBetween: daysBetween };
+})();
+if (typeof window !== 'undefined') window.BackupReminder = BackupReminder;
+
 var _helpersCachedDB = null;
 // Set to true once we have confirmed IDB is unavailable (e.g. Safari private mode).
 var _idbUnavailable = false;

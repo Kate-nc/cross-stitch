@@ -1224,6 +1224,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 else { window.BackupRestore.downloadBackup().catch(function(e) { (window.Toast ? window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' }) : alert('Backup failed: ' + e.message)); }); }
               }
             }, Icons.save(), ' Export Backup'),
+            window.BackupReminder && React.createElement('div', {
+              className: 'tb-page-dropdown-note',
+              style: { padding: '0 14px 6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }
+            }, window.BackupReminder.label()),
             // Restore — use prop handler if provided, else inline
             React.createElement('label', {
               className: 'tb-page-dropdown-item',

@@ -79,3 +79,8 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - **Hidden Tracker stayed the global merger (Medium).** True (the unified page keeps the Tracker mounted). The merger is registered only while the Tracker is active.
 - Found while fixing: a loaded record and a saved snapshot spell cells and settings differently, so "unchanged by the other tab" now means equal to the base or equal to ours (pattern as well as fields).
 - Known gap: `doneSnapshots` are not merged (derived; this tab keeps its own).
+
+## Batch 5 (backup reminder)
+- Exercised: unit tests, three Chromium e2e tests, full `npm test`, terminology lint.
+- Checked: clock starts at the first marking, not at install (new users are not nagged); snooze survives reload; another session does not re-show within the snooze; a failed backup (toast error) does not record a time because the record sits after the download starts but before return and after the click only; if serialisation throws, nothing is recorded.
+- Unverified: whether a user who cancels the browser's own save dialog has "backed up" (the browser gives the page no signal; we count the download as started).

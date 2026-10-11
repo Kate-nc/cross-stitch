@@ -228,6 +228,8 @@ const BackupRestore = (() => {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        // Remember when, for the File menu line and the backup reminder (helpers.js).
+        try { localStorage.setItem("cs_last_backup_at", String(Date.now())); } catch (_) {}
         return backup;
       } catch (err) {
         // QuotaExceededError, RangeError (string-too-long), or OOM during
