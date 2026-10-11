@@ -81,7 +81,7 @@ describe('fabric colour belongs to the project', () => {
     const tracker = loadSource('tracker-app.js');
     expect(tracker).toMatch(/const chartFabricColour=projectFabricColour\|\|trackerFabricColour;/);
     expect(tracker).toMatch(/setProjectFabricColour\(typeof s\.fabricColour==="string"/);
-    expect((tracker.match(/fabricColour: ?projectFabricColour ?\|\| ?undefined/g) || []).length).toBe(3);
+    expect((tracker.match(/fabricColour: ?projectFabricColour ?\|\| ?undefined/g) || []).length).toBe(2);
     expect(tracker).not.toMatch(/fillStyle=trackerFabricColour/);
   });
 });

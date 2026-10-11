@@ -40,7 +40,10 @@ const BackupRestore = (() => {
   // version bump. stitch_manager_db needs this: a versionless open elsewhere
   // can leave it existing-but-storeless, and a hard-coded open(name, 1) then
   // never fires onupgradeneeded, so the store is never created.
-  function openDB(name, version, storeNames) {
+  // repair === false: never upgrade the database to add a missing store. The app owns
+  // CrossStitchDB's schema version (helpers.js getDB); a bump here would make the app's
+  // own open at its version fail with VersionError. Callers handle missing stores.
+  function openDB(name, version, storeNames, repair) {
     function createMissing(db) {
       storeNames.forEach(s => {
         if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
@@ -56,7 +59,7 @@ const BackupRestore = (() => {
         const db = req.result;
         const missing = storeNames.filter(s => !db.objectStoreNames.contains(s));
         // A pinned version means the caller owns the schema — don't fight it.
-        if (!missing.length || version != null) { resolve(db); return; }
+        if (!missing.length || version != null || repair === false) { resolve(db); return; }
         const next = db.version + 1;
         db.close();
         const up = indexedDB.open(name, next);
@@ -168,14 +171,16 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       try {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
+        // A store the app has not created is read as empty; never upgrade the database here.
+        const readIfThere = (name) => db.objectStoreNames.contains(name) ? readStore(db, name) : Promise.resolve([]);
         // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
         // than awaiting them sequentially.
         const [projects, project_meta, stats_summaries, sync_snapshots] = await Promise.all([
-          readStore(db, "projects"),
-          readStore(db, "project_meta"),
-          readStore(db, "stats_summaries"),
-          readStore(db, "sync_snapshots")
+          readIfThere("projects"),
+          readIfThere("project_meta"),
+          readIfThere("stats_summaries"),
+          readIfThere("sync_snapshots")
         ]);
         backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
         db.close();
@@ -368,7 +373,12 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
+        const missingStores = ["projects", "project_meta", "stats_summaries", "sync_snapshots"].filter(n => !db.objectStoreNames.contains(n));
+        if (missingStores.length) {
+          db.close();
+          throw new Error("Restore stopped: the project database is missing " + missingStores.join(", ") + ". Reload the app once so it can repair its storage, then try again.");
+        }
         const data = backup.databases.CrossStitchDB;
         for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
           if (!data[storeName]) continue;

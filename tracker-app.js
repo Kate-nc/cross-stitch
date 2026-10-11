@@ -1815,6 +1815,17 @@ const chartFabricColour=projectFabricColour||trackerFabricColour;
 const lastSnapshotRef=useRef(null); // freshest serialised project for beforeunload
 const v3FieldsRef=useRef({});       // preserve v3 stats fields across save round-trips
 const autoSaveDirtyRef=useRef(false);
+// When the oldest unsaved change happened. The save timer is a debounce; this caps
+// how long continuous marking can postpone it (see the autosave effect).
+const autoSaveFirstDirtyRef=useRef(null);
+// Change generation: bumped by every autosave-effect run; flushedGenRef is the newest
+// generation known to be written. The tab-hidden save compares the two, so it writes
+// only when something changed since the last write and never touches the debounce.
+const autoSaveGenRef=useRef(0);
+const flushedGenRef=useRef(-1);
+// The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
+const dragMarkGetStateRef=useRef(null);
+const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
 const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
@@ -3954,16 +3965,54 @@ const buildSnapshot = () => {
   };
 };
 buildSnapshotRef.current = buildSnapshot;
+// The project exactly as it is now. buildSnapshot() reads `done` from the last
+// render; doneRef is updated synchronously on every mark, so use that, and apply
+// a drag that has not been released yet. Reads refs only and never changes drag
+// state, so it is safe from the unload, tab-hidden and backup/sync flush paths.
+function snapshotNow() {
+  const fresh = buildSnapshotRef.current ? buildSnapshotRef.current() : null;
+  if (!fresh) return lastSnapshotRef.current;
+  const live = doneRef.current;
+  if (!live || !fresh.pattern || live.length !== fresh.pattern.length) return fresh;
+  const d = Array.from(live);
+  // A drag that has not been released yet: cells it has crossed are committed on
+  // release (_commitBulk), so include them with the same filters. Ranges are not
+  // included; they are only a selection until confirmed.
+  const g = dragMarkGetStateRef.current ? dragMarkGetStateRef.current() : null;
+  if (g && g.mode === 'drag' && g.path && g.path.size) {
+    const want = g.intent === 'mark' ? 1 : 0;
+    const allowed = dragCommitFilterRef.current;
+    g.path.forEach(idx => {
+      const c = fresh.pattern[idx];
+      if (!c || c.id === '__skip__' || c.id === '__empty__') return;
+      if (allowed && !allowed(idx)) return;
+      d[idx] = want;
+    });
+  }
+  return { ...fresh, done: d };
+}
 useEffect(() => {
   if (!pat || !pal) return;
   autoSaveDirtyRef.current = true;
+  // Debounce 5 s after the last change, but cap how long a change can stay unsaved:
+  // without a cap, marking steadily (each mark restarts the timer) saved nothing
+  // until the first 5 s pause. A full save of a very large chart costs about
+  // 150 ms of main thread (structured clone of the whole record), so charts over
+  // 40,000 stitches get a longer cap rather than a hitch every 10 s.
+  autoSaveGenRef.current++;
+  if (!autoSaveFirstDirtyRef.current) autoSaveFirstDirtyRef.current = Date.now();
+  const _autoSaveCap = pat.length > 40000 ? 20000 : 10000;
+  const _autoSaveDelay = Math.max(0, Math.min(5000, _autoSaveCap - (Date.now() - autoSaveFirstDirtyRef.current)));
   const saveTimer = setTimeout(() => {
+    autoSaveFirstDirtyRef.current = null;
     if (!autoSaveDirtyRef.current) return;
     autoSaveDirtyRef.current = false;
+    const _gen = autoSaveGenRef.current;
     const project = buildSnapshot();
     if (!project) return;
     lastSnapshotRef.current = project;
     persistProjectRecord(project).then(function(saveResult){
+      if(saveResult&&saveResult.ok!==false&&saveResult.reason!=='reloaded')flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
       if(saveResult&&saveResult.reason==='reloaded')return null;
       try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
       return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
@@ -4002,7 +4051,7 @@ useEffect(() => {
         return null;
       });
     }).catch(err => console.error("Tracker auto-save failed:", err));
-  }, 5000);
+  }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
@@ -4017,22 +4066,11 @@ useEffect(() => {
     isUnloadingRef.current = true;
     // Always build a fresh snapshot so we never use stale data
     let project = null;
-    const fresh = buildSnapshotRef.current();
+    const fresh = snapshotNow();
     if (fresh) { project = fresh; lastSnapshotRef.current = fresh; }
     if (!project) project = lastSnapshotRef.current;
     if (!project) return;
     let projectToSave = project;
-    // If a drag is in progress, apply the pending in-place mutations to a fresh done copy
-    if (dragStateRef.current.isDragging && dragChangesRef.current.length > 0) {
-      const dVal = dragStateRef.current.dragVal;
-      const freshDone = project.done ? project.done.slice() : null;
-      if (freshDone) {
-        for (const {idx} of dragChangesRef.current) freshDone[idx] = dVal;
-      }
-      projectToSave = { ...project, done: freshDone, updatedAt: new Date().toISOString() };
-      dragChangesRef.current = [];
-      dragStateRef.current.isDragging = false;
-    }
     // Finalise any active auto-session and merge into the snapshot
     const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current() : null;
     if (finalisedSession) {
@@ -4080,44 +4118,20 @@ useEffect(() => {
   return () => { delete window.__openTrackerStats; };
 }, []);
 
-// Expose flush for BackupRestore to call before reading IndexedDB.
-// Re-registered whenever relevant state changes so the function always builds
-// a fresh snapshot rather than relying on a potentially stale ref.
+// Expose flush for BackupRestore, Sync and the Stats refresh to call before they
+// read IndexedDB. It saves a complete, current snapshot (snapshotNow), so it can
+// never write a record that lacks the pattern or carries a stale `done`; both
+// happened when this built a partial object on top of the last autosave. While
+// the page is unloading the unload handler owns the write, so this stands aside.
 useEffect(() => {
   window.__flushProjectToIDB = async function() {
-    if (!pat || !pal) {
-      const project = lastSnapshotRef.current;
-      if (project) {
-        const saveResult = await persistProjectRecord(project);
-        if (!saveResult || saveResult.reason !== 'reloaded') {
-          await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
-        }
-      }
-      return;
-    }
-    const sseArr = [...singleStitchEdits.entries()];
-    const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-      fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
-      bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
-    }]);
-    const hdArr = [...halfDone.entries()];
-    const psArr = partialsForSave(partialStitches, threadBrand);
-    const project = {
-      ...(lastSnapshotRef.current || {}),
-      version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
-      namePromptShown: namePromptShownRef.current || undefined,
-      nameAutoGenerated: nameAutoGeneratedRef.current || undefined,
-      symbols: symbolsRef.current || undefined,
-      createdAt: createdAtRef.current,
-      updatedAt: new Date().toISOString(),
-      settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined, threadBrand: threadBrandForSave(threadBrand) },
-      partialStitches: psArr,
-      knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
-      // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-      breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea
-    };
+    if (isUnloadingRef.current) return;
+    const project = snapshotNow();
+    if (!project) return;
     lastSnapshotRef.current = project;
+    const _gen = autoSaveGenRef.current;
     const saveResult = await persistProjectRecord(project);
+    if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
     if (!saveResult || saveResult.reason !== 'reloaded') {
       await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
     }
@@ -4136,10 +4150,26 @@ useEffect(() => {
       }
     };
   };
-}, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done,
-    halfStitches, halfDone, partialStitches, knots, knotsDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol,
-    threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots,
-    breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
+}, []);
+
+// Save when the tab is hidden (switching app, locking the phone, switching tab).
+// This is the one event mobile browsers reliably deliver before they suspend or
+// discard a page; unload events often never fire there. Only writes when something
+// changed since the last write (generation counters), so merely switching tabs
+// costs nothing and a successful flush is not repeated on every later hide.
+useEffect(() => {
+  function onVisibility() {
+    if (document.visibilityState !== 'hidden') return;
+    if (autoSaveGenRef.current === flushedGenRef.current) return;
+    try { const r = window.__flushProjectToIDB && window.__flushProjectToIDB(); if (r && r.catch) r.catch(function(){}); } catch (_) {}
+  }
+  // A page restored from the back/forward cache was not really unloaded: the
+  // unload handler's flag must not keep blocking flushes and new sessions.
+  function onPageShow(e) { if (e && e.persisted) isUnloadingRef.current = false; }
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pageshow', onPageShow);
+  return () => { document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('pageshow', onPageShow); };
+}, []);
 
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.
@@ -6602,6 +6632,9 @@ const dragMarkReset=_dragMark.reset||(()=>{});
 // Keep the keyup/blur listener (registered once, on mount, above) calling
 // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
 dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
+dragMarkGetStateRef.current=_dragMark.getDragState||null;
+// Same filters as _commitBulk applies when a drag is released.
+dragCommitFilterRef.current=function(idx){return !(isColourLocked()&&!fullStitchMatchesFocus(idx));};
 
 // French knots (knots.js): in Mark mode a press on a knot marks it done (or
 // not done) when it's released there, instead of starting a drag-mark on the

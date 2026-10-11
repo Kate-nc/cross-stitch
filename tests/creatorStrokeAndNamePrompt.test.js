@@ -65,9 +65,9 @@ describe('name prompt is shown once per project', () => {
     expect(st).toMatch(/if \(namePromptOpen && !namePromptShownRef\.current\) setNamePromptShown\(true\);/);
   });
 
-  test('the Tracker carries it through its own saves', () => {
+  test('the Tracker carries it through its own saves (the snapshot builder and the explicit save)', () => {
     const tr = read('tracker-app.js');
     expect(tr).toMatch(/namePromptShownRef\.current=!!project\.namePromptShown;/);
-    expect((tr.match(/namePromptShown: ?namePromptShownRef\.current ?\|\| ?undefined/g) || []).length).toBe(3);
+    expect((tr.match(/namePromptShown: ?namePromptShownRef\.current ?\|\| ?undefined/g) || []).length).toBe(2);
   });
 });

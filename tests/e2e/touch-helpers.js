@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { installLocalCdn } = require('./local-cdn');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const TMP_DIR = path.join(ROOT, 'tests', '.tmp');
@@ -124,6 +125,7 @@ async function loadCreatorFixture(page, projectPath) {
 const TRACKER_CANVAS = 'canvas[aria-label^="Cross stitch pattern grid"]';
 
 async function loadTrackerFixture(page, projectPath) {
+  await installLocalCdn(page.context());   // no-op unless E2E_LOCAL_CDN=1
   // First-run dialogs and coachmarks would cover the chart and swallow the
   // touches; the session hint is a toast, but keep it out of the way too.
   await page.addInitScript(function() {

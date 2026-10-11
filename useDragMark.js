@@ -459,6 +459,7 @@
           onContextMenu: noop,
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
+        getDragState: function () { return { mode: 'idle', path: new Set(), anchor: null, intent: null }; },
         notifyShiftUp: noop,
         reset: noop,
       };
@@ -646,6 +647,7 @@
         },
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
+        getDragState: function () { return { mode: 'idle', path: new Set(), anchor: null, intent: null }; },
         notifyShiftUp: noop,
         reset: noop,
       };
@@ -660,6 +662,12 @@
         onContextMenu: onContextMenu,
       },
       dragState: dragState,
+      // The gesture's state right now (React state lags a render). Used to save a
+      // drag that has not been released yet if the tab is hidden or closed.
+      getDragState: function () {
+        var s = stateRef.current;
+        return { mode: s.mode, path: s.path, anchor: s.anchor, intent: s.intent };
+      },
       notifyShiftUp: notifyShiftUp,
       reset: reset,
     };
