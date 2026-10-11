@@ -666,6 +666,8 @@ function __surfaceSaveError(err) {
 }
 
 async function saveProjectToDB(project) {
+  // See ProjectStorage.save: nothing is written while a backup restore is under way.
+  if (typeof window !== 'undefined' && window.__restoringBackup > Date.now()) return;
   // Skip saving if the project was deleted during this page session
   if (project && project.id && typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted(project.id)) return;
   try {

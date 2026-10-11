@@ -424,6 +424,9 @@ const ProjectStorage = (() => {
     // merge-tracking and re-synced on every watcher tick.
     async save(project, options) {
       const opts = options || {};
+      // A backup is being restored and the page is about to reload: a write now would put the
+      // open (old) project back over the restored one (set by BackupRestore.restore).
+      if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return project && project.id;
       if (!project.id) {
         project.id = this.newId();
         project.createdAt = new Date().toISOString();
@@ -738,6 +741,7 @@ const ProjectStorage = (() => {
     //         baseWriteAt: number|null, tabId }
     async saveProgress(id, data) {
       if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
+      if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return false;
       try {
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;

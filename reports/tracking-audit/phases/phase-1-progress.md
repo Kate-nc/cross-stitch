@@ -230,3 +230,8 @@ No schema change. Uses the existing optional `doneSnapshots` (new label `Before 
 ### Known gaps
 - A snapshot from before a size change is compared against the new pattern in Stats > Compare, so its picture is drawn on the new grid width (the data is right, the picture can look sheared). Not changed here.
 - Found, not fixed (pre-existing): the tracker's daily automatic snapshot calls `getStitchingDateLocal`, which is only defined inside `useAutoSession`, so it throws inside a try/catch and no automatic snapshot has been saved. Candidate for Phase 3 (history).
+
+## Closing PR: end-of-phase hunt fixes
+- `BackupRestore.restore` sets `window.__restoringBackup` (30 s expiry) after its cancel checks and clears it on failure; `ProjectStorage.save`, `saveProgress` and `saveProjectToDB` write nothing while it is set. Tests: `tests/restoreGuard.test.js` (3), `tests/e2e/phase1-hunt.spec.js` (4).
+- `CrossTabResolution.onBroadcast` notes the remote write as seen when the answer is "Keep my edits" (test in `tests/crossTabConflictState.test.js`).
+- `save-badge` conflict test reworked (marks first, then the other tab renames) and its wait lengthened; `cross-tab-merge` and the hunt test poll instead of sleeping.

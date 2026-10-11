@@ -327,7 +327,21 @@ const BackupRestore = (() => {
     },
 
     // Restores from a backup object. Overwrites current data.
+    // Restores a backup. While it runs, and for a short time after, ProjectStorage and the
+    // legacy auto-save refuse to write (window.__restoringBackup), because the page reloads
+    // afterwards and its unload save would otherwise put the open project back over the
+    // restored one. The mark expires on its own, so a restore that does not reload cannot
+    // leave saving switched off.
     async restore(backup) {
+      try {
+        return await this._restoreWithoutGuard(backup);
+      } catch (e) {
+        if (typeof window !== "undefined") window.__restoringBackup = 0;
+        throw e;
+      }
+    },
+
+    async _restoreWithoutGuard(backup) {
       const check = this.validate(backup);
       if (!check.valid) throw new Error(check.error);
 
@@ -372,6 +386,9 @@ const BackupRestore = (() => {
         if (e && typeof e.message === 'string' && e.message.indexOf('Restore cancelled') === 0) throw e;
         // Lock check itself errored — proceed (best-effort).
       }
+
+      // From here on this page must not write projects (see restore above).
+      if (typeof window !== "undefined") window.__restoringBackup = Date.now() + 30000;
 
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {

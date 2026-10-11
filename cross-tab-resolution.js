@@ -249,7 +249,13 @@
         projectId: payload.projectId,
         remoteWriteAt: payload.lastWriteAt,
         remoteWriteTabId: payload.lastWriteTabId
-      });
+      }).then(function (decision) {
+        // "Keep my edits" answers the question for that save: note it as seen so this tab's
+        // next save does not ask the same thing again (it would otherwise still look stale).
+        if (decision === "keep" && window.CrossTabCoord && typeof window.CrossTabCoord.noteSeen === "function") {
+          try { window.CrossTabCoord.noteSeen(payload.projectId, payload.lastWriteAt, payload.lastWriteTabId); } catch (_) {}
+        }
+      }, function () {});
     } catch (_) {}
   }
 
