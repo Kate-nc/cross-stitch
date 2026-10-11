@@ -391,6 +391,21 @@ const BackupRestore = (() => {
             tx.onerror = () => reject(tx.error);
           });
         }
+        // Tracker progress records ("progress:<id>" in pendingImports) describe the
+        // projects as they were before this restore. They are not part of a backup,
+        // and one that outlived the restore could put old marks over the restored ones.
+        if (db.objectStoreNames.contains("pendingImports")) {
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction("pendingImports", "readwrite");
+            const store = tx.objectStore("pendingImports");
+            const keysReq = store.getAllKeys();
+            keysReq.onsuccess = () => {
+              (keysReq.result || []).forEach(k => { if (typeof k === "string" && k.indexOf("progress:") === 0) store.delete(k); });
+            };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          });
+        }
         db.close();
       }
 

@@ -24,7 +24,7 @@ Working agreement: [phase-00-working-agreement.md](phase-00-working-agreement.md
 
 ## Batch 1
 
-Status: PR [#275](https://github.com/Kate-nc/cross-stitch/pull/275) open, review round 1 addressed, waiting for merge.
+Status: merged ([PR #275](https://github.com/Kate-nc/cross-stitch/pull/275)).
 
 ### What changed
 - `tracker-app.js`: new `snapshotNow()` (a full snapshot using the synchronously updated `doneRef` and any uncommitted drag, reads refs only, never touches drag state); `__flushProjectToIDB` now saves that instead of a hand-built partial record on top of the last autosave; stands aside while the unload handler runs; tab-hidden handler saves when there are unsaved changes; `pageshow` clears the unloading flag after a back/forward-cache restore (it used to stay set and block new sessions); the debounce has a maximum wait.
@@ -66,5 +66,43 @@ No schema change, no new stored fields, no migration. Existing projects and hist
 
 Both new e2e tests fail on the previous head and pass now. Perf re-measured after the changes: load 1,512-1,714 ms, drag 1,197-1,264 ms (baseline 1,513-1,719 / 1,215-1,340): no regression.
 
-## Open questions
-- None blocking. Batch 2 will propose the exact layout of the progress record (compressed `done` array vs run-length encoding) with measured sizes.
+## Batch 2: the small progress record (rest of TRACK-01)
+
+Status: PR open, waiting for review and merge.
+
+### What changed
+- **`project-storage.js`:** `saveProgress(id, {done, halfDone, knotsDone, baseWriteAt, tabId})` writes one small record, `progress:<projectId>`, into the existing `pendingImports` store (the same store `BlobStore` already uses for trace pictures, so **no schema or database version change**). `get()` applies it only when it is still current (see below). `delete`, `clearAllProjects` and `clearAllProgress` remove it.
+- **`tracker-app.js`:** a throttled writer (at most one write every 400 ms, trailing) driven by the committed `done`/`halfDone`/`knotsDone` state; written first thing on tab-hidden and on unload; refreshed after a full save if marks arrived while it ran. Nothing was added to the mark path itself (an effect on the committed state schedules a timer).
+- **`backup-restore.js`:** restore deletes `progress:` records, because they describe the projects as they were before the restore.
+- Not changed: the full-save debounce caps (10 s, 20 s over 40,000 stitches). The full save still carries everything else (history, settings, park markers, view), so lowering the large-chart cap is a separate trade-off; with marks now safe the cap could be raised later to cut hitches further. Left for a decision.
+
+### Design decisions
+- **Typed array, no compression or run-length encoding.** The phase prompt left this open pending measurement: a 300x300 chart's `done` is a 90 KB `Uint8Array`, structured-cloned natively. Measured on the 300x300 fixture: 0.0-0.2 ms of main-thread time to issue the write and about 1 ms to commit, against 138-280 ms for a full save. Smaller encodings would not help.
+- **When the record is believed.** It stores `baseWriteAt`, the project's `lastWriteAt` when it was written. `get()` applies it only if that still equals the project's current `lastWriteAt` and the cell count matches. Any later write to the project (the Tracker's own full save, a sync import, a rename, a Creator save) changes `lastWriteAt`, which retires the record automatically; a restore also deletes it explicitly because restored records keep their old `lastWriteAt`. A stale record can therefore never override newer data.
+- **Applied inside `ProjectStorage.get()`**, so every consumer of a project (Tracker, Creator, Home, Stats, sync export) sees the same marks. The Creator in particular saves `done` back, and would have discarded recovered marks if it had loaded the stale record.
+- **A consistent (id, state) pair** is captured in an effect after each committed render and used by the writer, so one project's marks can never be written under another project's id while switching (checked with two same-size projects).
+- **The record is not in backups** (the full project record is always flushed fresh before a backup, so a backup has the marks); it is not read by sync or the project list.
+
+### Tests added
+- `tests/projectStorageProgress.test.js` (9): applied when current; half/knot marks; retired by any later project write; ignored on cell-count mismatch; legacy project with no write time; removed on delete and bulk clear; never written for a deleted id; invisible to `listProjects`; ignored when based on another write.
+- `tests/backupDbVersion.test.js` (+1): restore removes progress records and leaves other `pendingImports` records alone.
+- `tests/trackerSaveDurability.test.js` (+5): writer shape, throttling, unload/hidden order, no rewrite on load or switch, refresh after a full save.
+- `tests/e2e/save-durability.spec.js` (+2, and the earlier tests now read the raw project record so they keep testing the full save): hard close 0.7 s after marking recovers all marks while the stored project still has none; marks made after a full save are kept.
+- `tests/blobStore.test.js` updated: the guard "storage never reads pendingImports" now allows the one by-id read of `progress:` records and still forbids listing or scanning it.
+- The two new e2e tests fail on the batch-1 code and pass now.
+
+### Performance (300x300 fixture, headless Chromium, 3 runs)
+
+| Measure | Baseline (pre-phase) | After batch 2 |
+|---|---|---|
+| Load to drawn chart | 1,513-1,719 ms | 1,376-1,547 ms |
+| Idle max frame gap | 17 ms | 17 ms |
+| 60-move drag | 1,215-1,340 ms | 1,191-1,226 ms |
+| Progress write, 90,000 cells | n/a | 0.0-0.2 ms main thread, about 1 ms to commit |
+
+### Data and migration statement
+No schema change, no change to the project record format, no migration. One new record per project in `pendingImports` (about 90 KB for a 300x300 chart), overwritten in place, removed with the project. Old builds ignore it. Existing projects load exactly as before until the new writer produces a record.
+
+### Remaining for Phase 1
+Batch 3 (honest save badge), batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation).
+

@@ -1227,6 +1227,12 @@ const[partialStitches,setPartialStitches]=useState(new Map());
 // keys ("x,y") of those marked done.
 const[knots,setKnots]=useState([]);
 const[knotsDone,setKnotsDone]=useState([]);
+// Progress record (ProjectStorage.saveProgress): the marks, written about every 400 ms.
+// owner is the (project id, state) pair as of the last committed render, so a write can
+// never put one project's marks under another project's id while switching.
+const progressOwnerRef=useRef(null);
+const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null});
+const progressTimerRef=useRef(null);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const hoverRefs = useRef({ row: null, col: null });
@@ -3991,6 +3997,36 @@ function snapshotNow() {
   }
   return { ...fresh, done: d };
 }
+// ── Progress record writer ──
+// Writes the marks, and only the marks, to ProjectStorage's small progress record.
+// Saving the whole project takes up to ~150 ms on a large chart so it happens every
+// few seconds; this takes a few ms, so marks are safe within about half a second.
+function writeProgressNow() {
+  if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; }
+  const o = progressOwnerRef.current;
+  if (!o || !o.id) return;
+  // The freshest marks, but only if they belong to the project the owner names.
+  const live = doneRef.current;
+  const done = (live && projectIdRef.current === o.id && live.length === o.done.length) ? live : o.done;
+  const seen = window.CrossTabCoord && window.CrossTabCoord.getSeen ? window.CrossTabCoord.getSeen(o.id) : null;
+  try {
+    const r = ProjectStorage.saveProgress(o.id, {
+      done: done,
+      halfDone: o.halfDone.size ? [...o.halfDone.entries()] : [],
+      knotsDone: o.knotsDone,
+      baseWriteAt: seen && typeof seen.lastWriteAt === 'number' ? seen.lastWriteAt : null,
+      tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
+    });
+    if (r && r.catch) r.catch(function () {});
+  } catch (_) {}
+}
+function scheduleProgressWrite() {
+  if (!progressTimerRef.current) progressTimerRef.current = setTimeout(writeProgressNow, 400);
+}
+const writeProgressNowRef = useRef(null);
+writeProgressNowRef.current = writeProgressNow;
+const scheduleProgressWriteRef = useRef(null);
+scheduleProgressWriteRef.current = scheduleProgressWrite;
 useEffect(() => {
   if (!pat || !pal) return;
   autoSaveDirtyRef.current = true;
@@ -4012,7 +4048,9 @@ useEffect(() => {
     if (!project) return;
     lastSnapshotRef.current = project;
     persistProjectRecord(project).then(function(saveResult){
-      if(saveResult&&saveResult.ok!==false&&saveResult.reason!=='reloaded')flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
+      if(saveResult&&saveResult.ok!==false&&saveResult.reason!=='reloaded'){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
+        // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
+        if(autoSaveGenRef.current!==_gen)scheduleProgressWriteRef.current();}
       if(saveResult&&saveResult.reason==='reloaded')return null;
       try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
       return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
@@ -4064,6 +4102,8 @@ useEffect(() => {
   const handleBeforeUnload = () => {
     try {
     isUnloadingRef.current = true;
+    // The small progress record first: it is the write most likely to finish while the page closes.
+    writeProgressNowRef.current();
     // Always build a fresh snapshot so we never use stale data
     let project = null;
     const fresh = snapshotNow();
@@ -4160,6 +4200,7 @@ useEffect(() => {
 useEffect(() => {
   function onVisibility() {
     if (document.visibilityState !== 'hidden') return;
+    writeProgressNowRef.current();
     if (autoSaveGenRef.current === flushedGenRef.current) return;
     try { const r = window.__flushProjectToIDB && window.__flushProjectToIDB(); if (r && r.catch) r.catch(function(){}); } catch (_) {}
   }
@@ -4170,6 +4211,21 @@ useEffect(() => {
   window.addEventListener('pageshow', onPageShow);
   return () => { document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('pageshow', onPageShow); };
 }, []);
+
+// Keep the progress record's owner current and schedule a write when marks change.
+useEffect(() => {
+  const id = projectIdRef.current;
+  if (!pat || !done || !id) return;
+  progressOwnerRef.current = { id, done, halfDone, knotsDone };
+  const b = progressBaseRef.current;
+  if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
+    progressBaseRef.current = { id, done, halfDone, knotsDone };
+    return;
+  }
+  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone) return;
+  scheduleProgressWrite();
+}, [done, halfDone, knotsDone]);
+useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimerRef.current); }, []);
 
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.

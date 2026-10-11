@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.107';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.108',
+    date: 'October 2026',
+    notes: [
+      'Stitches you mark in the Stitch Tracker are now saved within about half a second, by a small separate record that takes a fraction of a millisecond even on a large chart. If the browser closes the tab or your phone discards it right after you mark, the marks are still there when you reopen the project.',
+    ]
+  },
+  {
     version: '1.0.106',
     date: 'October 2026',
     notes: [

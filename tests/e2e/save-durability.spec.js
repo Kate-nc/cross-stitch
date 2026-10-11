@@ -25,9 +25,12 @@ async function markRow(page, row, from, to) {
   await page.mouse.up();
   await page.waitForTimeout(150);
 }
+// The project record as stored (not as ProjectStorage.get() presents it, which also applies the
+// small progress record): these tests are about what the full save has written.
 const stored = page => page.evaluate(async () => {
   const id = localStorage.getItem('crossstitch_active_project');
-  const p = await ProjectStorage.get(id);
+  const db = await getDB();
+  const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
   return p ? { hasPattern: !!p.pattern, patternLen: p.pattern && p.pattern.length, done: p.done ? p.done.filter(v => v === 1).length : null } : null;
 });
 async function reopen(page) {
@@ -134,6 +137,44 @@ test.describe('Tracker saves', () => {
     await hide(); await hide();
     await page.waitForTimeout(600);
     expect(await page.evaluate(() => window.__puts)).toBe(1);
+  });
+
+  test('marks survive a hard close half a second after marking (no unload handler runs)', async ({ page, context }) => {
+    await loadTrackerFixture(page);
+    await markRow(page, 3, 2, 11);
+    await page.waitForTimeout(700);                         // the progress record, not the full save (5 s)
+    const other = await context.newPage();
+    await other.goto('/home.html');
+    await other.waitForFunction(() => window.ProjectStorage);
+    const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+    // The full project record still has no marks...
+    const raw = await other.evaluate(async id => {
+      const db = await getDB();
+      const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
+      return p.done.filter(v => v === 1).length;
+    }, id);
+    expect(raw).toBe(0);
+    await page.close({ runBeforeUnload: false });
+    // ...but the project as loaded has them.
+    const loaded = await other.evaluate(async id => (await ProjectStorage.get(id)).done.filter(v => v === 1).length, id);
+    expect(loaded).toBe(10);
+    await other.goto('/stitch.html?id=' + id);
+    await other.waitForSelector(TRACKER_CANVAS);
+    await other.waitForTimeout(600);
+    expect(await trackerDoneCount(other)).toBe(10);
+  });
+
+  test('a later full save retires the progress record, and marks made after it are kept too', async ({ page }) => {
+    await loadTrackerFixture(page);
+    await markRow(page, 3, 2, 11);
+    await page.waitForTimeout(6500);                        // full save has run
+    await markRow(page, 4, 2, 6);                           // 5 more: only the progress record has them
+    await page.waitForTimeout(700);
+    const loaded = await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      return (await ProjectStorage.get(id)).done.filter(v => v === 1).length;
+    });
+    expect(loaded).toBe(15);
   });
 
   test('steady marking is saved at least every 10 seconds', async ({ page }) => {
