@@ -22,3 +22,24 @@ A code review of the PR found four real issues in my own batch (backup could upg
 
 ### Not exercised yet (later batches / phases)
 Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Creator: planned for the Phase 1 closing bug hunt, after batches 2-5.
+
+## Batch 2 (progress record)
+
+### Exercised
+1. **Automated:** `npm test` 284 suites, 3,834 tests, all passing; terminology lint pass; `compiled/` current.
+2. **Hard kill, the original failure:** mark 10, wait 0.7 s, close the page with no unload handlers: the stored project record still has 0 marks, `ProjectStorage.get()` returns 10, and reopening the project shows 10. (Batch 1 alone lost them.)
+3. **Staleness:** a full save after a progress write retires it (marks made before and after a 6.5 s full save are both kept); a record based on another write, or for a different cell count, is ignored (unit tests).
+4. **Project switching with two same-size projects** (the dangerous case for an id/state mix-up): marks made in A within the 400 ms window before switching stay in A (5), none leak into B; marking in B afterwards writes to B (1,346 after unmarking 4).
+5. **Neighbour regressions:** the batch-1 reproductions (`e8`, `e11`, `e12`, `e13`), two tabs (`e9b`, dialog still appears at the second tab's save), history statistics (`s1`, identical to the audit), midnight (`c1`), and the resized-pattern case (`ed1`, still wipes progress as in the audit; that is TRACK-12, batch 5).
+6. **Restore:** progress records are removed and other `pendingImports` records are kept (unit test).
+7. **Performance:** see the progress log; no regression; progress write 0.0-0.2 ms on a 90,000-cell chart.
+
+### Bugs found
+- **Fixed in this batch (found by code review, then reproduced):** switching project inside the page within 400 ms of a mark dropped the old project's marks, because the pending timer was retargeted to the new project. The earlier "project switching" check in this hunt used the header project switcher, which reloads the page and so goes through the unload path; File > Switch Project… is the in-place route and is now covered by an e2e test. Lesson: check which UI routes are in-page before claiming a switch scenario is covered.
+- Same pre-existing gap, not caused by this work: an in-page switch never full-saves the old project (the autosave timer is cleared by the state change), so non-mark state of the old project from the last few seconds (park markers, view, session) is not saved by that route; marks are now safe through the progress record. Worth a follow-up in a later batch.
+
+### Known gaps
+- **Two tabs on one project:** both tabs write the same record (last writer wins) until a full save retires it, so a kill in the first 5-10 seconds can recover the other tab's marks rather than this tab's. This is no worse than before (those marks were lost entirely) and the conflict dialog still appears at the next full save; proper merging is batch 4.
+- Recovered marks have no session record (the stitching-time statistics for those few seconds come from the existing `cs_pending_session_*` recovery, which is unchanged).
+- Unverified: iOS Safari and Android (Chromium only), real-device write timing.
+

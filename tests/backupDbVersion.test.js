@@ -123,3 +123,20 @@ test('a version-5 database that lacks a store is never upgraded by backup or res
   });
   expect(reopened.version).toBe(5);
 });
+
+test('restore removes progress records so old marks cannot override the restored ones', async () => {
+  const idb = new IDBFactory();
+  const db = await openAppDb(idb);
+  await put(db, 'projects', 'proj_a', { id: 'proj_a', pattern: [{ id: '310' }], done: [1] });
+  await put(db, 'pendingImports', undefined, { id: 'progress:proj_a', done: new Uint8Array([0]) });
+  await put(db, 'pendingImports', undefined, { id: 'trace:proj_a', blob: 'keep me' });   // other kinds are left alone
+  db.close();
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const BackupRestore = load(idb);
+  const backup = await BackupRestore.createBackup();
+  await BackupRestore.restore(backup);
+  const after = await openAppDb(idb);
+  expect(await get(after, 'pendingImports', 'progress:proj_a')).toBeUndefined();
+  expect((await get(after, 'pendingImports', 'trace:proj_a')).blob).toBe('keep me');
+  expect((await get(after, 'projects', 'proj_a')).done).toEqual([1]);
+});

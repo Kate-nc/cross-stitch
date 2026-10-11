@@ -86,3 +86,45 @@ describe('unload and hidden saves', () => {
     expect(src).toMatch(/onPageShow[\s\S]{0,120}isUnloadingRef\.current = false/);
   });
 });
+
+describe('progress record writer', () => {
+  test('writes only through ProjectStorage.saveProgress, from a consistent id and state pair', () => {
+    const fn = block('function writeProgressNow()', 'function scheduleProgressWrite()');
+    expect(fn).toContain('ProjectStorage.saveProgress(o.id');
+    // Marks may be taken from doneRef only when the project id still matches the owner's.
+    expect(fn).toMatch(/projectIdRef\.current === o\.id && live\.length === o\.done\.length/);
+    expect(fn).toContain('baseWriteAt');
+  });
+
+  test('is throttled, not debounced', () => {
+    const fn = block('function scheduleProgressWrite()', 'const writeProgressNowRef');
+    expect(fn).toMatch(/if \(!progressTimerRef\.current\) progressTimerRef\.current = setTimeout\(writeProgressNow, 400\)/);
+  });
+
+  test('the unload and tab-hidden handlers write it first', () => {
+    const unload = block('const handleBeforeUnload = () => {', 'pagehide covers iOS Safari');
+    expect(unload.indexOf('writeProgressNowRef.current()')).toBeGreaterThan(-1);
+    expect(unload.indexOf('writeProgressNowRef.current()')).toBeLessThan(unload.indexOf('snapshotNow()'));
+    const hidden = block('function onVisibility()', "document.addEventListener('visibilitychange', onVisibility)");
+    expect(hidden.indexOf('writeProgressNowRef.current()')).toBeLessThan(hidden.indexOf('__flushProjectToIDB'));
+  });
+
+  test('switching project inside the page writes the old project\'s pending marks first', () => {
+    const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
+    const flushAt = eff.indexOf('writeProgressNow()');
+    const replaceAt = eff.indexOf('progressOwnerRef.current = { id, done');
+    expect(flushAt).toBeGreaterThan(-1);
+    expect(flushAt).toBeLessThan(replaceAt);
+    expect(eff).toMatch(/_prev\.id !== id && progressTimerRef\.current/);
+  });
+
+  test('a project that has just loaded or switched is not rewritten', () => {
+    const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
+    expect(eff).toContain('b.id !== id');
+    expect(eff).toMatch(/\[done, halfDone, knotsDone\]/);
+  });
+
+  test('a full save that finishes while marks arrive triggers a fresh progress write', () => {
+    expect(src).toMatch(/autoSaveGenRef\.current!==_gen\)scheduleProgressWriteRef\.current\(\)/);
+  });
+});

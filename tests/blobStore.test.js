@@ -71,7 +71,13 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
   test('they live in pendingImports, which backups do not export', () => {
     const backup = loadSource('backup-restore.js');
     expect(backup).toMatch(/openDB\("CrossStitchDB", null, \["projects", "project_meta", "stats_summaries", "sync_snapshots"\], false\)/);
-    expect(backup).not.toMatch(/pendingImports/);
+    // Nothing is exported from pendingImports. restore() touches it only to delete the
+    // Tracker's "progress:" records, which describe projects as they were before the restore.
+    const exportPart = backup.slice(backup.indexOf('async createBackup()'), backup.indexOf('async downloadBackup()'));
+    expect(exportPart).not.toMatch(/pendingImports/);
+    const restorePart = backup.slice(backup.indexOf('async restore('));
+    expect(restorePart).toMatch(/pendingImports[\s\S]*progress:/);
+    expect(restorePart).not.toMatch(/store\.clear\(\)[^;]*pendingImports/);
     // The version is not pinned: the app owns the schema version (5 today) and a pinned 4 made every backup empty.
     expect(backup).not.toMatch(/openDB\("CrossStitchDB", \d/);
   });
@@ -86,7 +92,10 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     const storage = loadSource('project-storage.js');
     // It creates the store and, when a project is deleted, removes that
     // project's tracing picture (trace:<id>, P2-4); it never reads it.
-    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.(get|getAll|openCursor)\(/);
+    // The one exception is the Tracker's progress record ("progress:<id>", read by id in
+    // _readProgress); nothing lists or scans the store.
+    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.(getAll|openCursor)\(/);
+    expect(storage).not.toMatch(/objectStore\("pendingImports"\)\.get\((?!PROGRESS_PREFIX)/);
     expect(storage).toMatch(/tx\.objectStore\("pendingImports"\)\.delete\("trace:" \+ id\)/);
   });
 });

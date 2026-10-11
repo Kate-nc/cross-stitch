@@ -25,9 +25,12 @@ async function markRow(page, row, from, to) {
   await page.mouse.up();
   await page.waitForTimeout(150);
 }
+// The project record as stored (not as ProjectStorage.get() presents it, which also applies the
+// small progress record): these tests are about what the full save has written.
 const stored = page => page.evaluate(async () => {
   const id = localStorage.getItem('crossstitch_active_project');
-  const p = await ProjectStorage.get(id);
+  const db = await getDB();
+  const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
   return p ? { hasPattern: !!p.pattern, patternLen: p.pattern && p.pattern.length, done: p.done ? p.done.filter(v => v === 1).length : null } : null;
 });
 async function reopen(page) {
@@ -130,10 +133,83 @@ test.describe('Tracker saves', () => {
       ProjectStorage.save = function () { window.__puts++; return orig.apply(null, arguments); };
     });
     await hide();
-    await expect.poll(() => page.evaluate(() => window.__puts), { timeout: 2000 }).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__puts), { timeout: 2000 }).toBeGreaterThanOrEqual(1);
+    await page.waitForTimeout(300);                          // let the first write finish, and any timer-driven save with it
+    const afterFirst = await page.evaluate(() => window.__puts);
     await hide(); await hide();
     await page.waitForTimeout(600);
-    expect(await page.evaluate(() => window.__puts)).toBe(1);
+    expect(await page.evaluate(() => window.__puts)).toBe(afterFirst);   // nothing changed, so nothing more is written
+  });
+
+  test('marks survive a hard close half a second after marking (no unload handler runs)', async ({ page, context }) => {
+    await loadTrackerFixture(page);
+    await markRow(page, 3, 2, 11);
+    await page.waitForTimeout(700);                         // the progress record, not the full save (5 s)
+    const other = await context.newPage();
+    await other.goto('/home.html');
+    await other.waitForFunction(() => window.ProjectStorage);
+    const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+    // The full project record still has no marks...
+    const raw = await other.evaluate(async id => {
+      const db = await getDB();
+      const p = await new Promise(r => { const q = db.transaction('projects').objectStore('projects').get(id); q.onsuccess = () => r(q.result); });
+      return p.done.filter(v => v === 1).length;
+    }, id);
+    expect(raw).toBe(0);
+    await page.close({ runBeforeUnload: false });
+    // ...but the project as loaded has them.
+    const loaded = await other.evaluate(async id => (await ProjectStorage.get(id)).done.filter(v => v === 1).length, id);
+    expect(loaded).toBe(10);
+    await other.goto('/stitch.html?id=' + id);
+    await other.waitForSelector(TRACKER_CANVAS);
+    await other.waitForTimeout(600);
+    expect(await trackerDoneCount(other)).toBe(10);
+  });
+
+  test('a later full save retires the progress record, and marks made after it are kept too', async ({ page }) => {
+    await loadTrackerFixture(page);
+    await markRow(page, 3, 2, 11);
+    await page.waitForTimeout(6500);                        // full save has run
+    await markRow(page, 4, 2, 6);                           // 5 more: only the progress record has them
+    await page.waitForTimeout(700);
+    const loaded = await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      return (await ProjectStorage.get(id)).done.filter(v => v === 1).length;
+    });
+    expect(loaded).toBe(15);
+  });
+
+  test('switching project within the page right after marking keeps the first project\'s marks', async ({ page }) => {
+    await loadTrackerFixture(page);
+    const firstId = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+    // A second project of the same size, so a mix-up between the two could not be caught by a length check.
+    await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      const p = JSON.parse(JSON.stringify(await ProjectStorage.get(id)));
+      p.id = 'proj_other_same_size'; p.name = 'Other same size'; p.done = new Array(p.pattern.length).fill(0);
+      delete p.lastWriteAt;
+      await ProjectStorage.save(p);
+    });
+    // Hold the 400 ms progress timer, so the switch happens inside its window (deterministic).
+    await page.evaluate(() => {
+      window.__held = [];
+      const st = window.setTimeout;
+      window.setTimeout = function (fn, ms) { if (ms === 400) { window.__held.push(fn); return 900000 + window.__held.length; } return st.apply(window, arguments); };
+    });
+    await markRow(page, 3, 2, 6);                              // 5 marks
+    expect(await page.evaluate(() => window.__held.length)).toBeGreaterThan(0);
+    await page.getByRole('button', { name: /^File/ }).first().click();
+    await page.getByText(/Switch Project/i).first().click();
+    await page.getByText('Other same size').last().click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('crossstitch_active_project'))).toBe('proj_other_same_size');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => { window.__held.splice(0).forEach(fn => fn()); });   // the held timer finally fires
+    await page.waitForTimeout(500);
+    const counts = await page.evaluate(async firstId => {
+      const a = await ProjectStorage.get(firstId), b = await ProjectStorage.get('proj_other_same_size');
+      return { first: a.done.filter(v => v === 1).length, other: b.done.filter(v => v === 1).length };
+    }, firstId);
+    expect(counts).toEqual({ first: 5, other: 0 });
   });
 
   test('steady marking is saved at least every 10 seconds', async ({ page }) => {

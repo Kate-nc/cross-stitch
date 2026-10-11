@@ -148,6 +148,24 @@ const ProjectStorage = (() => {
   }
 
   // Extract lightweight metadata from a full project object.
+  const PROGRESS_PREFIX = "progress:";
+
+  // Overlay a progress record onto a project record if, and only if, it is still
+  // current: same project write it was based on, and the same pattern size.
+  // Returns the project unchanged otherwise. Never mutates its arguments.
+  function applyProgressRecord(project, rec) {
+    if (!project || !rec || rec.v !== 1 || !rec.done) return project;
+    const cells = project.pattern ? project.pattern.length : (project.p ? project.p.length : -1);
+    if (rec.done.length !== cells) return project;
+    const base = rec.baseWriteAt == null ? null : rec.baseWriteAt;
+    const current = typeof project.lastWriteAt === "number" ? project.lastWriteAt : null;
+    if (base !== current) return project;
+    const out = Object.assign({}, project, { done: Array.from(rec.done) });
+    if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
+    out.knotsDone = Array.isArray(rec.knotsDone) && rec.knotsDone.length ? rec.knotsDone : undefined;
+    return out;
+  }
+
   function buildMeta(p) {
     const s = p.settings || {};
     // countTotalStitches accepts both `.pattern` and the compact `.p` grid;
@@ -688,10 +706,94 @@ const ProjectStorage = (() => {
           }
           if (changed) project.threadOwned = normalised;
         }
+        // Marks the Tracker wrote to the small progress record but not yet to the
+        // full project (see saveProgress). Applied only when still current.
+        if (project && typeof id === "string" && id.startsWith("proj_")) {
+          try {
+            const rec = await this._readProgress(db, id);
+            return applyProgressRecord(project, rec);
+          } catch (e) { /* the full record is still right, just up to a few seconds old */ }
+        }
         return project;
       } catch (err) {
         console.error("ProjectStorage.get failed:", err);
         return null;
+      }
+    },
+
+    // ── Progress record ─────────────────────────────────────────────────
+    // Saving the whole project (pattern, history, settings) costs up to ~150 ms
+    // on a large chart, so the Tracker does it every few seconds. Marked stitches
+    // go to this much smaller record, written about every 400 ms: the done
+    // array as a typed array (90 KB for a 300x300 chart) plus the half-stitch
+    // and knot marks. It lives in the pendingImports store as "progress:<id>"
+    // (the same store BlobStore uses for trace pictures), so there is no schema
+    // change; backups and sync do not read it, and deleting the project deletes it.
+    //
+    // It is only believed while it is newer than the project record: it carries
+    // baseWriteAt, the project's lastWriteAt when it was written. Any later write
+    // to the project (the Tracker's own full save, a sync import, a restore, a
+    // rename) changes lastWriteAt, which makes the record stale and ignored.
+    // data: { done: Uint8Array|Array, halfDone: [[idx,{fwd,bck}]], knotsDone: [],
+    //         baseWriteAt: number|null, tabId }
+    async saveProgress(id, data) {
+      if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
+      try {
+        const db = await getDB();
+        if (!db.objectStoreNames.contains("pendingImports")) return false;
+        const rec = {
+          id: PROGRESS_PREFIX + id, projectId: id, v: 1,
+          done: data.done instanceof Uint8Array ? data.done : Uint8Array.from(data.done),
+          halfDone: data.halfDone || [], knotsDone: data.knotsDone || [],
+          baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
+          tabId: data.tabId || null, updatedAt: Date.now()
+        };
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction("pendingImports", "readwrite");
+          tx.objectStore("pendingImports").put(rec);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
+        });
+        return true;
+      } catch (err) {
+        console.warn("ProjectStorage.saveProgress failed:", err);
+        return false;
+      }
+    },
+
+    _readProgress(db, id) {
+      return new Promise((resolve, reject) => {
+        if (!db.objectStoreNames.contains("pendingImports")) { resolve(null); return; }
+        const req = db.transaction("pendingImports", "readonly").objectStore("pendingImports").get(PROGRESS_PREFIX + id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    },
+
+    // Drop every progress record. A restore calls this: the restored projects
+    // carry their own marks, and a record from before the restore must not
+    // override them.
+    async clearAllProgress() {
+      try {
+        const db = await getDB();
+        if (!db.objectStoreNames.contains("pendingImports")) return 0;
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction("pendingImports", "readwrite");
+          const store = tx.objectStore("pendingImports");
+          const req = store.getAllKeys();
+          let n = 0;
+          req.onsuccess = () => {
+            (req.result || []).forEach(k => {
+              if (typeof k === "string" && k.startsWith(PROGRESS_PREFIX)) { store.delete(k); n++; }
+            });
+          };
+          tx.oncomplete = () => resolve(n);
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (err) {
+        console.warn("ProjectStorage.clearAllProgress failed:", err);
+        return 0;
       }
     },
 
@@ -781,7 +883,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) tx.objectStore("pendingImports").delete("trace:" + id);
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); }
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
@@ -867,7 +969,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) tx.objectStore("pendingImports").delete("trace:" + id);
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); }
           }
           if (includeAutoSave) store.delete("auto_save");
           tx.oncomplete = () => resolve();
