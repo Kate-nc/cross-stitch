@@ -1871,6 +1871,19 @@ window.useCreatorState = function useCreatorState() {
     return workerRef.current;
   }
 
+  // The marks are about to be cleared: keep a copy the Tracker lists under Stats > Compare.
+  function keepMarksSnapshot(doneArr) {
+    try {
+      var marks = 0; for (var i = 0; i < doneArr.length; i++) if (doneArr[i] === 1) marks++;
+      if (marks > 0 && typeof pako !== "undefined" && trackerFieldsRef && trackerFieldsRef.current) {
+        var b = pako.deflate(doneArr), o = "", C = 0x8000;
+        for (var j = 0; j < b.length; j += C) o += String.fromCharCode.apply(null, b.subarray(j, j + C));
+        var tf = trackerFieldsRef.current;
+        tf.doneSnapshots = (tf.doneSnapshots || []).concat([{ id: "snap_" + Date.now(), date: new Date().toISOString().slice(0, 10), label: "Before pattern change", doneCount: marks, data: btoa(o) }]);
+      }
+    } catch (_) {}
+  }
+
   var generate = useCallback(function(overrides) {
     // img is a plain-object sentinel { src: null, w, h } in scratch mode —
     // it is truthy but not a drawable.  Bail before any canvas operation.
@@ -1897,6 +1910,7 @@ window.useCreatorState = function useCreatorState() {
           danger: true
         }).then(function(ok) {
           if (!ok) return;
+          keepMarksSnapshot(done);
           var nextOverrides = Object.assign({}, _ovr || {}, { __confirmed: true });
           generate(nextOverrides);
         });
@@ -2343,7 +2357,12 @@ window.useCreatorState = function useCreatorState() {
       return { id: "__empty__", rgb: [255, 255, 255] };
     });
     var result = buildPaletteWithScratch(newPat);
-    setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(new Uint8Array(sW * sH));
+    // Stitches already marked stay on their cells, as the cells themselves do (top-left anchored).
+    var newDone = new Uint8Array(sW * sH);
+    if (done && done.length === oldW * oldH) {
+      for (var dy = 0; dy < Math.min(oldH, sH); dy++) for (var dx = 0; dx < Math.min(oldW, sW); dx++) newDone[dy * sW + dx] = done[dy * oldW + dx];
+    }
+    setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
   // ─── Return everything ───────────────────────────────────────────────────────

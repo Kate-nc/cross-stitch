@@ -136,6 +136,8 @@ if (!migrationBlockMatch) throw new Error('Could not extract session migration b
 eval(
   'function runSessionMigration(project, restored, localStorageMock) {\n' +
   '  var localStorage = localStorageMock || { getItem: function(){ return null; }, removeItem: function(){} };\n' +
+  // Set by the load path while a question about the saved marks holds saves (see tracker-app.js).
+  '  var _reconcileHeld = !!(project && project.__held);\n' +
   migrationBlockMatch[0] + ';\n' +
   '  return rawStatsSessions;\n' +
   '}'
@@ -777,6 +779,15 @@ describe('Session migration (processLoadedProject)', () => {
       expect(result).toHaveLength(2);
       expect(result.some(s => s.id === 'sess_pending')).toBe(true);
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('cs_pending_session_proj_123');
+    });
+
+    it('while saves are held the recovered session is added but its backup is kept', () => {
+      const pending = makeSession({ id: 'sess_pending', netStitches: 3 });
+      const mockLocalStorage = { getItem: jest.fn().mockReturnValue(JSON.stringify(pending)), removeItem: jest.fn() };
+      const project = { id: 'proj_123', statsSessions: [], __held: true };
+      const result = runSessionMigration(project, restoredPattern, mockLocalStorage);
+      expect(result.some(s => s.id === 'sess_pending')).toBe(true);
+      expect(mockLocalStorage.removeItem).not.toHaveBeenCalled();
     });
 
     it('pending session already in statsSessions is not duplicated', () => {

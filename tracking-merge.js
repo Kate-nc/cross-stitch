@@ -155,7 +155,56 @@
     return out;
   }
 
+  // ── Pattern changed since the marks were saved ───────────────────────────
+  // The marks are one flag per cell in row-major order, so if the pattern now has a different
+  // number of cells they no longer line up. Only the old LENGTH is known, so the old shape is
+  // inferred (below): the width unchanged (rows added or removed) or the height unchanged
+  // (columns added or removed). Cells are matched from the top-left corner, which is right for
+  // rows or columns added or removed at the bottom or right; the caller says so to the user.
+  // When both readings fit (a square-ish pattern) BOTH are returned, and the caller must let
+  // the user choose; only an empty result means the shape is unknown and nothing can be remapped.
+  // Every shape the old marks could have had: the width kept (rows added or removed) and/or
+  // the height kept (columns added or removed). A square-ish pattern can fit both readings.
+  function inferOldShapes(len, sW, sH) {
+    var out = [];
+    if (sW > 0 && len % sW === 0) out.push({ w: sW, h: len / sW, kind: "rows" });
+    if (sH > 0 && len % sH === 0) {
+      var byH = { w: len / sH, h: sH, kind: "columns" };
+      if (!out.length || out[0].w !== byH.w || out[0].h !== byH.h) out.push(byH);
+    }
+    return out;
+  }
+  function stitchable(c) { return !!c && c.id !== "__skip__" && c.id !== "__empty__"; }
+
+  // One candidate remap per possible old shape: [{ done, kept, lost, oldW, oldH, kind }, ...].
+  // Empty when the old shape cannot be told.
+  function remapCandidates(oldDone, sW, sH, pat) {
+    return inferOldShapes(oldDone.length, sW, sH).map(function (shape) {
+      var out = new Array(sW * sH), kept = 0, lost = 0, x, y;
+      for (var i = 0; i < out.length; i++) out[i] = 0;
+      for (y = 0; y < shape.h; y++) {
+        for (x = 0; x < shape.w; x++) {
+          if (oldDone[y * shape.w + x] !== 1) continue;
+          if (x < sW && y < sH && (!pat || stitchable(pat[y * sW + x]))) { out[y * sW + x] = 1; kept++; }
+          else lost++;
+        }
+      }
+      return { done: out, kept: kept, lost: lost, oldW: shape.w, oldH: shape.h, kind: shape.kind };
+    });
+  }
+  // halfDone is [[cellIndex, {fwd, bck}], ...] in the same row-major order.
+  function remapHalfDone(list, oldW, sW, sH) {
+    var out = [];
+    (Array.isArray(list) ? list : []).forEach(function (e) {
+      if (!e || e.length !== 2) return;
+      var x = e[0] % oldW, y = Math.floor(e[0] / oldW);
+      if (x < sW && y < sH) out.push([y * sW + x, e[1]]);
+    });
+    return out;
+  }
+
   var api = {
+    inferOldShapes: inferOldShapes, remapCandidates: remapCandidates, remapHalfDone: remapHalfDone,
     canMerge: canMerge, whyNot: whyNot, samePattern: samePattern, mergeDone: mergeDone,
     mergeHalfDone: mergeHalfDone, mergeSet: mergeSet, mergeSessions: mergeSessions,
     mergeMilestones: mergeMilestones
