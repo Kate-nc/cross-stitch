@@ -54,6 +54,7 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 ### Bugs found
 - **Fixed in this batch:** an error from one project stayed on the badge after switching to another (found while writing the project-switch test; the loaded project now starts with its own save state).
 - Not fixed, belongs to Phase 4 (TRACK-07): on phone widths the badge is clipped by the header (seen in the audit screenshots); the Save failed and Not saved yet texts are longer than "Saved", so Phase 4 should give the badge an icon-only phone layout with the text in `aria-label`.
-- Known limitation: an in-flight save for the previous project can still finish after a switch and mark the new project "Saved just now". Cosmetic and rare.
+- ~~Known limitation: an in-flight save for the previous project can still finish after a switch.~~ Fixed after review with a per-project UI epoch (see the progress log).
+- **Found by code review, pre-existing, fixed in this PR:** the autosave effect did not depend on 13 of the state variables the snapshot persists (designer, description, partial stitches, fabric colour, thread brand, stitching style, block size, start corner, colour sequence, work area, breadcrumbs, spotlight block), so editing only one of them was not saved until something else changed. A source test now enumerates what the snapshot persists.
 - Unverified: screen reader announcement (live region) was not exercised with assistive technology; Safari and Firefox not tested.
 

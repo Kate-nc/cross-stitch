@@ -1241,7 +1241,8 @@ const progressTimerRef=useRef(null);
 const[saveStatus,setSaveStatus]=useState('idle');
 const[savedAt,setSavedAt]=useState(null);
 const[saveError,setSaveError]=useState(null);
-const saveUiRef=useRef({inFlight:0,conflict:false,error:null,savedOnce:false});
+// epoch: bumped when another project is loaded; a write that finishes after that belongs to the old project and is ignored.
+const saveUiRef=useRef({inFlight:0,conflict:false,error:null,savedOnce:false,epoch:0});
 const uiGenRef=useRef(0);
 const uiSavedGenRef=useRef(0);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
@@ -4016,10 +4017,11 @@ function refreshSaveUi() {
   setSaveStatus(next);
   setSaveError(u.error || null);
 }
-function beginSave() { saveUiRef.current.inFlight++; refreshSaveUi(); }
+function beginSave() { saveUiRef.current.inFlight++; refreshSaveUi(); return saveUiRef.current.epoch; }
 // ok === true: written; ok === false: failed (err says why); ok === null: the page is reloading, say nothing.
-function endSave(ok, uiGen, err) {
+function endSave(ok, uiGen, err, epoch) {
   const u = saveUiRef.current;
+  if (epoch !== u.epoch) return;      // started for a project that has since been replaced
   u.inFlight = Math.max(0, u.inFlight - 1);
   if (ok === true) {
     u.error = null; u.savedOnce = true;
@@ -4088,8 +4090,8 @@ useEffect(() => {
     if (!project) return;
     lastSnapshotRef.current = project;
     let _ended = false;
-    const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err); };
-    beginSave();
+    const _epoch = beginSave();
+    const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err, _epoch); };
     persistProjectRecord(project).then(function(saveResult){
       const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
       if(_ok){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
@@ -4138,7 +4140,10 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
+    // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
+    projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand,
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -4216,13 +4221,13 @@ useEffect(() => {
     lastSnapshotRef.current = project;
     const _gen = autoSaveGenRef.current;
     const _uiGen = uiGenRef.current;
-    beginSave();
+    const _epoch = beginSave();
     let saveResult;
     try { saveResult = await persistProjectRecord(project); }
-    catch (err) { endSave(false, _uiGen, err); throw err; }
+    catch (err) { endSave(false, _uiGen, err, _epoch); throw err; }
     const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
     if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
-    endSave(_flushOk ? true : (saveResult && saveResult.reason === 'reloaded' ? null : false), _uiGen, saveResult && saveResult.reason);
+    endSave(_flushOk ? true : (saveResult && saveResult.reason === 'reloaded' ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
     if (!saveResult || saveResult.reason !== 'reloaded') {
       await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
     }
@@ -4270,7 +4275,9 @@ useEffect(() => {
   refreshSaveUi();
 }, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
     statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
-    originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs]);
+    originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs,
+    projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand,
+    stitchingStyle, blockW, blockH, startCorner, colourSequence, workArea, breadcrumbs]);
 // A cross-tab conflict dialog is open: the changes are not saved until it is answered.
 useEffect(() => {
   function onConflict(e) {
@@ -4294,7 +4301,9 @@ useEffect(() => {
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
     progressBaseRef.current = { id, done, halfDone, knotsDone };
     uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
-    saveUiRef.current.error = null; saveUiRef.current.savedOnce = false; setSavedAt(null);   // another project: its own save state
+    // Another project: its own save state, and writes still running for the old one must not touch it.
+    { const u = saveUiRef.current; u.error = null; u.savedOnce = false; u.inFlight = 0; u.conflict = false; u.epoch++; }
+    setSavedAt(null);
     refreshSaveUi();
     return;
   }

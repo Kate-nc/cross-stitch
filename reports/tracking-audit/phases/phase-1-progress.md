@@ -157,6 +157,10 @@ Within run-to-run noise. The added work per mark is an increment, a comparison a
 ### Data and migration statement
 None. No stored data, schema or preference changes.
 
+### Review round 1 (Copilot code review on PR 277; both findings verified)
+- **High: some persisted fields were not tracked, so editing them alone was never saved on its own.** True, and older than this PR: the autosave effect's dependency list left out `projectDesigner`, `projectDescription`, `partialStitches`, `projectFabricColour`, `threadBrand`, `stitchingStyle`, `blockW`, `blockH`, `focusBlock`, `startCorner`, `colourSequence`, `workArea` and `breadcrumbs`, all of which `buildSnapshot()` writes. A change to only one of them waited for some unrelated change (or the unload save). All are now dependencies of the autosave effect, and the badge counts them as changes (except the view-only ones: zoom, the guide and the spotlight block). The designer/description edit dialog also writes the project record itself, so that particular edit was not at risk; the others were. A source test now lists every state variable the snapshot persists and fails if one is missing from either dependency list; it fails on the previous code (6 assertions).
+- **Medium: a write that finished after a project switch could change the new project's badge.** True. Each save now carries a UI epoch; loading another project bumps it and clears the in-flight count, the error and the conflict flag; a completion with an old epoch is ignored before it touches any state. New e2e test (a save held in flight, switch project, then the old save fails): fails on the previous head, passes now. This removes the "known limitation" I recorded in the batch-3 bug hunt.
+
 ### Remaining for Phase 1
 Batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation, BUG-06).
 

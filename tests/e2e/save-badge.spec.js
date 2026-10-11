@@ -75,6 +75,36 @@ test.describe('Tracker save badge', () => {
     await expect(badge(page)).toHaveText(/All changes saved/, { timeout: 5000 });
   });
 
+  test('a save still running for the old project does not touch the new project\'s badge', async ({ page }) => {
+    await loadTrackerFixture(page);
+    await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      const p = JSON.parse(JSON.stringify(await ProjectStorage.get(id)));
+      p.id = 'proj_badge_other2'; p.name = 'Badge other two'; delete p.lastWriteAt;
+      await ProjectStorage.save(p);
+      // Hold the next save open, then make it fail when released.
+      window.__saveChecked = ProjectStorage.saveChecked.bind(ProjectStorage);
+      window.__held = null;
+      ProjectStorage.saveChecked = () => new Promise((_, reject) => { window.__held = () => reject(new Error('Disk is full')); });
+    });
+    await markRow(page, 3, 2, 8);
+    await page.evaluate(() => {        // hide the tab: starts a save at once
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => page.evaluate(() => !!window.__held)).toBe(true);   // the old project's save is in flight
+    await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); });
+    await page.evaluate(() => { ProjectStorage.saveChecked = window.__saveChecked; });
+    await page.getByRole('button', { name: /^File/ }).first().click();
+    await page.getByText(/Switch Project/i).first().click();
+    await page.getByText('Badge other two').last().click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('crossstitch_active_project'))).toBe('proj_badge_other2');
+    await expect(badge(page)).toHaveText(/All changes saved/, { timeout: 5000 });
+    await page.evaluate(() => window.__held());                                  // the old save now fails
+    await page.waitForTimeout(600);
+    await expect(badge(page)).toHaveText(/All changes saved/);                   // not "Save failed", not "Saving"
+  });
+
   test('says "Not saved yet" while the changed-in-another-tab question is open, then saved', async ({ page, context }) => {
     await loadTrackerFixture(page);
     const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));

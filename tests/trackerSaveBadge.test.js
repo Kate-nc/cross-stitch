@@ -46,7 +46,10 @@ describe('what counts as an unsaved change', () => {
     }
   });
   test('a freshly loaded or switched-to project counts as saved and starts with its own save state', () => {
-    expect(src).toMatch(/uiSavedGenRef\.current = uiGenRef\.current;[^\n]*\n\s*saveUiRef\.current\.error = null; saveUiRef\.current\.savedOnce = false; setSavedAt\(null\);[^\n]*\n\s*refreshSaveUi\(\);/);
+    const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
+    expect(eff).toMatch(/uiSavedGenRef\.current = uiGenRef\.current;/);
+    expect(eff).toMatch(/u\.error = null; u\.savedOnce = false; u\.inFlight = 0; u\.conflict = false; u\.epoch\+\+;/);
+    expect(eff).toMatch(/setSavedAt\(null\);\s*\n\s*refreshSaveUi\(\);/);
   });
 });
 
@@ -60,7 +63,7 @@ describe('writes report to the badge', () => {
   test('the flush (backup, sync, tab hidden, Retry) does too', () => {
     const f = block('window.__flushProjectToIDB = async function() {\n    if (isUnloadingRef', '// Save when the tab is hidden');
     expect(f).toContain('beginSave();');
-    expect(f).toMatch(/endSave\(false, _uiGen, err\); throw err;/);
+    expect(f).toMatch(/endSave\(false, _uiGen, err, _epoch\); throw err;/);
     expect(f).toMatch(/endSave\(_flushOk \? true/);
   });
   test('a failed save keeps its error until a save succeeds', () => {
@@ -85,5 +88,46 @@ describe('the badge itself (header.js)', () => {
   });
   test('problems are announced to screen readers, the ticking relative time is not', () => {
     expect(header).toMatch(/\(effective === 'error' \|\| effective === 'conflict'\) \? \{ role: 'status' \} : \{\}/);
+  });
+});
+
+describe('a write that finishes after switching project is ignored', () => {
+  test('begin returns the epoch, end ignores a mismatched one before touching any state', () => {
+    expect(block('function beginSave()', 'function endSave(')).toMatch(/return saveUiRef\.current\.epoch;/);
+    const e = block('function endSave(', 'function retrySave()');
+    expect(e.indexOf('if (epoch !== u.epoch) return;')).toBeGreaterThan(-1);
+    expect(e.indexOf('if (epoch !== u.epoch) return;')).toBeLessThan(e.indexOf('u.inFlight'));
+    expect(e.indexOf('if (epoch !== u.epoch) return;')).toBeLessThan(e.indexOf('setSavedAt'));
+  });
+  test('every caller passes the epoch it began with', () => {
+    expect((src.match(/const _epoch = beginSave\(\);/g) || []).length).toBe(2);
+    expect(src).toMatch(/endSave\(ok, _uiGen, err, _epoch\)/);
+    expect(src).toMatch(/endSave\(_flushOk \? true[^\n]*_uiGen, saveResult && saveResult\.reason, _epoch\)/);
+  });
+});
+
+describe('everything the snapshot persists is saved when it changes', () => {
+  // The state variables buildSnapshot() writes into the project record. Each must be a dependency of the
+  // autosave effect, or editing it alone is not saved until something unrelated changes.
+  const PERSISTED = ['pat', 'pal', 'done', 'bsLines', 'parkMarkers', 'hlRow', 'hlCol', 'threadOwned', 'originalPaletteState',
+    'singleStitchEdits', 'halfStitches', 'halfDone', 'partialStitches', 'knots', 'knotsDone', 'statsSessions', 'statsSettings',
+    'achievedMilestones', 'doneSnapshots', 'projectName', 'projectDesigner', 'projectDescription', 'sW', 'sH', 'fabricCt',
+    'skeinPrice', 'stitchSpeed', 'wastePrefs', 'projectFabricColour', 'threadBrand', 'breadcrumbs', 'stitchingStyle', 'blockW',
+    'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea', 'stitchZoom'];
+  const deps = text => text.slice(text.lastIndexOf('[')).replace(/\/\/[^\n]*/g, '').split(/[\s,\[\]]+/).filter(Boolean);
+  test('the autosave effect depends on all of them', () => {
+    const eff = block('useEffect(() => {\n  if (!pat || !pal) return;\n  autoSaveDirtyRef', '// Save the freshest snapshot before the page unloads');
+    const d = deps(eff.slice(eff.indexOf('}, [pat, pal, done')));
+    for (const name of PERSISTED) expect(d).toContain(name);
+  });
+  test('the badge counts all of them as changes except the view-only ones (zoom, the guide, the spotlight block)', () => {
+    const eff = block('// Count changes to data the project saves', '// A cross-tab conflict dialog is open');
+    const d = deps(eff.slice(eff.indexOf('}, [pat, done')));
+    for (const name of PERSISTED) {
+      if (['stitchZoom', 'hlRow', 'hlCol', 'focusBlock', 'pal'].includes(name)) continue;
+      expect(d).toContain(name);
+    }
+    expect(d).not.toContain('stitchZoom');
+    expect(d).not.toContain('focusBlock');
   });
 });
