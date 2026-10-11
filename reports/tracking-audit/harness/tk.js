@@ -8,7 +8,7 @@ const SKIP = () => { try { localStorage.setItem('cs_stitchStyle','block');
 async function open(page, file, {skipTour=true, viaId}={}) {
   if (skipTour) await page.addInitScript(SKIP);
   const id = viaId || await lib.seed(page, file);
-  await page.goto('http://127.0.0.1:8000/stitch.html?id='+id);
+  await page.goto('http://127.0.0.1:'+(process.env.AUDIT_PORT||'8000')+'/stitch.html?id='+id);
   await page.waitForSelector(TH.TRACKER_CANVAS, {timeout: 60000});
   await page.waitForTimeout(1200);
   return id;

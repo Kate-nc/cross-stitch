@@ -6,7 +6,7 @@
 const T = require('./tk');
 const fs = require('fs'); const path = require('path');
 const label = process.argv[2] || 'run'; const RUNS = Number(process.argv[3] || 5);
-const BASE = 'http://127.0.0.1:8000/';
+const BASE = 'http://127.0.0.1:' + (process.env.AUDIT_PORT || '8000') + '/';
 const med = a => { const s = a.slice().sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 const sum = a => ({ median: Math.round(med(a)), min: Math.round(Math.min(...a)), max: Math.round(Math.max(...a)), runs: a.map(Math.round) });
 const INIT = () => { localStorage.setItem('cs_stitchStyle', 'block'); ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1')); localStorage.setItem('cs_sessionOnboardingDone', '1'); ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true')); };
