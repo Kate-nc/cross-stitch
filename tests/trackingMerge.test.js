@@ -47,6 +47,15 @@ describe('mergeSessions', () => {
   });
 });
 
+describe('mergeSessions edits', () => {
+  test('a session edited in the other tab takes the edit; one edited only here keeps ours', () => {
+    const base = [{ id: 1, note: 'a' }, { id: 2, note: 'b' }];
+    const local = [{ id: 1, note: 'a' }, { id: 2, note: 'mine' }];
+    const remote = [{ id: 1, note: 'theirs' }, { id: 2, note: 'b' }];
+    expect(TM.mergeSessions(base, local, remote)).toEqual([{ id: 1, note: 'theirs' }, { id: 2, note: 'mine' }]);
+  });
+});
+
 describe('canMerge', () => {
   const base = () => ({ pattern: pat(4), name: 'A', settings: { sW: 2, sH: 2 }, done: [0, 0, 0, 0] });
   test('marks only: yes', () => {
@@ -66,11 +75,26 @@ describe('canMerge', () => {
     expect(TM.canMerge(b, local, { ...b, settings: { sW: 2, sH: 2, skeinPrice: 1 } })).toBe(true);
     expect(TM.canMerge(b, local, { ...b, settings: { sW: 3, sH: 2 } })).toBe(false);
   });
+  test('any other persisted field changed in the other tab: no (it would be overwritten by our next save)', () => {
+    ['statsSettings', 'threadOwned', 'originalPaletteState', 'stitchingStyle', 'workArea', 'blockW'].forEach(k => {
+      expect(TM.canMerge({ ...base(), [k]: { a: 1 } }, { pattern: pat(4), [k]: { a: 1 } }, { ...base(), [k]: { a: 2 } })).toBe(false);
+    });
+  });
+  test('view state and figures derived from stitching do not stop a merge', () => {
+    const r = { ...base(), savedZoom: 3, savedScroll: { left: 5, top: 5 }, doneSnapshots: [1], stitchLog: [{ date: 'x', count: 2 }], totalTime: 99, lastTouchedAt: 'now', updatedAt: 'now' };
+    expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(true);
+  });
+  test('same thread number but another brand, type or colour is a pattern change', () => {
+    const r1 = base(); r1.pattern[0] = { ...r1.pattern[0], brand: 'anchor' };
+    const r2 = base(); r2.pattern[0] = { ...r2.pattern[0], type: 'blend' };
+    const r3 = base(); r3.pattern[0] = { ...r3.pattern[0], rgb: [9, 9, 9] };
+    [r1, r2, r3].forEach(r => expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(false));
+  });
   test('different pattern: no', () => {
     const r = base(); r.pattern[1] = { id: '999', type: 'solid', rgb: [1, 1, 1] };
     expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(false);
   });
-  test('our pattern differs from the other tab\'s: no', () => {
+  test('our pattern is a different size from the other tab\'s: no', () => {
     expect(TM.canMerge(base(), { pattern: pat(6) }, base())).toBe(false);
   });
   test('no marks array or wrong length: no', () => {
@@ -146,6 +170,7 @@ describe('CrossTabResolution merger hook', () => {
 describe('tracker wiring', () => {
   test('the tracker registers a merger and treats "merged" as not-an-error everywhere a save result is read', () => {
     expect(TRACKER_SRC).toMatch(/registerMerger\(/);
+    expect(TRACKER_SRC).toMatch(/if\(!isActive\|\|!window\.CrossTabResolution[\s\S]{0,200}\},\[isActive\]\);/);
     const reads = TRACKER_SRC.match(/reason\s*(===|!==)\s*'reloaded'/g) || [];
     const withMerged = TRACKER_SRC.match(/reason\s*(===|!==)\s*'merged'/g) || [];
     expect(withMerged.length).toBeGreaterThanOrEqual(reads.length);

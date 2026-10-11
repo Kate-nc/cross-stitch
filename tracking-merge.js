@@ -20,9 +20,17 @@
  * Loaded as a plain <script> on the Tracker page; also require()-able for tests.
  */
 (function (root) {
-  // Fields that, if the other tab changed them, mean the change is more than marks.
-  var STRUCTURE_KEYS = ["name", "designer", "description", "settings", "bsLines", "knots",
-    "halfStitches", "partialStitches", "singleStitchEdits", "parkMarkers", "symbols"];
+  // Fields a merge does not compare. Either they are merged here (marks, sessions,
+  // milestones), or they are view state / write metadata / figures derived from the marks
+  // and sessions, which the other tab changes just by stitching. Every OTHER persisted
+  // field counts: if the other tab changed one, a merge would let this tab's next save
+  // restore its stale value, so the caller asks instead.
+  var NOT_COMPARED = {
+    id: 1, page: 1, version: 1, pattern: 1, createdAt: 1, updatedAt: 1, lastWriteAt: 1, lastWriteTabId: 1,
+    done: 1, halfDone: 1, knotsDone: 1, statsSessions: 1, achievedMilestones: 1,
+    savedZoom: 1, savedScroll: 1, hlRow: 1, hlCol: 1, focusBlock: 1, breadcrumbs: 1,
+    doneSnapshots: 1, stitchLog: 1, totalTime: 1, lastTouchedAt: 1, startedAt: 1, completedAt: 1, finishStatus: 1
+  };
 
   // "Nothing" is spelled several ways (missing, "", [], {}) depending on whether a record
   // was loaded or just built; they all mean the same here.
@@ -37,12 +45,17 @@
     catch (_) { return false; }
   }
 
+  function sameRgb(a, b) {
+    if (a === b) return true;
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every(function (v, i) { return v === b[i]; });
+  }
+
   function samePattern(a, b) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     for (var i = 0; i < a.length; i++) {
       var x = a[i], y = b[i];
       if (x === y) continue;
-      if (!x || !y || x.id !== y.id) return false;
+      if (!x || !y || x.id !== y.id || x.type !== y.type || x.brand !== y.brand || !sameRgb(x.rgb, y.rgb)) return false;
     }
     return true;
   }
@@ -54,12 +67,18 @@
   // null when the merge can go ahead, otherwise what stops it (for the console).
   function whyNot(base, local, remote) {
     if (!base || !remote) return "missing";
-    if (!samePattern(base.pattern, remote.pattern)) return "pattern";
-    if (local && !samePattern(local.pattern, remote.pattern)) return "local pattern";
+    // Unchanged by the other tab if it matches what we started from or what we have now
+    // (a loaded record and a saved snapshot can spell a cell's brand or type differently).
+    if (!samePattern(base.pattern, remote.pattern) && !(local && samePattern(local.pattern, remote.pattern))) return "pattern";
+    if (local && local.pattern && local.pattern.length !== remote.pattern.length) return "local pattern";
     var done = remote.done;
     if (!Array.isArray(done) || done.length !== remote.pattern.length) return "done";
-    for (var i = 0; i < STRUCTURE_KEYS.length; i++) {
-      var k = STRUCTURE_KEYS[i];
+    var keys = {};
+    [base, remote].forEach(function (o) { Object.keys(o).forEach(function (k) { keys[k] = 1; }); });
+    var names = Object.keys(keys);
+    for (var i = 0; i < names.length; i++) {
+      var k = names[i];
+      if (NOT_COMPARED[k]) continue;
       // Unchanged by the other tab: it matches what we started from, or what we have now
       // (a record that was loaded and one that was built can spell the same thing differently).
       if (!same(base[k], remote[k]) && !(local && same(local[k], remote[k]))) return k;
@@ -106,18 +125,20 @@
     return out;
   }
 
-  // Sessions by id: ours, plus any the other tab recorded that we have not seen.
-  // A session this tab already had (base) but the other no longer has was deleted there.
+  // Sessions by id, three ways. A session this tab already had (base) and the other tab no
+  // longer has was deleted there. One the other tab changed since base (a note, a duration)
+  // takes the other tab's version; otherwise ours. New sessions on either side are kept.
   function mergeSessions(base, local, remote) {
-    var have = {}, out = [];
-    var inBase = {}, inRemote = {};
-    (base || []).forEach(function (s) { if (s && s.id != null) inBase[s.id] = 1; });
-    (remote || []).forEach(function (s) { if (s && s.id != null) inRemote[s.id] = 1; });
+    var inBase = {}, inRemote = {}, have = {}, out = [];
+    (base || []).forEach(function (s) { if (s && s.id != null) inBase[s.id] = s; });
+    (remote || []).forEach(function (s) { if (s && s.id != null) inRemote[s.id] = s; });
     (local || []).forEach(function (s) {
       if (!s) return;
-      if (s.id != null && inBase[s.id] && !inRemote[s.id]) return;
-      if (s.id != null) have[s.id] = 1;
-      out.push(s);
+      if (s.id == null) { out.push(s); return; }
+      if (inBase[s.id] && !inRemote[s.id]) return;
+      have[s.id] = 1;
+      var r = inRemote[s.id];
+      out.push(r && inBase[s.id] && !same(r, inBase[s.id]) ? r : s);
     });
     (remote || []).forEach(function (s) {
       if (s && s.id != null && !have[s.id] && !inBase[s.id]) { have[s.id] = 1; out.push(s); }

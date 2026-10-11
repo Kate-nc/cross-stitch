@@ -5557,10 +5557,12 @@ function TrackerApp({
   const mergeRemoteRef = useRef(null);
   mergeRemoteRef.current = mergeRemoteProject;
   const mergeBaseRef = useRef(null);
+  // Only while the Tracker is the visible mode: in the unified page it stays mounted, hidden,
+  // behind the Creator, and must not answer the Creator's conflicts from stale Tracker state.
   useEffect(() => {
-    if (!window.CrossTabResolution || typeof window.CrossTabResolution.registerMerger !== 'function') return;
+    if (!isActive || !window.CrossTabResolution || typeof window.CrossTabResolution.registerMerger !== 'function') return;
     return window.CrossTabResolution.registerMerger(info => mergeRemoteRef.current(info));
-  }, []);
+  }, [isActive]);
   function handleEditInCreator() {
     if (!pat || !pal) return;
     if (onSwitchToDesign) {

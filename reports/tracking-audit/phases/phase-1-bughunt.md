@@ -71,3 +71,11 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - "Edit in Creator" from the tracker does not wait for its save; if that save ends in a merge the Creator receives the pre-merge fields. Pre-existing pattern (it never awaited), narrow.
 - Three tabs: each merges against its own base; not exercised.
 - Safari/Firefox BroadcastChannel behaviour not tested.
+
+### Batch 4, review round 1 (Copilot; all four verified)
+- **Denylist of compared fields was incomplete (High).** True: `statsSettings`, `threadOwned`, `originalPaletteState`, `stitchingStyle`, `workArea` and others were not compared, so another tab's change to one would have been overwritten by this tab's next save. Now every persisted field is compared except those merged here, view state, write metadata and figures derived from stitching (listed in `NOT_COMPARED`). Cost: if the other tab's stitching also changes one of the compared fields (for example stash deduction changing `threadOwned`), the question is asked instead of merging; conservative.
+- **Pattern compared by id only (High).** True: a brand, type or colour change on the same thread number passed. Now the full cell shape is compared.
+- **Edited sessions lost (High).** True: only presence of a session id was compared. Now three-way per session: the other tab's version wins if it changed since base.
+- **Hidden Tracker stayed the global merger (Medium).** True (the unified page keeps the Tracker mounted). The merger is registered only while the Tracker is active.
+- Found while fixing: a loaded record and a saved snapshot spell cells and settings differently, so "unchanged by the other tab" now means equal to the base or equal to ours (pattern as well as fields).
+- Known gap: `doneSnapshots` are not merged (derived; this tab keeps its own).
