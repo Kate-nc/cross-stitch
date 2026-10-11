@@ -68,7 +68,7 @@ Both new e2e tests fail on the previous head and pass now. Perf re-measured afte
 
 ## Batch 2: the small progress record (rest of TRACK-01)
 
-Status: PR open, waiting for review and merge.
+Status: merged ([PR #276](https://github.com/Kate-nc/cross-stitch/pull/276)).
 
 ### What changed
 - **`project-storage.js`:** `saveProgress(id, {done, halfDone, knotsDone, baseWriteAt, tabId})` writes one small record, `progress:<projectId>`, into the existing `pendingImports` store (the same store `BlobStore` already uses for trace pictures, so **no schema or database version change**). `get()` applies it only when it is still current (see below). `delete`, `clearAllProjects` and `clearAllProgress` remove it.
@@ -109,5 +109,58 @@ No schema change, no change to the project record format, no migration. One new 
 - Test hygiene: the "hiding the tab twice writes once" e2e now compares write counts before and after the extra hides instead of asserting an absolute 1, because a timer-driven save could land in the window (flaked once in a full run, then stable across two further full runs).
 
 ### Remaining for Phase 1
-Batch 3 (honest save badge), batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation).
+Batch 3 (honest save badge, below), batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation).
+
+## Batch 3: an honest save badge (TRACK-02, BUG-07)
+
+Status: PR open, waiting for review and merge.
+
+### What changed for the user
+The badge beside the project name in the Tracker used to be a fixed "All changes saved". It now shows:
+
+| State | Badge | When |
+|---|---|---|
+| Nothing changed | All changes saved | project just opened, nothing edited |
+| Changes not written yet, or a write in flight | Saving... | from the first change until the full save completes |
+| Written | Saved just now / Saved 2 min ago | after a successful save |
+| Failed | Save failed + Retry button | the write threw (quota, blocked, storage unavailable); stays until a save succeeds or you switch project |
+| Conflict question open | Not saved yet | the "project changed in another tab" dialog is waiting for an answer (this was BUG-07) |
+
+Zooming and moving the guide do not count as changes. Switching project gives the new project its own state.
+
+### How
+- **`tracker-app.js`:** a derived status (`error > conflict > saving > saved/idle`) computed in `refreshSaveUi()` from refs; `beginSave()`/`endSave()` wrap the autosave timer and `__flushProjectToIDB` (which Backup, Sync, tab-hidden and Retry use), exactly once per write; an effect counts changes to saved data (a short list of dependencies that excludes zoom and the guide) and a loaded project is counted as saved. It reuses the Header's existing `SaveStatusBadge` props (`saveStatus`, `savedAt`, `saveError`, `onRetrySave`), the same interface the Creator already drives.
+- **`header.js`:** `SaveStatusBadge` gets a `conflict` state, and problems (`error`, `conflict`) are announced to screen readers (`role="status"`); the ticking relative time is not.
+- **`cross-tab-resolution.js`:** announces `cs:conflictState` (`open: true/false`) when the conflict question opens and closes, so the page can show the state without importing the dialog.
+- **`help-drawer.js`, `version.js`:** a "Save status" entry in "Saving your work" and a changelog note.
+
+### Decisions
+- **Reused the Creator's badge component rather than building a second one**, and kept the Creator's own state machine untouched. The Tracker's states come from a few refs because the Tracker's saves are driven by its own effects, not a controller object.
+- **"Saving..." covers both "not yet written" and "being written".** The Creator uses "Editing..." for the first; in the Tracker marks reach the small progress record within 0.4 s, so "Editing..." would be the wrong word, and the full save follows within 5-10 s. This keeps one honest word for "not fully on disk yet".
+- **Not cost-free to get wrong, so cost-free to run:** `refreshSaveUi()` only calls `setState`; React skips a `setState` to an unchanged value, so a mark causes at most one extra render per save cycle (when the status first flips to Saving...).
+
+### Tests added
+- `tests/trackerSaveBadge.test.js` (14, source-level): status precedence, what counts as a change (no zoom or guide), begin/end around the autosave and flush, error persistence, Retry, conflict listener, header changes.
+- `tests/crossTabConflictState.test.js` (3, behavioural): the dialog announces open and closed, including when it throws or rejects; nothing announced when no dialog exists.
+- `tests/e2e/save-badge.spec.js` (5): idle then Saving... then Saved; zoom alone changes nothing; failed save shows Save failed with Retry and recovers; a failed save does not follow you to another project; conflict dialog shows Not saved yet, then Saved after Keep my edits. All fail on the previous code; the project-switch test also fails with the reset line removed.
+
+### Performance (300x300 fixture, headless Chromium, 3 runs)
+
+| Measure | Pre-phase baseline | After batch 3 |
+|---|---|---|
+| Load to drawn chart | 1,513-1,719 ms | 1,346-1,740 ms |
+| Idle max frame gap | 17 ms | not re-measured separately (within the load run) |
+| 60-move drag | 1,215-1,340 ms | 1,176-1,314 ms |
+
+Within run-to-run noise. The added work per mark is an increment, a comparison and a `setState` that React skips.
+
+### Data and migration statement
+None. No stored data, schema or preference changes.
+
+### Review round 1 (Copilot code review on PR 277; both findings verified)
+- **High: some persisted fields were not tracked, so editing them alone was never saved on its own.** True, and older than this PR: the autosave effect's dependency list left out `projectDesigner`, `projectDescription`, `partialStitches`, `projectFabricColour`, `threadBrand`, `stitchingStyle`, `blockW`, `blockH`, `focusBlock`, `startCorner`, `colourSequence`, `workArea` and `breadcrumbs`, all of which `buildSnapshot()` writes. A change to only one of them waited for some unrelated change (or the unload save). All are now dependencies of the autosave effect, and the badge counts them as changes (except the view-only ones: zoom, the guide and the spotlight block). The designer/description edit dialog also writes the project record itself, so that particular edit was not at risk; the others were. A source test now lists every state variable the snapshot persists and fails if one is missing from either dependency list; it fails on the previous code (6 assertions).
+- **Medium: a write that finished after a project switch could change the new project's badge.** True. Each save now carries a UI epoch; loading another project bumps it and clears the in-flight count, the error and the conflict flag; a completion with an old epoch is ignored before it touches any state. New e2e test (a save held in flight, switch project, then the old save fails): fails on the previous head, passes now. This removes the "known limitation" I recorded in the batch-3 bug hunt.
+
+### Remaining for Phase 1
+Batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation, BUG-06).
 

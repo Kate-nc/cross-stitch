@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.108';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.109',
+    date: 'October 2026',
+    notes: [
+      'The save status at the top of the Stitch Tracker is now truthful. It shows "Saving…" while changes are not yet written, "Saved just now" once they are, and "Save failed" with a Retry button if the browser could not store them. It no longer claims "All changes saved" while a save is pending or failing, and it says "Not saved yet" while the "changed in another tab" question is waiting for your answer. Zooming does not count as a change.',
+    ]
+  },
+  {
     version: '1.0.108',
     date: 'October 2026',
     notes: [

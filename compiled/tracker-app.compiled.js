@@ -2506,6 +2506,24 @@ function TrackerApp({
     knotsDone: null
   });
   const progressTimerRef = useRef(null);
+  // Save badge (header). One honest status for the whole project, derived from refs so that
+  // updating it costs nothing on the mark path: React skips a setState to the same value.
+  //   error > conflict > saving (a write in flight, or changes not yet written) > saved/idle
+  // uiGenRef counts changes to saved data (not zoom or the guide); uiSavedGenRef is the newest
+  // count known written. Neither is a React dependency.
+  const [saveStatus, setSaveStatus] = useState('idle');
+  const [savedAt, setSavedAt] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  // epoch: bumped when another project is loaded; a write that finishes after that belongs to the old project and is ignored.
+  const saveUiRef = useRef({
+    inFlight: 0,
+    conflict: false,
+    error: null,
+    savedOnce: false,
+    epoch: 0
+  });
+  const uiGenRef = useRef(0);
+  const uiSavedGenRef = useRef(0);
   const [halfDisambig, setHalfDisambig] = useState(null); // {x, y, idx} for popup
 
   const hoverRefs = useRef({
@@ -6726,6 +6744,43 @@ function TrackerApp({
       done: d
     };
   }
+  // ── Save badge status ──
+  function refreshSaveUi() {
+    const u = saveUiRef.current;
+    const unsaved = uiGenRef.current > uiSavedGenRef.current;
+    const next = u.error ? 'error' : u.conflict ? 'conflict' : u.inFlight > 0 || unsaved ? 'saving' : u.savedOnce ? 'saved' : 'idle';
+    setSaveStatus(next);
+    setSaveError(u.error || null);
+  }
+  function beginSave() {
+    saveUiRef.current.inFlight++;
+    refreshSaveUi();
+    return saveUiRef.current.epoch;
+  }
+  // ok === true: written; ok === false: failed (err says why); ok === null: the page is reloading, say nothing.
+  function endSave(ok, uiGen, err, epoch) {
+    const u = saveUiRef.current;
+    if (epoch !== u.epoch) return; // started for a project that has since been replaced
+    u.inFlight = Math.max(0, u.inFlight - 1);
+    if (ok === true) {
+      u.error = null;
+      u.savedOnce = true;
+      uiSavedGenRef.current = Math.max(uiSavedGenRef.current, uiGen);
+      setSavedAt(new Date());
+    } else if (ok === false) {
+      u.error = err && err.message ? err : new Error(typeof err === 'string' ? err : 'Could not save');
+    }
+    refreshSaveUi();
+  }
+  function retrySave() {
+    saveUiRef.current.error = null;
+    refreshSaveUi();
+    try {
+      const r = window.__flushProjectToIDB && window.__flushProjectToIDB();
+      if (r && r.catch) r.catch(function () {});
+    } catch (_) {}
+  }
+
   // ── Progress record writer ──
   // Writes the marks, and only the marks, to ProjectStorage's small progress record.
   // Saving the whole project takes up to ~150 ms on a large chart so it happens every
@@ -6776,15 +6831,25 @@ function TrackerApp({
       if (!autoSaveDirtyRef.current) return;
       autoSaveDirtyRef.current = false;
       const _gen = autoSaveGenRef.current;
+      const _uiGen = uiGenRef.current;
       const project = buildSnapshot();
       if (!project) return;
       lastSnapshotRef.current = project;
+      let _ended = false;
+      const _epoch = beginSave();
+      const endOnce = (ok, err) => {
+        if (_ended) return;
+        _ended = true;
+        endSave(ok, _uiGen, err, _epoch);
+      };
       persistProjectRecord(project).then(function (saveResult) {
-        if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') {
+        const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+        if (_ok) {
           flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
           // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
           if (autoSaveGenRef.current !== _gen) scheduleProgressWriteRef.current();
         }
+        endOnce(_ok ? true : saveResult && saveResult.reason === 'reloaded' ? null : false, saveResult && saveResult.reason);
         if (saveResult && saveResult.reason === 'reloaded') return null;
         try {
           if (projectIdRef.current) localStorage.removeItem('cs_pending_session_' + projectIdRef.current);
@@ -6828,10 +6893,15 @@ function TrackerApp({
           }
           return null;
         });
-      }).catch(err => console.error("Tracker auto-save failed:", err));
+      }).catch(err => {
+        console.error("Tracker auto-save failed:", err);
+        endOnce(false, err);
+      });
     }, _autoSaveDelay);
     return () => clearTimeout(saveTimer);
-  }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
+  }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
+  // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
+  projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones]);
 
   // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
   // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -6916,8 +6986,18 @@ function TrackerApp({
       if (!project) return;
       lastSnapshotRef.current = project;
       const _gen = autoSaveGenRef.current;
-      const saveResult = await persistProjectRecord(project);
-      if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
+      const _uiGen = uiGenRef.current;
+      const _epoch = beginSave();
+      let saveResult;
+      try {
+        saveResult = await persistProjectRecord(project);
+      } catch (err) {
+        endSave(false, _uiGen, err, _epoch);
+        throw err;
+      }
+      const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+      if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
+      endSave(_flushOk ? true : saveResult && saveResult.reason === 'reloaded' ? null : false, _uiGen, saveResult && saveResult.reason, _epoch);
       if (!saveResult || saveResult.reason !== 'reloaded') {
         await saveProjectToDB(project).catch(e => {
           console.error('Save failed:', e);
@@ -6982,6 +7062,22 @@ function TrackerApp({
     };
   }, []);
 
+  // Count changes to data the project saves (not zoom or the guide), for the save badge.
+  useEffect(() => {
+    if (!pat) return;
+    uiGenRef.current++;
+    refreshSaveUi();
+  }, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned, originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand, stitchingStyle, blockW, blockH, startCorner, colourSequence, workArea, breadcrumbs]);
+  // A cross-tab conflict dialog is open: the changes are not saved until it is answered.
+  useEffect(() => {
+    function onConflict(e) {
+      saveUiRef.current.conflict = !!(e && e.detail && e.detail.open);
+      refreshSaveUi();
+    }
+    window.addEventListener('cs:conflictState', onConflict);
+    return () => window.removeEventListener('cs:conflictState', onConflict);
+  }, []);
+
   // Keep the progress record's owner current and schedule a write when marks change.
   useEffect(() => {
     const id = projectIdRef.current;
@@ -7005,6 +7101,18 @@ function TrackerApp({
         halfDone,
         knotsDone
       };
+      uiSavedGenRef.current = uiGenRef.current; // what was just loaded is what is stored
+      // Another project: its own save state, and writes still running for the old one must not touch it.
+      {
+        const u = saveUiRef.current;
+        u.error = null;
+        u.savedOnce = false;
+        u.inFlight = 0;
+        u.conflict = false;
+        u.epoch++;
+      }
+      setSavedAt(null);
+      refreshSaveUi();
       return;
     }
     if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone) return;
@@ -10782,7 +10890,11 @@ function TrackerApp({
       nameAutoGeneratedRef.current = false;
       setProjectName(n);
     } : undefined,
-    showAutosaved: !!(pat && pal)
+    showAutosaved: !!(pat && pal),
+    saveStatus: saveStatus,
+    savedAt: savedAt,
+    saveError: saveError,
+    onRetrySave: retrySave
   }), projectPickerOpen && /*#__PURE__*/React.createElement(TrackerProjectPicker, {
     list: projectPickerList,
     currentId: projectIdRef.current,

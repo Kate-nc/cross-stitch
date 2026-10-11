@@ -375,6 +375,13 @@ function SaveStatusBadge({ status, savedAt, error, onRetry }) {
     label = 'Saving\u2026';
     className += ' tb-proj-badge-saved--saving';
     title = 'Saving to this device\u2026';
+  } else if (effective === 'conflict') {
+    // Another tab saved this project and a dialog is asking what to do: the changes in this
+    // tab are not saved until it is answered.
+    icon = (window.Icons && window.Icons.warning) ? window.Icons.warning() : null;
+    label = 'Not saved yet';
+    className += ' tb-proj-badge-saved--error';
+    title = 'This project was changed in another tab. Answer the question on screen to save your changes.';
   } else if (effective === 'error') {
     icon = (window.Icons && window.Icons.warning) ? window.Icons.warning() : null;
     label = 'Save failed';
@@ -396,7 +403,9 @@ function SaveStatusBadge({ status, savedAt, error, onRetry }) {
       style: { marginLeft: 6, background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '0 6px', borderRadius: 4, fontSize: 10, cursor: 'pointer' }
     }, 'Retry'));
   }
-  return React.createElement('span', { className: className, title: title }, children);
+  // Problems are announced to screen readers; the ticking "Saved 15 s ago" text is not.
+  var live = (effective === 'error' || effective === 'conflict') ? { role: 'status' } : {};
+  return React.createElement('span', Object.assign({ className: className, title: title }, live), children);
 }
 
 // Compact relative-time formatter for the save badge: "just now",
