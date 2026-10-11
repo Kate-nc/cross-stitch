@@ -28,7 +28,7 @@
 <!-- Defensive redirect: create.html is normally reached via a deliberate
      action= deep link (home-image-pending, new-blank, open) OR with an
      active project already set. If neither is true the user has typed the
-     URL or back-navigated to a stale state â€” send them to /home Create
+     URL or back-navigated to a stale state — send them to /home Create
      tab where they can pick the canonical entry point, instead of showing
      the bare welcome card. The check intentionally allows action= and
      from=home through unconditionally so live handoffs always proceed. -->
@@ -51,7 +51,7 @@
     // the file — processPendingAction's recovery path handles it from there.
     try { if (sessionStorage.getItem('cs_pending_image_dataurl') || sessionStorage.getItem('cs_pending_image_handoff') || sessionStorage.getItem('cs_active_draft')) return; } catch (_) {}    var active = localStorage.getItem('crossstitch_active_project');
     if (!active) { location.replace('home.html?tab=create'); return; }
-  } catch (_) { /* localStorage blocked â†’ load tool normally */ }
+  } catch (_) { /* localStorage blocked → load tool normally */ }
 })();
 </script>
 <!-- Preconnect so CDN requests start immediately -->
@@ -96,7 +96,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- JSZip (C6 bundle export) â€” loaded eagerly on the Creator page so the
+<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -168,7 +168,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="creator/extras-bundle.js" defer></script>
 <script src="runtime-loaders.js"></script>
 <script src="lazy-modules.js"></script>
-<!-- Lazy-load helpers â€” available to regular scripts -->
+<!-- Lazy-load helpers — available to regular scripts -->
 <script>
 window.loadPdfStack = function() {
   var pdfReady = window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : (window.__pdfjsLoadPromise ||

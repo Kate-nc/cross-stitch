@@ -2821,9 +2821,29 @@ function TrackerApp({
       }
     });
   }
+  // The whole pattern in the scroll box, on both axes (the hook's fitSZ looked at the width alone, so a
+  // tall pattern overflowed the box). No box yet, or no size: fall back to the hook's width fit.
+  function fitWholeView() {
+    const el = stitchScrollRef.current;
+    if (!el || !sW || !sH) {
+      fitSZ();
+      return;
+    }
+    const fit = Math.min((el.clientWidth - G - 8) / (sW * 20), (el.clientHeight - G - 8) / (sH * 20));
+    setStitchZoom(+Math.max(0.05, Math.min(maxZoom, fit)).toFixed(3));
+    el.scrollLeft = 0;
+    el.scrollTop = 0;
+    requestAnimationFrame(() => {
+      const e2 = stitchScrollRef.current;
+      if (e2) {
+        e2.scrollLeft = 0;
+        e2.scrollTop = 0;
+      }
+    });
+  }
   // "Fit" fits the work area while one is active, the whole pattern otherwise.
   function fitChart() {
-    if (areaOn) fitWorkAreaView();else fitSZ();
+    if (areaOn) fitWorkAreaView();else fitWholeView();
   }
   const isSpaceDownRef = useRef(false);
   const spaceDownTimeRef = useRef(0);
@@ -4368,34 +4388,54 @@ function TrackerApp({
           } catch (me) {}
         }
       }
-      // Auto-snapshot: on new stitching day, save a snapshot of the current done-state
+      // Auto-snapshot: on a new stitching day, keep a snapshot of the done-state as it was. The day comes from
+      // the same helper the statistics use (it used to call a function that only exists inside useAutoSession,
+      // so it threw into this catch and no snapshot was ever saved). Compressing 90,000 cells is a few
+      // milliseconds, so it runs when the browser is idle rather than inside the mark.
       if (done) {
         try {
-          const today = getStitchingDateLocal(new Date());
+          const today = getStitchingDate(new Date(), statsSettings && statsSettings.dayEndHour || 0);
           if (!lastSnapshotDateRef.current) {
             lastSnapshotDateRef.current = today;
           } else if (lastSnapshotDateRef.current !== today) {
-            const snapshot = {
-              id: 'snap_' + Date.now(),
-              date: lastSnapshotDateRef.current,
-              label: 'auto',
-              doneCount: curDone,
-              data: function (b) {
-                var C = 0x8000,
-                  o = '';
-                for (var i = 0; i < b.length; i += C) o += String.fromCharCode.apply(null, b.subarray(i, i + C));
-                return btoa(o);
-              }(pako.deflate(done))
+            const copy = done.slice(),
+              dayOf = lastSnapshotDateRef.current,
+              marks = curDone,
+              w = sW,
+              hgt = sH;
+            const make = () => {
+              try {
+                const b = pako.deflate(copy);
+                const C = 0x8000;
+                let o = '';
+                for (let i = 0; i < b.length; i += C) o += String.fromCharCode.apply(null, b.subarray(i, i + C));
+                const snapshot = {
+                  id: 'snap_' + Date.now(),
+                  date: dayOf,
+                  label: 'auto',
+                  doneCount: marks,
+                  w: w,
+                  h: hgt,
+                  data: btoa(o)
+                };
+                setDoneSnapshots(prev => {
+                  const updated = [...prev, snapshot];
+                  const labelled = updated.filter(s => s.label !== 'auto');
+                  const autos = updated.filter(s => s.label === 'auto').slice(-60);
+                  return [...labelled, ...autos];
+                });
+              } catch (e) {
+                console.warn('[stitchx/tracker] could not save the daily snapshot:', e);
+              }
             };
-            setDoneSnapshots(prev => {
-              const updated = [...prev, snapshot];
-              const labelled = updated.filter(s => s.label !== 'auto');
-              const autos = updated.filter(s => s.label === 'auto').slice(-60);
-              return [...labelled, ...autos];
-            });
+            if (typeof requestIdleCallback === 'function') requestIdleCallback(make, {
+              timeout: 5000
+            });else setTimeout(make, 0);
             lastSnapshotDateRef.current = today;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[stitchx/tracker] daily snapshot check failed:', e);
+        }
       }
       prevAutoCountRef.current = {
         done: curDone,
@@ -5549,6 +5589,8 @@ function TrackerApp({
         date: new Date().toLocaleDateString('en-CA'),
         label: 'Before pattern change',
         doneCount: rc.oldMarks,
+        w: cand ? cand.oldW : undefined,
+        h: cand ? cand.oldH : undefined,
         data: btoa(o)
       };
       setDoneSnapshots(prev => {
@@ -13057,7 +13099,7 @@ function TrackerApp({
     },
     "aria-label": "Zoom in"
   }, "+"), /*#__PURE__*/React.createElement("button", {
-    onClick: fitSZ,
+    onClick: fitChart,
     style: {
       padding: "5px 12px",
       borderRadius: "var(--radius-sm)",

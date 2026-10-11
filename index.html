@@ -87,7 +87,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- pako needed at startup (project data uses deflate/inflate) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- JSZip (C6 bundle export) â€” loaded eagerly on the Creator page so the
+<!-- JSZip (C6 bundle export) — loaded eagerly on the Creator page so the
      "Download bundle" action is available without a CDN round-trip on click.
      Pinned to 3.10.1 (immutable on cdnjs). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -157,7 +157,7 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="creator/extras-bundle.js" defer></script>
 <script src="runtime-loaders.js"></script>
 <script src="lazy-modules.js"></script>
-<!-- Lazy-load helpers â€” available to regular scripts -->
+<!-- Lazy-load helpers — available to regular scripts -->
 <script>
 window.loadPdfStack = function() {
   var pdfReady = window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : (window.__pdfjsLoadPromise ||

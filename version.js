@@ -8,6 +8,16 @@ window.APP_VERSION = '1.0.113';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.114',
+    date: 'October 2026',
+    notes: [
+      'The Activity tab on the Stats page opens again (it failed to load because two of the Stats scripts clashed). The progress share image now shows your streak, the home page title shows its dash correctly, "Projects" on global Stats reads "N finished, M in progress", and "~1 sessions" is now "~1 session".',
+      'Fit in the Stitch Tracker now fits the whole pattern in the box on both width and height, so a tall pattern no longer runs off the bottom.',
+      'A daily snapshot of your marked stitches is now saved on your first mark of each stitching day, as the Compare view always intended (it never worked before, so history starts from this update). It is saved when the browser is idle, so marking is not slowed. Compare now explains when a snapshot is from before the pattern changed size instead of drawing it wrongly.',
+      'Home now offers the backup reminder too, once per visit, when you have stitched something and it has been 14 days since your last backup.',
+    ]
+  },
+  {
     version: '1.0.113',
     date: 'October 2026',
     notes: [
