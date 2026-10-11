@@ -21,9 +21,8 @@ while (i < src.length) {
 }
 const fnSrc = src.slice(start, end);
 // Stubs for helpers referenced inside buildMeta — we don't exercise them here.
-const countTotalStitches = () => 0;
-const countCompletedStitches = () => 0;
-const knotCounts = () => ({ total: 0, done: 0 });
+const PROGRESS_ROW_VERSION = 1;
+const progressOf = () => ({ total: 0, done: 0, complete: false, percent: 0 });
 // eslint-disable-next-line no-eval
 const buildMeta = eval('(' + fnSrc.replace('function buildMeta', 'function') + ')');
 

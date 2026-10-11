@@ -159,7 +159,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var liveTodayStitches = todayStitches;
     var liveTodaySeconds = todaySeconds;
     if (currentAutoSession) {
-      liveTodayStitches += ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0));
+      liveTodayStitches += ProgressUnits.liveSessionNet(currentAutoSession);
       var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 1000);
       liveTodaySeconds += Math.max(0, elapsed);
     }
@@ -167,7 +167,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
     var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
     var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
-    var liveExtra = currentAutoSession ? ((currentAutoSession.stitchesCompleted||0) - (currentAutoSession.stitchesUndone||0)) : 0;
+    var liveExtra = currentAutoSession ? ProgressUnits.liveSessionNet(currentAutoSession) : 0;
     var activeGoal = null;
     if (dailyGoal > 0) {
       var gPct = liveTodayStitches / dailyGoal * 100;
@@ -185,7 +185,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
       React.createElement(ProgressRing, {percent:percent, size:36}),
       React.createElement("div", {className:"mini-stats-text"},
         (liveTodayStitches > 0 || dailyGoal > 0) && React.createElement("span", {className:"mini-today"},
-          "Today: " + liveTodayStitches + " stitch" + (liveTodayStitches !== 1 ? "es" : "")
+          "Today: " + ProgressUnits.formatUnits(liveTodayStitches) + " stitch" + (ProgressUnits.roundUnits(liveTodayStitches) !== 1 ? "es" : "")
         ),
         React.createElement("span", {className:"mini-stats-time"}, formatStatsDuration(liveTodaySeconds))
       ),

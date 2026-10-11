@@ -8,68 +8,21 @@ const ProjectStorage = (() => {
   const STORE_NAME = "projects";
   const META_STORE = "project_meta";
   const STATS_STORE = "stats_summaries";
+  // Rows written before progress was counted in units (progress-units.js) have no unitsV; refreshProgressRows()
+  // rewrites them once. Bump this if the definition ever changes again.
+  const PROGRESS_ROW_VERSION = 1;
   const ACTIVE_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project";
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
 
-  // PERF (perf-4 #2 / perf-2 #3): cache totalStitches per project; pattern.filter()
-  // scans up to N=w*h cells and was previously called twice per save (buildMeta +
-  // buildStatsSummary). Cache invalidates when pattern reference or length changes.
-  const _totalStitchCache = new WeakMap();
-  function countTotalStitches(p) {
-    if (!p) return 0;
-    // Accept either the normal `.pattern` array or the compact `.p` array
-    // (used by v8/URL-shared projects). Cache against whichever was picked
-    // so repeated calls for the same project stay O(1).
-    const pat = p.pattern || p.p;
-    if (!pat || !pat.length) return p.totalStitches || 0;
-    const cached = _totalStitchCache.get(pat);
-    if (cached !== undefined) return cached;
-    let n = 0;
-    for (let i = 0; i < pat.length; i++) {
-      const c = pat[i];
-      if (!c) continue;
-      // `.p` cells are short arrays like ["310"] or ["310","k"]; cells
-      // marked `k` are skipped background.
-      if (Array.isArray(c)) {
-        if (c[1] !== "k" && c[0] !== "__skip__" && c[0] !== "__empty__") n++;
-      } else if (c.id !== "__skip__" && c.id !== "__empty__") {
-        n++;
-      }
-    }
-    _totalStitchCache.set(pat, n);
-    return n;
-  }
-  // PERF (perf-4 #6): cache completedStitches per `done` reference (typed array
-  // or array). Invalidates whenever the done buffer is replaced.
-  const _completedCache = new WeakMap();
-  function countCompletedStitches(done) {
-    if (!done) return 0;
-    if (typeof done !== 'object') return 0;
-    const cached = _completedCache.get(done);
-    if (cached !== undefined) return cached;
-    let n = 0;
-    if (ArrayBuffer.isView(done) || Array.isArray(done)) {
-      for (let i = 0; i < done.length; i++) if (done[i] === 1) n++;
-    }
-    _completedCache.set(done, n);
-    return n;
-  }
-
-  // French knots (knots.js) count as stitches in the library's progress, as
-  // they do in the Tracker: `knots` [{x, y, id}] and `knotsDone` ["x,y", ...].
-  // Inlined rather than calling window.Knots, which pages without the Creator
-  // or Tracker don't load.
-  function knotCounts(p) {
-    const knots = p && Array.isArray(p.knots) ? p.knots : null;
-    if (!knots || !knots.length) return { total: 0, done: 0 };
-    const doneKeys = new Set(Array.isArray(p.knotsDone) ? p.knotsDone : []);
-    let done = 0;
-    for (let i = 0; i < knots.length; i++) {
-      if (knots[i] && doneKeys.has(knots[i].x + "," + knots[i].y)) done++;
-    }
-    return { total: knots.length, done: done };
+  // Progress for a stored record, from the one shared definition (progress-units.js): full stitches, half
+  // stitches and French knots in units. `done` and `total` are whole units for display, `complete` is decided on
+  // the exact values, and `percent` has one decimal. The counting is cached per array reference there, so a save
+  // does not rescan a chart that has not changed.
+  function progressOf(p) {
+    const r = ProgressUnits.fromProject(p);
+    return { total: Math.round(r.totalUnits), done: Math.round(r.doneUnits), complete: r.complete, percent: r.percent };
   }
 
   // Build a lightweight stats summary for the global dashboard.
@@ -81,9 +34,9 @@ const ProjectStorage = (() => {
   function buildStatsSummary(p) {
     // Knots only add to counts taken from the chart itself, not to stored
     // totals (which already include them).
-    const kc = (p.pattern || p.p) ? knotCounts(p) : { total: 0, done: 0 };
-    const totalSt = countTotalStitches(p) + kc.total;
-    const completedSt = p.done ? countCompletedStitches(p.done) + kc.done : (p.completedStitches || 0);
+    const prog = progressOf(p);
+    const totalSt = prog.total;
+    const completedSt = prog.done;
     return {
       id: p.id,
       name: p.name || 'Untitled',
@@ -91,7 +44,11 @@ const ProjectStorage = (() => {
       updatedAt: p.updatedAt,
       totalStitches: totalSt,
       completedStitches: completedSt,
-      isComplete: totalSt > 0 && completedSt >= totalSt,
+      // Exact percentage (one decimal) from the unrounded units: whole done/total can differ from it by a
+      // fraction on very small projects.
+      pct: prog.percent,
+      isComplete: prog.complete,
+      unitsV: PROGRESS_ROW_VERSION,
       // Root cause of S6: finishStatus must flow through to summary consumers so
       // that the engine and stats pages can apply the unified completion rule
       // (exclude if isComplete OR finishStatus === 'completed').
@@ -168,16 +125,15 @@ const ProjectStorage = (() => {
 
   function buildMeta(p) {
     const s = p.settings || {};
-    // countTotalStitches accepts both `.pattern` and the compact `.p` grid;
-    // gate on either so compact-format projects don't report 0 stitches and
-    // land in the dashboard's catch-all bucket.
-    const kcm = knotCounts(p);
-    const totalSt = ((p.pattern || p.p) ? countTotalStitches(p) : 0) + kcm.total;
-    const completedSt = (p.done ? countCompletedStitches(p.done) : 0) + kcm.done;
+    // Progress in units (progress-units.js): the same definition as the Tracker. It reads both the normal
+    // `.pattern` and the compact `.p` grid.
+    const prog = progressOf(p);
+    const totalSt = prog.total;
+    const completedSt = prog.done;
     const sessions = p.statsSessions || [];
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
     const totalMinutes = Math.round(totalSeconds / 60);
-    const totalNet = sessions.reduce((sum, s) => sum + (s.netStitches || 0), 0);
+    const totalNet = sessions.reduce((sum, s) => sum + (ProgressUnits.sessionNet(s) || 0), 0);
     const uniqueDays = new Set(sessions.map(s => s.date).filter(Boolean)).size;
     const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
     // Compute stitches this week and this month for dashboard stats
@@ -205,11 +161,11 @@ const ProjectStorage = (() => {
       dayKeyToIdx[k] = 6 - i;
     }
     for (const s2 of sessions) {
-      if (s2.date >= weekStartStr) stitchesThisWeek += (s2.netStitches || 0);
-      if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (s2.netStitches || 0);
+      if (s2.date >= weekStartStr) stitchesThisWeek += (ProgressUnits.sessionNet(s2) || 0);
+      if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (ProgressUnits.sessionNet(s2) || 0);
       if (s2.date) {
         const idx = dayKeyToIdx[s2.date];
-        if (idx !== undefined) weeklyStitches[idx] += (s2.netStitches || 0);
+        if (idx !== undefined) weeklyStitches[idx] += (ProgressUnits.sessionNet(s2) || 0);
       }
     }
     return {
@@ -222,6 +178,9 @@ const ProjectStorage = (() => {
       dimensions: { width: s.sW || 0, height: s.sH || 0 },
       totalStitches: totalSt,
       completedStitches: completedSt,
+      pct: prog.percent,
+      // Which progress definition these figures use (see refreshProgressRows).
+      unitsV: PROGRESS_ROW_VERSION,
       // Any stitching done at all, including half stitches alone (completedStitches counts full stitches and
       // knots only). Used to decide whether a backup reminder is worth showing.
       anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))),
@@ -231,7 +190,7 @@ const ProjectStorage = (() => {
       uniqueActiveDays: uniqueDays,
       stitchesPerHour: totalSeconds > 0 ? Math.round(totalNet / (totalSeconds / 3600)) : 0,
       lastSessionDate: lastSession ? lastSession.date : null,
-      lastSessionStitches: lastSession ? (lastSession.netStitches || 0) : 0,
+      lastSessionStitches: lastSession ? (ProgressUnits.sessionNet(lastSession) || 0) : 0,
       stitchesThisWeek,
       stitchesThisMonth,
       weeklyStitches,
@@ -806,6 +765,36 @@ const ProjectStorage = (() => {
 
     // Return lightweight metadata for all named projects (those with IDs starting "proj_"),
     // sorted newest-first. Reads from the dedicated metadata store — no pattern data is loaded.
+    // Rewrites the progress figures in rows saved before progress was counted in units (they counted full
+    // stitches and knots only, so a project with half stitches read lower on Home than in the Tracker). Reads each
+    // such project once, one at a time, and writes only its two summary rows, never the project itself. Run it
+    // when the browser is idle; returns how many rows it rewrote (0 once everything is current).
+    async refreshProgressRows(opts) {
+      const idle = (opts && opts.idle) || (cb => (typeof requestIdleCallback === "function" ? requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 50)));
+      let done = 0;
+      try {
+        const rows = await this.listProjects();
+        const stale = rows.filter(r => r && r.unitsV !== PROGRESS_ROW_VERSION);
+        for (const row of stale) {
+          await new Promise(res => idle(res));
+          const full = await this.get(row.id);
+          if (!full || !(full.pattern || full.p)) continue;
+          const db = await getDB();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction([META_STORE, STATS_STORE], "readwrite");
+            tx.objectStore(META_STORE).put(buildMeta(full), full.id);
+            tx.objectStore(STATS_STORE).put(buildStatsSummary(full), full.id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          });
+          done++;
+        }
+      } catch (err) {
+        console.warn("ProjectStorage.refreshProgressRows failed:", err);
+      }
+      return done;
+    },
+
     async listProjects() {
       try {
         const db = await getDB();
@@ -1272,7 +1261,7 @@ const ProjectStorage = (() => {
           if (proj.stitchLog && proj.stitchLog.length > 0) {
             for (const entry of proj.stitchLog) total += entry.count;
           } else if (proj.statsSessions && proj.statsSessions.length > 0) {
-            for (const s of proj.statsSessions) total += s.netStitches || 0;
+            for (const s of proj.statsSessions) total += ProgressUnits.sessionNet(s) || 0;
           }
         }
         return total;
@@ -1296,7 +1285,7 @@ const ProjectStorage = (() => {
           } else if (proj.statsSessions && proj.statsSessions.length > 0) {
             for (const s of proj.statsSessions) {
               if (!s || !s.date) continue;
-              daily[s.date] = (daily[s.date] || 0) + (s.netStitches || 0);
+              daily[s.date] = (daily[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0);
             }
           }
         }
@@ -1325,9 +1314,9 @@ const ProjectStorage = (() => {
           // long-abandoned projects with no touch/update timestamps still surface.
           const projAge = proj.lastTouchedAt || proj.updatedAt || proj.createdAt || LEGACY_EPOCH;
           if (!oldest || projAge < oldest.lastTouchedAt) {
-            // PERF (perf-4 #2 / perf-4 #6): cached counts
-            const totalSt = countTotalStitches(proj);
-            const completedSt = countCompletedStitches(proj.done);
+            const pr = progressOf(proj);
+            const totalSt = pr.total;
+            const completedSt = pr.done;
             oldest = {
               id: proj.id, name: proj.name || 'Untitled',
               lastTouchedAt: projAge,
@@ -1412,7 +1401,7 @@ const ProjectStorage = (() => {
           // Fall back to statsSessions for projects not yet re-saved by the tracker.
           const logTotal = (proj.stitchLog && proj.stitchLog.length > 0)
             ? proj.stitchLog.reduce((s, e) => s + e.count, 0)
-            : (proj.statsSessions || []).reduce((s, e) => s + (e.netStitches || 0), 0);
+            : (proj.statsSessions || []).reduce((s, e) => s + (ProgressUnits.sessionNet(e) || 0), 0);
           if (logTotal <= 0) continue;
           // Build a thread-id → {name, rgb} lookup from the palette field if present,
           // falling back to pattern cells (Creator projects embed rgb in each cell,
@@ -1494,8 +1483,9 @@ const ProjectStorage = (() => {
         const wips = [];
         for (const proj of fulls) {
           if (!proj || proj.finishStatus !== 'active') continue;
-          const totalSt = countTotalStitches(proj);
-          const completedSt = countCompletedStitches(proj.done);
+          const pr = progressOf(proj);
+          const totalSt = pr.total;
+          const completedSt = pr.done;
           wips.push({
             id: proj.id, name: proj.name || 'Untitled',
             lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,

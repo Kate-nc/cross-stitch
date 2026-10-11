@@ -50,7 +50,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
       var contentChildren = [
         React.createElement("span", {key:"date", className:"timeline-date"}, formatRelativeDate(session.date, dayEndHour) + " - Session window " + sessionWindow),
         React.createElement("div", {key:"stats", className:"timeline-stats"},
-          React.createElement("span", {className:"timeline-stitches"}, session.netStitches + " stitches"),
+          React.createElement("span", {className:"timeline-stitches"}, ProgressUnits.formatUnits(ProgressUnits.sessionNet(session)) + " stitches"),
           React.createElement("span", {className:"timeline-duration"}, "Active time " + formatStatsDuration(getSessionSeconds(session)))
         )
       ];
@@ -313,7 +313,7 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
     for (var i = 0; i < sessions.length; i++) {
       var s = sessions[i];
       if (s.date && s.date.slice(0, 7) === prefix) {
-        dailyMap[s.date] = (dailyMap[s.date] || 0) + s.netStitches;
+        dailyMap[s.date] = (dailyMap[s.date] || 0) + ProgressUnits.sessionNet(s);
       }
     }
   }
@@ -634,7 +634,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
     var avgSessionStitches = 0;
     if (sessions && sessions.length > 0) {
       var recentSess = sessions.slice(-10);
-      var totalSt = recentSess.reduce(function(sum, r) { return sum + r.netStitches; }, 0);
+      var totalSt = recentSess.reduce(function(sum, r) { return sum + ProgressUnits.sessionNet(r); }, 0);
       avgSessionStitches = totalSt / recentSess.length;
     }
     var totalColours = colourStats.length;
@@ -1048,7 +1048,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
 
     React.createElement('div', {className:'comparison-bars'},
       barProjects.map(function(p) {
-        var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
         var isComplete = pct >= 100;
         var isCurrent = p.id === currentProjectId;
         return React.createElement('div', {
@@ -1084,7 +1084,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
         ),
         React.createElement('tbody', null,
           sorted.map(function(p) {
-            var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+            var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
             var isComplete = pct >= 100;
             var isCurrent = p.id === currentProjectId;
             var w = p.dimensions ? p.dimensions.width : 0;
@@ -1553,7 +1553,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   }, [projectSummaries]);
 
   var lifetimeTotals = React.useMemo(function() {
-    var totalStitches = allSessions.reduce(function(s, sess) { return s + (sess.netStitches || 0); }, 0);
+    var totalStitches = allSessions.reduce(function(s, sess) { return s + (ProgressUnits.sessionNet(sess) || 0); }, 0);
     var totalSeconds = allSessions.reduce(function(s, sess) { return s + getSessionSeconds(sess); }, 0);
     var totalHours = totalSeconds / 3600;
     var activeDays = new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean)).size;
@@ -1579,7 +1579,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     var lastWeekStartStr = formatYMD(lastWeekStart);
     var lastWeekEndStr = formatYMD(new Date(thisWeekStart.getTime() - 86400000));
     function wk(sessions) {
-      var st = sessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0);
+      var st = sessions.reduce(function(s, x) { return s + (ProgressUnits.sessionNet(x) || 0); }, 0);
       var sec = sessions.reduce(function(s, x) { return s + getSessionSeconds(x); }, 0);
       var spd = sec > 0 ? Math.round(st / (sec / 3600)) : 0;
       var days = new Set(sessions.map(function(x) { return x.date; })).size;
@@ -1597,17 +1597,17 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     if (allSessions.length === 0) return [];
     var result = [];
     var dailyTotals = {};
-    allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.netStitches || 0); });
+    allSessions.forEach(function(s) { if (s.date) dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0); });
     var bestDay = Object.entries(dailyTotals).sort(function(a, b) { return b[1] - a[1]; })[0];
     if (bestDay && bestDay[1] > 0) result.push({icon: 'star', color: 'teal', text: 'Best day ever: ' + bestDay[1].toLocaleString('en-GB') + ' stitches on ' + formatDateReadable(bestDay[0])});
-    var fastest = allSessions.filter(function(s) { return getSessionSeconds(s) >= 600 && (s.netStitches || 0) > 0; }).sort(function(a, b) { return (b.netStitches / getSessionSeconds(b)) - (a.netStitches / getSessionSeconds(a)); })[0];
+    var fastest = allSessions.filter(function(s) { return getSessionSeconds(s) >= 600 && (ProgressUnits.sessionNet(s) || 0) > 0; }).sort(function(a, b) { return (ProgressUnits.sessionNet(b) / getSessionSeconds(b)) - (ProgressUnits.sessionNet(a) / getSessionSeconds(a)); })[0];
     if (fastest) {
-      var spd = Math.round(fastest.netStitches / (getSessionSeconds(fastest) / 3600));
+      var spd = Math.round(ProgressUnits.sessionNet(fastest) / (getSessionSeconds(fastest) / 3600));
       var proj = projectSummaries.find(function(p) { return (p.statsSessions || []).some(function(s) { return s.id === fastest.id; }); });
       result.push({icon: 'bolt', color: 'amber', text: 'Fastest session: ' + spd + ' st/hr' + (proj ? ' on ' + proj.name : '')});
     }
     var hourCounts = new Array(24).fill(0);
-    allSessions.forEach(function(s) { if (s.startTime) { var h = new Date(s.startTime).getHours(); hourCounts[h] += (s.netStitches || 0); } });
+    allSessions.forEach(function(s) { if (s.startTime) { var h = new Date(s.startTime).getHours(); hourCounts[h] += (ProgressUnits.sessionNet(s) || 0); } });
     var maxH = Math.max.apply(null, hourCounts);
     if (maxH > 0) {
       var peak = hourCounts.indexOf(maxH);
@@ -1636,7 +1636,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     var entries = [];
     projectSummaries.forEach(function(p) {
       (p.statsSessions || []).forEach(function(s) {
-        entries.push({type: 'session', date: s.date, startTime: s.startTime || (s.date + 'T00:00:00'), projectId: p.id, projectName: p.name || 'Untitled', projectColor: assignProjectColor(p.id), stitches: s.netStitches || 0, seconds: getSessionSeconds(s), speed: getSessionSeconds(s) > 0 ? Math.round((s.netStitches || 0) / (getSessionSeconds(s) / 3600)) : 0, note: s.note || null});
+        entries.push({type: 'session', date: s.date, startTime: s.startTime || (s.date + 'T00:00:00'), projectId: p.id, projectName: p.name || 'Untitled', projectColor: assignProjectColor(p.id), stitches: ProgressUnits.sessionNet(s) || 0, seconds: getSessionSeconds(s), speed: getSessionSeconds(s) > 0 ? Math.round((ProgressUnits.sessionNet(s) || 0) / (getSessionSeconds(s) / 3600)) : 0, note: s.note || null});
       });
       (p.achievedMilestones || []).forEach(function(m) {
         var dt = m.achievedAt || m.date || '';
@@ -1717,7 +1717,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         if (a.isComplete !== b.isComplete) return a.isComplete ? 1 : -1;
         return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
       }).map(function(p) {
-        var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
         var remaining = Math.max(0, p.totalStitches - p.completedStitches);
         var color = p.projectColor || assignProjectColor(p.id);
         return React.createElement('div', {key: p.id, className: 'gsd-project-card', onClick: function() { if (onViewProject) onViewProject(p.id); }},
@@ -1745,7 +1745,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       React.createElement(GoalTracker, {
         statsSettings: effectiveGoalSettings,
         statsSessions: allSessions,
-        totalCompleted: allSessions.reduce(function(s, x) { return s + (x.netStitches || 0); }, 0),
+        totalCompleted: allSessions.reduce(function(s, x) { return s + (ProgressUnits.sessionNet(x) || 0); }, 0),
         totalStitches: projectSummaries.reduce(function(s, p) { return s + p.totalStitches; }, 0),
         overviewStats: computeOverviewStats(allSessions, lifetimeTotals.totalStitches, lifetimeTotals.totalStitches, true),
         onUpdateSettings: updateGlobalGoals
@@ -1893,8 +1893,9 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpSessions = lp.statsSessions || [];
     var lpDone = lp.done || null;
     var lpPat = restoreStoredPattern(lp);
-    var lpTotal = lpPat ? lpPat.filter(function(c) { return c && c.id !== '__skip__' && c.id !== '__empty__'; }).length : 0;
-    var lpCompleted = lpDone ? (Array.isArray(lpDone) ? lpDone.reduce(function(n, v) { return n + (v === 1 ? 1 : 0); }, 0) : 0) : 0;
+    var lpProg = ProgressUnits.fromProject(lp);
+    var lpTotal = Math.round(lpProg.totalUnits);
+    var lpCompleted = Math.round(lpProg.doneUnits);
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
     var lpCDone = {};
     if (lpPat && lpDone) {

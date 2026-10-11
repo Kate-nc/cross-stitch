@@ -61,18 +61,10 @@
   }
 
   function projectPct(p) {
-    if (!p || !p.pattern) return null;
-    var total = 0;
-    for (var i = 0; i < p.pattern.length; i += 1) {
-      var c = p.pattern[i];
-      if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
-    }
-    if (total <= 0) return null;
-    var done = 0;
-    if (p.done) {
-      for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
-    }
-    return Math.round(done / total * 100);
+    if (!p || !(p.pattern || p.p)) return null;
+    var r = ProgressUnits.fromProject(p);
+    if (r.totalUnits <= 0) return null;
+    return Math.round(r.percent);
   }
 
   function activateAndGo(id, href) {
@@ -1175,6 +1167,14 @@
               return bt - at;
             });
             setList(sorted);
+            // Rows saved before progress counted half stitches get their figures rewritten once, in idle time.
+            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== 1; })) {
+              window.__progressRowsRefreshing = true;
+              window.ProjectStorage.refreshProgressRows().then(function (n) {
+                window.__progressRowsRefreshing = false;
+                if (n > 0 && !cancelled) window.ProjectStorage.listProjects().then(function (l2) { if (!cancelled) setList((l2 || []).slice().sort(function (a, b) { return (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) - (a.updatedAt ? new Date(a.updatedAt).getTime() : 0); })); });
+              });
+            }
             // Once someone has stitched something worth protecting, offer a backup if it has been a while.
             // Same once-per-session gate as the Tracker's, so it never shows twice in a visit.
             if (window.BackupReminder && sorted.some(function (p) { return p && (p.anyProgress || p.completedStitches > 0); })) {

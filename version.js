@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.114';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.115',
+    date: 'October 2026',
+    notes: [
+      'Progress now means the same thing everywhere. A full stitch counts as one, a half stitch as half and a French knot as one, and the Tracker\'s strip, header and Progress info, the project and global Stats, the Home cards and library, the share text, the CSV export and the session figures all read from that one definition. Before, a project with half stitches could show different totals in different places (for example "2 done" in the strip and 4 / 1,759 in Progress info). The strip also names the half stitches and knots that are included. New sessions record their stitches in these units; sessions from before counted a half stitch as a whole one and are left as they were, so older daily totals for projects with half stitches can read a little high.',
+      'Home and the library refresh their progress figures once, in the background, the first time they open after this update, so older projects with half stitches agree with the Tracker.',
+    ]
+  },
+  {
     version: '1.0.114',
     date: 'October 2026',
     notes: [

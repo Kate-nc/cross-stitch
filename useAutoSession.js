@@ -37,7 +37,7 @@
     const prevAutoCountRef=useRef({done:0,halfDone:0});
     const justLoadedRef=useRef(false);
     const justLoadedSettlePassRef=useRef(0);
-    const autoStatsRef=useRef({doneCount:0,totalStitchable:0});
+    const autoStatsRef=useRef({doneUnits:0,totalUnits:0});
     const finaliseAutoSessionRef=useRef(null);
     // Idle threshold (trackerIdleMinutes): read fresh on each timer arm so a
     // settings change applies on the next stroke without restarting the session.
@@ -100,8 +100,11 @@
         return y+'-'+m+'-'+day;
       }catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
     }
-    function recordAutoActivity(completed,undone){
+    // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see
+    // progress-units.js). Callers that only mark full stitches may leave them out.
+    function recordAutoActivity(completed,undone,completedUnits,undoneUnits){
       try{
+        const cu=completedUnits==null?completed:completedUnits,uu=undoneUnits==null?undone:undoneUnits;
         const now=Date.now();
         if(!currentAutoSessionRef.current){
           // Guard: don't start a new session if the tab is unloading.
@@ -113,6 +116,8 @@
             timingMode:getTimingMode(),
             stitchesCompleted:0,
             stitchesUndone:0,
+            unitsCompleted:0,
+            unitsUndone:0,
             coloursWorked:new Set(),
             // Event log: timestamped events drive all duration computation.
             eventLog:[{kind:'start',t:now}]
@@ -135,12 +140,14 @@
         currentAutoSessionRef.current.eventLog.push({kind:'stitch',t:now,delta:completed-undone});
         currentAutoSessionRef.current.stitchesCompleted+=completed;
         currentAutoSessionRef.current.stitchesUndone+=undone;
+        currentAutoSessionRef.current.unitsCompleted+=cu;
+        currentAutoSessionRef.current.unitsUndone+=uu;
         // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
         // stitchesUndone past stitchesCompleted (the undos refer to stitches done
         // in a *previous* session). Clamp the displayed counter at 0 — anything
         // negative is meaningless and would also break the "stitches active" gate
         // in the footer (`liveAutoStitches > 0`).
-        setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.stitchesCompleted-currentAutoSessionRef.current.stitchesUndone));
+        setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.unitsCompleted-currentAutoSessionRef.current.unitsUndone));
         // Update liveAutoIsPaused from the already-live flags (manual resume above
         // may have changed it). PERF: this used to call deriveIsLogPaused(), which
         // rescans the *entire* session event log on every single stitch — an O(n)
@@ -182,8 +189,9 @@
         const capMs=getActiveGapCapMs();
         const timingMode=session.timingMode||getTimingMode();
         const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs,timingMode));
-        const ref=autoStatsRef.current||{doneCount:0,totalStitchable:0};
-        const tc=ref.doneCount||0,ts=ref.totalStitchable||0;
+        // Progress at the end of the session, in units (the Tracker keeps these two numbers current).
+        const ref=autoStatsRef.current||{doneUnits:0,totalUnits:0};
+        const tc=ref.doneUnits||0,ts=ref.totalUnits||0;
         const finalised={
           id:session.id,
           date:session.date,
@@ -195,6 +203,11 @@
           stitchesCompleted:session.stitchesCompleted,
           stitchesUndone:session.stitchesUndone,
           netStitches:session.stitchesCompleted-session.stitchesUndone,
+          // The same marks in progress units; the figures that add sessions up read these (netStitches stays for
+          // older readers and older sessions, which have no units).
+          units:session.unitsCompleted-session.unitsUndone,
+          unitsCompleted:session.unitsCompleted,
+          unitsUndone:session.unitsUndone,
           totalAtEnd:tc,
           percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
           note:'',
@@ -230,7 +243,7 @@
         setLiveAutoStitches(0);
         // Show note prompt toast (not during page unload)
         if(!isUnloadingRef.current&&finalised.netStitches>0){
-          setSessionSavedToast({sessionId:finalised.id,stitches:finalised.netStitches,durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
+          setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(finalised.units),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
         }
         return finalised;
       }catch(e){currentAutoSessionRef.current=null;return null;}

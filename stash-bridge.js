@@ -1365,7 +1365,7 @@ const StashBridge = (() => {
               for (const s of proj.statsSessions) {
                 if (!s || !s.date) continue;
                 const m = s.date.slice(0, 7);
-                if (monthMap[m]) monthMap[m].used += (s.netStitches || 0) / STITCHES_PER_SKEIN;
+                if (monthMap[m]) monthMap[m].used += (ProgressUnits.sessionNet(s) || 0) / STITCHES_PER_SKEIN;
               }
             }
           }

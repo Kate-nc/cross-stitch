@@ -6,8 +6,8 @@ the daily-snapshot fix, the backup reminder on Home, and a time-boxed look at th
 
 | Batch | Scope | Status |
 |---|---|---|
-| 1 | BUG-01 to BUG-05, daily snapshot fix, Home backup reminder, flaky-test look | in review |
-| 2 | Shared `progress-units` module, counters, every display (STATS-01) | not started |
+| 1 | BUG-01 to BUG-05, daily snapshot fix, Home backup reminder, flaky-test look | merged (PR 282) |
+| 2 | Shared `progress-units` module, counters, every display (STATS-01) | in review |
 | 3 | Unpicking and catch-up semantics (STATS-04, STATS-07) | not started |
 | 4 | Day-boundary attribution, single date helper (STATS-05) | not started |
 | 5 | Shared estimator and presentation (STATS-02) | not started |
@@ -52,3 +52,37 @@ Two measurements, because the first looked worse and needed explaining.
 | Global Stats open (500 sessions) | 682 ms | 672 ms | -1.6% |
 
 Reading: no measurable regression. The tap difference is one millisecond, within the spread of both builds, and the batch changes nothing on the tap path; it is reported rather than hidden. Method lesson for the later batches: compare interleaved, never against an old baseline file.
+
+
+## Batch 2: one definition of progress (STATS-01)
+
+### What changed
+- New `progress-units.js` (plain script, also `require()`-able): `progressUnits(counts, {include})`, `fromProject(record)`, `sessionUnits`, `sessionNet`, `liveSessionNet`, `formatUnits`, `remainingWhole`, `breakdownText`. The weights are one table (`full 1, half 0.5, quarter 0.25, petite 0.25, knot 1`; backstitch counted separately, not in the percentage), so Phase 6 adds a type with one row.
+- **Tracker:** the strip, header chip, Progress info popover, project Stats props, share text, estimated completion and the completion projection all read it (they had been mixing full-stitch-only counts with combined counts). The strip shows "4 done · 1,755 to go" and, when the project has them, a short breakdown ("2 half, 1 knot"). The existing incremental counters are the input (O(types) per mark); nothing rescans.
+- **Sessions:** new sessions record `units`, `unitsCompleted` and `unitsUndone` beside `netStitches` (kept). Every place that adds sessions up (daily totals, week and month, speed, streak days, Activity, Insights, stash usage, Home meta, CSV) reads `units ?? netStitches` through `ProgressUnits.sessionNet`. `totalAtEnd` and `percentAtEnd` are in units. Old sessions are never rewritten.
+- **Stored records (Home, library, global Stats, stash):** `project-storage.js` builds the `project_meta` and `stats_summaries` rows through `progressOf`, which calls the shared module (the three private counters are gone). Rows carry `unitsV: 1`; `ProjectStorage.refreshProgressRows()` rewrites older rows once, in idle time, reading each project and writing only its two summary rows (never the project), triggered from Home. `stats-page.js`'s own count was replaced by `fromProject`.
+- Pages that use it load `progress-units.js` (and the service worker precaches it); `tests/progressUnitsLoaded.test.js` checks every page.
+
+### Decisions and deviations
+- Totals and "done" are shown as whole units (a half stitch is half a unit, so a half-stitch-only project shows 1.5 as 2). "To go" is worked out from the two rounded numbers, so the three always add up (found by the browser test).
+- The strip still follows the visible-layer filter (`statsCountMode`), now through the module's `include` option; every other figure counts all types.
+- Share text still begins with an emoji (outside this phase's scope; noted for the house-rule sweep).
+- `sync-engine.js`'s session fingerprint still reads `netStitches` on purpose (it identifies a session; changing it would make every old session look different).
+
+### Tests added
+`tests/progressUnits.test.js` (10), `tests/progressUnitsLoaded.test.js`, `tests/projectMetaAnyProgress.test.js` (+ refresh), `tests/setup/progress-units.js` (jest setup so tests that run `project-storage.js` alone get the global the pages get from a script tag), and `tests/e2e/progress-units.spec.js` (3: 4 / 1,759 (0.2%) in the strip, popover, Stats and the library row; half-stitch-only; a session records units).
+
+### Batch 2 performance (interleaved A/B, main in a second worktree; raw files in `perf/batch2-ab/`)
+The first comparison read tap latency +12.9% and global Stats +7.4%, over the 5% line, so the PR was held. Causes removed: `toLocaleString("en-GB")` built a new number formatter on every call (now one cached `Intl.NumberFormat`), the info strip computed the breakdown text twice (now once), and "to go" no longer formats separately.
+
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn chart | 1,360 ms (1,165 to 1,555) | 1,358 ms (1,222 to 1,471) | -0.1% |
+| Tap latency, one tap (1 ms resolution) | 14 ms (13 to 23) | 16 ms (13 to 21) | +14%, a 2 ms step on a rounded timer; ranges overlap |
+| Tap latency, 25 taps x 2 sessions x 3 rounds (`tapbench.js`) | median 8.6 ms | median 8.8 ms | +2% (means 9.7 vs 9.4 ms, so noise) |
+| 60-move drag | 1,056 ms | 1,072 ms | +1.5% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 66 ms | 63 ms | -3.8% |
+| Global Stats open (500 sessions) | 619 ms | 608 ms | -1.9% |
+
+Before the formatter fix the 50-tap bench read medians 8.9 (main) vs 9.4 ms (branch), about +5%. After, +2%.

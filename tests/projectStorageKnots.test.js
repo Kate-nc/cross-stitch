@@ -14,10 +14,10 @@ function extract(name) {
   }
   return src.slice(start, end);
 }
+// Progress comes from the shared definition (progress-units.js), through progressOf in project-storage.js.
+const PROGRESS_ROW_VERSION = 1;
 // eslint-disable-next-line no-eval
-const knotCounts = eval('(' + extract('knotCounts') + ')');
-const countTotalStitches = p => (p.pattern || []).filter(c => c.id !== '__empty__').length;
-const countCompletedStitches = d => Array.from(d).filter(v => v === 1).length;
+const progressOf = eval('(' + extract('progressOf') + ')');
 // eslint-disable-next-line no-eval
 const buildStatsSummary = eval('(' + extract('buildStatsSummary') + ')');
 
@@ -36,5 +36,5 @@ test('knots and their done marks add to the totals', () => {
 test('a project without knots counts as before', () => {
   const s = buildStatsSummary({ id: 'p', pattern, done: [1, 1, 0, 1] });
   expect([s.totalStitches, s.completedStitches, s.isComplete]).toEqual([3, 3, true]);
-  expect(knotCounts({})).toEqual({ total: 0, done: 0 });
+  expect(progressOf({})).toMatchObject({ total: 0, done: 0 });
 });

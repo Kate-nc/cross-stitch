@@ -437,6 +437,7 @@
             ["Stitches logged", "Counts every stitch marked done across all projects."],
             ["Time", "Adds up the time from your Tracker sessions."],
             ["Stash", "Shows what your stash covers, which projects you could start with threads you own, and how long your stash would last at your current pace."],
+            ["How progress is counted", "Progress is counted in stitch units: a full cross stitch is one, a half stitch is half and a French knot is one, so a pattern with 1,742 full stitches, 30 half-stitch sides and 2 knots has 1,759 units. The same figures appear in the Tracker's strip, header and Progress info, the project and global Stats, the Home cards and library, the share text and the CSV export. Sessions recorded before this was introduced counted a half stitch as a whole one, so their daily totals can read a little high; the percentage is always exact because it is worked out from your marks, not from sessions."],
             ["Compare snapshots", "In a project's Stats, Compare shows your marked stitches as they were on an earlier day beside how they are now. A snapshot is saved automatically on your first mark of each stitching day (the last 60 are kept) and you can save one yourself. A snapshot taken before the pattern changed size cannot be drawn against the new pattern; it says so and still shows its stitch count."]
           ]
         },

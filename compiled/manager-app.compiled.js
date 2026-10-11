@@ -2315,7 +2315,7 @@ function ManagerApp() {
       gap: 8
     }
   }, storedProjects.map(p => {
-    const pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+    const pct = p.pct != null ? Math.round(p.pct) : p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
     const isActive = ProjectStorage.getActiveProjectId() === p.id;
     return /*#__PURE__*/React.createElement("div", {
       key: p.id,
