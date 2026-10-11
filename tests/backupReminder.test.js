@@ -84,6 +84,7 @@ describe('wiring', () => {
     expect(read('header.js')).toMatch(/' Export Backup'\),\s*window\.BackupReminder && React\.createElement\('div'/);
   });
   test('the Tracker offers the reminder once there are marks, only while active', () => {
+    expect(read('tracker-app.js')).toMatch(/const _hasMarks=doneCount>0\|\|_halfMarked\|\|knotsDone\.length>0;/);
     expect(read('tracker-app.js')).toMatch(/if\(!_hasMarks\|\|!isActive\)return;[\s\S]{0,200}BackupReminder\.maybeRemind\(\)/);
   });
 });

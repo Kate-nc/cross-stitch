@@ -84,3 +84,6 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - Exercised: unit tests, three Chromium e2e tests, full `npm test`, terminology lint.
 - Checked: clock starts at the first marking, not at install (new users are not nagged); snooze survives reload; another session does not re-show within the snooze; a failed backup (toast error) does not record a time because the record sits after the download starts but before return and after the click only; if serialisation throws, nothing is recorded.
 - Unverified: whether a user who cancels the browser's own save dialog has "backed up" (the browser gives the page no signal; we count the download as started).
+
+### Batch 5, review round 1 (Copilot; verified)
+- **Half-stitch-only or knot-only progress never started the backup clock (Medium).** True: the gate used the full-cross count only. It now counts completed half stitches and French knots too (`_hasMarks`).
