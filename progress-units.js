@@ -43,8 +43,8 @@
       var t = ORDER[i], c = counts[t];
       if (!c) continue;
       var d = num(c.done), tot = num(c.total), w = WEIGHTS[t];
-      breakdown[t] = { done: d, total: tot, weight: w, doneUnits: d * w, totalUnits: tot * w };
       if (!included(t, include)) continue;
+      breakdown[t] = { done: d, total: tot, weight: w, doneUnits: d * w, totalUnits: tot * w };
       doneUnits += d * w;
       totalUnits += tot * w;
     }

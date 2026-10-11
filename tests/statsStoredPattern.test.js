@@ -20,7 +20,7 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const ROOT = path.join(__dirname, '..');
-const APP_SCRIPTS = ['constants.js', 'dmc-data.js', 'colour-utils.js', 'helpers.js', 'icons.js', 'components.js', 'insights-engine.js', 'components-stats.js'];
+const APP_SCRIPTS = ['constants.js', 'dmc-data.js', 'colour-utils.js', 'progress-units.js', 'helpers.js', 'icons.js', 'components.js', 'insights-engine.js', 'components-stats.js'];
 
 function makeWindow() {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {

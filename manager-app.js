@@ -1519,7 +1519,7 @@ function ManagerApp() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {storedProjects.map(p => {
-                    const pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+                    const pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
                     const isActive = ProjectStorage.getActiveProjectId() === p.id;
                     return (
                       <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isActive ? "var(--success-soft)" : "var(--surface)", border: `1px solid ${isActive ? "#C4DCB6" : "var(--border)"}`, borderRadius: 8, padding: "10px 14px" }}>

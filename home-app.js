@@ -61,18 +61,10 @@
   }
 
   function projectPct(p) {
-    if (!p || !p.pattern) return null;
-    var total = 0;
-    for (var i = 0; i < p.pattern.length; i += 1) {
-      var c = p.pattern[i];
-      if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
-    }
-    if (total <= 0) return null;
-    var done = 0;
-    if (p.done) {
-      for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
-    }
-    return Math.round(done / total * 100);
+    if (!p || !(p.pattern || p.p)) return null;
+    var r = ProgressUnits.fromProject(p);
+    if (r.totalUnits <= 0) return null;
+    return Math.round(r.percent);
   }
 
   function activateAndGo(id, href) {

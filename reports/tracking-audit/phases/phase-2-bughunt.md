@@ -44,3 +44,11 @@ Safari and Firefox; real devices; the Activity tab with a very large history (th
 
 ### Not verified
 Safari, Firefox, real devices; a `.csync` round trip with unit-bearing sessions.
+
+### Review round 1 (Copilot on PR 283; six findings)
+- **Rows rounded away the exact percentage (High).** True for very small projects (1 full + 1 half side with only the half done is 33.3% but whole 1/2 reads 50%). Both summary rows now carry `pct` (one decimal from the unrounded units), and the library, Manager, command palette and Stats project lists use it, falling back to done/total for older rows.
+- **Home card still counted full stitches (Medium).** True; `projectPct` in `home-app.js` now uses `ProgressUnits.fromProject`.
+- **Breakdown listed hidden types (Medium).** True; `include` now filters the breakdown too.
+- **Header chip and popover followed the strip's layer filter (Medium).** True; only the strip is filtered, the chip and popover use all layers like Stats and share text.
+- **Milestones weighted half stitches as 1 and ignored knots (Medium).** True; the check now uses weighted units and the unit total.
+- **Project Stats: rounded props, and other-project tabs counted full stitches only (Medium).** The other-project tab was true and is fixed (`fromProject`). The rounded props for the open project differ from the exact figure only on projects of a few stitches; the percentage shown there comes from the whole numbers, so I left it and say so on the thread.

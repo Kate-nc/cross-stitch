@@ -44,6 +44,9 @@ const ProjectStorage = (() => {
       updatedAt: p.updatedAt,
       totalStitches: totalSt,
       completedStitches: completedSt,
+      // Exact percentage (one decimal) from the unrounded units: whole done/total can differ from it by a
+      // fraction on very small projects.
+      pct: prog.percent,
       isComplete: prog.complete,
       unitsV: PROGRESS_ROW_VERSION,
       // Root cause of S6: finishStatus must flow through to summary consumers so
@@ -175,6 +178,7 @@ const ProjectStorage = (() => {
       dimensions: { width: s.sW || 0, height: s.sH || 0 },
       totalStitches: totalSt,
       completedStitches: completedSt,
+      pct: prog.percent,
       // Which progress definition these figures use (see refreshProgressRows).
       unitsV: PROGRESS_ROW_VERSION,
       // Any stitching done at all, including half stitches alone (completedStitches counts full stitches and

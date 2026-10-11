@@ -85,3 +85,17 @@ test('done, to go and total always add up once rounded for display', () => {
   expect(PU.roundUnits(r.doneUnits) + PU.remainingWhole(r)).toBe(PU.roundUnits(r.totalUnits));
   expect(PU.remainingWhole(PU.progressUnits({ full: { done: 5, total: 5 } }))).toBe(0);
 });
+
+describe('review round 1 (batch 2)', () => {
+  const PU = require('../progress-units.js');
+  test('breakdown only lists the types that are included', () => {
+    const r = PU.progressUnits({ full: { done: 1, total: 2 }, half: { done: 1, total: 2 } }, { include: ['full'] });
+    expect(PU.breakdownText(r)).toBe('');
+    expect(r.totalUnits).toBe(2);
+  });
+  test('fromProject keeps the exact percentage that whole done/total would blur', () => {
+    const r = PU.fromProject({ pattern: [{ id: '310' }], done: [0], halfStitches: [[0, { fwd: 1 }]], halfDone: [[0, { fwd: 1 }]] });
+    expect(r.doneUnits).toBe(0.5);
+    expect(r.percent).toBeCloseTo(33.3, 1);
+  });
+});

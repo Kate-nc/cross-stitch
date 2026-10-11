@@ -1048,7 +1048,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
 
     React.createElement('div', {className:'comparison-bars'},
       barProjects.map(function(p) {
-        var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
         var isComplete = pct >= 100;
         var isCurrent = p.id === currentProjectId;
         return React.createElement('div', {
@@ -1084,7 +1084,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
         ),
         React.createElement('tbody', null,
           sorted.map(function(p) {
-            var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+            var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
             var isComplete = pct >= 100;
             var isCurrent = p.id === currentProjectId;
             var w = p.dimensions ? p.dimensions.width : 0;
@@ -1717,7 +1717,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         if (a.isComplete !== b.isComplete) return a.isComplete ? 1 : -1;
         return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
       }).map(function(p) {
-        var pct = p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0;
+        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
         var remaining = Math.max(0, p.totalStitches - p.completedStitches);
         var color = p.projectColor || assignProjectColor(p.id);
         return React.createElement('div', {key: p.id, className: 'gsd-project-card', onClick: function() { if (onViewProject) onViewProject(p.id); }},
@@ -1893,8 +1893,9 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     var lpSessions = lp.statsSessions || [];
     var lpDone = lp.done || null;
     var lpPat = restoreStoredPattern(lp);
-    var lpTotal = lpPat ? lpPat.filter(function(c) { return c && c.id !== '__skip__' && c.id !== '__empty__'; }).length : 0;
-    var lpCompleted = lpDone ? (Array.isArray(lpDone) ? lpDone.reduce(function(n, v) { return n + (v === 1 ? 1 : 0); }, 0) : 0) : 0;
+    var lpProg = ProgressUnits.fromProject(lp);
+    var lpTotal = Math.round(lpProg.totalUnits);
+    var lpCompleted = Math.round(lpProg.doneUnits);
     var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
     var lpCDone = {};
     if (lpPat && lpDone) {
