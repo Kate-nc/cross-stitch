@@ -222,6 +222,9 @@ const ProjectStorage = (() => {
       dimensions: { width: s.sW || 0, height: s.sH || 0 },
       totalStitches: totalSt,
       completedStitches: completedSt,
+      // Any stitching done at all, including half stitches alone (completedStitches counts full stitches and
+      // knots only). Used to decide whether a backup reminder is worth showing.
+      anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))),
       source: p.source || p.page || "unknown",
       sessionCount: sessions.length,
       totalMinutes: totalMinutes,

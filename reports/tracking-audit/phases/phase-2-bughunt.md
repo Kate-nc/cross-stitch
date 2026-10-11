@@ -22,3 +22,9 @@ Safari and Firefox; real devices; the Activity tab with a very large history (th
 
 ### CI round (batch 1)
 - CI failed on the first push: `creator/bundle.js` was stale (I had edited `creator/useCreatorState.js` and not rebuilt the bundle). `npm test` did not catch it because the staleness check is a CI step, not a test. Rebuilt and pushed, and added `tests/bundlesUpToDate.test.js`, which runs the same builds and fails (leaving the tree unchanged) if a committed bundle would differ; checked by appending a line to a Creator source file.
+
+### Review round 1 (Copilot on PR 282; four findings, all verified)
+- **Deferred snapshot could land in another project (High).** True: the idle callback was not tied to the project that scheduled it. It now captures the project id and drops itself if another project is open when it runs (a snapshot lost to a project switch within the idle window is acceptable; wrong-project data is not).
+- **Daily snapshot never fired across a reload (Medium).** True, and the E2E test hid it by advancing the clock inside one mounted page. The last stitching day is now restored on load from the newest session, then `lastTouchedAt`, then `updatedAt` (a very short session is not recorded at all, found while testing, so the fallbacks matter). New browser test reloads between the two days.
+- **Size mismatch used only the cell count (Medium).** True (10x20 and 20x10 have the same count). The stored `w` and `h` now decide, length is the fallback for older snapshots, and manual snapshots record the size too.
+- **Home gate missed half-stitch-only projects (Medium).** True: `completedStitches` counts full stitches and knots only. Project meta rows now carry `anyProgress` (includes half stitches); Home uses it. Rows saved before this change get the field the next time the project is saved, so a legacy half-stitch-only project does not trigger the reminder until then.

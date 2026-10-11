@@ -2445,8 +2445,10 @@ useEffect(()=>{
         if(!lastSnapshotDateRef.current){
           lastSnapshotDateRef.current=today;
         } else if(lastSnapshotDateRef.current!==today){
-          const copy=done.slice(),dayOf=lastSnapshotDateRef.current,marks=curDone,w=sW,hgt=sH;
+          const copy=done.slice(),dayOf=lastSnapshotDateRef.current,marks=curDone,w=sW,hgt=sH,forProject=projectIdRef.current;
           const make=()=>{
+            // The user may have opened another project while this waited for an idle moment.
+            if(projectIdRef.current!==forProject)return;
             try{
               const b=pako.deflate(copy);
               const C=0x8000;let o='';for(let i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));
@@ -3673,7 +3675,24 @@ function processLoadedProject(project){
   persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
   // Restore done-state snapshots and reset the day-tracking ref
   setDoneSnapshots(project.doneSnapshots||[]);
+  // The last stitching day seen, so opening the Tracker on a later day still notices the change of day
+  // (it used to start from nothing on every load, and the snapshot only fired if the page stayed open
+  // across midnight). The newest session's date is that day (sessions are saved when the Tracker closes);
+  // lastTouchedAt, then updatedAt, are the fallbacks. A project with nothing marked has no day yet.
   lastSnapshotDateRef.current=null;
+  try{
+    const hasMarks=project.done&&Array.from(project.done).some(v=>v===1);
+    let lastDay=null;
+    (project.statsSessions||[]).forEach(s=>{if(s&&s.date&&(!lastDay||s.date>lastDay))lastDay=s.date;});
+    // A very short session is not recorded at all, so fall back to when the project was last touched or saved.
+    const deh=(project.statsSettings&&project.statsSettings.dayEndHour)||0;
+    [project.lastTouchedAt,project.updatedAt].forEach(t=>{
+      if(lastDay||!t)return;
+      const d=new Date(t);
+      if(!isNaN(d.getTime()))lastDay=getStitchingDate(d,deh);
+    });
+    if(lastDay&&hasMarks)lastSnapshotDateRef.current=lastDay;
+  }catch(_){}
   // Reset auto-session count refs so loading doesn't trigger a spurious session
   // justLoadedRef stays true until the stitch-delta effect has run at least once,
   // protecting against the sentinel being consumed by a halfStitchCounts change

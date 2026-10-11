@@ -44,8 +44,27 @@ describe('daily snapshot', () => {
 
 describe('Stats > Compare with a snapshot from before a size change', () => {
   test('is not drawn on the current grid and says why', () => {
-    expect(STATS).toMatch(/if\(snapDone&&snapDone\.length!==pat\.length\)return;/);
-    expect(STATS).toMatch(/var sizeMismatch=!!\(snapDone&&pat&&snapDone\.length!==pat\.length\);/);
+    expect(STATS).toMatch(/if\(snapDone&&snapSizeDiffers\(snap,snapDone,pat,sW,sH\)\)return;/);
+    expect(STATS).toMatch(/var sizeMismatch=!!\(snapDone&&pat&&snapSizeDiffers\(snap,snapDone,pat,sW,sH\)\);/);
     expect(STATS).toMatch(/was taken before the pattern changed size/);
+  });
+});
+
+describe('review round 1', () => {
+  test('the deferred snapshot is dropped if another project was opened while it waited', () => {
+    expect(TRACKER).toMatch(/forProject=projectIdRef\.current;[\s\S]{0,200}if\(projectIdRef\.current!==forProject\)return;/);
+  });
+  test('the last stitching day is restored on load from the newest session, then lastTouchedAt, then updatedAt, not reset to nothing', () => {
+    expect(TRACKER).toMatch(/if\(s&&s\.date&&\(!lastDay\|\|s\.date>lastDay\)\)lastDay=s\.date;/);
+    expect(TRACKER).toMatch(/\[project\.lastTouchedAt,project\.updatedAt\]\.forEach/);
+    expect(TRACKER).toMatch(/if\(lastDay&&hasMarks\)lastSnapshotDateRef\.current=lastDay;/);
+  });
+  test('Compare trusts the stored size first (10x20 and 20x10 have the same cell count) and records it on manual snapshots', () => {
+    expect(STATS).toMatch(/if\(sn&&sn\.w&&sn\.h&&\(sn\.w!==w\|\|sn\.h!==h\)\)return true;\s*return snapDone\.length!==patArr\.length;/);
+    expect(STATS).toMatch(/doneCount:doneCount,w:sW,h:sH,data:data/);
+  });
+  test('Home asks the meta row for any progress, which includes half stitches', () => {
+    expect(read('home-app.js')).toMatch(/p\.anyProgress \|\| p\.completedStitches > 0/);
+    expect(read('project-storage.js')).toMatch(/anyProgress: completedSt > 0 \|\| \(Array\.isArray\(p\.halfDone\)/);
   });
 });

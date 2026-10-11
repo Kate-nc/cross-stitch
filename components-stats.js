@@ -862,10 +862,18 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     if(!pat)return;
     var snapDone=snap?decompressSnap(snap.data):null;
     // A snapshot from before the pattern changed size cannot be drawn on today's grid.
-    if(snapDone&&snapDone.length!==pat.length)return;
+    if(snapDone&&snapSizeDiffers(snap,snapDone,pat,sW,sH))return;
     if(snapDone&&leftCanvasRef.current)renderComparisonCanvas(leftCanvasRef.current,pat,sW,sH,snapDone);
     if(snapDone&&showDiff&&diffCanvasRef.current)renderDiffCanvas(diffCanvasRef.current,pat,sW,sH,snapDone,done||new Uint8Array(pat.length));
   },[snap,done,pat,sW,sH,showDiff]);
+
+  // A snapshot made when the pattern had another size cannot be drawn on this grid. The size stored with the
+  // snapshot decides (10x20 and 20x10 have the same number of cells); older snapshots have none, so their
+  // length is compared instead.
+  function snapSizeDiffers(sn,snapDone,patArr,w,h){
+    if(sn&&sn.w&&sn.h&&(sn.w!==w||sn.h!==h))return true;
+    return snapDone.length!==patArr.length;
+  }
 
   function saveManualSnapshot(){
     if(!done||!pat)return;
@@ -874,7 +882,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
       var data=uint8ToBase64(pako.deflate(done));
       var today=new Date().toISOString().slice(0,10);
       var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
-      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,data:data};
+      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,w:sW,h:sH,data:data};
       setDoneSnapshots(function(prev){
         var updated=[...prev,newSnap];
         var labelled=updated.filter(function(s){return s.label!=='auto';});
@@ -892,7 +900,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   var newCount=done?Array.from(done).filter(function(v){return v;}).length:0;
   var oldCount=snapDone?Array.from(snapDone).filter(function(v){return v;}).length:0;
   var diff=newCount-oldCount;
-  var sizeMismatch=!!(snapDone&&pat&&snapDone.length!==pat.length);
+  var sizeMismatch=!!(snapDone&&pat&&snapSizeDiffers(snap,snapDone,pat,sW,sH));
 
   var canvasW=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sW:0;
   var canvasH=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sH:0;

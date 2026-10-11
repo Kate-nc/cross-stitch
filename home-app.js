@@ -1177,7 +1177,7 @@
             setList(sorted);
             // Once someone has stitched something worth protecting, offer a backup if it has been a while.
             // Same once-per-session gate as the Tracker's, so it never shows twice in a visit.
-            if (window.BackupReminder && sorted.some(function (p) { return p && p.completedStitches > 0; })) {
+            if (window.BackupReminder && sorted.some(function (p) { return p && (p.anyProgress || p.completedStitches > 0); })) {
               setTimeout(function () { window.BackupReminder.maybeRemind(); }, 4000);
             }
           }).catch(function () {});

@@ -99,3 +99,35 @@ test('Home offers nothing when nothing has been stitched yet', async ({ page }) 
   await page.waitForTimeout(7000);
   await expect(page.getByText(/Your last backup was/)).toHaveCount(0);
 });
+
+test('the daily snapshot also works when the Tracker is closed and reopened between the two days', async ({ page }) => {
+  // The clock offset survives reloads, so day two starts in a freshly loaded page.
+  await page.addInitScript(() => {
+    const Real = Date;
+    const off = () => { try { return Number(localStorage.getItem('__off') || 0); } catch (_) { return 0; } };
+    window.Date = class extends Real {
+      constructor(...a) { if (a.length === 0) super(Real.now() + off()); else super(...a); }
+      static now() { return Real.now() + off(); }
+    };
+  });
+  await loadTrackerFixture(page);
+  const mark = async (gx, gy) => { const p = await trackerCellPoint(page, gx, gy); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
+  await mark(3, 3);                                          // day one
+  await page.evaluate(() => window.__flushProjectToIDB());
+  const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+  await page.goto('/home.html');                             // leave: the session ends and is saved
+  await page.evaluate(() => localStorage.setItem('__off', String(36 * 3600 * 1000)));   // next stitching day
+  await page.goto('/stitch.html?id=' + id);
+  await page.waitForSelector(TRACKER_CANVAS);
+  await page.waitForTimeout(800);
+  const recap = page.locator('.resume-recap-overlay');
+  if (await recap.count()) { await recap.getByRole('button', { name: /continue/i }).click(); await page.waitForTimeout(200); }
+  await mark(4, 3);                                          // first mark of day two, in a fresh page
+  await expect.poll(async () => {
+    await page.evaluate(() => window.__flushProjectToIDB());
+    return page.evaluate(async () => {
+      const p = await ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+      return (p.doneSnapshots || []).filter(s => s.label === 'auto').length;
+    });
+  }, { timeout: 15000 }).toBe(1);
+});
