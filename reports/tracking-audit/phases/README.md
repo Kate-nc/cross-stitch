@@ -12,5 +12,7 @@ Each phase is a self-contained prompt for an AI agent. Review them in order; not
 | [phase-05-legibility-orientation-accessibility.md](phase-05-legibility-orientation-accessibility.md) | Legibility, orientation, accessibility | TRACK-09, 10, COMMON-02 |
 | [phase-06-stitch-types-and-extras.md](phase-06-stitch-types-and-extras.md) | More stitch types and project extras | TRACK-04, 13, 14 |
 
+Phase 1 is complete: see [phase-1-report.md](phase-1-report.md).
+
 Agents write `phase-N-progress.md` and `phase-N-bughunt.md` beside these files as they work.
 The audit's investigation scripts are in [../harness/](../harness/README.md).

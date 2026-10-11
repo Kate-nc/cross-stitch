@@ -111,3 +111,7 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - **No focus trap or Escape handling (Medium).** True: the dialog now uses the shared `Overlay` (focus trap, scroll lock, Escape stack) with no close handler and no scrim dismissal, so only its buttons answer it. A browser test presses Escape and Tab.
 - **"Whichever you choose" and "Either way" wording (Low, two places).** True: Leave writes nothing and makes no snapshot. Both texts now say so.
 - **Stale comment in `tracking-merge.js` (Low).** True: rewritten to say both readings are returned when both fit and only an empty result means unknown.
+
+## End of phase (cross-cutting)
+
+See `phase-1-report.md`. In short: restoring a backup while the Tracker had unsaved marks was silently undone by the page's own unload save (fixed with a short-lived restore mark checked by every project writer); answering "Keep my edits" to a broadcast did not stop the next save asking again (fixed by noting the remote write as seen); a full disk, offline use, and a Creator rename alongside a Tracker with unsaved marks all behaved correctly. Intermittent `save-durability` test (second drag, about 1 in 6 to 12) reproduces on the commit before Phase 1, so it is pre-existing and undiagnosed.

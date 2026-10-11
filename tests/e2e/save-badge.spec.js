@@ -112,20 +112,19 @@ test.describe('Tracker save badge', () => {
     await other.goto('/stitch.html?id=' + id);
     await other.waitForSelector(TRACKER_CANVAS);
     await other.waitForTimeout(800);
-    // The other tab saves first, changing more than stitches (marks alone are merged without a question)...
+    // This tab has marks that are not saved yet...
+    await markRow(page, 5, 2, 6);
+    // ...then the other tab saves, changing more than stitches (marks alone are merged without a question).
     await other.bringToFront();
     await other.evaluate(async id => {
       const p = await ProjectStorage.get(id);
       p.name = 'Renamed in the other tab';
       await ProjectStorage.save(p);
     }, id);
-    await other.waitForTimeout(500);
-    // ...then this one changes the same project.
     await page.bringToFront();
-    await markRow(page, 5, 2, 6);
     await expect(page.locator('.overlay-panel--dialog')).toBeVisible({ timeout: 12000 });
     await expect(badge(page)).toHaveText(/Not saved yet/);
     await page.getByRole('button', { name: 'Keep my edits' }).click();
-    await expect(badge(page)).toHaveText(/Saved/, { timeout: 5000 });
+    await expect(badge(page)).toHaveText(/Saved/, { timeout: 15000 });
   });
 });

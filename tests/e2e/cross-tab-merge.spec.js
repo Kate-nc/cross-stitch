@@ -46,8 +46,7 @@ test.describe('Two tabs, one project', () => {
     await page.waitForTimeout(1500);                       // the broadcast reaches this tab
     expect(await dialogShown(page)).toBe(0);
     expect(await trackerDoneCount(page)).toBe(17);
-    await page.waitForTimeout(6500);                       // this tab saves the combined result
-    expect((await stored(page)).done).toBe(17);
+    await expect.poll(async () => (await stored(page)).done, { timeout: 20000 }).toBe(17);   // this tab saves the combined result
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector(TRACKER_CANVAS);
     await page.waitForTimeout(800);

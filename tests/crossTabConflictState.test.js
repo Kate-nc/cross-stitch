@@ -43,3 +43,17 @@ test('with no dialog available nothing is announced (nothing is waiting)', async
   expect(await api.handle({})).toBe('keep');
   expect(events).toEqual([]);
 });
+
+test('answering "Keep my edits" to a broadcast notes the remote write as seen, so the next save does not ask again', async () => {
+  let onBroadcast; const seen = [];
+  const win = {
+    ConfirmDialog: { show: () => Promise.resolve(false) },          // Keep my edits
+    UserPrefs: { get: () => 'prompt' },
+    CrossTabCoord: { onProjectChanged: fn => { onBroadcast = fn; }, noteSeen: (...a) => seen.push(a) },
+    dispatchEvent: () => true, location: { reload: () => {} }, localStorage: { getItem: () => 'proj_a' }
+  };
+  new Function('window', 'localStorage', 'document', 'console', 'CustomEvent', RES_SRC)(win, win.localStorage, {}, console, class {});
+  onBroadcast({ projectId: 'proj_a', lastWriteAt: 123, lastWriteTabId: 'tab_b' });
+  await new Promise(r => setTimeout(r, 20));
+  expect(seen).toEqual([['proj_a', 123, 'tab_b']]);
+});

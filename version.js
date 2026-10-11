@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.112';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.113',
+    date: 'October 2026',
+    notes: [
+      'Restoring a backup while a project is open in the Stitch Tracker now restores the backup. Before, the open page could write its own copy back over the restored project as it reloaded. Also, answering "Keep my edits" to the "changed in another tab" question no longer makes the next save ask the same question again.',
+    ]
+  },
+  {
     version: '1.0.112',
     date: 'October 2026',
     notes: [
