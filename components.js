@@ -159,7 +159,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var liveTodayStitches = todayStitches;
     var liveTodaySeconds = todaySeconds;
     if (currentAutoSession) {
-      liveTodayStitches += ProgressUnits.liveSessionNet(currentAutoSession);
+      liveTodayStitches += ProgressUnits.liveSessionAdded(currentAutoSession);
       var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 1000);
       liveTodaySeconds += Math.max(0, elapsed);
     }
@@ -167,7 +167,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
     var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
     var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
-    var liveExtra = currentAutoSession ? ProgressUnits.liveSessionNet(currentAutoSession) : 0;
+    var liveExtra = currentAutoSession ? ProgressUnits.liveSessionAdded(currentAutoSession) : 0;
     var activeGoal = null;
     if (dailyGoal > 0) {
       var gPct = liveTodayStitches / dailyGoal * 100;

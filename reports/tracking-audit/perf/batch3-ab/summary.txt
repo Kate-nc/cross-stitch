@@ -1,0 +1,6 @@
+loadToCanvasMs       main med   1424 [1188-1656] n=12   branch med   1402 [1289-1635] n=12   -1.5%
+tapLatencyMs         main med     18 [13-22] n=12   branch med     15 [13-18] n=12   -14.3%
+drag60Ms             main med   1061 [1033-1412] n=12   branch med   1067 [1039-1168] n=12   +0.6%
+dragFrameGapP95Ms    main med     17 [17-67] n=12   branch med     17 [17-17] n=12   +0.0%
+projectStatsOpenMs   main med     70 [63-84] n=12   branch med     68 [59-83] n=12   -2.9%
+globalStatsOpenMs    main med    632 [576-697] n=12   branch med    610 [558-670] n=12   -3.5%

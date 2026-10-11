@@ -1068,7 +1068,9 @@ function computeWeightedPace(sessions, daysWindow) {
   var dailyTotals = {};
   for (var i = 0; i < sessions.length; i++) {
     var s = sessions[i];
-    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionNet(s);
+    // A day that only unpicked or only caught up is not a stitching day: it must not pull the pace down.
+    if (!ProgressUnits.sessionActive(s)) continue;
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionAdded(s);
   }
   var dates = Object.keys(dailyTotals).sort().reverse().slice(0, daysWindow);
   if (dates.length === 0) return null;
@@ -1086,9 +1088,9 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   var totalSeconds = statsSessions.reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
   var totalHours = totalSeconds / 3600;
   var totalMinutes = Math.round(totalSeconds / 60);
-  var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + ProgressUnits.sessionNet(s); }, 0);
+  var totalNetStitches = statsSessions.reduce(function(sum, s) { return sum + ProgressUnits.sessionAdded(s); }, 0);
   var stitchesPerHour = totalHours > 0 ? Math.round(totalNetStitches / totalHours) : 0;
-  var uniqueDays = new Set(statsSessions.map(function(s) { return s.date; })).size;
+  var uniqueDays = new Set(statsSessions.filter(ProgressUnits.sessionActive).map(function(s) { return s.date; })).size;
   var sortedDates = Array.from(new Set(statsSessions.map(function(s) { return s.date; }))).sort();
   var firstDate = sortedDates.length > 0 ? new Date(sortedDates[0] + 'T12:00:00') : null;
   var elapsedDays = firstDate ? Math.max(1, Math.ceil((Date.now() - firstDate.getTime()) / 86400000)) : uniqueDays;
@@ -1125,7 +1127,13 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
 
 // Shared helper: filter sessions by a date matcher and sum netStitches.
 function filterSessionsByDateRange(sessions, matcher) {
-  return (sessions || []).filter(matcher).reduce(function(sum, s) { return sum + ProgressUnits.sessionNet(s); }, 0);
+  return (sessions || []).filter(matcher).reduce(function(sum, s) { return sum + ProgressUnits.sessionAdded(s); }, 0);
+}
+
+// Stitches taken out again today (unpicked), shown beside Today rather than taken off it.
+function getStatsTodayUnpicked(sessions, dayEndHour) {
+  var today = getStitchingDate(new Date(), dayEndHour || 0);
+  return (sessions || []).reduce(function(sum, s) { return s.date === today ? sum + ProgressUnits.sessionUnpicked(s) : sum; }, 0);
 }
 
 function getStatsTodayStitches(sessions, dayEndHour) {
@@ -1245,7 +1253,7 @@ function getDailyStitchData(sessions, daysToShow, dayEndHour) {
     var dayStitches = 0;
     if (sessions) {
       for (var j = 0; j < sessions.length; j++) {
-        if (sessions[j].date === dateStr) dayStitches += ProgressUnits.sessionNet(sessions[j]);
+        if (sessions[j].date === dateStr) dayStitches += ProgressUnits.sessionAdded(sessions[j]);
       }
     }
     data.push({ date: dateStr, stitches: dayStitches, isToday: dateStr === today });
@@ -1302,7 +1310,8 @@ function computeStreaks(sessions, dayEndHour) {
   var seen = {};
   for (var i = 0; i < sessions.length; i++) {
     var d = sessions[i].date;
-    if (d && !seen[d]) { seen[d] = true; dates.push(d); }
+    // A day that only unpicked or caught up is not a stitching day.
+    if (d && !seen[d] && ProgressUnits.sessionActive(sessions[i])) { seen[d] = true; dates.push(d); }
   }
   dates.sort();
   if (dates.length === 0) return { current: 0, longest: 0 };
@@ -1355,7 +1364,7 @@ function findBestDay(sessions) {
   var dailyTotals = {};
   for (var i = 0; i < sessions.length; i++) {
     var s = sessions[i];
-    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionNet(s);
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionAdded(s);
   }
   var bestDate = null;
   var bestCount = 0;
@@ -1443,7 +1452,7 @@ function generateSessionCSV(sessions) {
   var headers = [
     'Date', 'Start Time', 'End Time', 'Duration (min)',
     'Stitches Completed', 'Stitches Undone', 'Net Stitches',
-    'Cumulative Total', 'Percent Complete', 'Note'
+    'Cumulative Total', 'Percent Complete', 'Note', 'Catch-up'
   ];
   var rows = [];
   var sorted = (sessions || []).slice().sort(function(a, b) {
@@ -1457,7 +1466,7 @@ function generateSessionCSV(sessions) {
     rows.push([
       s.date, startT, endT, s.durationMinutes,
       s.unitsCompleted != null ? s.unitsCompleted : s.stitchesCompleted, s.unitsCompleted != null ? s.unitsUndone : s.stitchesUndone, ProgressUnits.sessionNet(s),
-      s.totalAtEnd, s.percentAtEnd, '"' + note + '"'
+      s.totalAtEnd, s.percentAtEnd, '"' + note + '"', ProgressUnits.sessionCatchUp(s)
     ].join(','));
   }
   return [headers.join(',')].concat(rows).join('\n');
@@ -1485,11 +1494,11 @@ function getSpeedTrendData(sessions) {
     return new Date(a.startTime) - new Date(b.startTime);
   });
   return sorted
-    .filter(function(s) { return getSessionSeconds(s) >= 600 && ProgressUnits.sessionNet(s) > 0; })
+    .filter(function(s) { return getSessionSeconds(s) >= 600 && ProgressUnits.sessionAdded(s) > 0; })
     .map(function(s) {
       return {
         date: s.date,
-        speed: Math.round(ProgressUnits.sessionNet(s) / (getSessionSeconds(s) / 3600))
+        speed: Math.round(ProgressUnits.sessionAdded(s) / (getSessionSeconds(s) / 3600))
       };
     });
 }

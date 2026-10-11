@@ -104,6 +104,38 @@
     return s.units != null ? s.units : (s.netStitches || 0);
   }
 
+  // Stitches ADDED by a session, in units: what it marked, leaving out catch-up marks (bulk "mark all" and the
+  // like, which raise progress but are not stitching done today) and never reduced by unpicking. This is what
+  // Today, speed, pace, goals, best day and streaks read. Sessions from before units existed carry
+  // stitchesCompleted; from before that, only a net figure (a negative one means nothing was added).
+  function sessionAdded(s) {
+    if (!s) return 0;
+    var c = s.unitsCompleted != null ? s.unitsCompleted
+      : (s.stitchesCompleted != null ? s.stitchesCompleted : Math.max(0, sessionNet(s)));
+    return Math.max(0, (c || 0) - (s.catchUp || 0));
+  }
+  // Stitches taken out again (unpicked), in units, shown on their own line and never netted into pace.
+  function sessionUnpicked(s) {
+    if (!s) return 0;
+    if (s.unitsUndone != null) return s.unitsUndone || 0;
+    if (s.stitchesUndone != null) return s.stitchesUndone || 0;
+    return Math.max(0, -sessionNet(s));
+  }
+  // Whether a session counts as stitching activity for streaks and active days: it added something. A session
+  // with no stitch figures at all (hand-made or imported with only a duration) still counts, as it always did.
+  function sessionActive(s) {
+    if (!s) return false;
+    if (s.unitsCompleted == null && s.units == null && s.stitchesCompleted == null && s.netStitches == null) return true;
+    return sessionAdded(s) > 0;
+  }
+  function sessionCatchUp(s) { return (s && s.catchUp) || 0; }
+  // The live session's additions so far (see sessionAdded).
+  function liveSessionAdded(cur) {
+    if (!cur) return 0;
+    var c = cur.unitsCompleted != null ? cur.unitsCompleted : (cur.stitchesCompleted || 0);
+    return Math.max(0, c - (cur.catchUp || 0));
+  }
+
   // ── From a stored project record (Home, library, Stats pages: no Tracker counters there) ──
   // Cached per array reference, like the counts the library always kept, so a save does not rescan an unchanged chart.
   var _totalCache = (typeof WeakMap !== "undefined") ? new WeakMap() : null;
@@ -168,7 +200,8 @@
 
   var api = {
     WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
-    sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
+    sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
+    sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionActive: sessionActive, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
     breakdownText: breakdownText
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

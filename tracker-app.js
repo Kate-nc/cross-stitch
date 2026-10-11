@@ -1158,6 +1158,9 @@ const resumeRecapShownRef=useRef(new Set());
 // The pattern's size no longer matches the saved marks: held here until the user decides (see
 // processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
 const[reconcile,setReconcile]=useState(null);
+// Marking a whole colour done: asked once whether it counts as today's stitching or as catch-up (remembered).
+const[markAllAsk,setMarkAllAsk]=useState(null);
+const catchUpFlagRef=useRef(false);
 const savesBlockedRef=useRef(false);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
@@ -2387,6 +2390,8 @@ useEffect(()=>{
     if(!pat||!done)return;
     const curDone=doneCount;
     const curHalf=(halfStitchCounts&&halfStitchCounts.done)||0;
+    // A whole-colour Done the person called catch-up: this pass's additions are catch-up, then the flag is spent.
+    const asCatchUp=catchUpFlagRef.current;catchUpFlagRef.current=false;
     const prev=prevAutoCountRef.current||{done:0,halfDone:0};
     const prevDone=prev.done;
     const prevHalf=prev.halfDone;
@@ -2411,7 +2416,7 @@ useEffect(()=>{
       const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff);
       const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff)});
       const undoneUnits=ProgressUnits.sessionUnits({full:Math.max(0,-doneDiff),half:Math.max(0,-halfDiff),knot:Math.max(0,-knotDiff)});
-      if(completed>0||undone>0)recordAutoActivity(completed,undone,completedUnits,undoneUnits);
+      if(completed>0||undone>0)recordAutoActivity(completed,undone,completedUnits,undoneUnits,asCatchUp?completedUnits:0);
       // Milestone detection
       if(completedUnits>0&&combinedTotal>0){
         const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot});
@@ -2731,10 +2736,22 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-function markColourDone(cid,md){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
+function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
   // In a work area "all" means all of this colour inside the area.
   const _a=areaOn?workArea:null;
-  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){if(md&&asCatchUp)catchUpFlagRef.current=true;pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+// Whole-colour Done: unmarking goes straight through; marking uses the remembered choice, or asks once.
+function requestMarkColourDone(cid,md){
+  if(!md){markColourDone(cid,false);return;}
+  let pref='ask';try{pref=(window.UserPrefs&&window.UserPrefs.get('trackerMarkAllAs'))||'ask';}catch(_){}
+  if(pref==='catchup'||pref==='today'){markColourDone(cid,true,pref==='catchup');return;}
+  setMarkAllAsk({cid});
+}
+function answerMarkAllAsk(asCatchUp){
+  const a=markAllAsk;setMarkAllAsk(null);if(!a)return;
+  try{if(window.UserPrefs)window.UserPrefs.set('trackerMarkAllAs',asCatchUp?'catchup':'today');}catch(_){}
+  markColourDone(a.cid,true,asCatchUp);
+}
 function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
 function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
@@ -7173,7 +7190,10 @@ return(
   </button>
   {progressInfoOpen && window.AppInfoPopover && (() => {
     const totalSec = (typeof totalTime === 'number' ? totalTime : 0);
-    const speedPerHour = totalSec > 0 && combinedDone > 0 ? Math.round(combinedDone / (totalSec/3600)) : 0;
+    // Pace comes from what sessions added (not from everything marked, which includes catch-up and unpicking).
+    const addedAllSessions = (statsSessions||[]).reduce((a,x)=>a+ProgressUnits.sessionAdded(x),0);
+    const speedPerHour = totalSec > 0 && addedAllSessions > 0 ? Math.round(addedAllSessions / (totalSec/3600)) : 0;
+    const unpickedToday = getStatsTodayUnpicked(statsSessions||[], (statsSettings&&statsSettings.dayEndHour)||0) + (currentAutoSessionRef.current?(currentAutoSessionRef.current.unitsUndone||0):0);
     const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
     const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
     const progressRows = [
@@ -7181,6 +7201,7 @@ return(
       ['Today', ProgressUnits.formatUnits(todayStitchesForBar)],
       ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
+    if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
     const timeRows = [['Time spent', fmtL(totalSec)]];
     if (speedPerHour > 0) {
       timeRows.push(['Average pace', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
@@ -7192,7 +7213,7 @@ return(
     const sparkDays=(()=>{
       if(!Array.isArray(statsSessions)||statsSessions.length===0)return[];
       const byDay={};
-      for(const s of statsSessions){if(s.date&&(ProgressUnits.sessionNet(s)||0)>0)byDay[s.date]=(byDay[s.date]||0)+(ProgressUnits.sessionNet(s)||0);}
+      for(const s of statsSessions){if(s.date&&(ProgressUnits.sessionAdded(s)||0)>0)byDay[s.date]=(byDay[s.date]||0)+(ProgressUnits.sessionAdded(s)||0);}
       return Object.keys(byDay).sort().slice(-30).map(d=>({date:d,count:byDay[d]}));
     })();
     const sparkMax=sparkDays.length>0?Math.max(...sparkDays.map(d=>d.count)):0;
@@ -7480,7 +7501,7 @@ return(
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     <button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}markColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}requestMarkColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
                       title={complete?"Mark as not done":"Mark all as done"}
                     >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
@@ -8222,7 +8243,25 @@ return(
     const activeSessionIdx=statsSessions?statsSessions.length:0;
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
-    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.units==='number'||typeof sess.netStitches==='number'?ProgressUnits.sessionNet(sess):(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(ProgressUnits.sessionAdded(sess)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+  })()}
+  {markAllAsk&&(()=>{
+    const O=window.Overlay;
+    const body=<>
+      <h3 id="markall-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>Count these as today's stitching?</h3>
+      <div id="markall-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
+        <p style={{marginTop:0}}>Catch-up marks raise your progress but are left out of today's count, your pace, your goals and your streak. Use it when you are recording stitching you already did, for example on paper.</p>
+        <p style={{marginBottom:0}}>I will remember your answer. You can change it in Preferences, under Stitch Tracker.</p>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
+        <button className="resume-recap-btn resume-recap-btn--primary" autoFocus onClick={()=>answerMarkAllAsk(true)}>Count as catch-up</button>
+        <button className="resume-recap-btn" onClick={()=>answerMarkAllAsk(false)}>Count as today's stitching</button>
+        <button className="resume-recap-btn" onClick={()=>setMarkAllAsk(null)}>Cancel</button>
+      </div>
+    </>;
+    return O
+      ?<O variant="dialog" maxWidth={480} labelledBy="markall-title" describedBy="markall-body" onClose={()=>setMarkAllAsk(null)} panelProps={{'data-markall':'1'}}><div style={{padding:'var(--s-4)'}}>{body}</div></O>
+      :<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="markall-title"><div className="modal-content" style={{maxWidth:480}}>{body}</div></div>;
   })()}
   {reconcile&&(()=>{
     const cands=reconcile.candidates||[];

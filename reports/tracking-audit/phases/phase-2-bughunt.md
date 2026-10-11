@@ -52,3 +52,25 @@ Safari, Firefox, real devices; a `.csync` round trip with unit-bearing sessions.
 - **Header chip and popover followed the strip's layer filter (Medium).** True; only the strip is filtered, the chip and popover use all layers like Stats and share text.
 - **Milestones weighted half stitches as 1 and ignored knots (Medium).** True; the check now uses weighted units and the unit total.
 - **Project Stats: rounded props, and other-project tabs counted full stitches only (Medium).** The other-project tab was true and is fixed (`fromProject`). The rounded props for the open project differ from the exact figure only on projects of a few stitches; the percentage shown there comes from the whole numbers, so I left it and say so on the thread.
+
+## Batch 3: unpicking and catch-up
+
+### Exercised
+- `npm test` (298 suites, 3,968 tests), terminology lint, `node build-runtime-js.js --check`. Playwright: `phase2-batch3` (5), plus `progress-units`, `phase2-batch1`, `save-badge`, `backup-reminder`, `cross-tab-merge`, `pattern-change`, `phase1-hunt` (36 passed together).
+- The audit's worked example in a unit test and in the browser: unmarking three earlier stitches leaves Today at 0 and shows "Unpicked today 3"; the unit test of +50 / -80 gives Today 50, Unpicked 80, net -30, and a streak that counts the day only because of the +50.
+- Catch-up in the browser: marking a 200-stitch colour done and choosing Catch-up raises the strip from 20 to 220 done and leaves Today at 0; the remembered choice stops the question; "Today's stitching" gives Today 200; Preferences shows the row and saves the choice.
+- Data safety: no format change (optional `catchUp`); sessions without units, without `stitchesCompleted`, or with no stitch figures at all are read without error (unit tests); old sessions are untouched. A session with no stitch figures still counts as an active day.
+- Performance: interleaved A/B and tap bench, all within noise (progress log).
+
+### Bugs found
+- **Fixed here:** the first draft of the streak change would have dropped hand-made sessions that carry only a duration; `sessionActive` keeps them.
+- **Noted, not fixed:** a catch-up-only session still records at least a minute of active time (the session duration has a one-minute floor and a tail credit), which dilutes pace very slightly. Excluding the time of catch-up-only sessions is a small follow-up if wanted.
+- **Noted, not fixed:** a stitch marked and then unpicked in the same session still counts once as "added".
+- **Noted:** tagging "undo of marks from an earlier session" as catch-up was not done (the session that made a mark is not stored); undo is shown as Unpicked instead.
+
+### Not verified
+Safari, Firefox, real devices; the catch-up dialog with a screen reader (it uses the shared Overlay, which traps focus); a very large `.csync` round trip with `catchUp` sessions.
+
+### Review round 1 (Copilot on PR 284; six findings, all verified)
+- **Active days still counted inactive sessions (Medium, five places).** True: the streak helpers had the filter but the overview of recent pace (`insights-engine.js`), the weekly summary (`stats-insights.js`), global Stats active days and the this-week/last-week comparison (`components-stats.js`), project comparison metadata (`project-storage.js`) and `computeWeightedPace` (`helpers.js`, which gave an unpick-only day a zero weight that pulled pace down) still counted every dated session. All now use `ProgressUnits.sessionActive`. Two unit tests added (pace unchanged by an unpick-only or catch-up-only day; overview active days).
+- **Report said four e2e tests (Low).** True, there are five; corrected.

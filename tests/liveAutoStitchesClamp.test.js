@@ -6,8 +6,12 @@ const path = require('path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'useAutoSession.js'), 'utf8');
 
 describe('useAutoSession.js — liveAutoStitches clamp (DEFECT-011)', () => {
-  test('setLiveAutoStitches always wraps the difference in Math.max(0, ...)', () => {
-    expect(SRC).toMatch(/setLiveAutoStitches\(\s*Math\.max\(\s*0\s*,\s*currentAutoSessionRef\.current\.unitsCompleted\s*-\s*currentAutoSessionRef\.current\.unitsUndone\s*\)\s*\)/);
+  test('setLiveAutoStitches takes the session\'s additions, which are never negative', () => {
+    expect(SRC).toMatch(/setLiveAutoStitches\(\s*ProgressUnits\.liveSessionAdded\(\s*currentAutoSessionRef\.current\s*\)\s*\)/);
+    const PU = require('../progress-units.js');
+    expect(PU.liveSessionAdded({ unitsCompleted: 2, unitsUndone: 50 })).toBe(2);
+    expect(PU.liveSessionAdded({ unitsCompleted: 0, unitsUndone: 80 })).toBe(0);
+    expect(PU.liveSessionAdded({ unitsCompleted: 10, unitsUndone: 0, catchUp: 30 })).toBe(0);
   });
 
   test('the unguarded subtraction is no longer present', () => {

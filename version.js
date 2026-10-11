@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.115';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.116',
+    date: 'October 2026',
+    notes: [
+      'Unpicking no longer drags your numbers down. Today, your speed and your best day count the stitches you added; stitches you take out show on their own as Unpicked, and a day of only unpicking does not count towards your streak. Your overall progress still goes down when you unpick.',
+      'Marking a whole colour done in the palette can now be counted as catch-up. It raises your progress but is left out of today\'s count, your pace, your goals and your streak, and the journal shows it as Catch-up. You are asked the first time, and you can change it in Preferences under Stitch Tracker. The session CSV has a new Catch-up column at the end.',
+      'The pace in Progress info now comes from the stitches your sessions added, so it matches the Stats page.',
+    ]
+  },
+  {
     version: '1.0.115',
     date: 'October 2026',
     notes: [

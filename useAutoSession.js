@@ -102,7 +102,7 @@
     }
     // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see
     // progress-units.js). Callers that only mark full stitches may leave them out.
-    function recordAutoActivity(completed,undone,completedUnits,undoneUnits){
+    function recordAutoActivity(completed,undone,completedUnits,undoneUnits,catchUpUnits){
       try{
         const cu=completedUnits==null?completed:completedUnits,uu=undoneUnits==null?undone:undoneUnits;
         const now=Date.now();
@@ -118,6 +118,7 @@
             stitchesUndone:0,
             unitsCompleted:0,
             unitsUndone:0,
+            catchUp:0,
             coloursWorked:new Set(),
             // Event log: timestamped events drive all duration computation.
             eventLog:[{kind:'start',t:now}]
@@ -142,12 +143,14 @@
         currentAutoSessionRef.current.stitchesUndone+=undone;
         currentAutoSessionRef.current.unitsCompleted+=cu;
         currentAutoSessionRef.current.unitsUndone+=uu;
+        // Bulk marks the person said were catch-up (not stitching done now): in progress, left out of pace.
+        if(catchUpUnits)currentAutoSessionRef.current.catchUp+=catchUpUnits;
         // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
         // stitchesUndone past stitchesCompleted (the undos refer to stitches done
         // in a *previous* session). Clamp the displayed counter at 0 — anything
         // negative is meaningless and would also break the "stitches active" gate
         // in the footer (`liveAutoStitches > 0`).
-        setLiveAutoStitches(Math.max(0, currentAutoSessionRef.current.unitsCompleted-currentAutoSessionRef.current.unitsUndone));
+        setLiveAutoStitches(ProgressUnits.liveSessionAdded(currentAutoSessionRef.current));
         // Update liveAutoIsPaused from the already-live flags (manual resume above
         // may have changed it). PERF: this used to call deriveIsLogPaused(), which
         // rescans the *entire* session event log on every single stitch — an O(n)
@@ -208,6 +211,7 @@
           units:session.unitsCompleted-session.unitsUndone,
           unitsCompleted:session.unitsCompleted,
           unitsUndone:session.unitsUndone,
+          ...(session.catchUp>0?{catchUp:session.catchUp}:{}),
           totalAtEnd:tc,
           percentAtEnd:ts>0?Math.round((tc/ts)*1000)/10:0,
           note:'',
@@ -228,7 +232,7 @@
           const _now=new Date();
           const _prev=v3FieldsRef.current||{};
           const _newV3=Object.assign({},_prev,{lastTouchedAt:_now.toISOString()});
-          if(_prev.finishStatus==='planned'&&finalised.netStitches>0){_newV3.finishStatus='active';}
+          if(_prev.finishStatus==='planned'&&ProgressUnits.sessionAdded(finalised)>0){_newV3.finishStatus='active';}
           v3FieldsRef.current=_newV3;
           autoSaveDirtyRef.current=true;
           if(typeof invalidateStatsCache==='function')invalidateStatsCache();
@@ -242,8 +246,8 @@
         setLiveAutoElapsed(0);
         setLiveAutoStitches(0);
         // Show note prompt toast (not during page unload)
-        if(!isUnloadingRef.current&&finalised.netStitches>0){
-          setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(finalised.units),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
+        if(!isUnloadingRef.current&&ProgressUnits.sessionAdded(finalised)>0){
+          setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(ProgressUnits.sessionAdded(finalised)),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
         }
         return finalised;
       }catch(e){currentAutoSessionRef.current=null;return null;}

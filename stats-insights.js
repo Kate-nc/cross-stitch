@@ -155,9 +155,9 @@
       const dayKeys = new Set();
       for (let i = 0; i < sessions.length; i++) {
         const x = sessions[i];
-        stitches += (ProgressUnits.sessionNet(x) || 0);
+        stitches += (ProgressUnits.sessionAdded(x) || 0);
         seconds += getSessionSeconds(x);
-        if (x.date) dayKeys.add(x.date);
+        if (x.date && ProgressUnits.sessionActive(x)) dayKeys.add(x.date);
       }
       const speed = seconds > 0 ? Math.round(stitches / (seconds / 3600)) : 0;
       return { stitches, seconds, speed, activeDays: dayKeys.size };
