@@ -1669,7 +1669,7 @@ function UnifiedApp(){
     {/* Tier 2 of the homepage-predominance audit retired the legacy
         in-Creator HomeScreen mount. The Creator now opens straight into
         design mode; users navigate to /home via the topbar logo. */}
-    <div key={creatorResetKey} style={{display:mode==='design'?'':'none'}}>
+    <div key={creatorResetKey} className="cs-design-root" style={{display:mode==='design'?'':'none'}}>
       <CreatorErrorBoundary><CreatorApp onSwitchToTrack={switchToTrack} isActive={mode==='design'}/></CreatorErrorBoundary>
     </div>
     <div style={{display:mode==='track'?'':'none'}}>

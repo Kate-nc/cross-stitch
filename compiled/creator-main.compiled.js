@@ -2855,6 +2855,7 @@ function UnifiedApp() {
   const T = typeof window.TrackerApp !== 'undefined' ? window.TrackerApp : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     key: creatorResetKey,
+    className: "cs-design-root",
     style: {
       display: mode === 'design' ? '' : 'none'
     }

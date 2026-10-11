@@ -272,6 +272,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function startPinchGesture() {
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
     if (!scrollRef.current || !pcRef.current || activePointersRef.current.size !== 2) return;
+    if (pinchStateRef.current && pinchStateRef.current.previewing) commitPinchPreview(pinchStateRef.current);
     var pts = Array.from(activePointersRef.current.values());
     var midX = (pts[0].x + pts[1].x) / 2;
     var midY = (pts[0].y + pts[1].y) / 2;
@@ -296,7 +297,68 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       startMidY: midY,
       originX: originX, originY: originY,
       padX: padX, padY: padY,
+      canvasLeft: pRect ? pRect.left : 0, canvasTop: pRect ? pRect.top : 0,
     };
+  }
+
+  // While two fingers zoom, the chart is scaled with a CSS transform rather
+  // than redrawn: redrawing a large chart at every step made pinch-zoom lag
+  // badly (each step resizes and repaints a canvas thousands of pixels
+  // across). The zoom is applied once, when the fingers lift, and the scroll
+  // set so the stitch that was under them stays there (computePinchScroll).
+  function previewPinch(pinch, zoom, midX, midY) {
+    var canvas = state.pcRef.current;
+    if (!canvas) return;
+    if (!pinch.previewing) {
+      // Where the canvas is now (pans before the zoom started have scrolled
+      // it), measured before any transform.
+      var r = canvas.getBoundingClientRect();
+      pinch.previewing = true;
+      pinch.previewLeft = r.left; pinch.previewTop = r.top;
+      canvas.style.willChange = "transform";
+    }
+    pinch.pendingZoom = zoom;
+    pinch.lastMidX = midX; pinch.lastMidY = midY;
+    // The chart point that was under the starting midpoint, in canvas CSS
+    // pixels, is the transform origin; it moves to the current midpoint.
+    var px = pinch.startMidX - pinch.canvasLeft, py = pinch.startMidY - pinch.canvasTop;
+    var tx = midX - (pinch.previewLeft + px), ty = midY - (pinch.previewTop + py);
+    canvas.style.transformOrigin = px + "px " + py + "px";
+    canvas.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + (zoom / pinch.startZoom) + ")";
+  }
+  function commitPinchPreview(pinch) {
+    var canvas = state.pcRef.current, scrollRef = state.scrollRef;
+    pinch.previewing = false;
+    var zoom = pinch.pendingZoom;
+    var next = window.computePinchScroll(pinch, pinch.lastMidX, pinch.lastMidY, zoom / pinch.startZoom);
+    function settle() {
+      if (canvas) { canvas.style.transform = ""; canvas.style.transformOrigin = ""; canvas.style.willChange = ""; }
+      if (scrollRef.current) { scrollRef.current.scrollLeft = next.scrollLeft; scrollRef.current.scrollTop = next.scrollTop; }
+    }
+    if (zoom === state.zoom) { settle(); return; }
+    // Settle once PatternCanvas has resized the canvas for the new zoom (in
+    // the frame it draws it, before it is shown), so the scroll isn't clamped
+    // to the old size and the transform isn't applied to the new drawing;
+    // until then the transform keeps showing the zoomed view.
+    var done = false, fallback = null;
+    var canListen = typeof window.addEventListener === "function";
+    function onDrawn() {
+      if (done) return;
+      done = true;
+      if (canListen) window.removeEventListener("cs:chart-sized", onDrawn);
+      clearTimeout(fallback);
+      settle();
+    }
+    if (canListen) window.addEventListener("cs:chart-sized", onDrawn);
+    fallback = setTimeout(onDrawn, 1000);
+    state.setZoom(zoom);
+  }
+  // The pinch is over (fewer than two fingers): apply a previewed zoom.
+  function endPinchIfDone() {
+    if (activePointersRef.current.size >= 2) return;
+    var pinch = pinchStateRef.current;
+    pinchStateRef.current = null;
+    if (pinch && pinch.previewing) commitPinchPreview(pinch);
   }
 
   // The scroll position always follows the midpoint of the two fingers, so a
@@ -312,21 +374,16 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
     if (!dist || !pinch.startDist) return;
     var nextZoom = Math.max(0.05, Math.min(state.maxZoom || 3, Math.round((pinch.startZoom * (dist / pinch.startDist)) * 100) / 100));
-    var zoomChanged = nextZoom !== pinch.lastAppliedZoom;
     pinch.lastAppliedZoom = nextZoom;
-    var next = window.computePinchScroll(pinch, midX, midY, nextZoom / pinch.startZoom);
-    function applyScroll() {
-      if (!scrollRef.current) return;
-      scrollRef.current.scrollLeft = next.scrollLeft;
-      scrollRef.current.scrollTop = next.scrollTop;
+    // Zooming (now or earlier in this gesture): scale the drawn chart until
+    // the fingers lift. A steady two-finger drag still pans by scrolling.
+    if (nextZoom !== pinch.startZoom || pinch.previewing) {
+      previewPinch(pinch, nextZoom, midX, midY);
+      return;
     }
-    if (zoomChanged) {
-      state.setZoom(nextZoom);
-      // Wait for the canvas to resize before scrolling into the new range.
-      requestAnimationFrame(applyScroll);
-    } else {
-      applyScroll();
-    }
+    var next = window.computePinchScroll(pinch, midX, midY, 1);
+    scrollRef.current.scrollLeft = next.scrollLeft;
+    scrollRef.current.scrollTop = next.scrollTop;
   }
 
   // ─── applyBrush ─────────────────────────────────────────────────────────────
@@ -1280,7 +1337,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
         handlePatMouseDown(tapEv);
         handlePatMouseUp(tapEv);
       }
-      if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+      endPinchIfDone();
       state.setHoverCoords(null);
       e.preventDefault();
       return;
@@ -1299,7 +1356,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       return;
     }
 
-    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    endPinchIfDone();
     if (hadPinch) {
       state.setHoverCoords(null);
       e.preventDefault();
@@ -1327,7 +1384,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       var tdc = touchDrawRef.current;
       touchDrawRef.current = null;
       if (!tdc.promoted) {
-        if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+        endPinchIfDone();
         state.setHoverCoords(null);
         return;
       }
@@ -1337,7 +1394,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
     clearPendingTap();
     panStateRef.current = null;
-    if (activePointersRef.current.size < 2) pinchStateRef.current = null;
+    endPinchIfDone();
     state.setHoverCoords(null);
     handlePatMouseUp(e);
   }

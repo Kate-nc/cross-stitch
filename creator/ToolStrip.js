@@ -48,6 +48,52 @@ function toolStrictnessControl(h, levels, value, onPick, name) {
   );
 }
 
+// The zoom slider. Dragging it fired a zoom on every movement, and each one
+// redraws the chart: on a large pattern that is a few hundred milliseconds
+// apiece, so the slider stuck. It shows its own value while it moves and
+// applies the zoom once it rests for a moment, or at once on release.
+window.CreatorZoomSlider = function CreatorZoomSlider(props) {
+  var h = React.createElement;
+  var _v = React.useState(null), local = _v[0], setLocal = _v[1];
+  var timerRef = React.useRef(null);
+  var value = local == null ? props.zoom : local;
+  function apply(v) {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    setLocal(null);
+    if (v !== props.zoom) props.setZoom(v);
+  }
+  function onChange(e) {
+    var v = Number(e.target.value);
+    setLocal(v);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function () { apply(v); }, 150);
+  }
+  function commitNow() { if (local != null) apply(local); }
+  // The native change event (React's onChange is the input event) marks the
+  // end of a drag, a click on the track or a key press: apply then.
+  var inputRef = React.useRef(null);
+  var applyRef = React.useRef(apply);
+  applyRef.current = apply;
+  React.useEffect(function () {
+    var el = inputRef.current;
+    function onCommit() { applyRef.current(Number(el.value)); }
+    if (el) el.addEventListener("change", onCommit);
+    return function () {
+      if (el) el.removeEventListener("change", onCommit);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+  return h(React.Fragment, null,
+    h("input", {
+      ref: inputRef,
+      type: "range", min: 0.05, max: props.maxZoom || 3, step: 0.05, value: value,
+      onChange: onChange, onPointerUp: commitNow, onBlur: commitNow,
+      style: props.style, title: props.title, "aria-label": "Zoom"
+    }),
+    h("span", { className: props.labelClassName, style: props.labelStyle }, Math.round(value * 100) + "%")
+  );
+};
+
 window.CreatorToolStrip = function CreatorToolStrip() {
   var ctx = window.usePatternData();
   var cv = window.useCanvas();
@@ -474,12 +520,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     var createZoomGrp = [
       h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
       h("div", {key:"zoom-grp", className:"tb-grp"},
-        h("input", {
-          type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
-          onChange:function(e){ cv.setZoom(parseFloat(e.target.value)); },
-          style:{width:80}, title:"Zoom"
-        }),
-        h("span", {style:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}, Math.round(cv.zoom*100)+"%"),
+        h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:80}, title:"Zoom",
+          labelStyle:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}),
         h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
       )
     ];
@@ -768,12 +810,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   // Zoom group
   var zoomGrp = h("div", {className:"tb-zoom-grp"},
     h("span", {className:"tb-zoom-lbl"}, "Zoom"),
-    h("input", {
-      type:"range", min:0.05, max:cv.maxZoom || 3, step:0.05, value:cv.zoom,
-      onChange:function(e){cv.setZoom(Number(e.target.value));},
-      style:{width:55}
-    }),
-    h("span", {className:"tb-zoom-pct"}, Math.round(cv.zoom*100)+"%"),
+    h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:55}, labelClassName:"tb-zoom-pct"}),
     h("button", {className:"tb-fit-btn", onClick:cv.fitZ}, "Fit")
   );
 
