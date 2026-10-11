@@ -2053,6 +2053,49 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
  * Call this after drawPatternBaseOnCanvas (or after restoring its ImageData cache).
  * Signature identical to drawPatternOnCanvas.
  */
+// A selection's overlay as two Path2Ds: the tint (one rectangle per run of
+// selected stitches in a row) and the border (each straight stretch of edge
+// as one line). Cached against the mask and the drawing geometry, so the
+// marching ants only re-stroke it. Null where Path2D isn't available.
+var _selShapeCache = typeof WeakMap === "function" ? new WeakMap() : null;
+function _selectionShape(mask, offX, offY, dW, dH, cSz, gut, sW) {
+  if (typeof Path2D !== "function" || !_selShapeCache) return null;
+  var key = [offX, offY, dW, dH, cSz, gut, sW].join(",");
+  var hit = _selShapeCache.get(mask);
+  if (hit && hit.key === key) return hit;
+  var tint = new Path2D(), edges = new Path2D();
+  function sel(x, y) { return x >= 0 && y >= 0 && x < dW && y < dH && !!mask[(offY + y) * sW + offX + x]; }
+  for (var y = 0; y < dH; y++) {
+    var run = -1, top = -1, bot = -1;
+    for (var x = 0; x <= dW; x++) {
+      var on = x < dW && sel(x, y);
+      // Tint: runs of selected stitches.
+      if (on && run < 0) run = x;
+      if (!on && run >= 0) { tint.rect(gut + run * cSz, gut + y * cSz, (x - run) * cSz, cSz); run = -1; }
+      // Top and bottom edges: runs of selected stitches with nothing above / below.
+      var t = on && !sel(x, y - 1), b = on && !sel(x, y + 1);
+      if (t && top < 0) top = x;
+      if (!t && top >= 0) { edges.moveTo(gut + top * cSz, gut + y * cSz); edges.lineTo(gut + x * cSz, gut + y * cSz); top = -1; }
+      if (b && bot < 0) bot = x;
+      if (!b && bot >= 0) { edges.moveTo(gut + bot * cSz, gut + (y + 1) * cSz); edges.lineTo(gut + x * cSz, gut + (y + 1) * cSz); bot = -1; }
+    }
+  }
+  for (var x2 = 0; x2 < dW; x2++) {
+    var lft = -1, rgt = -1;
+    for (var y2 = 0; y2 <= dH; y2++) {
+      var on2 = y2 < dH && sel(x2, y2);
+      var l = on2 && !sel(x2 - 1, y2), r = on2 && !sel(x2 + 1, y2);
+      if (l && lft < 0) lft = y2;
+      if (!l && lft >= 0) { edges.moveTo(gut + x2 * cSz, gut + lft * cSz); edges.lineTo(gut + x2 * cSz, gut + y2 * cSz); lft = -1; }
+      if (r && rgt < 0) rgt = y2;
+      if (!r && rgt >= 0) { edges.moveTo(gut + (x2 + 1) * cSz, gut + rgt * cSz); edges.lineTo(gut + (x2 + 1) * cSz, gut + y2 * cSz); rgt = -1; }
+    }
+  }
+  hit = { key: key, tint: tint, edges: edges };
+  _selShapeCache.set(mask, hit);
+  return hit;
+}
+
 window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
   var hoverCoords = state.hoverCoords;
   var activeTool  = state.activeTool;
@@ -2166,7 +2209,23 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var selectionMask = state.selectionMask;
   var confettiPreview = state.confettiPreview;
   var sW = state.sW;
-  if (selectionMask) {
+  var selShape = selectionMask ? _selectionShape(selectionMask, offX, offY, dW, dH, cSz, gut, sW) : null;
+  if (selShape) {
+    // The tint and the marching-ants border, built once per selection and
+    // zoom (_selectionShape): a large selection redrawn stitch by stitch
+    // and edge by edge, ten times a second for the ants, kept the page busy
+    // and made every click lag.
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    ctx2d.fill(selShape.tint);
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
+    ctx2d.stroke(selShape.edges);
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  } else if (selectionMask) {
     ctx2d.save();
     // Semi-transparent blue tint over selected cells
     ctx2d.fillStyle = "rgba(59,130,246,0.25)";
@@ -14672,6 +14731,34 @@ window.PatternCanvas = function PatternCanvas() {
     return { x0: x0, y0: y0, x1: x1, y1: y1 };
   }
 
+  // The part of the canvas inside the scroll area, in canvas pixels
+  // ({x, y, w, h}), or the whole canvas when that can't be measured.
+  function visibleRect(canvas) {
+    var whole = { x: 0, y: 0, w: canvas.width, h: canvas.height };
+    var sc = app.scrollRef && app.scrollRef.current;
+    if (!sc) return whole;
+    var sr = sc.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+    if (!cr.width) return whole;
+    var k = canvas.width / cr.width;
+    var x0 = Math.max(0, Math.floor((sr.left - cr.left) * k)), y0 = Math.max(0, Math.floor((sr.top - cr.top) * k));
+    var x1 = Math.min(canvas.width, Math.ceil((sr.right - cr.left) * k)), y1 = Math.min(canvas.height, Math.ceil((sr.bottom - cr.top) * k));
+    if (x1 <= x0 || y1 <= y0) return whole;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  // The marching ants move ten times a second: repaint only what is on
+  // screen. Repainting the whole of a large chart's canvas each time kept
+  // the page busy and made clicks lag.
+  function repaintVisibleOverlay(context, canvas, snap) {
+    var r = visibleRect(canvas);
+    restoreBase(context, r.x, r.y, r.w, r.h);
+    context.save();
+    context.beginPath();
+    context.rect(r.x, r.y, r.w, r.h);
+    context.clip();
+    drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
+    context.restore();
+  }
+
   // The hover position the canvas overlay currently shows, and the other
   // overlay inputs it was last drawn with by Effect 2. Together they let a
   // pure mouse-move repaint only the crosshair bands it touches.
@@ -14717,8 +14804,7 @@ window.PatternCanvas = function PatternCanvas() {
       if (!canvas || !baseCacheRef.current) return;
       if (latest.isDraggingRef && latest.isDraggingRef.current) return;
       var context = canvas.getContext("2d");
-      restoreBase(context, 0, 0, canvas.width, canvas.height);
-      drawPatternOverlayOnCanvas(context, 0, 0, latest.sW, latest.sH, latest.cs, latest.G, latest);
+      repaintVisibleOverlay(context, canvas, latest);
       shownHoverRef.current = latest.hoverCoords;
     }, 100);
     return function() {
@@ -14742,9 +14828,8 @@ window.PatternCanvas = function PatternCanvas() {
       if (!canvas || !baseCacheRef.current) return;
       if (latest.isDraggingRef && latest.isDraggingRef.current) return;
       var context = canvas.getContext("2d");
-      restoreBase(context, 0, 0, canvas.width, canvas.height);
       var snap = Object.assign({}, latest, { antsOffset: antsOffsetRef.current });
-      drawPatternOverlayOnCanvas(context, 0, 0, snap.sW, snap.sH, snap.cs, snap.G, snap);
+      repaintVisibleOverlay(context, canvas, snap);
       shownHoverRef.current = snap.hoverCoords;
     }, 120);
     return function() {
@@ -14843,12 +14928,39 @@ window.PatternCanvas = function PatternCanvas() {
   }, [
     ctx.pat, ctx.cmap, cv.cs, ctx.sW, ctx.sH, cv.view, cv.hiId, cv.showCtr,
     cv.bsLines, app.tab, cv.showOverlay, cv.overlayOpacity,
-    gen.img, ctx.partialStitches, ctx.knots, cv.stitchType, ctx.partialStitchTool,
+    // (Not the tool or stitch type: the base doesn't draw them, and Effect 2
+    // repaints the overlay when they change. Switching tools used to redraw
+    // every stitch.)
+    gen.img, ctx.partialStitches, ctx.knots,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
     app.fabricColour, app.canvasTexture, replaceHoverId
   ]);
+
+  // ── Effect: scrolling brings stale parts of the canvas into view (the
+  // overlay is repainted only where it is on screen), so repaint what is
+  // visible, at most once a frame.
+  React.useEffect(function() {
+    var sc = app.scrollRef && app.scrollRef.current;
+    if (!sc) return undefined;
+    var raf = null;
+    function onScroll() {
+      if (raf) return;
+      raf = requestAnimationFrame(function() {
+        raf = null;
+        var canvas = app.pcRef.current, latest = ctxRef.current;
+        if (!canvas || !baseCacheRef.current || rafRef.current) return;
+        if (latest.isDraggingRef && latest.isDraggingRef.current) return;
+        repaintVisibleOverlay(canvas.getContext("2d"), canvas, latest);
+      });
+    }
+    sc.addEventListener("scroll", onScroll, { passive: true });
+    return function() {
+      sc.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [app.scrollRef && app.scrollRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Effect: dragging a floating paste / turn, or a shape (audit DRAW-04). The drag
   // only moves a ghost, so repaint the overlay, at most once a frame, instead
@@ -14931,8 +15043,10 @@ window.PatternCanvas = function PatternCanvas() {
       drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
       context.restore();
     } else {
-      restoreBase(context, 0, 0, canvas.width, canvas.height);
-      drawPatternOverlayOnCanvas(context, 0, 0, ctx.sW, ctx.sH, cv.cs, G, ctxRef.current);
+      // Only what is on screen (a scroll repaints what comes into view, see
+      // below): copying the whole of a large chart's canvas made switching
+      // tools lag.
+      repaintVisibleOverlay(context, canvas, ctxRef.current);
     }
     shownHoverRef.current = hov.hoverCoords;
   }, [

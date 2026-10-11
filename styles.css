@@ -2512,6 +2512,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 @media (min-width: 900px) {
   html, body { height: 100%; overflow: visible; }
   #root { height: 100vh; overflow: auto; }
+  /* The Creator fills the window rather than growing with its content, so
+     the chart and the sidebar's tab content scroll in their own boxes: a
+     long Tools tab no longer scrolls the chart off the screen. */
+  .cs-design-root { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; }
   /* cs-main children stretch to fill remaining viewport height */
   .cs-main { align-items: stretch; }
   /* Canvas area scrolls within its own box, not the page */

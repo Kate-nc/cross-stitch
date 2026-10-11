@@ -78,6 +78,45 @@ test.describe('Large chart drawing', function() {
   });
 });
 
+test.describe('Large selections and the tools panel', function() {
+  test.use(device('desktop'));
+  test.setTimeout(120000);
+
+  test('a large selection leaves the page idle, so switching tools is quick', async function({ page }) {
+    await open(page, bigProject(240, 0.6));
+    await page.locator('.cs-chart-scroll').click({ position: { x: 5, y: 5 } }).catch(() => {});
+    await page.keyboard.press('Control+a');
+    await page.waitForTimeout(1000);
+    // The marching ants run ten times a second: they used to repaint the
+    // whole chart each time (a long task every tick).
+    const longTasks = await page.evaluate(() => new Promise(res => {
+      const seen = [];
+      const ob = new PerformanceObserver(l => l.getEntries().forEach(e => seen.push(e.duration)));
+      ob.observe({ type: 'longtask' });
+      setTimeout(() => { ob.disconnect(); res(seen); }, 2000);
+    }));
+    expect(longTasks.length, 'long tasks while idle: ' + JSON.stringify(longTasks)).toBeLessThanOrEqual(2);
+    await page.keyboard.press('w');
+    // The tool badge in the toolbar says so.
+    await expect(page.getByText('Magic Wand', { exact: true }).first()).toBeVisible();
+  });
+
+  test("the Tools tab scrolls inside the sidebar, and the chart stays where it is", async function({ page }) {
+    await open(page, bigProject(80, 1));
+    await page.getByRole('tab', { name: 'Tools' }).first().click();
+    const chartTop = await page.evaluate(() => document.querySelector('.cs-chart-scroll').getBoundingClientRect().top);
+    const panel = page.locator('.rpanel [role="tablist"] ~ div').first();
+    const pb = await panel.boundingBox();
+    // The panel fits the window.
+    expect(pb.y + pb.height).toBeLessThanOrEqual(900 + 1);
+    await page.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
+    await page.mouse.wheel(0, 800);
+    await expect.poll(() => panel.evaluate(el => el.scrollTop)).toBeGreaterThan(100);
+    expect(await page.evaluate(() => document.querySelector('.cs-chart-scroll').getBoundingClientRect().top)).toBe(chartTop);
+    expect(await page.evaluate(() => document.getElementById('root').scrollTop)).toBe(0);
+  });
+});
+
 test.describe('Large chart pinch-zoom on a phone', function() {
   test.use(device('Pixel 5'));
   test.setTimeout(120000);

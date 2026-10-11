@@ -892,6 +892,49 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
  * Call this after drawPatternBaseOnCanvas (or after restoring its ImageData cache).
  * Signature identical to drawPatternOnCanvas.
  */
+// A selection's overlay as two Path2Ds: the tint (one rectangle per run of
+// selected stitches in a row) and the border (each straight stretch of edge
+// as one line). Cached against the mask and the drawing geometry, so the
+// marching ants only re-stroke it. Null where Path2D isn't available.
+var _selShapeCache = typeof WeakMap === "function" ? new WeakMap() : null;
+function _selectionShape(mask, offX, offY, dW, dH, cSz, gut, sW) {
+  if (typeof Path2D !== "function" || !_selShapeCache) return null;
+  var key = [offX, offY, dW, dH, cSz, gut, sW].join(",");
+  var hit = _selShapeCache.get(mask);
+  if (hit && hit.key === key) return hit;
+  var tint = new Path2D(), edges = new Path2D();
+  function sel(x, y) { return x >= 0 && y >= 0 && x < dW && y < dH && !!mask[(offY + y) * sW + offX + x]; }
+  for (var y = 0; y < dH; y++) {
+    var run = -1, top = -1, bot = -1;
+    for (var x = 0; x <= dW; x++) {
+      var on = x < dW && sel(x, y);
+      // Tint: runs of selected stitches.
+      if (on && run < 0) run = x;
+      if (!on && run >= 0) { tint.rect(gut + run * cSz, gut + y * cSz, (x - run) * cSz, cSz); run = -1; }
+      // Top and bottom edges: runs of selected stitches with nothing above / below.
+      var t = on && !sel(x, y - 1), b = on && !sel(x, y + 1);
+      if (t && top < 0) top = x;
+      if (!t && top >= 0) { edges.moveTo(gut + top * cSz, gut + y * cSz); edges.lineTo(gut + x * cSz, gut + y * cSz); top = -1; }
+      if (b && bot < 0) bot = x;
+      if (!b && bot >= 0) { edges.moveTo(gut + bot * cSz, gut + (y + 1) * cSz); edges.lineTo(gut + x * cSz, gut + (y + 1) * cSz); bot = -1; }
+    }
+  }
+  for (var x2 = 0; x2 < dW; x2++) {
+    var lft = -1, rgt = -1;
+    for (var y2 = 0; y2 <= dH; y2++) {
+      var on2 = y2 < dH && sel(x2, y2);
+      var l = on2 && !sel(x2 - 1, y2), r = on2 && !sel(x2 + 1, y2);
+      if (l && lft < 0) lft = y2;
+      if (!l && lft >= 0) { edges.moveTo(gut + x2 * cSz, gut + lft * cSz); edges.lineTo(gut + x2 * cSz, gut + y2 * cSz); lft = -1; }
+      if (r && rgt < 0) rgt = y2;
+      if (!r && rgt >= 0) { edges.moveTo(gut + (x2 + 1) * cSz, gut + rgt * cSz); edges.lineTo(gut + (x2 + 1) * cSz, gut + y2 * cSz); rgt = -1; }
+    }
+  }
+  hit = { key: key, tint: tint, edges: edges };
+  _selShapeCache.set(mask, hit);
+  return hit;
+}
+
 window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, offX, offY, dW, dH, cSz, gut, state) {
   var hoverCoords = state.hoverCoords;
   var activeTool  = state.activeTool;
@@ -1005,7 +1048,23 @@ window.drawPatternOverlayOnCanvas = function drawPatternOverlayOnCanvas(ctx2d, o
   var selectionMask = state.selectionMask;
   var confettiPreview = state.confettiPreview;
   var sW = state.sW;
-  if (selectionMask) {
+  var selShape = selectionMask ? _selectionShape(selectionMask, offX, offY, dW, dH, cSz, gut, sW) : null;
+  if (selShape) {
+    // The tint and the marching-ants border, built once per selection and
+    // zoom (_selectionShape): a large selection redrawn stitch by stitch
+    // and edge by edge, ten times a second for the ants, kept the page busy
+    // and made every click lag.
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(59,130,246,0.25)";
+    ctx2d.fill(selShape.tint);
+    ctx2d.strokeStyle = "rgba(37,99,235,0.9)";
+    ctx2d.lineWidth = Math.max(1, cSz * 0.1);
+    ctx2d.setLineDash([Math.max(2, cSz * 0.3), Math.max(2, cSz * 0.2)]);
+    ctx2d.lineDashOffset = -(state.antsOffset || 0);
+    ctx2d.stroke(selShape.edges);
+    ctx2d.setLineDash([]);
+    ctx2d.restore();
+  } else if (selectionMask) {
     ctx2d.save();
     // Semi-transparent blue tint over selected cells
     ctx2d.fillStyle = "rgba(59,130,246,0.25)";
