@@ -98,3 +98,16 @@ test('Preferences has Day ends at, with its one-line explanation', async ({ page
   await page.getByLabel('Day ends at').selectOption('2');
   await expect.poll(() => page.evaluate(() => window.UserPrefs.get('statsDayEndHour'))).toBe(2);
 });
+
+test('changing Day ends at closes the running session, so earlier marks keep their day', async ({ page }) => {
+  const id = await seed(page);
+  await page.goto('/stitch.html?id=' + id);
+  await page.waitForSelector(TRACKER_CANVAS);
+  await page.evaluate(() => window.__setClock(2026, 9, 11, 0, 30, 0));
+  for (const gx of [1, 2]) await mark(page, gx, 1);
+  await page.evaluate(() => window.UserPrefs.set('statsDayEndHour', 2));       // a 00:30 mark now belongs to the 10th
+  await expect.poll(async () => (await sessionsOf(page)).length, { timeout: 8000 }).toBe(1);
+  expect((await sessionsOf(page))[0].date).toBe('2026-10-11');                 // what was marked kept the day it had
+  await mark(page, 3, 1);                                                      // the next mark starts a session under the new setting
+  await expect.poll(async () => (await sessionsOf(page)).map(s => s.date).join(), { timeout: 20000 }).toBe('2026-10-11,2026-10-10');
+});

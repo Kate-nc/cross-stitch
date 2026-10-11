@@ -255,6 +255,8 @@
 
   function _write(key, value) {
     try { localStorage.setItem(PREFIX_GLOBAL + key, JSON.stringify(value)); } catch (_) {}
+    // Tell the page, so code holding a derived value (the Tracker's running session and its day boundary) can react.
+    try { if (typeof window !== 'undefined' && window.dispatchEvent && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('cs:prefchange', { detail: { key: key } })); } catch (_) {}
   }
 
   // Load all global prefs, merging with defaults

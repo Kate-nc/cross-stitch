@@ -170,7 +170,8 @@
         setLiveAutoIsPaused(document.hidden||manuallyPausedRef.current);
         // Merge any pending colour IDs into the session
         if(pendingColoursRef.current.size>0){
-          pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
+          const _cs=currentAutoSessionRef.current,_day=_cs.byDay&&_cs.byDay[_cs.curDate];
+          pendingColoursRef.current.forEach(c=>{_cs.coloursWorked.add(c);if(_day)(_day.cl||(_day.cl=new Set())).add(c);});
           pendingColoursRef.current.clear();
         }
         // Arm the idle-finalise timer (session lifecycle). Only fires to close
@@ -191,7 +192,8 @@
         }
         // Flush any colour IDs pending between the last recordAutoActivity call and now.
         if(pendingColoursRef.current.size>0&&session.coloursWorked){
-          pendingColoursRef.current.forEach(c=>session.coloursWorked.add(c));
+          const _day=session.byDay&&session.byDay[session.curDate];
+          pendingColoursRef.current.forEach(c=>{session.coloursWorked.add(c);if(_day)(_day.cl||(_day.cl=new Set())).add(c);});
           pendingColoursRef.current.clear();
         }
         // Duration: pure function of the event log — live display and saved value
@@ -270,6 +272,9 @@
         if(!isUnloadingRef.current&&ProgressUnits.sessionAdded(finalised)>0){
           setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(ProgressUnits.sessionAdded(finalised)),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
         }
+        // The records that were saved (more than one when the run crossed the day end), for callers that merge the
+        // result into their own snapshot (the unload save). Not enumerable, so it is never written out itself.
+        try{Object.defineProperty(finalised,'records',{value:records,enumerable:false});}catch(_){}
         return finalised;
       }catch(e){currentAutoSessionRef.current=null;return null;}
     }
@@ -343,6 +348,14 @@
         }
       },0);
     }
+
+    // A changed "Day ends at" closes the running session, so what was marked before the change keeps the day it was
+    // attributed to and the next mark starts a session under the new setting.
+    useEffect(()=>{
+      const onPref=e=>{try{if(e&&e.detail&&e.detail.key==='statsDayEndHour'&&currentAutoSessionRef.current&&finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(_){}};
+      window.addEventListener('cs:prefchange',onPref);
+      return()=>window.removeEventListener('cs:prefchange',onPref);
+    },[]);
 
     var currentTimingMode=(currentAutoSessionRef.current&&currentAutoSessionRef.current.timingMode)||getTimingMode();
 

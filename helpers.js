@@ -1121,10 +1121,20 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
   var netOf = function(d) { return (byDay[d].uc || 0) - (byDay[d].uu || 0); };
   for (var k = dates.length - 1; k > 0; k--) laterUnits += netOf(dates[k]);
   var sumLater = laterUnits;
+  // The saved duration of the whole run, shared out by each day's active time (cumulative rounding), so the parts
+  // add up to exactly what the run was saved as, whatever the rounding.
+  var totalMs = 0, shares = [], cum = 0, prevCumSec = 0;
+  for (var q = 0; q < dates.length; q++) totalMs += Math.max(0, activeMs[q] || 0);
+  var wholeSec = whole.durationSeconds || 0;
+  for (var q2 = 0; q2 < dates.length; q2++) {
+    cum += Math.max(0, activeMs[q2] || 0);
+    var cumSec = q2 === dates.length - 1 ? wholeSec : Math.round(wholeSec * (totalMs > 0 ? cum / totalMs : (q2 + 1) / dates.length));
+    shares.push(Math.max(0, cumSec - prevCumSec));
+    prevCumSec = cumSec;
+  }
   for (var i = 0; i < dates.length; i++) {
     var d = byDay[dates[i]];
     var last = i === dates.length - 1;
-    var ms = Math.max(0, activeMs[i] || 0);
     var startMs = i === 0 ? new Date(whole.startTime).getTime() : nextStitchingDayBoundary(byDay[dates[i - 1]].t0, dayEndHour);
     var endMs = last ? new Date(whole.endTime).getTime() : nextStitchingDayBoundary(d.t0, dayEndHour);
     if (i > 0) sumLater -= netOf(dates[i]);
@@ -1136,8 +1146,8 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
       startTime: i === 0 ? whole.startTime : new Date(startMs).toISOString(),
       endTime: last ? whole.endTime : new Date(endMs).toISOString(),
       timingModeUsed: whole.timingModeUsed,
-      durationSeconds: Math.max(1, Math.round(ms / 1000)),
-      durationMinutes: Math.max(1, Math.round(ms / 60000)),
+      durationSeconds: shares[i],
+      durationMinutes: Math.round(shares[i] / 60),
       stitchesCompleted: d.sc || 0,
       stitchesUndone: d.su || 0,
       netStitches: (d.sc || 0) - (d.su || 0),
@@ -1147,7 +1157,8 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
       totalAtEnd: totalAt,
       percentAtEnd: totalUnits > 0 ? Math.round(Math.min(totalAt, totalUnits) / totalUnits * 1000) / 10 : 0,
       note: whole.note || '',
-      coloursWorked: whole.coloursWorked ? whole.coloursWorked.slice() : []
+      // the colours worked on that day (kept per day while the session ran), else the whole run's
+      coloursWorked: d.cl ? Array.from(d.cl) : (whole.coloursWorked ? whole.coloursWorked.slice() : [])
     };
     if (d.cu > 0) rec.catchUp = d.cu;
     if (last && whole.milestones) rec.milestones = whole.milestones;

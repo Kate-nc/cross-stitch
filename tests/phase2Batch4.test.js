@@ -125,3 +125,43 @@ describe('getDayEndHour', () => {
     delete global.window;
   });
 });
+
+describe('review round 1: splitSessionByDays details', () => {
+  const t1 = local(2026, 10, 10, 23, 50), t2 = local(2026, 10, 11, 0, 2);
+  const mk = (sec) => ({
+    id: 's', date: '2026-10-10', startTime: new Date(t1).toISOString(), endTime: new Date(t2 + 1000).toISOString(),
+    timingModeUsed: 'classic', durationSeconds: sec, durationMinutes: Math.max(1, Math.round(sec / 60)),
+    totalAtEnd: 10, percentAtEnd: 1, note: '', coloursWorked: ['310', '321'],
+  });
+  const days = (cl1, cl2) => ({
+    '2026-10-10': { t0: t1, sc: 1, su: 0, uc: 1, uu: 0, cu: 0, cl: cl1 },
+    '2026-10-11': { t0: t2, sc: 1, su: 0, uc: 1, uu: 0, cu: 0, cl: cl2 },
+  });
+  test('the parts add up to the saved duration whatever the rounding (two 0.6 s parts of a 1 s run)', () => {
+    const parts = splitSessionByDays(mk(1), days(), [600, 600], 100, 0);
+    expect(parts[0].durationSeconds + parts[1].durationSeconds).toBe(1);
+    const p3 = splitSessionByDays(mk(780), days(), [333333, 111111], 100, 0);
+    expect(p3[0].durationSeconds + p3[1].durationSeconds).toBe(780);
+    expect(p3[0].durationSeconds).toBeGreaterThan(p3[1].durationSeconds);
+  });
+  test('each part keeps the colours worked on its own day, else the whole run\'s', () => {
+    const parts = splitSessionByDays(mk(60), days(new Set(['310']), new Set(['321'])), [30000, 30000], 100, 0);
+    expect(parts[0].coloursWorked).toEqual(['310']);
+    expect(parts[1].coloursWorked).toEqual(['321']);
+    const fallback = splitSessionByDays(mk(60), days(), [30000, 30000], 100, 0);
+    expect(fallback[0].coloursWorked).toEqual(['310', '321']);
+  });
+});
+
+describe('review round 1: wiring', () => {
+  const src = (f) => fs.readFileSync(path.resolve(__dirname, '..', f), 'utf8');
+  test('the unload save merges every record of a split session, not the whole run', () => {
+    const t = src('tracker-app.js');
+    expect(t).toMatch(/finalisedSession\.records \|\| \[finalisedSession\]/);
+    expect(src('useAutoSession.js')).toMatch(/defineProperty\(finalised,'records'/);
+  });
+  test('changing the day-end preference closes the running session', () => {
+    expect(src('user-prefs.js')).toMatch(/cs:prefchange/);
+    expect(src('useAutoSession.js')).toMatch(/addEventListener\('cs:prefchange'/);
+  });
+});

@@ -4355,12 +4355,14 @@ useEffect(() => {
     // Finalise any active auto-session and merge into the snapshot
     const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current() : null;
     if (finalisedSession) {
+      // A run that crossed the day end was saved as one record per day: merge all of them, not the whole run.
+      const finalisedRecords = finalisedSession.records || [finalisedSession];
       const existingSessions = Array.isArray(projectToSave.statsSessions) ? projectToSave.statsSessions : [];
-      const hasSession = existingSessions.some(s => s && s.id === finalisedSession.id);
-      if (!hasSession) {
+      const missing = finalisedRecords.filter(r => !existingSessions.some(s => s && s.id === r.id));
+      if (missing.length) {
         projectToSave = {
           ...projectToSave,
-          statsSessions: [...existingSessions, finalisedSession],
+          statsSessions: [...existingSessions, ...missing],
           updatedAt: new Date().toISOString()
         };
       }
