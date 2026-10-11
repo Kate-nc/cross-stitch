@@ -51,24 +51,34 @@ describe('canMerge', () => {
   const base = () => ({ pattern: pat(4), name: 'A', settings: { sW: 2, sH: 2 }, done: [0, 0, 0, 0] });
   test('marks only: yes', () => {
     const r = { ...base(), done: [1, 0, 0, 0], statsSessions: [{ id: 9 }] };
-    expect(TM.canMerge(base(), pat(4), r)).toBe(true);
+    expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(true);
   });
   test('renamed in the other tab: no (ask)', () => {
-    expect(TM.canMerge(base(), pat(4), { ...base(), name: 'B' })).toBe(false);
+    expect(TM.canMerge(base(), { pattern: pat(4) }, { ...base(), name: 'B' })).toBe(false);
+  });
+  test('missing, empty string and empty list read the same', () => {
+    const r = { ...base(), designer: '', bsLines: [], knots: [], parkMarkers: undefined };
+    expect(TM.canMerge({ ...base(), designer: undefined, bsLines: undefined }, { pattern: pat(4) }, r)).toBe(true);
+  });
+  test('a setting spelled differently in the loaded base but equal to ours is not a change', () => {
+    const b = { ...base(), settings: { sW: 2, sH: 2 } };
+    const local = { pattern: pat(4), settings: { sW: 2, sH: 2, skeinPrice: 1 } };
+    expect(TM.canMerge(b, local, { ...b, settings: { sW: 2, sH: 2, skeinPrice: 1 } })).toBe(true);
+    expect(TM.canMerge(b, local, { ...b, settings: { sW: 3, sH: 2 } })).toBe(false);
   });
   test('different pattern: no', () => {
     const r = base(); r.pattern[1] = { id: '999', type: 'solid', rgb: [1, 1, 1] };
-    expect(TM.canMerge(base(), pat(4), r)).toBe(false);
+    expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(false);
   });
   test('our pattern differs from the other tab\'s: no', () => {
-    expect(TM.canMerge(base(), pat(6), base())).toBe(false);
+    expect(TM.canMerge(base(), { pattern: pat(6) }, base())).toBe(false);
   });
   test('no marks array or wrong length: no', () => {
-    expect(TM.canMerge(base(), pat(4), { ...base(), done: null })).toBe(false);
-    expect(TM.canMerge(base(), pat(4), { ...base(), done: [0] })).toBe(false);
+    expect(TM.canMerge(base(), { pattern: pat(4) }, { ...base(), done: null })).toBe(false);
+    expect(TM.canMerge(base(), { pattern: pat(4) }, { ...base(), done: [0] })).toBe(false);
   });
   test('missing base: no', () => {
-    expect(TM.canMerge(null, pat(4), base())).toBe(false);
+    expect(TM.canMerge(null, { pattern: pat(4) }, base())).toBe(false);
   });
 });
 

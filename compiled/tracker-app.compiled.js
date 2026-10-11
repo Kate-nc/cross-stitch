@@ -5516,7 +5516,11 @@ function TrackerApp({
     if (!remote || projectIdRef.current !== id || !Array.isArray(remote.done)) return false;
     const local = snapshotNow();
     if (!local || !Array.isArray(local.done) || local.done.length !== base.done.length || remote.done.length !== base.done.length) return false;
-    if (!TM.canMerge(base, local.pattern, remote)) return false;
+    const why = TM.whyNot(base, local, remote);
+    if (why) {
+      console.info('[stitchx/tracker] not merging the other tab\'s save:', why);
+      return false;
+    }
     const nd = Uint8Array.from(TM.mergeDone(base.done, local.done, remote.done));
     const mergedHalf = TM.mergeHalfDone(base.halfDone, local.halfDone, remote.halfDone);
     const mergedKnots = TM.mergeSet(base.knotsDone, local.knotsDone, remote.knotsDone);

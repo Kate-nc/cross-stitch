@@ -24,9 +24,16 @@
   var STRUCTURE_KEYS = ["name", "designer", "description", "settings", "bsLines", "knots",
     "halfStitches", "partialStitches", "singleStitchEdits", "parkMarkers", "symbols"];
 
+  // "Nothing" is spelled several ways (missing, "", [], {}) depending on whether a record
+  // was loaded or just built; they all mean the same here.
+  function blank(v) {
+    return v == null || v === "" || (Array.isArray(v) && !v.length) ||
+      (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length);
+  }
   function same(a, b) {
     if (a === b) return true;
-    try { return JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b); }
+    if (blank(a) || blank(b)) return blank(a) && blank(b);
+    try { return JSON.stringify(a) === JSON.stringify(b); }
     catch (_) { return false; }
   }
 
@@ -42,17 +49,22 @@
 
   // True when remote differs from base in marks and sessions only, and the pattern
   // we hold is the pattern it holds.
-  function canMerge(base, localPattern, remote) {
-    if (!base || !remote) return false;
-    if (!samePattern(base.pattern, remote.pattern)) return false;
-    if (localPattern && !samePattern(localPattern, remote.pattern)) return false;
+  function canMerge(base, local, remote) { return whyNot(base, local, remote) === null; }
+
+  // null when the merge can go ahead, otherwise what stops it (for the console).
+  function whyNot(base, local, remote) {
+    if (!base || !remote) return "missing";
+    if (!samePattern(base.pattern, remote.pattern)) return "pattern";
+    if (local && !samePattern(local.pattern, remote.pattern)) return "local pattern";
     var done = remote.done;
-    if (!Array.isArray(done) || done.length !== remote.pattern.length) return false;
+    if (!Array.isArray(done) || done.length !== remote.pattern.length) return "done";
     for (var i = 0; i < STRUCTURE_KEYS.length; i++) {
       var k = STRUCTURE_KEYS[i];
-      if (!same(base[k], remote[k])) return false;
+      // Unchanged by the other tab: it matches what we started from, or what we have now
+      // (a record that was loaded and one that was built can spell the same thing differently).
+      if (!same(base[k], remote[k]) && !(local && same(local[k], remote[k]))) return k;
     }
-    return true;
+    return null;
   }
 
   // Per cell: the other tab's value if it changed since base, otherwise ours.
@@ -123,7 +135,7 @@
   }
 
   var api = {
-    canMerge: canMerge, samePattern: samePattern, mergeDone: mergeDone,
+    canMerge: canMerge, whyNot: whyNot, samePattern: samePattern, mergeDone: mergeDone,
     mergeHalfDone: mergeHalfDone, mergeSet: mergeSet, mergeSessions: mergeSessions,
     mergeMilestones: mergeMilestones
   };

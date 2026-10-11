@@ -58,3 +58,16 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - **Found by code review, pre-existing, fixed in this PR:** the autosave effect did not depend on 13 of the state variables the snapshot persists (designer, description, partial stitches, fabric colour, thread brand, stitching style, block size, start corner, colour sequence, work area, breadcrumbs, spotlight block), so editing only one of them was not saved until something else changed. A source test now enumerates what the snapshot persists.
 - Unverified: screen reader announcement (live region) was not exercised with assistive technology; Safari and Firefox not tested.
 
+
+## Batch 4 (cross-tab merge)
+
+### Exercised
+- `npm test`, terminology lint, `compiled/` current; `cross-tab-merge` e2e (4) pass.
+### Bugs found and fixed in this batch
+- First e2e run showed the dialog instead of merging: the loaded project record and the tab's snapshot differ in spelling (`designer` undefined vs "", then `settings` gaining defaults). Fixed by treating empty values alike and comparing the other tab's fields to ours as well as to the base.
+- A handler that became asynchronous broke the synchronous "dialog announces open" contract for pages without a merger; fixed by asking at once when no merger is registered.
+### Known gaps
+- Tab B's own unsaved edits to non-mark fields (e.g. a rename) are kept by A's next save, overwriting nothing from B's marks but a rename made in B before A saved is shown the dialog (conservative).
+- "Edit in Creator" from the tracker does not wait for its save; if that save ends in a merge the Creator receives the pre-merge fields. Pre-existing pattern (it never awaited), narrow.
+- Three tabs: each merges against its own base; not exercised.
+- Safari/Firefox BroadcastChannel behaviour not tested.
