@@ -5486,17 +5486,77 @@ function TrackerApp({
     }, 5000);
   }
   function persistProjectRecord(project) {
+    // What was just written is what the next cross-tab merge starts from.
+    const remember = function (res) {
+      if (res && res.ok !== false && res.reason !== 'merged') mergeBaseRef.current = project;
+      return res;
+    };
     if (window.CrossTabResolution && typeof window.CrossTabResolution.saveWithConflictResolution === 'function') {
-      return window.CrossTabResolution.saveWithConflictResolution(project);
+      return window.CrossTabResolution.saveWithConflictResolution(project).then(remember);
     }
     return ProjectStorage.save(project).then(function (id) {
       ProjectStorage.setActiveProject(id);
-      return {
+      return remember({
         ok: true,
         id: id
-      };
+      });
     });
   }
+
+  // Another tab saved this project: fold its marks and sessions into this tab's instead of
+  // asking which tab to throw away. Resolves true when it did, false to leave the question
+  // to the user (the other tab changed more than marks, or anything here is unexpected).
+  async function mergeRemoteProject(info) {
+    const TM = window.TrackingMerge;
+    const id = projectIdRef.current;
+    const base = mergeBaseRef.current;
+    if (!TM || !id || !base || base.id !== id || info && info.projectId && info.projectId !== id) return false;
+    if (!Array.isArray(base.done)) return false;
+    const remote = await ProjectStorage.get(id);
+    if (!remote || projectIdRef.current !== id || !Array.isArray(remote.done)) return false;
+    const local = snapshotNow();
+    if (!local || !Array.isArray(local.done) || local.done.length !== base.done.length || remote.done.length !== base.done.length) return false;
+    if (!TM.canMerge(base, local.pattern, remote)) return false;
+    const nd = Uint8Array.from(TM.mergeDone(base.done, local.done, remote.done));
+    const mergedHalf = TM.mergeHalfDone(base.halfDone, local.halfDone, remote.halfDone);
+    const mergedKnots = TM.mergeSet(base.knotsDone, local.knotsDone, remote.knotsDone);
+    const mergedSessions = TM.mergeSessions(base.statsSessions, local.statsSessions, remote.statsSessions);
+    const mergedMilestones = TM.mergeMilestones(local.achievedMilestones, remote.achievedMilestones);
+    // Counts of what the other tab added must not read as stitches done here just now.
+    justLoadedRef.current = true;
+    doneRef.current = nd;
+    const hdMap = new Map(mergedHalf);
+    recomputeAllCounts(pat, nd, halfStitches, hdMap);
+    setDone(nd);
+    setHalfDone(hdMap);
+    setKnotsDone(mergedKnots);
+    setStatsSessions(mergedSessions);
+    setAchievedMilestones(mergedMilestones);
+    // The undo history describes cells whose value just changed under it.
+    setTrackHistory([]);
+    setRedoStack([]);
+    // The record now on disk is the new base; this tab's next save writes the combined result.
+    mergeBaseRef.current = {
+      ...remote,
+      pattern: base.pattern
+    };
+    try {
+      if (window.CrossTabCoord && window.CrossTabCoord.noteSeen) window.CrossTabCoord.noteSeen(id, remote.lastWriteAt, remote.lastWriteTabId);
+    } catch (_) {}
+    window.Toast && Toast.show({
+      message: 'Stitches marked in another tab were added to this one.',
+      type: 'info',
+      duration: 4000
+    });
+    return true;
+  }
+  const mergeRemoteRef = useRef(null);
+  mergeRemoteRef.current = mergeRemoteProject;
+  const mergeBaseRef = useRef(null);
+  useEffect(() => {
+    if (!window.CrossTabResolution || typeof window.CrossTabResolution.registerMerger !== 'function') return;
+    return window.CrossTabResolution.registerMerger(info => mergeRemoteRef.current(info));
+  }, []);
   function handleEditInCreator() {
     if (!pat || !pal) return;
     if (onSwitchToDesign) {
@@ -5505,7 +5565,7 @@ function TrackerApp({
       if (project) {
         lastSnapshotRef.current = project;
         persistProjectRecord(project).then(function (saveResult) {
-          if (saveResult && saveResult.reason === 'reloaded') return null;
+          if (saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged')) return null;
           return saveProjectToDB(project);
         }).catch(e => {
           console.error('Save failed:', e);
@@ -5561,7 +5621,7 @@ function TrackerApp({
     lastSnapshotRef.current = project;
     persistProjectRecord(project).then(function (saveResult) {
       // A cross-tab conflict that the user resolved by reloading: stay here.
-      if (saveResult && saveResult.reason === 'reloaded') return;
+      if (saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged')) return;
       if (saveResult && saveResult.ok === false) throw new Error(saveResult.reason || 'save failed');
       // T-3 / INT-4: only a small timestamped note travels through
       // localStorage now, so the Creator can still warn about tracking
@@ -5662,6 +5722,8 @@ function TrackerApp({
     if (!project.id) {
       console.warn('[stitchx/tracker] processLoadedProject: project has no id — a new id will be minted on first auto-save; call stack:', new Error().stack);
     }
+    // What a cross-tab merge starts from (see mergeRemoteProject).
+    mergeBaseRef.current = project;
     // INT-7 Phase B-1: seed the last-seen cache so a future save() from this
     // tab can detect concurrent writes from other tabs. No-op when
     // CrossTabCoord isn't loaded or the project lacks Phase B fields (legacy
@@ -6843,14 +6905,14 @@ function TrackerApp({
         endSave(ok, _uiGen, err, _epoch);
       };
       persistProjectRecord(project).then(function (saveResult) {
-        const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+        const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged');
         if (_ok) {
           flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
           // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
           if (autoSaveGenRef.current !== _gen) scheduleProgressWriteRef.current();
         }
-        endOnce(_ok ? true : saveResult && saveResult.reason === 'reloaded' ? null : false, saveResult && saveResult.reason);
-        if (saveResult && saveResult.reason === 'reloaded') return null;
+        endOnce(_ok ? true : saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged') ? null : false, saveResult && saveResult.reason);
+        if (saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged')) return null;
         try {
           if (projectIdRef.current) localStorage.removeItem('cs_pending_session_' + projectIdRef.current);
         } catch (_) {}
@@ -6995,10 +7057,10 @@ function TrackerApp({
         endSave(false, _uiGen, err, _epoch);
         throw err;
       }
-      const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+      const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged');
       if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
-      endSave(_flushOk ? true : saveResult && saveResult.reason === 'reloaded' ? null : false, _uiGen, saveResult && saveResult.reason, _epoch);
-      if (!saveResult || saveResult.reason !== 'reloaded') {
+      endSave(_flushOk ? true : saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged') ? null : false, _uiGen, saveResult && saveResult.reason, _epoch);
+      if (!saveResult || saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged') {
         await saveProjectToDB(project).catch(e => {
           console.error('Save failed:', e);
           try {
@@ -7018,7 +7080,7 @@ function TrackerApp({
       window.__flushProjectToIDB = async function () {
         if (last) {
           const saveResult = await persistProjectRecord(last);
-          if (!saveResult || saveResult.reason !== 'reloaded') {
+          if (!saveResult || saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged') {
             await saveProjectToDB(last).catch(e => {
               console.error('Save failed:', e);
               try {

@@ -34,6 +34,7 @@ var PRECACHE_URLS = [
   './colour-utils.js',
   './helpers.js',
   './knots.js',
+  './tracking-merge.js',
   './icons.js',
   './import-formats.js',
   './components.js',
