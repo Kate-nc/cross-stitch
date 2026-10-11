@@ -35,7 +35,8 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 7. **Performance:** see the progress log; no regression; progress write 0.0-0.2 ms on a 90,000-cell chart.
 
 ### Bugs found
-None new in this batch.
+- **Fixed in this batch (found by code review, then reproduced):** switching project inside the page within 400 ms of a mark dropped the old project's marks, because the pending timer was retargeted to the new project. The earlier "project switching" check in this hunt used the header project switcher, which reloads the page and so goes through the unload path; File > Switch Project… is the in-place route and is now covered by an e2e test. Lesson: check which UI routes are in-page before claiming a switch scenario is covered.
+- Same pre-existing gap, not caused by this work: an in-page switch never full-saves the old project (the autosave timer is cleared by the state change), so non-mark state of the old project from the last few seconds (park markers, view, session) is not saved by that route; marks are now safe through the progress record. Worth a follow-up in a later batch.
 
 ### Known gaps
 - **Two tabs on one project:** both tabs write the same record (last writer wins) until a full save retires it, so a kill in the first 5-10 seconds can recover the other tab's marks rather than this tab's. This is no worse than before (those marks were lost entirely) and the conflict dialog still appears at the next full save; proper merging is batch 4.

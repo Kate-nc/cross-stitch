@@ -109,6 +109,15 @@ describe('progress record writer', () => {
     expect(hidden.indexOf('writeProgressNowRef.current()')).toBeLessThan(hidden.indexOf('__flushProjectToIDB'));
   });
 
+  test('switching project inside the page writes the old project\'s pending marks first', () => {
+    const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
+    const flushAt = eff.indexOf('writeProgressNow()');
+    const replaceAt = eff.indexOf('progressOwnerRef.current = { id, done');
+    expect(flushAt).toBeGreaterThan(-1);
+    expect(flushAt).toBeLessThan(replaceAt);
+    expect(eff).toMatch(/_prev\.id !== id && progressTimerRef\.current/);
+  });
+
   test('a project that has just loaded or switched is not rewritten', () => {
     const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
     expect(eff).toContain('b.id !== id');

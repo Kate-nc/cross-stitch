@@ -103,6 +103,11 @@ Status: PR open, waiting for review and merge.
 ### Data and migration statement
 No schema change, no change to the project record format, no migration. One new record per project in `pendingImports` (about 90 KB for a 300x300 chart), overwritten in place, removed with the project. Old builds ignore it. Existing projects load exactly as before until the new writer produces a record.
 
+### Review round 1 (Copilot code review on PR 276; both findings verified)
+- **High: a pending progress timer could be retargeted during an in-page project switch.** Reproduced first (File > Switch Project… within the 400 ms window: the first project came back with 0 of its 5 marks). Cause: the effect replaced the owner before the timer fired, so the timer wrote the new project's unchanged state and A's marks never reached the record. The effect now writes the old owner's pending marks before replacing it. New e2e test (two same-size projects, the 400 ms timer held so the switch is deterministic) fails on the previous head and passes now. This path matters because File > Switch Project… and the Stats "open project" route switch in place without saving the old project first.
+- **Low: help text.** The repository requires user-visible changes to update the help as well as the changelog; added a "Stitch marks in the Tracker" entry to the "Saving your work" section of `help-drawer.js`. (Batch 1's save behaviour change had the same omission; this entry covers both.)
+- Test hygiene: the "hiding the tab twice writes once" e2e now compares write counts before and after the extra hides instead of asserting an absolute 1, because a timer-driven save could land in the window (flaked once in a full run, then stable across two further full runs).
+
 ### Remaining for Phase 1
 Batch 3 (honest save badge), batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation).
 

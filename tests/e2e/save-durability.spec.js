@@ -133,10 +133,12 @@ test.describe('Tracker saves', () => {
       ProjectStorage.save = function () { window.__puts++; return orig.apply(null, arguments); };
     });
     await hide();
-    await expect.poll(() => page.evaluate(() => window.__puts), { timeout: 2000 }).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__puts), { timeout: 2000 }).toBeGreaterThanOrEqual(1);
+    await page.waitForTimeout(300);                          // let the first write finish, and any timer-driven save with it
+    const afterFirst = await page.evaluate(() => window.__puts);
     await hide(); await hide();
     await page.waitForTimeout(600);
-    expect(await page.evaluate(() => window.__puts)).toBe(1);
+    expect(await page.evaluate(() => window.__puts)).toBe(afterFirst);   // nothing changed, so nothing more is written
   });
 
   test('marks survive a hard close half a second after marking (no unload handler runs)', async ({ page, context }) => {
@@ -175,6 +177,39 @@ test.describe('Tracker saves', () => {
       return (await ProjectStorage.get(id)).done.filter(v => v === 1).length;
     });
     expect(loaded).toBe(15);
+  });
+
+  test('switching project within the page right after marking keeps the first project\'s marks', async ({ page }) => {
+    await loadTrackerFixture(page);
+    const firstId = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+    // A second project of the same size, so a mix-up between the two could not be caught by a length check.
+    await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      const p = JSON.parse(JSON.stringify(await ProjectStorage.get(id)));
+      p.id = 'proj_other_same_size'; p.name = 'Other same size'; p.done = new Array(p.pattern.length).fill(0);
+      delete p.lastWriteAt;
+      await ProjectStorage.save(p);
+    });
+    // Hold the 400 ms progress timer, so the switch happens inside its window (deterministic).
+    await page.evaluate(() => {
+      window.__held = [];
+      const st = window.setTimeout;
+      window.setTimeout = function (fn, ms) { if (ms === 400) { window.__held.push(fn); return 900000 + window.__held.length; } return st.apply(window, arguments); };
+    });
+    await markRow(page, 3, 2, 6);                              // 5 marks
+    expect(await page.evaluate(() => window.__held.length)).toBeGreaterThan(0);
+    await page.getByRole('button', { name: /^File/ }).first().click();
+    await page.getByText(/Switch Project/i).first().click();
+    await page.getByText('Other same size').last().click();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('crossstitch_active_project'))).toBe('proj_other_same_size');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => { window.__held.splice(0).forEach(fn => fn()); });   // the held timer finally fires
+    await page.waitForTimeout(500);
+    const counts = await page.evaluate(async firstId => {
+      const a = await ProjectStorage.get(firstId), b = await ProjectStorage.get('proj_other_same_size');
+      return { first: a.done.filter(v => v === 1).length, other: b.done.filter(v => v === 1).length };
+    }, firstId);
+    expect(counts).toEqual({ first: 5, other: 0 });
   });
 
   test('steady marking is saved at least every 10 seconds', async ({ page }) => {

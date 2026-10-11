@@ -4216,6 +4216,10 @@ useEffect(() => {
 useEffect(() => {
   const id = projectIdRef.current;
   if (!pat || !done || !id) return;
+  // A project switch inside the page: write the old project's pending marks before the
+  // owner changes, or the timer would fire for the new project and drop them.
+  const _prev = progressOwnerRef.current;
+  if (_prev && _prev.id !== id && progressTimerRef.current) writeProgressNow();
   progressOwnerRef.current = { id, done, halfDone, knotsDone };
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
