@@ -403,6 +403,7 @@
     var celebrate = usePref("trackerCelebrate", true);
     var dragMark = usePref("trackerDragMark", true);
     var trackerSheen = usePref("trackerCanvasTexture", false);
+    var markAllAs = usePref("trackerMarkAllAs", "ask");
 
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
@@ -543,6 +544,17 @@
         h(Row, { last: true, label: "Drag to mark stitches",
           desc: "Click-and-drag (or touch-and-drag) across the chart to mark a run of stitches in one motion. Long-press a cell, then tap the opposite corner to fill a rectangle. Turn off to fall back to plain tap-to-mark." },
           h(Switch, { checked: dragMark[0], onChange: dragMark[1] })
+        )
+      ),
+
+      h(Section, { title: "Statistics" },
+        h(Row, { last: true, label: "Marking a whole colour done counts as",
+          desc: "Catch-up raises your progress but is left out of today's count, your pace, your goals and your streak, so catching up from paper does not inflate them." },
+          h(Segmented, { value: markAllAs[0], onChange: markAllAs[1], options: [
+            { value: "ask",     label: "Ask me" },
+            { value: "catchup", label: "Catch-up" },
+            { value: "today",   label: "Today's stitching" }
+          ]})
         )
       )
     );

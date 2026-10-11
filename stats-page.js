@@ -1679,7 +1679,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     for (const s of allSessions) {
       if (!s.date) continue;
       const m = parseInt(s.date.slice(5, 7), 10) - 1;
-      if (m >= 0 && m < 12) monthTotals[m] += ProgressUnits.sessionNet(s) || 0;
+      if (m >= 0 && m < 12) monthTotals[m] += ProgressUnits.sessionAdded(s) || 0;
     }
     if (monthTotals.reduce((a, b) => a + b, 0) === 0) return null;
     if (monthTotals.filter(v => v > 0).length < 3) return null;

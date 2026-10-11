@@ -155,7 +155,7 @@
       const dayKeys = new Set();
       for (let i = 0; i < sessions.length; i++) {
         const x = sessions[i];
-        stitches += (ProgressUnits.sessionNet(x) || 0);
+        stitches += (ProgressUnits.sessionAdded(x) || 0);
         seconds += getSessionSeconds(x);
         if (x.date) dayKeys.add(x.date);
       }

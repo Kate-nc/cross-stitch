@@ -68,8 +68,8 @@ async function loadStitchData(filterProjectId) {
         if (!s || !s.date) continue;
         if (!trackingStart || s.date < trackingStart) trackingStart = s.date;
         if (!byDay[s.date]) byDay[s.date] = { total: 0, projects: {} };
-        byDay[s.date].total += (ProgressUnits.sessionNet(s) || 0);
-        byDay[s.date].projects[proj.id] = (byDay[s.date].projects[proj.id] || 0) + (ProgressUnits.sessionNet(s) || 0);
+        byDay[s.date].total += (ProgressUnits.sessionAdded(s) || 0);
+        byDay[s.date].projects[proj.id] = (byDay[s.date].projects[proj.id] || 0) + (ProgressUnits.sessionAdded(s) || 0);
         const secs = s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
         durationByDay[s.date] = (durationByDay[s.date] || 0) + secs;
       }

@@ -86,3 +86,35 @@ The first comparison read tap latency +12.9% and global Stats +7.4%, over the 5%
 | Global Stats open (500 sessions) | 619 ms | 608 ms | -1.9% |
 
 Before the formatter fix the 50-tap bench read medians 8.9 (main) vs 9.4 ms (branch), about +5%. After, +2%.
+
+## Batch 3: unpicking and catch-up (STATS-04, STATS-07)
+
+### What changed
+- `progress-units.js` gains `sessionAdded` (what a session marked, without catch-up, never reduced by unpicking), `sessionUnpicked`, `sessionCatchUp`, `sessionActive` and `liveSessionAdded`. `sessionNet` stays for progress (charts, stash, the stored thread log).
+- Today, this week and this month, speed and pace (Stats, global Stats, Insights, popover, mini bar), best day, the daily chart, the Activity heatmap, goals, "fastest session" and the saved-session toast all read additions. A session of +50 and -80 is Today 50, Unpicked 80, progress -30.
+- Streaks and "active days" (daily and weekly) skip a day that only unpicked or only caught up. A session with no stitch figures at all (hand-made or imported with a duration only) still counts, as before.
+- The session journal shows "Unpicked N" and "Catch-up N" beside the stitches; Progress info shows "Unpicked today"; its pace now comes from what sessions added, so it matches the Stats page (the audit saw 162 vs 172).
+- Catch-up: sessions carry an optional `catchUp` (units, inside `unitsCompleted`). Marking a whole colour done (palette tile) asks once "Count these as today's stitching?" with Catch-up / Today's stitching / Cancel, and remembers the answer in the new `trackerMarkAllAs` preference (Ask me, Catch-up, Today's stitching) in Preferences, Stitch Tracker, Statistics. Unmarking a whole colour needs no question. The session CSV gains a trailing `Catch-up` column.
+
+### Decisions and deviations
+- The prompt's other catch-up triggers (edit-mode changes, undo of marks from an earlier session) are not tagged: edit-mode changes do not move the done marks; an undo is already shown as Unpicked and no longer hurts Today or pace. Tagging undo of older marks would need to know which session made each mark, which is not stored. Noted as a known gap.
+- Rectangle-select and drag marking are ordinary stitching, not catch-up (the time was spent).
+- A stitch marked and then unpicked in the same session still counts once in "added" (the prompt's definition: additions only). Pace is therefore slightly generous for people who correct mistakes; the unpicked figure is shown beside it.
+- Old sessions are not rewritten. Past days can read differently now: a day that was +50/-80 used to show -30 and now shows 50 (the prompt's intent).
+- `isComplete`, progress, `totalAtEnd`, the derived stitch log and stash thread usage still use net marks.
+
+### Tests added
+`tests/phase2Batch3.test.js` (11: the worked example, old net-only sessions, Today, speed, best day, streaks incl. catch-up and no-figure sessions, CSV), `tests/e2e/phase2-batch3.spec.js` (4: asks once and records catch-up, remembered choice, counted-as-today adds to Today, unpicking shows Unpicked and Today stays 0). Updated `liveAutoStitchesClamp`.
+
+### Batch 3 performance (interleaved A/B, main at `5054ed1`; raw files in `perf/batch3-ab/`)
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn chart | 1,424 ms (1,188 to 1,656) | 1,402 ms (1,289 to 1,635) | -1.5% |
+| Tap latency, one tap | 18 ms (13 to 22) | 15 ms (13 to 18) | -14% (noise; 1 ms timer) |
+| Tap latency, 25 taps x 2 sessions x 3 rounds | median 8.3 ms, mean 8.9 | median 8.2 ms, mean 8.9 | -1% |
+| 60-move drag | 1,061 ms | 1,067 ms | +0.6% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 70 ms | 68 ms | -2.9% |
+| Global Stats open (500 sessions) | 632 ms | 610 ms | -3.5% |
+
+The mark path gained one ref read per progress change; `sessionAdded` replaces `sessionNet` at the readers with the same cost.

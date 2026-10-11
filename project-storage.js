@@ -133,7 +133,7 @@ const ProjectStorage = (() => {
     const sessions = p.statsSessions || [];
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
     const totalMinutes = Math.round(totalSeconds / 60);
-    const totalNet = sessions.reduce((sum, s) => sum + (ProgressUnits.sessionNet(s) || 0), 0);
+    const totalNet = sessions.reduce((sum, s) => sum + (ProgressUnits.sessionAdded(s) || 0), 0);
     const uniqueDays = new Set(sessions.map(s => s.date).filter(Boolean)).size;
     const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
     // Compute stitches this week and this month for dashboard stats
@@ -161,11 +161,11 @@ const ProjectStorage = (() => {
       dayKeyToIdx[k] = 6 - i;
     }
     for (const s2 of sessions) {
-      if (s2.date >= weekStartStr) stitchesThisWeek += (ProgressUnits.sessionNet(s2) || 0);
-      if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (ProgressUnits.sessionNet(s2) || 0);
+      if (s2.date >= weekStartStr) stitchesThisWeek += (ProgressUnits.sessionAdded(s2) || 0);
+      if (s2.date && s2.date.slice(0, 7) === monthStr) stitchesThisMonth += (ProgressUnits.sessionAdded(s2) || 0);
       if (s2.date) {
         const idx = dayKeyToIdx[s2.date];
-        if (idx !== undefined) weeklyStitches[idx] += (ProgressUnits.sessionNet(s2) || 0);
+        if (idx !== undefined) weeklyStitches[idx] += (ProgressUnits.sessionAdded(s2) || 0);
       }
     }
     return {
@@ -190,7 +190,7 @@ const ProjectStorage = (() => {
       uniqueActiveDays: uniqueDays,
       stitchesPerHour: totalSeconds > 0 ? Math.round(totalNet / (totalSeconds / 3600)) : 0,
       lastSessionDate: lastSession ? lastSession.date : null,
-      lastSessionStitches: lastSession ? (ProgressUnits.sessionNet(lastSession) || 0) : 0,
+      lastSessionStitches: lastSession ? (ProgressUnits.sessionAdded(lastSession) || 0) : 0,
       stitchesThisWeek,
       stitchesThisMonth,
       weeklyStitches,
@@ -1285,7 +1285,7 @@ const ProjectStorage = (() => {
           } else if (proj.statsSessions && proj.statsSessions.length > 0) {
             for (const s of proj.statsSessions) {
               if (!s || !s.date) continue;
-              daily[s.date] = (daily[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0);
+              daily[s.date] = (daily[s.date] || 0) + (ProgressUnits.sessionAdded(s) || 0);
             }
           }
         }

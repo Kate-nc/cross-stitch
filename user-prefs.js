@@ -120,6 +120,7 @@
     trackerShowParking:    true,
     trackerUndoDepth:      50,
     trackerCelebrate:      true,
+    trackerMarkAllAs:      "ask",   // ask | catchup | today: what marking a whole colour done counts as
     // C3 — the unified pointer pipeline (useDragMark) is now the default.
     // Set this preference to false to fall back to plain tap-to-mark only
     // (no drag-mark, no long-press range). The legacy global override
