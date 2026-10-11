@@ -3523,14 +3523,48 @@ function TrackerApp({
   }, [knots, knotsDone]);
   const knotsByThread = useMemo(() => window.Knots ? window.Knots.byThread(knots, knotsDone) : {}, [knots, knotsDone]);
 
-  // Combined progress: full stitches + half stitches weighted at 0.5 + French
-  // knots (one each)
-  const combinedTotal = totalStitchable + halfStitchCounts.total * 0.5 + knotCounts.total;
-  const combinedDone = doneCount + halfStitchCounts.done * 0.5 + knotCounts.done;
-  // Effective progress respects visible-layer filter
-  const effectiveCombinedTotal = statsCountMode === 'visible' ? (layerVis.full ? totalStitchable : 0) + (layerVis.half ? halfStitchCounts.total * 0.5 : 0) + (layerVis.french_knot ? knotCounts.total : 0) : combinedTotal;
-  const effectiveCombinedDone = statsCountMode === 'visible' ? (layerVis.full ? doneCount : 0) + (layerVis.half ? halfStitchCounts.done * 0.5 : 0) + (layerVis.french_knot ? knotCounts.done : 0) : combinedDone;
-  const progressPct = effectiveCombinedTotal > 0 ? Math.round(effectiveCombinedDone / effectiveCombinedTotal * 1000) / 10 : 0;
+  // Progress in units, from the one shared definition (progress-units.js: a full stitch is one unit, a half stitch
+  // half, a French knot one). Every figure below, and every other page, reads it from there.
+  const progAll = useMemo(() => ProgressUnits.progressUnits({
+    full: {
+      done: doneCount,
+      total: totalStitchable
+    },
+    half: {
+      done: halfStitchCounts.done,
+      total: halfStitchCounts.total
+    },
+    knot: {
+      done: knotCounts.done,
+      total: knotCounts.total
+    }
+  }), [doneCount, totalStitchable, halfStitchCounts, knotCounts]);
+  // The strip follows the visible-layer filter; everything else counts every type.
+  const progShown = useMemo(() => statsCountMode === 'visible' ? ProgressUnits.progressUnits({
+    full: {
+      done: doneCount,
+      total: totalStitchable
+    },
+    half: {
+      done: halfStitchCounts.done,
+      total: halfStitchCounts.total
+    },
+    knot: {
+      done: knotCounts.done,
+      total: knotCounts.total
+    }
+  }, {
+    include: {
+      full: layerVis.full,
+      half: layerVis.half,
+      knot: layerVis.french_knot
+    }
+  }) : progAll, [progAll, statsCountMode, layerVis, doneCount, totalStitchable, halfStitchCounts, knotCounts]);
+  const combinedTotal = progAll.totalUnits;
+  const combinedDone = progAll.doneUnits;
+  const effectiveCombinedTotal = progShown.totalUnits;
+  const effectiveCombinedDone = progShown.doneUnits;
+  const progressPct = progShown.percent;
   // Today's stitches for progress bar accent segment
   const todayStitchesForBar = useMemo(() => {
     if (!statsSessions) return 0;
@@ -3593,12 +3627,12 @@ function TrackerApp({
     const results = InsightsEngine.generateProjections([{
       id: projectIdRef.current,
       name: projectName,
-      totalStitches: totalStitchable,
-      completedStitches: doneCount,
+      totalStitches: combinedTotal,
+      completedStitches: combinedDone,
       statsSessions: statsSessions
     }]);
     return results && results[0] ? results[0] : null;
-  }, [totalStitchable, doneCount, statsSessions, projectName]);
+  }, [combinedTotal, combinedDone, statsSessions, projectName]);
   const prevBarPct = Math.max(0, Math.min(progressPct, 100) - todayBarPct);
   // Plan B Phase 1: Progress info chip + AppInfoPopover state.
   const [progressInfoOpen, setProgressInfoOpen] = useState(false);
@@ -3846,9 +3880,9 @@ function TrackerApp({
   }, [countsVer, focusColour, stitchView, highlightSkipDone, pal, areaColourCounts]);
   const estCompletion = useMemo(() => {
     let t = totalTime + liveAutoElapsed;
-    if (doneCount < 1 || t < 60) return null;
-    return Math.round((totalStitchable - doneCount) * (t / doneCount));
-  }, [totalTime, liveAutoElapsed, doneCount, totalStitchable]);
+    if (combinedDone <= 0 || t < 60) return null;
+    return Math.round((combinedTotal - combinedDone) * (t / combinedDone));
+  }, [totalTime, liveAutoElapsed, combinedDone, combinedTotal]);
 
   /* ── Chart rulers ────────────────────────────────────────────────────────
      The sticky column and row rulers render one <div> per column and per row —
@@ -4311,10 +4345,10 @@ function TrackerApp({
   // Keep autoStatsRef fresh
   useEffect(() => {
     autoStatsRef.current = {
-      doneCount,
-      totalStitchable
+      doneUnits: combinedDone,
+      totalUnits: combinedTotal
     };
-  }, [doneCount, totalStitchable]);
+  }, [combinedDone, combinedTotal]);
   // Auto-detect stitch activity from doneCount & halfDone changes
   useEffect(() => {
     try {
@@ -4350,7 +4384,17 @@ function TrackerApp({
       if (doneDiff !== 0 || halfDiff !== 0 || knotDiff !== 0) {
         const completed = Math.max(0, doneDiff) + Math.max(0, halfDiff) + Math.max(0, knotDiff);
         const undone = Math.max(0, -doneDiff) + Math.max(0, -halfDiff) + Math.max(0, -knotDiff);
-        if (completed > 0 || undone > 0) recordAutoActivity(completed, undone);
+        const completedUnits = ProgressUnits.sessionUnits({
+          full: Math.max(0, doneDiff),
+          half: Math.max(0, halfDiff),
+          knot: Math.max(0, knotDiff)
+        });
+        const undoneUnits = ProgressUnits.sessionUnits({
+          full: Math.max(0, -doneDiff),
+          half: Math.max(0, -halfDiff),
+          knot: Math.max(0, -knotDiff)
+        });
+        if (completed > 0 || undone > 0) recordAutoActivity(completed, undone, completedUnits, undoneUnits);
         // Milestone detection
         if (completed > 0 && totalStitchable > 0) {
           const prevTotal = prevDone + prevHalf;
@@ -4930,11 +4974,11 @@ function TrackerApp({
     let t = totalTime + liveAutoElapsed;
     let coloursComplete = Object.values(colourDoneCounts).filter(c => c.done >= c.total && c.total > 0).length;
     let totalColours = pal ? pal.length : 0;
-    let stPerHr = t >= 60 && doneCount > 0 ? Math.round(doneCount / (t / 3600)) : null;
-    let estRem = t >= 60 && doneCount > 0 ? Math.round((totalStitchable - doneCount) * (t / doneCount)) : null;
+    let stPerHr = t >= 60 && combinedDone > 0 ? Math.round(combinedDone / (t / 3600)) : null;
+    let estRem = t >= 60 && combinedDone > 0 ? Math.round((combinedTotal - combinedDone) * (t / combinedDone)) : null;
     let lines = ["\u{1F9F5} Cross Stitch Progress Update"];
     lines.push("Project: " + (projectName || sW + "\u00D7" + sH + " pattern"));
-    lines.push("Progress: " + doneCount + "/" + totalStitchable + " stitches (" + progressPct.toFixed(1) + "%)");
+    lines.push("Progress: " + ProgressUnits.formatUnits(combinedDone) + "/" + ProgressUnits.formatUnits(combinedTotal) + " stitches (" + progAll.percent.toFixed(1) + "%)");
     if (halfStitchCounts.total > 0) lines.push("Half stitches: " + halfStitchCounts.done + "/" + halfStitchCounts.total);
     if (knotCounts.total > 0) lines.push("French knots: " + knotCounts.done + "/" + knotCounts.total);
     lines.push("Colours: " + coloursComplete + "/" + totalColours + " colours complete");
@@ -6901,7 +6945,7 @@ function TrackerApp({
     const _logMap = {};
     (statsSessions || []).forEach(s => {
       if (!s || !s.date) return;
-      _logMap[s.date] = (_logMap[s.date] || 0) + (s.netStitches || 0);
+      _logMap[s.date] = (_logMap[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0);
     });
     const _derivedLog = Object.entries(_logMap).filter(([, c]) => c !== 0).map(([date, count]) => ({
       date,
@@ -11142,7 +11186,7 @@ function TrackerApp({
     onPreferences: typeof window.PreferencesModal !== 'undefined' ? () => setPreferencesOpen(true) : undefined,
     setModal: setModal,
     projectName: pat && pal ? projectName || sW + '×' + sH + ' pattern' : undefined,
-    projectPct: pat && pal && totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 100) : undefined,
+    projectPct: pat && pal && effectiveCombinedTotal > 0 ? Math.round(progressPct) : undefined,
     onNameChange: pat && pal ? n => {
       nameAutoGeneratedRef.current = false;
       setProjectName(n);
@@ -11264,9 +11308,12 @@ function TrackerApp({
     className: "info-strip-row"
   }, /*#__PURE__*/React.createElement("span", {
     className: "info-strip-pct"
-  }, progressPct >= 100 ? /*#__PURE__*/React.createElement(React.Fragment, null, "Complete! ", Icons.star()) : /*#__PURE__*/React.createElement(React.Fragment, null, progressPct.toFixed(1), "%")), progressPct < 100 && totalStitchable > 0 && /*#__PURE__*/React.createElement("span", {
+  }, progressPct >= 100 ? /*#__PURE__*/React.createElement(React.Fragment, null, "Complete! ", Icons.star()) : /*#__PURE__*/React.createElement(React.Fragment, null, progressPct.toFixed(1), "%")), progressPct < 100 && effectiveCombinedTotal > 0 && /*#__PURE__*/React.createElement("span", {
     className: "info-strip-counts"
-  }, doneCount.toLocaleString('en-GB'), " done \xB7 ", Math.max(0, totalStitchable - doneCount).toLocaleString('en-GB'), " to go"), liveAutoStitches > 0 && /*#__PURE__*/React.createElement("span", {
+  }, ProgressUnits.formatUnits(effectiveCombinedDone), " done \xB7 ", ProgressUnits.remainingWhole(progShown).toLocaleString('en-GB'), " to go"), progressPct < 100 && effectiveCombinedTotal > 0 && ProgressUnits.breakdownText(progShown) && /*#__PURE__*/React.createElement("span", {
+    className: "info-strip-breakdown",
+    title: "Half stitches count as half a stitch"
+  }, ProgressUnits.breakdownText(progShown)), liveAutoStitches > 0 && /*#__PURE__*/React.createElement("span", {
     className: "info-strip-timer"
   }, /*#__PURE__*/React.createElement("span", {
     className: "info-strip-timer-icon",
@@ -11288,10 +11335,10 @@ function TrackerApp({
     "aria-hidden": "true"
   }, Icons.chevronDown ? Icons.chevronDown() : null)), progressInfoOpen && window.AppInfoPopover && (() => {
     const totalSec = typeof totalTime === 'number' ? totalTime : 0;
-    const speedPerHour = totalSec > 0 && doneCount > 0 ? Math.round(doneCount / (totalSec / 3600)) : 0;
+    const speedPerHour = totalSec > 0 && combinedDone > 0 ? Math.round(combinedDone / (totalSec / 3600)) : 0;
     const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
     const fmtL = window.fmtTimeL || (s => Math.round(s / 3600) + 'h');
-    const progressRows = [['Done', `${Math.round(effectiveCombinedDone).toLocaleString('en-GB')} / ${Math.round(effectiveCombinedTotal).toLocaleString('en-GB')} (${progressPct.toFixed(1)}%)`], ['Today', todayStitchesForBar.toLocaleString('en-GB')], ['This week', weekStitchesForChip.toLocaleString('en-GB')]];
+    const progressRows = [['Done', `${ProgressUnits.formatUnits(effectiveCombinedDone)} / ${ProgressUnits.formatUnits(effectiveCombinedTotal)} (${progressPct.toFixed(1)}%)`], ['Today', ProgressUnits.formatUnits(todayStitchesForBar)], ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]];
     const timeRows = [['Time spent', fmtL(totalSec)]];
     if (speedPerHour > 0) {
       timeRows.push(['Average pace', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
@@ -11304,7 +11351,7 @@ function TrackerApp({
       if (!Array.isArray(statsSessions) || statsSessions.length === 0) return [];
       const byDay = {};
       for (const s of statsSessions) {
-        if (s.date && (s.netStitches || 0) > 0) byDay[s.date] = (byDay[s.date] || 0) + (s.netStitches || 0);
+        if (s.date && (ProgressUnits.sessionNet(s) || 0) > 0) byDay[s.date] = (byDay[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0);
       }
       return Object.keys(byDay).sort().slice(-30).map(d => ({
         date: d,
@@ -11578,8 +11625,8 @@ function TrackerApp({
     setStatsTab: setStatsTab,
     statsSessions: statsSessions,
     statsSettings: statsSettings,
-    totalCompleted: doneCount,
-    totalStitches: totalStitchable,
+    totalCompleted: Math.round(combinedDone),
+    totalStitches: Math.round(combinedTotal),
     halfStitchCounts: halfStitchCounts,
     onEditNote: editSessionNote,
     onUpdateSettings: setStatsSettings,
@@ -14082,7 +14129,7 @@ function TrackerApp({
     const firstSessionBreadcrumb = sessionBreadcrumbs.length > 0 ? sessionBreadcrumbs[0] : null;
     return /*#__PURE__*/React.createElement(SessionSummaryModal, {
       data: sessionSummaryData,
-      prevAvgSpeed: statsSessions && statsSessions.length > 1 ? Math.round(statsSessions.slice(0, -1).reduce((s, sess) => s + (typeof sess.netStitches === 'number' ? sess.netStitches : sess.stitchesCompleted || 0), 0) / Math.max(1, statsSessions.slice(0, -1).reduce((s, sess) => s + (sess.durationSeconds || 0), 0)) * 3600) : 0,
+      prevAvgSpeed: statsSessions && statsSessions.length > 1 ? Math.round(statsSessions.slice(0, -1).reduce((s, sess) => s + (typeof sess.units === 'number' || typeof sess.netStitches === 'number' ? ProgressUnits.sessionNet(sess) : sess.stitchesCompleted || 0), 0) / Math.max(1, statsSessions.slice(0, -1).reduce((s, sess) => s + (sess.durationSeconds || 0), 0)) * 3600) : 0,
       hasBreadcrumbs: sessionBreadcrumbs.length > 0,
       onViewBreadcrumbs: () => {
         setBreadcrumbVisible(true);

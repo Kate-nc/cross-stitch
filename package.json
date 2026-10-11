@@ -23,6 +23,9 @@
     "test:ipad": "playwright test --project=ipad-webkit"
   },
   "jest": {
+    "setupFiles": [
+      "<rootDir>/tests/setup/progress-units.js"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/tests/e2e/",

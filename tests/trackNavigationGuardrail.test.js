@@ -339,8 +339,10 @@ describe('TrackerApp processLoadedProject — compact format detection', () => {
 describe('project-storage — .p field support in metadata derivation', () => {
   const projectStorage = fs.readFileSync(path.join(__dirname, '..', 'project-storage.js'), 'utf8');
 
-  test('countTotalStitches accepts the compact .p field', () => {
-    expect(projectStorage).toMatch(/countTotalStitches[\s\S]{0,300}p\.pattern\s*\|\|\s*p\.p/);
+  test('progress accepts the compact .p field (counted in progress-units.js, which project-storage reads)', () => {
+    const units = fs.readFileSync(path.join(__dirname, '..', 'progress-units.js'), 'utf8');
+    expect(units).toMatch(/var pat = p\.pattern \|\| p\.p/);
+    expect(projectStorage).toMatch(/progressOf\(p\)/);
   });
 
   test('buildStatsSummary palette derivation accepts the compact .p field', () => {

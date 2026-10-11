@@ -47,6 +47,7 @@ var PRECACHE_URLS = [
   './cross-tab-coord.js',
   './cross-tab-resolution.js',
   './cross-tab-lock.js',
+  './progress-units.js',
   './project-storage.js',
   './blob-store.js',
   './stash-bridge.js',

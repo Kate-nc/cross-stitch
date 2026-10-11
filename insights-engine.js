@@ -179,7 +179,7 @@
       return new Date(s.date + 'T12:00:00').getTime() >= windowStart.getTime();
     });
     var activeDays = new Set(recentSessions.map(function (s) { return s.date; })).size;
-    var recentStitches = recentSessions.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
+    var recentStitches = recentSessions.reduce(function (a, s) { return a + (ProgressUnits.sessionNet(s) || 0); }, 0);
     var recentSeconds = recentSessions.reduce(function (a, s) {
       return a + getSessionDurationSeconds(s);
     }, 0);
@@ -260,7 +260,7 @@
       // binning (adaptive to each user's distribution); this hour-of-week grid
       // uses fixed ratio thresholds (0.25/0.5/0.75 of max) which suits the
       // sparser per-cell data — both choices are intentional.
-      var inc = s.netStitches || 0;
+      var inc = ProgressUnits.sessionNet(s) || 0;
       if (inc > 0) {
         grid[dow][hr] += inc;
         if (grid[dow][hr] > max) max = grid[dow][hr];
@@ -348,7 +348,7 @@
         return new Date(a.startTime || a.date).getTime() - new Date(b.startTime || b.date).getTime();
       });
       function avgSpeed(arr) {
-        var st = arr.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
+        var st = arr.reduce(function (a, s) { return a + (ProgressUnits.sessionNet(s) || 0); }, 0);
         var sec = arr.reduce(function (a, s) { return a + getSessionDurationSeconds(s); }, 0);
         return sec > 0 ? st / (sec / 3600) : 0;
       }
@@ -456,7 +456,7 @@
 
     // Fun fallback fact when nothing else (so the page is never empty for an active user).
     if (out.length === 0 && allSessions.length > 0) {
-      var totalStitchesAll = allSessions.reduce(function (a, s) { return a + (s.netStitches || 0); }, 0);
+      var totalStitchesAll = allSessions.reduce(function (a, s) { return a + (ProgressUnits.sessionNet(s) || 0); }, 0);
       // Approx 32 stitches per inch of thread for 14ct fabric, so total inches ≈ stitches * 0.85
       // Convert to metres for fun fact (rough estimate; not calibrated per fabric count).
       var metres = Math.round(totalStitchesAll * 0.022);

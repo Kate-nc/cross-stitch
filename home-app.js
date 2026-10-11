@@ -1175,6 +1175,14 @@
               return bt - at;
             });
             setList(sorted);
+            // Rows saved before progress counted half stitches get their figures rewritten once, in idle time.
+            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== 1; })) {
+              window.__progressRowsRefreshing = true;
+              window.ProjectStorage.refreshProgressRows().then(function (n) {
+                window.__progressRowsRefreshing = false;
+                if (n > 0 && !cancelled) window.ProjectStorage.listProjects().then(function (l2) { if (!cancelled) setList((l2 || []).slice().sort(function (a, b) { return (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) - (a.updatedAt ? new Date(a.updatedAt).getTime() : 0); })); });
+              });
+            }
             // Once someone has stitched something worth protecting, offer a backup if it has been a while.
             // Same once-per-session gate as the Tracker's, so it never shows twice in a visit.
             if (window.BackupReminder && sorted.some(function (p) { return p && (p.anyProgress || p.completedStitches > 0); })) {

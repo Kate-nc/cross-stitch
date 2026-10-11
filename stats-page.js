@@ -1184,16 +1184,14 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         const globalUsedKeys = new Set();
         for (const p of fulls) {
           if (!p) continue;
-          let total = 0, completed = 0;
+          let total = 0;
           const palette = new Set();
           const blendIds = new Set();
           if (p.pattern && p.pattern.length) {
-            const done = p.done && p.done.length === p.pattern.length ? p.done : null;
             for (let i = 0; i < p.pattern.length; i++) {
               const cell = p.pattern[i];
               if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
               total++;
-              if (done && done[i]) completed++;
               if (cell.id.indexOf('+') !== -1) {
                 blendIds.add(cell.id);
                 cell.id.split('+').forEach(function(part) { part = part.trim(); if (part) palette.add(part); });
@@ -1214,13 +1212,16 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           const diff = typeof calcDifficulty === 'function' && palLen > 0
             ? calcDifficulty(palLen, blendCount, total)
             : { stars: 1, label: 'Beginner', color: 'var(--success)' };
-          const pct = total > 0 ? Math.round(completed / total * 100) : 0;
+          // Progress from the shared definition (units); `total` stays the count of full-stitch cells, which is
+          // what difficulty is judged on.
+          const prog = ProgressUnits.fromProject(p);
+          const pct = Math.round(prog.percent);
           rich.push({
             id: p.id, name: p.name || 'Untitled',
             finishStatus: p.finishStatus || 'active',
             completedAt: p.completedAt, createdAt: p.createdAt, startedAt: p.startedAt,
             designerName: p.designerName || null,
-            totalStitches: total, completedStitches: completed,
+            totalStitches: Math.round(prog.totalUnits), completedStitches: Math.round(prog.doneUnits),
             paletteIds: Array.from(palette), palLen, blendCount,
             difficulty: diff.stars, difficultyLabel: diff.label, difficultyColor: diff.color,
             pct, finished: p.finishStatus === 'completed',
@@ -1678,7 +1679,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     for (const s of allSessions) {
       if (!s.date) continue;
       const m = parseInt(s.date.slice(5, 7), 10) - 1;
-      if (m >= 0 && m < 12) monthTotals[m] += s.netStitches || 0;
+      if (m >= 0 && m < 12) monthTotals[m] += ProgressUnits.sessionNet(s) || 0;
     }
     if (monthTotals.reduce((a, b) => a + b, 0) === 0) return null;
     if (monthTotals.filter(v => v > 0).length < 3) return null;

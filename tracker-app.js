@@ -1914,14 +1914,16 @@ const knotDoneSet=useMemo(()=>new Set(knotsDone),[knotsDone]);
 const knotCounts=useMemo(()=>window.Knots?window.Knots.progress(knots,knotsDone):{total:0,done:0},[knots,knotsDone]);
 const knotsByThread=useMemo(()=>window.Knots?window.Knots.byThread(knots,knotsDone):{},[knots,knotsDone]);
 
-// Combined progress: full stitches + half stitches weighted at 0.5 + French
-// knots (one each)
-const combinedTotal=totalStitchable+halfStitchCounts.total*0.5+knotCounts.total;
-const combinedDone=doneCount+halfStitchCounts.done*0.5+knotCounts.done;
-// Effective progress respects visible-layer filter
-const effectiveCombinedTotal=statsCountMode==='visible'?(layerVis.full?totalStitchable:0)+(layerVis.half?halfStitchCounts.total*0.5:0)+(layerVis.french_knot?knotCounts.total:0):combinedTotal;
-const effectiveCombinedDone=statsCountMode==='visible'?(layerVis.full?doneCount:0)+(layerVis.half?halfStitchCounts.done*0.5:0)+(layerVis.french_knot?knotCounts.done:0):combinedDone;
-const progressPct=effectiveCombinedTotal>0?Math.round(effectiveCombinedDone/effectiveCombinedTotal*1000)/10:0;
+// Progress in units, from the one shared definition (progress-units.js: a full stitch is one unit, a half stitch
+// half, a French knot one). Every figure below, and every other page, reads it from there.
+const progAll=useMemo(()=>ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total}}),[doneCount,totalStitchable,halfStitchCounts,knotCounts]);
+// The strip follows the visible-layer filter; everything else counts every type.
+const progShown=useMemo(()=>statsCountMode==='visible'?ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total}},{include:{full:layerVis.full,half:layerVis.half,knot:layerVis.french_knot}}):progAll,[progAll,statsCountMode,layerVis,doneCount,totalStitchable,halfStitchCounts,knotCounts]);
+const combinedTotal=progAll.totalUnits;
+const combinedDone=progAll.doneUnits;
+const effectiveCombinedTotal=progShown.totalUnits;
+const effectiveCombinedDone=progShown.doneUnits;
+const progressPct=progShown.percent;
 // Today's stitches for progress bar accent segment
 const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
 // Multi-colour parking — per-colour count for the legend "park" pip.
@@ -1965,11 +1967,11 @@ const completionProjection=useMemo(()=>{
   if(!totalStitchable||!Array.isArray(statsSessions)||statsSessions.length===0)return null;
   const results=InsightsEngine.generateProjections([{
     id:projectIdRef.current,name:projectName,
-    totalStitches:totalStitchable,completedStitches:doneCount,
+    totalStitches:combinedTotal,completedStitches:combinedDone,
     statsSessions:statsSessions
   }]);
   return results&&results[0]?results[0]:null;
-},[totalStitchable,doneCount,statsSessions,projectName]);
+},[combinedTotal,combinedDone,statsSessions,projectName]);
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 // Plan B Phase 1: Progress info chip + AppInfoPopover state.
 const [progressInfoOpen,setProgressInfoOpen]=useState(false);
@@ -2094,7 +2096,7 @@ useEffect(()=>{
   prevFocusDoneRef.current=isNowComplete;
 },[countsVer,focusColour,stitchView,highlightSkipDone,pal,areaColourCounts]);
 
-const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(doneCount<1||t<60)return null;return Math.round((totalStitchable-doneCount)*(t/doneCount));},[totalTime,liveAutoElapsed,doneCount,totalStitchable]);
+const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(combinedDone<=0||t<60)return null;return Math.round((combinedTotal-combinedDone)*(t/combinedDone));},[totalTime,liveAutoElapsed,combinedDone,combinedTotal]);
 
 /* ── Chart rulers ────────────────────────────────────────────────────────
    The sticky column and row rulers render one <div> per column and per row —
@@ -2378,7 +2380,7 @@ useEffect(()=>{
 },[rtConsumption,wastePrefs.enabled]);
 
 // Keep autoStatsRef fresh
-useEffect(()=>{autoStatsRef.current={doneCount,totalStitchable};},[doneCount,totalStitchable]);
+useEffect(()=>{autoStatsRef.current={doneUnits:combinedDone,totalUnits:combinedTotal};},[combinedDone,combinedTotal]);
 // Auto-detect stitch activity from doneCount & halfDone changes
 useEffect(()=>{
   try{
@@ -2407,7 +2409,9 @@ useEffect(()=>{
     if(doneDiff!==0||halfDiff!==0||knotDiff!==0){
       const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff)+Math.max(0,knotDiff);
       const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff);
-      if(completed>0||undone>0)recordAutoActivity(completed,undone);
+      const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff)});
+      const undoneUnits=ProgressUnits.sessionUnits({full:Math.max(0,-doneDiff),half:Math.max(0,-halfDiff),knot:Math.max(0,-knotDiff)});
+      if(completed>0||undone>0)recordAutoActivity(completed,undone,completedUnits,undoneUnits);
       // Milestone detection
       if(completed>0&&totalStitchable>0){
         const prevTotal=prevDone+prevHalf;
@@ -2736,11 +2740,11 @@ function copyProgressSummary(){
   let t=totalTime+liveAutoElapsed;
   let coloursComplete=Object.values(colourDoneCounts).filter(c=>c.done>=c.total&&c.total>0).length;
   let totalColours=pal?pal.length:0;
-  let stPerHr=t>=60&&doneCount>0?Math.round(doneCount/(t/3600)):null;
-  let estRem=t>=60&&doneCount>0?Math.round((totalStitchable-doneCount)*(t/doneCount)):null;
+  let stPerHr=t>=60&&combinedDone>0?Math.round(combinedDone/(t/3600)):null;
+  let estRem=t>=60&&combinedDone>0?Math.round((combinedTotal-combinedDone)*(t/combinedDone)):null;
   let lines=["\u{1F9F5} Cross Stitch Progress Update"];
   lines.push("Project: "+(projectName||sW+"\u00D7"+sH+" pattern"));
-  lines.push("Progress: "+doneCount+"/"+totalStitchable+" stitches ("+progressPct.toFixed(1)+"%)");
+  lines.push("Progress: "+ProgressUnits.formatUnits(combinedDone)+"/"+ProgressUnits.formatUnits(combinedTotal)+" stitches ("+progAll.percent.toFixed(1)+"%)");
   if(halfStitchCounts.total>0)lines.push("Half stitches: "+halfStitchCounts.done+"/"+halfStitchCounts.total);
   if(knotCounts.total>0)lines.push("French knots: "+knotCounts.done+"/"+knotCounts.total);
   lines.push("Colours: "+coloursComplete+"/"+totalColours+" colours complete");
@@ -4122,7 +4126,7 @@ const buildSnapshot = () => {
   const _logMap = {};
   (statsSessions || []).forEach(s => {
     if (!s || !s.date) return;
-    _logMap[s.date] = (_logMap[s.date] || 0) + (s.netStitches || 0);
+    _logMap[s.date] = (_logMap[s.date] || 0) + (ProgressUnits.sessionNet(s) || 0);
   });
   const _derivedLog = Object.entries(_logMap)
     .filter(([, c]) => c !== 0)
@@ -7077,7 +7081,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&effectiveCombinedTotal>0?Math.round(progressPct):undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -7149,7 +7153,8 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
-    {progressPct<100&&totalStitchable>0&&<span className="info-strip-counts">{doneCount.toLocaleString('en-GB')} done &middot; {Math.max(0,totalStitchable-doneCount).toLocaleString('en-GB')} to go</span>}
+    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.remainingWhole(progShown).toLocaleString('en-GB')} to go</span>}
+    {progressPct<100&&effectiveCombinedTotal>0&&ProgressUnits.breakdownText(progShown)&&<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{ProgressUnits.breakdownText(progShown)}</span>}
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)} &middot; {formatTimingModeShortLabel(currentTimingMode)}</span>}
   </div>
 </div>
@@ -7168,13 +7173,13 @@ return(
   </button>
   {progressInfoOpen && window.AppInfoPopover && (() => {
     const totalSec = (typeof totalTime === 'number' ? totalTime : 0);
-    const speedPerHour = totalSec > 0 && doneCount > 0 ? Math.round(doneCount / (totalSec/3600)) : 0;
+    const speedPerHour = totalSec > 0 && combinedDone > 0 ? Math.round(combinedDone / (totalSec/3600)) : 0;
     const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
     const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
     const progressRows = [
-      ['Done', `${Math.round(effectiveCombinedDone).toLocaleString('en-GB')} / ${Math.round(effectiveCombinedTotal).toLocaleString('en-GB')} (${progressPct.toFixed(1)}%)`],
-      ['Today', todayStitchesForBar.toLocaleString('en-GB')],
-      ['This week', weekStitchesForChip.toLocaleString('en-GB')]
+      ['Done', `${ProgressUnits.formatUnits(effectiveCombinedDone)} / ${ProgressUnits.formatUnits(effectiveCombinedTotal)} (${progressPct.toFixed(1)}%)`],
+      ['Today', ProgressUnits.formatUnits(todayStitchesForBar)],
+      ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
     const timeRows = [['Time spent', fmtL(totalSec)]];
     if (speedPerHour > 0) {
@@ -7187,7 +7192,7 @@ return(
     const sparkDays=(()=>{
       if(!Array.isArray(statsSessions)||statsSessions.length===0)return[];
       const byDay={};
-      for(const s of statsSessions){if(s.date&&(s.netStitches||0)>0)byDay[s.date]=(byDay[s.date]||0)+(s.netStitches||0);}
+      for(const s of statsSessions){if(s.date&&(ProgressUnits.sessionNet(s)||0)>0)byDay[s.date]=(byDay[s.date]||0)+(ProgressUnits.sessionNet(s)||0);}
       return Object.keys(byDay).sort().slice(-30).map(d=>({date:d,count:byDay[d]}));
     })();
     const sparkMax=sparkDays.length>0?Math.max(...sparkDays.map(d=>d.count)):0;
@@ -7294,7 +7299,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={doneCount} totalStitches={totalStitchable} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={Math.round(combinedDone)} totalStitches={Math.round(combinedTotal)} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
@@ -8217,7 +8222,7 @@ return(
     const activeSessionIdx=statsSessions?statsSessions.length:0;
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
-    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+    return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.units==='number'||typeof sess.netStitches==='number'?ProgressUnits.sessionNet(sess):(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
   {reconcile&&(()=>{
     const cands=reconcile.candidates||[];
