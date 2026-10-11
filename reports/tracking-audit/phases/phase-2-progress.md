@@ -71,3 +71,18 @@ Reading: no measurable regression. The tap difference is one millisecond, within
 
 ### Tests added
 `tests/progressUnits.test.js` (10), `tests/progressUnitsLoaded.test.js`, `tests/projectMetaAnyProgress.test.js` (+ refresh), `tests/setup/progress-units.js` (jest setup so tests that run `project-storage.js` alone get the global the pages get from a script tag), and `tests/e2e/progress-units.spec.js` (3: 4 / 1,759 (0.2%) in the strip, popover, Stats and the library row; half-stitch-only; a session records units).
+
+### Batch 2 performance (interleaved A/B, main in a second worktree; raw files in `perf/batch2-ab/`)
+The first comparison read tap latency +12.9% and global Stats +7.4%, over the 5% line, so the PR was held. Causes removed: `toLocaleString("en-GB")` built a new number formatter on every call (now one cached `Intl.NumberFormat`), the info strip computed the breakdown text twice (now once), and "to go" no longer formats separately.
+
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn chart | 1,360 ms (1,165 to 1,555) | 1,358 ms (1,222 to 1,471) | -0.1% |
+| Tap latency, one tap (1 ms resolution) | 14 ms (13 to 23) | 16 ms (13 to 21) | +14%, a 2 ms step on a rounded timer; ranges overlap |
+| Tap latency, 25 taps x 2 sessions x 3 rounds (`tapbench.js`) | median 8.6 ms | median 8.8 ms | +2% (means 9.7 vs 9.4 ms, so noise) |
+| 60-move drag | 1,056 ms | 1,072 ms | +1.5% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 66 ms | 63 ms | -3.8% |
+| Global Stats open (500 sessions) | 619 ms | 608 ms | -1.9% |
+
+Before the formatter fix the 50-tap bench read medians 8.9 (main) vs 9.4 ms (branch), about +5%. After, +2%.

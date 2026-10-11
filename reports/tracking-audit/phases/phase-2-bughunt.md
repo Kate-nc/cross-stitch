@@ -28,3 +28,19 @@ Safari and Firefox; real devices; the Activity tab with a very large history (th
 - **Daily snapshot never fired across a reload (Medium).** True, and the E2E test hid it by advancing the clock inside one mounted page. The last stitching day is now restored on load from the newest session, then `lastTouchedAt`, then `updatedAt` (a very short session is not recorded at all, found while testing, so the fallbacks matter). New browser test reloads between the two days.
 - **Size mismatch used only the cell count (Medium).** True (10x20 and 20x10 have the same count). The stored `w` and `h` now decide, length is the fallback for older snapshots, and manual snapshots record the size too.
 - **Home gate missed half-stitch-only projects (Medium).** True: `completedStitches` counts full stitches and knots only. Project meta rows now carry `anyProgress` (includes half stitches); Home uses it. Rows saved before this change get the field the next time the project is saved, so a legacy half-stitch-only project does not trigger the reminder until then.
+
+## Batch 2: one definition of progress
+
+### Exercised
+- `npm test` (297 suites, 3,955 tests), terminology lint, `node build-runtime-js.js --check`, bundle-freshness test; Playwright regression 43 of 43 (Phase 1 and Phase 2 specs) on this code, plus `progress-units.spec.js` (3).
+- Cross-check on one project (1,759 stitches, 4 done): the strip, header chip, Progress popover, project Stats, the Home/library row and share text all say 4 done and 0.2%. A half-stitch-only project shows the same figure everywhere (1.5 shown as 2).
+- Data safety: old sessions with only `netStitches` still add up (`units ?? netStitches`); old summary rows are rewritten once by `refreshProgressRows`, which writes only the two summary rows, never the project; a second run changes nothing.
+- Performance: interleaved A/B in the progress log. First run was over the 5% line on tap latency and global Stats; fixed (cached formatter, single breakdown computation) and re-measured.
+
+### Bugs found
+- **Fixed here:** "to go" and "done" rounded separately could disagree with the total by one (2 done + 1,758 to go vs 1,759); `remainingWhole` derives it from the two rounded numbers.
+- **Fixed here:** formatter built per call on the tap path (performance, above).
+- **Noted, not changed:** the sync fingerprint for sessions still reads `netStitches` on purpose; share text still starts with an emoji.
+
+### Not verified
+Safari, Firefox, real devices; a `.csync` round trip with unit-bearing sessions.

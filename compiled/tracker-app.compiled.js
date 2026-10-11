@@ -11310,10 +11310,13 @@ function TrackerApp({
     className: "info-strip-pct"
   }, progressPct >= 100 ? /*#__PURE__*/React.createElement(React.Fragment, null, "Complete! ", Icons.star()) : /*#__PURE__*/React.createElement(React.Fragment, null, progressPct.toFixed(1), "%")), progressPct < 100 && effectiveCombinedTotal > 0 && /*#__PURE__*/React.createElement("span", {
     className: "info-strip-counts"
-  }, ProgressUnits.formatUnits(effectiveCombinedDone), " done \xB7 ", ProgressUnits.remainingWhole(progShown).toLocaleString('en-GB'), " to go"), progressPct < 100 && effectiveCombinedTotal > 0 && ProgressUnits.breakdownText(progShown) && /*#__PURE__*/React.createElement("span", {
-    className: "info-strip-breakdown",
-    title: "Half stitches count as half a stitch"
-  }, ProgressUnits.breakdownText(progShown)), liveAutoStitches > 0 && /*#__PURE__*/React.createElement("span", {
+  }, ProgressUnits.formatUnits(effectiveCombinedDone), " done \xB7 ", ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown)), " to go"), progressPct < 100 && effectiveCombinedTotal > 0 && function () {
+    var bt = ProgressUnits.breakdownText(progShown);
+    return bt ? /*#__PURE__*/React.createElement("span", {
+      className: "info-strip-breakdown",
+      title: "Half stitches count as half a stitch"
+    }, bt) : null;
+  }(), liveAutoStitches > 0 && /*#__PURE__*/React.createElement("span", {
     className: "info-strip-timer"
   }, /*#__PURE__*/React.createElement("span", {
     className: "info-strip-timer-icon",

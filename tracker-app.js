@@ -7153,8 +7153,8 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
-    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.remainingWhole(progShown).toLocaleString('en-GB')} to go</span>}
-    {progressPct<100&&effectiveCombinedTotal>0&&ProgressUnits.breakdownText(progShown)&&<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{ProgressUnits.breakdownText(progShown)}</span>}
+    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))} to go</span>}
+    {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{bt}</span>:null;})()}
     {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)} &middot; {formatTimingModeShortLabel(currentTimingMode)}</span>}
   </div>
 </div>

@@ -61,7 +61,11 @@
 
   // Units shown to the person: whole numbers (a half stitch is half a unit, so the total can be fractional).
   function roundUnits(n) { return Math.round(n); }
-  function formatUnits(n) { return roundUnits(n).toLocaleString("en-GB"); }
+  // One formatter, built once: toLocaleString builds a new one on every call, which showed up on the tap path.
+  var NF = null;
+  try { NF = new Intl.NumberFormat("en-GB"); } catch (e) { NF = null; }
+  function fmt(n) { return NF ? NF.format(n) : n.toLocaleString("en-GB"); }
+  function formatUnits(n) { return fmt(roundUnits(n)); }
   // "To go" as a whole number that adds up with the whole "done" and "total" shown beside it (rounding each of
   // the three on its own can leave them one apart).
   function remainingWhole(result) { return Math.max(0, roundUnits(result.totalUnits) - roundUnits(result.doneUnits)); }
@@ -74,7 +78,7 @@
       if (t === "full") continue;
       var b = result.breakdown[t];
       if (!b || !b.total) continue;
-      parts.push((useDone === false ? b.total : b.done).toLocaleString("en-GB") + " " + LABELS[t]);
+      parts.push(fmt(useDone === false ? b.total : b.done) + " " + LABELS[t]);
     }
     return parts.join(", ");
   }

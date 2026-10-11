@@ -1,0 +1,6 @@
+{"label":"main1","n":50,"median":8.4,"p90":10.7,"mean":8.95}
+{"label":"branch1","n":50,"median":8.6,"p90":12.9,"mean":9.26}
+{"label":"main2","n":50,"median":8.8,"p90":12.1,"mean":9.59}
+{"label":"branch2","n":50,"median":8.9,"p90":14.1,"mean":9.71}
+{"label":"main3","n":50,"median":8.7,"p90":14,"mean":10.48}
+{"label":"branch3","n":50,"median":9,"p90":12.3,"mean":9.33}
