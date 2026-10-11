@@ -1155,6 +1155,10 @@ const[sessionSummaryData,setSessionSummaryData]=useState(null);
 // project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
 const[resumeRecap,setResumeRecap]=useState(null);
 const resumeRecapShownRef=useRef(new Set());
+// The pattern's size no longer matches the saved marks: held here until the user decides (see
+// processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
+const[reconcile,setReconcile]=useState(null);
+const savesBlockedRef=useRef(false);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
 const scrollRafRef=useRef(null);
@@ -3068,7 +3072,48 @@ function doExportOxs(){
   setTimeout(function(){URL.revokeObjectURL(url);},5000);
 }
 
+const reconcileRef=useRef(null);
+// What a save result means when nothing was written and nothing went wrong: the page is
+// reloading, the marks were merged into this tab instead, or a question is holding saves.
+function noWriteReason(r){return r==='reloaded'||r==='merged'||r==='held';}
+
+function resolveReconcile(choice){
+  const rc=reconcileRef.current;
+  if(!rc)return;
+  if(choice==='home'){
+    // Nothing was written: the project is exactly as it was.
+    reconcileRef.current=null;setReconcile(null);
+    if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';
+    return;
+  }
+  let nd=new Uint8Array(pat.length),hd=new Map(),kept=0;
+  const cand=choice.indexOf('keep:')===0?rc.candidates[Number(choice.slice(5))]:null;
+  if(cand){
+    nd=Uint8Array.from(cand.done);kept=cand.kept;
+    hd=new Map(window.TrackingMerge.remapHalfDone(rc.halfDone,cand.oldW,sW,sH));
+  }
+  // The earlier marks stay recoverable from Stats > Compare, whichever way this goes.
+  try{
+    const b=pako.deflate(Uint8Array.from(rc.oldDone));
+    const C=0x8000;let o='';for(let i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));
+    const snap={id:'snap_'+Date.now(),date:new Date().toLocaleDateString('en-CA'),label:'Before pattern change',doneCount:rc.oldMarks,data:btoa(o)};
+    setDoneSnapshots(prev=>{
+      const updated=[...prev,snap];
+      return[...updated.filter(s=>s.label!=='auto'),...updated.filter(s=>s.label==='auto').slice(-60)];
+    });
+  }catch(e){console.warn('[stitchx/tracker] could not keep a snapshot of the earlier marks:',e);}
+  justLoadedRef.current=true;
+  doneRef.current=nd;
+  recomputeAllCounts(pat,nd,halfStitches,hd);
+  setDone(nd);setHalfDone(hd);
+  if(!cand)setKnotsDone([]);
+  reconcileRef.current=null;savesBlockedRef.current=false;setReconcile(null);
+  if(rc.recap)setResumeRecap({...rc.recap,doneSt:kept});
+  window.Toast&&Toast.show({message:cand?('Kept '+kept.toLocaleString('en-GB')+' of '+rc.oldMarks.toLocaleString('en-GB')+' stitches'+(cand.lost?'; '+cand.lost.toLocaleString('en-GB')+' fell outside the new pattern.':'.')+' Your earlier marks are saved in Stats > Compare.'):('Progress started again. Your earlier '+rc.oldMarks.toLocaleString('en-GB')+' stitches are saved in Stats > Compare.'),type:'info',duration:8000});
+}
+
 function persistProjectRecord(project){
+  if(savesBlockedRef.current)return Promise.resolve({ok:false,reason:'held'});
   // What was just written is what the next cross-tab merge starts from.
   const remember=function(res){if(res&&res.ok!==false&&res.reason!=='merged')mergeBaseRef.current=project;return res;};
   if(window.CrossTabResolution&&typeof window.CrossTabResolution.saveWithConflictResolution==='function'){
@@ -3084,7 +3129,7 @@ async function mergeRemoteProject(info){
   const TM=window.TrackingMerge;
   const id=projectIdRef.current;
   const base=mergeBaseRef.current;
-  if(!TM||!id||!base||base.id!==id||(info&&info.projectId&&info.projectId!==id))return false;
+  if(!TM||!id||savesBlockedRef.current||!base||base.id!==id||(info&&info.projectId&&info.projectId!==id))return false;
   if(!Array.isArray(base.done))return false;
   const remote=await ProjectStorage.get(id);
   if(!remote||projectIdRef.current!==id||!Array.isArray(remote.done))return false;
@@ -3133,7 +3178,7 @@ function handleEditInCreator(){
     if(project){
       lastSnapshotRef.current=project;
       persistProjectRecord(project).then(function(saveResult){
-        if(saveResult&&(saveResult.reason==='reloaded'||saveResult.reason==='merged'))return null;
+        if(saveResult&&noWriteReason(saveResult.reason))return null;
         return saveProjectToDB(project);
       }).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
       // Push ALL tracker-specific fields to Creator so its auto-save doesn't overwrite them
@@ -3171,7 +3216,7 @@ function handleEditInCreator(){
   lastSnapshotRef.current=project;
   persistProjectRecord(project).then(function(saveResult){
     // A cross-tab conflict that the user resolved by reloading: stay here.
-    if(saveResult&&(saveResult.reason==='reloaded'||saveResult.reason==='merged'))return;
+    if(saveResult&&noWriteReason(saveResult.reason))return;
     if(saveResult&&saveResult.ok===false)throw new Error(saveResult.reason||'save failed');
     // T-3 / INT-4: only a small timestamped note travels through
     // localStorage now, so the Creator can still warn about tracking
@@ -3408,8 +3453,22 @@ function processLoadedProject(project){
   }
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
   setThreadOwned(project.threadOwned||{});
+  let _reconcileHeld=false;
+  reconcileRef.current=null;savesBlockedRef.current=false;setReconcile(null);
   if(project.done&&project.done.length===restored.length)setDone(new Uint8Array(project.done));
-  else setDone(new Uint8Array(restored.length));
+  else{
+    setDone(new Uint8Array(restored.length));
+    // Marks that no longer fit the pattern: never zero them silently. Ask, and write nothing meanwhile.
+    const _oldMarks=project.done?Array.from(project.done).filter(v=>v===1).length:0;
+    if(_oldMarks>0){
+      const _cand=window.TrackingMerge?window.TrackingMerge.remapCandidates(project.done,kW,kH,restored):[];
+      const _rc={oldDone:Array.from(project.done),oldMarks:_oldMarks,candidates:_cand,halfDone:project.halfDone||[],projectId:project.id||null};
+      reconcileRef.current=_rc;
+      savesBlockedRef.current=true;
+      _reconcileHeld=true;
+      setReconcile(_rc);
+    }
+  }
 
   // T-1: drop park markers whose colour no longer exists in the palette
   // (e.g. the colour was removed in the Creator between sessions). Notify
@@ -3563,13 +3622,16 @@ function processLoadedProject(project){
         var _last=rawStatsSessions[rawStatsSessions.length-1];
         var _totalSt=restored.filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
         var _doneSt=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
-        setResumeRecap({
+        const _recap={
           projectName:project.name||'Untitled',
           summary:_summary,
           lastDate:_last&&(_last.date||_last.startTime)||null,
           totalSt:_totalSt,
           doneSt:_doneSt
-        });
+        };
+        // The marks are being reconciled: the recap waits for the figures that are kept.
+        if(_reconcileHeld&&reconcileRef.current)reconcileRef.current.recap=_recap;
+        else setResumeRecap(_recap);
       }
     }
   }catch(_e){}
@@ -4105,7 +4167,7 @@ function retrySave() {
 function writeProgressNow() {
   if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; }
   const o = progressOwnerRef.current;
-  if (!o || !o.id) return;
+  if (!o || !o.id || savesBlockedRef.current) return;
   // The freshest marks, but only if they belong to the project the owner names.
   const live = doneRef.current;
   const done = (live && projectIdRef.current === o.id && live.length === o.done.length) ? live : o.done;
@@ -4153,12 +4215,12 @@ useEffect(() => {
     const _epoch = beginSave();
     const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err, _epoch); };
     persistProjectRecord(project).then(function(saveResult){
-      const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged');
+      const _ok = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
       if(_ok){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
         // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
         if(autoSaveGenRef.current!==_gen)scheduleProgressWriteRef.current();}
-      endOnce(_ok ? true : (saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged') ? null : false), saveResult && saveResult.reason);
-      if(saveResult&&(saveResult.reason==='reloaded'||saveResult.reason==='merged'))return null;
+      endOnce(_ok ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), saveResult && saveResult.reason);
+      if(saveResult&&noWriteReason(saveResult.reason))return null;
       try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
       return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
         // Keep the Creator's tracker-field preservation container in sync so that if
@@ -4212,6 +4274,7 @@ useEffect(() => {
   const handleBeforeUnload = () => {
     try {
     isUnloadingRef.current = true;
+    if (savesBlockedRef.current) return;   // a question about the saved marks is open: leave the stored project untouched
     // The small progress record first: it is the write most likely to finish while the page closes.
     writeProgressNowRef.current();
     // Always build a fresh snapshot so we never use stale data
@@ -4285,10 +4348,10 @@ useEffect(() => {
     let saveResult;
     try { saveResult = await persistProjectRecord(project); }
     catch (err) { endSave(false, _uiGen, err, _epoch); throw err; }
-    const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged');
+    const _flushOk = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
     if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
-    endSave(_flushOk ? true : (saveResult && (saveResult.reason === 'reloaded' || saveResult.reason === 'merged') ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
-    if (!saveResult || (saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged')) {
+    endSave(_flushOk ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
+    if (!saveResult || (!noWriteReason(saveResult.reason))) {
       await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
     }
   };
@@ -4300,7 +4363,7 @@ useEffect(() => {
     window.__flushProjectToIDB = async function() {
       if (last) {
         const saveResult = await persistProjectRecord(last);
-        if (!saveResult || (saveResult.reason !== 'reloaded' && saveResult.reason !== 'merged')) {
+        if (!saveResult || (!noWriteReason(saveResult.reason))) {
           await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
         }
       }
@@ -8110,6 +8173,30 @@ return(
     const sessionBreadcrumbs=(breadcrumbs||[]).filter(b=>b&&b.sessionIdx===activeSessionIdx);
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(typeof sess.netStitches==='number'?sess.netStitches:(sess.stitchesCompleted||0)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
+  })()}
+  {reconcile&&(()=>{
+    const cands=reconcile.candidates||[];
+    const n=reconcile.oldMarks.toLocaleString('en-GB');
+    const f=v=>v.toLocaleString('en-GB');
+    return <div className="modal-overlay reconcile-overlay" role="alertdialog" aria-modal="true" aria-labelledby="reconcile-title" aria-describedby="reconcile-body">
+      <div className="modal-content reconcile-modal" style={{maxWidth:480}}>
+        <h3 id="reconcile-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>This pattern changed since you last stitched it</h3>
+        <div id="reconcile-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
+          <p style={{marginTop:0}}>It has a different number of stitches now ({sW}&times;{sH}), so the {n} stitches you marked no longer line up with it.</p>
+          {cands.length>0
+            ?<p>You can keep your progress where cells still match. This assumes the change was at the bottom or right edge; if it was at the top or left, marks would land on the wrong stitches, so choose Start progress again.{cands.length>1?' Your marks fit two sizes, so choose which one the pattern had.':''}</p>
+            :<p>We cannot tell how the pattern was resized, so the marks cannot be carried across.</p>}
+          <p style={{marginBottom:0}}>Whichever you choose, your earlier full-stitch marks are saved as a snapshot in Stats &gt; Compare. Nothing is changed until you choose.</p>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
+          {cands.map((c,i)=><button key={i} className={'resume-recap-btn'+(i===0?' resume-recap-btn--primary':'')} autoFocus={i===0} onClick={()=>resolveReconcile('keep:'+i)}>
+            {cands.length>1?(c.kind==='rows'?'Rows changed (it was ':'Columns changed (it was ')+c.oldW+'\u00D7'+c.oldH+'): keep '+f(c.kept)+' stitches':'Keep progress where cells match ('+f(c.kept)+' stitches'+(c.lost>0?', '+f(c.lost)+' lost':'')+')'}
+          </button>)}
+          <button className="resume-recap-btn" autoFocus={cands.length===0} onClick={()=>resolveReconcile('again')}>Start progress again</button>
+          <button className="resume-recap-btn" onClick={()=>resolveReconcile('home')}>Leave it as it is and go back</button>
+        </div>
+      </div>
+    </div>;
   })()}
   {resumeRecap&&(()=>{
     // A3: Resume recap modal — fires once per project load when prior sessions exist.

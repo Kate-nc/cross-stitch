@@ -87,3 +87,18 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 
 ### Batch 5, review round 1 (Copilot; verified)
 - **Half-stitch-only or knot-only progress never started the backup clock (Medium).** True: the gate used the full-cross count only. It now counts completed half stitches and French knots too (`_hasMarks`).
+
+## Batch 6 (pattern changed after stitching)
+
+### Exercised
+- Unit tests (remap cases, wiring), five Chromium e2e tests, full `npm test`, terminology lint.
+- By test: the dialog appears before anything is written; waiting past the autosave interval and closing the page changes nothing; Keep, Start again and Leave all behave; the recap does not show a stale figure behind the dialog.
+### Bugs found and fixed in this batch
+- First e2e run: the dialog never appeared because the open Tracker saved its own copy as the page unloaded and overwrote the test's edit; the test now leaves the Tracker first. (Real-world analogue: another tab's save wins, which is the cross-tab merge's job.)
+- Second run: a square-ish pattern fits both the "rows changed" and "columns changed" readings, so the first design (offer one remap or none) offered nothing for the most common case. Both readings are now offered.
+- Third run: the snapshot was silently not saved because `getStitchingDateLocal` is undefined in the Tracker's scope (see progress log). The new code uses `toLocaleDateString('en-CA')`; I also made its failure `console.warn` instead of silent.
+- The existing `generateConfirmGuard` source test inspects a fixed window of the regenerate code; the snapshot helper lives outside that window.
+### Known gaps
+- Marks laid on a pattern changed at the top or left edge cannot be detected or remapped (only the old length is known).
+- Half-stitch and knot marks are cleared by "Start progress again" and are not in the snapshot.
+- Unverified: Safari and Firefox; behaviour with a two-tab race while the question is open (the other tab's save is not merged while held, so the cross-tab question is asked as usual).

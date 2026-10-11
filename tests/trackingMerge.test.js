@@ -171,12 +171,67 @@ describe('tracker wiring', () => {
   test('the tracker registers a merger and treats "merged" as not-an-error everywhere a save result is read', () => {
     expect(TRACKER_SRC).toMatch(/registerMerger\(/);
     expect(TRACKER_SRC).toMatch(/if\(!isActive\|\|!window\.CrossTabResolution[\s\S]{0,200}\},\[isActive\]\);/);
-    const reads = TRACKER_SRC.match(/reason\s*(===|!==)\s*'reloaded'/g) || [];
-    const withMerged = TRACKER_SRC.match(/reason\s*(===|!==)\s*'merged'/g) || [];
-    expect(withMerged.length).toBeGreaterThanOrEqual(reads.length);
+    expect(TRACKER_SRC).toMatch(/noWriteReason\(saveResult\.reason\)/);
   });
   test('the base for a merge is recorded at load and after every successful save', () => {
     expect(TRACKER_SRC).toMatch(/mergeBaseRef\.current=project;/);
     expect(TRACKER_SRC).toMatch(/remember=function\(res\)/);
+  });
+});
+
+describe('remapCandidates (pattern changed since the marks were saved)', () => {
+  const marks = (w, h, at) => { const a = new Array(w * h).fill(0); at.forEach(([x, y]) => { a[y * w + x] = 1; }); return a; };
+  test('a row added below: only the height-preserving reading fits a non-square pattern', () => {
+    const c = TM.remapCandidates(marks(5, 6, [[0, 0], [4, 5]]), 5, 7, null);
+    expect(c.length).toBe(1);
+    expect(c[0]).toMatchObject({ oldW: 5, oldH: 6, kept: 2, lost: 0, kind: 'rows' });
+    expect(c[0].done[5 * 5 + 4]).toBe(1);               // the bottom-right mark stays on its cell
+  });
+  test('rows removed: marks in the removed rows are lost, the rest kept', () => {
+    const c = TM.remapCandidates(marks(5, 6, [[0, 0], [4, 5]]), 5, 4, null);
+    expect(c.length).toBe(1);
+    expect(c[0]).toMatchObject({ kept: 1, lost: 1 });
+  });
+  test('a column removed', () => {
+    const c = TM.remapCandidates(marks(6, 4, [[0, 0], [5, 3]]), 5, 4, null);
+    expect(c[0]).toMatchObject({ oldW: 6, oldH: 4, kept: 1, lost: 1, kind: 'columns' });
+  });
+  test('a square-ish pattern fits two readings and both are offered', () => {
+    const c = TM.remapCandidates(new Array(30).fill(0), 5, 5, null);
+    expect(c.map(x => x.kind)).toEqual(['rows', 'columns']);
+  });
+  test('no reading fits: nothing to offer', () => {
+    expect(TM.remapCandidates(new Array(31).fill(0), 5, 7, null)).toEqual([]);
+  });
+  test('marks on cells that are now blank are not carried over', () => {
+    const pat = Array.from({ length: 35 }, (_, i) => (i === 0 ? { id: '__skip__' } : { id: '310' }));
+    const c = TM.remapCandidates(marks(5, 6, [[0, 0], [1, 0]]), 5, 7, pat);
+    expect(c[0]).toMatchObject({ kept: 1, lost: 1 });
+  });
+  test('half-stitch marks follow their cells', () => {
+    const out = TM.remapHalfDone([[6, { fwd: true }], [29, { bck: true }]], 5, 4, 4);   // old 5 wide; new 4x4
+    expect(out).toEqual([[4 * 1 + 1, { fwd: true }]]);       // (1,1) stays; (4,5) falls outside
+  });
+});
+
+describe('tracker: a mismatched load never zeroes silently', () => {
+  test('the load path asks, holds every write, and the dialog offers keep / start again / leave', () => {
+    expect(TRACKER_SRC).toMatch(/savesBlockedRef\.current=true;/);
+    expect(TRACKER_SRC).toMatch(/if\(savesBlockedRef\.current\)return Promise\.resolve\(\{ok:false,reason:'held'\}\)/);
+    expect(TRACKER_SRC).toMatch(/if \(savesBlockedRef\.current\) return;\s+\/\/ a question about the saved marks/);
+    expect(TRACKER_SRC).toMatch(/!o\.id \|\| savesBlockedRef\.current/);
+    expect(TRACKER_SRC).toMatch(/resolveReconcile\('again'\)/);
+    expect(TRACKER_SRC).toMatch(/resolveReconcile\('home'\)/);
+  });
+  test('the earlier marks go to a snapshot before they are replaced', () => {
+    expect(TRACKER_SRC).toMatch(/label:'Before pattern change'/);
+  });
+  test('the recap waits for the reconciled figures', () => {
+    expect(TRACKER_SRC).toMatch(/reconcileRef\.current\.recap=_recap/);
+    expect(TRACKER_SRC).toMatch(/setResumeRecap\(\{\.\.\.rc\.recap,doneSt:kept\}\)/);
+  });
+  test('no-write save results are classified in one place', () => {
+    expect(TRACKER_SRC).toMatch(/function noWriteReason\(r\)\{return r==='reloaded'\|\|r==='merged'\|\|r==='held';\}/);
+    expect(TRACKER_SRC).not.toMatch(/reason\s*[!=]==\s*'reloaded'(?!\|\|r==='merged')/);
   });
 });

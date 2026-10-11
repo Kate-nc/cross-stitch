@@ -204,3 +204,29 @@ None for project data. Three new localStorage keys, not included in backups.
 
 ### Known gaps
 Home and the Creator do not show the reminder (only the File menu line); only the Tracker offers it. Safari/Firefox untested.
+
+## Batch 6 (pattern changed after stitching, TRACK-12 and BUG-06)
+
+### What changed
+- **Tracker load:** when the saved marks (`done`) have a different length from the pattern and any are set, they are no longer zeroed silently. A dialog asks: keep progress where cells still match, start progress again, or leave the project as it is (back to Home). **No write of any kind happens while the question is open** (autosave, the progress record, flush, unload and the Edit-in-Creator save all check one flag), so closing the tab leaves the stored project exactly as it was.
+- `tracking-merge.js`: `remapCandidates` infers the old shape from the old length (width kept = rows added or removed; height kept = columns added or removed) and remaps from the top-left corner, dropping marks that fall outside the new pattern or on now-blank cells; `remapHalfDone` follows half-stitch marks. A square-ish pattern fits both readings, so both are offered ("Rows changed (it was 60x59): keep 10" / "Columns changed ..."); if neither fits only "Start again" and "Leave it" are offered.
+- Either choice saves the earlier marks as a `Before pattern change` entry in `doneSnapshots` (shown in Stats > Compare). Start again also clears half-stitch and knot marks (the snapshot holds full-stitch marks only).
+- **BUG-06:** the Welcome-back recap waits and uses the figures that were kept.
+- **Creator:** the two blocking `alert()` calls about progress being reset are replaced by a short toast that says what is kept; resizing a blank design now keeps marks on their cells (top-left anchored, as the cells are; it used to zero them); confirming a regenerate saves a `Before pattern change` snapshot. Resize Canvas already remapped marks with offsets and is unchanged.
+- Save results with nothing written (reload, merge, held) are classified by one helper, `noWriteReason`.
+
+### Tests added
+- `tests/trackingMerge.test.js` (+11): remap cases (row added, rows removed, column removed, ambiguous square, no fit, blank cells, half stitches) and the load-path wiring.
+- `tests/creatorMarksKept.test.js` (4).
+- `tests/e2e/pattern-change.spec.js` (5): row added keeps all 10 with a snapshot and no stale recap; a column removed loses only the cropped column's mark; start again clears and snapshots; 12 s with the question open (past autosave) then closing writes nothing; leaving writes nothing.
+
+### Decisions
+- The remap's top-left anchoring is a stated assumption, shown in the dialog (the old pattern is not stored, only the old mark count, so offsets of rows or columns added at the top or left cannot be detected). Marks landing on the wrong stitches is worse than losing them, so the dialog says to choose Start again if the change was at the top or left.
+- "Open the previous version" from the original recommendation is not offered: no previous pattern is stored. The snapshot of the marks and "Leave it as it is" cover recovery.
+
+### Data and migration statement
+No schema change. Uses the existing optional `doneSnapshots` (new label `Before pattern change`); old builds list it like any labelled snapshot.
+
+### Known gaps
+- A snapshot from before a size change is compared against the new pattern in Stats > Compare, so its picture is drawn on the new grid width (the data is right, the picture can look sheared). Not changed here.
+- Found, not fixed (pre-existing): the tracker's daily automatic snapshot calls `getStitchingDateLocal`, which is only defined inside `useAutoSession`, so it throws inside a try/catch and no automatic snapshot has been saved. Candidate for Phase 3 (history).

@@ -915,7 +915,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         if (projectData) {
           processLoadedProject(projectData);
           if (projectData.done && projectData.done.some(function(v) { return v === 1; })) {
-            alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+            try { window.Toast && window.Toast.show && window.Toast.show({ message: "This pattern has tracking progress. Drawing and resizing the canvas keep it; generating a new pattern from a picture clears it (an earlier copy is kept in the Tracker under Stats > Compare).", type: "info", duration: 9000 }); } catch (_) {}
           }
           settle();
           return;
@@ -962,7 +962,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
             try { sessionStorage.setItem('__import_trace_creatorBoot', JSON.stringify({ at: Date.now(), step: 'loading', id: project3.id, patternLen: project3.pattern.length })); } catch(_) {}
             processLoadedProject(project3);
             if (handoffProgressId && handoffProgressId === project3.id) {
-              alert("This pattern has tracking progress. Editing the pattern here will reset your stitching progress. Continue with caution.");
+              try { window.Toast && window.Toast.show && window.Toast.show({ message: "This pattern has tracking progress. Drawing and resizing the canvas keep it; generating a new pattern from a picture clears it (an earlier copy is kept in the Tracker under Stats > Compare).", type: "info", duration: 9000 }); } catch (_) {}
             }
           } catch (err) {
             try { console.error('[creator-boot] processLoadedProject threw:', err); } catch(_) {}

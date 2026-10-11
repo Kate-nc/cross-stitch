@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.110';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.112',
+    date: 'October 2026',
+    notes: [
+      'A pattern that changed size after you stitched it no longer loses your progress silently. The Stitch Tracker now asks whether to keep your marks where cells still match, start again, or leave the project as it is, writes nothing until you choose, and saves your earlier marks as a snapshot under Stats > Compare. The "Welcome back" recap waits for the figures you chose. In the Creator, resizing a blank design now keeps marked stitches in place and the long warning pop-up is a short note.',
+    ]
+  },
+  {
     version: '1.0.111',
     date: 'October 2026',
     notes: [
