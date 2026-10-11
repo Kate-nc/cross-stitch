@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.115';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.117',
+    date: 'October 2026',
+    notes: [
+      'Stitches now count for the day they were made. A session that runs past the end of the day is saved as one record per day, so Today no longer changes (and yesterday no longer gains stitches) when the session is saved. Past sessions are not changed.',
+      '\'Day ends at\' is now one setting for the whole app. It sits beside your goals in Stats and in Preferences, with a one-line explanation, and the Tracker, project Stats, global Stats, Activity and Insights all use it. A value you had already set in a project becomes the app-wide setting the first time you open that project.',
+    ]
+  },
+  {
     version: '1.0.116',
     date: 'October 2026',
     notes: [

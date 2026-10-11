@@ -142,7 +142,7 @@
 
   // ── Week comparison computation (mirrors GlobalStatsDashboard logic) ─────
   function computeWeekComparison(allSessions) {
-    const today = new Date();
+    const today = (typeof getStitchingNow === 'function' && typeof getDayEndHour === 'function') ? getStitchingNow(getDayEndHour()) : new Date();
     const thisWeekStart = mondayOf(today);
     const thisWeekStartStr = ymd(thisWeekStart);
     const lastWeekStart = new Date(thisWeekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);

@@ -128,6 +128,21 @@
     if (s.unitsCompleted == null && s.units == null && s.stitchesCompleted == null && s.netStitches == null) return true;
     return sessionAdded(s) > 0;
   }
+  // A running session keeps what it has added per stitching day (`byDay`: { date: { uc, uu, cu, sc, su } }), so it
+  // can be read for one day or since a day, and saved as one record per day.
+  function liveAddedOn(cur, date) {
+    if (!cur) return 0;
+    if (!cur.byDay) return date === cur.date ? liveSessionAdded(cur) : 0;
+    var d = cur.byDay[date];
+    return d ? Math.max(0, (d.uc || 0) - (d.cu || 0)) : 0;
+  }
+  function liveAddedFrom(cur, startDate) {
+    if (!cur) return 0;
+    if (!cur.byDay) return cur.date >= startDate ? liveSessionAdded(cur) : 0;
+    var t = 0;
+    for (var k in cur.byDay) if (Object.prototype.hasOwnProperty.call(cur.byDay, k) && k >= startDate) t += Math.max(0, (cur.byDay[k].uc || 0) - (cur.byDay[k].cu || 0));
+    return t;
+  }
   function sessionCatchUp(s) { return (s && s.catchUp) || 0; }
   // The live session's additions so far (see sessionAdded).
   function liveSessionAdded(cur) {
@@ -201,7 +216,7 @@
   var api = {
     WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
-    sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionActive: sessionActive, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
+    sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
     breakdownText: breakdownText
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

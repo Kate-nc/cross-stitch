@@ -446,6 +446,7 @@
           body: "Each Tracker session is logged with its start time, duration and the stitches added.",
           bullets: [
             ["Streaks", "Your streak counts consecutive weeks with at least one session. A day counts when you added stitches; a day where you only unpicked, or only marked catch-up, does not."],
+            ["Day boundaries", "Each stitch counts for the day it was made. A session that runs past the end of the day is saved as one record per day, so Today does not change when the session is saved. \"Day ends at\" (beside your goals in Stats, and in Preferences) sets when the day turns over: late-night stitching counts for the previous day until then. The same setting is used in the Tracker, project Stats, global Stats, Activity and Insights."],
             ["Unpicking", "Today, your pace and your best day count the stitches you added. Stitches you take out again show on their own as Unpicked, in the progress details and the session journal, and never reduce Today or your speed. Your overall progress does go down."],
             ["Catch-up", "Marking a whole colour done in the palette can be counted as catch-up: it raises your progress but not today's count, your pace, your goals or your streak, which suits recording stitching you did on paper. The first time, you are asked; change the answer any time in Preferences, under Stitch Tracker."],
             ["Activity", "A calendar heatmap of how much you stitched each day — darker squares mean more stitches."]

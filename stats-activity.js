@@ -16,8 +16,14 @@ const DAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Data helpers ─────────────────────────────────────────────────
+// "Today" on the stitching calendar (late-night stitching still belongs to yesterday until the day-end hour), by the
+// one shared helper, so the heatmap's today agrees with the Tracker's and the sessions' dates.
+function stitchingNow() {
+  return (typeof getStitchingNow === 'function' && typeof getDayEndHour === 'function') ? getStitchingNow(getDayEndHour()) : new Date();
+}
+
 function todayStr() {
-  const d = new Date();
+  const d = stitchingNow();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
@@ -27,7 +33,7 @@ function ymd(d) {
 }
 
 function getPeriodStart(period) {
-  const today = new Date();
+  const today = stitchingNow();
   if (period === '6m') { const d = new Date(today); d.setMonth(d.getMonth() - 6); return ymd(d); }
   if (period === 'year') return today.getFullYear() + '-01-01';
   if (period === 'all') return '2000-01-01';

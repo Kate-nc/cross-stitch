@@ -1928,7 +1928,7 @@ const effectiveCombinedTotal=progShown.totalUnits;
 const effectiveCombinedDone=progShown.doneUnits;
 const progressPct=progShown.percent;
 // Today's stitches for progress bar accent segment
-const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsTodayStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+const todayStitchesForBar=useMemo(()=>{if(!statsSessions)return 0;const deh=getDayEndHour(statsSettings);return getStatsTodayStitches(statsSessions,deh)+getLiveTodayStitches(currentAutoSessionRef.current,deh);},[statsSessions,liveAutoStitches,statsSettings]);
 // Multi-colour parking — per-colour count for the legend "park" pip.
 // Spent markers (on finished stitches, see isParkSpent) are not counted.
 const parkCountsByColour=useMemo(()=>{
@@ -1962,7 +1962,7 @@ function setAllParkLayersVisible(visible){
     return next;
   });
 }
-const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=(statsSettings&&statsSettings.dayEndHour)||0;return getStatsThisWeekStitches(statsSessions,deh)+liveAutoStitches;},[statsSessions,liveAutoStitches,statsSettings]);
+const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=getDayEndHour(statsSettings);return getStatsThisWeekStitches(statsSessions,deh)+getLiveWeekStitches(currentAutoSessionRef.current,deh);},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 // Completion projection — derived from InsightsEngine when available.
 const completionProjection=useMemo(()=>{
@@ -2450,7 +2450,7 @@ useEffect(()=>{
     // milliseconds, so it runs when the browser is idle rather than inside the mark.
     if(done){
       try{
-        const today=getStitchingDate(new Date(),(statsSettings&&statsSettings.dayEndHour)||0);
+        const today=getStitchingDate(new Date(),getDayEndHour(statsSettings));
         if(!lastSnapshotDateRef.current){
           lastSnapshotDateRef.current=today;
         } else if(lastSnapshotDateRef.current!==today){
@@ -2481,12 +2481,12 @@ useEffect(()=>{
 // Goal-completion detection — fire a celebration when any goal is first reached in this session
 useEffect(()=>{
   try{
-    const deh=(statsSettings&&statsSettings.dayEndHour)||0;
+    const deh=getDayEndHour(statsSettings);
     const dailyGoal=statsSettings&&statsSettings.dailyGoal;
     const weeklyGoal=statsSettings&&statsSettings.weeklyGoal;
     const monthlyGoal=statsSettings&&statsSettings.monthlyGoal;
     if(!dailyGoal&&!weeklyGoal&&!monthlyGoal)return;
-    const liveExtra=liveAutoStitches;
+    const liveSess=currentAutoSessionRef.current;
     const prev=goalCelebrationRef.current;
     if(dailyGoal>0){
       const cur=todayStitchesForBar;
@@ -2494,12 +2494,12 @@ useEffect(()=>{
       else if(prev.daily&&cur<dailyGoal)goalCelebrationRef.current={...prev,daily:false};
     }
     if(weeklyGoal>0){
-      const cur=getStatsThisWeekStitches(statsSessions||[],deh)+liveExtra;
+      const cur=getStatsThisWeekStitches(statsSessions||[],deh)+getLiveWeekStitches(liveSess,deh);
       if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};setCelebration({label:'Weekly goal reached! '+cur.toLocaleString('en-GB')+' / '+weeklyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.weekly&&cur<weeklyGoal)goalCelebrationRef.current={...prev,weekly:false};
     }
     if(monthlyGoal>0){
-      const cur=getStatsThisMonthStitches(statsSessions||[],deh)+liveExtra;
+      const cur=getStatsThisMonthStitches(statsSessions||[],deh)+getLiveMonthStitches(liveSess,deh);
       if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString('en-GB')+' / '+monthlyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
     }
@@ -3656,7 +3656,7 @@ function processLoadedProject(project){
   try{
     var _pk='cs_pending_session_'+(project.id||'');
     var _pj=localStorage.getItem(_pk);
-    if(_pj){var _ps=JSON.parse(_pj);if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}if(!_reconcileHeld)localStorage.removeItem(_pk);}   // kept while a question holds saves; the first save after it clears it
+    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}});if(!_reconcileHeld)localStorage.removeItem(_pk);}   // kept while a question holds saves; the first save after it clears it
   }catch(_){}
   setStatsSessions(rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
@@ -3706,7 +3706,9 @@ function processLoadedProject(project){
     let lastDay=null;
     (project.statsSessions||[]).forEach(s=>{if(s&&s.date&&(!lastDay||s.date>lastDay))lastDay=s.date;});
     // A very short session is not recorded at all, so fall back to when the project was last touched or saved.
-    const deh=(project.statsSettings&&project.statsSettings.dayEndHour)||0;
+    // A day-end hour a project saved before there was one setting becomes the setting, once, if none is set yet.
+    try{if(window.UserPrefs&&window.UserPrefs.get('statsDayEndHour')==null){const pv=project.statsSettings&&project.statsSettings.dayEndHour;if(typeof pv==='number'&&pv>0)window.UserPrefs.set('statsDayEndHour',pv);}}catch(_){}
+    const deh=getDayEndHour(project.statsSettings);
     [project.lastTouchedAt,project.updatedAt].forEach(t=>{
       if(lastDay||!t)return;
       const d=new Date(t);
@@ -7193,7 +7195,7 @@ return(
     // Pace comes from what sessions added (not from everything marked, which includes catch-up and unpicking).
     const addedAllSessions = (statsSessions||[]).reduce((a,x)=>a+ProgressUnits.sessionAdded(x),0);
     const speedPerHour = totalSec > 0 && addedAllSessions > 0 ? Math.round(addedAllSessions / (totalSec/3600)) : 0;
-    const unpickedToday = getStatsTodayUnpicked(statsSessions||[], (statsSettings&&statsSettings.dayEndHour)||0) + (currentAutoSessionRef.current?(currentAutoSessionRef.current.unitsUndone||0):0);
+    const unpickedToday = getStatsTodayUnpicked(statsSessions||[], getDayEndHour(statsSettings)) + (()=>{const c=currentAutoSessionRef.current,d=c&&c.byDay&&c.byDay[getStitchingDate(new Date(),getDayEndHour(statsSettings))];return d?(d.uu||0):0;})();
     const remainingStitches = Math.max(0, effectiveCombinedTotal - effectiveCombinedDone);
     const fmtL = window.fmtTimeL || (s => Math.round(s/3600)+'h');
     const progressRows = [

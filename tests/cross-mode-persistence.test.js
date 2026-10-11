@@ -229,7 +229,9 @@ describe('Session recording uses correct dates', () => {
   });
 
   test('getStitchingDateLocal respects dayEndHour setting', () => {
-    const dateFunc = autoSessionSrc.match(/function getStitchingDateLocal\(now\)\{[\s\S]*?dayEndHour[\s\S]*?\}/);
+    // It goes through the one shared date helper with the app-wide day-end hour (getDayEndHour reads the
+    // dayEndHour setting of the project when the person has not set one).
+    const dateFunc = autoSessionSrc.match(/function getStitchingDateLocal\(now\)\{[\s\S]*?getStitchingDate\(now,getDayEndHour\(statsSettings\)\)[\s\S]*?\}/);
     expect(dateFunc).not.toBeNull();
   });
 

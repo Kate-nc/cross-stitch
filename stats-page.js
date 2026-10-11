@@ -1480,7 +1480,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   const paceData = useMemo(() => {
     if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.calculateRecentPace) return null;
-    const now = new Date();
+    const now = (typeof getStitchingNow === 'function' && typeof getDayEndHour === 'function') ? getStitchingNow(getDayEndHour()) : new Date();
     return window.InsightsEngine.calculateRecentPace(allSessions, now, 86400000);
   }, [allSessions]);
 

@@ -404,6 +404,7 @@
     var dragMark = usePref("trackerDragMark", true);
     var trackerSheen = usePref("trackerCanvasTexture", false);
     var markAllAs = usePref("trackerMarkAllAs", "ask");
+    var dayEnd = usePref("statsDayEndHour", 0);
 
     return h("div", null,
       h(PageHeader, { title: "Stitch Tracker",
@@ -548,6 +549,12 @@
       ),
 
       h(Section, { title: "Statistics" },
+        h(Row, { label: "Day ends at", desc: "Late-night stitching counts for the previous day until this hour." },
+          h("select", { value: dayEnd[0] == null ? 0 : dayEnd[0], style: styles.input, "aria-label": "Day ends at",
+            onChange: function (e) { dayEnd[1](parseInt(e.target.value, 10) || 0); } },
+            [0, 1, 2, 3, 4, 5].map(function (n) { return h("option", { key: n, value: n }, n === 0 ? "Midnight" : n + ":00 AM"); })
+          )
+        ),
         h(Row, { last: true, label: "Marking a whole colour done counts as",
           desc: "Catch-up raises your progress but is left out of today's count, your pace, your goals and your streak, so catching up from paper does not inflate them." },
           h(Segmented, { value: markAllAs[0], onChange: markAllAs[1], options: [

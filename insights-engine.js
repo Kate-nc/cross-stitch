@@ -22,6 +22,10 @@
     return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
   }
 
+  // "Now" on the stitching calendar (before the day-end hour it is still yesterday), by the shared helper.
+  function stitchingNow() {
+    return (typeof getStitchingNow === 'function' && typeof getDayEndHour === 'function') ? getStitchingNow(getDayEndHour()) : new Date();
+  }
   function ymd(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
@@ -114,7 +118,7 @@
   // Counts consecutive ISO weeks (Mon-start) ending this week with at least
   // one session. Returns a plain number (current streak only).
   function computeWeeklyStreak(allSessions, today) {
-    today = today || new Date();
+    today = today || stitchingNow();
     if (!Array.isArray(allSessions) || allSessions.length === 0) return 0;
     var weeks = {};
     for (var i = 0; i < allSessions.length; i++) {
@@ -147,7 +151,7 @@
   // Counts consecutive calendar days ending today (or yesterday if today has no
   // session) with at least one session. Returns { current, longest }.
   function computeDailyStreak(allSessions, today) {
-    today = today || new Date();
+    today = today || stitchingNow();
     if (!Array.isArray(allSessions) || allSessions.length === 0) return { current: 0, longest: 0 };
     var dates = Object.create(null);
     for (var i = 0; i < allSessions.length; i++) {
@@ -338,7 +342,7 @@
     var summaries = Array.isArray(data.summaries) ? data.summaries : [];
 
     // Streak
-    var streak = computeWeeklyStreak(allSessions, data.now ? new Date(data.now) : new Date());
+    var streak = computeWeeklyStreak(allSessions, data.now ? new Date(data.now) : stitchingNow());
     if (streak >= 8) add('streak_long', 'fire', 'celebrate', streak + '-week stitching streak \u2014 incredible!');
     else if (streak >= 4) add('streak_mid', 'fire', 'celebrate', "You've stitched every week for " + streak + ' weeks straight.');
     else if (streak >= 2) add('streak_short', 'fire', 'encourage', streak + '-week streak going \u2014 keep it up.');
