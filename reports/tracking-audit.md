@@ -23,6 +23,10 @@ No application code was changed. Screenshots are in [reports/tracking-audit/](tr
 
 ---
 
+**Remediation plan:** the findings are grouped into six phases, each with its own agent prompt, in [tracking-audit/phases/](tracking-audit/phases/README.md). The scripts behind the evidence are in [tracking-audit/harness/](tracking-audit/harness/README.md).
+
+---
+
 ## 1. Summary
 
 Tracking basics are strong. Marking by click, drag and rectangle works; undo works; the legend with per-colour counts is fast; parking and Spotlight exist; and large charts load and mark quickly. The problems are in **trust** (will my progress survive?), **statistics that disagree with each other**, and **phone ergonomics**.
