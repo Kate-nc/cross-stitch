@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.110';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.111',
+    date: 'October 2026',
+    notes: [
+      'The File menu now shows when you last backed up ("Last backed up 5 days ago"), and the Stitch Tracker offers a backup once a session after 14 days without one. "Not now" holds the offer for a week. Your projects are stored only in this browser, so a backup file is the safety net.',
+    ]
+  },
+  {
     version: '1.0.110',
     date: 'October 2026',
     notes: [

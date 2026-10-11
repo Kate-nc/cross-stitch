@@ -1871,6 +1871,14 @@ const tOverflowRef=useRef(null);
 const soloTimerRef=useRef(null);
 
 const doneCount=countsVer>=0?doneCountRef.current:0;
+// Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
+const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
+const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0;
+useEffect(()=>{
+  if(!_hasMarks||!isActive)return;
+  const t=setTimeout(()=>{if(window.BackupReminder)window.BackupReminder.maybeRemind();},4000);
+  return()=>clearTimeout(t);
+},[_hasMarks,isActive]);
 const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.length;i++){const id=pat[i].id;if(id!=="__skip__"&&id!=="__empty__")c++;}return c;},[pat]);
 
 // Half-stitch counts
