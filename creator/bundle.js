@@ -7531,18 +7531,19 @@ window.useCreatorState = function useCreatorState() {
     var map = {};
     // French knots add their thread too (knots.js).
     var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
+    // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
     withKnots.forEach(function(p) {
-      if (p.type === "solid") { map[p.id] = (map[p.id] || 0) + p.count; }
-      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count; }); }
+      if (p.type === "solid") { var k = (p.brand || "dmc") + ":" + p.id; map[k] = (map[k] || 0) + p.count; }
+      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { var k = (t.brand || p.brand || "dmc") + ":" + t.id; map[k] = (map[k] || 0) + p.count; }); }
     });
     return Object.entries(map)
-      .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
+      .map(function(e) { var c = e[0].indexOf(":"); return { brand: e[0].slice(0, c), id: e[0].slice(c + 1), ct: e[1] }; })
+      .sort(function(a, b) { var na = parseInt(a.id) || 0, nb = parseInt(b.id) || 0; if (na && nb) return na - nb; return a.id.localeCompare(b.id); })
       .map(function(e) {
-        var id = e[0], ct = e[1];
-        var t = findThreadInCatalog(threadBrand, id);
-        return { id: id, brand: threadBrand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
+        var t = findThreadInCatalog(e.brand, e.id);
+        return { id: e.id, brand: e.brand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: e.ct, skeins: skeinEst(e.ct, fabricCt) };
       });
-  }, [pal, fabricCt, knots, threadBrand]);
+  }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
@@ -9843,7 +9844,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // now at zero stitch count get a toast with a one-click "Remove" action.
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = 'DMC ' + p.id + (p.name ? ' \xb7 ' + p.name : '');
+        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
         state.addToast(label + ' is no longer used — remove from palette?', {
           type: 'info',
           duration: 8000,
@@ -10433,7 +10434,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     // Unused-colour notice (mirrors cleanup mode behaviour)
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = 'DMC ' + p.id + (p.name ? ' \xb7 ' + p.name : '');
+        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
         state.addToast(label + ' is no longer used \u2014 remove from palette?', {
           type: 'info',
           duration: 8000,
@@ -12660,10 +12661,6 @@ function creatorSavedSymbols(overrides, pal) {
 }
 window.creatorSavedSymbols = creatorSavedSymbols;
 
-// Projects whose thread brand's catalogue processLoadedProject has already
-// tried to load (P4-5), so a failed load doesn't loop.
-var _creatorBrandLoadTried = typeof WeakSet === "function" ? new WeakSet() : { has: function() { return true; }, add: function() {} };
-
 // Convert drafts (audit COMMON-07): until the first pattern is generated the
 // picture and these settings are kept in IndexedDB (blob-store.js) as
 // draft:<id>, so a reload, a Back gesture or the OS closing the tab doesn't
@@ -12708,8 +12705,9 @@ function creatorInitialSize(w, h) {
 
 // French knots (knots.js) are written only when there are some, so projects
 // without them save exactly as before.
-function creatorKnotsForSave(knots) {
-  return knots && knots.length ? knots.map(function (k) { return Object.assign({}, k); }) : undefined;
+function creatorKnotsForSave(knots, projectBrand) {
+  if (!knots || !knots.length) return undefined;
+  return window.Knots && window.Knots.forSave ? window.Knots.forSave(knots, projectBrand) : knots.map(function (k) { return Object.assign({}, k); });
 }
 
 window.useProjectIO = function useProjectIO(state, history, options) {
@@ -12778,7 +12776,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
@@ -12788,17 +12786,17 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: state.threadBrand && state.threadBrand !== 'dmc' ? state.threadBrand : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
       // window.PERF_FLAGS.stripRgbOnSave.
-      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !isScratchMode ? img.src : null, partialStitches: psArr,
-      knots: creatorKnotsForSave(state.knots),
+      knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
     });
@@ -12848,7 +12846,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
     var psArr = [];
     partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
       psArr.push([k, e]);
     });
     var project = Object.assign({}, state.trackerFieldsRef.current, {
@@ -12857,14 +12855,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: state.threadBrand && state.threadBrand !== 'dmc' ? state.threadBrand : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
-      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !state.isScratchMode ? img.src : null, partialStitches: psArr,
-      knots: creatorKnotsForSave(state.knots),
+      knots: creatorKnotsForSave(state.knots, state.threadBrand),
     });
     if (onSwitchToTrack) {
       var saveResult = null;
@@ -12966,19 +12964,13 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
-    // P4-5: a project in another brand's numbering needs that catalogue for
-    // its thread names. Load it first, then come back; if it can't load,
-    // carry on with the colours the cells hold.
+    // P4-5: a project in another brand's numbering loads that brand's
+    // catalogue first, then comes back here (helpers.js).
+    if (window.whenProjectBrandReady && !window.whenProjectBrandReady(project, processLoadedProject, function(err) {
+      console.error('[creator] processLoadedProject threw:', err);
+      if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Failed to load the pattern into the editor: ' + (err && err.message || err), type: 'error', duration: 10000 });
+    })) return;
     var brand = window.projectThreadBrand ? window.projectThreadBrand(project) : 'dmc';
-    if (brand !== 'dmc' && !_creatorBrandLoadTried.has(project) && window.threadCatalogue && !window.threadCatalogue(brand) && window.loadThreadBrand) {
-      _creatorBrandLoadTried.add(project);
-      // Keeps the no-project redirect away while the catalogue loads.
-      window.__pendingCreatorBrandLoad = true;
-      var resume = function() { delete window.__pendingCreatorBrandLoad; processLoadedProject(project); };
-      window.loadThreadBrand(brand, { failMessage: 'Could not load the ' + window.threadBrandLabel(brand) + ' catalogue for this pattern. Reload and try again.' })
-        .then(resume, resume);
-      return;
-    }
     var s = project.settings;
     // Signal the scratch-resize effect that the upcoming dimension changes are
     // from a project load, not a user-initiated resize.
@@ -12989,7 +12981,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
     state.setBsLines(project.bsLines || []);
-    if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH) : []);
+    if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
     state.setStashConstrained(!!s.stashConstrained);
@@ -13771,7 +13763,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!pat || !pal) return;
     var psArr = [];
     state.partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
       psArr.push([k, e]);
     });
     if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
@@ -13795,14 +13787,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: state.threadBrand && state.threadBrand !== 'dmc' ? state.threadBrand : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
-      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
+      pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
       imgData: state.img && !state.isScratchMode ? state.img.src : null, partialStitches: psArr,
-      knots: creatorKnotsForSave(state.knots),
+      knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
     });
@@ -16367,7 +16359,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
         },
-        title: "Target: " + threadLabel({ id: cv.cleanupTargetColorId || "" }, ctx.threadBrand) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        title: "Target: " + threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
         "aria-haspopup": "listbox",
@@ -16379,7 +16371,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                    background:"rgb("+clTgtEntry.rgb+")", border:"1.5px solid rgba(0,0,0,0.2)" }
         }),
         h("span", {style:{fontSize:11}},
-          cv.cleanupTargetColorId ? threadLabel({ id: cv.cleanupTargetColorId }, ctx.threadBrand) : "None"
+          cv.cleanupTargetColorId ? threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId }) : "None"
         ),
         h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
@@ -16401,7 +16393,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             "aria-selected": isTgt,
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
             title: threadLabel(p) + (p.name ? " \xB7 " + p.name : ""),
-            "aria-label": "Set cleanup target to DMC " + p.id + (p.name ? " " + p.name : ""),
+            "aria-label": "Set cleanup target to " + threadLabel(p) + (p.name ? " " + p.name : ""),
             style:{
               width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
               background:"rgb("+p.rgb+")",
@@ -16856,7 +16848,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onPointerLeave: swatchPressEnd,
           onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
           title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
-          "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+          "aria-label": "Select " + threadLabel(p) + (p.name ? " " + p.name : ""),
           "aria-pressed": isSel,
           style:{
             width:40, height:40, flexShrink:0,
@@ -16948,7 +16940,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = null;
   }
   var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
-    ? (" \u2014 DMC " + cv.selectedColorId + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    ? (" \u2014 " + threadLabel(ctx.cmap[cv.selectedColorId]) + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
@@ -19063,7 +19055,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         selInfo
           ? h(React.Fragment, null,
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo, ctx.threadBrand)),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo)),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
@@ -19223,12 +19215,16 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
 
   function threadRow(d) {
+    // The palette is keyed by number, so a DMC thread can't join a pattern
+    // that already has that number, even in another brand (P4-5).
     var inPal = ctx.cmap && ctx.cmap[d.id];
+    var clash = inPal && inPal.brand && inPal.brand !== "dmc";
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
-      title: inPal ? "Already in this pattern" : "Add to this pattern",
+      "aria-label": clash ? ("DMC " + d.id + " " + d.name + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
       h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),
@@ -21860,7 +21856,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ctx.skeinData.map(function(d) {
           var st = ctx.threadOwned[d.id] || "";
           var isOwned = st === "owned";
-          var gs = ctx.globalStash[threadKey(d.brand || 'dmc', d.id)] || ctx.globalStash[d.id] || {};
+          var gs = stashEntryFor(ctx.globalStash, d) || {};
           var owned = stashEffectiveQty(gs);
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
@@ -21937,7 +21933,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var stashEntry2 = stash[threadKey(d.brand || 'dmc', d.id)] || stash[d.id];
+                var stashEntry2 = stashEntryFor(stash, d);
                 var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(d.brand || 'dmc', d.id) : null;
                 var rgb2 = info2 ? info2.rgb : null;
@@ -22583,7 +22579,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
       });
     };
 
-    var srcLabel = 'DMC ' + (srcId || '') +
+    var srcEntry = (pal || []).find(function (p) { return p && p.id === srcId; });
+    var srcLabel = (window.threadLabel ? window.threadLabel(srcEntry || { id: srcId || '' }) : 'DMC ' + (srcId || '')) +
       (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
     var countText = affected == null ? null
       : (affected === 0 ? 'nothing to change'

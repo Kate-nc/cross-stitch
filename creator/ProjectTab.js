@@ -265,7 +265,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
         ctx.skeinData.map(function(d) {
           var st = ctx.threadOwned[d.id] || "";
           var isOwned = st === "owned";
-          var gs = ctx.globalStash[threadKey(d.brand || 'dmc', d.id)] || ctx.globalStash[d.id] || {};
+          var gs = stashEntryFor(ctx.globalStash, d) || {};
           var owned = stashEffectiveQty(gs);
           var enough = owned >= d.skeins;
           return h(React.Fragment, {key:d.id},
@@ -342,7 +342,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
             StashBridge.getGlobalStash().then(function(stash) {
               var missing = [], short = [];
               ctx.skeinData.forEach(function(d) {
-                var stashEntry2 = stash[threadKey(d.brand || 'dmc', d.id)] || stash[d.id];
+                var stashEntry2 = stashEntryFor(stash, d);
                 var owned2 = (stashEntry2 && typeof stashEntry2 === 'object' && typeof stashEntry2.owned === 'number') ? stashEntry2.owned : 0;
                 var info2 = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(d.brand || 'dmc', d.id) : null;
                 var rgb2 = info2 ? info2.rgb : null;

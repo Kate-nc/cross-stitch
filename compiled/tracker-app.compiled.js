@@ -1850,12 +1850,20 @@ function formatTimingModeDescription(mode) {
   return 'Classic timing: uses a fixed cap on how long a break still counts as stitching time.';
 }
 
-// Projects whose thread brand's catalogue processLoadedProject has already
-// tried to load (P4-5), so a failed load doesn't loop.
-var _trackerBrandLoadTried = typeof WeakSet === "function" ? new WeakSet() : {
-  has: () => true,
-  add: () => {}
-};
+// Part stitches as saved: each quarter names its brand when that isn't the
+// project's (P4-5), so a DMC quarter in an Anchor pattern stays DMC.
+function partialsForSave(partialStitches, projectBrand) {
+  return [...partialStitches.entries()].map(([k, v]) => {
+    const e = Object.assign({}, v);
+    ["TL", "TR", "BL", "BR"].forEach(q => {
+      if (!v || !v[q]) return;
+      const qb = cellBrandForSave(v[q], projectBrand);
+      e[q] = Object.assign({}, v[q]);
+      if (qb) e[q].brand = qb;else delete e[q].brand;
+    });
+    return [k, e];
+  });
+}
 function TrackerApp({
   onSwitchToDesign = null,
   onGoHome = null,
@@ -2511,7 +2519,7 @@ function TrackerApp({
     let text = "—";
     if (c) {
       text = "Row: " + (c.row + 1) + "   Col: " + (c.col + 1);
-      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   " + threadLabel(info, threadBrand) + " " + info.name;
+      if (info && info.row === c.row + 1 && info.col === c.col + 1) text += "  —   " + threadLabel(cmap && cmap[info.id] || info) + " " + info.name;
     } else {
       // Nothing under the pointer (always the case on touch): describe the
       // guide crosshair, if there is one.
@@ -3752,7 +3760,7 @@ function TrackerApp({
       if (nextColor) {
         setFocusColour(nextColor.id);
         const label = nextColor.type === "blend" ? nextColor.threads[0].name + "+" + nextColor.threads[1].name : nextColor.name;
-        setAdvanceToast(`${threadLabel(nextColor, threadBrand)} — ${label}`);
+        setAdvanceToast(`${threadLabel(nextColor)} — ${label}`);
         setTimeout(() => setAdvanceToast(null), 2500);
         return;
       }
@@ -3829,33 +3837,47 @@ function TrackerApp({
   const skeinData = useMemo(() => {
     if (!pal) return [];
     let map = {};
+    // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
     pal.forEach(p => {
       if (p.type === "solid") {
-        map[p.id] = (map[p.id] || 0) + p.count;
+        const k = (p.brand || "dmc") + ":" + p.id;
+        map[k] = (map[k] || 0) + p.count;
       } else if (p.type === "blend" && p.threads) {
         p.threads.forEach(t => {
-          map[t.id] = (map[t.id] || 0) + p.count;
+          const k = (t.brand || p.brand || "dmc") + ":" + t.id;
+          map[k] = (map[k] || 0) + p.count;
         });
       }
     });
-    return Object.entries(map).sort((a, b) => {
-      let na = parseInt(a[0]) || 0,
-        nb = parseInt(b[0]) || 0;
+    return Object.entries(map).map(([key, ct]) => {
+      const c = key.indexOf(":");
+      return {
+        brand: key.slice(0, c),
+        id: key.slice(c + 1),
+        ct
+      };
+    }).sort((a, b) => {
+      let na = parseInt(a.id) || 0,
+        nb = parseInt(b.id) || 0;
       if (na && nb) return na - nb;
-      return a[0].localeCompare(b[0]);
-    }).map(([id, ct]) => {
-      let t = findThreadInCatalog(threadBrand, id);
+      return a.id.localeCompare(b.id);
+    }).map(({
+      brand,
+      id,
+      ct
+    }) => {
+      let t = findThreadInCatalog(brand, id);
       return {
         id,
-        brand: threadBrand,
-        key: threadKey(threadBrand, id),
+        brand,
+        key: threadKey(brand, id),
         name: t ? t.name : "",
         rgb: t ? t.rgb : [128, 128, 128],
         stitches: ct,
         skeins: skeinEst(ct, fabricCt)
       };
     });
-  }, [pal, fabricCt, threadBrand]);
+  }, [pal, fabricCt]);
   useEffect(() => {
     function loadStash() {
       if (typeof StashBridge !== "undefined") {
@@ -3970,7 +3992,7 @@ function TrackerApp({
     skeinData.forEach(d => {
       const dn = threadDone[d.id] || 0;
       const skeinsConsumed = dn * effectiveCostIn / SKEIN_TOTAL_IN;
-      const snapEntry = snap[d.key] || snap[d.id] || null;
+      const snapEntry = stashEntryFor(snap, d) || null;
       const ownedSkeins = snapEntry && typeof snapEntry.owned === 'number' ? snapEntry.owned : null;
       const skeinsRemaining = ownedSkeins != null ? ownedSkeins - skeinsConsumed : null;
       out[d.id] = {
@@ -5294,15 +5316,17 @@ function TrackerApp({
     const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
       fwd: hs.fwd ? {
         id: hs.fwd.id,
-        rgb: hs.fwd.rgb
+        rgb: hs.fwd.rgb,
+        brand: cellBrandForSave(hs.fwd, threadBrand)
       } : undefined,
       bck: hs.bck ? {
         id: hs.bck.id,
-        rgb: hs.bck.rgb
+        rgb: hs.bck.rgb,
+        brand: cellBrandForSave(hs.bck, threadBrand)
       } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
-    const psArr = [...partialStitches.entries()];
+    const psArr = partialsForSave(partialStitches, threadBrand);
     let project = {
       version: 11,
       id: projectIdRef.current || undefined,
@@ -5321,10 +5345,10 @@ function TrackerApp({
         stitchSpeed,
         wastePrefs,
         fabricColour: projectFabricColour || undefined,
-        threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
+        threadBrand: threadBrandForSave(threadBrand)
       },
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-      pattern: window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
+      pattern: window.PatternIO ? window.PatternIO.serializePattern(pat, threadBrand) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
         id: m.id
       } : {
         id: m.id,
@@ -5342,7 +5366,7 @@ function TrackerApp({
       halfStitches: hsArr,
       halfDone: hdArr,
       partialStitches: psArr,
-      knots: knotsForSave(knots),
+      knots: knotsForSave(knots, threadBrand),
       knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
       statsSessions,
       statsSettings,
@@ -5398,8 +5422,7 @@ function TrackerApp({
       pattern: pat,
       bsLines: bsLines || [],
       knots: knots,
-      name: projectName || 'pattern',
-      threadBrand
+      name: projectName || 'pattern'
     });
     if (result.warnings && result.warnings.length > 0) {
       window.Toast && Toast.show({
@@ -5608,17 +5631,13 @@ function TrackerApp({
         window.CrossTabCoord.noteSeen(project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
-    // P4-5: a project in another brand's numbering needs that catalogue for
-    // its thread names. Load it first, then come back; if it can't load, carry
-    // on with the colours the cells hold.
+    // P4-5: a project in another brand's numbering loads that brand's
+    // catalogue first, then comes back here (helpers.js).
+    if (window.whenProjectBrandReady && !window.whenProjectBrandReady(project, processLoadedProject, err => {
+      console.error("[tracker] processLoadedProject threw:", err);
+      setLoadError("Could not open this pattern: " + (err && err.message || err));
+    })) return;
     const brand = window.projectThreadBrand ? window.projectThreadBrand(project) : "dmc";
-    if (brand !== "dmc" && !_trackerBrandLoadTried.has(project) && window.threadCatalogue && !window.threadCatalogue(brand) && window.loadThreadBrand) {
-      _trackerBrandLoadTried.add(project);
-      window.loadThreadBrand(brand, {
-        failMessage: "Could not load the " + window.threadBrandLabel(brand) + " catalogue for this pattern. Reload and try again."
-      }).then(() => processLoadedProject(project), () => processLoadedProject(project));
-      return;
-    }
     // Install the loaded project's identity before any downstream work so a
     // later render-time failure can't cause the next auto-save to mint a copy.
     projectIdRef.current = project.id || null;
@@ -5709,7 +5728,8 @@ function TrackerApp({
         const stitch = restoreStitch({
           id: quarter.id,
           type: quarter.id.includes('+') ? 'blend' : 'solid',
-          rgb: quarter.rgb
+          rgb: quarter.rgb,
+          brand: quarter.brand
         }, brand);
         restoredQuarters[corner] = {
           id: stitch.id,
@@ -5718,6 +5738,7 @@ function TrackerApp({
           name: stitch.name,
           type: stitch.type
         };
+        if (stitch.brand) restoredQuarters[corner].brand = stitch.brand;
         partialCells.push(stitch);
       });
       if (Object.keys(restoredQuarters).length) partialMap.set(Number(idx), restoredQuarters);
@@ -5734,12 +5755,13 @@ function TrackerApp({
     // part stitches' quarters do), so they show in the key and the thread totals.
     const kW = project.settings && project.settings.sW || project.w,
       kH = project.settings && project.settings.sH || project.h;
-    const knotList = window.Knots ? window.Knots.normalise(project.knots, kW, kH) : [];
+    const knotList = window.Knots ? window.Knots.normalise(project.knots, kW, kH, brand) : [];
     const knotCells = knotList.map(k => restoreStitch({
       id: k.id,
       type: k.id.includes('+') ? 'blend' : 'solid',
-      rgb: k.rgb
-    }, brand));
+      rgb: k.rgb,
+      brand: k.brand || 'dmc'
+    }));
     knotList.forEach((k, i) => {
       if (!k.rgb && knotCells[i].rgb) k.rgb = knotCells[i].rgb;
     });
@@ -5771,7 +5793,8 @@ function TrackerApp({
           const restored = restoreStitch({
             id: hs.fwd.id,
             type: hs.fwd.id.includes('+') ? 'blend' : 'solid',
-            rgb: hs.fwd.rgb
+            rgb: hs.fwd.rgb,
+            brand: hs.fwd.brand
           }, brand);
           entry.fwd = {
             id: restored.id,
@@ -5780,12 +5803,14 @@ function TrackerApp({
             name: restored.name,
             type: restored.type
           };
+          if (restored.brand) entry.fwd.brand = restored.brand;
         }
         if (hs.bck) {
           const restored = restoreStitch({
             id: hs.bck.id,
             type: hs.bck.id.includes('+') ? 'blend' : 'solid',
-            rgb: hs.bck.rgb
+            rgb: hs.bck.rgb,
+            brand: hs.bck.brand
           }, brand);
           entry.bck = {
             id: restored.id,
@@ -5794,6 +5819,7 @@ function TrackerApp({
             name: restored.name,
             type: restored.type
           };
+          if (restored.brand) entry.bck.brand = restored.brand;
         }
         hsMap.set(idx, entry);
       });
@@ -6563,15 +6589,17 @@ function TrackerApp({
     const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
       fwd: hs.fwd ? {
         id: hs.fwd.id,
-        rgb: hs.fwd.rgb
+        rgb: hs.fwd.rgb,
+        brand: cellBrandForSave(hs.fwd, threadBrand)
       } : undefined,
       bck: hs.bck ? {
         id: hs.bck.id,
-        rgb: hs.bck.rgb
+        rgb: hs.bck.rgb,
+        brand: cellBrandForSave(hs.bck, threadBrand)
       } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
-    const psArr = [...partialStitches.entries()];
+    const psArr = partialsForSave(partialStitches, threadBrand);
     // Derive stitchLog from statsSessions (single source of truth).
     // Groups netStitches by date so stitchLog always matches what statsSessions says.
     const _logMap = {};
@@ -6604,9 +6632,9 @@ function TrackerApp({
         stitchSpeed,
         wastePrefs,
         fabricColour: projectFabricColour || undefined,
-        threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
+        threadBrand: threadBrandForSave(threadBrand)
       },
-      pattern: window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
+      pattern: window.PatternIO ? window.PatternIO.serializePattern(pat, threadBrand) : pat.map(m => m.id === "__skip__" || m.id === "__empty__" ? {
         id: m.id
       } : {
         id: m.id,
@@ -6624,7 +6652,7 @@ function TrackerApp({
       halfStitches: hsArr,
       halfDone: hdArr,
       partialStitches: psArr,
-      knots: knotsForSave(knots),
+      knots: knotsForSave(knots, threadBrand),
       knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
       statsSessions,
       statsSettings,
@@ -6818,15 +6846,17 @@ function TrackerApp({
       const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
         fwd: hs.fwd ? {
           id: hs.fwd.id,
-          rgb: hs.fwd.rgb
+          rgb: hs.fwd.rgb,
+          brand: cellBrandForSave(hs.fwd, threadBrand)
         } : undefined,
         bck: hs.bck ? {
           id: hs.bck.id,
-          rgb: hs.bck.rgb
+          rgb: hs.bck.rgb,
+          brand: cellBrandForSave(hs.bck, threadBrand)
         } : undefined
       }]);
       const hdArr = [...halfDone.entries()];
-      const psArr = [...partialStitches.entries()];
+      const psArr = partialsForSave(partialStitches, threadBrand);
       const project = {
         ...(lastSnapshotRef.current || {}),
         version: 11,
@@ -6846,10 +6876,10 @@ function TrackerApp({
           stitchSpeed,
           wastePrefs,
           fabricColour: projectFabricColour || undefined,
-          threadBrand: threadBrand !== "dmc" ? threadBrand : undefined
+          threadBrand: threadBrandForSave(threadBrand)
         },
         partialStitches: psArr,
-        knots: knotsForSave(knots),
+        knots: knotsForSave(knots, threadBrand),
         knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
         // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
         breadcrumbs,
@@ -6929,13 +6959,8 @@ function TrackerApp({
 
   // French knots as saved: {x, y, id, rgb}, or nothing when there are none, so
   // projects without knots save exactly as before.
-  function knotsForSave(knots) {
-    return knots && knots.length ? knots.map(k => ({
-      x: k.x,
-      y: k.y,
-      id: k.id,
-      rgb: k.rgb
-    })) : undefined;
+  function knotsForSave(knots, projectBrand) {
+    return knots && knots.length ? window.Knots.forSave(knots, projectBrand) : undefined;
   }
 
   // ═══ Half-stitch cell rendering ═══
@@ -9618,9 +9643,9 @@ function TrackerApp({
     if (foundX < 0 || foundY < 0) {
       try {
         if (window.Toast && window.Toast.show) window.Toast.show({
-          message: "No remaining stitches for " + threadLabel({
+          message: "No remaining stitches for " + threadLabel(cmap && cmap[target] || {
             id: target
-          }, threadBrand) + (areaOn ? " in this work area" : ""),
+          }) + (areaOn ? " in this work area" : ""),
           type: "info"
         });
       } catch (_) {}
@@ -9796,9 +9821,9 @@ function TrackerApp({
       if (!vb || m.x < vb.x0 || m.x >= vb.x1 || m.y < vb.y0 || m.y >= vb.y1) {
         try {
           if (window.Toast && window.Toast.show) window.Toast.show({
-            message: threadLabel({
+            message: threadLabel(cmap && cmap[colorId] || {
               id: colorId
-            }, threadBrand) + " is parked outside this work area, at row " + (m.y + 1) + ", column " + (m.x + 1) + ".",
+            }) + " is parked outside this work area, at row " + (m.y + 1) + ", column " + (m.x + 1) + ".",
             type: "info",
             duration: 4000
           });
@@ -11466,9 +11491,9 @@ function TrackerApp({
       className: "ppal-active-info"
     }, /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-id"
-    }, threadLabel({
+    }, threadLabel(cmap && cmap[focusColour] || {
       id: focusColour
-    }, threadBrand)), /*#__PURE__*/React.createElement("span", {
+    })), /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-name"
     }, fc.type === "blend" ? fc.threads[0].name + "+" + fc.threads[1].name : fc.name), /*#__PURE__*/React.createElement("span", {
       className: "ppal-active-count"
@@ -11476,9 +11501,9 @@ function TrackerApp({
       className: "ppal-find-btn",
       onClick: jumpToNextStitch,
       title: "Jump to next remaining stitch",
-      "aria-label": "Find next unfinished stitch of " + threadLabel({
+      "aria-label": "Find next unfinished stitch of " + threadLabel(cmap && cmap[focusColour] || {
         id: focusColour
-      }, threadBrand)
+      })
     }, Icons.magnify()));
   })() : /*#__PURE__*/React.createElement("div", {
     className: "ppal-active-none"
@@ -11523,8 +11548,8 @@ function TrackerApp({
             if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width:899px)").matches) setLeftSidebarOpen(false);
           }
         },
-        "aria-label": "Select " + threadLabel(p, threadBrand),
-        title: threadLabel(p, threadBrand) + (complete ? " (done)" : "")
+        "aria-label": "Select " + threadLabel(p),
+        title: threadLabel(p) + (complete ? " (done)" : "")
       }, /*#__PURE__*/React.createElement("div", {
         className: "ppal-tile-swatch",
         style: {
@@ -11532,7 +11557,7 @@ function TrackerApp({
         },
         role: "button",
         tabIndex: 0,
-        "aria-label": "View " + threadLabel(p, threadBrand) + " detail",
+        "aria-label": "View " + threadLabel(p) + " detail",
         onClick: e => {
           e.stopPropagation();
           const r = e.currentTarget.getBoundingClientRect();
@@ -11599,8 +11624,8 @@ function TrackerApp({
           e.stopPropagation();
           goToParkedThread(p.id);
         },
-        title: "Go to where " + threadLabel(p, threadBrand) + " is parked" + (parkCountsByColour[p.id] > 1 ? " (" + parkCountsByColour[p.id] + " places; press again for the next)" : ""),
-        "aria-label": "Go to where " + threadLabel(p, threadBrand) + " is parked",
+        title: "Go to where " + threadLabel(p) + " is parked" + (parkCountsByColour[p.id] > 1 ? " (" + parkCountsByColour[p.id] + " places; press again for the next)" : ""),
+        "aria-label": "Go to where " + threadLabel(p) + " is parked",
         style: {
           background: isParkLayerVisible(p.id) ? swRgb : undefined,
           borderColor: isParkLayerVisible(p.id) ? swRgb : "var(--border)",
@@ -11612,7 +11637,7 @@ function TrackerApp({
           e.stopPropagation();
           if (!complete) {
             const u = dc.total - dc.done;
-            if (u > 50 && !confirm("Mark all " + u + " stitches of " + threadLabel(p, threadBrand) + (areaOn ? " in this work area" : "") + " as done?")) return;
+            if (u > 50 && !confirm("Mark all " + u + " stitches of " + threadLabel(p) + (areaOn ? " in this work area" : "") + " as done?")) return;
           }
           markColourDone(p.id, !complete);
         },
@@ -12356,9 +12381,9 @@ function TrackerApp({
     style: {
       background: "rgb(" + cmap[focusColour].rgb + ")"
     }
-  }), /*#__PURE__*/React.createElement("span", null, threadLabel({
+  }), /*#__PURE__*/React.createElement("span", null, threadLabel(cmap && cmap[focusColour] || {
     id: focusColour
-  }, threadBrand))) : /*#__PURE__*/React.createElement("button", {
+  }))) : /*#__PURE__*/React.createElement("button", {
     className: "ppal-phone-chip ppal-phone-chip--empty",
     onClick: cycleLeftSidebar,
     "aria-label": "Open colour palette panel"
@@ -13788,7 +13813,7 @@ function TrackerApp({
         const stash = await StashBridge.getGlobalStash();
         for (const d of skeinData) {
           // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-          const gs = stash[d.key] || stash[d.id] || {
+          const gs = stashEntryFor(stash, d) || {
             owned: 0
           };
           const newOwned = Math.max(0, gs.owned - d.skeins);
@@ -13826,7 +13851,7 @@ function TrackerApp({
         const stash = await StashBridge.getGlobalStash();
         for (const d of skeinData) {
           // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-          const gs = stash[d.key] || stash[d.id] || {
+          const gs = stashEntryFor(stash, d) || {
             owned: 0
           };
           const deduct = Math.max(0, d.skeins - 1);
@@ -14262,7 +14287,7 @@ function TrackerApp({
         fontWeight: 600,
         fontSize: 'var(--text-md)'
       }
-    }, threadLabel(currentEntry, threadBrand)), /*#__PURE__*/React.createElement("span", {
+    }, threadLabel(currentEntry)), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 'var(--text-sm)',
         color: "var(--text-secondary)",
@@ -14329,7 +14354,7 @@ function TrackerApp({
           fontSize: 'var(--text-md)',
           minWidth: 52
         }
-      }, threadLabel(p, threadBrand)), /*#__PURE__*/React.createElement("span", {
+      }, threadLabel(p)), /*#__PURE__*/React.createElement("span", {
         style: {
           fontSize: 'var(--text-sm)',
           color: "var(--text-secondary)",

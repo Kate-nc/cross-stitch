@@ -472,15 +472,19 @@ const ProjectStorage = (() => {
             if (typeof StashBridge !== "undefined" && StashBridge.syncProjectToLibrary
                 && project.id && project.id.startsWith("proj_") && project.pattern) {
               try {
+                // Counted per "brand:id" (P4-5): a saved cell names its brand
+                // only when it isn't the project's (absent means DMC).
+                const projBrand = typeof projectThreadBrand === "function" ? projectThreadBrand(project) : 'dmc';
                 const counts = {};
                 for (const cell of project.pattern) {
                   if (!cell || !cell.id || cell.id === "__skip__" || cell.id === "__empty__") continue;
-                  counts[cell.id] = (counts[cell.id] || 0) + 1;
+                  const k = String(cell.brand || projBrand).toLowerCase() + ':' + cell.id;
+                  counts[k] = (counts[k] || 0) + 1;
                 }
                 const fc = (project.settings && project.settings.fabricCt) || 14;
-                // The project's thread brand (P4-5); absent means DMC.
-                const brand = typeof projectThreadBrand === "function" ? projectThreadBrand(project) : 'dmc';
-                const skeinData = Object.entries(counts).map(([id, stitches]) => {
+                const skeinData = Object.entries(counts).map(([key, stitches]) => {
+                  const colon = key.indexOf(':');
+                  const brand = key.slice(0, colon), id = key.slice(colon + 1);
                   const dmcEntry = typeof findThreadInCatalog === "function" ? findThreadInCatalog(brand, id) : null;
                   return {
                     id,
@@ -1224,6 +1228,11 @@ const ProjectStorage = (() => {
           if (!proj || !proj.pattern) continue;
           // Calculate per-thread ratios from the pattern. Blends are split: a
           // "310+550" cell contributes 0.5 to "310" and 0.5 to "550".
+          // Keyed "brand:id" (P4-5): Anchor 310 and DMC 310 are different
+          // threads. A saved cell names its brand only when it isn't the
+          // project's.
+          const projBrand = typeof projectThreadBrand === 'function' ? projectThreadBrand(proj) : 'dmc';
+          const keyOf = (m, tid) => String((m && m.brand) || projBrand).toLowerCase() + ':' + tid;
           const threadCounts = {};
           let totalStitchable = 0;
           for (const cell of proj.pattern) {
@@ -1233,7 +1242,8 @@ const ProjectStorage = (() => {
               : [cell.id];
             const share = ids.length > 1 ? 1 / ids.length : 1;
             for (const tid of ids) {
-              threadCounts[tid] = (threadCounts[tid] || 0) + share;
+              const k = keyOf(cell, tid);
+              threadCounts[k] = (threadCounts[k] || 0) + share;
             }
             totalStitchable++;
           }
@@ -1244,11 +1254,13 @@ const ProjectStorage = (() => {
               if (!entry || !Array.isArray(entry) || entry.length < 2) continue;
               const hs = entry[1];
               if (hs && hs.fwd && hs.fwd.id) {
-                threadCounts[hs.fwd.id] = (threadCounts[hs.fwd.id] || 0) + 0.5;
+                const k = keyOf(hs.fwd, hs.fwd.id);
+                threadCounts[k] = (threadCounts[k] || 0) + 0.5;
                 totalStitchable += 0.5;
               }
               if (hs && hs.bck && hs.bck.id) {
-                threadCounts[hs.bck.id] = (threadCounts[hs.bck.id] || 0) + 0.5;
+                const k = keyOf(hs.bck, hs.bck.id);
+                threadCounts[k] = (threadCounts[k] || 0) + 0.5;
                 totalStitchable += 0.5;
               }
             }
@@ -1265,7 +1277,7 @@ const ProjectStorage = (() => {
           // so proj.palette is absent). This is the root cause of grey swatches.
           const palMap = Object.create(null);
           if (proj.palette && proj.palette.length > 0) {
-            for (const pe of proj.palette) { if (pe && pe.id) palMap[pe.id] = pe; }
+            for (const pe of proj.palette) { if (pe && pe.id) palMap[keyOf(pe, pe.id)] = pe; }
           } else {
             // Derive from pattern cells (first occurrence per solid thread id wins).
             // Blend cells are skipped — their component ids are resolved via the DMC
@@ -1274,40 +1286,42 @@ const ProjectStorage = (() => {
             for (const cell of proj.pattern) {
               if (!cell || !cell.id || cell.id === '__skip__' || cell.id === '__empty__') continue;
               if (cell.id.indexOf('+') !== -1) continue; // components resolved by catalogue
-              if (!palMap[cell.id]) {
-                palMap[cell.id] = { id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] };
+              const pk = keyOf(cell, cell.id);
+              if (!palMap[pk]) {
+                palMap[pk] = { id: cell.id, name: cell.name || cell.id, rgb: cell.rgb || [128,128,128] };
               }
             }
           }
-          for (const [tid, tcount] of Object.entries(threadCounts)) {
+          for (const [key, tcount] of Object.entries(threadCounts)) {
             const ratio = tcount / totalStitchable;
             const attributed = logTotal * ratio;
-            if (!colourTotals[tid]) {
-              // Prefer the per-project palMap, then try the global DMC catalogue.
+            if (!colourTotals[key]) {
+              const colon = key.indexOf(':');
+              const brand = key.slice(0, colon), tid = key.slice(colon + 1);
+              // Prefer the per-project palMap, then that brand's catalogue.
               // PERF (action plan §2E.1): use cached id-map; Array.find left as last fallback.
-              let info = palMap[tid];
-              // Another brand's ids (P4-5) aren't DMC numbers.
-              const projBrand = typeof projectThreadBrand === 'function' ? projectThreadBrand(proj) : 'dmc';
-              if (!info && projBrand !== 'dmc') info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(projBrand, tid) : null;
-              if (!info && projBrand === 'dmc' && typeof getDmcById === 'function') info = getDmcById(tid);
-              if (!info && projBrand === 'dmc' && typeof DMC !== 'undefined') {
+              let info = palMap[key];
+              if (!info && brand !== 'dmc') info = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(brand, tid) : null;
+              if (!info && brand === 'dmc' && typeof getDmcById === 'function') info = getDmcById(tid);
+              if (!info && brand === 'dmc' && typeof DMC !== 'undefined') {
                 const dmcEntry = DMC.find ? DMC.find(d => d.id === tid) : null;
                 if (dmcEntry) info = dmcEntry;
               }
-              colourTotals[tid] = {
+              colourTotals[key] = {
                 count: 0,
                 name: info ? (info.name || tid) : tid,
                 rgb:  info ? (info.rgb  || [128,128,128]) : [128,128,128],
                 id:   tid
               };
+              if (brand !== 'dmc') colourTotals[key].brand = brand;
             }
-            colourTotals[tid].count += attributed;
+            colourTotals[key].count += attributed;
           }
         }
         const sorted = Object.values(colourTotals).sort((a, b) => b.count - a.count);
         const totalAll = sorted.reduce((s, c) => s + c.count, 0);
         const result = sorted.slice(0, limit).map(c => ({
-          id: c.id, name: c.name, rgb: c.rgb,
+          id: c.id, name: c.name, rgb: c.rgb, brand: c.brand,
           count: Math.round(c.count),
           // pct is per-cent (0..100), one decimal place.
           pct: totalAll > 0 ? Math.round(c.count / totalAll * 1000) / 10 : 0

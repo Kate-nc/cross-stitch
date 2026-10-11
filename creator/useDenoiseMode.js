@@ -521,7 +521,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     // Unused-colour notice (mirrors cleanup mode behaviour)
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = 'DMC ' + p.id + (p.name ? ' \xb7 ' + p.name : '');
+        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
         state.addToast(label + ' is no longer used \u2014 remove from palette?', {
           type: 'info',
           duration: 8000,

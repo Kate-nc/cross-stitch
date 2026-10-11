@@ -182,7 +182,7 @@
           bullets: [
             ["Suggestions", "Each colour is matched to the available thread that looks most like it; the difference shown is how far apart they look, and lower is closer. Review the suggestions before confirming."],
             ["A new project", "The adapted pattern is saved as a separate project, so the original is untouched."],
-            ["Anchor patterns", "When Adapt to brand moves every colour to Anchor, the copy is an Anchor pattern: the palette, Materials, shopping list, Stitch Tracker, PDF key and .oxs files show Anchor numbers and names."]
+            ["Anchor patterns", "When Adapt to brand moves every colour to Anchor, the copy is an Anchor pattern: the palette, Materials, shopping list, Stitch Tracker, PDF key and .oxs files show Anchor numbers and names. A copy that mixes brands keeps each thread's own brand."]
           ]
         },
         {

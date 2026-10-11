@@ -1727,10 +1727,48 @@ function libraryThreadKey(t){
   var id=String(t.id);
   return id.indexOf(':')>=0?id:(libraryThreadBrand(t)+':'+id);
 }
+// Opening a project in another brand's numbering (P4-5) needs that brand's
+// catalogue for its thread names. Call at the top of a project loader:
+//   if (!whenProjectBrandReady(project, load, onError)) return;
+// It returns true when the catalogue is ready (go on loading now). Otherwise
+// it loads the catalogue and calls load(project) again afterwards, unless
+// another project load started in the meantime; if the catalogue can't load,
+// load still runs and uses the colours the cells hold. An error thrown by
+// that later load goes to onError, since the caller's try/catch has gone.
+// While it waits, window.__pendingProjectBrandLoad is set.
+var _brandLoadSeq=0;
+var _brandLoadTried=typeof WeakSet==='function'?new WeakSet():null;
+function whenProjectBrandReady(project,load,onError){
+  var seq=++_brandLoadSeq;
+  var brand=projectThreadBrand(project);
+  if(brand==='dmc'||threadCatalogue(brand)||!_brandLoadTried||_brandLoadTried.has(project))return true;
+  _brandLoadTried.add(project);
+  if(typeof window!=='undefined')window.__pendingProjectBrandLoad=seq;
+  var resume=function(){
+    if(typeof window!=='undefined'&&window.__pendingProjectBrandLoad===seq)delete window.__pendingProjectBrandLoad;
+    if(seq!==_brandLoadSeq)return;
+    try{load(project);}
+    catch(err){if(typeof onError==='function')onError(err);else console.error('[thread brand] project load failed:',err);}
+  };
+  loadThreadBrand(brand,{failMessage:'Could not load the '+threadBrandLabel(brand)+' catalogue for this pattern. Reload and try again.'}).then(resume,resume);
+  return false;
+}
+// settings.threadBrand as saved: written only for a brand other than DMC,
+// so DMC projects save exactly as before.
+function threadBrandForSave(brand){var b=normaliseThreadBrand(brand);return b==='dmc'?undefined:b;}
+// The stash entry for a thread ({id, brand}). Old stashes may still hold a
+// bare "310" key, which always means DMC, so only a DMC thread falls back
+// to it.
+function stashEntryFor(stash,t){
+  if(!stash||!t)return undefined;
+  var b=normaliseThreadBrand(t.brand);
+  return stash[b+':'+t.id]||(b==='dmc'?stash[t.id]:undefined);
+}
 // "DMC 310" / "Anchor 403" for a cell or palette entry.
-function threadLabel(entry,fallbackBrand){
+// In memory an entry without `brand` is DMC.
+function threadLabel(entry){
   if(!entry)return'';
-  return threadBrandLabel(entry.brand||fallbackBrand)+' '+entry.id;
+  return threadBrandLabel(entry.brand)+' '+entry.id;
 }
 if(typeof window!=='undefined'){
   window.THREAD_BRANDS=THREAD_BRANDS;
@@ -1742,6 +1780,9 @@ if(typeof window!=='undefined'){
   window.threadLabel=threadLabel;
   window.libraryThreadBrand=libraryThreadBrand;
   window.libraryThreadKey=libraryThreadKey;
+  window.threadBrandForSave=threadBrandForSave;
+  window.whenProjectBrandReady=whenProjectBrandReady;
+  window.stashEntryFor=stashEntryFor;
 }
 
 // ── Premium feature gate ─────────────────────────────────────────
@@ -1774,11 +1815,32 @@ function _rgbEq(a,b){
   return !!(a&&b&&a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]);
 }
 
-// Returns the on-disk shape for a single pattern cell.
-function stripCellForSave(m){
+// The brand to write on a saved cell or stitch (P4-5): its own brand when
+// that differs from the project's, else undefined. In memory a cell without
+// `brand` is DMC; on disk a cell without `brand` is in the project's brand.
+function cellBrandForSave(m,projectBrand){
+  var norm=typeof normaliseThreadBrand==='function'?normaliseThreadBrand:function(b){return b==='anchor'?'anchor':'dmc';};
+  var cb=norm(m&&m.brand),pb=norm(projectBrand);
+  return cb===pb?undefined:cb;
+}
+if(typeof window!=='undefined')window.cellBrandForSave=cellBrandForSave;
+
+// Returns the on-disk shape for a single pattern cell. `projectBrand` is the
+// project's settings.threadBrand (absent: DMC).
+function stripCellForSave(m,projectBrand){
   if(!m)return m;
   // Skip / empty placeholders are already minimal — rgb is fixed at load time.
   if(m.id==='__skip__'||m.id==='__empty__')return{id:m.id};
+  // A cell in a brand other than DMC, or other than the project's (P4-5),
+  // keeps its rgb so any reader can draw it without that brand's
+  // catalogue, and names its brand when that isn't the project's.
+  var own=cellBrandForSave(m,projectBrand);
+  if(own!==undefined||(m.brand&&m.brand!=='dmc')){
+    var o={id:m.id,type:m.type};
+    if(m.rgb)o.rgb=m.rgb;
+    if(own!==undefined)o.brand=own;
+    return o;
+  }
   // Honour the kill-switch: emit the legacy shape when stripping is disabled.
   var flags=(typeof window!=='undefined'&&window.PERF_FLAGS)||{};
   if(flags.stripRgbOnSave===false){
@@ -1786,9 +1848,6 @@ function stripCellForSave(m){
   }
   // Cell already lacks rgb (nothing to strip; pass through cleanly).
   if(!m.rgb)return{id:m.id,type:m.type};
-  // Cells of another brand (P4-5) keep their rgb: it lets any reader draw
-  // the right colour without loading that brand's catalogue first.
-  if(m.brand&&m.brand!=='dmc')return{id:m.id,type:m.type,rgb:m.rgb};
   var mr=m.rgb;
   // Blends: only safe to strip when both halves are DMC and the stored rgb
   // matches the per-channel average — that is exactly what restoreStitch
@@ -1845,16 +1904,17 @@ if(typeof window!=='undefined')window.isPlaceholderThread=isPlaceholderThread;
 // it straight to a structured clone (IndexedDB) or a JSON serialiser, neither
 // of which mutates.
 var _serialisedPatterns=(typeof WeakMap==='function')?new WeakMap():null;
-function serializePattern(pat){
+function serializePattern(pat,projectBrand){
   if(!pat||!pat.map)return pat;
+  var pb=projectBrand||'dmc';
   if(_serialisedPatterns){
     var hit=_serialisedPatterns.get(pat);
     // Length check so a pattern array that was somehow resized in place still
     // re-serialises rather than silently saving the wrong cell count.
-    if(hit&&hit.length===pat.length)return hit;
+    if(hit&&hit.brand===pb&&hit.out.length===pat.length)return hit.out;
   }
-  var out=pat.map(stripCellForSave);
-  if(_serialisedPatterns)_serialisedPatterns.set(pat,out);
+  var out=pat.map(function(m){return stripCellForSave(m,pb);});
+  if(_serialisedPatterns)_serialisedPatterns.set(pat,{brand:pb,out:out});
   return out;
 }
 if(typeof window!=='undefined'){

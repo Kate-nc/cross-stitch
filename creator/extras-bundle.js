@@ -2442,8 +2442,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
   var matPal = useMemo(function() {
     if (!ctx.pal || !window.Knots) return ctx.pal;
-    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? function(m) { return restoreStitch(m, ctx.threadBrand); } : null);
-  }, [ctx.pal, ctx.knots, ctx.threadBrand]);
+    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
+  }, [ctx.pal, ctx.knots]);
 
   var threadRows = useMemo(function() {
     if (!(ctx.pat && matPal)) return [];
@@ -3171,7 +3171,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
       var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
-      lines.push(mark + ' DMC ' + r.p.id + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+      lines.push(mark + ' ' + threadLabel(r.p) + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
     });
     lines.push('');
     lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
@@ -3190,7 +3190,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-        lines.push('DMC ' + r.p.id + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+        lines.push(threadLabel(r.p) + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
       }
     });
     navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
@@ -3297,7 +3297,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('thead', null,
           h('tr', {style: {background: 'var(--surface-secondary)'}},
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, threadBrandLabel(ctx.threadBrand)),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
@@ -3792,12 +3792,12 @@ window.CreatorExportTab = function CreatorExportTab() {
     if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
       ctx.partialStitches.forEach(function (v, k) {
         var e = {};
-        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], ctx.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
         psArr.push([k, e]);
       });
     }
     var pattern = (window.PatternIO && window.PatternIO.serializePattern)
-      ? window.PatternIO.serializePattern(ctx.pat)
+      ? window.PatternIO.serializePattern(ctx.pat, ctx.threadBrand)
       : ctx.pat.map(function (m) { return m && m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; });
     return {
       version: 11,
@@ -3807,11 +3807,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       description: app.projectDescription || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: ctx.threadBrand && ctx.threadBrand !== "dmc" ? ctx.threadBrand : undefined },
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(ctx.threadBrand) : undefined },
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
-      knots: ctx.knots && ctx.knots.length ? ctx.knots.slice() : undefined,
+      knots: ctx.knots && ctx.knots.length ? (window.Knots ? window.Knots.forSave(ctx.knots, ctx.threadBrand) : ctx.knots.slice()) : undefined,
     };
   }
 
@@ -4116,8 +4116,7 @@ window.CreatorExportTab = function CreatorExportTab() {
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
-            knots: ctx.knots || [],
-            threadBrand: ctx.threadBrand
+            knots: ctx.knots || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

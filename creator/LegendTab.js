@@ -50,8 +50,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
   var matPal = useMemo(function() {
     if (!ctx.pal || !window.Knots) return ctx.pal;
-    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? function(m) { return restoreStitch(m, ctx.threadBrand); } : null);
-  }, [ctx.pal, ctx.knots, ctx.threadBrand]);
+    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
+  }, [ctx.pal, ctx.knots]);
 
   var threadRows = useMemo(function() {
     if (!(ctx.pat && matPal)) return [];

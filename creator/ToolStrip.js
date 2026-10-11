@@ -213,7 +213,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
         },
-        title: "Target: " + threadLabel({ id: cv.cleanupTargetColorId || "" }, ctx.threadBrand) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        title: "Target: " + threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
         "aria-haspopup": "listbox",
@@ -225,7 +225,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                    background:"rgb("+clTgtEntry.rgb+")", border:"1.5px solid rgba(0,0,0,0.2)" }
         }),
         h("span", {style:{fontSize:11}},
-          cv.cleanupTargetColorId ? threadLabel({ id: cv.cleanupTargetColorId }, ctx.threadBrand) : "None"
+          cv.cleanupTargetColorId ? threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId }) : "None"
         ),
         h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
@@ -247,7 +247,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             "aria-selected": isTgt,
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
             title: threadLabel(p) + (p.name ? " \xB7 " + p.name : ""),
-            "aria-label": "Set cleanup target to DMC " + p.id + (p.name ? " " + p.name : ""),
+            "aria-label": "Set cleanup target to " + threadLabel(p) + (p.name ? " " + p.name : ""),
             style:{
               width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
               background:"rgb("+p.rgb+")",
@@ -702,7 +702,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onPointerLeave: swatchPressEnd,
           onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
           title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
-          "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+          "aria-label": "Select " + threadLabel(p) + (p.name ? " " + p.name : ""),
           "aria-pressed": isSel,
           style:{
             width:40, height:40, flexShrink:0,
@@ -794,7 +794,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = null;
   }
   var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
-    ? (" \u2014 DMC " + cv.selectedColorId + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    ? (" \u2014 " + threadLabel(ctx.cmap[cv.selectedColorId]) + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,

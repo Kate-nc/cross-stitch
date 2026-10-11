@@ -689,14 +689,17 @@ function rebuildPaletteCounts(patArr, existingPal) {
   return existingPal.map(p => ({ ...p, count: counts[p.id] || 0 }));
 }
 
-// Rebuilds a stored cell. `brand` is the project's thread brand (P4-5):
-// ids are looked up in that brand's catalogue, and cells of a brand other
-// than DMC carry `brand` so later code knows which catalogue they're in.
-// Anything else in `brand` (absent, or an index from .map) means DMC.
+// Rebuilds a stored cell. `brand` is the project's thread brand (P4-5); a
+// cell saved with its own `brand` (one that differs from the project's)
+// uses that instead. Ids are looked up in that brand's catalogue, and cells
+// of a brand other than DMC carry `brand` so later code knows which
+// catalogue they're in. Anything else in `brand` (absent, or an index from
+// .map) means DMC.
 function restoreStitch(m,brand){
   if(m.id==="__skip__")return{type:"skip",id:"__skip__",rgb:[255,255,255],lab:[100,0,0]};
   if(m.id==="__empty__")return{type:"solid",id:"__empty__",rgb:[255,255,255],lab:[100,0,0]};
-  var b=typeof normaliseThreadBrand==="function"?normaliseThreadBrand(brand):(brand==="anchor"?"anchor":"dmc");
+  var norm=typeof normaliseThreadBrand==="function"?normaliseThreadBrand:function(x){return x==="anchor"?"anchor":"dmc";};
+  var b=m.brand?norm(m.brand):norm(brand);
   var tag=b==="dmc"?null:b;
   if(m.type==="blend"){
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
@@ -704,6 +707,13 @@ function restoreStitch(m,brand){
       let out={type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
       if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
       return out;
+    }
+    // Another brand's blend whose catalogue isn't loaded stays a blend, in
+    // the colour it was saved with, so a save can't turn it into a solid.
+    if(tag&&ids.length===2&&m.rgb){
+      let lab=rgbToLab(...m.rgb);
+      return{type:"blend",id:m.id,name:m.id,rgb:m.rgb,lab:lab,dist:0,brand:tag,symbol:m.symbol,
+        threads:ids.map(function(id){return{id:id,name:id,rgb:m.rgb,lab:lab,brand:tag};})};
     }
   }
   let t=findThreadInCatalog(b,m.id);

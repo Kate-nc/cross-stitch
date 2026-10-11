@@ -381,7 +381,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         selInfo
           ? h(React.Fragment, null,
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo, ctx.threadBrand)),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo)),
               h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
@@ -541,12 +541,16 @@ window.CreatorSidebar = function CreatorSidebar() {
   if (familyFilter) allList = allList.filter(function(d) { return familyOf[d.id] === familyFilter; });
 
   function threadRow(d) {
+    // The palette is keyed by number, so a DMC thread can't join a pattern
+    // that already has that number, even in another brand (P4-5).
     var inPal = ctx.cmap && ctx.cmap[d.id];
+    var clash = inPal && inPal.brand && inPal.brand !== "dmc";
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
-      title: inPal ? "Already in this pattern" : "Add to this pattern",
+      "aria-label": clash ? ("DMC " + d.id + " " + d.name + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + "DMC " + d.id + " " + d.name,
+      title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
       h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),

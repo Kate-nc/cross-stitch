@@ -15,6 +15,11 @@
  * Both fields are optional: a project without them has no knots, and older
  * builds ignore them (the project format stays at version 11).
  *
+ * Thread brand (P4-5): in memory a knot in a brand other than DMC carries
+ * `brand`, as cells do. Saved, a knot names its brand only when that differs
+ * from the project's settings.threadBrand; normalise() takes the project's
+ * brand to turn one back into the other.
+ *
  * Loaded as a plain <script> on the Creator and Tracker pages; also
  * require()-able for tests.
  */
@@ -42,7 +47,8 @@
   }
 
   // Well-formed knots inside the pattern, one per spot (the last wins).
-  function normalise(list, sW, sH) {
+  // `projectBrand` is the brand of saved knots that don't name one.
+  function normalise(list, sW, sH, projectBrand) {
     if (!Array.isArray(list)) return [];
     var byKey = {}, order = [];
     list.forEach(function (k) {
@@ -52,6 +58,8 @@
       if (sW != null && (x < 0 || y < 0 || x > 2 * sW || y > 2 * sH)) return;
       var n = { x: x, y: y, id: String(k.id) };
       if (Array.isArray(k.rgb) && k.rgb.length === 3) n.rgb = k.rgb.slice();
+      var b = String(k.brand || projectBrand || "dmc").toLowerCase();
+      if (b !== "dmc") n.brand = b;
       var kk = key(n);
       if (!(kk in byKey)) order.push(kk);
       byKey[kk] = n;
@@ -72,6 +80,7 @@
     if (i !== -1) return { knots: list.slice(0, i).concat(list.slice(i + 1)), added: false };
     var k = { x: x, y: y, id: String(thread.id) };
     if (thread.rgb) k.rgb = thread.rgb.slice();
+    if (thread.brand && thread.brand !== "dmc") k.brand = thread.brand;
     return { knots: list.concat([k]), added: true };
   }
 
@@ -107,6 +116,17 @@
   function offset(list, dx, dy, w, h) {
     return (list || []).map(function (k) { return Object.assign({}, k, { x: k.x + 2 * dx, y: k.y + 2 * dy }); })
       .filter(function (k) { return k.x >= 0 && k.y >= 0 && k.x <= 2 * w && k.y <= 2 * h; });
+  }
+  // Knots as saved in a project of brand `projectBrand`: each names its
+  // brand only when that isn't the project's.
+  function forSave(list, projectBrand) {
+    var pb = String(projectBrand || "dmc").toLowerCase();
+    return (list || []).map(function (k) {
+      var o = { x: k.x, y: k.y, id: k.id, rgb: k.rgb };
+      var b = String(k.brand || "dmc").toLowerCase();
+      if (b !== pb) o.brand = b;
+      return o;
+    });
   }
   function offsetDone(done, dx, dy) {
     return (done || []).map(function (kk) {
@@ -150,11 +170,12 @@
   // Returns the palette itself when there are no knots.
   function withKnotCounts(pal, list, restore) {
     if (!pal || !list || !list.length) return pal;
-    var n = {}, rgbOf = {}, order = [];
+    var n = {}, rgbOf = {}, brandOf = {}, order = [];
     list.forEach(function (k) {
       if (!(k.id in n)) { n[k.id] = 0; order.push(k.id); }
       n[k.id]++;
       if (k.rgb && !rgbOf[k.id]) rgbOf[k.id] = k.rgb;
+      if (k.brand && !brandOf[k.id]) brandOf[k.id] = k.brand;
     });
     var seen = {};
     var out = pal.map(function (p) {
@@ -165,8 +186,9 @@
     order.forEach(function (id) {
       if (seen[id]) return;
       var base = typeof restore === "function"
-        ? restore({ id: id, type: id.indexOf("+") !== -1 ? "blend" : "solid", rgb: rgbOf[id] })
+        ? restore({ id: id, type: id.indexOf("+") !== -1 ? "blend" : "solid", rgb: rgbOf[id], brand: brandOf[id] })
         : { id: id, type: "solid", name: id, rgb: rgbOf[id] || [128, 128, 128] };
+      if (brandOf[id] && !base.brand) base = Object.assign({}, base, { brand: brandOf[id] });
       out.push(Object.assign({}, base, { count: n[id] * THREAD_ALLOWANCE, knots: n[id], knotsOnly: true }));
     });
     return out;
@@ -176,7 +198,7 @@
     THREAD_ALLOWANCE: THREAD_ALLOWANCE,
     key: key, onLattice: onLattice, snap: snap, normalise: normalise, find: find, toggle: toggle,
     cellOf: cellOf, mirrorKnot: mirrorKnot, inSelection: inSelection, offset: offset, offsetDone: offsetDone,
-    hitTest: hitTest, progress: progress, byThread: byThread, withKnotCounts: withKnotCounts
+    hitTest: hitTest, progress: progress, byThread: byThread, withKnotCounts: withKnotCounts, forSave: forSave
   };
   root.Knots = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

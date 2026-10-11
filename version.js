@@ -12,7 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'On the Pattern Creator\'s Project page, the "in stash" count beside each thread and Kit This Project now read your stash correctly; before, they showed every thread as missing.',
-      'A pattern adapted to Anchor threads with Adapt to brand now stays in Anchor when you reopen it: its palette, Materials, shopping list, Stitch Tracker, PDF key and .oxs export show Anchor numbers and names.',
+      'A pattern adapted to Anchor threads with Adapt to brand now stays in Anchor when you reopen it: its palette, Materials, shopping list, Stitch Tracker, PDF key and .oxs export show Anchor numbers and names. Adapted copies that mix DMC and Anchor threads keep each thread\'s own brand too.',
     ]
   },
   {

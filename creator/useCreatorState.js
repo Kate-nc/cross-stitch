@@ -1182,18 +1182,19 @@ window.useCreatorState = function useCreatorState() {
     var map = {};
     // French knots add their thread too (knots.js).
     var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
+    // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
     withKnots.forEach(function(p) {
-      if (p.type === "solid") { map[p.id] = (map[p.id] || 0) + p.count; }
-      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { map[t.id] = (map[t.id] || 0) + p.count; }); }
+      if (p.type === "solid") { var k = (p.brand || "dmc") + ":" + p.id; map[k] = (map[k] || 0) + p.count; }
+      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { var k = (t.brand || p.brand || "dmc") + ":" + t.id; map[k] = (map[k] || 0) + p.count; }); }
     });
     return Object.entries(map)
-      .sort(function(a, b) { var na = parseInt(a[0]) || 0, nb = parseInt(b[0]) || 0; if (na && nb) return na - nb; return a[0].localeCompare(b[0]); })
+      .map(function(e) { var c = e[0].indexOf(":"); return { brand: e[0].slice(0, c), id: e[0].slice(c + 1), ct: e[1] }; })
+      .sort(function(a, b) { var na = parseInt(a.id) || 0, nb = parseInt(b.id) || 0; if (na && nb) return na - nb; return a.id.localeCompare(b.id); })
       .map(function(e) {
-        var id = e[0], ct = e[1];
-        var t = findThreadInCatalog(threadBrand, id);
-        return { id: id, brand: threadBrand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: ct, skeins: skeinEst(ct, fabricCt) };
+        var t = findThreadInCatalog(e.brand, e.id);
+        return { id: e.id, brand: e.brand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: e.ct, skeins: skeinEst(e.ct, fabricCt) };
       });
-  }, [pal, fabricCt, knots, threadBrand]);
+  }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);

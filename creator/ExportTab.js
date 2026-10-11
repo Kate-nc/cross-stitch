@@ -232,12 +232,12 @@ window.CreatorExportTab = function CreatorExportTab() {
     if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
       ctx.partialStitches.forEach(function (v, k) {
         var e = {};
-        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], ctx.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
         psArr.push([k, e]);
       });
     }
     var pattern = (window.PatternIO && window.PatternIO.serializePattern)
-      ? window.PatternIO.serializePattern(ctx.pat)
+      ? window.PatternIO.serializePattern(ctx.pat, ctx.threadBrand)
       : ctx.pat.map(function (m) { return m && m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; });
     return {
       version: 11,
@@ -247,11 +247,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       description: app.projectDescription || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: ctx.threadBrand && ctx.threadBrand !== "dmc" ? ctx.threadBrand : undefined },
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(ctx.threadBrand) : undefined },
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
-      knots: ctx.knots && ctx.knots.length ? ctx.knots.slice() : undefined,
+      knots: ctx.knots && ctx.knots.length ? (window.Knots ? window.Knots.forSave(ctx.knots, ctx.threadBrand) : ctx.knots.slice()) : undefined,
     };
   }
 
@@ -556,8 +556,7 @@ window.CreatorExportTab = function CreatorExportTab() {
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
-            knots: ctx.knots || [],
-            threadBrand: ctx.threadBrand
+            knots: ctx.knots || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

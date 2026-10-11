@@ -48,7 +48,6 @@ describe('project brand', () => {
   test('labels', () => {
     expect(run(withAnchor, 'threadLabel({id:"403", brand:"anchor"})')).toBe('Anchor 403');
     expect(run(withAnchor, 'threadLabel({id:"310"})')).toBe('DMC 310');
-    expect(run(withAnchor, 'threadLabel({id:"403"}, "anchor")')).toBe('Anchor 403');
     expect(run(withAnchor, 'threadBrandLabel(undefined)')).toBe('DMC');
   });
 
@@ -100,24 +99,61 @@ describe('save and load', () => {
   })`);
 
   test('Anchor cells keep their rgb on disk; DMC cells are stripped as before', () => {
-    const saved = run(withAnchor, `serializePattern(${JSON.stringify(cells)})`);
+    const saved = run(withAnchor, `serializePattern(${JSON.stringify(cells)}, 'anchor')`);
     saved.forEach((c, i) => expect(Array.from(c.rgb)).toEqual(Array.from(cells[i].rgb)));
-    expect(saved[0]).not.toHaveProperty('brand');
+    // The project says Anchor, so the cells don't repeat it.
+    saved.forEach((c) => expect(c).not.toHaveProperty('brand'));
     expect(run(withAnchor, `stripCellForSave(restoreStitch({id:'310', type:'solid'}))`)).toEqual({ id: '310', type: 'solid' });
   });
 
   test('a saved Anchor project reads back as Anchor, with or without the catalogue loaded', () => {
-    const saved = JSON.parse(JSON.stringify(run(withAnchor, `serializePattern(${JSON.stringify(cells)})`)));
+    const saved = JSON.parse(JSON.stringify(run(withAnchor, `serializePattern(${JSON.stringify(cells)}, 'anchor')`)));
     const back = run(withAnchor, `${JSON.stringify(saved)}.map(function (m) { return restoreStitch(m, 'anchor'); })`);
     back.forEach((c, i) => {
       expect(c.id).toBe(cells[i].id);
       expect(Array.from(c.rgb)).toEqual(Array.from(cells[i].rgb));
       expect(c.brand).toBe('anchor');
     });
-    // Without anchor-data.js the colours still come back from the cells.
-    const solids = saved.filter((c) => c.type === 'solid');
-    const noCat = run(dmcOnly, `${JSON.stringify(solids)}.map(function (m) { return restoreStitch(m, 'anchor'); })`);
-    noCat.forEach((c, i) => expect(Array.from(c.rgb)).toEqual(Array.from(solids[i].rgb)));
+    // Without anchor-data.js the colours still come back from the cells,
+    // and a blend stays a blend (so the next save can't flatten it).
+    const noCat = run(dmcOnly, `${JSON.stringify(saved)}.map(function (m) { return restoreStitch(m, 'anchor'); })`);
+    noCat.forEach((c, i) => {
+      expect(Array.from(c.rgb)).toEqual(Array.from(saved[i].rgb));
+      expect(c.type).toBe(saved[i].type);
+      expect(c.brand).toBe('anchor');
+    });
+    expect(noCat[3].threads.map((t) => t.id)).toEqual(['403', '46']);
+    const again = run(dmcOnly, `serializePattern(${JSON.stringify(noCat)}, 'anchor')`);
+    expect(again[3]).toEqual(saved[3]);
+  });
+
+  test('a DMC colour added to an Anchor pattern stays DMC after a save and reload', () => {
+    const mixed = run(withAnchor, `[restoreStitch({id:'403', type:'solid'}, 'anchor'), restoreStitch({id:${JSON.stringify(COLLIDING)}, type:'solid'})]`);
+    const saved = JSON.parse(JSON.stringify(run(withAnchor, `serializePattern(${JSON.stringify(mixed)}, 'anchor')`)));
+    expect(saved[1].brand).toBe('dmc');
+    const back = run(withAnchor, `${JSON.stringify(saved)}.map(function (m) { return restoreStitch(m, 'anchor'); })`);
+    expect(back[0].brand).toBe('anchor');
+    expect(back[1].brand).toBeUndefined();
+    expect(back[1].name).toBe(run(withAnchor, `getDmcById(${JSON.stringify(COLLIDING)}).name`));
+  });
+
+  test('an Anchor colour in a DMC pattern (a mixed Adapt copy) stays Anchor', () => {
+    const mixed = run(withAnchor, `[restoreStitch({id:'310', type:'solid'}), restoreStitch({id:${JSON.stringify(COLLIDING)}, type:'solid'}, 'anchor')]`);
+    const saved = JSON.parse(JSON.stringify(run(withAnchor, `serializePattern(${JSON.stringify(mixed)})`)));
+    expect(saved[0]).toEqual({ id: '310', type: 'solid' });
+    expect(saved[1].brand).toBe('anchor');
+    const back = run(withAnchor, `${JSON.stringify(saved)}.map(function (m) { return restoreStitch(m); })`);
+    expect(back[1].brand).toBe('anchor');
+    expect(back[1].name).toBe(run(withAnchor, `getAnchorById(${JSON.stringify(COLLIDING)}).name`));
+  });
+
+  test('the save memo is per brand', () => {
+    const r = run(withAnchor, `(function () {
+      var pat = [restoreStitch({id:'310', type:'solid'})];
+      var a = serializePattern(pat), b = serializePattern(pat, 'anchor');
+      return [a === serializePattern(pat), a[0].brand, b[0].brand];
+    })()`);
+    expect(r).toEqual([false, undefined, 'dmc']);
   });
 
   test('a project file keeps settings.threadBrand through JSON', () => {
@@ -152,15 +188,19 @@ describe('stash keys', () => {
 });
 
 describe('OXS export', () => {
-  const cell = (id, rgb) => ({ id, type: 'solid', rgb });
-  test('an Anchor project writes "Anchor 403"', () => {
-    const { xml } = run(withAnchor, `generateOXS({ w: 2, h: 1, threadBrand: 'anchor', pattern: ${JSON.stringify([cell('403', [0, 0, 0]), cell('46', [200, 0, 0])])}, bsLines: [] })`);
+  const cell = (id, rgb, brand) => Object.assign({ id, type: 'solid', rgb }, brand ? { brand } : {});
+  test('Anchor threads are written "Anchor 403"', () => {
+    const { xml } = run(withAnchor, `generateOXS({ w: 2, h: 1, pattern: ${JSON.stringify([cell('403', [0, 0, 0], 'anchor'), cell('46', [200, 0, 0], 'anchor')])}, bsLines: [] })`);
     expect(xml).toContain('number="Anchor 403"');
     expect(xml).toContain('number="Anchor 46"');
   });
-  test('a DMC project is unchanged', () => {
+  test('a DMC pattern is unchanged, and Anchor 403 and DMC 403-like ids stay apart', () => {
     const { xml } = run(withAnchor, `generateOXS({ w: 1, h: 1, pattern: ${JSON.stringify([cell('310', [0, 0, 0])])}, bsLines: [] })`);
     expect(xml).toContain('number="310"');
+    const mixed = run(withAnchor, `generateOXS({ w: 2, h: 1, pattern: ${JSON.stringify([cell('10', [1, 1, 1], 'anchor'), cell('10', [2, 2, 2])])}, bsLines: [] })`).xml;
+    expect(mixed).toContain('number="Anchor 10"');
+    expect(mixed).toContain('number="10"');
+    expect(mixed).toMatch(/<stitch x="1" y="0" palindex="1"/);
   });
 });
 
