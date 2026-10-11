@@ -1,9 +1,10 @@
 /* creator/CompareStrip.js — Compare options under the Convert preview
  * (audit IMG-05).
  *
- * Three thumbnails for a chosen dimension, Size (−25 %, current, +25 %) or
- * Threads (−5, current, +5), each with its stitches, threads, estimated
- * hours and confetti tier. Choosing one applies its values.
+ * Thumbnails for a chosen dimension, Size (−25 %, current, +25 %), Threads
+ * (−5, current, +5) or Brand (each thread brand, P4-5), each with its
+ * stitches, threads, estimated hours and confetti tier. Choosing one applies
+ * its values.
  *
  * The thumbnails are rendered at reduced size (CompareOptions.js
  * comparePreviewDims) by a generate-worker.js of their own, one job at a
@@ -14,7 +15,9 @@
  * runCleanupPipeline.
  *
  * Props: img, settings (conversionSettings), sW, sH, maxC, arLock, ar,
- *        stitchSpeed, compact, onApply({ sW, sH } | { maxC }).
+ *        stitchSpeed, compact, paletteFor(brand) (the thread pool a
+ *        conversion in that brand chooses from, null for DMC),
+ *        onApply({ sW, sH } | { maxC } | { convertBrand }).
  * On phones (compact) the strip is collapsed behind "Compare options".
  *
  * Loaded as a plain <script> (concatenated into creator/bundle.js).
@@ -50,11 +53,13 @@
     return data;
   }
 
-  function pipelineSettings(s, values) {
+  function pipelineSettings(s, values, paletteFor) {
+    var pool = s.allowedPalette;
+    if (values.convertBrand && values.convertBrand !== s.convertBrand && typeof paletteFor === "function") pool = paletteFor(values.convertBrand);
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, allowedPalette: s.allowedPalette,
+      allowBlends: s.allowBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
@@ -93,7 +98,19 @@
     var failuresRef = React.useRef(0);
 
     var s = props.settings;
-    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar });
+    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand });
+    // A brand's thread list loads on demand: until it has, its option waits.
+    var _cat = React.useState(0); var setCatTick = _cat[1];
+    var waiting = dimension === "brand" ? options.filter(function (o) {
+      return o.values.convertBrand !== "dmc" && window.threadCatalogue && !window.threadCatalogue(o.values.convertBrand);
+    }) : [];
+    React.useEffect(function () {
+      if (!waiting.length || !window.loadThreadBrand) return undefined;
+      var live = true;
+      Promise.all(waiting.map(function (o) { return window.loadThreadBrand(o.values.convertBrand); }))
+        .then(function () { if (live) setCatTick(function (n) { return n + 1; }); }, function () {});
+      return function () { live = false; };
+    }, [dimension, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
     var ik = imgKey(props.img);
     var keys = options.map(function (o) {
       var settings = Object.assign({}, s || {}, o.values);
@@ -134,7 +151,7 @@
                 else if (s.smoothType === "bilateral" && typeof applyBilateralFilter === "function") applyBilateralFilter(raw, dims.pw, dims.ph);
                 else applyMedianFilter(raw, dims.pw, dims.ph, s.smooth);
               }
-              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values));
+              var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
@@ -159,7 +176,7 @@
           reject(new Error((ev && ev.message) || "worker failed"));
         };
         w.postMessage({ type: "generate", reqId: reqId, pixels: px.data.buffer, width: dims.pw, height: dims.ph,
-          settings: pipelineSettings(s, job.values) }, [px.data.buffer]);
+          settings: pipelineSettings(s, job.values, props.paletteFor) }, [px.data.buffer]);
       });
     }
 
@@ -175,6 +192,7 @@
         options.forEach(function (o, i) {
           var cached = cacheRef.current.get(keys[i]);
           if (cached) return;
+          if (waiting.indexOf(o) !== -1) return;
           var full = o.values.sW ? { w: o.values.sW, h: o.values.sH } : { w: props.sW, h: props.sH };
           jobs.push({ batch: batch, index: i, key: keys[i], values: o.values, full: full, dims: window.comparePreviewDims(full.w, full.h) });
         });
@@ -206,9 +224,9 @@
         })();
       }, 500);
       return function () { clearTimeout(timer); };
-    }, [open, keySig, props.img]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [open, keySig, props.img, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }];
+    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }];
     var dimSwitch = h("div", { className: "lp-segmented compare-strip__dim", role: "radiogroup", "aria-label": "Compare by" },
       dims.map(function (d, i) {
         var on = dimension === d.id;
@@ -217,9 +235,10 @@
           className: "lp-seg" + (on ? " lp-seg--on" : ""), "data-compare-dim": d.id, tabIndex: on ? 0 : -1,
           onClick: function () { setDimension(d.id); },
           onKeyDown: function (e) {
-            if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].indexOf(e.key) === -1) return;
+            var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+            if (!step) return;
             e.preventDefault();
-            var next = dims[1 - i].id;
+            var next = dims[(i + step + dims.length) % dims.length].id;
             setDimension(next);
             var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-compare-dim="' + next + '"]');
             if (sib) sib.focus();

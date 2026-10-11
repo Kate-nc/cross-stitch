@@ -1012,6 +1012,8 @@ function CreatorApp({
       setGalleryOpen: state.setGalleryOpen,
       stashConstrained: state.stashConstrained,
       setStashConstrained: state.setStashConstrained,
+      convertBrand: state.convertBrand,
+      setConvertBrand: state.setConvertBrand,
       coverageGaps: state.coverageGaps,
       setCoverageGaps: state.setCoverageGaps,
       cleanupDiff: state.cleanupDiff,
@@ -1034,7 +1036,7 @@ function CreatorApp({
       srcClick: stableSrcClick,
       autoCrop: stableAutoCrop
     };
-  }, [state.img, state.isUploading, state.isDragging, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1694,6 +1696,7 @@ function CreatorApp({
     sW: state.sW,
     sH: state.sH,
     pal: state.pal,
+    threadBrand: state.threadBrand,
     partialStitches: state.partialStitches,
     bsLines: state.bsLines,
     fabricColour: state.fabricColour,
@@ -1709,7 +1712,11 @@ function CreatorApp({
       });
       state.setColourReplaceModal(null);
       if (!res || !state.addToast) return;
-      state.addToast((swap ? "Swapped DMC " + src.srcId + " and DMC " + res.dst.id : "Replaced DMC " + src.srcId + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with DMC " + res.dst.id) + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
+      var srcLbl = threadLabel(state.cmap && state.cmap[src.srcId] || res.src || {
+          id: src.srcId
+        }),
+        dstLbl = threadLabel(res.dst);
+      state.addToast((swap ? "Swapped " + srcLbl + " and " + dstLbl : "Replaced " + srcLbl + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with " + dstLbl) + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
         type: "success",
         duration: 6000,
         action: {
@@ -2227,7 +2234,12 @@ function CreatorApp({
     ar: state.ar,
     stitchSpeed: state.stitchSpeed,
     compact: _compact,
+    paletteFor: state.convertPaletteFor,
     onApply: function (v) {
+      if (v.convertBrand) {
+        state.setConvertBrand(v.convertBrand);
+        return;
+      }
       if (v.maxC != null) {
         state.setMaxC(v.maxC);
         return;

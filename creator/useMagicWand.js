@@ -441,10 +441,13 @@ window.useMagicWand = function useMagicWand(state) {
     if (!pat || !cmap || !srcId || !dstId || srcId === dstId) return null;
     var dstEntry = cmap[dstId];
     if (!dstEntry) {
-      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog('dmc', dstId);
+      // From the pattern's brand (P4-5); another brand's entry carries it.
+      var wb = window.normaliseThreadBrand ? window.normaliseThreadBrand(state.threadBrand) : 'dmc';
+      if (typeof findThreadInCatalog === 'function') dstEntry = findThreadInCatalog(wb, dstId);
+      if (dstEntry && wb !== 'dmc') dstEntry = Object.assign({}, dstEntry, { brand: wb });
       // PERF (action plan §2E.1): O(1) id-map lookup; Array.find kept as final fallback.
-      if (!dstEntry && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
-      if (!dstEntry && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
+      if (!dstEntry && wb === 'dmc' && typeof getDmcById === 'function') dstEntry = getDmcById(dstId);
+      if (!dstEntry && wb === 'dmc' && typeof DMC !== 'undefined') dstEntry = DMC.find(function(d) { return d.id === dstId; });
     }
     if (!dstEntry) {
       // DEFECT-002: surface to the user instead of silently no-opping. Reachable
@@ -465,7 +468,7 @@ window.useMagicWand = function useMagicWand(state) {
     if (opts && opts.swap) {
       var srcEntry = cmap[srcId];
       if (!srcEntry) {
-        if (state.addToast) state.addToast("Can't swap: DMC " + srcId + " isn't in the palette.", {type: "error", duration: 3500});
+        if (state.addToast) state.addToast("Can't swap: " + (window.threadLabel ? window.threadLabel({ id: srcId, brand: state.threadBrand }) : "DMC " + srcId) + " isn't in the palette.", {type: "error", duration: 3500});
         return null;
       }
       mapping = CR.swapMapping(srcEntry, dstEntry);

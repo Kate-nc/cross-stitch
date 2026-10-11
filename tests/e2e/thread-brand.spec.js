@@ -79,3 +79,63 @@ test.describe('Anchor project on desktop', function() {
     await expect(page.locator('[aria-label^="Select DMC"]')).toHaveCount(1);
   });
 });
+
+// Converting with Anchor chosen (P4-5 part 2).
+const { openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+
+test.describe('Convert in Anchor on desktop', function() {
+  test.use(device('desktop'));
+  test.setTimeout(120000);
+
+  test('choosing Anchor makes an Anchor pattern, in the Creator and the Tracker', async function({ page }) {
+    await openConvertWithLogo(page);
+    const anchor = page.getByRole('radio', { name: 'Anchor', exact: true });
+    await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByText('Colours are matched to Anchor stranded cotton.')).toBeVisible();
+    await clickGenerate(page);
+    await waitForEdit(page);
+
+    // Every palette colour is an Anchor thread.
+    const labels = await page.locator('.pal-rows .pal-row').evaluateAll(els => els.map(e => e.getAttribute('aria-label')));
+    expect(labels.length).toBeGreaterThan(1);
+    labels.forEach(l => expect(l).toMatch(/^(Anchor|Blend) /));
+
+    // The Materials key is in Anchor numbers.
+    await page.getByRole('tab', { name: 'Materials' }).first().click();
+    await expect(page.locator('th', { hasText: /^Anchor$/ }).first()).toBeVisible();
+    await expect(page.locator('table').first()).not.toContainText('DMC');
+
+    // Saved as an Anchor project.
+    await page.keyboard.press('Control+s');
+    await expect.poll(async function() {
+      const p = await page.evaluate(function() { return ProjectStorage.getActiveProject(); });
+      return p && p.settings && p.settings.threadBrand;
+    }, { timeout: 15000 }).toBe('anchor');
+
+    // The Tracker shows the same Anchor numbers.
+    await page.goto('/stitch.html');
+    await page.waitForSelector('canvas[aria-label^="Cross stitch pattern grid"]', { timeout: 20000 });
+    const tracker = await page.locator('[aria-label^="Select "]').evaluateAll(els => els.map(e => e.getAttribute('aria-label')));
+    expect(tracker.length).toBeGreaterThan(1);
+    expect(tracker.filter(l => /^Select DMC/.test(l))).toEqual([]);
+    expect(tracker.some(l => /^Select Anchor /.test(l))).toBe(true);
+  });
+});
+
+test.describe('Compare options by brand on desktop', function() {
+  test.use(device('desktop'));
+  test.setTimeout(120000);
+
+  test('Brand shows the picture in DMC and Anchor, and choosing Anchor applies it', async function({ page }) {
+    await openConvertWithLogo(page);
+    await page.getByRole('radio', { name: 'DMC', exact: true }).click();
+    await page.locator('[data-compare-dim="brand"]').click();
+    const anchorCard = page.locator('[data-compare-option="anchor"]');
+    await expect(page.locator('[data-compare-option="dmc"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(anchorCard).toBeEnabled({ timeout: 30000 });
+    await expect(anchorCard.locator('img')).toHaveCount(1);
+    await anchorCard.click();
+    await expect(page.getByRole('radio', { name: 'Anchor', exact: true })).toHaveAttribute('aria-checked', 'true');
+  });
+});

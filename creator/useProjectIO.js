@@ -24,7 +24,7 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel'
+  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
 ];
 function creatorDraftSettings(state) {
   var o = {};
@@ -359,6 +359,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (s.stitchSpeed) state.setStitchSpeed(s.stitchSpeed);
 
     if (state.setThreadBrand) state.setThreadBrand(brand);
+    // Converting this picture again chooses from the same brand.
+    if (state.setConvertBrand) state.setConvertBrand(brand, { remember: false });
     var restored = project.pattern.map(function(m) { return restoreStitch(m, brand); });
     // Symbols chosen with Change symbol ride on their cells (buildPalette
     // keeps a symbol its cells carry).

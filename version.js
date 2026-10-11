@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.104';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.105',
+    date: 'October 2026',
+    notes: [
+      'Convert a picture in Anchor threads: choose DMC or Anchor under Threads in the Convert panel and the colours are chosen from that brand directly. The pattern keeps Anchor numbers and names everywhere, from the palette and Materials to the Stitch Tracker, PDF and .oxs export. Use only stash threads uses your threads in that brand, and Compare options can show the picture in each brand side by side. When you edit an Anchor pattern, Add colour, blends and Replace colour offer Anchor threads.',
+    ]
+  },
+  {
     version: '1.0.104',
     date: 'October 2026',
     notes: [

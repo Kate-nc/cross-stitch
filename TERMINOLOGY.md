@@ -39,7 +39,10 @@ count, and optional history.
 ### DMC / Anchor
 Brand names of the supported thread manufacturers. Always capitalised as
 **DMC** and **Anchor**. Composite stash keys use lowercase: `dmc:310`,
-`anchor:403`.
+`anchor:403`. A pattern's thread brand (settings.threadBrand) is chosen
+under **Threads** in Convert; call it the pattern's brand, and label a
+thread with its brand and number ("Anchor 403"), never the number alone
+when the brand could be either.
 
 ### Skein
 A single physical bundle of thread (315 inches per skein, by default).
