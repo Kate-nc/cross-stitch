@@ -179,7 +179,7 @@
       if (!s || !s.date) return false;
       return new Date(s.date + 'T12:00:00').getTime() >= windowStart.getTime();
     });
-    var activeDays = new Set(recentSessions.map(function (s) { return s.date; })).size;
+    var activeDays = new Set(recentSessions.filter(ProgressUnits.sessionActive).map(function (s) { return s.date; })).size;
     var recentStitches = recentSessions.reduce(function (a, s) { return a + (ProgressUnits.sessionAdded(s) || 0); }, 0);
     var recentSeconds = recentSessions.reduce(function (a, s) {
       return a + getSessionDurationSeconds(s);

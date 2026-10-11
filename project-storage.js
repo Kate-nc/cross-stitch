@@ -134,7 +134,7 @@ const ProjectStorage = (() => {
     const totalSeconds = sessions.reduce((sum, s) => sum + (s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60), 0);
     const totalMinutes = Math.round(totalSeconds / 60);
     const totalNet = sessions.reduce((sum, s) => sum + (ProgressUnits.sessionAdded(s) || 0), 0);
-    const uniqueDays = new Set(sessions.map(s => s.date).filter(Boolean)).size;
+    const uniqueDays = new Set(sessions.filter(ProgressUnits.sessionActive).map(s => s.date).filter(Boolean)).size;
     const lastSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
     // Compute stitches this week and this month for dashboard stats
     const now = new Date();

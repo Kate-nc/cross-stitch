@@ -1558,7 +1558,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     var totalStitches = allSessions.reduce(function(s, sess) { return s + (ProgressUnits.sessionAdded(sess) || 0); }, 0);
     var totalSeconds = allSessions.reduce(function(s, sess) { return s + getSessionSeconds(sess); }, 0);
     var totalHours = totalSeconds / 3600;
-    var activeDays = new Set(allSessions.map(function(s) { return s.date; }).filter(Boolean)).size;
+    var activeDays = new Set(allSessions.filter(ProgressUnits.sessionActive).map(function(s) { return s.date; }).filter(Boolean)).size;
     var speed = totalHours > 0 ? Math.round(totalStitches / totalHours) : 0;
     var complete = projectSummaries.filter(function(p) { return p.isComplete; }).length;
     var total = projectSummaries.length;
@@ -1584,7 +1584,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       var st = sessions.reduce(function(s, x) { return s + (ProgressUnits.sessionAdded(x) || 0); }, 0);
       var sec = sessions.reduce(function(s, x) { return s + getSessionSeconds(x); }, 0);
       var spd = sec > 0 ? Math.round(st / (sec / 3600)) : 0;
-      var days = new Set(sessions.map(function(x) { return x.date; })).size;
+      var days = new Set(sessions.filter(ProgressUnits.sessionActive).map(function(x) { return x.date; })).size;
       return {stitches: st, seconds: sec, speed: spd, activeDays: days};
     }
     var tw = wk(allSessions.filter(function(s) { return s.date >= thisWeekStartStr; }));

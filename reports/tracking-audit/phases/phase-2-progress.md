@@ -104,7 +104,7 @@ Before the formatter fix the 50-tap bench read medians 8.9 (main) vs 9.4 ms (bra
 - `isComplete`, progress, `totalAtEnd`, the derived stitch log and stash thread usage still use net marks.
 
 ### Tests added
-`tests/phase2Batch3.test.js` (11: the worked example, old net-only sessions, Today, speed, best day, streaks incl. catch-up and no-figure sessions, CSV), `tests/e2e/phase2-batch3.spec.js` (4: asks once and records catch-up, remembered choice, counted-as-today adds to Today, unpicking shows Unpicked and Today stays 0). Updated `liveAutoStitchesClamp`.
+`tests/phase2Batch3.test.js` (11: the worked example, old net-only sessions, Today, speed, best day, streaks incl. catch-up and no-figure sessions, CSV), `tests/e2e/phase2-batch3.spec.js` (5: asks once and records catch-up, remembered choice, counted-as-today adds to Today, unpicking shows Unpicked and Today stays 0, Preferences has the choice and saves it). Updated `liveAutoStitchesClamp`.
 
 ### Batch 3 performance (interleaved A/B, main at `5054ed1`; raw files in `perf/batch3-ab/`)
 | Measure | main (median, range) | this branch | Change |

@@ -70,3 +70,7 @@ Safari, Firefox, real devices; a `.csync` round trip with unit-bearing sessions.
 
 ### Not verified
 Safari, Firefox, real devices; the catch-up dialog with a screen reader (it uses the shared Overlay, which traps focus); a very large `.csync` round trip with `catchUp` sessions.
+
+### Review round 1 (Copilot on PR 284; six findings, all verified)
+- **Active days still counted inactive sessions (Medium, five places).** True: the streak helpers had the filter but the overview of recent pace (`insights-engine.js`), the weekly summary (`stats-insights.js`), global Stats active days and the this-week/last-week comparison (`components-stats.js`), project comparison metadata (`project-storage.js`) and `computeWeightedPace` (`helpers.js`, which gave an unpick-only day a zero weight that pulled pace down) still counted every dated session. All now use `ProgressUnits.sessionActive`. Two unit tests added (pace unchanged by an unpick-only or catch-up-only day; overview active days).
+- **Report said four e2e tests (Low).** True, there are five; corrected.

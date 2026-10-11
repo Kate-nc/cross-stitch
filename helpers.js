@@ -1068,6 +1068,8 @@ function computeWeightedPace(sessions, daysWindow) {
   var dailyTotals = {};
   for (var i = 0; i < sessions.length; i++) {
     var s = sessions[i];
+    // A day that only unpicked or only caught up is not a stitching day: it must not pull the pace down.
+    if (!ProgressUnits.sessionActive(s)) continue;
     dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionAdded(s);
   }
   var dates = Object.keys(dailyTotals).sort().reverse().slice(0, daysWindow);

@@ -90,3 +90,15 @@ describe('CSV', () => {
     expect(row.endsWith(',387')).toBe(true);
   });
 });
+
+describe('review round 1: inactive days stay out of pace and active-day counts', () => {
+  test('computeWeightedPace ignores a day that only unpicked or caught up', () => {
+    const base = [sess(day(-3), 100, 0), sess(day(-2), 100, 0)];
+    const withInactive = base.concat([sess(day(-1), 0, 80), sess(day(0), 387, 0, { catchUp: 387 })]);
+    expect(computeWeightedPace(withInactive, 14)).toEqual(computeWeightedPace(base, 14));
+  });
+  test('active days in the overview skip inactive sessions', () => {
+    const sessions = [sess(day(-2), 40, 0), sess(day(-1), 0, 80), sess(day(0), 387, 0, { catchUp: 387 })];
+    expect(computeOverviewStats(sessions, 10, 100, true).uniqueDays).toBe(1);
+  });
+});
