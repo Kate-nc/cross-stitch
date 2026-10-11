@@ -168,7 +168,7 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       try {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
         // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
         // than awaiting them sequentially.
         const [projects, project_meta, stats_summaries, sync_snapshots] = await Promise.all([
@@ -368,7 +368,7 @@ const BackupRestore = (() => {
 
       // 1. CrossStitchDB
       if (backup.databases.CrossStitchDB) {
-        const db = await openDB("CrossStitchDB", 4, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
+        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"]);
         const data = backup.databases.CrossStitchDB;
         for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
           if (!data[storeName]) continue;

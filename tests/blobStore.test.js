@@ -70,8 +70,10 @@ describe('BlobStore', () => {
 describe('drafts stay out of projects, stats, backups and sync', () => {
   test('they live in pendingImports, which backups do not export', () => {
     const backup = loadSource('backup-restore.js');
-    expect(backup).toMatch(/openDB\("CrossStitchDB", 4, \["projects", "project_meta", "stats_summaries", "sync_snapshots"\]\)/);
+    expect(backup).toMatch(/openDB\("CrossStitchDB", null, \["projects", "project_meta", "stats_summaries", "sync_snapshots"\]\)/);
     expect(backup).not.toMatch(/pendingImports/);
+    // The version is not pinned: the app owns the schema version (5 today) and a pinned 4 made every backup empty.
+    expect(backup).not.toMatch(/openDB\("CrossStitchDB", \d/);
   });
 
   test('sync only creates the store; it never reads it', () => {

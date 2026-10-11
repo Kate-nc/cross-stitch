@@ -12,7 +12,8 @@ mkdir -p $AUDIT_WORK/fx $AUDIT_WORK/shots $AUDIT_WORK/profiles
 node serve.js 8000 &                                 # from the repo root
 # Only if cdnjs is unreachable (the audit sandbox blocked it): serve React/pako locally.
 mkdir -p $AUDIT_WORK/libs && (cd $AUDIT_WORK/libs && npm init -y && npm i react@18.2.0 react-dom@18.2.0 pako@2.1.0)
-# Only if Playwright cannot find its browser:  export CHROMIUM_PATH=/path/to/chrome
+# Only if Playwright cannot find its browser (Playwright 1.59 wants a newer Chromium than some
+# sandboxes ship):  export CHROMIUM_PATH=/path/to/chrome   (e.g. /opt/pw-browsers/chromium-1194/chrome-linux/chrome)
 cd reports/tracking-audit/harness
 node gen.js && node hist.js                          # writes small/large/special/history fixtures
 ```
@@ -37,3 +38,10 @@ into IndexedDB through `ProjectStorage.save`.
 Expected hand-computed values for the history fixture are in section 2.4 of the audit.
 Chromium only; scripts assume the tracker's first-run flags are pre-set by `tk.js` (`SKIP`).
 Many scripts delete their profile first: `rm -rf $AUDIT_WORK/profiles/<name>`.
+
+## Running the repo's e2e specs without the CDN
+
+`E2E_LOCAL_CDN=1 npx playwright test -c <config> save-durability` serves React/pako from `node_modules`
+(`tests/e2e/local-cdn.js`; no effect unless the variable is set). Specs that call `loadTrackerFixture` or
+the save-durability spec use it automatically. Use a small config that points `launchOptions.executablePath`
+at your Chromium if needed.

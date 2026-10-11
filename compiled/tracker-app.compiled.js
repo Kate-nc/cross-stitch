@@ -3280,6 +3280,9 @@ function TrackerApp({
   const lastSnapshotRef = useRef(null); // freshest serialised project for beforeunload
   const v3FieldsRef = useRef({}); // preserve v3 stats fields across save round-trips
   const autoSaveDirtyRef = useRef(false);
+  // When the oldest unsaved change happened. The save timer is a debounce; this caps
+  // how long continuous marking can postpone it (see the autosave effect).
+  const autoSaveFirstDirtyRef = useRef(null);
   const session = window.useAutoSession({
     projectIdRef,
     v3FieldsRef,
@@ -6675,10 +6678,40 @@ function TrackerApp({
     };
   };
   buildSnapshotRef.current = buildSnapshot;
+  // The project exactly as it is now. buildSnapshot() reads `done` from the last
+  // render; doneRef is updated synchronously on every mark, so use that, and apply
+  // a drag that has not committed yet. Reads refs only and never touches drag state,
+  // so it is safe from the unload, tab-hidden and backup/sync flush paths.
+  function snapshotNow() {
+    const fresh = buildSnapshotRef.current ? buildSnapshotRef.current() : null;
+    if (!fresh) return lastSnapshotRef.current;
+    const live = doneRef.current;
+    if (!live || !fresh.pattern || live.length !== fresh.pattern.length) return fresh;
+    const d = Array.from(live);
+    if (dragStateRef.current.isDragging && dragChangesRef.current.length > 0) {
+      const dVal = dragStateRef.current.dragVal;
+      for (const {
+        idx
+      } of dragChangesRef.current) d[idx] = dVal;
+    }
+    return {
+      ...fresh,
+      done: d
+    };
+  }
   useEffect(() => {
     if (!pat || !pal) return;
     autoSaveDirtyRef.current = true;
+    // Debounce 5 s after the last change, but cap how long a change can stay unsaved:
+    // without a cap, marking steadily (each mark restarts the timer) saved nothing
+    // until the first 5 s pause. A full save of a very large chart costs about
+    // 150 ms of main thread (structured clone of the whole record), so charts over
+    // 40,000 stitches get a longer cap rather than a hitch every 10 s.
+    if (!autoSaveFirstDirtyRef.current) autoSaveFirstDirtyRef.current = Date.now();
+    const _autoSaveCap = pat.length > 40000 ? 20000 : 10000;
+    const _autoSaveDelay = Math.max(0, Math.min(5000, _autoSaveCap - (Date.now() - autoSaveFirstDirtyRef.current)));
     const saveTimer = setTimeout(() => {
+      autoSaveFirstDirtyRef.current = null;
       if (!autoSaveDirtyRef.current) return;
       autoSaveDirtyRef.current = false;
       const project = buildSnapshot();
@@ -6729,7 +6762,7 @@ function TrackerApp({
           return null;
         });
       }).catch(err => console.error("Tracker auto-save failed:", err));
-    }, 5000);
+    }, _autoSaveDelay);
     return () => clearTimeout(saveTimer);
   }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots, achievedMilestones]);
 
@@ -6742,7 +6775,7 @@ function TrackerApp({
         isUnloadingRef.current = true;
         // Always build a fresh snapshot so we never use stale data
         let project = null;
-        const fresh = buildSnapshotRef.current();
+        const fresh = snapshotNow();
         if (fresh) {
           project = fresh;
           lastSnapshotRef.current = fresh;
@@ -6819,78 +6852,16 @@ function TrackerApp({
     };
   }, []);
 
-  // Expose flush for BackupRestore to call before reading IndexedDB.
-  // Re-registered whenever relevant state changes so the function always builds
-  // a fresh snapshot rather than relying on a potentially stale ref.
+  // Expose flush for BackupRestore, Sync and the Stats refresh to call before they
+  // read IndexedDB. It saves a complete, current snapshot (snapshotNow), so it can
+  // never write a record that lacks the pattern or carries a stale `done`; both
+  // happened when this built a partial object on top of the last autosave. While
+  // the page is unloading the unload handler owns the write, so this stands aside.
   useEffect(() => {
     window.__flushProjectToIDB = async function () {
-      if (!pat || !pal) {
-        const project = lastSnapshotRef.current;
-        if (project) {
-          const saveResult = await persistProjectRecord(project);
-          if (!saveResult || saveResult.reason !== 'reloaded') {
-            await saveProjectToDB(project).catch(e => {
-              console.error('Save failed:', e);
-              try {
-                window.Toast && window.Toast.show && window.Toast.show({
-                  message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.',
-                  type: 'error'
-                });
-              } catch (_) {}
-            });
-          }
-        }
-        return;
-      }
-      const sseArr = [...singleStitchEdits.entries()];
-      const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-        fwd: hs.fwd ? {
-          id: hs.fwd.id,
-          rgb: hs.fwd.rgb,
-          brand: cellBrandForSave(hs.fwd, threadBrand)
-        } : undefined,
-        bck: hs.bck ? {
-          id: hs.bck.id,
-          rgb: hs.bck.rgb,
-          brand: cellBrandForSave(hs.bck, threadBrand)
-        } : undefined
-      }]);
-      const hdArr = [...halfDone.entries()];
-      const psArr = partialsForSave(partialStitches, threadBrand);
-      const project = {
-        ...(lastSnapshotRef.current || {}),
-        version: 11,
-        id: projectIdRef.current,
-        page: "tracker",
-        name: projectName,
-        namePromptShown: namePromptShownRef.current || undefined,
-        nameAutoGenerated: nameAutoGeneratedRef.current || undefined,
-        symbols: symbolsRef.current || undefined,
-        createdAt: createdAtRef.current,
-        updatedAt: new Date().toISOString(),
-        settings: {
-          sW,
-          sH,
-          fabricCt,
-          skeinPrice,
-          stitchSpeed,
-          wastePrefs,
-          fabricColour: projectFabricColour || undefined,
-          threadBrand: threadBrandForSave(threadBrand)
-        },
-        partialStitches: psArr,
-        knots: knotsForSave(knots, threadBrand),
-        knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
-        // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-        breadcrumbs,
-        stitchingStyle,
-        blockW,
-        blockH,
-        focusBlock,
-        startCorner,
-        colourSequence,
-        workArea
-      };
+      if (isUnloadingRef.current) return;
+      const project = snapshotNow();
+      if (!project) return;
       lastSnapshotRef.current = project;
       const saveResult = await persistProjectRecord(project);
       if (!saveResult || saveResult.reason !== 'reloaded') {
@@ -6927,7 +6898,33 @@ function TrackerApp({
         }
       };
     };
-  }, [projectName, sW, sH, fabricCt, skeinPrice, stitchSpeed, pat, pal, bsLines, done, halfStitches, halfDone, partialStitches, knots, knotsDone, parkMarkers, totalTime, liveAutoElapsed, hlRow, hlCol, threadOwned, originalPaletteState, singleStitchEdits, statsSessions, statsSettings, achievedMilestones, stitchZoom, doneSnapshots, breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea]);
+  }, []);
+
+  // Save when the tab is hidden (switching app, locking the phone, switching tab).
+  // This is the one event mobile browsers reliably deliver before they suspend or
+  // discard a page; unload events often never fire there. Only writes when there
+  // are unsaved changes, so merely switching tabs costs nothing.
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState !== 'hidden') return;
+      if (!autoSaveDirtyRef.current) return;
+      try {
+        const r = window.__flushProjectToIDB && window.__flushProjectToIDB();
+        if (r && r.catch) r.catch(function () {});
+      } catch (_) {}
+    }
+    // A page restored from the back/forward cache was not really unloaded: the
+    // unload handler's flag must not keep blocking flushes and new sessions.
+    function onPageShow(e) {
+      if (e && e.persisted) isUnloadingRef.current = false;
+    }
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, []);
 
   // ── Zoom-adaptive tier helpers ──
   // Compute rendering tier (1–4) from cell size with hysteresis.

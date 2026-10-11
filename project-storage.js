@@ -454,11 +454,44 @@ const ProjectStorage = (() => {
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
-          store.put(project, project.id);
-          metaStore.put(buildMeta(project), project.id);
-          if (project.id && project.id.startsWith("proj_")) {
-            statsStore.put(buildStatsSummary(project), project.id);
+          let refusedPatternless = false;
+          const putAll = () => {
+            store.put(project, project.id);
+            metaStore.put(buildMeta(project), project.id);
+            if (project.id && project.id.startsWith("proj_")) {
+              statsStore.put(buildStatsSummary(project), project.id);
+            }
+          };
+          if (!project.pattern && !project.p) {
+            // A record with no pattern must never replace one that has a pattern:
+            // that would erase the chart and all progress (tracking audit TRACK-01).
+            // The check runs inside the write transaction so it cannot race.
+            const getReq = store.get(project.id);
+            getReq.onsuccess = () => {
+              const existing = getReq.result;
+              if (existing && (existing.pattern || existing.p)) {
+                refusedPatternless = true;
+                try { tx.abort(); } catch (_) {}
+              } else {
+                putAll();
+              }
+            };
+          } else {
+            putAll();
           }
+          tx.onabort = () => {
+            if (refusedPatternless) {
+              console.error("ProjectStorage.save refused: a record without a pattern would overwrite one that has it", project.id);
+              try {
+                if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
+                  window.Toast.show({ message: "Couldn't save: that would have erased the pattern. Your stored project was left as it was.", type: "error", duration: 10000 });
+                }
+              } catch (_) {}
+              reject(new Error("Refused to overwrite a patterned project with a patternless record"));
+            } else {
+              reject(tx.error || new Error("Project save aborted"));
+            }
+          };
           tx.oncomplete = () => {
             // Trigger auto-export to sync folder if enabled
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {

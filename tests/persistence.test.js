@@ -74,17 +74,21 @@ describe('Persistence field coverage', () => {
     expect(crossPage).not.toMatch(/let project=\{/);
   });
 
-  test('__flushProjectToIDB includes breadcrumbs and stitching style fields', () => {
-    // The main flush handler (registered in the useEffect body) must contain these fields.
-    // The cleanup now replaces with a snapshot fallback instead of deleting, so we match
-    // up to the return statement rather than to 'delete window.__flushProjectToIDB'.
+  test('__flushProjectToIDB saves through the one snapshot builder, which carries these fields', () => {
+    // The flush used to list fields by hand, which is how it came to omit the pattern
+    // and the latest done marks. It now saves snapshotNow(), a buildSnapshot() with the
+    // freshest done array, so buildSnapshot must carry every tracker field.
     const flushMatch = trackerSrc.match(/window\.__flushProjectToIDB\s*=\s*async\s*function\(\)\s*\{([\s\S]*?)\};\s*return\s*\(\)\s*=>/);
     expect(flushMatch).not.toBeNull();
-    const flushBody = flushMatch[1];
+    expect(flushMatch[1]).toContain('snapshotNow()');
 
-    const requiredFields = ['breadcrumbs', 'stitchingStyle', 'blockW', 'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea'];
+    const start = trackerSrc.indexOf('const buildSnapshot = () => {');
+    const end = trackerSrc.indexOf('buildSnapshotRef.current = buildSnapshot;');
+    expect(start).toBeGreaterThan(-1);
+    const builder = trackerSrc.slice(start, end);
+    const requiredFields = ['breadcrumbs', 'stitchingStyle', 'blockW', 'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea', 'pattern', 'done'];
     for (const field of requiredFields) {
-      expect(flushBody).toMatch(new RegExp('\\b' + field + '\\b'));
+      expect(builder).toMatch(new RegExp('\\b' + field + '\\b'));
     }
   });
 
