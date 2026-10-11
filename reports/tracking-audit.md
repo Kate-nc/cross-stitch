@@ -186,7 +186,7 @@ Severity: Blocker = cannot track or loses progress; Major = significant confusio
 - **Affects:** desktop most; every device for the "other device" case. Observed on two Chromium tabs.
 - **User experience:**
   - The second tab silently runs on stale state. In my run, tab B showed 0 done while A had saved 10, with no notice.
-  - The warning appears only when B itself saves, 5 s or more after its next mark: "Project changed in another tab … Reload … or keep your current edits (your next save will overwrite the remote version)". The choice is all-or-nothing, although `done` from two tabs can be unioned.
+  - (Corrected during Phase 1: the dialog appears on B immediately after A saves, because B receives A's broadcast; it is not deferred to B's own save. It is still all-or-nothing, and an idle B is interrupted.) The dialog reads: "Project changed in another tab … Reload … or keep your current edits (your next save will overwrite the remote version)". The choice is all-or-nothing, although `done` from two tabs can be unioned.
   - Across devices there is no automatic sync. The options are manual `.csync` export/import, a watched folder (Chromium File System Access only), or full backup. Clearing site data or private windows start empty. The only reminders are the Safari eviction toast and the File menu items.
   - There is no "last backup" timestamp or reminder.
 - **Users:** regular and power users with a phone plus a tablet or computer.

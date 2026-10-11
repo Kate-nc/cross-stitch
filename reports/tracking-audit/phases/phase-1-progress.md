@@ -164,3 +164,22 @@ None. No stored data, schema or preference changes.
 ### Remaining for Phase 1
 Batch 4 (cross-tab merge, stale-tab notice, backup reminder), batch 5 (pattern-change reconciliation, BUG-06).
 
+
+## Batch 4 (cross-tab merge, TRACK-03)
+
+### What changed
+- New `tracking-merge.js`: a three-way merge (base = what this tab last loaded or saved, local = live, remote = what the other tab saved). Per cell, the other tab's value wins if it changed since base, otherwise ours; half-stitch marks per side, knots done as a set, sessions by id (a session in base but missing from remote was deleted there). `whyNot()` refuses when the other tab changed anything but marks and sessions (pattern, name, designer, description, settings, backstitch, knots, half/partial stitches, park markers); a field counts as unchanged if it equals base or equals ours, because a loaded record and a built snapshot spell the same settings differently (found by the e2e test: `designer`, then `settings`).
+- `CrossTabResolution.registerMerger()`: under policy `prompt` the page's merger runs first; the dialog is asked only if it declines or throws. `reload` and `keep` policies are unchanged. With no merger (Creator, library) the dialog is asked synchronously as before. `saveWithConflictResolution` returns `reason: 'merged'` and does not write the stale record.
+- Tracker: `mergeRemoteProject` applies the merged marks, recomputes the counts once, clears undo (cells changed under it), tells the app not to count the incoming stitches as this tab's session activity (`justLoadedRef`), re-bases on the remote record, notes it as seen, shows a toast. The autosave then writes the combined result. 'merged' is treated like 'reloaded' (no error badge) at every save-result read.
+- Base is recorded at load and after each successful save (a reference to the saved object, no copying).
+
+### Tests added
+- `tests/trackingMerge.test.js` (24): per-cell cases, half stitches, sets, sessions, `canMerge` refusals, the resolution hook (merged, declines, throws, unregister, shared in-flight merge, no stale save), tracker wiring.
+- `tests/e2e/cross-tab-merge.spec.js` (4): marks in both tabs end in both with no dialog and survive a reload; unpick in the other tab not resurrected; a local mark kept while the other tab unpicks; a rename in the other tab still shows the dialog.
+
+### Data and migration statement
+None. No stored data changes.
+
+### Decisions
+- Stale-tab banner (audit recommendation 2) is not built: with the merge the other tab's save no longer needs a decision, and the existing broadcast already triggers it at once. A pure "refresh" banner would add a prompt where none is now needed.
+- Backup reminder moved to its own batch.

@@ -11,6 +11,8 @@
 //   "prompt" — show ConfirmDialog (default).
 //   "reload" — silently reload to pick up the remote save.
 //   "keep"   — do nothing; this tab's next save will overwrite.
+// Under "prompt" the page may first try to merge the other tab's marks into its own
+// (registerMerger); the question is only asked if it cannot.
 //
 // This module is also the user-facing decision engine for
 // ProjectStorage.saveChecked()'s `{ ok: false, reason: 'conflict' }`
@@ -130,10 +132,36 @@
     if (policy === "keep") {
       return Promise.resolve("keep");
     }
-    return showConflictModal(info).then(function (decision) {
-      if (decision === "reload") performReload();
-      return decision;
-    });
+    function ask() {
+      return showConflictModal(info).then(function (decision) {
+        if (decision === "reload") performReload();
+        return decision;
+      });
+    }
+    // No merger (the Creator, the library): ask at once, as before.
+    if (!_merger) return ask();
+    return tryMerge(info).then(function (merged) { return merged ? "merged" : ask(); });
+  }
+
+  // The page that owns the open project can register a merger: a function that tries to
+  // combine the other tab's save with this tab's work and resolves true if it did (so
+  // there is nothing to ask). It resolves false, or fails, to leave the question to the
+  // user. Only the "prompt" policy merges; "reload" and "keep" are explicit choices.
+  var _merger = null;
+  var _merging = null;
+  function registerMerger(fn) {
+    _merger = typeof fn === "function" ? fn : null;
+    return function () { if (_merger === fn) _merger = null; };
+  }
+  function tryMerge(info) {
+    if (!_merger || _modalOpen) return Promise.resolve(false);
+    // A second signal while a merge runs joins it rather than starting another.
+    if (_merging) return _merging;
+    _merging = Promise.resolve().then(function () { return _merger(info); }).then(
+      function (ok) { _merging = null; return !!ok; },
+      function () { _merging = null; return false; }
+    );
+    return _merging;
   }
 
   // saveWithConflictResolution(project)
@@ -196,6 +224,15 @@
             reason: "reloaded"
           };
         }
+        if (decision === "merged") {
+          // The page took the other tab's marks into its own state and will save the
+          // combined result itself; this (older) record must not be written.
+          return {
+            ok: false,
+            id: result.id || project.id || null,
+            reason: "merged"
+          };
+        }
         return plainSave({ resolvedConflict: true, decision: decision });
       });
     });
@@ -228,6 +265,7 @@
 
   window.CrossTabResolution = {
     handle: handle,
+    registerMerger: registerMerger,
     saveWithConflictResolution: saveWithConflictResolution,
     // Exposed for tests and for the (future) preferences UI:
     _getPolicy: getPolicy,

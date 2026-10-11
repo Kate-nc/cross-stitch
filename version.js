@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.109';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.110',
+    date: 'October 2026',
+    notes: [
+      'Two tabs open on the same project in the Stitch Tracker now share their stitches. Marks made in either tab are kept in both, a stitch unpicked in one tab is not brought back by the other, and sessions recorded in either tab are kept. You are only asked "Project changed in another tab" when the other tab changed something other than stitches, such as the pattern or its name.',
+    ]
+  },
+  {
     version: '1.0.109',
     date: 'October 2026',
     notes: [
