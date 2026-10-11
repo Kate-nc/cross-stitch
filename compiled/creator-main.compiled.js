@@ -1406,6 +1406,8 @@ function CreatorApp({
       setPal: state.setPal,
       cmap: state.cmap,
       setCmap: state.setCmap,
+      threadBrand: state.threadBrand,
+      setThreadBrand: state.setThreadBrand,
       sW: state.sW,
       setSW: state.setSW,
       sH: state.sH,
@@ -1491,7 +1493,7 @@ function CreatorApp({
       toBuyCount: state.toBuyCount,
       toBuyList: state.toBuyList
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.knots, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
+  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.knots, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
   // File > Export PDF… and Print PDF use the Export tab's saved settings
@@ -1552,6 +1554,7 @@ function CreatorApp({
       pat: state.pat,
       pal: state.pal,
       cmap: state.cmap,
+      threadBrand: state.threadBrand,
       sW: state.sW,
       sH: state.sH,
       fabricCt: state.fabricCt,
@@ -1571,7 +1574,7 @@ function CreatorApp({
       totalTime: state.totalTime,
       sessions: state.sessions
     };
-  }, [state.pat, state.pal, state.cmap, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.knots, state.threadOwned, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
+  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.knots, state.threadOwned, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
 
   // ── Coachmark tips (Creator) ────────────────────────────────────────
   // One-off tips, only for a pattern made in this visit — never just for
@@ -1963,7 +1966,7 @@ function CreatorApp({
       fontSize: 14,
       fontWeight: 600
     }
-  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
+  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !window.__pendingProjectBrandLoad && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
     accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",

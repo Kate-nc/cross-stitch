@@ -458,66 +458,87 @@ function generateOXS(project) {
     '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
   }[c]));
 
+  // Thread brands (P4-5): each stitch's own brand (absent: DMC). A DMC
+  // thread's number is its bare id, as before; another brand's carries its
+  // name ("Anchor 403"), which parseOXS reads back as that brand. The
+  // palette is keyed "brand:id", so Anchor 403 and DMC 403 stay apart.
+  function brandOf(m) { return m && m.brand ? String(m.brand).toLowerCase() : 'dmc'; }
+  function keyOf(b, id) { return b + ':' + id; }
+  function threadInfo(id, b) {
+    if (b === 'dmc') return _importDmcById(id);
+    return typeof findThreadInCatalog === 'function' ? findThreadInCatalog(b, id) : null;
+  }
+  // The brand of each id in the pattern, for backstitches that name only an id.
+  const brandOfId = {};
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c && c.id && !(c.id in brandOfId)) brandOfId[c.id] = brandOf(c);
+  }
+
   // ── Pass 1: build palette ─────────────────────────────────────────────────
-  // palMap: dmcId (string) → { index, name, number, r, g, b }
+  // palMap: "brand:id" → { index, name, number, r, g, b }
   const palMap = {};
   const blendWarnings = [];   // blend ids that were downgraded
   let palIndex = 0;
 
-  function registerThread(id, rgb, threadName) {
-    if (palMap[id]) return;
-    palMap[id] = { index: palIndex++, name: threadName || id, number: id, r: rgb[0], g: rgb[1], b: rgb[2] };
+  function registerThread(id, b, rgb, threadName) {
+    const k = keyOf(b, id);
+    if (palMap[k]) return;
+    palMap[k] = { index: palIndex++, name: threadName || id, number: b === 'dmc' ? id : _oxsBrandLabel(b) + ' ' + id, r: rgb[0], g: rgb[1], b: rgb[2] };
   }
 
   for (let i = 0; i < pattern.length; i++) {
     const cell = pattern[i];
     if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
+    const b = brandOf(cell);
 
     if (cell.type === 'blend') {
       // Export as primary thread only; record warning once per blend id.
       const primaryId = cell.id.split('+')[0];
       if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
-      if (!palMap[primaryId]) {
-        // Look up the primary DMC entry for accurate colour values.
-        const dmc = _importDmcById(primaryId);
+      if (!palMap[keyOf(b, primaryId)]) {
+        // Look up the primary thread for accurate colour values.
+        const dmc = threadInfo(primaryId, b);
         const rgb = dmc ? dmc.rgb : (cell.rgb || [0, 0, 0]);
-        registerThread(primaryId, rgb, dmc ? dmc.name : primaryId);
+        registerThread(primaryId, b, rgb, dmc ? dmc.name : primaryId);
       }
       continue;
     }
 
-    registerThread(cell.id, cell.rgb || [0, 0, 0], cell.name || cell.id);
+    registerThread(cell.id, b, cell.rgb || [0, 0, 0], cell.name || cell.id);
   }
 
   // Also register threads used by backstitch lines.
   // Lines may carry an explicit colorId; otherwise we infer colour from the nearest
-  // non-skip cell at floor(x1), floor(y1).
-  function bsThreadId(line) {
-    if (line.colorId) return line.colorId;
+  // non-skip cell at floor(x1), floor(y1). Returns the palette key.
+  function bsThreadKey(line) {
+    if (line.colorId) return keyOf(brandOfId[line.colorId] || 'dmc', line.colorId);
     const cx = Math.max(0, Math.min(w - 1, Math.floor(line.x1)));
     const cy = Math.max(0, Math.min(h - 1, Math.floor(line.y1)));
     const cell = pattern[cy * w + cx];
     if (!cell || cell.id === '__skip__' || cell.id === '__empty__') return null;
-    if (cell.type === 'blend') return cell.id.split('+')[0];
-    return cell.id;
+    if (cell.type === 'blend') return keyOf(brandOf(cell), cell.id.split('+')[0]);
+    return keyOf(brandOf(cell), cell.id);
   }
 
   for (const line of bsLines) {
-    const tid = bsThreadId(line);
-    if (tid && !palMap[tid]) {
-      const dmc = _importDmcById(tid);
-      if (dmc) registerThread(dmc.id, dmc.rgb, dmc.name);
+    const k = bsThreadKey(line);
+    if (k && !palMap[k]) {
+      const c = k.indexOf(':');
+      const b = k.slice(0, c), tid = k.slice(c + 1);
+      const dmc = threadInfo(tid, b);
+      if (dmc) registerThread(dmc.id, b, dmc.rgb, dmc.name);
     }
   }
 
   // And by French knots (blends, as for stitches, by their first thread).
-  function knotThreadId(k) { return String(k.id).split('+')[0]; }
+  function knotThreadKey(k) { return keyOf(brandOf(k), String(k.id).split('+')[0]); }
   for (const k of knots) {
-    const tid = knotThreadId(k);
+    const tid = String(k.id).split('+')[0];
     if (tid !== k.id && blendWarnings.indexOf(k.id) === -1) blendWarnings.push(k.id);
-    if (!palMap[tid]) {
-      const dmc = _importDmcById(tid);
-      registerThread(tid, dmc ? dmc.rgb : (k.rgb || [0, 0, 0]), dmc ? dmc.name : tid);
+    if (!palMap[knotThreadKey(k)]) {
+      const dmc = threadInfo(tid, brandOf(k));
+      registerThread(tid, brandOf(k), dmc ? dmc.rgb : (k.rgb || [0, 0, 0]), dmc ? dmc.name : tid);
     }
   }
 
@@ -549,7 +570,7 @@ function generateOXS(project) {
       const cell = pattern[y * w + x];
       if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
       const tid = cell.type === 'blend' ? cell.id.split('+')[0] : cell.id;
-      const pe = palMap[tid];
+      const pe = palMap[keyOf(brandOf(cell), tid)];
       if (!pe) continue;
       lines.push('    <stitch x="' + x + '" y="' + y + '" palindex="' + pe.index + '" />');
     }
@@ -560,8 +581,8 @@ function generateOXS(project) {
   if (bsLines.length > 0) {
     lines.push('  <backstitches>');
     for (const line of bsLines) {
-      const tid = bsThreadId(line);
-      const pe = tid ? palMap[tid] : null;
+      const k = bsThreadKey(line);
+      const pe = k ? palMap[k] : null;
       if (!pe) continue;
       lines.push('    <backstitch x1="' + line.x1 + '" y1="' + line.y1 +
         '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pe.index + '" />');
@@ -574,7 +595,7 @@ function generateOXS(project) {
   if (knots.length > 0) {
     lines.push('  <ornaments_inc_knots_and_beads>');
     for (const k of knots) {
-      const pe = palMap[knotThreadId(k)];
+      const pe = palMap[knotThreadKey(k)];
       if (!pe) continue;
       lines.push('    <object x1="' + (k.x / 2) + '" y1="' + (k.y / 2) + '" palindex="' + pe.index + '" objecttype="knot" />');
     }

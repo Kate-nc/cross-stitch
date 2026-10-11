@@ -111,7 +111,8 @@
 
   function swatchLabel(p) {
     if (!p) return "";
-    var parts = [(p.type === "blend" ? "Blend " : "DMC ") + p.id];
+    var brand = typeof threadBrandLabel === "function" ? threadBrandLabel(p.brand) : "DMC";
+    var parts = [(p.type === "blend" ? "Blend " : brand + " ") + p.id];
     if (p.name && p.name !== p.id) parts.push(p.name);
     if (p.count != null) {
       var n = Number(p.count) || 0;

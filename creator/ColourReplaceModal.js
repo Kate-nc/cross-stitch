@@ -267,7 +267,8 @@
       });
     };
 
-    var srcLabel = 'DMC ' + (srcId || '') +
+    var srcEntry = (pal || []).find(function (p) { return p && p.id === srcId; });
+    var srcLabel = (window.threadLabel ? window.threadLabel(srcEntry || { id: srcId || '' }) : 'DMC ' + (srcId || '')) +
       (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
     var countText = affected == null ? null
       : (affected === 0 ? 'nothing to change'

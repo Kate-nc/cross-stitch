@@ -46,6 +46,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // included; the summary, stash status and shopping list use these.
   // French knots add their thread to these counts (knots.js), and a thread
   // used only for knots gets a row of its own.
+  // The pattern's thread brand (P4-5): "DMC" or "Anchor".
+  var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
   var matPal = useMemo(function() {
     if (!ctx.pal || !window.Knots) return ctx.pal;
     return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
@@ -239,7 +241,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-      lines.push(mark + " DMC " + r.p.id + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
+      lines.push(mark + " " + threadLabel(r.p) + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
     });
     lines.push("", "Total: " + ownedColours + "/" + totalColours + " colours owned");
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -256,7 +258,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       if (r.status !== "owned") {
         var diff = Math.max(0, r.needed - r.owned);
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-        lines.push("DMC " + r.p.id + " " + r.name + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
+        lines.push(threadLabel(r.p) + " " + r.name + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
       }
     });
     navigator.share({title:"Cross Stitch Shopping List", text:lines.join("\n")}).catch(function() {});
@@ -359,7 +361,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             window.Icons && window.Icons.info ? window.Icons.info() : null
           ),
           h("span", {style:{flex:1}},
-            "Colours are screen approximations. Use the DMC code as the authoritative reference and verify critical colours against a physical thread card."
+            "Colours are screen approximations. Use the " + brandLabel + " number as the authoritative reference and verify critical colours against a physical thread card."
           ),
           h("button", {onClick:dismissDisclaimer, "aria-label":"Dismiss colour-accuracy notice", style:{
             background:"none", border:"none", color:"var(--text-tertiary)", cursor:"pointer",
@@ -388,7 +390,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("tr", null,
                 h("th", {style:thSt("left")}, "Sym"),
                 h("th", {style:thSt("left")}, ""),
-                h("th", {style:thSt("left")}, "DMC"),
+                h("th", {style:thSt("left")}, brandLabel),
                 h("th", {style:thSt("left")}, "Name"),
                 h("th", {style:thSt("left")}, "Type"),
                 h("th", {style:thSt("right")}, "Stitches"),
@@ -480,8 +482,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
-                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
-                      "aria-label": "Compare with similar colour DMC " + similarPairs[p.id].otherId,
+                      title: "Click to compare with " + brandLabel + " " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
+                      "aria-label": "Compare with similar colour " + brandLabel + " " + similarPairs[p.id].otherId,
                       role: "button",
                       tabIndex: 0,
                       onClick: function(ev) {

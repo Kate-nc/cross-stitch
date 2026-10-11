@@ -1135,13 +1135,18 @@
   function buildExportProject(ctx) {
     if (!ctx) return null;
     var pal = (ctx.pal || ctx.palette || []).map(function (e) {
-      return e ? {
+      if (!e) return null;
+      var out = {
         id: e.id,
         name: e.name,
         rgb: e.rgb,
         type: e.type,
         threads: e.threads ? e.threads.map(function (t) { return { id: t.id, name: t.name, rgb: t.rgb }; }) : undefined,
-      } : null;
+      };
+      // Another brand's threads (P4-5) are labelled with it in the key.
+      // DMC entries stay exactly as before.
+      if (e.brand && e.brand !== "dmc") out.brand = e.brand;
+      return out;
     }).filter(function (e) { return e && e.id; });
 
     var pattern = (ctx.pat || []).map(function (c) {
@@ -1663,6 +1668,22 @@
   var RATIO_PREF_KEY = 'creator.adaptModalSplitRatio';
 
   // ─── Helpers ────────────────────────────────────────────────────────────
+  // The one brand every stitch of a pattern is in, or null for a mix.
+  function _patternBrand(pattern) {
+    var only = null;
+    for (var i = 0; i < (pattern || []).length; i++) {
+      var c = pattern[i];
+      if (!c || c.id === '__skip__' || c.id === '__empty__') continue;
+      var parts = c.type === 'blend' && c.threads ? c.threads : [c];
+      for (var j = 0; j < parts.length; j++) {
+        var b = parts[j].brand || c.brand || 'dmc';
+        if (only === null) only = b;
+        else if (only !== b) return null;
+      }
+    }
+    return only || 'dmc';
+  }
+
   function _stitchesByKey(pattern) {
     var out = Object.create(null);
     if (!Array.isArray(pattern)) return out;
@@ -2116,6 +2137,13 @@
         if (window.Toast) window.Toast.show({ message: 'Adapt failed: ' + (err && err.message), type: 'error' });
         return;
       }
+      // A pattern whose stitches are now all one brand's threads is saved as
+      // that brand's project (settings.threadBrand, P4-5), so it reopens in
+      // that brand. A mix of brands stays as it was.
+      var onlyBrand = _patternBrand(adapted.pattern);
+      adapted.settings = Object.assign({}, adapted.settings);
+      if (onlyBrand && onlyBrand !== 'dmc') adapted.settings.threadBrand = onlyBrand;
+      else delete adapted.settings.threadBrand;
       // Disambiguate the auto-suffixed name against existing projects.
       var saveAndOpen = function (finalName) {
         adapted.name = finalName;
@@ -2356,6 +2384,8 @@
   var thStyle = { padding: '8px 10px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 };
 
   window.AdaptModal = AdaptModal;
+  // For tests.
+  window.AdaptModal.patternBrand = _patternBrand;
 })();
 
 
@@ -2408,6 +2438,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // included; the summary, stash status and shopping list use these.
   // French knots add their thread to these counts (knots.js), and a thread
   // used only for knots gets a row of its own.
+  // The pattern's thread brand (P4-5): "DMC" or "Anchor".
+  var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
   var matPal = useMemo(function() {
     if (!ctx.pal || !window.Knots) return ctx.pal;
     return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
@@ -2601,7 +2633,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-      lines.push(mark + " DMC " + r.p.id + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
+      lines.push(mark + " " + threadLabel(r.p) + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
     });
     lines.push("", "Total: " + ownedColours + "/" + totalColours + " colours owned");
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -2618,7 +2650,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       if (r.status !== "owned") {
         var diff = Math.max(0, r.needed - r.owned);
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-        lines.push("DMC " + r.p.id + " " + r.name + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
+        lines.push(threadLabel(r.p) + " " + r.name + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
       }
     });
     navigator.share({title:"Cross Stitch Shopping List", text:lines.join("\n")}).catch(function() {});
@@ -2721,7 +2753,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             window.Icons && window.Icons.info ? window.Icons.info() : null
           ),
           h("span", {style:{flex:1}},
-            "Colours are screen approximations. Use the DMC code as the authoritative reference and verify critical colours against a physical thread card."
+            "Colours are screen approximations. Use the " + brandLabel + " number as the authoritative reference and verify critical colours against a physical thread card."
           ),
           h("button", {onClick:dismissDisclaimer, "aria-label":"Dismiss colour-accuracy notice", style:{
             background:"none", border:"none", color:"var(--text-tertiary)", cursor:"pointer",
@@ -2750,7 +2782,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("tr", null,
                 h("th", {style:thSt("left")}, "Sym"),
                 h("th", {style:thSt("left")}, ""),
-                h("th", {style:thSt("left")}, "DMC"),
+                h("th", {style:thSt("left")}, brandLabel),
                 h("th", {style:thSt("left")}, "Name"),
                 h("th", {style:thSt("left")}, "Type"),
                 h("th", {style:thSt("right")}, "Stitches"),
@@ -2842,8 +2874,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
-                      title: "Click to compare with DMC " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
-                      "aria-label": "Compare with similar colour DMC " + similarPairs[p.id].otherId,
+                      title: "Click to compare with " + brandLabel + " " + similarPairs[p.id].otherId + " (" + similarPairs[p.id].otherName + ") \u2014 difference " + similarPairs[p.id].dE.toFixed(1),
+                      "aria-label": "Compare with similar colour " + brandLabel + " " + similarPairs[p.id].otherId,
                       role: "button",
                       tabIndex: 0,
                       onClick: function(ev) {
@@ -3139,7 +3171,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
       var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
-      lines.push(mark + ' DMC ' + r.p.id + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+      lines.push(mark + ' ' + threadLabel(r.p) + ' \u2014 ' + r.name + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
     });
     lines.push('');
     lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
@@ -3158,7 +3190,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-        lines.push('DMC ' + r.p.id + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+        lines.push(threadLabel(r.p) + ' ' + r.name + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
       }
     });
     navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
@@ -3265,7 +3297,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         h('thead', null,
           h('tr', {style: {background: 'var(--surface-secondary)'}},
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, ''),
-            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'DMC'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, threadBrandLabel(ctx.threadBrand)),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
@@ -3760,12 +3792,12 @@ window.CreatorExportTab = function CreatorExportTab() {
     if (ctx.partialStitches && typeof ctx.partialStitches.forEach === "function") {
       ctx.partialStitches.forEach(function (v, k) {
         var e = {};
-        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) e[q] = { id: v[q].id, rgb: v[q].rgb }; });
+        ["TL", "TR", "BL", "BR"].forEach(function (q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], ctx.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
         psArr.push([k, e]);
       });
     }
     var pattern = (window.PatternIO && window.PatternIO.serializePattern)
-      ? window.PatternIO.serializePattern(ctx.pat)
+      ? window.PatternIO.serializePattern(ctx.pat, ctx.threadBrand)
       : ctx.pat.map(function (m) { return m && m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; });
     return {
       version: 11,
@@ -3775,11 +3807,11 @@ window.CreatorExportTab = function CreatorExportTab() {
       description: app.projectDescription || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt },
+      settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(ctx.threadBrand) : undefined },
       pattern: pattern,
       bsLines: ctx.bsLines || [],
       partialStitches: psArr,
-      knots: ctx.knots && ctx.knots.length ? ctx.knots.slice() : undefined,
+      knots: ctx.knots && ctx.knots.length ? (window.Knots ? window.Knots.forSave(ctx.knots, ctx.threadBrand) : ctx.knots.slice()) : undefined,
     };
   }
 
@@ -4216,13 +4248,16 @@ window.CreatorExportTab = function CreatorExportTab() {
           ? splitBlendId(p.id)
           : [p.id];
         ids.forEach(function (id) {
-          if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
+          // Keyed by brand too: an Anchor pattern's 403 isn't DMC 403 (P4-5).
+          var k = (p.brand || '') + ':' + id;
+          if (!perId[k]) perId[k] = { id: id, brand: p.brand || null, stitches: 0, fromBlend: ids.length > 1 };
           // Blends use roughly half the thread of each component.
-          perId[id].stitches += ids.length > 1 ? stitches / 2 : stitches;
+          perId[k].stitches += ids.length > 1 ? stitches / 2 : stitches;
         });
       });
-      return Object.keys(perId).map(function (id) {
-        var stitches = Math.round(perId[id].stitches);
+      return Object.keys(perId).map(function (k) {
+        var id = perId[k].id;
+        var stitches = Math.round(perId[k].stitches);
         var needed = 1;
         if (typeof stitchesToSkeins === 'function') {
           var r = stitchesToSkeins({
@@ -4231,11 +4266,12 @@ window.CreatorExportTab = function CreatorExportTab() {
           });
           needed = Math.max(1, r.skeinsToBuy || 0);
         }
-        // Brand resolution: try DMC first, then Anchor. The matching brand's
-        // composite stash key is used to look up owned counts.
-        var info = null, brand = 'dmc';
-        info = findThreadInCatalog('dmc', id);
-        if (!info) {
+        // Brand resolution: the entry's own brand when it has one (cells of
+        // an Anchor project carry it), else DMC first, then Anchor. The
+        // matching brand's composite stash key is used to look up owned counts.
+        var info = null, brand = perId[k].brand || 'dmc';
+        info = findThreadInCatalog(brand, id);
+        if (!info && !perId[k].brand) {
           // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
           info = (typeof getAnchorById === 'function')
             ? getAnchorById(id)
@@ -4248,7 +4284,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         return {
           id: id,
           brand: brand,
-          brandLabel: brand === 'anchor' ? 'Anchor' : 'DMC',
+          brandLabel: window.threadBrandLabel ? window.threadBrandLabel(brand) : (brand === 'anchor' ? 'Anchor' : 'DMC'),
           name: info ? info.name : id,
           rgb: info ? info.rgb : [128, 128, 128],
           stitches: stitches,
@@ -4344,7 +4380,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
-        key: r.id,
+        key: r.brand + ':' + r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }
       },
         h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),

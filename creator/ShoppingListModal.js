@@ -86,13 +86,16 @@
           ? splitBlendId(p.id)
           : [p.id];
         ids.forEach(function (id) {
-          if (!perId[id]) perId[id] = { stitches: 0, fromBlend: ids.length > 1 };
+          // Keyed by brand too: an Anchor pattern's 403 isn't DMC 403 (P4-5).
+          var k = (p.brand || '') + ':' + id;
+          if (!perId[k]) perId[k] = { id: id, brand: p.brand || null, stitches: 0, fromBlend: ids.length > 1 };
           // Blends use roughly half the thread of each component.
-          perId[id].stitches += ids.length > 1 ? stitches / 2 : stitches;
+          perId[k].stitches += ids.length > 1 ? stitches / 2 : stitches;
         });
       });
-      return Object.keys(perId).map(function (id) {
-        var stitches = Math.round(perId[id].stitches);
+      return Object.keys(perId).map(function (k) {
+        var id = perId[k].id;
+        var stitches = Math.round(perId[k].stitches);
         var needed = 1;
         if (typeof stitchesToSkeins === 'function') {
           var r = stitchesToSkeins({
@@ -101,11 +104,12 @@
           });
           needed = Math.max(1, r.skeinsToBuy || 0);
         }
-        // Brand resolution: try DMC first, then Anchor. The matching brand's
-        // composite stash key is used to look up owned counts.
-        var info = null, brand = 'dmc';
-        info = findThreadInCatalog('dmc', id);
-        if (!info) {
+        // Brand resolution: the entry's own brand when it has one (cells of
+        // an Anchor project carry it), else DMC first, then Anchor. The
+        // matching brand's composite stash key is used to look up owned counts.
+        var info = null, brand = perId[k].brand || 'dmc';
+        info = findThreadInCatalog(brand, id);
+        if (!info && !perId[k].brand) {
           // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
           info = (typeof getAnchorById === 'function')
             ? getAnchorById(id)
@@ -118,7 +122,7 @@
         return {
           id: id,
           brand: brand,
-          brandLabel: brand === 'anchor' ? 'Anchor' : 'DMC',
+          brandLabel: window.threadBrandLabel ? window.threadBrandLabel(brand) : (brand === 'anchor' ? 'Anchor' : 'DMC'),
           name: info ? info.name : id,
           rgb: info ? info.rgb : [128, 128, 128],
           stitches: stitches,
@@ -214,7 +218,7 @@
         ? 'own ' + r.owned + ', need ~' + r.needed
         : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
-        key: r.id,
+        key: r.brand + ':' + r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }
       },
         h('div', { style: { width: 16, height: 16, borderRadius: 3, background: 'rgb(' + r.rgb + ')', border: '1px solid var(--border)', flexShrink: 0 } }),

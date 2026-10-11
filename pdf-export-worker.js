@@ -618,17 +618,25 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
   return pages;
 }
 
+// Key labels for a pattern's thread brand (P4-5). Entries without `brand`
+// are DMC, so DMC patterns print exactly as before.
+var BRAND_LABELS = { dmc: "DMC", anchor: "Anchor" };
+function brandPrefix(entry) {
+  var b = entry && entry.brand ? String(entry.brand).toLowerCase() : "dmc";
+  return BRAND_LABELS[b] || b.toUpperCase();
+}
+
 function brandLabel(entry) {
   if (!entry) return "";
   if (entry.type === "blend" && entry.threads && entry.threads.length === 2) {
-    return "DMC " + entry.threads[0].id + " + " + entry.threads[1].id;
+    return brandPrefix(entry) + " " + entry.threads[0].id + " + " + entry.threads[1].id;
   }
   // Brand inferred from id prefix or default DMC.
   if (typeof entry.id === "string" && entry.id.indexOf(":") >= 0) {
     var parts = entry.id.split(":");
     return parts[0].toUpperCase() + " " + parts.slice(1).join(":");
   }
-  return "DMC " + entry.id;
+  return brandPrefix(entry) + " " + entry.id;
 }
 
 // ─── chart pages ─────────────────────────────────────────────────────────
@@ -819,7 +827,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
           page.drawText(String.fromCodePoint(cp2), { x: sx + 12, y: stripY, size: 9, font: symbolFont, color: rgbColor(0, 0, 0) });
         } catch (_) {}
       }
-      page.drawText(brandLabel(pe).replace(/^DMC\s+/, ""), { x: sx + 22, y: stripY + 1, size: 8, font: font, color: rgbColor(0.2, 0.2, 0.2) });
+      page.drawText(brandLabel(pe).replace(/^(DMC|Anchor)\s+/, ""), { x: sx + 22, y: stripY + 1, size: 8, font: font, color: rgbColor(0.2, 0.2, 0.2) });
       sx += 60;
       if (sx > pageW - marginPt - 60) break;
     }

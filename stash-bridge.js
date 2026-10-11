@@ -52,6 +52,14 @@ function isColorOwned(entry) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const StashBridge = (() => {
+  // The stash key of a library pattern's thread ({id, brand: "DMC" |
+  // "Anchor"}): a bare id is in the thread's own brand (P4-5), DMC when it
+  // names none.
+  function _libraryKey(t) {
+    if (typeof libraryThreadKey === 'function') return libraryThreadKey(t);
+    return _normaliseKey(t && t.id);
+  }
+
   // Normalise a bare DMC id like '310' to the composite key 'dmc:310'.
   // Composite keys already containing ':' are returned unchanged.
   function _normaliseKey(keyOrId) {
@@ -631,7 +639,7 @@ const StashBridge = (() => {
           req.onerror = () => reject(req.error);
         });
         for (const pat of patterns) {
-          if (pat.threads && pat.threads.some(t => t.id === dmcId)) {
+          if (pat.threads && pat.threads.some(t => t.id === dmcId && _libraryKey(t) === 'dmc:' + dmcId)) {
             projects.push({
               source: "library",
               id: pat.id,
@@ -675,7 +683,8 @@ const StashBridge = (() => {
                     name: d.name,
                     qty: d.stitches,
                     unit: "stitches",
-                    brand: "DMC"
+                    // The project's thread brand (P4-5): "DMC" or "Anchor".
+                    brand: typeof threadBrandLabel === "function" ? threadBrandLabel(d.brand) : "DMC"
                   }))
                 };
                 if (existingIdx >= 0) patterns[existingIdx] = entry;
@@ -794,7 +803,7 @@ const StashBridge = (() => {
           if (!pat.threads) continue;
           const fc = pat.fabricCt || 14;
           for (const t of pat.threads) {
-            const key = _normaliseKey(t.id);
+            const key = _libraryKey(t);
             if (!demand[key]) demand[key] = { total: 0, patterns: [] };
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
             demand[key].total += skeins;
@@ -847,7 +856,7 @@ const StashBridge = (() => {
           let covered = 0, missing = [];
           for (const t of pat.threads) {
             const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
-            const key = _normaliseKey(t.id);
+            const key = _libraryKey(t);
             const owned = _getOwnedCount(threadsData, key, t.id);
             if (owned >= skeins) covered++;
             else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });

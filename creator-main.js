@@ -810,6 +810,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     pat: state.pat, setPat: state.setPat,
     pal: state.pal, setPal: state.setPal,
     cmap: state.cmap, setCmap: state.setCmap,
+    threadBrand: state.threadBrand, setThreadBrand: state.setThreadBrand,
     sW: state.sW, setSW: state.setSW, sH: state.sH, setSH: state.setSH,
     arLock: state.arLock, setArLock: state.setArLock,
     ar: state.ar, setAr: state.setAr,
@@ -857,7 +858,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     progressPct: state.progressPct,
     ownedCount: state.ownedCount, toBuyCount: state.toBuyCount, toBuyList: state.toBuyList,
   }; }, [
-    state.pat, state.pal, state.cmap,
+    state.pat, state.pal, state.cmap, state.threadBrand,
     state.sW, state.sH, state.arLock, state.ar,
     state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.done, state.isScratchMode, state.scratchPalette,
@@ -929,7 +930,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     return true;
   };
   const exportData = useMemo(function() { return {
-    pat: state.pat, pal: state.pal, cmap: state.cmap,
+    pat: state.pat, pal: state.pal, cmap: state.cmap, threadBrand: state.threadBrand,
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
     skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed,
     done: state.done, bsLines: state.bsLines,
@@ -940,7 +941,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     difficulty: state.difficulty, doneCount: state.doneCount,
     totalTime: state.totalTime, sessions: state.sessions,
   }; }, [
-    state.pat, state.pal, state.cmap, state.sW, state.sH,
+    state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH,
     state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.done, state.bsLines, state.partialStitches, state.knots,
     state.threadOwned, state.totalStitchable, state.skeinData,
@@ -1242,7 +1243,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             aria-live="polite">
           <div className="creator-boot-spinner" aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
-          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
+          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!window.__pendingProjectBrandLoad&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
         </div>}
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];

@@ -842,6 +842,20 @@ function formatTimingModeDescription(mode) {
   return 'Classic timing: uses a fixed cap on how long a break still counts as stitching time.';
 }
 
+// Part stitches as saved: each quarter names its brand when that isn't the
+// project's (P4-5), so a DMC quarter in an Anchor pattern stays DMC.
+function partialsForSave(partialStitches,projectBrand){
+  return [...partialStitches.entries()].map(([k,v])=>{
+    const e=Object.assign({},v);
+    ["TL","TR","BL","BR"].forEach(q=>{
+      if(!v||!v[q])return;
+      const qb=cellBrandForSave(v[q],projectBrand);
+      e[q]=Object.assign({},v[q]);
+      if(qb)e[q].brand=qb;else delete e[q].brand;
+    });
+    return [k,e];
+  });
+}
 function TrackerApp({onSwitchToDesign=null, onGoHome=null, isActive=true, incomingProject=null}={}){
 const[sW,setSW]=useState(80);
 const[sH,setSH]=useState(80);
@@ -1222,6 +1236,9 @@ const hoverRefs = useRef({ row: null, col: null });
 // pointer crossed re-rendered all of TrackerApp — ~1 200 elements per cell.
 const hoverCellRef = useRef(null);   // {row, col}, 0-based, or null
 const hoverInfoRef = useRef(null);   // {row, col, id, name}, 1-based, or null
+// The pattern's thread brand (settings.threadBrand, P4-5): 'dmc' unless the
+// project says otherwise. Cells of another brand carry it too.
+const[threadBrand,setThreadBrand]=useState("dmc");
 const hoverBarRef = useRef(null);
 function renderHoverBar(){
   const el=hoverBarRef.current;
@@ -1230,7 +1247,7 @@ function renderHoverBar(){
   let text="—";
   if(c){
     text="Row: "+(c.row+1)+"   Col: "+(c.col+1);
-    if(info&&info.row===c.row+1&&info.col===c.col+1)text+="  —   DMC "+info.id+" "+info.name;
+    if(info&&info.row===c.row+1&&info.col===c.col+1)text+="  —   "+threadLabel((cmap&&cmap[info.id])||info)+" "+info.name;
   }else{
     // Nothing under the pointer (always the case on touch): describe the
     // guide crosshair, if there is one.
@@ -1243,13 +1260,14 @@ function renderHoverBar(){
   }
   if(el.textContent!==text)el.textContent=text;
 }
-// "DMC 310 Black" for a stitch, or "" for an empty / skipped cell.
+// "DMC 310 Black" (or "Anchor 403 ...") for a stitch, or "" for an empty /
+// skipped cell.
 function cellThreadLabel(idx){
   const cell=pat&&pat[idx];
   if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return "";
-  if(cell.type==="blend"&&cell.threads)return "DMC "+cell.id+" "+cell.threads[0].name+"+"+cell.threads[1].name;
+  if(cell.type==="blend"&&cell.threads)return threadLabel(cell)+" "+cell.threads[0].name+"+"+cell.threads[1].name;
   const ci=cmap&&cmap[cell.id];
-  return "DMC "+cell.id+(ci&&ci.name?" "+ci.name:"");
+  return threadLabel(cell)+(ci&&ci.name?" "+ci.name:"");
 }
 function setHoverInfo(info){
   const prev=hoverInfoRef.current;
@@ -2017,7 +2035,7 @@ useEffect(()=>{
     if(nextColor){
       setFocusColour(nextColor.id);
       const label=nextColor.type==="blend"?(nextColor.threads[0].name+"+"+nextColor.threads[1].name):nextColor.name;
-      setAdvanceToast(`DMC ${nextColor.id} — ${label}`);
+      setAdvanceToast(`${threadLabel(nextColor)} — ${label}`);
       setTimeout(()=>setAdvanceToast(null),2500);
       return;
     }
@@ -2062,11 +2080,14 @@ const rowRuler=useMemo(()=>Array.from({length:sH},(_,y)=>{
 const skeinData=useMemo(()=>{
   if(!pal)return[];
   let map={};
+  // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
   pal.forEach(p=>{
-    if(p.type==="solid"){map[p.id]=(map[p.id]||0)+p.count;}
-    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{map[t.id]=(map[t.id]||0)+p.count;});}
+    if(p.type==="solid"){const k=(p.brand||"dmc")+":"+p.id;map[k]=(map[k]||0)+p.count;}
+    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{const k=(t.brand||p.brand||"dmc")+":"+t.id;map[k]=(map[k]||0)+p.count;});}
   });
-  return Object.entries(map).sort((a,b)=>{let na=parseInt(a[0])||0,nb=parseInt(b[0])||0;if(na&&nb)return na-nb;return a[0].localeCompare(b[0]);}).map(([id,ct])=>{let t=findThreadInCatalog('dmc',id);return{id,name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
+  return Object.entries(map).map(([key,ct])=>{const c=key.indexOf(":");return{brand:key.slice(0,c),id:key.slice(c+1),ct};})
+    .sort((a,b)=>{let na=parseInt(a.id)||0,nb=parseInt(b.id)||0;if(na&&nb)return na-nb;return a.id.localeCompare(b.id);})
+    .map(({brand,id,ct})=>{let t=findThreadInCatalog(brand,id);return{id,brand,key:threadKey(brand,id),name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
 },[pal,fabricCt]);
 
 useEffect(()=>{
@@ -2138,10 +2159,10 @@ const rtConsumption=useMemo(()=>{
   skeinData.forEach(d=>{
     const dn=threadDone[d.id]||0;
     const skeinsConsumed=dn*effectiveCostIn/SKEIN_TOTAL_IN;
-    const snapEntry=(snap['dmc:'+d.id]||snap[d.id])||null;
+    const snapEntry=stashEntryFor(snap,d)||null;
     const ownedSkeins=snapEntry&&typeof snapEntry.owned==='number'?snapEntry.owned:null;
     const skeinsRemaining=ownedSkeins!=null?ownedSkeins-skeinsConsumed:null;
-    out[d.id]={skeinsConsumed,skeinsRemaining,ownedSkeins,effectiveCostIn};
+    out[d.id]={skeinsConsumed,skeinsRemaining,ownedSkeins,effectiveCostIn,key:d.key};
   });
   return out;
   // countsVer in dep array ensures re-run whenever done counts change.
@@ -2168,7 +2189,7 @@ const flushRtStashWrite=useCallback(async()=>{
       const c=consumption[id];
       if(!c||c.skeinsConsumed<=0||c.ownedSkeins==null)continue;
       const newOwned=Math.max(0,c.ownedSkeins-c.skeinsConsumed);
-      try{await StashBridge.updateThreadOwned(id,newOwned);wrote=true;}
+      try{await StashBridge.updateThreadOwned(c.key||id,newOwned);wrote=true;}
       catch(e){console.warn('RT stash write failed for '+id+':',e);}
     }
   }finally{
@@ -2294,7 +2315,7 @@ useEffect(()=>{
       rtLowToastedRef.current.add(d.id);
       if(typeof window.Toast!=='undefined'&&window.Toast.show){
         window.Toast.show({
-          message:'Low thread: DMC '+d.id+(d.name?' \u2014 '+d.name:'')+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
+          message:'Low thread: '+threadLabel(d)+(d.name?' \u2014 '+d.name:'')+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
           type:'warning',duration:10000
         });
       }
@@ -2930,11 +2951,11 @@ function doSaveProject(finalName){
   const sseArr = [...singleStitchEdits.entries()];
   // Serialise half stitch data as arrays of [cellIdx, {fwd?, bck?}] pairs
   const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
-    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
+    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
-  const psArr = [...partialStitches.entries()];
+  const psArr = partialsForSave(partialStitches, threadBrand);
   let project={
     version:11,
     id:projectIdRef.current||undefined,
@@ -2945,9 +2966,9 @@ function doSaveProject(finalName){
     symbols:symbolsRef.current||undefined,
     createdAt:createdAtRef.current||new Date().toISOString(),
     updatedAt:new Date().toISOString(),
-    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed,wastePrefs,fabricColour:projectFabricColour||undefined},
+    settings:{sW,sH,fabricCt,skeinPrice,stitchSpeed,wastePrefs,fabricColour:projectFabricColour||undefined,threadBrand:threadBrandForSave(threadBrand)},
     // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
-    pattern:(window.PatternIO?window.PatternIO.serializePattern(pat):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
+    pattern:(window.PatternIO?window.PatternIO.serializePattern(pat,threadBrand):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
     bsLines,
     done:done?Array.from(done):null,
     parkMarkers,
@@ -2959,7 +2980,7 @@ function doSaveProject(finalName){
     halfStitches: hsArr,
     halfDone: hdArr,
     partialStitches: psArr,
-    knots: knotsForSave(knots),
+    knots: knotsForSave(knots, threadBrand),
     knotsDone: knotsDone.length?knotsDone.slice():undefined,
     statsSessions,
     statsSettings,
@@ -3153,6 +3174,13 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+  // P4-5: a project in another brand's numbering loads that brand's
+  // catalogue first, then comes back here (helpers.js).
+  if(window.whenProjectBrandReady&&!window.whenProjectBrandReady(project,processLoadedProject,err=>{
+    console.error("[tracker] processLoadedProject threw:",err);
+    setLoadError("Could not open this pattern: "+(err&&err.message||err));
+  }))return;
+  const brand=window.projectThreadBrand?window.projectThreadBrand(project):"dmc";
   // Install the loaded project's identity before any downstream work so a
   // later render-time failure can't cause the next auto-save to mint a copy.
   projectIdRef.current = project.id || null;
@@ -3171,6 +3199,7 @@ function processLoadedProject(project){
   setBsLines(project.bsLines||project.bs||[]);
   if(s.fabricCt)setFabricCt(s.fabricCt);
   else if(project.fc)setFabricCt(project.fc);
+  setThreadBrand(brand);
   setProjectFabricColour(typeof s.fabricColour==="string"&&/^#[0-9a-fA-F]{6}$/.test(s.fabricColour)?s.fabricColour:null);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
@@ -3215,12 +3244,12 @@ function processLoadedProject(project){
     // Compressed URL format
      restored = p.map(m => {
         if(m[1] === 'k') return restoreStitch({id:"__skip__"});
-        if(m[1] === 'b') return restoreStitch({type:"blend",id:m[0]});
-        return restoreStitch({type:"solid",id:m[0]});
+        if(m[1] === 'b') return restoreStitch({type:"blend",id:m[0]},brand);
+        return restoreStitch({type:"solid",id:m[0]},brand);
      });
   } else {
     // Normal JSON format
-    restored=p.map(restoreStitch);
+    restored=p.map(m=>restoreStitch(m,brand));
   }
 
   const partialMap = new Map();
@@ -3230,8 +3259,9 @@ function processLoadedProject(project){
     Object.keys(quarters || {}).forEach(corner => {
       const quarter = quarters[corner];
       if (!quarter || !quarter.id) return;
-      const stitch = restoreStitch({ id: quarter.id, type: quarter.id.includes('+') ? 'blend' : 'solid', rgb: quarter.rgb });
+      const stitch = restoreStitch({ id: quarter.id, type: quarter.id.includes('+') ? 'blend' : 'solid', rgb: quarter.rgb, brand: quarter.brand }, brand);
       restoredQuarters[corner] = { id: stitch.id, rgb: stitch.rgb, lab: stitch.lab, name: stitch.name, type: stitch.type };
+      if (stitch.brand) restoredQuarters[corner].brand = stitch.brand;
       partialCells.push(stitch);
     });
     if (Object.keys(restoredQuarters).length) partialMap.set(Number(idx), restoredQuarters);
@@ -3244,8 +3274,8 @@ function processLoadedProject(project){
   // French knots: their threads join the palette (one count each, as the
   // part stitches' quarters do), so they show in the key and the thread totals.
   const kW=(project.settings&&project.settings.sW)||project.w,kH=(project.settings&&project.settings.sH)||project.h;
-  const knotList=window.Knots?window.Knots.normalise(project.knots,kW,kH):[];
-  const knotCells=knotList.map(k=>restoreStitch({id:k.id,type:k.id.includes('+')?'blend':'solid',rgb:k.rgb}));
+  const knotList=window.Knots?window.Knots.normalise(project.knots,kW,kH,brand):[];
+  const knotCells=knotList.map(k=>restoreStitch({id:k.id,type:k.id.includes('+')?'blend':'solid',rgb:k.rgb,brand:k.brand||'dmc'}));
   knotList.forEach((k,i)=>{if(!k.rgb&&knotCells[i].rgb)k.rgb=knotCells[i].rgb;});
   let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
@@ -3267,12 +3297,14 @@ function processLoadedProject(project){
     project.halfStitches.forEach(([idx, hs]) => {
       const entry = {};
       if (hs.fwd) {
-        const restored = restoreStitch({ id: hs.fwd.id, type: hs.fwd.id.includes('+') ? 'blend' : 'solid', rgb: hs.fwd.rgb });
+        const restored = restoreStitch({ id: hs.fwd.id, type: hs.fwd.id.includes('+') ? 'blend' : 'solid', rgb: hs.fwd.rgb, brand: hs.fwd.brand }, brand);
         entry.fwd = { id: restored.id, rgb: restored.rgb, lab: restored.lab, name: restored.name, type: restored.type };
+        if (restored.brand) entry.fwd.brand = restored.brand;
       }
       if (hs.bck) {
-        const restored = restoreStitch({ id: hs.bck.id, type: hs.bck.id.includes('+') ? 'blend' : 'solid', rgb: hs.bck.rgb });
+        const restored = restoreStitch({ id: hs.bck.id, type: hs.bck.id.includes('+') ? 'blend' : 'solid', rgb: hs.bck.rgb, brand: hs.bck.brand }, brand);
         entry.bck = { id: restored.id, rgb: restored.rgb, lab: restored.lab, name: restored.name, type: restored.type };
+        if (restored.brand) entry.bck.brand = restored.brand;
       }
       hsMap.set(idx, entry);
     });
@@ -3884,11 +3916,11 @@ const buildSnapshot = () => {
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
   const sseArr = [...singleStitchEdits.entries()];
   const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
-    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+    fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
+    bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
   }]);
   const hdArr = [...halfDone.entries()];
-  const psArr = [...partialStitches.entries()];
+  const psArr = partialsForSave(partialStitches, threadBrand);
   // Derive stitchLog from statsSessions (single source of truth).
   // Groups netStitches by date so stitchLog always matches what statsSessions says.
   const _logMap = {};
@@ -3908,12 +3940,12 @@ const buildSnapshot = () => {
     nameAutoGenerated: nameAutoGeneratedRef.current || undefined,
     symbols: symbolsRef.current || undefined,
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
-    settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined },
-    pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
+    settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined, threadBrand: threadBrandForSave(threadBrand) },
+    pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, threadBrand) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
-    knots: knotsForSave(knots), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
+    knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
     statsSessions, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
@@ -4065,11 +4097,11 @@ useEffect(() => {
     }
     const sseArr = [...singleStitchEdits.entries()];
     const hsArr = [...halfStitches.entries()].map(([idx, hs]) => [idx, {
-      fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb } : undefined,
-      bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb } : undefined
+      fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
+      bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
     }]);
     const hdArr = [...halfDone.entries()];
-    const psArr = [...partialStitches.entries()];
+    const psArr = partialsForSave(partialStitches, threadBrand);
     const project = {
       ...(lastSnapshotRef.current || {}),
       version: 11, id: projectIdRef.current, page: "tracker", name: projectName,
@@ -4078,9 +4110,9 @@ useEffect(() => {
       symbols: symbolsRef.current || undefined,
       createdAt: createdAtRef.current,
       updatedAt: new Date().toISOString(),
-      settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined },
+      settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined, threadBrand: threadBrandForSave(threadBrand) },
       partialStitches: psArr,
-      knots: knotsForSave(knots), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
+      knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
       // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
       breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea
     };
@@ -4126,8 +4158,8 @@ function tierSymFontSz(cSz){
 
 // French knots as saved: {x, y, id, rgb}, or nothing when there are none, so
 // projects without knots save exactly as before.
-function knotsForSave(knots) {
-  return knots && knots.length ? knots.map(k => ({ x: k.x, y: k.y, id: k.id, rgb: k.rgb })) : undefined;
+function knotsForSave(knots, projectBrand) {
+  return knots && knots.length ? window.Knots.forSave(knots, projectBrand) : undefined;
 }
 
 // ═══ Half-stitch cell rendering ═══
@@ -6042,7 +6074,7 @@ function jumpToNextStitch(){
     }
   }
   if(foundX<0||foundY<0){
-    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for DMC "+target+(areaOn?" in this work area":""),type:"info"});}catch(_){}
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for "+threadLabel((cmap&&cmap[target])||{id:target})+(areaOn?" in this work area":""),type:"info"});}catch(_){}
     return;
   }
   setHlRow(foundY);setHlCol(foundX);
@@ -6149,7 +6181,7 @@ function goToParkedThread(colorId){
   if(areaOn&&workArea&&window.WorkArea&&!window.WorkArea.contains(workArea,m.x,m.y)){
     const vb=viewBoundsRef.current;
     if(!vb||m.x<vb.x0||m.x>=vb.x1||m.y<vb.y0||m.y>=vb.y1){
-      try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"DMC "+colorId+" is parked outside this work area, at row "+(m.y+1)+", column "+(m.x+1)+".",type:"info",duration:4000});}catch(_){}
+      try{if(window.Toast&&window.Toast.show)window.Toast.show({message:threadLabel((cmap&&cmap[colorId])||{id:colorId})+" is parked outside this work area, at row "+(m.y+1)+", column "+(m.x+1)+".",type:"info",duration:4000});}catch(_){}
       return;
     }
   }
@@ -7036,7 +7068,7 @@ return(
       </div>
       {/* ─ Sort row ─ */}
       <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
-        {[["count","Remaining"],["done","% done"],["id","DMC ID"]].map(([k,l])=>
+        {[["count","Remaining"],["done","% done"],["id",threadBrandLabel(threadBrand)+" ID"]].map(([k,l])=>
           <button key={k} className={"ppal-sort-btn"+(legendSort===k?" ppal-sort-btn--on":"")} onClick={()=>setLegendSort(k)} aria-pressed={legendSort===k}>{l}</button>
         )}
       </div>
@@ -7056,11 +7088,11 @@ return(
               :<span className="ppal-active-swatch" style={{background:swRgb}}/>}
           </div>
           <div className="ppal-active-info">
-            <span className="ppal-active-id">DMC {focusColour}</span>
+            <span className="ppal-active-id">{threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}</span>
             <span className="ppal-active-name">{fc.type==="blend"?fc.threads[0].name+"+"+fc.threads[1].name:fc.name}</span>
             <span className="ppal-active-count">{dc.done}/{dc.total} · {pct}%</span>
           </div>
-          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of DMC "+focusColour}>{Icons.magnify()}</button>
+          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of "+threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}>{Icons.magnify()}</button>
         </div>;
       })()
       :<div className="ppal-active-none">{Icons.pointing?Icons.pointing():null}{" Tap a colour below to select it"}</div>}
@@ -7075,10 +7107,10 @@ return(
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
               onClick={()=>{if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}
               onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}}
-              aria-label={"Select DMC "+p.id}
-              title={"DMC "+p.id+(complete?" (done)":"")}>
+              aria-label={"Select "+threadLabel(p)}
+              title={threadLabel(p)+(complete?" (done)":"")}>
               <div className="ppal-tile-swatch" style={{background:swRgb}}
-                role="button" tabIndex={0} aria-label={"View DMC "+p.id+" detail"}
+                role="button" tabIndex={0} aria-label={"View "+threadLabel(p)+" detail"}
                 onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
                 onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}
               />
@@ -7095,13 +7127,13 @@ return(
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
                       onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
-                      title={"Go to where DMC "+p.id+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
-                      aria-label={"Go to where DMC "+p.id+" is parked"}
+                      title={"Go to where "+threadLabel(p)+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
+                      aria-label={"Go to where "+threadLabel(p)+" is parked"}
                       style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     <button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of DMC "+p.id+(areaOn?" in this work area":"")+" as done?"))return;}markColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}markColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
                       title={complete?"Mark as not done":"Mark all as done"}
                     >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
@@ -7355,7 +7387,7 @@ return(
     {pal&&focusColour&&cmap&&cmap[focusColour]
       ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
           <span className="ppal-phone-chip-sw" style={{background:"rgb("+cmap[focusColour].rgb+")"}}/>
-          <span>DMC {focusColour}</span>
+          <span>{threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}</span>
         </button>
       :<button className="ppal-phone-chip ppal-phone-chip--empty" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
           {Icons.menu?Icons.menu():null}{" Palette"}
@@ -7933,9 +7965,9 @@ return(
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
               // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
+              const gs=stashEntryFor(stash,d)||{owned:0};
               const newOwned=Math.max(0,gs.owned-d.skeins);
-              await StashBridge.updateThreadOwned(d.id,newOwned);
+              await StashBridge.updateThreadOwned(d.key,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
             if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
@@ -7949,10 +7981,10 @@ return(
             const stash=await StashBridge.getGlobalStash();
             for(const d of skeinData){
               // Stash is keyed by composite keys ("dmc:310"); d.id is a bare id ("310").
-              const gs=stash['dmc:'+d.id]||stash[d.id]||{owned:0};
+              const gs=stashEntryFor(stash,d)||{owned:0};
               const deduct=Math.max(0,d.skeins-1);
               const newOwned=Math.max(0,gs.owned-deduct);
-              await StashBridge.updateThreadOwned(d.id,newOwned);
+              await StashBridge.updateThreadOwned(d.key,newOwned);
             }
             setGlobalStash(await StashBridge.getGlobalStash());
             if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
@@ -7996,7 +8028,7 @@ return(
             for(const id of Object.keys(consumption)){
               const c=consumption[id];
               if(!c||c.ownedSkeins==null)continue;
-              try{await StashBridge.updateThreadOwned(id,c.ownedSkeins);}
+              try{await StashBridge.updateThreadOwned(c.key||id,c.ownedSkeins);}
               catch(e){console.warn('RT restore failed for '+id+':',e);}
             }
             try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
@@ -8045,7 +8077,7 @@ return(
               return React.createElement('tr',{key:d.id,style:{borderTop:'1px solid var(--border)'}},
                 React.createElement('td',{style:{padding:'5px 10px',display:'flex',alignItems:'center',gap:6}},
                   React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'rgb('+(d.rgb||[128,128,128]).join(',')+')',display:'inline-block',flexShrink:0}}),
-                  'DMC '+d.id+(d.name?' \u2014 '+d.name:'')
+                  threadLabel(d)+(d.name?' \u2014 '+d.name:'')
                 ),
                 React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},c.skeinsConsumed.toFixed(2)),
                 React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},remText)
@@ -8093,7 +8125,7 @@ return(
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)',border:"1px solid var(--accent-border)"}}>
               <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
               <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
-              <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>DMC {currentEntry.id}</span>
+              <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>{threadLabel(currentEntry)}</span>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
               <span style={{fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:600}}>Current</span>
             </div>
@@ -8110,7 +8142,7 @@ return(
                     opacity:isCurrent?0.6:1}}>
                   <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
                   <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-lg)',width:18,textAlign:"center"}}>{p.symbol}</span>
-                  <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>DMC {p.id}</span>
+                  <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>{threadLabel(p)}</span>
                   <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
                   <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>
                   {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}

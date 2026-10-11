@@ -46,6 +46,7 @@ const helperFns = mockGlobals
   + extractFn(helpersSource, 'findThreadInCatalog') + '\n'
   + extractFn(helpersSource, 'isBlendId') + '\n'
   + extractFn(helpersSource, 'splitBlendId') + '\n'
+  + extractFn(helpersSource, 'cellBrandForSave') + '\n'
   + extractFn(helpersSource, 'stripCellForSave') + '\n'
   + extractFn(helpersSource, 'serializePattern') + '\n'
   + extractFn(colourSource,  'restoreStitch') + '\n';

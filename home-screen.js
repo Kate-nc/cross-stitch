@@ -1726,7 +1726,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       if (ids.length === 0) return;
       ids.forEach(function(id) {
         total++;
-        var k = normaliseStashKey(id);
+        var k = typeof libraryThreadKey === 'function' ? libraryThreadKey({ id: id, brand: t.brand }) : normaliseStashKey(id);
         if (isColorOwned(stash[k])) owned++;
       });
     });
@@ -1740,13 +1740,15 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
     if (!hasStash) return null;
     // Normalise a bare DMC id like '310' to the composite stash key 'dmc:310'.
     // Pattern threads are stored with bare ids; stash keys are always composite.
-    var normKey = (typeof normaliseStashKey === 'function') ? normaliseStashKey : function(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; };
+    var bareKey = (typeof normaliseStashKey === 'function') ? normaliseStashKey : function(id) { return id && id.indexOf(':') < 0 ? 'dmc:' + id : id; };
+    // A thread keeps its own brand ({id, brand: "Anchor"}, P4-5).
+    var normKey = function(t) { return typeof libraryThreadKey === 'function' ? libraryThreadKey(t) : bareKey(t.id); };
     // Build set of thread IDs required by any non-completed pattern
     var activeIds = new Set();
     if (patterns && patterns.length > 0) {
       patterns.forEach(function(pat) {
         if (pat.status === 'completed') return;
-        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(normKey(t.id)); });
+        if (pat.threads) pat.threads.forEach(function(t) { activeIds.add(normKey(t)); });
       });
     }
     var lowCount = 0;
@@ -1766,7 +1768,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         var patFabricCt = Number(pat.fabricCt);
         if (!(patFabricCt > 0)) patFabricCt = 14;
         var needsThread = pat.threads.some(function(t) {
-          var s = stash[normKey(t.id)];
+          var s = stash[normKey(t)];
           if (!s) return true;
           // Pattern threads from auto-sync store qty as raw stitches; convert to skeins.
           var neededSkeins = (t.unit === 'stitches' && typeof skeinEst === 'function')

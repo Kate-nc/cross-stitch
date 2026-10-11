@@ -2184,7 +2184,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
                 h('button', { onClick: () => setMostUsedFilter('year'), style: { fontSize:'var(--text-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'year' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'year' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'This year'),
                 h('button', { onClick: () => setMostUsedFilter('all'), style: { fontSize:'var(--text-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid ' + (mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--border)'), background: mostUsedFilter === 'all' ? 'var(--accent-light)' : 'var(--surface)', color: mostUsedFilter === 'all' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 } }, 'All time')
               ),
-              mostUsed.map((c, i) => h('div', { key: c.id, onClick: () => navigateToStashThread(c.id),
+              mostUsed.map((c, i) => h('div', { key: (c.brand || 'dmc') + ':' + c.id, onClick: () => navigateToStashThread((c.brand || 'dmc') + ':' + c.id),
                 style: {
                   display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0',
                   borderBottom: i < mostUsed.length - 1 ? '1px solid var(--border-subtle)' : 'none',

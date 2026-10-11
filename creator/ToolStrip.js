@@ -155,7 +155,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     var press = { id: p.id, fired: false, timer: null };
     press.timer = setTimeout(function() {
       press.fired = true;
-      setSwatchTip({ id: p.id, text: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id, x: r.left + r.width / 2, y: r.top - 6 });
+      setSwatchTip({ id: p.id, text: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p), x: r.left + r.width / 2, y: r.top - 6 });
     }, (window.TouchConstants && window.TouchConstants.LONG_PRESS_MS) || 500);
     swatchPressRef.current = press;
   }
@@ -213,7 +213,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
         },
-        title: "Target: DMC " + (cv.cleanupTargetColorId || "") + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        title: "Target: " + threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
         "aria-haspopup": "listbox",
@@ -225,7 +225,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
                    background:"rgb("+clTgtEntry.rgb+")", border:"1.5px solid rgba(0,0,0,0.2)" }
         }),
         h("span", {style:{fontSize:11}},
-          cv.cleanupTargetColorId ? "DMC " + cv.cleanupTargetColorId : "None"
+          cv.cleanupTargetColorId ? threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId }) : "None"
         ),
         h("span", {"aria-hidden":"true", style:{display:"inline-flex",opacity:0.6,marginLeft:1}}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)
       ),
@@ -246,8 +246,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             role: "option",
             "aria-selected": isTgt,
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
-            title: "DMC " + p.id + (p.name ? " \xB7 " + p.name : ""),
-            "aria-label": "Set cleanup target to DMC " + p.id + (p.name ? " " + p.name : ""),
+            title: threadLabel(p) + (p.name ? " \xB7 " + p.name : ""),
+            "aria-label": "Set cleanup target to " + threadLabel(p) + (p.name ? " " + p.name : ""),
             style:{
               width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
               background:"rgb("+p.rgb+")",
@@ -701,8 +701,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onPointerCancel: swatchPressEnd,
           onPointerLeave: swatchPressEnd,
           onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
-          title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : "DMC " + p.id,
-          "aria-label": "Select DMC " + p.id + (p.name ? " " + p.name : ""),
+          title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
+          "aria-label": "Select " + threadLabel(p) + (p.name ? " " + p.name : ""),
           "aria-pressed": isSel,
           style:{
             width:40, height:40, flexShrink:0,
@@ -794,7 +794,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = null;
   }
   var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
-    ? (" \u2014 DMC " + cv.selectedColorId + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    ? (" \u2014 " + threadLabel(ctx.cmap[cv.selectedColorId]) + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
@@ -1132,8 +1132,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
-          "aria-label": selCol ? ("Colour DMC " + cv.selectedColorId + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
-          title: selCol ? ("DMC " + cv.selectedColorId + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
+          "aria-label": selCol ? ("Colour " + threadLabel(selCol) + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
+          title: selCol ? (threadLabel(selCol) + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
         railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
