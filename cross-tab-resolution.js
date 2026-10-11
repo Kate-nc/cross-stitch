@@ -64,6 +64,16 @@
     } catch (_) {}
   }
 
+  // Tell the page whether a conflict question is open, so the save badge can say the
+  // changes are not saved yet instead of "saved".
+  function announceConflict(open) {
+    try {
+      if (typeof CustomEvent === "function") {
+        window.dispatchEvent(new CustomEvent("cs:conflictState", { detail: { open: open } }));
+      }
+    } catch (_) {}
+  }
+
   function showConflictModal(info) {
     if (_modalOpen) return Promise.resolve("keep");
     if (!window.ConfirmDialog || typeof window.ConfirmDialog.show !== "function") {
@@ -71,6 +81,7 @@
       return Promise.resolve("keep");
     }
     _modalOpen = true;
+    announceConflict(true);
     var shown;
     try {
       shown = window.ConfirmDialog.show({
@@ -85,13 +96,16 @@
       });
     } catch (_) {
       _modalOpen = false;
+      announceConflict(false);
       return Promise.resolve("keep");
     }
     return Promise.resolve(shown).then(function (ok) {
       _modalOpen = false;
+      announceConflict(false);
       return ok ? "reload" : "keep";
     }, function () {
       _modalOpen = false;
+      announceConflict(false);
       return "keep";
     });
   }

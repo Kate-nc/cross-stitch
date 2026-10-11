@@ -1233,6 +1233,17 @@ const[knotsDone,setKnotsDone]=useState([]);
 const progressOwnerRef=useRef(null);
 const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null});
 const progressTimerRef=useRef(null);
+// Save badge (header). One honest status for the whole project, derived from refs so that
+// updating it costs nothing on the mark path: React skips a setState to the same value.
+//   error > conflict > saving (a write in flight, or changes not yet written) > saved/idle
+// uiGenRef counts changes to saved data (not zoom or the guide); uiSavedGenRef is the newest
+// count known written. Neither is a React dependency.
+const[saveStatus,setSaveStatus]=useState('idle');
+const[savedAt,setSavedAt]=useState(null);
+const[saveError,setSaveError]=useState(null);
+const saveUiRef=useRef({inFlight:0,conflict:false,error:null,savedOnce:false});
+const uiGenRef=useRef(0);
+const uiSavedGenRef=useRef(0);
 const[halfDisambig,setHalfDisambig]=useState(null); // {x, y, idx} for popup
 
 const hoverRefs = useRef({ row: null, col: null });
@@ -3997,6 +4008,34 @@ function snapshotNow() {
   }
   return { ...fresh, done: d };
 }
+// ── Save badge status ──
+function refreshSaveUi() {
+  const u = saveUiRef.current;
+  const unsaved = uiGenRef.current > uiSavedGenRef.current;
+  const next = u.error ? 'error' : u.conflict ? 'conflict' : (u.inFlight > 0 || unsaved) ? 'saving' : (u.savedOnce ? 'saved' : 'idle');
+  setSaveStatus(next);
+  setSaveError(u.error || null);
+}
+function beginSave() { saveUiRef.current.inFlight++; refreshSaveUi(); }
+// ok === true: written; ok === false: failed (err says why); ok === null: the page is reloading, say nothing.
+function endSave(ok, uiGen, err) {
+  const u = saveUiRef.current;
+  u.inFlight = Math.max(0, u.inFlight - 1);
+  if (ok === true) {
+    u.error = null; u.savedOnce = true;
+    uiSavedGenRef.current = Math.max(uiSavedGenRef.current, uiGen);
+    setSavedAt(new Date());
+  } else if (ok === false) {
+    u.error = (err && err.message) ? err : new Error(typeof err === 'string' ? err : 'Could not save');
+  }
+  refreshSaveUi();
+}
+function retrySave() {
+  saveUiRef.current.error = null;
+  refreshSaveUi();
+  try { const r = window.__flushProjectToIDB && window.__flushProjectToIDB(); if (r && r.catch) r.catch(function () {}); } catch (_) {}
+}
+
 // ── Progress record writer ──
 // Writes the marks, and only the marks, to ProjectStorage's small progress record.
 // Saving the whole project takes up to ~150 ms on a large chart so it happens every
@@ -4044,13 +4083,19 @@ useEffect(() => {
     if (!autoSaveDirtyRef.current) return;
     autoSaveDirtyRef.current = false;
     const _gen = autoSaveGenRef.current;
+    const _uiGen = uiGenRef.current;
     const project = buildSnapshot();
     if (!project) return;
     lastSnapshotRef.current = project;
+    let _ended = false;
+    const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err); };
+    beginSave();
     persistProjectRecord(project).then(function(saveResult){
-      if(saveResult&&saveResult.ok!==false&&saveResult.reason!=='reloaded'){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
+      const _ok = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+      if(_ok){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
         // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
         if(autoSaveGenRef.current!==_gen)scheduleProgressWriteRef.current();}
+      endOnce(_ok ? true : (saveResult && saveResult.reason === 'reloaded' ? null : false), saveResult && saveResult.reason);
       if(saveResult&&saveResult.reason==='reloaded')return null;
       try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
       return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
@@ -4088,7 +4133,7 @@ useEffect(() => {
         }
         return null;
       });
-    }).catch(err => console.error("Tracker auto-save failed:", err));
+    }).catch(err => { console.error("Tracker auto-save failed:", err); endOnce(false, err); });
   }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
@@ -4170,8 +4215,14 @@ useEffect(() => {
     if (!project) return;
     lastSnapshotRef.current = project;
     const _gen = autoSaveGenRef.current;
-    const saveResult = await persistProjectRecord(project);
-    if (saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded') flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
+    const _uiGen = uiGenRef.current;
+    beginSave();
+    let saveResult;
+    try { saveResult = await persistProjectRecord(project); }
+    catch (err) { endSave(false, _uiGen, err); throw err; }
+    const _flushOk = !!(saveResult && saveResult.ok !== false && saveResult.reason !== 'reloaded');
+    if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
+    endSave(_flushOk ? true : (saveResult && saveResult.reason === 'reloaded' ? null : false), _uiGen, saveResult && saveResult.reason);
     if (!saveResult || saveResult.reason !== 'reloaded') {
       await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
     }
@@ -4212,6 +4263,24 @@ useEffect(() => {
   return () => { document.removeEventListener('visibilitychange', onVisibility); window.removeEventListener('pageshow', onPageShow); };
 }, []);
 
+// Count changes to data the project saves (not zoom or the guide), for the save badge.
+useEffect(() => {
+  if (!pat) return;
+  uiGenRef.current++;
+  refreshSaveUi();
+}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
+    statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
+    originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs]);
+// A cross-tab conflict dialog is open: the changes are not saved until it is answered.
+useEffect(() => {
+  function onConflict(e) {
+    saveUiRef.current.conflict = !!(e && e.detail && e.detail.open);
+    refreshSaveUi();
+  }
+  window.addEventListener('cs:conflictState', onConflict);
+  return () => window.removeEventListener('cs:conflictState', onConflict);
+}, []);
+
 // Keep the progress record's owner current and schedule a write when marks change.
 useEffect(() => {
   const id = projectIdRef.current;
@@ -4224,6 +4293,9 @@ useEffect(() => {
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
     progressBaseRef.current = { id, done, halfDone, knotsDone };
+    uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
+    saveUiRef.current.error = null; saveUiRef.current.savedOnce = false; setSavedAt(null);   // another project: its own save state
+    refreshSaveUi();
     return;
   }
   if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone) return;
@@ -6828,7 +6900,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&totalStitchable>0?Math.round(doneCount/totalStitchable*100):undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
