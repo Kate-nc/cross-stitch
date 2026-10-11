@@ -13,7 +13,7 @@ async function markRow(page, row, from, to) {
   await page.mouse.up();
   await page.waitForTimeout(150);
 }
-const dialog = page => page.locator('.reconcile-overlay');
+const dialog = page => page.locator('[data-reconcile="1"]');
 const storedDone = page => page.evaluate(async () => {
   const id = localStorage.getItem('crossstitch_active_project');
   const db = await getDB();
@@ -107,5 +107,26 @@ test.describe('Pattern changed after stitching', () => {
     await page.getByRole('button', { name: 'Leave it as it is and go back' }).click();
     await page.waitForTimeout(800);
     expect(await storedDone(page)).toEqual(before);
+  });
+
+  test('half-stitch marks alone are enough to ask, and the dialog is a trapped, Escape-proof overlay', async ({ page }) => {
+    await loadTrackerFixture(page);
+    await page.goto('/home.html');
+    await page.waitForFunction(() => window.ProjectStorage);
+    await page.evaluate(async () => {
+      const id = localStorage.getItem('crossstitch_active_project');
+      const p = await ProjectStorage.get(id);
+      const W = p.settings.sW, H = p.settings.sH;
+      p.done = new Array(W * (H - 1)).fill(0);               // no full-stitch marks at all
+      p.halfDone = [[7, { fwd: true }]]; delete p.lastWriteAt;
+      await ProjectStorage.save(p);
+    });
+    await openTracker(page);
+    await expect(dialog(page)).toBeVisible();
+    await expect(dialog(page)).toContainText('1 half stitches');
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeVisible();                // Escape does not dismiss the question
+    for (let i = 0; i < 8; i++) await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => !!document.activeElement.closest('[data-reconcile="1"]'))).toBe(true);   // focus stays inside
   });
 });

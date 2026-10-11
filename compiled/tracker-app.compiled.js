@@ -5525,7 +5525,18 @@ function TrackerApp({
     if (cand) {
       nd = Uint8Array.from(cand.done);
       kept = cand.kept;
-      hd = new Map(window.TrackingMerge.remapHalfDone(rc.halfDone, cand.oldW, sW, sH));
+      // A half-stitch mark stays only if there is a half stitch on its new cell to attach to.
+      const moved = window.TrackingMerge.remapHalfDone(rc.halfDone, cand.oldW, sW, sH),
+        kept2 = [];
+      moved.forEach(([i, v]) => {
+        const def = halfStitches && halfStitches.get(i);
+        if (!def) return;
+        const m = {};
+        if (v.fwd && def.fwd) m.fwd = v.fwd;
+        if (v.bck && def.bck) m.bck = v.bck;
+        if (m.fwd || m.bck) kept2.push([i, m]);
+      });
+      hd = new Map(kept2);
     }
     // The earlier marks stay recoverable from Stats > Compare, whichever way this goes.
     try {
@@ -5650,6 +5661,7 @@ function TrackerApp({
   }, [isActive]);
   function handleEditInCreator() {
     if (!pat || !pal) return;
+    if (savesBlockedRef.current) return; // a question about the saved marks is open: answer it first
     if (onSwitchToDesign) {
       // Build a fresh snapshot so name/session changes that haven't auto-saved yet are included
       const project = buildSnapshot();
@@ -6038,11 +6050,14 @@ function TrackerApp({
       setDone(new Uint8Array(restored.length));
       // Marks that no longer fit the pattern: never zero them silently. Ask, and write nothing meanwhile.
       const _oldMarks = project.done ? Array.from(project.done).filter(v => v === 1).length : 0;
-      if (_oldMarks > 0) {
-        const _cand = window.TrackingMerge ? window.TrackingMerge.remapCandidates(project.done, kW, kH, restored) : [];
+      // Half-stitch marks are keyed by cell index too, so they go stale the same way.
+      const _oldHalf = (project.halfDone || []).filter(e => e && e[1] && (e[1].fwd || e[1].bck)).length;
+      if (_oldMarks > 0 || _oldHalf > 0) {
+        const _cand = window.TrackingMerge ? window.TrackingMerge.remapCandidates(project.done || [], kW, kH, restored) : [];
         const _rc = {
-          oldDone: Array.from(project.done),
+          oldDone: Array.from(project.done || []),
           oldMarks: _oldMarks,
+          oldHalf: _oldHalf,
           candidates: _cand,
           halfDone: project.halfDone || [],
           projectId: project.id || null
@@ -6238,8 +6253,8 @@ function TrackerApp({
         })) {
           rawStatsSessions.push(_ps);
         }
-        localStorage.removeItem(_pk);
-      }
+        if (!_reconcileHeld) localStorage.removeItem(_pk);
+      } // kept while a question holds saves; the first save after it clears it
     } catch (_) {}
     setStatsSessions(rawStatsSessions);
     // A3: fire the resume recap modal once per project load when there is at
@@ -14022,20 +14037,10 @@ function TrackerApp({
     });
   })(), reconcile && (() => {
     const cands = reconcile.candidates || [];
-    const n = reconcile.oldMarks.toLocaleString('en-GB');
     const f = v => v.toLocaleString('en-GB');
-    return /*#__PURE__*/React.createElement("div", {
-      className: "modal-overlay reconcile-overlay",
-      role: "alertdialog",
-      "aria-modal": "true",
-      "aria-labelledby": "reconcile-title",
-      "aria-describedby": "reconcile-body"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "modal-content reconcile-modal",
-      style: {
-        maxWidth: 480
-      }
-    }, /*#__PURE__*/React.createElement("h3", {
+    const what = [reconcile.oldMarks > 0 ? f(reconcile.oldMarks) + ' stitches' : null, reconcile.oldHalf > 0 ? f(reconcile.oldHalf) + ' half stitches' : null].filter(Boolean).join(' and ');
+    const O = window.Overlay;
+    const body = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h3", {
       id: "reconcile-title",
       style: {
         marginTop: 0,
@@ -14053,11 +14058,11 @@ function TrackerApp({
       style: {
         marginTop: 0
       }
-    }, "It has a different number of stitches now (", sW, "\xD7", sH, "), so the ", n, " stitches you marked no longer line up with it."), cands.length > 0 ? /*#__PURE__*/React.createElement("p", null, "You can keep your progress where cells still match. This assumes the change was at the bottom or right edge; if it was at the top or left, marks would land on the wrong stitches, so choose Start progress again.", cands.length > 1 ? ' Your marks fit two sizes, so choose which one the pattern had.' : '') : /*#__PURE__*/React.createElement("p", null, "We cannot tell how the pattern was resized, so the marks cannot be carried across."), /*#__PURE__*/React.createElement("p", {
+    }, "It has a different number of stitches now (", sW, "\xD7", sH, "), so the ", what, " you marked no longer line up with it."), cands.length > 0 ? /*#__PURE__*/React.createElement("p", null, "You can keep your progress where cells still match. This assumes the change was at the bottom or right edge; if it was at the top or left, marks would land on the wrong stitches, so choose Start progress again.", cands.length > 1 ? ' Your marks fit two sizes, so choose which one the pattern had.' : '') : /*#__PURE__*/React.createElement("p", null, "We cannot tell how the pattern was resized, so the marks cannot be carried across."), /*#__PURE__*/React.createElement("p", {
       style: {
         marginBottom: 0
       }
-    }, "Whichever you choose, your earlier full-stitch marks are saved as a snapshot in Stats > Compare. Nothing is changed until you choose.")), /*#__PURE__*/React.createElement("div", {
+    }, "If you keep your progress or start again, your earlier full-stitch marks are saved as a snapshot in Stats > Compare. If you leave it as it is, nothing is changed and nothing is saved. Nothing changes until you choose.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         flexDirection: 'column',
@@ -14075,7 +14080,36 @@ function TrackerApp({
     }, "Start progress again"), /*#__PURE__*/React.createElement("button", {
       className: "resume-recap-btn",
       onClick: () => resolveReconcile('home')
-    }, "Leave it as it is and go back"))));
+    }, "Leave it as it is and go back")));
+    // The shared overlay traps focus, locks background scrolling and joins the Escape stack; with no
+    // onClose and no scrim dismissal, the question can only be answered with one of its buttons.
+    return O ? /*#__PURE__*/React.createElement(O, {
+      variant: "dialog",
+      maxWidth: 480,
+      labelledBy: "reconcile-title",
+      describedBy: "reconcile-body",
+      dismissOnScrim: false,
+      className: "reconcile-modal",
+      panelProps: {
+        role: 'alertdialog',
+        'data-reconcile': '1'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: 'var(--s-4)'
+      }
+    }, body)) : /*#__PURE__*/React.createElement("div", {
+      className: "modal-overlay reconcile-overlay",
+      role: "alertdialog",
+      "aria-modal": "true",
+      "aria-labelledby": "reconcile-title",
+      "aria-describedby": "reconcile-body"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "modal-content reconcile-modal",
+      style: {
+        maxWidth: 480
+      }
+    }, body));
   })(), resumeRecap && (() => {
     // A3: Resume recap modal — fires once per project load when prior sessions exist.
     const r = resumeRecap;

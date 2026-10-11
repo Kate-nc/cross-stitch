@@ -102,3 +102,12 @@ Quota-exceeded and offline chaos tests, restore-while-unsaved, two tabs plus Cre
 - Marks laid on a pattern changed at the top or left edge cannot be detected or remapped (only the old length is known).
 - Half-stitch and knot marks are cleared by "Start progress again" and are not in the snapshot.
 - Unverified: Safari and Firefox; behaviour with a two-tab race while the question is open (the other tab's save is not merged while held, so the cross-tab question is asked as usual).
+
+### Batch 6, review round 1 (Copilot; eight findings, all verified)
+- **Edit in Creator could leave the question (High).** True: the held save returned quietly but the handoff still ran. `handleEditInCreator` now returns at once while saves are held.
+- **A recovered pending session lost while held (High).** True: its `cs_pending_session_*` backup was removed on load though nothing could save it. The key is now kept while held; the first save after the question clears it as before.
+- **Half-stitch definitions vs marks (Medium).** Partly true. The half-stitch definitions are loaded in whatever coordinates they were stored in and are not remapped here (and the Creator's resize does not remap them either: pre-existing). So a kept half-stitch mark is now carried only if there is a half stitch on its new cell to attach to; otherwise it is dropped.
+- **Half-stitch-only progress bypassed the question (Medium).** True: now counted in the gate, named in the dialog. Knots alone do not trigger it: their keys are lattice positions, not cell indices, so a size change does not invalidate them.
+- **No focus trap or Escape handling (Medium).** True: the dialog now uses the shared `Overlay` (focus trap, scroll lock, Escape stack) with no close handler and no scrim dismissal, so only its buttons answer it. A browser test presses Escape and Tab.
+- **"Whichever you choose" and "Either way" wording (Low, two places).** True: Leave writes nothing and makes no snapshot. Both texts now say so.
+- **Stale comment in `tracking-merge.js` (Low).** True: rewritten to say both readings are returned when both fit and only an empty result means unknown.

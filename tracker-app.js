@@ -3090,7 +3090,15 @@ function resolveReconcile(choice){
   const cand=choice.indexOf('keep:')===0?rc.candidates[Number(choice.slice(5))]:null;
   if(cand){
     nd=Uint8Array.from(cand.done);kept=cand.kept;
-    hd=new Map(window.TrackingMerge.remapHalfDone(rc.halfDone,cand.oldW,sW,sH));
+    // A half-stitch mark stays only if there is a half stitch on its new cell to attach to.
+    const moved=window.TrackingMerge.remapHalfDone(rc.halfDone,cand.oldW,sW,sH),kept2=[];
+    moved.forEach(([i,v])=>{
+      const def=halfStitches&&halfStitches.get(i);
+      if(!def)return;
+      const m={};if(v.fwd&&def.fwd)m.fwd=v.fwd;if(v.bck&&def.bck)m.bck=v.bck;
+      if(m.fwd||m.bck)kept2.push([i,m]);
+    });
+    hd=new Map(kept2);
   }
   // The earlier marks stay recoverable from Stats > Compare, whichever way this goes.
   try{
@@ -3172,6 +3180,7 @@ useEffect(()=>{
 
 function handleEditInCreator(){
   if(!pat||!pal)return;
+  if(savesBlockedRef.current)return;   // a question about the saved marks is open: answer it first
   if(onSwitchToDesign){
     // Build a fresh snapshot so name/session changes that haven't auto-saved yet are included
     const project=buildSnapshot();
@@ -3460,9 +3469,11 @@ function processLoadedProject(project){
     setDone(new Uint8Array(restored.length));
     // Marks that no longer fit the pattern: never zero them silently. Ask, and write nothing meanwhile.
     const _oldMarks=project.done?Array.from(project.done).filter(v=>v===1).length:0;
-    if(_oldMarks>0){
-      const _cand=window.TrackingMerge?window.TrackingMerge.remapCandidates(project.done,kW,kH,restored):[];
-      const _rc={oldDone:Array.from(project.done),oldMarks:_oldMarks,candidates:_cand,halfDone:project.halfDone||[],projectId:project.id||null};
+    // Half-stitch marks are keyed by cell index too, so they go stale the same way.
+    const _oldHalf=(project.halfDone||[]).filter(e=>e&&e[1]&&(e[1].fwd||e[1].bck)).length;
+    if(_oldMarks>0||_oldHalf>0){
+      const _cand=window.TrackingMerge?window.TrackingMerge.remapCandidates(project.done||[],kW,kH,restored):[];
+      const _rc={oldDone:Array.from(project.done||[]),oldMarks:_oldMarks,oldHalf:_oldHalf,candidates:_cand,halfDone:project.halfDone||[],projectId:project.id||null};
       reconcileRef.current=_rc;
       savesBlockedRef.current=true;
       _reconcileHeld=true;
@@ -3607,7 +3618,7 @@ function processLoadedProject(project){
   try{
     var _pk='cs_pending_session_'+(project.id||'');
     var _pj=localStorage.getItem(_pk);
-    if(_pj){var _ps=JSON.parse(_pj);if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}localStorage.removeItem(_pk);}
+    if(_pj){var _ps=JSON.parse(_pj);if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}if(!_reconcileHeld)localStorage.removeItem(_pk);}   // kept while a question holds saves; the first save after it clears it
   }catch(_){}
   setStatsSessions(rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
@@ -8176,17 +8187,17 @@ return(
   })()}
   {reconcile&&(()=>{
     const cands=reconcile.candidates||[];
-    const n=reconcile.oldMarks.toLocaleString('en-GB');
     const f=v=>v.toLocaleString('en-GB');
-    return <div className="modal-overlay reconcile-overlay" role="alertdialog" aria-modal="true" aria-labelledby="reconcile-title" aria-describedby="reconcile-body">
-      <div className="modal-content reconcile-modal" style={{maxWidth:480}}>
+    const what=[reconcile.oldMarks>0?f(reconcile.oldMarks)+' stitches':null,reconcile.oldHalf>0?f(reconcile.oldHalf)+' half stitches':null].filter(Boolean).join(' and ');
+    const O=window.Overlay;
+    const body=<>
         <h3 id="reconcile-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>This pattern changed since you last stitched it</h3>
         <div id="reconcile-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
-          <p style={{marginTop:0}}>It has a different number of stitches now ({sW}&times;{sH}), so the {n} stitches you marked no longer line up with it.</p>
+          <p style={{marginTop:0}}>It has a different number of stitches now ({sW}&times;{sH}), so the {what} you marked no longer line up with it.</p>
           {cands.length>0
             ?<p>You can keep your progress where cells still match. This assumes the change was at the bottom or right edge; if it was at the top or left, marks would land on the wrong stitches, so choose Start progress again.{cands.length>1?' Your marks fit two sizes, so choose which one the pattern had.':''}</p>
             :<p>We cannot tell how the pattern was resized, so the marks cannot be carried across.</p>}
-          <p style={{marginBottom:0}}>Whichever you choose, your earlier full-stitch marks are saved as a snapshot in Stats &gt; Compare. Nothing is changed until you choose.</p>
+          <p style={{marginBottom:0}}>If you keep your progress or start again, your earlier full-stitch marks are saved as a snapshot in Stats &gt; Compare. If you leave it as it is, nothing is changed and nothing is saved. Nothing changes until you choose.</p>
         </div>
         <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
           {cands.map((c,i)=><button key={i} className={'resume-recap-btn'+(i===0?' resume-recap-btn--primary':'')} autoFocus={i===0} onClick={()=>resolveReconcile('keep:'+i)}>
@@ -8195,8 +8206,12 @@ return(
           <button className="resume-recap-btn" autoFocus={cands.length===0} onClick={()=>resolveReconcile('again')}>Start progress again</button>
           <button className="resume-recap-btn" onClick={()=>resolveReconcile('home')}>Leave it as it is and go back</button>
         </div>
-      </div>
-    </div>;
+    </>;
+    // The shared overlay traps focus, locks background scrolling and joins the Escape stack; with no
+    // onClose and no scrim dismissal, the question can only be answered with one of its buttons.
+    return O
+      ?<O variant="dialog" maxWidth={480} labelledBy="reconcile-title" describedBy="reconcile-body" dismissOnScrim={false} className="reconcile-modal" panelProps={{role:'alertdialog','data-reconcile':'1'}}><div style={{padding:'var(--s-4)'}}>{body}</div></O>
+      :<div className="modal-overlay reconcile-overlay" role="alertdialog" aria-modal="true" aria-labelledby="reconcile-title" aria-describedby="reconcile-body"><div className="modal-content reconcile-modal" style={{maxWidth:480}}>{body}</div></div>;
   })()}
   {resumeRecap&&(()=>{
     // A3: Resume recap modal — fires once per project load when prior sessions exist.

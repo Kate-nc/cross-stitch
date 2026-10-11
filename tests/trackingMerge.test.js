@@ -226,6 +226,12 @@ describe('tracker: a mismatched load never zeroes silently', () => {
   test('the earlier marks go to a snapshot before they are replaced', () => {
     expect(TRACKER_SRC).toMatch(/label:'Before pattern change'/);
   });
+  test('Edit in Creator, the pending-session recovery, half-stitch gate and the shared overlay', () => {
+    expect(TRACKER_SRC).toMatch(/function handleEditInCreator\(\)\{\s*if\(!pat\|\|!pal\)return;\s*if\(savesBlockedRef\.current\)return;/);
+    expect(TRACKER_SRC).toMatch(/if\(!_reconcileHeld\)localStorage\.removeItem\(_pk\)/);
+    expect(TRACKER_SRC).toMatch(/if\(_oldMarks>0\|\|_oldHalf>0\)\{/);
+    expect(TRACKER_SRC).toMatch(/dismissOnScrim=\{false\}/);
+  });
   test('the recap waits for the reconciled figures', () => {
     expect(TRACKER_SRC).toMatch(/reconcileRef\.current\.recap=_recap/);
     expect(TRACKER_SRC).toMatch(/setResumeRecap\(\{\.\.\.rc\.recap,doneSt:kept\}\)/);

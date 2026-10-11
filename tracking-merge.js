@@ -158,10 +158,11 @@
   // ── Pattern changed since the marks were saved ───────────────────────────
   // The marks are one flag per cell in row-major order, so if the pattern now has a different
   // number of cells they no longer line up. Only the old LENGTH is known, so the old shape is
-  // inferred: the width is unchanged (rows added or removed) or the height is unchanged
-  // (columns added or removed). If both readings fit, or neither, the shape is unknown and
-  // nothing is remapped. Cells are matched from the top-left corner, which is right for rows
-  // or columns added or removed at the bottom or right; the caller says so to the user.
+  // inferred (below): the width unchanged (rows added or removed) or the height unchanged
+  // (columns added or removed). Cells are matched from the top-left corner, which is right for
+  // rows or columns added or removed at the bottom or right; the caller says so to the user.
+  // When both readings fit (a square-ish pattern) BOTH are returned, and the caller must let
+  // the user choose; only an empty result means the shape is unknown and nothing can be remapped.
   // Every shape the old marks could have had: the width kept (rows added or removed) and/or
   // the height kept (columns added or removed). A square-ish pattern can fit both readings.
   function inferOldShapes(len, sW, sH) {
