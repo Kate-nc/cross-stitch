@@ -8231,7 +8231,7 @@ window.useCreatorState = function useCreatorState() {
         var b = pako.deflate(doneArr), o = "", C = 0x8000;
         for (var j = 0; j < b.length; j += C) o += String.fromCharCode.apply(null, b.subarray(j, j + C));
         var tf = trackerFieldsRef.current;
-        tf.doneSnapshots = (tf.doneSnapshots || []).concat([{ id: "snap_" + Date.now(), date: new Date().toISOString().slice(0, 10), label: "Before pattern change", doneCount: marks, data: btoa(o) }]);
+        tf.doneSnapshots = (tf.doneSnapshots || []).concat([{ id: "snap_" + Date.now(), date: new Date().toISOString().slice(0, 10), label: "Before pattern change", doneCount: marks, w: sW, h: sH, data: btoa(o) }]);
       }
     } catch (_) {}
   }

@@ -662,7 +662,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
             ),
             React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString('en-GB') + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
-            avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',whiteSpace:'nowrap'}}, "~" + Math.ceil(c.remaining / avgSessionStitches) + " sessions") : null
+            avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',whiteSpace:'nowrap'}}, (function (n) { return "~" + n + (n === 1 ? " session" : " sessions"); })(Math.ceil(c.remaining / avgSessionStitches))) : null
           );
         })
       )
@@ -861,9 +861,19 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   React.useEffect(function(){
     if(!pat)return;
     var snapDone=snap?decompressSnap(snap.data):null;
+    // A snapshot from before the pattern changed size cannot be drawn on today's grid.
+    if(snapDone&&snapSizeDiffers(snap,snapDone,pat,sW,sH))return;
     if(snapDone&&leftCanvasRef.current)renderComparisonCanvas(leftCanvasRef.current,pat,sW,sH,snapDone);
     if(snapDone&&showDiff&&diffCanvasRef.current)renderDiffCanvas(diffCanvasRef.current,pat,sW,sH,snapDone,done||new Uint8Array(pat.length));
   },[snap,done,pat,sW,sH,showDiff]);
+
+  // A snapshot made when the pattern had another size cannot be drawn on this grid. The size stored with the
+  // snapshot decides (10x20 and 20x10 have the same number of cells); older snapshots have none, so their
+  // length is compared instead.
+  function snapSizeDiffers(sn,snapDone,patArr,w,h){
+    if(sn&&sn.w&&sn.h&&(sn.w!==w||sn.h!==h))return true;
+    return snapDone.length!==patArr.length;
+  }
 
   function saveManualSnapshot(){
     if(!done||!pat)return;
@@ -872,7 +882,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
       var data=uint8ToBase64(pako.deflate(done));
       var today=new Date().toISOString().slice(0,10);
       var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
-      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,data:data};
+      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,w:sW,h:sH,data:data};
       setDoneSnapshots(function(prev){
         var updated=[...prev,newSnap];
         var labelled=updated.filter(function(s){return s.label!=='auto';});
@@ -890,6 +900,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   var newCount=done?Array.from(done).filter(function(v){return v;}).length:0;
   var oldCount=snapDone?Array.from(snapDone).filter(function(v){return v;}).length:0;
   var diff=newCount-oldCount;
+  var sizeMismatch=!!(snapDone&&pat&&snapSizeDiffers(snap,snapDone,pat,sW,sH));
 
   var canvasW=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sW:0;
   var canvasH=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sH:0;
@@ -908,7 +919,10 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
         "Diff view"
       )
     ),
-    snap&&React.createElement("div",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginBottom:'var(--s-2)'}},
+    snap&&sizeMismatch&&React.createElement("div",{role:"status",style:{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-2)'}},
+      "This snapshot ("+snap.date+", "+oldCount+" stitches) was taken before the pattern changed size, so it cannot be drawn or compared with the pattern as it is now."
+    ),
+    snap&&!sizeMismatch&&React.createElement("div",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginBottom:'var(--s-2)'}},
       "Since "+snap.date+": ",
       React.createElement("strong",{style:{color:diff>=0?'var(--success)':'var(--danger)'}},(diff>=0?'+':'')+diff+" stitches")
     ),
@@ -917,7 +931,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
         React.createElement("div",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginBottom:'var(--s-1)'}},snap?snapLabel(snap):'Select snapshot'),
         React.createElement("canvas",{ref:leftCanvasRef,role:"img","aria-label":snap?("Snapshot from "+snap.date):"Snapshot (none selected)",style:{border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:canvasW,height:canvasH,display:'block'}})
       ),
-      showDiff&&snap&&React.createElement("div",{style:{textAlign:'center'}},
+      showDiff&&snap&&!sizeMismatch&&React.createElement("div",{style:{textAlign:'center'}},
         React.createElement("div",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginBottom:'var(--s-1)'}},"New stitches"),
         React.createElement("canvas",{ref:diffCanvasRef,role:"img","aria-label":"Changes since snapshot",style:{border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:canvasW,height:canvasH,display:'block'}})
       ),
@@ -1276,7 +1290,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       totalTimeFormatted: overviewStats.totalTimeFormatted,
       sessions: statsSessions || [],
       avgPerDay: overviewStats.avgPerDay,
-      streak: streakInfo.currentStreak,
+      streak: streakInfo.current,
       palette: palette
     });
     canvas.toBlob(function(blob) {
@@ -1683,7 +1697,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
       React.createElement(MetricCard, {label: 'Time stitching', value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
       React.createElement(MetricCard, {label: 'Average speed', value: lifetimeTotals.speed, sub: 'stitches / hour'}),
-      React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' / ' + lifetimeTotals.total, sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
+      React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' finished', sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
     ),
 
     // Section 2: Streak

@@ -1,6 +1,9 @@
 // stats-activity.js — Tier B Activity Page
 // Exposes window.StatsActivity as the main component.
 // Uses h = React.createElement convention, compiled via Babel at runtime.
+// Wrapped in a function so its top-level names (useState, h, ymd, ...) stay private: two plain scripts
+// that both declared them failed with "Identifier has already been declared" when loaded on one page.
+(function () {
 
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 const h = React.createElement;
@@ -601,3 +604,4 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
 }
 
 window.StatsActivity = StatsActivity;
+})();

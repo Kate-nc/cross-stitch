@@ -1436,8 +1436,18 @@ function fitWorkAreaView(){
   el.scrollLeft=0;el.scrollTop=0;
   requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
 }
+// The whole pattern in the scroll box, on both axes (the hook's fitSZ looked at the width alone, so a
+// tall pattern overflowed the box). No box yet, or no size: fall back to the hook's width fit.
+function fitWholeView(){
+  const el=stitchScrollRef.current;
+  if(!el||!sW||!sH){fitSZ();return;}
+  const fit=Math.min((el.clientWidth-G-8)/(sW*20),(el.clientHeight-G-8)/(sH*20));
+  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,fit)).toFixed(3));
+  el.scrollLeft=0;el.scrollTop=0;
+  requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
+}
 // "Fit" fits the work area while one is active, the whole pattern otherwise.
-function fitChart(){if(areaOn)fitWorkAreaView();else fitSZ();}
+function fitChart(){if(areaOn)fitWorkAreaView();else fitWholeView();}
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -2425,29 +2435,36 @@ useEffect(()=>{
         }catch(me){}
       }
     }
-    // Auto-snapshot: on new stitching day, save a snapshot of the current done-state
+    // Auto-snapshot: on a new stitching day, keep a snapshot of the done-state as it was. The day comes from
+    // the same helper the statistics use (it used to call a function that only exists inside useAutoSession,
+    // so it threw into this catch and no snapshot was ever saved). Compressing 90,000 cells is a few
+    // milliseconds, so it runs when the browser is idle rather than inside the mark.
     if(done){
       try{
-        const today=getStitchingDateLocal(new Date());
+        const today=getStitchingDate(new Date(),(statsSettings&&statsSettings.dayEndHour)||0);
         if(!lastSnapshotDateRef.current){
           lastSnapshotDateRef.current=today;
         } else if(lastSnapshotDateRef.current!==today){
-          const snapshot={
-            id:'snap_'+Date.now(),
-            date:lastSnapshotDateRef.current,
-            label:'auto',
-            doneCount:curDone,
-            data:(function(b){var C=0x8000,o='';for(var i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));return btoa(o);})(pako.deflate(done))
+          const copy=done.slice(),dayOf=lastSnapshotDateRef.current,marks=curDone,w=sW,hgt=sH,forProject=projectIdRef.current;
+          const make=()=>{
+            // The user may have opened another project while this waited for an idle moment.
+            if(projectIdRef.current!==forProject)return;
+            try{
+              const b=pako.deflate(copy);
+              const C=0x8000;let o='';for(let i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));
+              const snapshot={id:'snap_'+Date.now(),date:dayOf,label:'auto',doneCount:marks,w:w,h:hgt,data:btoa(o)};
+              setDoneSnapshots(prev=>{
+                const updated=[...prev,snapshot];
+                const labelled=updated.filter(s=>s.label!=='auto');
+                const autos=updated.filter(s=>s.label==='auto').slice(-60);
+                return[...labelled,...autos];
+              });
+            }catch(e){console.warn('[stitchx/tracker] could not save the daily snapshot:',e);}
           };
-          setDoneSnapshots(prev=>{
-            const updated=[...prev,snapshot];
-            const labelled=updated.filter(s=>s.label!=='auto');
-            const autos=updated.filter(s=>s.label==='auto').slice(-60);
-            return[...labelled,...autos];
-          });
+          if(typeof requestIdleCallback==='function')requestIdleCallback(make,{timeout:5000});else setTimeout(make,0);
           lastSnapshotDateRef.current=today;
         }
-      }catch(e){}
+      }catch(e){console.warn('[stitchx/tracker] daily snapshot check failed:',e);}
     }
     prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
   }catch(e){}
@@ -3104,7 +3121,7 @@ function resolveReconcile(choice){
   try{
     const b=pako.deflate(Uint8Array.from(rc.oldDone));
     const C=0x8000;let o='';for(let i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));
-    const snap={id:'snap_'+Date.now(),date:new Date().toLocaleDateString('en-CA'),label:'Before pattern change',doneCount:rc.oldMarks,data:btoa(o)};
+    const snap={id:'snap_'+Date.now(),date:new Date().toLocaleDateString('en-CA'),label:'Before pattern change',doneCount:rc.oldMarks,w:cand?cand.oldW:undefined,h:cand?cand.oldH:undefined,data:btoa(o)};
     setDoneSnapshots(prev=>{
       const updated=[...prev,snap];
       return[...updated.filter(s=>s.label!=='auto'),...updated.filter(s=>s.label==='auto').slice(-60)];
@@ -3658,7 +3675,24 @@ function processLoadedProject(project){
   persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
   // Restore done-state snapshots and reset the day-tracking ref
   setDoneSnapshots(project.doneSnapshots||[]);
+  // The last stitching day seen, so opening the Tracker on a later day still notices the change of day
+  // (it used to start from nothing on every load, and the snapshot only fired if the page stayed open
+  // across midnight). The newest session's date is that day (sessions are saved when the Tracker closes);
+  // lastTouchedAt, then updatedAt, are the fallbacks. A project with nothing marked has no day yet.
   lastSnapshotDateRef.current=null;
+  try{
+    const hasMarks=project.done&&Array.from(project.done).some(v=>v===1);
+    let lastDay=null;
+    (project.statsSessions||[]).forEach(s=>{if(s&&s.date&&(!lastDay||s.date>lastDay))lastDay=s.date;});
+    // A very short session is not recorded at all, so fall back to when the project was last touched or saved.
+    const deh=(project.statsSettings&&project.statsSettings.dayEndHour)||0;
+    [project.lastTouchedAt,project.updatedAt].forEach(t=>{
+      if(lastDay||!t)return;
+      const d=new Date(t);
+      if(!isNaN(d.getTime()))lastDay=getStitchingDate(d,deh);
+    });
+    if(lastDay&&hasMarks)lastSnapshotDateRef.current=lastDay;
+  }catch(_){}
   // Reset auto-session count refs so loading doesn't trigger a spurious session
   // justLoadedRef stays true until the stitch-delta effect has run at least once,
   // protecting against the sentinel being consumed by a halfStitchCounts change
@@ -7799,7 +7833,7 @@ return(
               <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",minWidth:40,textAlign:"center"}}>{Math.round((stitchZoom||1)*100)}%</span>
               <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom in">&#43;</button>
-              <button onClick={fitSZ} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
+              <button onClick={fitChart} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
             </div>
           </div>
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>

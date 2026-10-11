@@ -1,3 +1,4 @@
+const PORT = process.env.AUDIT_PORT || '8000';
 const WORK = process.env.AUDIT_WORK || (require('os').tmpdir() + '/tracking-audit-work/');
 const { chromium, devices } = require('playwright');
 const fs = require('fs');
@@ -19,7 +20,7 @@ async function launch(opts = {}, profile) {
     if (MAP[name]) return route.fulfill({ status: 200, contentType: 'application/javascript', body: fs.readFileSync(MAP[name]) });
     return route.abort();
   });
-  await ctx.route(/127\.0\.0\.1:8000\/[^?]*\.html/, async route => {
+  await ctx.route(new RegExp('127\\.0\\.0\\.1:' + PORT + '/[^?]*\\.html'), async route => {
     const resp = await route.fetch();
     let body = await resp.text();
     body = body.replace(/ integrity="[^"]*"/g, '');
@@ -29,7 +30,7 @@ async function launch(opts = {}, profile) {
 }
 async function seed(page, file) {
   const proj = JSON.parse(fs.readFileSync(S + 'fx/' + file, 'utf8'));
-  await page.goto('http://127.0.0.1:8000/home.html');
+  await page.goto('http://127.0.0.1:' + PORT + '/home.html');
   await page.waitForFunction(() => window.ProjectStorage);
   const id = await page.evaluate(async p => { const id = await ProjectStorage.save(p); ProjectStorage.setActiveProject(id); return id; }, proj);
   return id;

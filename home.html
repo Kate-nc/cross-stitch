@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cdnjs.cloudflare.com; worker-src 'self' blob:; frame-src 'self' blob:;">
-<title>stitch. â€” Home</title>
+<title>stitch. — Home</title>
 <link rel="manifest" href="./manifest.json">
-<!-- Canonical landing â€” tool pages point their canonical href back here.
+<!-- Canonical landing — tool pages point their canonical href back here.
      (Homepage-predominance audit, Tier 3 #11.) -->
 <link rel="canonical" href="./home.html">
 <meta property="og:title" content="stitchx">
@@ -34,12 +34,12 @@
 <!-- CDN failure detection: show a banner if React or ReactDOM failed to load -->
 <script>(function(){if(typeof React==='undefined'||typeof ReactDOM==='undefined'){document.addEventListener('DOMContentLoaded',function(){var d=document.createElement('div');d.setAttribute('role','alert');d.style.cssText='position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;background:#c0392b;color:#fff;font-family:sans-serif;font-size:0.9rem;text-align:center;z-index:99999;';d.textContent='This page could not load (a required library failed to download). Please check your connection and reload.';if(document.body)document.body.prepend(d);});}}());</script>
 <link rel="stylesheet" href="styles.css">
-<!-- Shared chrome scripts only â€” /home does NOT load creator-main, creator/bundle,
+<!-- Shared chrome scripts only — /home does NOT load creator-main, creator/bundle,
      tracker-app, or manager-app. Heavy tool bundles stay on their own pages. -->
 <script src="constants.js"></script>
 <script src="dmc-data.js"></script>
 <!-- anchor-data.js (45 KB) and thread-conversions.js (65 KB) are NOT loaded
-     on /home â€” verified via grep that home-app.js / home-screen.js never
+     on /home — verified via grep that home-app.js / home-screen.js never
      reference ANCHOR, CONVERSIONS, or getOfficialMatch. Saves 110 KB of
      eager parse on the landing page. -->
 <!-- starter-kits.js (~5 KB), components.js (~33 KB — SliderRow / ProgressRing /
