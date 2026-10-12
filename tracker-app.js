@@ -4468,6 +4468,8 @@ useEffect(() => {
 // callers (e.g. the standalone Stats page's project-card click) request a
 // specific project's stats — StatsContainer will lazy-load it from IDB if it
 // isn't the currently-open one.
+// This project's own Stats (not whichever tab was open last, and not the all-projects tab the page starts on).
+function openProjectStats(){setStatsTab(projectIdRef.current||'all');setStatsView(true);}
 useEffect(() => {
   window.__openTrackerStats = function(targetId) {
     setStatsTab(targetId || projectIdRef.current || 'all');
@@ -7338,7 +7340,7 @@ return(
         ...(sparkDays.length>=2?[
           React.createElement(window.AppInfoDivider),
           React.createElement(window.AppInfoSection, { title: 'Daily progress' },
-            React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:40,paddingTop:4},'aria-label':'Daily stitches bar chart'},
+            React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:40,paddingTop:4},role:'img','aria-label':'Stitches per stitching day, last '+sparkDays.length+' stitching days; latest '+sparkDays[sparkDays.length-1].count.toLocaleString('en-GB')+'. Open Stats for the full chart.'},
               sparkDays.map(({date,count})=>React.createElement('div',{
                 key:date,
                 title:date+': '+count.toLocaleString('en-GB')+' stitches',
@@ -7346,7 +7348,9 @@ return(
               }))
             )
           )
-        ]:[])
+        ]:[]),
+        React.createElement(window.AppInfoDivider),
+        React.createElement('button',{type:'button',className:'stats-export-btn',style:{width:'100%',justifyContent:'center',minHeight:44},onClick:()=>{setProgressInfoOpen(false);openProjectStats();}},'Open Stats')
       ]
     });
   })()}
@@ -7399,7 +7403,7 @@ return(
   </div>
 )}
 </>}
-<div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px"}}>
+<div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px",width:(!statsView&&pat&&pal)?undefined:"100%"}}>
   {/* The same floating card the home screen's import shows (styles.css
       .import-busy): above the chart and sidebar, where a line in the page
       would sit under the sidebar. */}
@@ -8056,7 +8060,7 @@ return(
             {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
           </>}
           {statsSessions&&statsSessions.length>0&&<button
-            onClick={()=>{setMorePanelOpen(false);setStatsView(true);}}
+            onClick={()=>{setMorePanelOpen(false);openProjectStats();}}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:6,marginTop:4}}
           >{Icons.barChart?Icons.barChart():null} View Stats</button>}
         </div>}
@@ -8484,7 +8488,7 @@ return(
         </div>
         <div className="resume-recap-footer">
           <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
-          <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();openProjectStats();}}>Stats</button>
           <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
         </div>
       </div>

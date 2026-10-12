@@ -205,9 +205,12 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     );
 });
 
-var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts, useActiveDays}){
+var OverviewCards=React.memo(function OverviewCards({statsSessions, totalCompleted, totalStitches, halfStitchCounts, useActiveDays, todayStitches, weekStitches}){
   var stats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var hasHalf = halfStitchCounts && halfStitchCounts.total > 0;
+  var est = stats.timeIsEstimated ? ' (estimated)' : '';
+  var hasRecent = typeof todayStitches === 'number' || typeof weekStitches === 'number';
+  // The headline: how far along, what was done today and this week, and when it will be finished and why we say so.
   return React.createElement("div", {className:"stats-overview"},
     React.createElement("div", {className:"stats-overview-main"},
       React.createElement(ProgressRing, {percent:stats.percent, size:56}),
@@ -217,18 +220,22 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
         hasHalf && React.createElement("span", {className:"stats-sublabel"}, halfStitchCounts.done.toLocaleString('en-GB') + " / " + halfStitchCounts.total.toLocaleString('en-GB') + " half stitches (\xbd\xd7)")
       )
     ),
+    hasRecent && React.createElement("div", {className:"stats-headline-row"},
+      typeof todayStitches === 'number' && React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Today"), React.createElement("span", {className:"stats-value"}, ProgressUnits.formatUnits(todayStitches))),
+      typeof weekStitches === 'number' && React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "This week"), React.createElement("span", {className:"stats-value"}, ProgressUnits.formatUnits(weekStitches)))
+    ),
+    React.createElement("div", {className:"stats-estimate stats-estimate--headline"}, React.createElement("span", {className:"stats-label"}, "Est. finish"),
+      stats.estimate && stats.estimate.enough
+        ? [
+            React.createElement("span", {key:"v", className:"stats-value"}, estFormatDate(stats.estimate.finishDate)),
+            React.createElement("span", {key:"r", className:"stats-sublabel"}, stats.estimate.rangeText),
+            stats.hoursRemaining != null && React.createElement("span", {key:"h", className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching'),
+            React.createElement("span", {key:"b", className:"stats-sublabel stats-estimate-basis"}, stats.estimate.basis)
+          ]
+        : React.createElement("span", {className:"stats-value"}, stats.estimate ? stats.estimate.text : '\u2014')),
     React.createElement("div", {className:"stats-overview-grid"},
-      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Speed"), React.createElement("span", {className:"stats-value"}, stats.stitchesPerHour + "/hr")),
-      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Time stitched"), React.createElement("span", {className:"stats-value"}, stats.totalTimeFormatted)),
-      React.createElement("div", {className:"stats-estimate"}, React.createElement("span", {className:"stats-label"}, "Est. finish"),
-        stats.estimate && stats.estimate.enough
-          ? [
-              React.createElement("span", {key:"v", className:"stats-value"}, estFormatDate(stats.estimate.finishDate)),
-              React.createElement("span", {key:"r", className:"stats-sublabel"}, stats.estimate.rangeText),
-              stats.hoursRemaining != null && React.createElement("span", {key:"h", className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching'),
-              React.createElement("span", {key:"b", className:"stats-sublabel stats-estimate-basis"}, stats.estimate.basis)
-            ]
-          : React.createElement("span", {className:"stats-value"}, stats.estimate ? stats.estimate.text : '\u2014')),
+      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Speed" + est), React.createElement("span", {className:"stats-value"}, stats.stitchesPerHour + "/hr")),
+      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Time stitched" + est), React.createElement("span", {className:"stats-value"}, stats.totalTimeFormatted)),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Sessions"), React.createElement("span", {className:"stats-value"}, (statsSessions||[]).length))
     )
   );
