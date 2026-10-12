@@ -210,3 +210,25 @@ test('legacy project with only totalTime: Home, global Stats and the Tracker sho
   expect(pop).not.toMatch(bad);
   await expect(page.locator('.completion-projection-bar')).toContainText('Not enough history yet');
 });
+
+// What Home and the Manager actually display, where the old full-stitches-only count and the shared definition
+// disagree: 100 full stitches (none done) and 100 half-stitch cells (both sides done) is 100 of 200 units, 50%; the
+// old count read 0 of 100, 0%.
+test('Home card, project row and header chip show 50% when only half stitches are done (and so does the Manager)', async ({ page }) => {
+  await init(page);
+  await page.evaluate(async () => {
+    const W = 20, H = 10;
+    const pattern = Array.from({ length: W * H }, (_, i) => (i < 100 ? { id: '310', type: 'solid', rgb: [0, 0, 0] } : { id: '__skip__' }));
+    const side = { id: '310', rgb: [0, 0, 0], type: 'solid' };
+    const halfStitches = Array.from({ length: 100 }, (_, i) => [100 + i, { fwd: side, bck: side }]);
+    const halfDone = Array.from({ length: 100 }, (_, i) => [100 + i, { fwd: true, bck: true }]);
+    await ProjectStorage.save({ id: 'proj_m5', name: 'HalvesOnly', settings: { sW: W, sH: H, fabricCt: 14 }, pattern, done: new Array(W * H).fill(0), halfStitches, halfDone,
+      originalPaletteState: [{ id: '310', type: 'solid', name: 'Black', rgb: [0, 0, 0], lab: [0, 0, 0], count: 100, symbol: 'A' }] });
+    ProjectStorage.setActiveProject('proj_m5');
+  });
+  await page.goto('/home.html');
+  await expect(page.getByText('20×10 · Updated just now · 50% complete')).toBeVisible({ timeout: 15000 });   // the active project's card
+  await expect(page.getByText('50%', { exact: true }).filter({ visible: true }).first()).toBeVisible();     // the project row and the header chip
+  await page.goto('/manager.html?from=home');
+  await expect(page.getByText('50%', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
+});

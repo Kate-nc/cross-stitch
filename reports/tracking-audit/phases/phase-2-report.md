@@ -19,7 +19,7 @@ Version entries 1.0.113 to 1.0.119 are in the in-app changelog; help text covers
 
 | Criterion | Result |
 |---|---|
-| Units: 1,742 full + 30 half sides + 2 knots, mark 2 full, 2 half, 1 knot: 4 / 1,759 (0.2%) in the strip, header, popover, project Stats, Home card, share text, CSV and image | Pass for the strip, header, popover, project Stats, Home and library rows, global dashboard and share text (matrix test `phase2-matrix`, all three fixtures). The progress image shows the same percentage (it reads the shared overview); the session CSV carries cumulative totals in units; neither is drawn or parsed in a browser test |
+| Units: 1,742 full + 30 half sides + 2 knots, mark 2 full, 2 half, 1 knot: 4 / 1,759 (0.2%) in the strip, header, popover, project Stats, Home card, share text, CSV and image | Pass for the strip, header chip, popover, project Stats, Home card, info popover and library rows, Manager, global dashboard and share text (matrix test `phase2-matrix`, all three fixtures). The progress image shows the same percentage (it reads the shared overview); the session CSV carries cumulative totals in units; neither is drawn or parsed in a browser test |
 | Only half stitches done (3 sides = 1.5 units) | Pass: 2 / 1,759 (0.1%) everywhere (1.5 shows as 2, the percentage is exact) |
 | Unpicking: +50 and -80 is Today 50, "Unpicked 80", net -30; a day of only -80 is not an active day; speed uses additions only | Pass (unit `phase2Batch3`, e2e `phase2-batch3`) |
 | Midnight: 10 at 23:50 and 20 at 00:02 are 10 on the 10th and 20 on the 11th; with a 2:00 AM day end all on the 10th; "today" identical before and after the session closes | Pass in the browser with a faked clock (3 and 2 stand in for 10 and 20; `phase2-batch4`). Today is 2 live and 2 after saving, in Progress info; project Stats and global Stats do not show a "today" figure of their own |
@@ -103,3 +103,7 @@ Safari and Firefox; real devices and iOS storage; the Recent Pace card in `stats
 1. Phase 3 (time and history) next as written? It owns STATS-03 (what "time" and "speed" mean), which the estimate's hours remaining depends on, and STATS-06 (editing and deleting sessions), which interacts with the split records from batch 4.
 2. Are you happy that the "Pace calculation" choice is gone (the one control this phase removed)?
 3. Should catch-up also be offered for the other bulk actions (rectangle fill, "mark everything I did on paper"), or is the colour-done case enough until Phase 6?
+
+
+### Late fixes on this PR
+The header chip and the Home info popover still used private full-stitch counters (a half-stitch-only project read 0% in the chip, 50% on its card); both now use the shared definition, covered by a new UI-level Home/Manager test. `computeOverviewStats` now ignores `useActiveDays`. The 15 related browser specs pass.

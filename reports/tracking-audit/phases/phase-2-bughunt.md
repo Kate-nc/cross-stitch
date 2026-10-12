@@ -137,6 +137,8 @@ The global Recent Pace card in `stats-page.js` and the Insights-page project car
 - **Dead code (removed):** the Tracker's private copy of the share text (with its own estimate and an emoji) and its clipboard helper were called by nothing; a persistence test that inspected that dead line now checks the live share text.
 - **A stale test of mine (fixed):** `french-knots` still expected the pre-batch-2 strip ("0 done" after a knot); it was not in the browser subset I ran for batch 2.
 - **Spec setup (fixed):** see the report: 30 specs could not load their libraries in a sandbox; two specs followed old UI flows; one was timing-sensitive.
+- **Header chip and Home info popover still counted full stitches only (fixed):** found by the new Home/Manager browser test (a half-stitch-only project showed 0% in the Home header chip but 50% on its card). `header.js` and the `home-app.js` Progress row now read `ProgressUnits.fromProject`; test `phase2-matrix` "Home card, project row and header chip show 50%…".
+- **`useActiveDays` still steered the average (fixed, Copilot):** `computeOverviewStats` now ignores it (one pace); nothing passes it.
 - **Discrepancy with the prompt (reported, not a bug):** the history fixture's mean is 135 per stitching day, not the prompt's 145 (the old weighted pace); the answer, 5 days and 16 October, is the same.
 
 ### Not verified

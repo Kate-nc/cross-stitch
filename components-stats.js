@@ -519,7 +519,6 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
   var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
   var dayEndHour = getDayEndHour(statsSettings);
-  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
   var weekStitches = getStatsThisWeekStitches(statsSessions || [], dayEndHour);
   var monthStitches = getStatsThisMonthStitches(statsSessions || [], dayEndHour);
@@ -1260,8 +1259,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
     }
   }, []);
-  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
-  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
+  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.estimate);
   var dayEndHour = getDayEndHour(statsSettings);
   var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
@@ -1341,7 +1339,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, useActiveDays:useActiveDays}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
