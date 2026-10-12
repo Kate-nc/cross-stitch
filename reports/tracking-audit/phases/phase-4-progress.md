@@ -31,3 +31,25 @@ Interleaved against `main`, 3 pairs of 90 taps: median ms main 10.8 / 10.6 / 11.
 ### Known limits
 - The project name in the top bar is not shown under 900 px (it was clipped away already); the project switcher still shows it.
 - Targets of dense controls elsewhere (More-panel chips, tabs) are the later batches' and the other audits' business; the audit here covers what is visible on the Tracker's first screen at 393x727 and 851x393.
+
+## Batch 2: give the chart the screen (TRACK-07)
+
+Reproduced first (`tests/e2e/phase4-batch2.spec.js`): at 393x727 the chart box was a fixed 600 px starting 155 px down, so it ran 28 px past the bottom of the screen and the bar under it (at 797 px) was out of sight; at 851x393 the 600 px box began at 140 px of a 393 px screen. The Palette pill sat on the hint banner, and the controls strip covered the last columns. Two things found on the way:
+- **Focus mode did nothing on this layout.** Its CSS hides `.header`, `.info-strip` and `.toolbar-row`, but the top bar is `.tb-topbar` and the strip `.info-strip-wrap`; pressing F also collides with the "Full-stitch layer" shortcut. Focus is now real, and it is the thing the phone default needs.
+- **The "rail" step of the Colours button was invisible** with Focus on (the old rule hid every `.lpanel`), so the first tap did nothing; Focus now leaves an opened panel and the collapsed strip alone.
+
+What changed:
+- **Chart sized to the screen** (phone, tablet, or any window under 1024 px): `useFillChartHeight` measures what is above and below the chart box and sets `--tracker-chart-h` (screen height less the space the box starts at, less the bar and hints under it). It runs on layout changes (a banner coming or going, rotating, Focus, the on-screen keyboard through `visualViewport`), through `ResizeObserver` and rAF, never per stitch. Desktop is untouched (a test checks the chart box is still exactly 600 px at 1440x900 and no variable is set).
+- **Focus** now hides the top bar, the progress strip and the hint banners; a thin progress line (percentage and stitches left) takes their place and the floating bar keeps Undo, zoom and Exit focus (the Esc legend is hidden on touch). The controls strip stays. **On a phone (a touch screen under 600 px on its short side) it is the default**; `Phones and small screens` in Preferences turns that off. Result: portrait chart 643 of 727 px (88%), landscape 309 of 393 px (79%), nothing scrolls; with Focus off or on a tablet the chart still ends at the bottom of the screen (at least 50%).
+- **Hint banners go after the first marked stitch** and stay gone (`trackerHintsSeen`, global). The idle bar under the chart ("—") is hidden on touch until a guide is placed.
+- **Controls strip:** the floating Palette pill is gone; the strip's first button shows the current colour (swatch and thread number). The chart has end space equal to the strip so the last column can be scrolled clear of it; Fit leaves that room too. New `trackerHandedness` (Right default, Left in Preferences) moves the strip and gives the chart a matching margin on the left.
+- **Fit rounds down.** The chart's cell size is a whole number of pixels (`round(20 x zoom)`), and Fit rounded it up, so a fitted pattern could overshoot the box by up to half a pixel per cell; the old 600 px box had hidden it by luck (the Phase 2 Fit spec failed on the new heights). Both fits now round down.
+- **Regression of batch 1 found and fixed:** the compact save status hid the project name and percentage below 900 px, which includes a tablet in portrait; it now applies only to a narrow or short (phone on its side) screen. The Phase 2 matrix spec ("header chip shows 50%") caught it.
+
+### Performance (batch 2)
+Phone emulation (393x727 touch, CPU throttled 4x, 300x300 fixture), interleaved against `main`, 3 pairs of 30 taps: median ms main 65.0 / 67.8 / 69.7, branch 64.4 / 67.4 / 64.1; load to chart main 4071 / 4327 / 4238, branch 3997 / 4227 / 4168 (`perf/phase4-batch2/phone.txt`, harness `phonebench.js`). Desktop (1440x900, 3 pairs of 90 taps): median ms main 9.6 / 8.7 / 8.5, branch 9.0 / 8.8 / 8.3 (`tap.txt`). No regression either way.
+
+### Known limits
+- No separate toggle to leave Focus for a session: Exit focus is the way back, and it returns on the next open (turn it off in Preferences to stop that).
+- Left-handed placement costs the chart about 60 px of width.
+- The first-run welcome tour and the persistence toast still open over the chart on a first visit; that is batch 4 (TRACK-05).

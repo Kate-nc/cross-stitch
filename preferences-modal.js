@@ -406,6 +406,8 @@
     var markAllAs = usePref("trackerMarkAllAs", "ask");
     var showMotivation = usePref("showStreaksAndGoals", null);
     var showDaily = usePref("showDailyStreak", null);
+    var focusPhone = usePref("trackerFocusOnPhone", true);
+    var handed = usePref("trackerHandedness", "right");
     var dayEnd = usePref("statsDayEndHour", 0);
 
     return h("div", null,
@@ -537,6 +539,18 @@
       h(Section, { title: "Canvas display" },
         h(Row, { last: true, label: "Thread sheen", desc: "Adds a subtle specular highlight to pattern squares to better suggest how thread catches light." },
           h(Switch, { checked: trackerSheen[0], onChange: trackerSheen[1] })
+        )
+      ),
+
+      h(Section, { title: "Phones and small screens" },
+        h(Row, { label: "Tuck the top bar away while stitching on a phone", desc: "On a phone the Tracker opens with the top bar and progress strip hidden, so the chart gets the screen; a thin progress line and an Exit focus button stay. Off keeps them showing. Tablets and computers are not affected." },
+          h(Switch, { checked: focusPhone[0] !== false, onChange: focusPhone[1], "aria-label": "Tuck the top bar away while stitching on a phone" })
+        ),
+        h(Row, { last: true, label: "Controls side", desc: "Which side of the chart the Mark, Nav and Undo buttons sit on. Left suits left-handed stitching; the chart then makes room for them." },
+          h(Segmented, { value: handed[0] === "left" ? "left" : "right", onChange: handed[1], options: [
+            { value: "right", label: "Right" },
+            { value: "left",  label: "Left" }
+          ] })
         )
       ),
 

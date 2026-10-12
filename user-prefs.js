@@ -147,6 +147,11 @@
     // user's last preference so the lock survives reloads.
     trackerWakeLock:        false,
 
+    // ─── Small screens (tracking audit TRACK-07) ────────────────────────
+    trackerFocusOnPhone:    true,        // open the Tracker in Focus (top bar and strip tucked away) on a phone
+    trackerHandedness:      "right",     // right | left: which side of the chart the controls strip sits on
+    trackerHintsSeen:       false,       // the how-to-mark banners are shown until the first stitch is marked
+
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
     stashLowStockThreshold:   1,

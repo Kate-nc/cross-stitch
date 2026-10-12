@@ -1,0 +1,6 @@
+{"label":"phone_main1","taps":30,"tapMedian":65,"tapP90":77.7,"loadMedianMs":4071,"loads":[4071,3817]}
+{"label":"phone_branch1","taps":30,"tapMedian":64.4,"tapP90":74.4,"loadMedianMs":3997,"loads":[3997,3742]}
+{"label":"phone_main2","taps":30,"tapMedian":67.8,"tapP90":88.7,"loadMedianMs":4327,"loads":[4327,3769]}
+{"label":"phone_branch2","taps":30,"tapMedian":67.4,"tapP90":77.2,"loadMedianMs":4227,"loads":[4126,4227]}
+{"label":"phone_main3","taps":30,"tapMedian":69.7,"tapP90":82.1,"loadMedianMs":4238,"loads":[4238,3908]}
+{"label":"phone_branch3","taps":30,"tapMedian":64.1,"tapP90":87.4,"loadMedianMs":4168,"loads":[4168,4014]}
