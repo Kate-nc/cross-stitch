@@ -2980,6 +2980,7 @@ function pushBulkToggleHistory(changes, source){
   if(!changes||!changes.length)return;
   if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   const entry={type:"BULK_TOGGLE",source:source||"drag",changes:changes};
+  lastBulkEntryRef.current=entry;   // the Undo N stitches message is bound to exactly this step
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
@@ -7062,6 +7063,20 @@ const[_rectSelectUsed,_setRectSelectUsed]=useState(false);
 const BULK_ASK_MIN=50;
 const bulkUndoToastRef=useRef(null);
 const bulkUndoRef=useRef(null);
+const lastBulkEntryRef=useRef(null);
+const bulkToastEntryRef=useRef(null);
+const trackHistoryRef=useRef([]);
+trackHistoryRef.current=trackHistory;
+// The message goes as soon as the stroke it offers to undo is no longer the newest step (a mark, a park, an Undo, a
+// project switch).
+useEffect(()=>{
+  const t=bulkUndoToastRef.current,e=bulkToastEntryRef.current;
+  if(!t||!e)return;
+  if(trackHistory[trackHistory.length-1]!==e){
+    try{window.Toast&&window.Toast.dismiss&&window.Toast.dismiss(t);}catch(_){}
+    bulkUndoToastRef.current=null;bulkToastEntryRef.current=null;
+  }
+},[trackHistory]);
 bulkUndoRef.current=undoTrack;   // always the current one: the toast's button outlives the render that made it
 const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
@@ -7119,11 +7134,21 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   if(changes.length>_bulkMin&&window.Toast&&window.Toast.show){
     if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
     const n=changes.length;
+    const strokeEntry=lastBulkEntryRef.current;
+    bulkToastEntryRef.current=strokeEntry;
     bulkUndoToastRef.current=window.Toast.show({
       message:n.toLocaleString('en-GB')+' stitches '+(want===1?'marked':'unmarked'),
       type:'info',duration:8000,
       undoLabel:'Undo '+n.toLocaleString('en-GB')+' stitches',
-      undoAction:function(){if(bulkUndoRef.current)bulkUndoRef.current();}
+      undoAction:function(){
+        // Only this stroke: if anything has been marked, parked or undone since, the newest step is not it.
+        const h=trackHistoryRef.current;
+        if(!strokeEntry||h[h.length-1]!==strokeEntry){
+          window.Toast.show({message:"That stroke can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
+          return false;
+        }
+        if(bulkUndoRef.current)bulkUndoRef.current();
+      }
     });
   }
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
@@ -8039,9 +8064,9 @@ return(
           </>;
         })()}
       </button>
-      <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":(paintMode&&_isCoarsePointer?"Mark stitches (T): Paint mode is on":"Mark stitches (T)")} aria-pressed={stitchMode==="track"}>
+      <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":(paintMode&&_isCoarsePointer&&_dragMarkFlag?"Mark stitches (T): Paint mode is on":"Mark stitches (T)")} aria-pressed={stitchMode==="track"}>
         <span className="ppal-mode-btn-icon">{Icons.check()}</span>
-        <span className="ppal-mode-btn-label">{isEditMode?"Modify":(paintMode&&_isCoarsePointer?"Paint":"Mark")}</span>
+        <span className="ppal-mode-btn-label">{isEditMode?"Modify":(paintMode&&_isCoarsePointer&&_dragMarkFlag?"Paint":"Mark")}</span>
       </button>
       <button className={"ppal-mode-btn"+(stitchMode==="navigate"?" ppal-mode-btn--on":"")} onClick={()=>setStitchMode("navigate")} title="Navigate (N)" aria-pressed={stitchMode==="navigate"}>
         <span className="ppal-mode-btn-icon">{Icons.hand()}</span>
@@ -8081,9 +8106,9 @@ return(
         <button className="ppal-more-close" onClick={()=>setMorePanelOpen(false)} aria-label="Close controls">{Icons.x()}</button>
       </div>
       {_isCoarsePointer&&<div className="ppal-touch-row" role="group" aria-label="Touch">
-        <button className={"ppal-utility-chip"+(paintMode?" ppal-utility-chip--on":"")} onClick={()=>setPaintMode(v=>!v)} aria-pressed={paintMode} title="Paint mode: one finger paints a run of stitches at once instead of scrolling the chart">
+        {_dragMarkFlag&&<button className={"ppal-utility-chip"+(paintMode?" ppal-utility-chip--on":"")} onClick={()=>setPaintMode(v=>!v)} aria-pressed={paintMode} title="Paint mode: one finger paints a run of stitches at once instead of scrolling the chart">
           {Icons.brush?Icons.brush():null}{" Paint"}
-        </button>
+        </button>}
         <button className={"ppal-utility-chip"+(touchLocked?" ppal-utility-chip--on":"")} onClick={()=>{setTouchLocked(v=>!v);setMorePanelOpen(false);}} aria-pressed={touchLocked} title="Lock touches: a finger on the chart does nothing, so a propped-up device cannot mark by accident. Hold the Locked pill to unlock">
           {Icons.lock?Icons.lock():null}{" Lock touches"}
         </button>

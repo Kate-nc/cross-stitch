@@ -136,3 +136,25 @@ test('a mouse drag is unchanged: no rest, no toast under six, marks as it goes',
   await page.mouse.up();
   await expect.poll(() => trackerDoneCount(page)).toBe(3);
 });
+
+test('the Undo message goes once anything else is marked, so it can never undo something it did not offer', async ({ page }) => {
+  await loadTrackerFixture(page);
+  const touch = await trackerTouchDriver(page);
+  await restAndDrag(page, touch, await trackerCellPoint(page, 2, 4), 7);
+  await expect.poll(() => trackerDoneCount(page)).toBe(8);
+  await expect(page.getByRole('button', { name: 'Undo 8 stitches' })).toBeVisible();
+  await tap(page, touch, await trackerCellPoint(page, 12, 12));      // one more stitch afterwards
+  await expect.poll(() => trackerDoneCount(page)).toBe(9);
+  await expect(page.getByRole('button', { name: 'Undo 8 stitches' })).toHaveCount(0);
+  expect(await trackerDoneCount(page), 'nothing was undone by the message going').toBe(9);
+});
+
+test('with drag marking turned off in Preferences there is no Paint switch to mislead, and the strip still says Mark', async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem('cs_pref_trackerDragMark', 'false'); } catch (_) {} });
+  await loadTrackerFixture(page);
+  await openMore(page);
+  await expect(page.getByRole('button', { name: /Lock touches/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Paint/ })).toHaveCount(0);
+  await page.locator('.ppal-more-close').click();
+  await expect(page.locator('.ppal-mode-btn-label', { hasText: 'Mark' })).toBeVisible();
+});

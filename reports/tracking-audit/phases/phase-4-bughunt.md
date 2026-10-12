@@ -50,3 +50,7 @@ Safari and Firefox (`dvh`, `visualViewport` and the dynamic toolbar are measured
 
 ### Not verified
 Real iOS Safari and Android devices (the page keeps the browser from scrolling only after the rest; iOS may begin a scroll in the first pixels), a real stylus, a resting palm that makes two touch points in Lock, `npm run test:mobile-audit` (the updated `pan-ownership` spec was not run), 200% zoom, and rotation while a stroke is in progress.
+
+### Review round 1 (Copilot on PR 296; two findings, both verified)
+- **"Undo N stitches" could undo something else (medium).** True: the button always ran the ordinary Undo, so after another mark, a park or an Undo within the 8 seconds it would have undone that instead. The message is now bound to the exact history entry of its stroke: it goes as soon as that entry is no longer the newest step (a later mark, a park, an Undo, a project switch), and if it is somehow pressed after that it declines and says so. New browser test: stroke of 8, one more tap, the message is gone and nothing was undone.
+- **Paint could report an inactive mode (medium).** True: with "Drag to mark stitches" off in Preferences the drag hook is inert, yet the Paint chip and the "Paint" label still appeared. The Paint chip is not offered when drag marking is off, and the strip says Mark. (Lock touches still works there: it stops the touch before the legacy tap handlers see it.) New browser test.
