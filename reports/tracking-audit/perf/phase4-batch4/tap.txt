@@ -1,0 +1,18 @@
+== port 8001 pair 1
+{"label":"t1","n":120,"median":8.8,"p90":12,"mean":9.5}
+== port 8000 pair 1
+}
+
+Node.js v22.22.0
+== port 8001 pair 2
+{"label":"t2","n":120,"median":9.8,"p90":12.6,"mean":10.09}
+== port 8000 pair 2
+}
+
+Node.js v22.22.0
+== port 8001 pair 3
+{"label":"t3","n":120,"median":9.5,"p90":12.4,"mean":9.93}
+== port 8000 pair 3
+}
+
+Node.js v22.22.0
