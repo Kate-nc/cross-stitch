@@ -56,7 +56,19 @@ describe('mergeSessions edits', () => {
   });
 });
 
+describe('deletion tombstones merge as a set', () => {
+  test('a deletion made in the other tab is added; an Undo there removes it again', () => {
+    expect(TM.mergeSet([], [], ['s1'])).toEqual(['s1']);              // other tab deleted s1
+    expect(TM.mergeSet(['s1'], ['s1'], [])).toEqual([]);              // it then took the deletion back
+    expect(TM.mergeSet(['s1'], ['s1', 's2'], [])).toEqual(['s2']);    // our own new deletion survives their Undo
+  });
+});
+
 describe('canMerge', () => {
+  test('a session deleted in the other tab (a tombstone) is merged, not a reason to ask', () => {
+    const r = { ...base(), deletedSessionIds: ['s1'] };
+    expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(true);
+  });
   const base = () => ({ pattern: pat(4), name: 'A', settings: { sW: 2, sH: 2 }, done: [0, 0, 0, 0] });
   test('marks only: yes', () => {
     const r = { ...base(), done: [1, 0, 0, 0], statsSessions: [{ id: 9 }] };

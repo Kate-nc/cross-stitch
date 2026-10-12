@@ -1,0 +1,10 @@
+{"label":"tapbranch_s1","n":120,"median":10.3,"p90":15,"mean":11.36}
+{"label":"tapmain_s1","n":120,"median":10.7,"p90":14.7,"mean":11.37}
+{"label":"tapbranch_s2","n":120,"median":10.6,"p90":15.6,"mean":11.59}
+{"label":"tapmain_s2","n":120,"median":10.6,"p90":15.1,"mean":11.32}
+{"label":"tapbranch_s3","n":120,"median":10.2,"p90":14.8,"mean":11.16}
+{"label":"tapmain_s3","n":120,"median":11.9,"p90":15.8,"mean":11.99}
+{"label":"tapbranch_s4","n":120,"median":12,"p90":15.5,"mean":12.21}
+{"label":"tapmain_s4","n":120,"median":11.4,"p90":17,"mean":11.89}
+{"label":"tapbranch_s5","n":120,"median":10.8,"p90":15.1,"mean":11.46}
+{"label":"tapmain_s5","n":120,"median":9.9,"p90":14,"mean":10.63}

@@ -1,0 +1,6 @@
+{"label":"tapmain1","n":120,"median":11.4,"p90":15.8,"mean":12.11}
+{"label":"tapbranch1","n":120,"median":12.3,"p90":17.4,"mean":13.08}
+{"label":"tapmain2","n":120,"median":10.6,"p90":14.4,"mean":11.3}
+{"label":"tapbranch2","n":120,"median":12.3,"p90":17,"mean":12.77}
+{"label":"tapmain3","n":120,"median":10.6,"p90":14.7,"mean":11.28}
+{"label":"tapbranch3","n":120,"median":11.4,"p90":15.6,"mean":12.23}

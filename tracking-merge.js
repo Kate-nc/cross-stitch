@@ -27,7 +27,7 @@
   // restore its stale value, so the caller asks instead.
   var NOT_COMPARED = {
     id: 1, page: 1, version: 1, pattern: 1, createdAt: 1, updatedAt: 1, lastWriteAt: 1, lastWriteTabId: 1,
-    done: 1, halfDone: 1, knotsDone: 1, statsSessions: 1, achievedMilestones: 1,
+    done: 1, halfDone: 1, knotsDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
     savedZoom: 1, savedScroll: 1, hlRow: 1, hlCol: 1, focusBlock: 1, breadcrumbs: 1,
     doneSnapshots: 1, stitchLog: 1, totalTime: 1, lastTouchedAt: 1, startedAt: 1, completedAt: 1, finishStatus: 1
   };
