@@ -359,17 +359,16 @@
       var dim = p.settings && (p.settings.sW + ' × ' + p.settings.sH + ' stitches');
       var fabric = p.settings && p.settings.fabricCt ? (p.settings.fabricCt + ' ct Aida') : null;
       var pct = projectPct(p);
+      // "Stitchable" is the pattern's stitch cells; Progress is in units, the one shared definition (a half stitch
+      // is half, a knot is one), the same figure as the Tracker and Stats.
       var stitchable = 0;
-      var done = 0;
       if (p.pattern) {
         for (var i = 0; i < p.pattern.length; i += 1) {
           var c = p.pattern[i];
           if (c && c.id !== '__skip__' && c.id !== '__empty__') stitchable += 1;
         }
       }
-      if (p.done) {
-        for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
-      }
+      var prog = ProgressUnits.fromProject(p);
       var distinctColours = 0;
       if (p.pattern) {
         var seen = {};
@@ -388,7 +387,7 @@
       if (fabric) patternRows.push(['Fabric', fabric]);
       if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString('en-GB')]);
       if (distinctColours > 0) patternRows.push(['Colours', String(distinctColours)]);
-      if (pct !== null) patternRows.push(['Progress', pct + '% (' + done.toLocaleString('en-GB') + '/' + stitchable.toLocaleString('en-GB') + ')']);
+      if (pct !== null) patternRows.push(['Progress', pct + '% (' + ProgressUnits.formatUnits(prog.doneUnits) + '/' + ProgressUnits.formatUnits(prog.totalUnits) + ')']);
       var metaRows = [];
       if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString('en-GB')]);
       if (p.updatedAt) metaRows.push(['Last edited', timeAgo(p.updatedAt)]);

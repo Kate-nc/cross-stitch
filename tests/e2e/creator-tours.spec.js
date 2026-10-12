@@ -2,6 +2,8 @@
 // COMMON-06): a blank grid gets the drawing tour, a picture gets the
 // converting tour, and each names the buttons as they appear on that screen.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, startBlankGrid, skipTourIfShown, LOGO } = require('./creator-helpers');
 
 // Everything quiet except the Creator's own tours.

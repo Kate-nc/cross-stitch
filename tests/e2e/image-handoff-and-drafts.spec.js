@@ -1,6 +1,8 @@
 // Large photos from Home, and Convert drafts that survive a reload
 // (P2-3, audit COMMON-07).
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding, skipTourIfShown, LOGO } = require('./creator-helpers');
 
 function slider(page, label) {

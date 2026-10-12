@@ -177,18 +177,18 @@ describe('computeOverviewStats', () => {
     expect(stats.estimatedCompletion).toBe('—');
   });
 
-  test('respects useActiveDays parameter', () => {
+  test('ignores the old useActiveDays value: the average per day is always per stitching day', () => {
+    // The "Pace calculation" choice was removed; a project that saved useActiveDays: false must read like any other.
     const sessions = [
       makeSession('2026-01-01', 100, 3600),
       makeSession('2026-04-19', 50, 1800),
     ];
-    const statsActive = computeOverviewStats(sessions, 150, 1000, true);
-    const statsCalendar = computeOverviewStats(sessions, 150, 1000, false);
-    // Active days = 2, calendar days = many more
-    expect(statsActive.avgPerDay).toBe(statsActive.avgPerActiveDay);
-    expect(statsCalendar.avgPerDay).toBe(statsCalendar.avgPerCalendarDay);
-    // Active-day average should be higher (fewer days)
-    expect(statsActive.avgPerDay).toBeGreaterThan(statsCalendar.avgPerDay);
+    const withTrue = computeOverviewStats(sessions, 150, 1000, true);
+    const withFalse = computeOverviewStats(sessions, 150, 1000, false);
+    expect(withFalse.avgPerDay).toBe(withFalse.avgPerActiveDay);
+    expect(withFalse.avgPerDay).toBe(withTrue.avgPerDay);
+    // the calendar-day figure is still reported, but nothing labelled "per stitching day" reads it
+    expect(withFalse.avgPerActiveDay).toBeGreaterThan(withFalse.avgPerCalendarDay);
   });
 });
 

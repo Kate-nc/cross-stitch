@@ -7,6 +7,8 @@
  * still selects.
  */
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { PDFDocument, rgb } = require('pdf-lib');
 
 /* Four 12 x 10 pages with no row or column numbers, each one colour, so the

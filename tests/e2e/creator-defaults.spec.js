@@ -2,6 +2,8 @@
 // converts to a handful of colours with its white background left unstitched,
 // and the Convert panel opens with Size & fabric first.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
 const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
 const SECTION_TITLES = ['Size & fabric', 'Colours', 'Background', 'Clean-up', 'Adjust image', 'Project'];

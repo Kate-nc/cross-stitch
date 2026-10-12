@@ -124,3 +124,22 @@ The global Recent Pace card in `stats-page.js` and the Insights-page project car
 - **Pace needed could miss the target (Medium).** True (400 stitches in 20 days at 4/7 cadence gave 35 per stitching day, which needs 12 stitching days and 21 calendar days). It now divides by the whole stitching opportunities available (rounded down). Unit test checks the pace always gets there in time.
 - **Arrow glyph in the what-if label (Low).** True, house rule; replaced with a colon.
 - **"28 stitching days" wording (three places, Low).** True: the window is 28 calendar days with the stitching days inside it. Comments and the progress report corrected.
+
+## End of phase
+
+### Exercised
+- `npm test` (301 suites, 4,012 tests); the whole browser suite (168 passed, 2 failed: the two stale `creator-touch` specs, see the report); the figure-consistency matrix, the audit's history project, the clock changes and the legacy `totalTime` project (new tests `phase2-matrix`, `phase2HistoryFixture`).
+- Whole-phase performance against the commit before Phase 2, two interleaved passes plus the tap benchmark (report).
+
+### Bugs found
+- **Stale labels (fixed):** the share text said "N/day average" and a bare "Est. completion" date; the progress picture said "Stitches/day"; "Pace needed" and the daily-goal line said "/day". All now say what they measure ("per stitching day") and the share text carries the one estimate with its range and basis.
+- **A control that did nothing (removed):** the "Pace calculation" choice (active days or calendar days) stopped affecting any figure once every pace and estimate used the one calculation.
+- **Dead code (removed):** the Tracker's private copy of the share text (with its own estimate and an emoji) and its clipboard helper were called by nothing; a persistence test that inspected that dead line now checks the live share text.
+- **A stale test of mine (fixed):** `french-knots` still expected the pre-batch-2 strip ("0 done" after a knot); it was not in the browser subset I ran for batch 2.
+- **Spec setup (fixed):** see the report: 30 specs could not load their libraries in a sandbox; two specs followed old UI flows; one was timing-sensitive.
+- **Header chip and Home info popover still counted full stitches only (fixed):** found by the new Home/Manager browser test (a half-stitch-only project showed 0% in the Home header chip but 50% on its card). `header.js` and the `home-app.js` Progress row now read `ProgressUnits.fromProject`; test `phase2-matrix` "Home card, project row and header chip show 50%…".
+- **`useActiveDays` still steered the average (fixed, Copilot):** `computeOverviewStats` now ignores it (one pace); nothing passes it.
+- **Discrepancy with the prompt (reported, not a bug):** the history fixture's mean is 135 per stitching day, not the prompt's 145 (the old weighted pace); the answer, 5 days and 16 October, is the same.
+
+### Not verified
+Safari, Firefox, real devices; the progress image and CSV opened as files; the two `creator-touch` specs' scenarios on the current compact Creator (covered by the newer touch specs, not these).

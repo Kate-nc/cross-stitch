@@ -468,7 +468,7 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
       presets.map(function(p){ return React.createElement("button", {type:"button",key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
     ),
     currentGoal && remaining > 0 && React.createElement("p", {className:"goal-suggestion"},
-      "At " + currentGoal + "/day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + " stitching days")
+      "At " + currentGoal + " per stitching day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + " stitching days")
   );
 }
 
@@ -519,7 +519,6 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
   var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
   var dayEndHour = getDayEndHour(statsSettings);
-  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
   var weekStitches = getStatsThisWeekStitches(statsSessions || [], dayEndHour);
   var monthStitches = getStatsThisMonthStitches(statsSessions || [], dayEndHour);
@@ -585,7 +584,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
       ),
       React.createElement("div", {className:"goal-row"},
         React.createElement("span", {className:"goal-row-label"}, "Pace needed"),
-        React.createElement("span", {className:"goal-row-value"}, requiredPace + "/day")
+        React.createElement("span", {className:"goal-row-value"}, requiredPace + " per stitching day")
       ),
       React.createElement("div", {className:"goal-row"},
         React.createElement("span", {className:"goal-row-label"}, "Status"),
@@ -1195,7 +1194,7 @@ function drawProgressCard(canvas, opts) {
   var stats = [
     {label: 'Time stitched', value: opts.totalTimeFormatted || '\u2014'},
     {label: 'Sessions', value: String((opts.sessions || []).length)},
-    {label: 'Stitches/day', value: String(opts.avgPerDay || 0)},
+    {label: 'Per stitching day', value: String(opts.avgPerDay || 0)},
     {label: 'Day streak', value: String(opts.streak || 0)}
   ];
   var colW = (W - 36) / stats.length;
@@ -1260,8 +1259,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
     }
   }, []);
-  var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
-  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
+  var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.estimate);
   var dayEndHour = getDayEndHour(statsSettings);
   var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
@@ -1312,7 +1310,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       percent: overviewStats.percent,
       totalTimeFormatted: overviewStats.totalTimeFormatted,
       sessions: statsSessions || [],
-      avgPerDay: overviewStats.avgPerDay,
+      // the pace everywhere else: stitches per stitching day over the last 4 weeks (the average per active day until there is one)
+      avgPerDay: overviewStats.recentPace || overviewStats.avgPerActiveDay,
       streak: streakInfo.current,
       palette: palette
     });
@@ -1340,7 +1339,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, useActiveDays:useActiveDays}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
@@ -1384,17 +1383,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         )
       ),
       React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, timingMode ? "This project overrides the global tracker timing mode." : "This project follows the global tracker timing mode from Preferences."),
-      React.createElement("div", {style:{height:10}}),
-      React.createElement("div", {style:{fontSize:'var(--text-md)', color:'var(--text-secondary)', marginBottom:'var(--s-1)'}}, "Pace calculation:"),
-      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:6, fontSize:'var(--text-md)', color:'var(--text-secondary)', cursor:'pointer', marginBottom:'var(--s-1)'}},
-        React.createElement("input", {type:'radio', name:'useActiveDays', checked:useActiveDays, onChange:function(){ onUpdateSettings(Object.assign({}, statsSettings, {useActiveDays:true})); }}),
-        "Active days only (stitching days)"
-      ),
-      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:6, fontSize:'var(--text-md)', color:'var(--text-secondary)', cursor:'pointer'}},
-        React.createElement("input", {type:'radio', name:'useActiveDays', checked:!useActiveDays, onChange:function(){ onUpdateSettings(Object.assign({}, statsSettings, {useActiveDays:false})); }}),
-        "Calendar days (days since first stitch)"
-      ),
-      React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, "Affects average stitches/day calculation")
+      // (The "Pace calculation" choice, active days or calendar days, was removed: every pace and estimate now uses
+      // stitching days, from one calculation, so it changed nothing.)
     )
   );
 }

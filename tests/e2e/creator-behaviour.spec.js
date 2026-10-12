@@ -1,5 +1,7 @@
 // Audit B-10 (name prompt on every reload) and B-11 (fast strokes left gaps).
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding, generateLogo, pickDarkSwatch, startBlankGrid } = require('./creator-helpers');
 
 const pixel5 = device('Pixel 5');

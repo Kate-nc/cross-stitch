@@ -99,12 +99,16 @@ describe('Persistence field coverage', () => {
   });
 
   test('progress display uses statsSessions not legacy sessions for count', () => {
-    // The progress text should reference statsSessions.length not sessions.length
-    const progressLine = trackerSrc.match(/Time stitched:.*sessions/g);
-    expect(progressLine).not.toBeNull();
-    for (const line of progressLine) {
-      expect(line).not.toMatch(/\bsessions\.length\b/);
+    // The shared progress text ("Time: ... across N sessions") is built from the sessions it is given, and every
+    // caller gives it statsSessions (the Tracker's old private copy of this text was removed).
+    const statsSrc = fs.readFileSync(path.join(__dirname, '..', 'components-stats.js'), 'utf8');
+    const calls = statsSrc.match(/generateShareText\([^)]*\)/g);
+    expect(calls).not.toBeNull();
+    for (const call of calls) {
+      expect(call).toMatch(/statsSessions/);
+      expect(call).not.toMatch(/\bsessions\b(?!\s*\|\|)/);
     }
+    expect(trackerSrc).not.toMatch(/copyProgressSummary/);
   });
 
   test('OXS import sets createdAt as ISO string not number', () => {

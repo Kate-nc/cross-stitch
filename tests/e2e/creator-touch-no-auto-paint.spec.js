@@ -2,6 +2,8 @@
 // paint on the first swipe. Picking Paint still paints; desktop still arms
 // Paint. (P1-1 made the touch default Navigate; see creator-draw-navigate.)
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { dispatchTouchSequence } = require('./touch-helpers');
 const { device, generateLogo, zoomUntilScrollable, pickDarkSwatch, undoButton } = require('./creator-helpers');
 

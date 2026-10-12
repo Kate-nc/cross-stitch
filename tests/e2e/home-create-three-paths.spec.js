@@ -2,6 +2,8 @@
 // (P2-1, audit COMMON-04, COMMON-10).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding, skipTourIfShown, LOGO, startBlankGrid } = require('./creator-helpers');
 
 const PDF = path.join(__dirname, '..', '..', 'TestUploads', 'PAT1968_2.pdf');

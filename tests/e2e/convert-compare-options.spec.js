@@ -1,5 +1,7 @@
 // Compare options before generating (P2-7, audit IMG-05).
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, openConvertWithLogo } = require('./creator-helpers');
 
 function strip(page) { return page.locator('.compare-strip'); }

@@ -1308,6 +1308,8 @@ function computeWeightedPace(sessions, daysWindow) {
   return p.activeDays > 0 ? Math.round(p.perStitchingDay) : null;
 }
 
+// (`useActiveDays` is no longer read: the "Pace calculation" choice was removed and every pace counts stitching days,
+// so a project that saved the old calendar-days value gets the same figures as any other.)
 function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useActiveDays) {
   var totalSeconds = statsSessions.reduce(function(sum, s) { return sum + getSessionSeconds(s); }, 0);
   var totalHours = totalSeconds / 3600;
@@ -1320,7 +1322,7 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   var elapsedDays = firstDate ? Math.max(1, Math.ceil((Date.now() - firstDate.getTime()) / 86400000)) : uniqueDays;
   var avgPerActiveDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
   var avgPerCalendarDay = elapsedDays > 0 ? Math.round(totalNetStitches / elapsedDays) : 0;
-  var avgPerDay = (useActiveDays !== false) ? avgPerActiveDay : avgPerCalendarDay;
+  var avgPerDay = avgPerActiveDay;
   var remaining = totalStitches - totalCompleted;
   var pct = totalStitches > 0 ? (totalCompleted / totalStitches) * 100 : 0;
   var estimate = estimateCompletion(statsSessions, remaining, { percent: pct });
@@ -1645,7 +1647,9 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
     '[x] ' + totalCompleted.toLocaleString('en-GB') + ' / ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + percent + '%)',
     'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
-    'Speed: ' + stats.stitchesPerHour + ' stitches/hour · ' + stats.avgPerDay + '/day average'
+    // Speed is stitches per active hour; the pace is per stitching day over the last 4 weeks (the same figure as the
+    // estimate below it), so each says what it measures.
+    'Speed: ' + stats.stitchesPerHour + ' stitches/hour' + (stats.recentPace ? ' \u00b7 ' + stats.recentPace.toLocaleString('en-GB') + ' per stitching day recently' : '')
   ];
 
   if (streaks.current > 0 || streaks.longest > 0) {
@@ -1656,14 +1660,16 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     lines.push('Best day: ' + bestDay.stitches + ' stitches (' + formatShortDate(bestDay.date) + ')');
   }
 
-  if (stats.estimatedCompletion && stats.estimatedCompletion !== '\u2014') {
-    var etaLine = 'Est. completion: ' + stats.estimatedCompletion;
+  if (stats.estimate && stats.estimate.enough) {
+    // The one estimate, with its range and what it is based on.
+    var etaLine = 'Est. finish: ' + stats.estimate.text;
     if (stats.hoursRemaining != null) {
       var hr = stats.hoursRemaining;
       var hrStr = hr < 1 ? '< 1' : '~' + Math.ceil(hr);
       etaLine += ' (' + hrStr + (Math.ceil(hr) === 1 ? ' hr' : ' hrs') + ' stitching remaining)';
     }
     lines.push(etaLine);
+    lines.push(stats.estimate.rangeText + '. ' + stats.estimate.basis + '.');
   }
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');

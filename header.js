@@ -241,19 +241,11 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRenam
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
+  // Progress from the one shared definition (progress-units.js), the same figure as the Tracker and Home.
   function pctOf(p) {
-    if (!p || !p.pattern) return null;
-    var total = 0;
-    for (var i = 0; i < p.pattern.length; i += 1) {
-      var c = p.pattern[i];
-      if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
-    }
-    if (total <= 0) return null;
-    var done = 0;
-    if (p.done) {
-      for (var j = 0; j < p.done.length; j += 1) if (p.done[j] === 1) done += 1;
-    }
-    return Math.round(done / total * 100);
+    if (!p || !(p.pattern || p.p) || typeof ProgressUnits === 'undefined') return null;
+    var r = ProgressUnits.fromProject(p);
+    return r.totalUnits > 0 ? Math.round(r.percent) : null;
   }
 
   var label = projectName || (activeProject && activeProject.name) || 'No project';
@@ -723,23 +715,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
   const pct = React.useMemo(() => {
     if (!projSummary || !projSummary.settings) return null;
-
-    let total = 0;
-    if (projSummary.pattern) {
-      for (let i = 0; i < projSummary.pattern.length; i += 1) {
-        const c = projSummary.pattern[i];
-        if (c && c.id !== '__skip__' && c.id !== '__empty__') total += 1;
-      }
-    }
-
-    let done = 0;
-    if (projSummary.done) {
-      for (let i = 0; i < projSummary.done.length; i += 1) {
-        if (projSummary.done[i] === 1) done += 1;
-      }
-    }
-
-    return total > 0 ? Math.round(done / total * 100) : 0;
+    if (typeof ProgressUnits === 'undefined') return 0;
+    const r = ProgressUnits.fromProject(projSummary);   // the one shared definition (progress-units.js)
+    return r.totalUnits > 0 ? Math.round(r.percent) : 0;
   }, [projSummary]);
   const projName = projSummary
     ? (projSummary.name || (projSummary.settings
