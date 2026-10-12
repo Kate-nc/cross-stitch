@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.120';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.121',
+    date: 'October 2026',
+    notes: [
+      'You can now correct your session journal. In a project\'s Stats, each session has Edit session (date, start time, minutes and stitches), Delete session and, when there is another session the same day, Merge with next. Undo is offered straight away. Totals, milestone dates, the cumulative chart, streaks, best day and the finish estimate all follow the corrected journal, and a session you delete stays deleted when you sync with another device. Edited sessions show a small "edited" label.',
+    ]
+  },
+  {
     version: '1.0.120',
     date: 'October 2026',
     notes: [

@@ -1167,6 +1167,143 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
   return parts;
 }
 
+// ═══ Session history: edit, delete, merge ═══
+// Pure functions over a session list (the project's statsSessions). Nothing here touches the project: the caller
+// keeps the previous list and the tombstones to offer Undo, and saves through the normal path.
+//   • A run across the day end is stored as several records sharing a groupId (splitSessionByDays); deleting one
+//     deletes the run, editing changes the one record shown.
+//   • After any change every record's totalAtEnd / percentAtEnd are rebuilt from the corrected list (the stitches
+//     before the first record are kept as the starting point), so milestones, the cumulative chart, the streaks and
+//     the estimate, which all read the list, follow.
+function sessionStartMs(s) {
+  var t = new Date(s && (s.startTime || s.date)).getTime();
+  return isNaN(t) ? 0 : t;
+}
+function sessionOrder(sessions) {
+  return (sessions || []).slice().sort(function(a, b) { return sessionStartMs(a) - sessionStartMs(b); });
+}
+// The stitches already done before the first record (kept when records are deleted).
+function sessionHistoryBaseline(sessions) {
+  var first = sessionOrder(sessions)[0];
+  if (!first || typeof first.totalAtEnd !== 'number') return 0;
+  return Math.max(0, first.totalAtEnd - ProgressUnits.sessionNet(first));
+}
+function recomputeSessionHistory(sessions, baseline, totalUnits) {
+  var run = Math.max(0, baseline || 0);
+  return sessionOrder(sessions).map(function(s) {
+    run += ProgressUnits.sessionNet(s);
+    var at = Math.max(0, run);
+    if (totalUnits > 0) at = Math.min(at, totalUnits);
+    var pctAt = totalUnits > 0 ? Math.round(at / totalUnits * 1000) / 10 : 0;
+    if (s.totalAtEnd === at && s.percentAtEnd === pctAt) return s;
+    return Object.assign({}, s, { totalAtEnd: at, percentAtEnd: pctAt });
+  });
+}
+// The ids of the run a record belongs to (all its day records).
+function sessionRunIds(sessions, id) {
+  var target = null;
+  for (var i = 0; i < (sessions || []).length; i++) if (sessions[i] && sessions[i].id === id) target = sessions[i];
+  if (!target) return [];
+  var g = target.groupId || target.id;
+  return sessions.filter(function(s) { return s && (s.groupId || s.id) === g; }).map(function(s) { return s.id; });
+}
+// Returns { sessions, removedIds }; removedIds are the tombstones to remember.
+function deleteSessionRun(sessions, id, totalUnits) {
+  var ids = sessionRunIds(sessions, id);
+  if (!ids.length) return { sessions: sessions, removedIds: [] };
+  var gone = {}; ids.forEach(function(x) { gone[x] = 1; });
+  var kept = sessions.filter(function(s) { return !(s && gone[s.id]); });
+  return { sessions: recomputeSessionHistory(kept, sessionHistoryBaseline(sessions), totalUnits), removedIds: ids };
+}
+// patch: { date: 'YYYY-MM-DD', start: 'HH:MM', minutes: number, stitches: number }. Returns the new list, or
+// { error } when a value is not usable.
+function editSessionRecord(sessions, id, patch, totalUnits, nowIso) {
+  var idx = -1;
+  for (var i = 0; i < (sessions || []).length; i++) if (sessions[i] && sessions[i].id === id) idx = i;
+  if (idx < 0) return { error: 'That session no longer exists.' };
+  var s = sessions[idx];
+  var date = patch.date != null ? String(patch.date) : s.date;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date + 'T12:00:00').getTime())) return { error: 'Enter a valid date.' };
+  var minutes = patch.minutes != null ? Number(patch.minutes) : getSessionSeconds(s) / 60;
+  if (!(minutes >= 0 && minutes <= 1440)) return { error: 'Minutes must be between 0 and 1,440.' };
+  // "Stitches" is the figure the journal shows: added, leaving out catch-up and unpicking.
+  var added = ProgressUnits.sessionAdded(s);
+  var stitches = patch.stitches != null ? Number(patch.stitches) : added;
+  if (!(stitches >= 0 && stitches <= 1e7) || Math.round(stitches * 2) !== stitches * 2) return { error: 'Stitches must be a number of whole or half stitches.' };
+  var sd = new Date(s.startTime);
+  var origHm = isNaN(sd.getTime()) ? '12:00' : ('0' + sd.getHours()).slice(-2) + ':' + ('0' + sd.getMinutes()).slice(-2);
+  var hm = patch.start != null ? String(patch.start) : origHm;
+  var m = /^(\d{1,2}):(\d{2})$/.exec(hm);
+  if (!m || +m[1] > 23 || +m[2] > 59) return { error: 'Enter a valid start time.' };
+  // The start is only rebuilt from the date and time when one of them changed: a session after midnight that belongs
+  // to the day before (a late day end) keeps its real start when only the minutes or stitches are edited.
+  var startMs = (date === s.date && ('0' + m[1]).slice(-2) + ':' + m[2] === origHm && !isNaN(sd.getTime()))
+    ? sd.getTime()
+    : new Date(date + 'T' + ('0' + m[1]).slice(-2) + ':' + m[2] + ':00').getTime();
+  var next = Object.assign({}, s, {
+    date: date,
+    startTime: new Date(startMs).toISOString(),
+    endTime: new Date(startMs + Math.round(minutes * 60) * 1000).toISOString(),
+    durationSeconds: Math.round(minutes * 60),
+    durationMinutes: Math.round(minutes),
+    edited: true, editedAt: nowIso || new Date().toISOString()
+  });
+  if (Math.abs(minutes * 60 - getSessionSeconds(s)) > 30) next.timingBasis = 'edited';
+  // Only a changed figure touches the breakdown: what was unpicked and what was catch-up stay as they were, and
+  // the stitches added move by the difference.
+  if (stitches !== added) {
+    var catchUp = ProgressUnits.sessionCatchUp(s), unpicked = ProgressUnits.sessionUnpicked(s);
+    var completed = stitches + catchUp;
+    next.unitsCompleted = completed; next.unitsUndone = unpicked; next.units = completed - unpicked;
+    next.stitchesCompleted = Math.round(completed); next.stitchesUndone = Math.round(unpicked); next.netStitches = Math.round(completed - unpicked);
+  }
+  var out = sessions.slice(); out[idx] = next;
+  return { sessions: recomputeSessionHistory(out, sessionHistoryBaseline(sessions), totalUnits) };
+}
+// The record that Merge would fold into this one: the next one on the same day, or null.
+function sessionMergeTarget(sessions, id) {
+  var ordered = sessionOrder(sessions);
+  for (var i = 0; i < ordered.length; i++) {
+    if (ordered[i].id === id) return ordered[i + 1] && ordered[i + 1].date === ordered[i].date ? ordered[i + 1] : null;
+  }
+  return null;
+}
+// Folds the next record of the same day into this one. Returns { sessions, removedIds } or { error }.
+function mergeSessionRecords(sessions, id, totalUnits, nowIso) {
+  var a = null;
+  for (var i = 0; i < (sessions || []).length; i++) if (sessions[i] && sessions[i].id === id) a = sessions[i];
+  var b = a && sessionMergeTarget(sessions, id);
+  if (!a || !b) return { error: 'There is no later session on the same day to merge with.' };
+  var sum = function(f) { return (a[f] || 0) + (b[f] || 0); };
+  var colours = (a.coloursWorked || []).slice();
+  (b.coloursWorked || []).forEach(function(c) { if (colours.indexOf(c) < 0) colours.push(c); });
+  var merged = Object.assign({}, a, {
+    startTime: sessionStartMs(b) < sessionStartMs(a) ? b.startTime : a.startTime,
+    endTime: new Date(b.endTime).getTime() > new Date(a.endTime).getTime() ? b.endTime : a.endTime,
+    durationSeconds: getSessionSeconds(a) + getSessionSeconds(b),
+    stitchesCompleted: sum('stitchesCompleted'), stitchesUndone: sum('stitchesUndone'), netStitches: sum('netStitches'),
+    units: ProgressUnits.sessionNet(a) + ProgressUnits.sessionNet(b),
+    unitsCompleted: ProgressUnits.sessionAdded(a) + ProgressUnits.sessionCatchUp(a) + ProgressUnits.sessionAdded(b) + ProgressUnits.sessionCatchUp(b),
+    unitsUndone: ProgressUnits.sessionUnpicked(a) + ProgressUnits.sessionUnpicked(b),
+    coloursWorked: colours,
+    note: [a.note, b.note].filter(Boolean).join(' / '),
+    edited: true, editedAt: nowIso || new Date().toISOString()
+  });
+  merged.durationMinutes = Math.round(merged.durationSeconds / 60);
+  var cu = ProgressUnits.sessionCatchUp(a) + ProgressUnits.sessionCatchUp(b);
+  if (cu > 0) merged.catchUp = cu; else delete merged.catchUp;
+  var ms = (a.milestones || []).concat(b.milestones || []);
+  if (ms.length) merged.milestones = ms; else delete merged.milestones;
+  var rest = sessions.filter(function(s) { return s && s.id !== a.id && s.id !== b.id; });
+  rest.push(merged);
+  return { sessions: recomputeSessionHistory(rest, sessionHistoryBaseline(sessions), totalUnits), removedIds: [b.id] };
+}
+function withoutDeletedSessions(sessions, deletedIds) {
+  if (!deletedIds || !deletedIds.length) return sessions;
+  var gone = {}; deletedIds.forEach(function(x) { gone[x] = 1; });
+  return (sessions || []).filter(function(s) { return !(s && gone[s.id]); });
+}
+
 function getSessionSeconds(s) {
   return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
 }

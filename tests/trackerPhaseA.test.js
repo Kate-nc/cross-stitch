@@ -138,6 +138,7 @@ eval(
   '  var localStorage = localStorageMock || { getItem: function(){ return null; }, removeItem: function(){} };\n' +
   // Set by the load path while a question about the saved marks holds saves (see tracker-app.js).
   '  var _reconcileHeld = !!(project && project.__held);\n' +
+  '  var deletedSessionIdsRef = { current: [] };\n' +
   migrationBlockMatch[0] + ';\n' +
   '  return rawStatsSessions;\n' +
   '}'

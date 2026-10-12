@@ -177,10 +177,11 @@
         "font-size:13px"
       ].join(";");
       undoBtn.addEventListener("click", function () {
-        try { undoAction(); } catch (err) { console.error("Toast undo handler failed:", err); }
+        var undone;
+        try { undone = undoAction(); } catch (err) { console.error("Toast undo handler failed:", err); }
         removeToast(entry, true);
-        // Follow-up confirmation toast.
-        show({ message: "Undone", type: "success", duration: 2000 });
+        // Follow-up confirmation toast (an undo handler that returns false declined, and said so itself).
+        if (undone !== false) show({ message: "Undone", type: "success", duration: 2000 });
       });
       el.appendChild(undoBtn);
     }

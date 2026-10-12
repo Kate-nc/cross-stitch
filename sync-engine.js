@@ -1197,28 +1197,77 @@ const SyncEngine = (() => {
     return merged;
   }
 
-  function mergeSessions(localSessions, remoteSessions) {
-    if (!localSessions || !localSessions.length) return remoteSessions || [];
-    if (!remoteSessions || !remoteSessions.length) return localSessions || [];
-    var seen = {};
-    var merged = [];
-    // Use start timestamp as dedup key; fall back to date+duration
+  // Sessions are a union by id. The same id on both sides keeps the later edit (`editedAt`; a record never edited
+  // counts as the oldest, so the local one stays). `deletedIds` are the tombstones of both devices: a session deleted
+  // on either one is not brought back by the other. Records without an id fall back to date + minutes + stitches.
+  function mergeSessions(localSessions, remoteSessions, deletedIds) {
+    var gone = {};
+    (deletedIds || []).forEach(function (x) { gone[x] = true; });
+    function alive(s) { return s && !(s.id != null && gone[s.id]); }
+    var localList = (localSessions || []).filter(alive);
+    var remoteList = (remoteSessions || []).filter(alive);
+    if (!localList.length) return remoteList;
+    if (!remoteList.length) return localList;
     function sessionKey(s) {
+      if (s.id != null) return "i:" + s.id;
       if (s.start) return "s:" + s.start;
       return "d:" + (s.date || "") + ":" + (s.durationMinutes || 0) + ":" + (s.netStitches || 0);
     }
-    for (var i = 0; i < localSessions.length; i++) {
-      var key = sessionKey(localSessions[i]);
-      if (!seen[key]) { seen[key] = true; merged.push(localSessions[i]); }
+    function editedAt(s) { var t = s && s.editedAt ? new Date(s.editedAt).getTime() : 0; return isNaN(t) ? 0 : t; }
+    var at = {};
+    var merged = [];
+    for (var i = 0; i < localList.length; i++) {
+      var key = sessionKey(localList[i]);
+      if (at[key] === undefined) { at[key] = merged.length; merged.push(localList[i]); }
     }
-    for (var j = 0; j < remoteSessions.length; j++) {
-      var key2 = sessionKey(remoteSessions[j]);
-      if (!seen[key2]) { seen[key2] = true; merged.push(remoteSessions[j]); }
+    for (var j = 0; j < remoteList.length; j++) {
+      var key2 = sessionKey(remoteList[j]);
+      if (at[key2] === undefined) { at[key2] = merged.length; merged.push(remoteList[j]); }
+      else if (editedAt(remoteList[j]) > editedAt(merged[at[key2]])) merged[at[key2]] = remoteList[j];
     }
     merged.sort(function (a, b) {
-      return new Date(a.start || a.date || 0) - new Date(b.start || b.date || 0);
+      return new Date(a.startTime || a.start || a.date || 0) - new Date(b.startTime || b.start || b.date || 0);
     });
     return merged;
+  }
+
+  // After two journals are joined, each record still carries the "done so far" its own device wrote, which does not
+  // include what the other device added or changed. Rebuild them as a running sum from the stitches that were done
+  // before the first record (the same on both sides, so either side's will do). Records that come out the same stay
+  // as they are.
+  function recomputeMergedTotals(merged, localList, remoteList) {
+    function net(s) { return s.units != null ? s.units : (s.netStitches || 0); }
+    function startMs(s) { var t = new Date(s.startTime || s.start || s.date || 0).getTime(); return isNaN(t) ? 0 : t; }
+    function baselineOf(list) {
+      var first = (list || []).slice().sort(function (a, b) { return startMs(a) - startMs(b); })[0];
+      return first && typeof first.totalAtEnd === "number" ? Math.max(0, first.totalAtEnd - net(first)) : null;
+    }
+    if (!merged.length) return merged;
+    var base = baselineOf(localList);
+    if (base == null) base = baselineOf(remoteList);
+    if (base == null) return merged;
+    // The size of the project, worked out from the record with the most precise percentage, to cap the total and
+    // to give a changed record its percentage.
+    var total = 0, bestPct = 0;
+    merged.forEach(function (s) {
+      if (typeof s.totalAtEnd === "number" && typeof s.percentAtEnd === "number" && s.percentAtEnd > bestPct) { bestPct = s.percentAtEnd; total = s.totalAtEnd * 100 / s.percentAtEnd; }
+    });
+    var run = base;
+    return merged.slice().sort(function (a, b) { return startMs(a) - startMs(b); }).map(function (s) {
+      run += net(s);
+      var at = Math.max(0, run);
+      if (total > 0) at = Math.min(at, Math.round(total));
+      if (s.totalAtEnd === at) return s;
+      var copy = Object.assign({}, s, { totalAtEnd: at });
+      if (total > 0) copy.percentAtEnd = Math.round(at / total * 1000) / 10;
+      return copy;
+    });
+  }
+
+  function mergeDeletedIds(a, b) {
+    var seen = {}, out = [];
+    (a || []).concat(b || []).forEach(function (x) { if (x != null && !seen[x]) { seen[x] = true; out.push(x); } });
+    return out;
   }
 
   // Total duration (seconds) recorded across a session array. Mirrors the
@@ -1389,8 +1438,16 @@ const SyncEngine = (() => {
     }
 
     // Merge sessions (deduplicate by timestamp)
-    merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions);
-    merged.sessions = mergeSessions(local.sessions, remote.sessions);
+    var deletedSessionIds = mergeDeletedIds(local.deletedSessionIds, remote.deletedSessionIds);
+    if (deletedSessionIds.length) merged.deletedSessionIds = deletedSessionIds;
+    merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions, deletedSessionIds);
+    // Only when both sides have a journal: with one side's alone there is nothing to reconcile.
+    if ((local.statsSessions || []).length && (remote.statsSessions || []).length) {
+      merged.statsSessions = recomputeMergedTotals(merged.statsSessions,
+        (local.statsSessions || []).filter(function (x) { return x && !(x.id != null && deletedSessionIds.indexOf(x.id) >= 0); }),
+        (remote.statsSessions || []).filter(function (x) { return x && !(x.id != null && deletedSessionIds.indexOf(x.id) >= 0); }));
+    }
+    merged.sessions = mergeSessions(local.sessions, remote.sessions, deletedSessionIds);
 
     // Total stitching time must be IDEMPOTENT under repeated merges. This was
     // a plain sum (local + remote), which is not: every time the peer edited
@@ -1484,6 +1541,17 @@ const SyncEngine = (() => {
     // Merge per-day stitch history (sync fix #7). Drives lifetime totals and
     // the activity charts, and was previously local-only.
     merged.stitchLog = mergeStitchLogs(local.stitchLog, remote.stitchLog);
+    // The log is derived from the sessions. Once any session has been deleted, taking the larger count per day (as
+    // above) would bring a deleted day's stitches back from the other device's older log, so it is derived again.
+    if (merged.deletedSessionIds && merged.deletedSessionIds.length) {
+      var byDay = Object.create(null);
+      (merged.statsSessions || []).forEach(function (s) {
+        if (!s || !s.date) return;
+        byDay[s.date] = (byDay[s.date] || 0) + (s.units != null ? s.units : (s.netStitches || 0));
+      });
+      merged.stitchLog = Object.keys(byDay).sort().filter(function (d) { return byDay[d] !== 0; })
+        .map(function (d) { return { date: d, count: byDay[d] }; });
+    }
 
     // Lifecycle timestamps: earliest start, latest touch, first completion.
     merged.startedAt = _earlierIso(local.startedAt, remote.startedAt);
