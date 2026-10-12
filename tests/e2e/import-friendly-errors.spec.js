@@ -3,6 +3,8 @@
 // never reach the image converter.
 const path = require('path');
 const { test, expect, devices } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
 const pixel5 = Object.assign({}, devices['Pixel 5']);
 delete pixel5.defaultBrowserType;

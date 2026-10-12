@@ -1,6 +1,8 @@
 // P0-5 (audit COMMON-06 hint part, COMMON-11 contrast part).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
 const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
 const pixel5 = device('Pixel 5');

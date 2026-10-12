@@ -1,6 +1,8 @@
 // Size by finished dimensions, fitted to the picture (P2-6, audit IMG-03).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, openConvertWithLogo, quietOnboarding, skipTourIfShown } = require('./creator-helpers');
 
 const PANORAMA = path.join(__dirname, '..', 'fixtures', 'panorama.jpg');

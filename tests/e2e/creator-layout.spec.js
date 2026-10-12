@@ -10,6 +10,8 @@
 //       replace the header, action bar and tool strip, so the chart gets most
 //       of the screen.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const {
   device, quietOnboarding, openConvertWithLogo, clickGenerate, waitForEdit, pickDarkSwatch, undoButton, startBlankGrid,
 } = require('./creator-helpers');

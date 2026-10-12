@@ -1,6 +1,8 @@
 // French knots (P4-4, audit DRAW-04 item 6): placed in the Creator, tracked
 // in the Tracker.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding } = require('./creator-helpers');
 
 const G = 28;
@@ -152,9 +154,10 @@ test.describe('French knots in the Tracker', function() {
     const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(q => ({ x: Math.round(q.x), y: Math.round(q.y), id: 1, radiusX: 4, radiusY: 4, force: 1 })) });
     await touch('touchStart', [p]); await page.waitForTimeout(50); await touch('touchEnd', []);
 
-    // 2 / 102, and the stitch under the knot is still not done.
+    // 2 / 102. A knot counts one unit, so the strip says 2 done (it counted full stitches only, "0 done", before
+    // progress had one definition); the stitch under the knot is still not done, which the data below confirms.
     await expect(page.locator('.info-strip-pct')).toHaveText('2.0%');
-    await expect(page.locator('.info-strip-counts')).toContainText('0 done');
+    await expect(page.locator('.info-strip-counts')).toHaveText('2 done · 100 to go');
     await expect.poll(async () => page.evaluate(async () => {
       const proj = await ProjectStorage.getActiveProject();
       return proj && proj.knotsDone ? proj.knotsDone.slice().sort() : null;

@@ -5,6 +5,8 @@
 // finger lifts, at the cell the finger (and the loupe above it) ended on, so
 // a finger that lands a little off can settle on the right cell first.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, generateLogo, pickDarkSwatch } = require('./creator-helpers');
 
 const G = 28;

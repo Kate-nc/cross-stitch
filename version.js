@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.118';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.119',
+    date: 'October 2026',
+    notes: [
+      'The progress text you copy from Stats now says what each figure measures: speed in stitches per hour, pace in stitches per stitching day, and the one finish estimate with its range and what it is based on. The progress picture says "Per stitching day" instead of "Stitches/day".',
+      'The "Pace calculation" choice (active days or calendar days) in Stats settings is gone. Every pace and estimate now counts stitching days, from one calculation, so the choice no longer changed anything.',
+    ]
+  },
+  {
     version: '1.0.118',
     date: 'October 2026',
     notes: [

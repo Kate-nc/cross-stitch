@@ -1,6 +1,8 @@
 // Picture-type presets, and "threads" vs "symbols" (P2-5, audits IMG-01, IMG-02).
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, openConvertWithLogo, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit } = require('./creator-helpers');
 
 const TINY = path.join(__dirname, '..', 'fixtures', 'tiny.png');

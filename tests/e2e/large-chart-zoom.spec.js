@@ -1,6 +1,8 @@
 // Large charts in the Creator: zooming without lag (drawing the visible part
 // first, finishing in bands; pinch-zoom previewed with a CSS transform).
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding } = require('./creator-helpers');
 
 const COLOURS = [['310', [0, 0, 0]], ['666', [227, 29, 66]], ['799', [116, 142, 182]], ['742', [255, 191, 87]],

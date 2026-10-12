@@ -13,6 +13,8 @@
    chart slid under the finger, so it panned erratically and left stray
    marks. */
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const {
   loadTrackerFixture,
   trackerCellPoint,
@@ -174,12 +176,15 @@ async function fling(page, touch, box) {
   const f1 = { x: box.left + 420, y: box.top + 420 }, f2 = { x: box.left + 520, y: box.top + 420 };
   await touch('touchStart', [{ ...f1, id: 1 }]);
   await touch('touchStart', [{ ...f1, id: 1 }, { ...f2, id: 2 }]);
-  for (let i = 1; i <= 6; i++) {
-    await touch('touchMove', [{ x: f1.x - i * 30, y: f1.y - i * 20, id: 1 }, { x: f2.x - i * 30, y: f2.y - i * 20, id: 2 }]);
-    await page.waitForTimeout(12);
-  }
-  await touch('touchEnd', [{ x: f2.x - 180, y: f2.y - 120, id: 2 }]);
-  await touch('touchEnd', []);
+  const move = i => touch('touchMove', [{ x: f1.x - i * 30, y: f1.y - i * 20, id: 1 }, { x: f2.x - i * 30, y: f2.y - i * 20, id: 2 }]);
+  for (let i = 1; i <= 5; i++) { await move(i); await page.waitForTimeout(12); }
+  // Momentum only starts if the last move was under 80 ms before the lift, so the last move and the lift go out
+  // together (the protocol keeps their order); waiting for each reply alone could take longer than that on a loaded machine.
+  await Promise.all([
+    move(6),
+    touch('touchEnd', [{ x: f2.x - 180, y: f2.y - 120, id: 2 }]),
+    touch('touchEnd', []),
+  ]);
 }
 
 test.describe('Tracker touch: two-finger pan momentum', function() {

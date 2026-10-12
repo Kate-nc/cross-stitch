@@ -2753,29 +2753,6 @@ function answerMarkAllAsk(asCatchUp){
   try{if(window.UserPrefs)window.UserPrefs.set('trackerMarkAllAs',asCatchUp?'catchup':'today');}catch(_){}
   markColourDone(a.cid,true,asCatchUp);
 }
-function copyText(t,l){navigator.clipboard.writeText(t).then(()=>{setCopied(l);setTimeout(()=>setCopied(null),2000);}).catch(()=>{});}
-function copyProgressSummary(){
-  let t=totalTime+liveAutoElapsed;
-  let coloursComplete=Object.values(colourDoneCounts).filter(c=>c.done>=c.total&&c.total>0).length;
-  let totalColours=pal?pal.length:0;
-  let stPerHr=t>=60&&combinedDone>0?Math.round(combinedDone/(t/3600)):null;
-  const estNow=completionEstimate&&completionEstimate.enough?completionEstimate:null;
-  let estRem=estNow&&estNow.hoursRemaining!=null?Math.round(estNow.hoursRemaining*3600):null;
-  let lines=["\u{1F9F5} Cross Stitch Progress Update"];
-  lines.push("Project: "+(projectName||sW+"\u00D7"+sH+" pattern"));
-  lines.push("Progress: "+ProgressUnits.formatUnits(combinedDone)+"/"+ProgressUnits.formatUnits(combinedTotal)+" stitches ("+progAll.percent.toFixed(1)+"%)");
-  if(halfStitchCounts.total>0)lines.push("Half stitches: "+halfStitchCounts.done+"/"+halfStitchCounts.total);
-  if(knotCounts.total>0)lines.push("French knots: "+knotCounts.done+"/"+knotCounts.total);
-  lines.push("Colours: "+coloursComplete+"/"+totalColours+" colours complete");
-  if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+(statsSessions?statsSessions.length:0)+" sessions)");
-  else lines.push("Time stitched: Not tracked yet");
-  if(stPerHr)lines.push("Speed: "+stPerHr+" stitches/hour");
-  if(estNow)lines.push("Est. finish: "+estNow.text+" ("+estNow.basis.charAt(0).toLowerCase()+estNow.basis.slice(1)+")");
-  if(estRem)lines.push("Est. time remaining: "+fmtTime(estRem));
-  lines.push("Pattern: "+sW+"\u00D7"+sH+", "+totalColours+" colours, "+fabricCt+"ct");
-  copyText(lines.join("\n"),"progress");
-}
-
 // History entry shapes:
 //   • Legacy: bare array of {idx,oldVal} — single-cell or per-pixel drag.
 //   • B2 BULK_TOGGLE: {type:"BULK_TOGGLE", source:"drag"|"range", changes:[...]}

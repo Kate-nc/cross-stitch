@@ -2,6 +2,8 @@
 // 'anchor' keeps Anchor names and numbers in the Creator, its Materials
 // legend, its saves and the Tracker.
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('./local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 const { device, quietOnboarding } = require('./creator-helpers');
 
 const SW = 10, SH = 10;
