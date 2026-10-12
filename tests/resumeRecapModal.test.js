@@ -32,11 +32,23 @@ describe('resume recap — wiring', () => {
 
   test('the first mark, or twenty seconds, dismisses it', () => {
     expect(trackerSrc).toMatch(/resumeRecap&&trackHistory\.length>0\)setResumeRecap\(null\)/);
-    expect(trackerSrc).toMatch(/setTimeout\(\(\)=>setResumeRecap\(null\),20000\)/);
+    expect(trackerSrc).toMatch(/arm\(20000\)/);
+    expect(trackerSrc).toMatch(/else setResumeRecap\(null\)/);
   });
 
   test('uses Icons.x() for the dismiss button', () => {
     expect(trackerSrc.split('resume-recap-banner-close')[1]).toMatch(/Icons\.x\(\)/);
+  });
+});
+
+describe('resume recap — keyboard and touch', () => {
+  test('the timeout waits while focus is inside the banner', () => {
+    expect(trackerSrc).toMatch(/b\.contains\(document\.activeElement\)\)arm\(5000\)/);
+  });
+  test('its buttons are 44 px on coarse pointers and it sits under the canonical header height', () => {
+    expect(cssSrc).toMatch(/@media \(pointer: coarse\) \{ \.resume-recap-banner-btn, \.resume-recap-banner-close \{ min-height: 44px; \}/);
+    expect(cssSrc).toMatch(/\.resume-recap-banner\s*\{[^}]*var\(--app-header-height, 48px\)/);
+    expect(cssSrc).not.toMatch(/--tb-h/);
   });
 });
 

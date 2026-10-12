@@ -68,3 +68,11 @@ Known limits:
 - The style question ("How do you usually work") no longer appears when a pattern is already open on first visit; the default (Block) applies and it is under More controls > Tools. A person who opens the Tracker empty still gets the full tour.
 - The saved context follows the 5 s autosave, so a change in the last seconds before closing the tab is covered only by the unload flush (same as every other saved field).
 
+
+### Copilot round 1 (batch 4)
+All seven findings checked against the code; all real, all fixed:
+- **View value `"colour"` vs `"realistic"`:** the renderer, `useCanvasOverlays`, the V shortcut and Preferences use symbol / colour / highlight; I had whitelisted `"realistic"` and rejected `"colour"`, so a saved Colour view was dropped on load. The validator now accepts symbol, colour, highlight. Separate, pre-existing and not touched here: the Realistic button in More controls sets a `stitchView` the renderer does not draw.
+- **Stale context in the Creator:** the refresh path now deletes `workingContext` when the Tracker omits it (as for `deletedSessionIds`), so a Creator save cannot bring an older one back.
+- **Project switch / same-project reload:** a switch sets the focus colour from the saved context (or none) and leaves Highlight view for Symbol when the project has no colour saved; a same-project reload keeps the current colour while the pattern still has it.
+- **`APP_VERSION`:** I had edited it; CI bumps it on merge. Restored to 1.0.128 (the 1.0.129 changelog entry stays).
+- **Banner:** `--app-header-height` instead of an undefined `--tb-h`; buttons 44 px on coarse pointers; the 20 s timeout waits while focus is inside the banner.

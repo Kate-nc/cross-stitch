@@ -1319,7 +1319,14 @@ const[sessionSummaryData,setSessionSummaryData]=useState(null);
 const[resumeRecap,setResumeRecap]=useState(null);
 const resumeRecapShownRef=useRef(new Set());
 // The recap is only a hello: the first mark, or twenty seconds, retires it.
-useEffect(()=>{if(!resumeRecap)return;const t=setTimeout(()=>setResumeRecap(null),20000);return()=>clearTimeout(t);},[resumeRecap]);
+useEffect(()=>{
+  if(!resumeRecap)return;
+  let t;
+  // Not while keyboard focus is inside it: taking the focused button away would drop the person's place.
+  const arm=(ms)=>{t=setTimeout(()=>{const b=document.querySelector('.resume-recap-banner');if(b&&b.contains(document.activeElement))arm(5000);else setResumeRecap(null);},ms);};
+  arm(20000);
+  return()=>clearTimeout(t);
+},[resumeRecap]);
 useEffect(()=>{if(resumeRecap&&trackHistory.length>0)setResumeRecap(null);},[resumeRecap,trackHistory]);
 // The pattern's size no longer matches the saved marks: held here until the user decides (see
 // processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
@@ -3699,16 +3706,18 @@ function processLoadedProject(project){
   } else {
     setHalfDone(new Map());
   }
-  setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
+  setSelectedColorId(null);setTrackHistory([]);setRedoStack([]);
   // Back to where the stitcher left off: colour, Mark or Navigate, and how the chart was drawn (TRACK-05).
   if(!_sameProjectReload){
     const _wc=normaliseWorkingContext(project.workingContext,newPal);
     setStitchMode(_wc?_wc.mode:"track");
-    if(_wc){
-      if(_wc.colour)setFocusColour(_wc.colour);
-      if(_wc.view)setStitchView(_wc.view);
-      if(_wc.highlight)setHighlightMode(_wc.highlight);
-    }
+    setFocusColour(_wc&&_wc.colour?_wc.colour:null);
+    if(_wc&&_wc.view)setStitchView(_wc.view);
+    else if(stitchView==="highlight")setStitchView("symbol");   // highlighting needs a colour, and this project has none saved
+    if(_wc&&_wc.highlight)setHighlightMode(_wc.highlight);
+  }else{
+    // The project on screen, loaded again: keep the colour in hand if the pattern still has it.
+    setFocusColour(prev=>prev&&newPal.some(m=>m&&m.id===prev)?prev:null);
   }
   setThreadOwned(project.threadOwned||{});
   let _reconcileHeld=false;
@@ -4756,7 +4765,7 @@ function normaliseWorkingContext(wc, pal) {
   var out = { colour: null, mode: "track", view: null, highlight: null };
   if (typeof wc.colour === "string" && Array.isArray(pal) && pal.some(function (m) { return m && m.id === wc.colour; })) out.colour = wc.colour;
   if (wc.mode === "navigate" || wc.mode === "track") out.mode = wc.mode;
-  if (wc.view === "symbol" || wc.view === "highlight" || wc.view === "realistic") out.view = wc.view;
+  if (wc.view === "symbol" || wc.view === "colour" || wc.view === "highlight") out.view = wc.view;
   if (wc.highlight === "isolate" || wc.highlight === "outline" || wc.highlight === "tint" || wc.highlight === "spotlight") out.highlight = wc.highlight;
   // Highlighting needs a colour to highlight.
   if (out.view === "highlight" && !out.colour) { out.view = null; out.highlight = null; }

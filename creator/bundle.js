@@ -13803,6 +13803,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (freshProject.blockH) tf.blockH = freshProject.blockH;
       if (freshProject.focusBlock) tf.focusBlock = freshProject.focusBlock;
       if (freshProject.workingContext) tf.workingContext = freshProject.workingContext;
+      else delete tf.workingContext;         // the Tracker went back to its defaults: do not bring an older one back
       if (freshProject.workArea) tf.workArea = freshProject.workArea;
       if (freshProject.startCorner) tf.startCorner = freshProject.startCorner;
       if (freshProject.colourSequence) tf.colourSequence = freshProject.colourSequence;

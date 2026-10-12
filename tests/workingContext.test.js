@@ -29,7 +29,7 @@ describe('workingContextForSave', () => {
     expect(forSave('310', 'navigate', 'highlight', 'tint')).toEqual({ colour: '310', mode: 'navigate', view: 'highlight', highlight: 'tint' });
   });
   test('the highlight style is only kept while highlighting', () => {
-    expect(forSave('310', 'track', 'realistic', 'tint')).toEqual({ colour: '310', view: 'realistic' });
+    expect(forSave('310', 'track', 'colour', 'tint')).toEqual({ colour: '310', view: 'colour' });
   });
 });
 
@@ -44,6 +44,9 @@ describe('normaliseWorkingContext', () => {
   test('unknown values fall back, known ones pass', () => {
     expect(normalise({ colour: '666', mode: 'zoom', view: 'wireframe', highlight: 'spotlight' }, pal))
       .toEqual({ colour: '666', mode: 'track', view: null, highlight: 'spotlight' });
+    // The values the chart renderer knows: symbol, colour, highlight (not "realistic", which it does not draw).
+    expect(normalise({ view: 'colour' }, pal).view).toBe('colour');
+    expect(normalise({ colour: '310', view: 'realistic' }, pal).view).toBeNull();
     expect(normalise({ colour: '666', mode: 'navigate', view: 'highlight', highlight: 'outline' }, pal))
       .toEqual({ colour: '666', mode: 'navigate', view: 'highlight', highlight: 'outline' });
   });
@@ -73,6 +76,14 @@ describe('the field travels with the project', () => {
   });
   test('a reload of the project already on screen leaves the current mode and view alone', () => {
     expect(tracker).toMatch(/_sameProjectReload=!!project\.id&&project\.id===projectIdRef\.current;[\s\S]*?if\(!_sameProjectReload\)\{\s*const _wc=normaliseWorkingContext/);
+  });
+  test('the Creator drops a preserved context the Tracker has since cleared', () => {
+    expect(read('creator/useProjectIO.js')).toMatch(/if \(freshProject\.workingContext\) tf\.workingContext = freshProject\.workingContext;\s*else delete tf\.workingContext;/);
+  });
+  test('a project switch restores the omitted colour and view; a same-project reload keeps a valid colour', () => {
+    expect(tracker).toMatch(/setFocusColour\(_wc&&_wc\.colour\?_wc\.colour:null\)/);
+    expect(tracker).toMatch(/else if\(stitchView==="highlight"\)setStitchView\("symbol"\)/);
+    expect(tracker).toMatch(/setFocusColour\(prev=>prev&&newPal\.some/);
   });
   test('is restored on load through the validator', () => {
     expect(tracker).toMatch(/normaliseWorkingContext\(project\.workingContext,newPal\)/);
