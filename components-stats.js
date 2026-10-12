@@ -717,34 +717,35 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
   );
 }
 
-function StreaksPanel({sessions, dayEndHour}){
-  var streaks = computeStreaks(sessions, dayEndHour);
+// The weekly streak is the default (a day or two off never costs anything); the daily streak only when it is turned on,
+// and none of it when streaks are turned off, leaving the best day and the average session, which are figures, not a streak.
+function StreaksPanel({sessions, dayEndHour, showStreaks, showDaily}){
+  if (showStreaks == null) showStreaks = true;
+  var weekly = computeWeeklyStreaks(sessions, dayEndHour);
+  var daily = showDaily ? computeStreaks(sessions, dayEndHour) : null;
   var bestDay = findBestDay(sessions);
   var avgSession = sessions && sessions.length > 0
     ? Math.round(sessions.reduce(function(sum, s){ return sum + getSessionSeconds(s); }, 0) / sessions.length)
     : 0;
-
+  var row = function(label, value, key){
+    return React.createElement("div", {className:"stat-row", key:key},
+      React.createElement("span", {className:"stat-row-label"}, label),
+      React.createElement("span", {className:"stat-row-value"}, value));
+  };
+  var rows = [];
+  if (showStreaks) {
+    rows.push(row("Weeks in a row", weeksText(weekly.current), "wk"));
+    rows.push(row("Most weeks in a row", weeksText(weekly.longest), "wkl"));
+    if (daily) {
+      rows.push(row("Days in a row", daily.current + " day" + (daily.current !== 1 ? 's' : ''), "dy"));
+      rows.push(row("Most days in a row", daily.longest + " day" + (daily.longest !== 1 ? 's' : ''), "dyl"));
+    }
+  }
+  rows.push(row("Best day", bestDay ? bestDay.stitches + ' (' + formatShortDate(bestDay.date) + ')' : '\u2014', "bd"));
+  rows.push(row("Avg session", formatStatsDuration(avgSession), "as"));
   return React.createElement("div", {className:"streaks-panel"},
-    React.createElement("h3", {className:"stats-section-title"}, "Streaks"),
-    React.createElement("div", {className:"stat-rows"},
-      React.createElement("div", {className:"stat-row"},
-        React.createElement("span", {className:"stat-row-label"}, "Current streak"),
-        React.createElement("span", {className:"stat-row-value"}, streaks.current + " day" + (streaks.current !== 1 ? 's' : ''))
-      ),
-      React.createElement("div", {className:"stat-row"},
-        React.createElement("span", {className:"stat-row-label"}, "Longest streak"),
-        React.createElement("span", {className:"stat-row-value"}, streaks.longest + " day" + (streaks.longest !== 1 ? 's' : ''))
-      ),
-      React.createElement("div", {className:"stat-row"},
-        React.createElement("span", {className:"stat-row-label"}, "Best day"),
-        React.createElement("span", {className:"stat-row-value"},
-          bestDay ? bestDay.stitches + ' (' + formatShortDate(bestDay.date) + ')' : '\u2014')
-      ),
-      React.createElement("div", {className:"stat-row"},
-        React.createElement("span", {className:"stat-row-label"}, "Avg session"),
-        React.createElement("span", {className:"stat-row-value"}, formatStatsDuration(avgSession))
-      )
-    )
+    React.createElement("h3", {className:"stats-section-title"}, showStreaks ? "Streaks" : "Sessions"),
+    React.createElement("div", {className:"stat-rows"}, rows)
   );
 }
 
@@ -1317,8 +1318,9 @@ function drawProgressCard(canvas, opts) {
     {label: 'Time stitched' + (opts.timeIsEstimated ? ' (est.)' : ''), value: opts.totalTimeFormatted || '\u2014'},
     {label: 'Sessions', value: String((opts.sessions || []).length)},
     {label: 'Per stitching day', value: String(opts.avgPerDay || 0)},
-    {label: 'Day streak', value: String(opts.streak || 0)}
+    {label: 'Weeks in a row', value: String(opts.streak || 0)}
   ];
+  if (opts.streak == null) stats.pop();      // streaks are turned off: the picture has no streak
   var colW = (W - 36) / stats.length;
   for (var i = 0; i < stats.length; i++) {
     var sx = 18 + colW * i + colW / 2;
@@ -1394,6 +1396,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var hasMultiSt = React.useState(false);
   var hasMultiProjects = hasMultiSt[0], setHasMultiProjects = hasMultiSt[1];
   var cardCanvasRef = React.useRef(null);
+  var mot = useMotivationPrefs();     // streaks, goals and celebrations on or off (Preferences)
   React.useEffect(function() {
     if (typeof ProjectStorage !== 'undefined') {
       ProjectStorage.listProjects().then(function(list) { setHasMultiProjects(list.length >= 2); }).catch(function(){});
@@ -1403,6 +1406,8 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.estimate);
   var dayEndHour = getDayEndHour(statsSettings);
   var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
+  // With goals hidden, the charts draw no goal line and no target pace either.
+  var chartSettings = mot.show ? statsSettings : Object.assign({}, statsSettings, {dailyGoal: null, weeklyGoal: null, monthlyGoal: null, targetDate: null});
 
   if (showComparison) {
     return React.createElement(ProjectComparison, {
@@ -1413,7 +1418,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   }
 
   function handleShare(){
-    var text = generateShareText(projectName, overviewStats, statsSessions || [], totalCompleted, totalStitches, dayEndHour);
+    var text = generateShareText(projectName, overviewStats, statsSessions || [], totalCompleted, totalStitches, dayEndHour, {showStreaks: mot.show, showDaily: mot.daily});
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function(){
         setCopied(true); setTimeout(function(){ setCopied(false); }, 2500);
@@ -1444,7 +1449,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   function handleExportCard() {
     var canvas = cardCanvasRef.current;
     if (!canvas) return;
-    var streakInfo = computeStreaks(statsSessions || [], dayEndHour);
+    var streakInfo = computeWeeklyStreaks(statsSessions || [], dayEndHour);
     drawProgressCard(canvas, {
       projectName: projectName,
       percent: overviewStats.percent,
@@ -1453,7 +1458,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       sessions: statsSessions || [],
       // the pace everywhere else: stitches per stitching day over the last 4 weeks (the average per active day until there is one)
       avgPerDay: overviewStats.recentPace || overviewStats.avgPerActiveDay,
-      streak: streakInfo.current,
+      streak: mot.show ? streakInfo.current : null,
       palette: palette
     });
     canvas.toBlob(function(blob) {
@@ -1481,9 +1486,9 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       )
     ),
     React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, todayStitches:getStatsTodayStitches(statsSessions || [], dayEndHour), weekStitches:getStatsThisWeekStitches(statsSessions || [], dayEndHour)}),
-    React.createElement("div", {className:"stats-two-col", style:{marginTop:16}},
-      React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
-      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour})
+    React.createElement("div", {className:mot.show ? "stats-two-col" : "", style:{marginTop:16}},
+      mot.show && React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
+      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour, showStreaks:mot.show, showDaily:mot.daily})
     ),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
@@ -1494,7 +1499,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         Icons.camera(), ' Save as image')
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:statsSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView, overviewStats:overviewStats, totalCompleted:totalCompleted})
+      React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:chartSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView, overviewStats:overviewStats, totalCompleted:totalCompleted})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
@@ -1516,6 +1521,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     ),
     React.createElement(StatsAccordion, {id:"settings", title:"Settings"},
       React.createElement("div", null,
+        !mot.show && React.createElement(DayEndSetting, {statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),
         React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', flexWrap:'wrap', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
           "Session timing:",
           React.createElement("select", {value:timingMode, "aria-label":"Session timing for this project", onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', minHeight:36}},
@@ -1711,11 +1717,11 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     return {totalStitches: totalStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total, estimated: sessionsTimeIsEstimated(allSessions)};
   }, [allSessions, projectSummaries]);
 
+  var mot = useMotivationPrefs();     // streaks, goals and celebrations on or off (Preferences)
   var globalStreak = React.useMemo(function() {
-    // Daily streak (consecutive calendar days) — canonical source is the engine
-    // so this and stats-page.js (weekly streak) cannot drift from each other.
-    if (typeof InsightsEngine === 'undefined' || !InsightsEngine.computeDailyStreak) return {current: 0, longest: 0};
-    return InsightsEngine.computeDailyStreak(allSessions);
+    // Weekly streak by default; the daily one only when it is turned on.
+    return {weekly: computeWeeklyStreaks(allSessions, getDayEndHour()),
+      daily: (typeof InsightsEngine !== 'undefined' && InsightsEngine.computeDailyStreak) ? InsightsEngine.computeDailyStreak(allSessions) : {current: 0, longest: 0}};
   }, [allSessions]);
 
   var weekComparison = React.useMemo(function() {
@@ -1849,13 +1855,14 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     ),
 
     // Section 2: Streak
-    allSessions.length > 0 && React.createElement('div', {className: 'gsd-streak'},
+    mot.show && allSessions.length > 0 && React.createElement('div', {className: 'gsd-streak'},
       React.createElement('div', {className: 'gsd-streak-flame'}, Icons.fire()),
       React.createElement('div', {className: 'gsd-streak-body'},
-        React.createElement('div', {className: 'gsd-streak-num'}, globalStreak.current + ' day' + (globalStreak.current !== 1 ? 's' : '')),
-        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.current > 0 ? 'Daily streak \u2014 keep it going!' : 'Start your daily streak!')
+        React.createElement('div', {className: 'gsd-streak-num'}, weeksText(globalStreak.weekly.current)),
+        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.weekly.current > 0 ? 'Weeks in a row with some stitching' : 'A new run of weeks begins with your next session'),
+        mot.daily && React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.daily.current + ' day' + (globalStreak.daily.current !== 1 ? 's' : '') + ' in a row (most ' + globalStreak.daily.longest + ')')
       ),
-      React.createElement('div', {className: 'gsd-streak-best'}, 'Best: ' + globalStreak.longest + ' days')
+      React.createElement('div', {className: 'gsd-streak-best'}, 'Most: ' + weeksText(globalStreak.weekly.longest))
     ),
 
     // Section 3: Project cards
@@ -1888,7 +1895,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     ),
 
     // Section 5: Goals (stored globally in localStorage, not tied to any single project)
-    React.createElement('div', {style: {marginBottom: '1.5rem'}},
+    mot.show && React.createElement('div', {style: {marginBottom: '1.5rem'}},
       React.createElement('h3', {className: 'gsd-section-label'}, 'Goals'),
       React.createElement(GoalTracker, {
         statsSettings: effectiveGoalSettings,

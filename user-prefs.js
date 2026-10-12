@@ -228,6 +228,14 @@
     //   "reload" — silently reload the page to pick up the remote save.
     //   "keep"   — do nothing; this tab's next save will overwrite.
     crossTabConflictPolicy: "prompt",
+
+    // ─── Calm motivation (tracking audit STATS-09) ──────────────────────
+    // Whether streaks, goals and celebrations are shown anywhere. null until it has been decided once: for a person who
+    // already has goals or a stitching history it is decided as true (nothing they see today disappears), for a new
+    // person as false (calm). See resolveMotivation below. showDailyStreak is the same (the weekly streak is the
+    // default; the daily one is only shown when this is on).
+    showStreaksAndGoals:    null,
+    showDailyStreak:        null,
   };
 
   var PVIEW_DEFAULTS = {
@@ -285,6 +293,63 @@
       delete saveTimers[key];
       _write(key, value);
     }, 500);
+  }
+
+  // ─── Calm motivation ─────────────────────────────────────────────────
+  // What the page should show now. Undecided (null) counts as calm: nothing flashes up for a new person while the
+  // first decision is being made.
+  function motivation() {
+    var show = _read("showStreaksAndGoals", null) === true;
+    return { show: show, daily: show && _read("showDailyStreak", null) === true };
+  }
+  function _hasGoals(g) { return !!(g && (g.dailyGoal || g.weeklyGoal || g.monthlyGoal || g.targetDate)); }
+  // Decide once, from what is already here: goals set, or a stitching history, means "on" (and the daily streak too,
+  // since they could see it); otherwise off. The answer is stored so that stitching the first session later does not
+  // change it. Calls back with the decided value (true / false), or does nothing if it was decided already.
+  function resolveMotivation(done) {
+    if (_read("showStreaksAndGoals", null) !== null) { if (done) done(_read("showStreaksAndGoals", null)); return; }
+    function decide(existing) {
+      if (_read("showStreaksAndGoals", null) !== null) { if (done) done(_read("showStreaksAndGoals", null)); return; }
+      _write("showStreaksAndGoals", !!existing);
+      if (_read("showDailyStreak", null) === null) _write("showDailyStreak", !!existing);
+      if (done) done(!!existing);
+    }
+    // The canonical key, then the older one readGlobalGoals() still falls back to.
+    var goalKeys = ["cs_global_goals", "cs_stats_settings"];
+    for (var gi = 0; gi < goalKeys.length; gi++) {
+      try { if (_hasGoals(JSON.parse(localStorage.getItem(goalKeys[gi]) || "null"))) return decide(true); } catch (_) {}
+    }
+    try { var gs = JSON.parse(localStorage.getItem("cs_globalStreak") || "null"); if (gs && gs.current > 0) return decide(true); } catch (_) {}
+    if (typeof window === "undefined" || !window.ProjectStorage || typeof window.ProjectStorage.listProjects !== "function") return;   // not decidable here
+    var PS = window.ProjectStorage;
+    PS.listProjects().then(function(list) {
+      list = list || [];
+      if (list.some(function(r) {
+        return r && (r.activeDaysTotal > 0 || (r.unitsV == null && r.completedStitches > 0) || _hasGoals(r.statsSettings));
+      })) return decide(true);
+      // The list rows carry no goals, so a goal set on an otherwise empty project is only in the project itself.
+      // Looked at once, one project at a time, and only when nothing above settled it.
+      if (typeof PS.get !== "function") return decide(false);
+      var i = 0;
+      (function next() {
+        if (i >= list.length) return decide(false);
+        var row = list[i++];
+        if (!row || row.id == null) return next();
+        Promise.resolve(PS.get(row.id)).then(function(p) {
+          if (p && _hasGoals(p.statsSettings)) return decide(true);
+          next();
+        }, function() { next(); });
+      })();
+    }).catch(function() {});
+  }
+  // Pages call this once storage has loaded; it also runs by itself shortly after the page does.
+  if (typeof window !== "undefined" && typeof document !== "undefined" && typeof indexedDB !== "undefined") {
+    var _tries = 0;
+    (function wait() {
+      if (_read("showStreaksAndGoals", null) !== null) return;
+      if (window.ProjectStorage && typeof window.ProjectStorage.listProjects === "function") { resolveMotivation(); return; }
+      if (++_tries < 60) setTimeout(wait, 100);
+    })();
   }
 
   // Reset all global prefs and per-pattern view states to defaults
@@ -408,6 +473,8 @@
     loadAll: loadAll,
     get: get,
     set: set,
+    motivation: motivation,
+    resolveMotivation: resolveMotivation,
     setDebounced: setDebounced,
     reset: reset,
     getPatternState: getPatternState,

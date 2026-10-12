@@ -3,7 +3,7 @@
 const T = require('./tk');
 const label = process.argv[2] || 'stats', OPENS = Number(process.argv[3] || 8);
 const BASE = 'http://127.0.0.1:' + (process.env.AUDIT_PORT || '8000') + '/';
-const INIT = () => { localStorage.setItem('cs_stitchStyle', 'block'); ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1')); localStorage.setItem('cs_sessionOnboardingDone', '1'); ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true')); };
+const INIT = () => { localStorage.setItem('cs_stitchStyle', 'block'); ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1')); localStorage.setItem('cs_sessionOnboardingDone', '1'); localStorage.setItem('cs_pref_showStreaksAndGoals', 'true'); ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true')); };
 (async () => {
   const { ctx, close } = await T.launch({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage(); await page.addInitScript(INIT);

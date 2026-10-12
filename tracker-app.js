@@ -1099,6 +1099,8 @@ const TRACK_HISTORY_MAX=50;
 
 const[statsView,setStatsView]=useState(false);
 const[statsTab,setStatsTab]=useState('all');
+// Streaks, goals and celebrations on or off (Preferences). The ref lets the effects below read the live value without re-running.
+const motivation=useMotivationPrefs();const motivationRef=useRef(motivation);motivationRef.current=motivation;
 const[trackerPreviewOpen,setTrackerPreviewOpen]=useState(false);
 const[trackerPreviewLevel,setTrackerPreviewLevel]=useState(2);
 const[stitchMode,setStitchMode]=useState("track");
@@ -1923,6 +1925,7 @@ const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
 const{statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+useEffect(()=>{if(!motivation.show)setCelebration(null);},[motivation.show,setCelebration]);
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -2489,7 +2492,8 @@ useEffect(()=>{
             const key=best.pct!=null?('pct_'+best.pct):best.label;
             if(!celebratedRef.current.has(key)){
               celebratedRef.current.add(key);
-              setCelebration(best);
+              // Remembered as celebrated either way, so turning celebrations on later does not replay old ones.
+              if(motivationRef.current.show)setCelebration(best);
             }
             for(let h=0;h<hits.length;h++){pendingMilestonesRef.current.push(hits[h]);}
             // Record persistently (deduplicated by pct/label key)
@@ -2539,7 +2543,7 @@ useEffect(()=>{
     prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
   }catch(e){}
 },[doneCount,halfStitchCounts.done,knotCounts.done]);
-// Goal-completion detection — fire a celebration when any goal is first reached in this session
+// Goal-completion detection: remembers when a goal is first reached in this session; says so only when goals are shown.
 useEffect(()=>{
   try{
     const deh=getDayEndHour(statsSettings);
@@ -2551,17 +2555,17 @@ useEffect(()=>{
     const prev=goalCelebrationRef.current;
     if(dailyGoal>0){
       const cur=todayStitchesForBar;
-      if(!prev.daily&&cur>=dailyGoal){goalCelebrationRef.current={...prev,daily:true};setCelebration({label:'Daily goal reached! '+cur.toLocaleString('en-GB')+' / '+dailyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
+      if(!prev.daily&&cur>=dailyGoal){goalCelebrationRef.current={...prev,daily:true};if(motivationRef.current.show)setCelebration({label:'Daily goal reached: '+cur.toLocaleString('en-GB')+' of '+dailyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.daily&&cur<dailyGoal)goalCelebrationRef.current={...prev,daily:false};
     }
     if(weeklyGoal>0){
       const cur=getStatsThisWeekStitches(statsSessions||[],deh)+getLiveWeekStitches(liveSess,deh);
-      if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};setCelebration({label:'Weekly goal reached! '+cur.toLocaleString('en-GB')+' / '+weeklyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
+      if(!prev.weekly&&cur>=weeklyGoal){goalCelebrationRef.current={...prev,weekly:true};if(motivationRef.current.show)setCelebration({label:'Weekly goal reached: '+cur.toLocaleString('en-GB')+' of '+weeklyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.weekly&&cur<weeklyGoal)goalCelebrationRef.current={...prev,weekly:false};
     }
     if(monthlyGoal>0){
       const cur=getStatsThisMonthStitches(statsSessions||[],deh)+getLiveMonthStitches(liveSess,deh);
-      if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};setCelebration({label:'Monthly goal reached! '+cur.toLocaleString('en-GB')+' / '+monthlyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
+      if(!prev.monthly&&cur>=monthlyGoal){goalCelebrationRef.current={...prev,monthly:true};if(motivationRef.current.show)setCelebration({label:'Monthly goal reached: '+cur.toLocaleString('en-GB')+' of '+monthlyGoal.toLocaleString('en-GB')+' stitches',pct:null});}
       else if(prev.monthly&&cur<monthlyGoal)goalCelebrationRef.current={...prev,monthly:false};
     }
   }catch(e){}
@@ -8796,7 +8800,7 @@ return(
     </div>
   </div>}
 
-{celebration&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
+{celebration&&motivation.show&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
 {/* Touch-1 H-2: Focus mini-bar. Renders only when focus mode is on.
     The Exit button never fades — it's the user's only way out. */}
 {focusMode&&<div

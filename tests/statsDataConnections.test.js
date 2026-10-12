@@ -127,8 +127,11 @@ describe('S1 — streak label disambiguation', () => {
     expect(STATS_PAGE_SRC).not.toContain("title: 'Stitching Streak'");
   });
 
-  test('components-stats.js streak label says "Daily streak"', () => {
-    expect(COMPONENTS_STATS_SRC).toContain('Daily streak');
+  test('components-stats.js labels the weekly and the daily streak apart ("weeks in a row" / "days in a row")', () => {
+    // (Phase 3: the weekly streak is the default, the daily one only when it is turned on.)
+    expect(COMPONENTS_STATS_SRC).toContain('Weeks in a row');
+    expect(COMPONENTS_STATS_SRC).toContain("' in a row (most '");
+    expect(COMPONENTS_STATS_SRC).toContain('Days in a row');
   });
 
   test('InsightsEngine exports computeDailyStreak', () => {

@@ -404,6 +404,8 @@
     var dragMark = usePref("trackerDragMark", true);
     var trackerSheen = usePref("trackerCanvasTexture", false);
     var markAllAs = usePref("trackerMarkAllAs", "ask");
+    var showMotivation = usePref("showStreaksAndGoals", null);
+    var showDaily = usePref("showDailyStreak", null);
     var dayEnd = usePref("statsDayEndHour", 0);
 
     return h("div", null,
@@ -535,6 +537,15 @@
       h(Section, { title: "Canvas display" },
         h(Row, { last: true, label: "Thread sheen", desc: "Adds a subtle specular highlight to pattern squares to better suggest how thread catches light." },
           h(Switch, { checked: trackerSheen[0], onChange: trackerSheen[1] })
+        )
+      ),
+
+      h(Section, { title: "Streaks, goals and celebrations" },
+        h(Row, { label: "Show streaks and goals", desc: "The streak cards, the goal bars and goal settings, and the messages when a goal or a milestone is reached, in the Tracker, on the Stats pages and in what you share. Off keeps every figure and chart; nothing is ever counted against you for a day or a week off." },
+          h(Switch, { checked: showMotivation[0] === true, onChange: showMotivation[1], "aria-label": "Show streaks and goals" })
+        ),
+        h(Row, { last: true, label: "Show the daily streak too", desc: "Streaks count weeks in a row by default, so a few days off cost nothing. Turn this on to see days in a row as well." },
+          h(Switch, { "aria-label": "Show the daily streak too", checked: showMotivation[0] === true && showDaily[0] === true, onChange: function (v) { showDaily[1](v); if (v && showMotivation[0] !== true) showMotivation[1](true); } })
         )
       ),
 

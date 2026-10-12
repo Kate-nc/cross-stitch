@@ -1736,6 +1736,51 @@ function computeStreaks(sessions, dayEndHour) {
   return { current: currentStreak, longest: longest };
 }
 
+// Weeks in a row with something stitched (Monday-start weeks; the week in progress does not break the run if it has
+// no stitching yet). The default streak: a gap of a day or two never costs anything. { current, longest } in weeks.
+function computeWeeklyStreaks(sessions, dayEndHour) {
+  var weeks = Object.create(null);
+  (sessions || []).forEach(function(s) {
+    if (!s || !s.date || !ProgressUnits.sessionActive(s)) return;
+    var d = new Date(s.date + 'T12:00:00');
+    if (isNaN(d.getTime())) return;
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    weeks[Math.round(d.getTime() / 604800000)] = true;
+  });
+  var keys = Object.keys(weeks).map(Number).sort(function(a, b) { return a - b; });
+  if (!keys.length) return { current: 0, longest: 0 };
+  var longest = 1, run = 1;
+  for (var i = 1; i < keys.length; i++) { run = keys[i] === keys[i - 1] + 1 ? run + 1 : 1; if (run > longest) longest = run; }
+  var t = new Date(getStitchingDate(new Date(), dayEndHour || 0) + 'T12:00:00');
+  t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+  var thisWeek = Math.round(t.getTime() / 604800000);
+  var cursor = weeks[thisWeek] ? thisWeek : thisWeek - 1, current = 0;
+  while (weeks[cursor]) { current++; cursor--; }
+  return { current: current, longest: longest };
+}
+function weeksText(n) { return n + ' week' + (n !== 1 ? 's' : ''); }
+
+// What the person has chosen to see (see UserPrefs.motivation): streaks, goals and celebrations on or off, and whether
+// the daily streak is shown as well as the weekly one. Without the preferences module (tests, tools) everything shows,
+// as it always did.
+function getMotivationPrefs() {
+  try { if (typeof window !== 'undefined' && window.UserPrefs && typeof window.UserPrefs.motivation === 'function') return window.UserPrefs.motivation(); } catch (e) {}
+  return { show: true, daily: true };
+}
+function useMotivationPrefs() {
+  var st = React.useState(getMotivationPrefs);
+  React.useEffect(function() {
+    function on() {
+      var next = getMotivationPrefs();
+      st[1](function(prev) { return prev.show === next.show && prev.daily === next.daily ? prev : next; });
+    }
+    window.addEventListener('cs:prefchange', on);
+    on();
+    return function() { window.removeEventListener('cs:prefchange', on); };
+  }, []);
+  return st[0];
+}
+
 function findBestDay(sessions) {
   if (!sessions || sessions.length === 0) return null;
   var dailyTotals = {};
@@ -1799,8 +1844,12 @@ function estPaceLine(estimate) {
 
 // ═══ Phase D: Sharing & Export helpers ═══
 
-function generateShareText(projectName, stats, sessions, totalCompleted, totalStitches, dayEndHour) {
-  var streaks = computeStreaks(sessions, dayEndHour);
+// opts (optional): { showStreaks, showDaily } as chosen in Preferences; the default is the weekly streak only.
+function generateShareText(projectName, stats, sessions, totalCompleted, totalStitches, dayEndHour, opts) {
+  opts = opts || {};
+  var showStreaks = opts.showStreaks !== false;
+  var weekly = computeWeeklyStreaks(sessions, dayEndHour);
+  var streaks = opts.showDaily ? computeStreaks(sessions, dayEndHour) : { current: 0, longest: 0 };
   var bestDay = findBestDay(sessions);
   var percent = totalStitches > 0
     ? (totalCompleted / totalStitches * 100).toFixed(1)
@@ -1816,8 +1865,11 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     'Speed: ' + stats.stitchesPerHour + ' stitches/hour' + (stats.timeIsEstimated ? ' (estimated)' : '') + (stats.recentPace ? ' \u00b7 ' + stats.recentPace.toLocaleString('en-GB') + ' per stitching day recently' : '')
   ];
 
-  if (streaks.current > 0 || streaks.longest > 0) {
-    lines.push('Streak: ' + streaks.current + ' day' + (streaks.current !== 1 ? 's' : '') + ' (longest: ' + streaks.longest + ')');
+  if (showStreaks && (weekly.current > 0 || weekly.longest > 0)) {
+    lines.push('Weeks in a row: ' + weekly.current + ' (most: ' + weekly.longest + ')');
+  }
+  if (showStreaks && opts.showDaily && (streaks.current > 0 || streaks.longest > 0)) {
+    lines.push('Days in a row: ' + streaks.current + ' (most: ' + streaks.longest + ')');
   }
 
   if (bestDay) {

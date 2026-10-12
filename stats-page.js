@@ -1832,7 +1832,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   }, [onNavigateToProject]);
 
   const vis = visibility;
-  const show = key => vis[key] !== false;
+  // Streaks, goals and celebrations on or off (Preferences); the streak card is one of them.
+  const mot = (typeof useMotivationPrefs === 'function') ? useMotivationPrefs() : { show: true, daily: true };
+  const show = key => vis[key] !== false && (key !== 'streak' || mot.show);
 
   // ── Plan B Phase 4: Lifetime overview chip ────────────────────
   // Always-visible headline chip in the tab bar so users on Activity /
@@ -2047,7 +2049,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             )
           : h('div', null,
               h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '0'),
-              h('div', { className: 'gsd-metric-sub' }, 'Stitch this week to start a streak')
+              h('div', { className: 'gsd-metric-sub' }, 'A new run of weeks begins with your next session')
             )
       ),
       show('pace') && h(StatCard, { title: 'Recent Pace', id: 'stats-pace' },

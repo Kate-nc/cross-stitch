@@ -7,10 +7,12 @@ const STATS = read('components-stats.js');
 const TRACKER = read('tracker-app.js');
 
 test('BUG-02: the share card is given the streak helpers.js actually returns', () => {
-  expect(STATS).toMatch(/streak: streakInfo\.current,/);
+  // (Phase 3: the weekly streak, and only when streaks are shown.)
+  expect(STATS).toMatch(/streak: mot\.show \? streakInfo\.current : null,/);
   expect(STATS).not.toMatch(/streakInfo\.currentStreak/);
-  // and computeStreaks does return { current, longest }
+  // and the streak helpers do return { current, longest }
   expect(read('helpers.js')).toMatch(/return \{ current: currentStreak, longest: longest \};/);
+  expect(read('helpers.js')).toMatch(/return \{ current: current, longest: longest \};/);
 });
 
 test('BUG-05: "~N sessions" is singular for one, and Projects reads as finished / in progress', () => {

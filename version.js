@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.123';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.124',
+    date: 'October 2026',
+    notes: [
+      'A calmer way to stitch. New in Preferences (Stitch Tracker): "Show streaks and goals". Turned off, there are no streak cards, goal bars or goal settings, and no messages when a goal or milestone is reached, in the Tracker, on the Stats pages or in what you share. Every figure and chart stays. If you already had goals or a stitching history it starts on, so nothing you see today disappears; for a new person it starts off.',
+      'Streaks now count weeks in a row by default, so a few days off cost nothing; "days in a row" is shown too only if you turn on "Show the daily streak too". The wording is plainer: "Weeks in a row", with no "keep it going".',
+    ]
+  },
+  {
     version: '1.0.123',
     date: 'October 2026',
     notes: [
