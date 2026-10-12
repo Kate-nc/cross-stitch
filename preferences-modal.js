@@ -568,7 +568,7 @@
           h(Switch, { checked: celebrate[0], onChange: celebrate[1] })
         ),
         h(Row, { last: true, label: "Drag to mark stitches",
-          desc: "Click-and-drag (or touch-and-drag) across the chart to mark a run of stitches in one motion. Long-press a cell, then tap the opposite corner to fill a rectangle. Turn off to fall back to plain tap-to-mark." },
+          desc: "Click-and-drag across the chart to mark a run of stitches in one motion; on a touch screen, rest one finger on a stitch and then drag (a quick swipe scrolls instead). Long-press a cell, then tap the opposite corner to fill a rectangle. Turn off to fall back to plain tap-to-mark." },
           h(Switch, { checked: dragMark[0], onChange: dragMark[1] })
         )
       ),

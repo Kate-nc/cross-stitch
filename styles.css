@@ -8651,3 +8651,24 @@ body.cs-focus .canvas-area { padding-top: 22px; padding-bottom: calc(72px + env(
 /* The way out of Focus is a touch target, not a keyboard hint. */
 .cs-focus-bar .cs-focus-exit { white-space: nowrap; }
 @media (pointer: coarse) { .cs-focus-bar .cs-focus-exit kbd { display: none; } }
+
+
+/* ── Phase 4 batch 3 (TRACK-08): touch intent, Paint mode, Lock touches ─────── */
+@media (pointer: coarse) { .toast-action { min-height: 44px; min-width: 44px; } }
+.ppal-touch-row { display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+@media (pointer: coarse) { .ppal-touch-row .ppal-utility-chip { min-height: 44px; } }
+.touch-lock-pill {
+  position: fixed; top: 28px; left: 50%; transform: translateX(-50%);
+  z-index: var(--z-coachmark, 1200); min-height: 44px; max-width: calc(100vw - 24px);
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; overflow: hidden;
+  border: 1px solid var(--accent-border); border-radius: var(--radius-pill);
+  background: var(--surface); color: var(--accent-ink); font: inherit; font-size: var(--text-sm); font-weight: 600;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.12)); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.touch-lock-pill svg { width: 18px; height: 18px; }
+.touch-lock-pill__icon { display: inline-flex; position: relative; z-index: 1; }
+.touch-lock-pill > span:not(.touch-lock-pill__fill):not(.touch-lock-pill__icon) { position: relative; z-index: 1; }
+.touch-lock-pill__fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent-light); }
+.touch-lock-pill--holding .touch-lock-pill__fill { width: 100%; transition: width var(--unlock-ms, 700ms) linear; }
+@media (prefers-reduced-motion: reduce) { .touch-lock-pill--holding .touch-lock-pill__fill { transition: none; width: 100%; } }
+body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) + 8px); }

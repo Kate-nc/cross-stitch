@@ -27,6 +27,16 @@
     // milliseconds to count as a tap (else it's a "hold").
     TAP_HOLD_MS: 200,
 
+    // Touch / pen painting starts only after the finger has rested on a stitch this long (a quicker one-finger
+    // swipe is a scroll and marks nothing). Paint mode skips the wait. Mouse is not affected.
+    PAINT_HOLD_MS: 120,
+
+    // Holding the Lock touches pill this long unlocks the chart (a stray finger cannot).
+    UNLOCK_HOLD_MS: 700,
+
+    // A drag, rectangle or fill that marks more than this many stitches offers "Undo N stitches".
+    BULK_UNDO_MIN: 5,
+
     // Long-press recogniser fires after this long with the pointer
     // still down and within TAP_SLOP_PX of the start. 500 ms matches
     // iOS / Android system long-press.

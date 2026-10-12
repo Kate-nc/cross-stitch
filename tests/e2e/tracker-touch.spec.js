@@ -2,8 +2,10 @@
    and pointer events a finger produces.
 
    The gesture model these pin down:
-     Mark mode     one finger marks: tap, drag across stitches, long-press for
-                   a rectangle (with a bar offering Park thread here / Cancel).
+     Mark mode     one finger marks: tap, rest a moment then drag across
+                   stitches (a quick swipe scrolls and marks nothing; see
+                   phase4-batch3), long-press for a rectangle (with a bar
+                   offering Park thread here / Cancel).
                    Two fingers pan and pinch-zoom; a second finger abandons the
                    one-finger gesture without marking anything.
      Navigate mode one finger pans (natively), a tap places or clears the
@@ -65,7 +67,7 @@ test.describe('Tracker touch: Mark mode', function() {
     const a = await trackerCellPoint(page, 9, 8);
     const scs = await cellSize(page);
     await touch('touchStart', [a]);
-    await page.waitForTimeout(60);
+    await page.waitForTimeout(180);   // a finger that has rested on a stitch paints; a quicker swipe scrolls (phase4-batch3)
     for (let i = 1; i <= 8; i++) {
       await touch('touchMove', [{ x: a.x - i * scs / 2, y: a.y }]);
       await page.waitForTimeout(16);
@@ -123,7 +125,7 @@ test.describe('Tracker touch: Mark mode', function() {
     const a = { ...(await trackerCellPoint(page, 3, 6)), id: 1 };
     const scs = await cellSize(page);
     await touch('touchStart', [a]);
-    await page.waitForTimeout(80);
+    await page.waitForTimeout(180);   // rested, so this really is a drag the second finger then drops
     for (let i = 1; i <= 4; i++) {
       await touch('touchMove', [{ x: a.x + i * scs * 0.6, y: a.y, id: 1 }]);
       await page.waitForTimeout(16);

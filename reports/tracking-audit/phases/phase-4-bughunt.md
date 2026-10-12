@@ -34,3 +34,23 @@
 
 ### Not verified
 Safari and Firefox (`dvh`, `visualViewport` and the dynamic toolbar are measured through `visualViewport` and `innerHeight`, but only Chromium ran); real phones and real on-screen keyboards (the chart re-measures on `visualViewport` resize, only tested by resizing the window); 200% browser zoom; stylus and palm cases (batch 3's); mouse and trackpad scroll on a narrow window; `npm run test:mobile-audit` (cannot run here, see batch 1).
+
+## Batch 3 (TRACK-08: scrolling must not mark)
+
+### Exercised
+- `npm test` (306 suites, 4,075 tests; 37 in `dragMark.test.js`, 9 of them new for touch intent), terminology lint, `node build-runtime-js.js --check`. Playwright (Chromium, real touch through CDP): `phase4-batch3` (7), `tracker-touch` (8, with one expectation moved to the new contract), and the Phase 2, 3 and 4 specs, `french-knots`, `cross-tab-merge`, `save-durability`, `progress-units` together (123 passed, 1 flaky that passed on retry: the known `save-durability`).
+- Acceptance: a 120 px quick swipe marks 0 stitches and scrolls the chart; rest then drag across 5 cells marks the rested stitch and 5 more with the chart not moving; a tap marks 1 at once; Paint mode paints on a quick drag; Lock touches blocks a tap and a drag, a tap on the pill does not unlock, hold then lift does; a stroke of 8 stitches offers "Undo 8 stitches" and undoing it removes all 8; a stroke of 4 offers nothing; two-finger pan, pinch, momentum and the second-finger-mid-drag cases still pass; a mouse drag still marks with no rest.
+- Performance: phone emulation and desktop, interleaved against `main` (progress log): no regression.
+
+### Bugs found
+- **Fixed here, a ghost click:** unmounting the Lock pill at the lift let the browser's follow-up click land on the control underneath (it opened the More panel; the next tap then closed it instead of marking). The pill now stays for 400 ms after the lift.
+- **Fixed here:** the toast's action buttons (Undo, View) were about 20 px tall; they are 44 px on touch.
+- **Noted, not changed:** the pre-existing `touch-constants.js` still defines `TAP_HOLD_MS` 200 ms for what counts as a tap, so a finger resting between 120 and 200 ms and lifting is still a tap (marks one stitch) while one resting longer without moving is discarded (as before).
+- **Out of scope, noted:** the "Mark" and "Nav" labels on the controls strip, and the shortcut F being both Focus and the Full-stitch layer (batch 5, COMMON-01).
+
+### Not verified
+Real iOS Safari and Android devices (the page keeps the browser from scrolling only after the rest; iOS may begin a scroll in the first pixels), a real stylus, a resting palm that makes two touch points in Lock, `npm run test:mobile-audit` (the updated `pan-ownership` spec was not run), 200% zoom, and rotation while a stroke is in progress.
+
+### Review round 1 (Copilot on PR 296; two findings, both verified)
+- **"Undo N stitches" could undo something else (medium).** True: the button always ran the ordinary Undo, so after another mark, a park or an Undo within the 8 seconds it would have undone that instead. The message is now bound to the exact history entry of its stroke: it goes as soon as that entry is no longer the newest step (a later mark, a park, an Undo, a project switch), and if it is somehow pressed after that it declines and says so. New browser test: stroke of 8, one more tap, the message is gone and nothing was undone.
+- **Paint could report an inactive mode (medium).** True: with "Drag to mark stitches" off in Preferences the drag hook is inert, yet the Paint chip and the "Paint" label still appeared. The Paint chip is not offered when drag marking is off, and the strip says Mark. (Lock touches still works there: it stops the touch before the legacy tap handlers see it.) New browser test.

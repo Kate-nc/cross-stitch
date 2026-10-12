@@ -12,10 +12,9 @@
    So the two assertions that matter are a pair, and neither means much alone:
 
      - nav mode pans natively, with the JS pan path not running;
-     - track mode still marks, and still does *not* pan natively.
-
-   A change that made everything native would pass the first and fail the
-   second; the old code passes the second and fails the first. */
+     - track mode: a quick one-finger swipe also pans natively and marks nothing
+       (Phase 4 / TRACK-08); marking needs a rested finger or Paint mode.
+   Two fingers always pan from JS. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 
@@ -90,14 +89,14 @@ async function swipe(page, fingers) {
   }, scroller.toString());
 }
 
-test('track mode keeps the one-finger drag, because that gesture marks', async ({ page }) => {
+test('track mode lets a one-finger swipe scroll natively, and only paints once a finger has rested (Phase 4, TRACK-08)', async ({ page }) => {
   await openTracker(page);
   await setMode(page, 'Mark');
   const ta = await touchAction(page);
   console.log('TOUCH_ACTION_TRACK ' + ta);
-  // `none` is what lets preventDefault suppress the browser's scroll so the
-  // drag can mark instead.
-  expect(ta).toBe('none');
+  // Mark mode no longer takes every one-finger drag: the browser may pan until a finger has rested on a stitch
+  // (useDragMark "armed"), and only then does touchmove call preventDefault. Paint mode and Lock touches use `none`.
+  expect(ta).toMatch(/pan-x|pan-y|manipulation/);
 });
 
 test('nav mode hands the one-finger drag to the compositor', async ({ page }) => {
@@ -162,19 +161,18 @@ test('a nav-mode tap still lands on one cell, and only one', async ({ page }) =>
   expect({ gx: saved.hlCol, gy: saved.hlRow }).toEqual({ gx: target.gx, gy: target.gy });
 });
 
-test('track mode: one finger marks, two fingers pan from the main thread', async ({ page }) => {
-  // The complement of the nav-mode test. In track mode one finger is
-  // drag-marking, so it must not move the chart (it used to do both, which
-  // panned erratically and left stray marks). Two fingers pan instead, from
-  // JS — asserted on purpose, so a future "just make it all native" change
-  // has to confront the trade-off rather than silently break marking.
+test('track mode: a quick one-finger swipe pans natively, two fingers pan from the main thread', async ({ page }) => {
+  // Since Phase 4 (TRACK-08) a quick swipe is a scroll that marks nothing (see tests/e2e/phase4-batch3.spec.js for the
+  // marks), so it moves the chart without the JS pan path. Two fingers still pan from JS, asserted on purpose.
+  // (Not run in the Phase 4 sandbox: this spec loads a fixture file and the CDN libraries.)
   await openTracker(page);
   await setMode(page, 'Mark');
   const one = await swipe(page, 1);
   console.log('TRACK_ONE_FINGER ' + JSON.stringify(one));
-  expect(one.scrollLeft + one.scrollTop, 'a one-finger drag in track mode must not pan').toBe(0);
+  expect(one.scrollLeft + one.scrollTop, 'a quick one-finger swipe in track mode scrolls').toBeGreaterThan(0);
+  expect(one.scrollWrites, 'and does so natively').toBe(0);
   const two = await swipe(page, 2);
   console.log('TRACK_TWO_FINGER ' + JSON.stringify(two));
   expect(two.scrollLeft + two.scrollTop, 'the two-finger swipe did not scroll at all').toBeGreaterThan(0);
-  expect(two.scrollWrites, 'track mode should be panning from JS').toBeGreaterThan(0);
+  expect(two.scrollWrites, 'two fingers pan from JS').toBeGreaterThan(0);
 });
