@@ -431,6 +431,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.trackerFieldsRef.current = {};
     var _tf = state.trackerFieldsRef.current;
     if (project.statsSessions)       _tf.statsSessions       = project.statsSessions;
+    if (project.deletedSessionIds)   _tf.deletedSessionIds   = project.deletedSessionIds;
     if (project.statsSettings)       _tf.statsSettings        = project.statsSettings;
     if (project.achievedMilestones)  _tf.achievedMilestones   = project.achievedMilestones;
     if (project.doneSnapshots)       _tf.doneSnapshots        = project.doneSnapshots;
@@ -1068,6 +1069,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (!freshProject) return;
       var tf = state.trackerFieldsRef.current || {};
       if (freshProject.statsSessions) tf.statsSessions = freshProject.statsSessions;
+      if (freshProject.deletedSessionIds) tf.deletedSessionIds = freshProject.deletedSessionIds;
       if (freshProject.statsSettings) tf.statsSettings = freshProject.statsSettings;
       if (freshProject.achievedMilestones) tf.achievedMilestones = freshProject.achievedMilestones;
       if (freshProject.doneSnapshots) tf.doneSnapshots = freshProject.doneSnapshots;

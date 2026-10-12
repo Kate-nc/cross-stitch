@@ -25,11 +25,40 @@ function NoteEditor({sessionId, currentNote, onSave}){
   );
 }
 
-function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
+function SessionEditor({session, onSave, onCancel}){
+  var sd = new Date(session.startTime);
+  var hm = isNaN(sd.getTime()) ? '12:00' : ('0' + sd.getHours()).slice(-2) + ':' + ('0' + sd.getMinutes()).slice(-2);
+  var st = React.useState({ date: session.date || '', start: hm, minutes: String(Math.round(getSessionSeconds(session) / 60)), stitches: String(ProgressUnits.sessionNet(session)) });
+  var f = st[0], setF = st[1];
+  var es = React.useState('');
+  var error = es[0], setError = es[1];
+  var set = function(k){ return function(e){ var v = e.target.value; setF(function(p){ var n = Object.assign({}, p); n[k] = v; return n; }); }; };
+  var field = function(key, label, type, extra){
+    var id = 'sess-edit-' + session.id + '-' + key;
+    return React.createElement("label", {key:key, htmlFor:id, style:{display:'flex', flexDirection:'column', gap:2, fontSize:'var(--text-sm)', color:'var(--text-secondary)'}}, label,
+      React.createElement("input", Object.assign({id:id, type:type, value:f[key], onChange:set(key), style:{padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', fontSize:'var(--text-md)', minHeight:36}}, extra || {})));
+  };
+  var submit = function(){
+    var r = onSave(session.id, { date: f.date, start: f.start, minutes: f.minutes === '' ? NaN : Number(f.minutes), stitches: f.stitches === '' ? NaN : Number(f.stitches) });
+    if (r && r.error) setError(r.error);
+  };
+  return React.createElement("div", {className:"session-editor", role:"group", "aria-label":"Edit session", style:{display:'flex', flexWrap:'wrap', gap:'var(--s-2)', marginTop:'var(--s-2)', alignItems:'flex-end'}},
+    field('date', 'Date', 'date'), field('start', 'Start', 'time'),
+    field('minutes', 'Minutes', 'number', {min:0, max:1440, step:1, inputMode:'numeric'}),
+    field('stitches', 'Stitches', 'number', {min:0, step:0.5, inputMode:'decimal'}),
+    React.createElement("button", {className:"timeline-add-note", onClick:submit}, "Save"),
+    React.createElement("button", {className:"timeline-add-note", onClick:onCancel}, "Cancel"),
+    error ? React.createElement("p", {role:"alert", style:{flexBasis:'100%', margin:0, color:'var(--danger, var(--text-secondary))', fontSize:'var(--text-sm)'}}, error) : null
+  );
+}
+
+function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit, onEditSession, onDeleteSession, onMergeSession}){
   var showSt = React.useState(false);
   var showAll = showSt[0], setShowAll = showSt[1];
   var editSt = React.useState(null);
   var editingId = editSt[0], setEditingId = editSt[1];
+  var formSt = React.useState(null);
+  var formId = formSt[0], setFormId = formSt[1];
   var colourMap = {};
   if (palette) { for (var pi = 0; pi < palette.length; pi++) { var pc = palette[pi]; if (pc.id && pc.rgb) colourMap[pc.id] = pc; } }
   var grouped = groupSessionsByDate(sessions || []);
@@ -39,6 +68,12 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   var children = [];
   if (!sessions || sessions.length === 0) {
     children.push(React.createElement("p", {key:"empty", style:{fontSize:'var(--text-md)', color:'var(--text-tertiary)'}}, "No sessions recorded yet. Start stitching to see your journal!"));
+  }
+  // Which record each one can be merged with, worked out once for the whole list (not per entry).
+  var mergeNext = {};
+  if (canEdit && onMergeSession) {
+    var ordered = sessionOrder(sessions || []);
+    for (var oi = 0; oi + 1 < ordered.length; oi++) if (ordered[oi + 1].date === ordered[oi].date) mergeNext[ordered[oi].id] = true;
   }
   var timelineEntries = [];
   for (var di = 0; di < displayDates.length; di++) {
@@ -73,7 +108,18 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
         if (session.note) contentChildren.push(React.createElement("p", {key:"note", className:"timeline-note"}, '"' + session.note + '"'));
         var sid = session.id;
         contentChildren.push(React.createElement("button", {key:"add-note", className:"timeline-add-note", onClick:(function(id){ return function(){ setEditingId(id); }; })(sid)}, session.note ? 'Edit note' : 'Add note'));
+        if (canEdit && onEditSession) {
+          if (formId === sid) {
+            contentChildren.push(React.createElement(SessionEditor, {key:"sess-edit", session:session, onCancel:function(){ setFormId(null); }, onSave:function(id, patch){ var r = onEditSession(id, patch); if (!(r && r.error)) setFormId(null); return r; }}));
+          } else {
+            var canMerge = mergeNext[sid];
+            contentChildren.push(React.createElement("button", {key:"edit-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ setFormId(id); }; })(sid)}, 'Edit session'));
+            if (canMerge) contentChildren.push(React.createElement("button", {key:"merge-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onMergeSession(id); }; })(sid)}, 'Merge with next'));
+            if (onDeleteSession) contentChildren.push(React.createElement("button", {key:"del-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onDeleteSession(id); }; })(sid)}, 'Delete session'));
+          }
+        }
       }
+      if (session.edited) contentChildren.push(React.createElement("span", {key:"edited", className:"timeline-duration", title:"You changed this session's details"}, "edited"));
       timelineEntries.push(React.createElement("div", {key:session.id, className:"timeline-entry"},
         React.createElement("div", {className:"timeline-dot"}),
         React.createElement("div", {className:"timeline-content"}, contentChildren)
@@ -1243,7 +1289,7 @@ function drawProgressCard(canvas, opts) {
   ctx.fillText('Made with stitchx', W - 18, H - 7);
 }
 
-function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
+function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onEditSession, onDeleteSession, onMergeSession, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
   if(canEdit==null)canEdit=true;
   var chartSt = React.useState('cumulative');
   var chartView = chartSt[0], setChartView = chartSt[1];
@@ -1369,7 +1415,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
-      React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette})
+      React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette, canEdit:canEdit, onEditSession:onEditSession, onDeleteSession:onDeleteSession, onMergeSession:onMergeSession})
     ),
     React.createElement("div", {style:{marginTop:20, padding:'var(--s-4)', background:'var(--surface-secondary)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)'}},
       React.createElement("h4", {style:{fontSize:'var(--text-lg)', fontWeight:600, color:'var(--text-primary)', marginTop:0, marginBottom:'var(--s-2)'}}, "Settings"),
@@ -1847,7 +1893,7 @@ function restoreStoredPattern(project) {
 if (typeof window !== 'undefined') window.restoreStoredPattern = restoreStoredPattern;
 
 // StatsContainer: tab bar wrapping GlobalStatsDashboard or per-project StatsDashboard
-function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
+function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, statsSessions, statsSettings, onUpdateSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onEditSession, onDeleteSession, onMergeSession, projectName, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, onOpenProject}) {
   var _projects = React.useState([]);
   var projects = _projects[0], setProjects = _projects[1];
   var _loaded = React.useState(null);
@@ -1886,7 +1932,7 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
   if (statsTab === 'all') {
     content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
   } else if (statsTab === currentProjectId && pat) {
-    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject, canEdit: true});
+    content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onEditSession: onEditSession, onDeleteSession: onDeleteSession, onMergeSession: onMergeSession, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject, canEdit: true});
   } else if (loadedProject) {
     var lp = loadedProject;
     var lpS = lp.settings || {};
