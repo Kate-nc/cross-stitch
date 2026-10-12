@@ -53,3 +53,26 @@ Phone emulation (393x727 touch, CPU throttled 4x, 300x300 fixture), interleaved 
 - No separate toggle to leave Focus for a session: Exit focus is the way back, and it returns on the next open (turn it off in Preferences to stop that).
 - Left-handed placement costs the chart about 60 px of width.
 - The first-run welcome tour and the persistence toast still open over the chart on a first visit; that is batch 4 (TRACK-05).
+
+## Batch 3: scrolling must not mark (TRACK-08)
+
+Reproduced first: in Mark mode the canvas had `touch-action: none` and every `touchstart` called `preventDefault`, so a one-finger swipe could only ever mark (the pre-existing `tracker-touch` spec even asserted it: "a one-finger drag marks what it crosses and does not pan").
+
+- **Touch intent** (`useDragMark.js`, reducer): for touch and pen, painting starts only after the finger has rested on a stitch for `PAINT_HOLD_MS` (120 ms, `touch-constants.js`) and then moves past the slop. A one-finger swipe that starts moving before that is a **scroll**: the gesture is dropped (new `scroll` state, a new touch is never blocked by a stuck one) and nothing is marked. A tap is still instant. Mouse and trackpad are untouched (armed from the start).
+- **Native scroll for a quick swipe:** the canvas is now `touch-action: pan-x pan-y` in Mark mode, and `touchstart`/`touchmove` call `preventDefault` only once the chart owns the gesture (two fingers; a rested, armed finger; a drag; the held end of a long-press rectangle; Paint mode; Lock). So a swipe scrolls on the compositor, with no JS scroll writes.
+- **Paint mode** (More > Controls, touch screens only): a one-finger drag paints at once, `touch-action: none`; the Mark button reads "Paint" while it is on.
+- **Lock touches** (More > Controls): the chart ignores one-finger touches (marks and scrolling), two fingers still pan and zoom. A "Touches locked. Hold to unlock" pill is always on screen; holding it until it says "Lift to unlock", then lifting, unlocks (Enter or Space unlocks at once). It unlocks 400 ms after the lift: unmounting the pill at the lift made the browser's follow-up click land on whatever was under it (a ghost click that opened the More panel).
+- Neither toggle is saved: a reload is a clean start, so nobody is locked out by a stale setting.
+- **Undo N stitches:** after one drag or rectangle commit that changes more than `BULK_UNDO_MIN` (5) stitches, a Toast says "N stitches marked" (or "unmarked") with an "Undo N stitches" button for 8 seconds. It is the ordinary Undo of that single history step; the previous such toast is dismissed first. A rectangle of over 50 stitches still asks the Phase 3 catch-up question first, then shows the toast. Toast action buttons are 44 px on touch now. (Undo across a reload stays out of scope, as the prompt says.)
+- **Docs and copy:** help (Mark mode, Paint and Lock touches, Undoing a stroke), the hint banner, the Preferences description of drag-to-mark, changelog 1.0.128.
+
+### Deviation to know about
+The prompt allows painting to start "after about 120 ms **or** 8 px of movement predominantly along the row or column". I implemented the 120 ms rest only: a quick row-wise swipe that painted would contradict the acceptance criterion in the same section ("a 120 px one-finger swipe in Mark mode marks 0 stitches and scrolls"), and fast runs are what Paint mode is for.
+
+### Performance (batch 3)
+Phone emulation (393x727 touch, 4x CPU throttle, 300x300 fixture), interleaved against `main`. Tap median (ms, 3 pairs of 12): main 65.5 / 66.4 / 68.4, branch 68.8 / 62.9 / 68.5. Stroke commit (rest, drag 8 cells with a real touch, time from the lift to the strip changing; 4 pairs of 14 strokes): main 60.5 / 65.6 / 58.1 / 56.7, branch 62.8 / 61.2 / 58.6 / 58.9 (means 60.2 and 60.4). Desktop mouse tap (3 pairs of 60): main 9.8 / 8.8 / 8.9, branch 9.1 / 8.8 / 9.5. No regression (`perf/phase4-batch3/`). The new per-touch cost is one 120 ms timer; the touch handlers read the hook's state through a ref and allocate nothing.
+
+### Known limits
+- Real iOS Safari behaviour of calling `preventDefault` on `touchmove` after the rest (iOS may start scrolling in the first few pixels) is unverified; a stylus (pen pointer) is treated like a finger and was not tried with real hardware.
+- The mobile-audit `pan-ownership` spec was updated to the new contract but cannot run in this sandbox.
+- With Lock on, two fingers still pan and zoom (deliberate gestures); a palm resting with two points could.

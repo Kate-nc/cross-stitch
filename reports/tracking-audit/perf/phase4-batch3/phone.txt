@@ -1,0 +1,6 @@
+{"label":"phone_main1","strokes":4,"strokeMedian":61.8,"taps":12,"tapMedian":65.5,"tapP90":72.3,"loadMedianMs":4292,"loads":[4292]}
+{"label":"phone_branch1","strokes":4,"strokeMedian":59.9,"taps":12,"tapMedian":68.8,"tapP90":71.9,"loadMedianMs":3886,"loads":[3886]}
+{"label":"phone_main2","strokes":4,"strokeMedian":61.9,"taps":12,"tapMedian":66.4,"tapP90":82.7,"loadMedianMs":4447,"loads":[4447]}
+{"label":"phone_branch2","strokes":4,"strokeMedian":67.6,"taps":12,"tapMedian":62.9,"tapP90":75.5,"loadMedianMs":3961,"loads":[3961]}
+{"label":"phone_main3","strokes":4,"strokeMedian":55.1,"taps":12,"tapMedian":68.4,"tapP90":75.3,"loadMedianMs":4029,"loads":[4029]}
+{"label":"phone_branch3","strokes":4,"strokeMedian":60.9,"taps":12,"tapMedian":68.5,"tapP90":86.6,"loadMedianMs":4095,"loads":[4095]}
