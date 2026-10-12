@@ -121,7 +121,7 @@
     trackerUndoDepth:      50,
     trackerCelebrate:      true,
     statsDayEndHour:       null,     // hour the stitching day ends (0 = midnight); null = not set, projects may still supply one
-    trackerMarkAllAs:      "ask",   // ask | catchup | today: what marking a whole colour done counts as
+    trackerMarkAllAs:      "ask",   // ask | catchup | today: what marking a whole colour, or a rectangle of over 50 stitches, done counts as
     // C3 — the unified pointer pipeline (useDragMark) is now the default.
     // Set this preference to false to fall back to plain tap-to-mark only
     // (no drag-mark, no long-press range). The legacy global override

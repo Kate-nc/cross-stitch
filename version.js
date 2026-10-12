@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.119';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.120',
+    date: 'October 2026',
+    notes: [
+      'Filling a rectangle of more than 50 stitches now asks the same question as marking a whole colour done: count it as today\'s stitching, or as catch-up (progress goes up, but not today\'s count, pace, goals or streak). Your answer is remembered and can be changed in Preferences, under Stitch Tracker.',
+    ]
+  },
+  {
     version: '1.0.119',
     date: 'October 2026',
     notes: [
