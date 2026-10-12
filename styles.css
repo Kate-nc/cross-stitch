@@ -8622,7 +8622,7 @@ body.creator-compact .cs-textsheet {
 body.cs-focus .tb-topbar,
 body.cs-focus .info-strip-wrap,
 body.cs-focus .tracker-hint,
-body.cs-focus .tracker-hover-wrap { display: none !important; }
+body.cs-focus .tracker-hover-wrap--idle { display: none !important; }   /* a placed guide still shows its coordinates and Clear guide */
 body.cs-focus .canvas-area { padding-top: 22px; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important; }
 .cs-focus-progress {
   position: fixed; top: 0; left: 0; right: 0; height: 18px; z-index: var(--z-coachmark, 1200);

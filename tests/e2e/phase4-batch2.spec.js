@@ -73,7 +73,9 @@ test.describe('phone portrait 393x727', () => {
     expect(f.sw).toBeLessThanOrEqual(f.iw);
     await expect(page.locator('.cs-focus-progress')).toContainText('0.0%');
     await expect(page.locator('.tb-topbar')).toBeHidden();
-    await expect(page.locator('.tracker-hint')).toHaveCount(0).catch(() => {});
+    // the how-to banners exist (nothing has been marked yet) but Focus keeps them out of sight
+    expect(await page.locator('.tracker-hint').count()).toBeGreaterThan(0);
+    await expect(page.locator('.tracker-hint').first()).toBeHidden();
   });
   test('in Focus every visible control is at least 44 px', async ({ page }) => {
     const id = await seed(page); await openTracker(page, id);
@@ -112,6 +114,17 @@ test.describe('phone portrait 393x727', () => {
     await expect(page.locator('.lpanel--open')).toHaveCount(0);
     await expect(page.locator('.ppal-mode-btn-label').first()).toHaveText('310');
     await expect(page.locator('.ppal-mode-swatch')).toBeVisible();
+  });
+  test('in Focus a placed guide brings back its bar, with Clear guide', async ({ page }) => {
+    const id = await seed(page); await openTracker(page, id);
+    await expect(page.locator('.tracker-hover-wrap')).toBeHidden();
+    await page.locator('.ppal-mode-btn', { hasText: /Nav/i }).click();
+    const p = await trackerCellPoint(page, 4, 4);
+    await page.mouse.click(p.x, p.y);
+    await page.waitForTimeout(400);
+    await expect(page.getByRole('button', { name: 'Clear the guide crosshair' })).toBeVisible();
+    const b = await chartBox(page);
+    expect(b.bottom).toBeLessThanOrEqual(b.vh);
   });
   test('turning the phone default off in Preferences opens the Tracker the old way, with the chart still filling what is left', async ({ page }) => {
     const id = await seed(page, { prefs: { trackerFocusOnPhone: false } }); await openTracker(page, id);

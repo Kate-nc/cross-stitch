@@ -546,7 +546,7 @@
         h(Row, { label: "Tuck the top bar away while stitching on a phone", desc: "On a phone the Tracker opens with the top bar and progress strip hidden, so the chart gets the screen; a thin progress line and an Exit focus button stay. Off keeps them showing. Tablets and computers are not affected." },
           h(Switch, { checked: focusPhone[0] !== false, onChange: focusPhone[1], "aria-label": "Tuck the top bar away while stitching on a phone" })
         ),
-        h(Row, { last: true, label: "Controls side", desc: "Which side of the chart the Mark, Move and Undo buttons sit on. Left suits left-handed stitching; the chart then makes room for them." },
+        h(Row, { last: true, label: "Controls side", desc: "Which side of the chart the Mark, Nav and Undo buttons sit on. Left suits left-handed stitching; the chart then makes room for them." },
           h(Segmented, { value: handed[0] === "left" ? "left" : "right", onChange: handed[1], options: [
             { value: "right", label: "Right" },
             { value: "left",  label: "Left" }

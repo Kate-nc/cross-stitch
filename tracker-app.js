@@ -2028,16 +2028,17 @@ const soloTimerRef=useRef(null);
 const doneCount=countsVer>=0?doneCountRef.current:0;
 // The how-to-mark banners go once a stitch has been marked, and stay gone (remembered across sessions).
 const[hintsSeen,setHintsSeen]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get('trackerHintsSeen'));}catch(_){return false;}});
-useEffect(()=>{
-  if(hintsSeen||doneCount<=0)return;
-  setHintsSeen(true);
-  try{window.UserPrefs&&window.UserPrefs.set('trackerHintsSeen',true);}catch(_){}
-},[doneCount>0,hintsSeen]);
 const handedness=useTrackerPref('trackerHandedness','right')==='left'?'left':'right';
 useFillChartHeight(stitchScrollRef,!!pat);
 // Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
 const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
 const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0;
+// Any marked stitch (full, half or knot) is the signal that the how-to-mark banners have done their job.
+useEffect(()=>{
+  if(hintsSeen||!_hasMarks)return;
+  setHintsSeen(true);
+  try{window.UserPrefs&&window.UserPrefs.set('trackerHintsSeen',true);}catch(_){}
+},[_hasMarks,hintsSeen]);
 useEffect(()=>{
   if(!_hasMarks||!isActive)return;
   const t=setTimeout(()=>{if(window.BackupReminder)window.BackupReminder.maybeRemind();},4000);
@@ -7969,7 +7970,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode"} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={(leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode")+((pal&&focusColour&&cmap&&cmap[focusColour])?" (current colour "+threadLabel(cmap[focusColour])+")":"")} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
         {(()=>{
           const cur=pal&&focusColour&&cmap&&cmap[focusColour];
           return <>
