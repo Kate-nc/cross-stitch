@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.123';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.125',
+    date: 'October 2026',
+    notes: [
+      'Deleting a session in one browser tab no longer gets undone by another tab that still had the project open. The other tab now picks up the deletion along with your marks instead of asking which version to keep.'
+    ]
+  },
+  {
     version: '1.0.124',
     date: 'October 2026',
     notes: [
