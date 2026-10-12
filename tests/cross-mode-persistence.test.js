@@ -209,12 +209,13 @@ describe('Complete field inventory: Creator trackerFieldsRef preservation', () =
 
 describe('Session recording uses correct dates', () => {
   test('recordAutoActivity uses getStitchingDateLocal for session date', () => {
-    const recordMatch = autoSessionSrc.match(/function recordAutoActivity[\s\S]*?date:getStitchingDateLocal\(now\)/);
+    const recordMatch = autoSessionSrc.match(/function openAutoSession[\s\S]*?date:getStitchingDateLocal\(now\)/);
+    expect(autoSessionSrc).toMatch(/function recordAutoActivity[\s\S]*?openAutoSession\(now,false\)/);
     expect(recordMatch).not.toBeNull();
   });
 
   test('recordAutoActivity stamps the resolved timing mode onto the session', () => {
-    const recordMatch = autoSessionSrc.match(/function recordAutoActivity[\s\S]*?timingMode:getTimingMode\(\)/);
+    const recordMatch = autoSessionSrc.match(/function openAutoSession[\s\S]*?timingMode:timer\?'manual':getTimingMode\(\)/);
     expect(recordMatch).not.toBeNull();
   });
 

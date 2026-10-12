@@ -2787,7 +2787,8 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-pct{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;display:flex;align-items:center;gap:4px;}
 .info-strip-counts{font-size:11px;font-weight:400;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .info-strip-breakdown{font-size:11px;font-weight:400;color:var(--text-tertiary);white-space:nowrap;font-variant-numeric:tabular-nums;}
-.info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;}
+.info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;background:none;border:0;padding:0;font-family:inherit;cursor:pointer;}
+@media (pointer: coarse){.info-strip-timer{min-height:44px;padding:0 6px;}}
 /* Completion projection bar — shown below the info-strip when pace data is available */
 .completion-projection-bar{display:flex;align-items:center;gap:12px;padding:3px 16px 4px;background:var(--surface-secondary);border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;}
 .completion-projection-text{font-size:11px;font-weight:500;color:var(--accent);}
@@ -7648,6 +7649,8 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 .ppal-session-time{font-size:var(--text-xs);color:var(--text-secondary);display:inline-flex;align-items:center;gap:3px;}
 .ppal-session-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-pill);border:1px solid var(--accent-border);background:var(--accent-light);color:var(--accent);font-size:10px;font-weight:600;cursor:pointer;margin-left:auto;flex-shrink:0;}
 @media (hover: hover){.ppal-session-chip:hover{background:var(--accent-border);}}
+.ppal-session-chip{font-family:inherit;}
+@media (pointer: coarse){.ppal-session-chip{min-height:44px;min-width:44px;padding:6px 14px;font-size:12px;}}
 
 /* Sort row */
 .ppal-sort-row{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}

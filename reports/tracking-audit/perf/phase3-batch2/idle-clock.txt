@@ -1,0 +1,6 @@
+{"label":"main1","recordsPerSec":1,"nodesPerSec":0.5,"scriptMsPerSec":29.98,"taskMsPerSec":151.85}
+{"label":"branch1","recordsPerSec":2.9,"nodesPerSec":0.5,"scriptMsPerSec":23.51,"taskMsPerSec":143.34}
+{"label":"main2","recordsPerSec":1,"nodesPerSec":0.5,"scriptMsPerSec":22.64,"taskMsPerSec":155.27}
+{"label":"branch2","recordsPerSec":2.9,"nodesPerSec":0.5,"scriptMsPerSec":21.13,"taskMsPerSec":140.43}
+{"label":"main3","recordsPerSec":1,"nodesPerSec":0.5,"scriptMsPerSec":23.6,"taskMsPerSec":144.33}
+{"label":"branch3","recordsPerSec":2.9,"nodesPerSec":0.5,"scriptMsPerSec":25.41,"taskMsPerSec":151.63}

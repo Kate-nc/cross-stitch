@@ -144,6 +144,9 @@
     return t;
   }
   function sessionCatchUp(s) { return (s && s.catchUp) || 0; }
+  // How a session's time was measured: "timer" (the person started and stopped it), "edited" (the person set the
+  // minutes), or "auto" (worked out from when stitches were marked; every session from before this existed).
+  function sessionBasis(s) { var b = s && s.timingBasis; return b === 'timer' || b === 'edited' ? b : 'auto'; }
   // The live session's additions so far (see sessionAdded).
   function liveSessionAdded(cur) {
     if (!cur) return 0;
@@ -216,7 +219,7 @@
   var api = {
     WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
-    sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
+    sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionBasis: sessionBasis, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
     breakdownText: breakdownText
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -88,7 +88,8 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit,
           React.createElement("span", {className:"timeline-stitches"}, ProgressUnits.formatUnits(ProgressUnits.sessionAdded(session)) + " stitches"),
           ProgressUnits.sessionUnpicked(session) > 0 ? React.createElement("span", {className:"timeline-duration"}, "Unpicked " + ProgressUnits.formatUnits(ProgressUnits.sessionUnpicked(session))) : null,
           ProgressUnits.sessionCatchUp(session) > 0 ? React.createElement("span", {className:"timeline-duration", title:"Marked in one go as catch-up: counted in progress, not in today's stitching or your pace"}, "Catch-up " + ProgressUnits.formatUnits(ProgressUnits.sessionCatchUp(session))) : null,
-          React.createElement("span", {className:"timeline-duration"}, "Active time " + formatStatsDuration(getSessionSeconds(session)))
+          sessionSpeedPerHour(session) ? React.createElement("span", {className:"timeline-duration", title:"Stitches added per hour of " + (ProgressUnits.sessionBasis(session) === "auto" ? "estimated" : timingBasisLabel(session)) + " time"}, "Speed " + sessionSpeedPerHour(session) + " st/hr") : null,
+          React.createElement("span", {className:"timeline-duration", title:ProgressUnits.sessionBasis(session) === "timer" ? "Measured with the timer" : ProgressUnits.sessionBasis(session) === "edited" ? "You set these minutes" : "Worked out from when stitches were marked, so it is an estimate"}, "Active time " + formatStatsDuration(getSessionSeconds(session)) + " (" + timingBasisLabel(session) + ")")
         )
       ];
       if (session.coloursWorked && session.coloursWorked.length > 0) {
@@ -1238,7 +1239,7 @@ function drawProgressCard(canvas, opts) {
   if (barW > 0) ctx.fillRect(18, 46, barW, 9);
   // Stats grid
   var stats = [
-    {label: 'Time stitched', value: opts.totalTimeFormatted || '\u2014'},
+    {label: 'Time stitched' + (opts.timeIsEstimated ? ' (est.)' : ''), value: opts.totalTimeFormatted || '\u2014'},
     {label: 'Sessions', value: String((opts.sessions || []).length)},
     {label: 'Per stitching day', value: String(opts.avgPerDay || 0)},
     {label: 'Day streak', value: String(opts.streak || 0)}
@@ -1355,6 +1356,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       projectName: projectName,
       percent: overviewStats.percent,
       totalTimeFormatted: overviewStats.totalTimeFormatted,
+      timeIsEstimated: overviewStats.timeIsEstimated,
       sessions: statsSessions || [],
       // the pace everywhere else: stitches per stitching day over the last 4 weeks (the average per active day until there is one)
       avgPerDay: overviewStats.recentPace || overviewStats.avgPerActiveDay,
@@ -1606,7 +1608,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     var speed = totalHours > 0 ? Math.round(totalStitches / totalHours) : 0;
     var complete = projectSummaries.filter(function(p) { return p.isComplete; }).length;
     var total = projectSummaries.length;
-    return {totalStitches: totalStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total};
+    return {totalStitches: totalStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total, estimated: sessionsTimeIsEstimated(allSessions)};
   }, [allSessions, projectSummaries]);
 
   var globalStreak = React.useMemo(function() {
@@ -1741,8 +1743,8 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
     React.createElement('div', {className: 'gsd-metrics'},
       React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
-      React.createElement(MetricCard, {label: 'Time stitching', value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
-      React.createElement(MetricCard, {label: 'Average speed', value: lifetimeTotals.speed, sub: 'stitches / hour'}),
+      React.createElement(MetricCard, {label: 'Time stitching' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
+      React.createElement(MetricCard, {label: 'Average speed' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: lifetimeTotals.speed, sub: 'stitches / hour'}),
       React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' finished', sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
     ),
 
