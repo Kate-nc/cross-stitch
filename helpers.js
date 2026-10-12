@@ -1226,7 +1226,9 @@ function editSessionRecord(sessions, id, patch, totalUnits, nowIso) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date + 'T12:00:00').getTime())) return { error: 'Enter a valid date.' };
   var minutes = patch.minutes != null ? Number(patch.minutes) : getSessionSeconds(s) / 60;
   if (!(minutes >= 0 && minutes <= 1440)) return { error: 'Minutes must be between 0 and 1,440.' };
-  var stitches = patch.stitches != null ? Number(patch.stitches) : ProgressUnits.sessionNet(s);
+  // "Stitches" is the figure the journal shows: added, leaving out catch-up and unpicking.
+  var added = ProgressUnits.sessionAdded(s);
+  var stitches = patch.stitches != null ? Number(patch.stitches) : added;
   if (!(stitches >= 0 && stitches <= 1e7) || Math.round(stitches * 2) !== stitches * 2) return { error: 'Stitches must be a number of whole or half stitches.' };
   var sd = new Date(s.startTime);
   var origHm = isNaN(sd.getTime()) ? '12:00' : ('0' + sd.getHours()).slice(-2) + ':' + ('0' + sd.getMinutes()).slice(-2);
@@ -1244,13 +1246,17 @@ function editSessionRecord(sessions, id, patch, totalUnits, nowIso) {
     endTime: new Date(startMs + Math.round(minutes * 60) * 1000).toISOString(),
     durationSeconds: Math.round(minutes * 60),
     durationMinutes: Math.round(minutes),
-    stitchesCompleted: Math.round(stitches), stitchesUndone: 0, netStitches: Math.round(stitches),
-    units: stitches, unitsCompleted: stitches, unitsUndone: 0,
     edited: true, editedAt: nowIso || new Date().toISOString()
   });
   if (Math.abs(minutes * 60 - getSessionSeconds(s)) > 30) next.timingBasis = 'edited';
-  if (next.catchUp > stitches) next.catchUp = stitches;
-  if (!(next.catchUp > 0)) delete next.catchUp;
+  // Only a changed figure touches the breakdown: what was unpicked and what was catch-up stay as they were, and
+  // the stitches added move by the difference.
+  if (stitches !== added) {
+    var catchUp = ProgressUnits.sessionCatchUp(s), unpicked = ProgressUnits.sessionUnpicked(s);
+    var completed = stitches + catchUp;
+    next.unitsCompleted = completed; next.unitsUndone = unpicked; next.units = completed - unpicked;
+    next.stitchesCompleted = Math.round(completed); next.stitchesUndone = Math.round(unpicked); next.netStitches = Math.round(completed - unpicked);
+  }
   var out = sessions.slice(); out[idx] = next;
   return { sessions: recomputeSessionHistory(out, sessionHistoryBaseline(sessions), totalUnits) };
 }

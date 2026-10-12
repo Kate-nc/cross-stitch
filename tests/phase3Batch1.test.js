@@ -124,11 +124,28 @@ describe('edit', () => {
     expect(editSessionRecord(l, 'sess_h17', { start: '25:00' }, TOTAL).error).toMatch(/time/i);
     expect(editSessionRecord(l, 'nope', {}, TOTAL).error).toBeTruthy();
   });
-  test('catch-up stays no larger than the stitches', () => {
-    const l = fixture(); l[2] = Object.assign({}, l[2], { unitsCompleted: 90, units: 90, catchUp: 60 });
-    const s = find(editSessionRecord(l, l[2].id, { stitches: 40 }, TOTAL).sessions, l[2].id);
-    expect(PU.sessionCatchUp(s)).toBe(40);
-    expect(PU.sessionAdded(s)).toBe(0);
+  test('the unpicked and catch-up figures stay when only the date or minutes change', () => {
+    const l = fixture(); l[2] = Object.assign({}, l[2], { unitsCompleted: 25, units: 20, unitsUndone: 5, stitchesCompleted: 25, stitchesUndone: 5, netStitches: 20, catchUp: 10 });
+    const id = l[2].id;
+    const r = find(editSessionRecord(l, id, { date: '2026-09-01', minutes: 33, stitches: PU.sessionAdded(l[2]) }, TOTAL).sessions, id);
+    expect(PU.sessionUnpicked(r)).toBe(5);
+    expect(PU.sessionCatchUp(r)).toBe(10);
+    expect(PU.sessionAdded(r)).toBe(PU.sessionAdded(l[2]));
+    expect(PU.sessionNet(r)).toBe(20);
+    expect(r.unitsCompleted).toBe(25);
+  });
+  test('a changed stitches figure moves the stitches added; unpicked and catch-up stay', () => {
+    const l = fixture(); l[2] = Object.assign({}, l[2], { unitsCompleted: 25, units: 20, unitsUndone: 5, stitchesCompleted: 25, stitchesUndone: 5, netStitches: 20, catchUp: 10 });
+    const id = l[2].id;                                     // added 15, unpicked 5, catch-up 10
+    const r = find(editSessionRecord(l, id, { stitches: 40 }, TOTAL).sessions, id);
+    expect(PU.sessionAdded(r)).toBe(40);
+    expect(PU.sessionUnpicked(r)).toBe(5);
+    expect(PU.sessionCatchUp(r)).toBe(10);
+    expect(PU.sessionNet(r)).toBe(45);                      // 40 + 10 - 5
+  });
+  test('the figure the editor offers is what the journal shows (added)', () => {
+    const l = fixture(); l[2] = Object.assign({}, l[2], { unitsCompleted: 25, units: 20, unitsUndone: 5, catchUp: 10 });
+    expect(PU.sessionAdded(l[2])).toBe(15);
   });
 });
 
@@ -209,5 +226,25 @@ describe('edit keeps the real start when only the minutes or stitches change', (
     expect(s.startTime).toBe(late.startTime);
     expect(s.endTime).toBe(new Date(2026, 9, 10, 2, 15).toISOString());
     expect(s.date).toBe('2026-10-09');
+  });
+});
+
+describe('sync merge rebuilds the cumulative totals', () => {
+  test('an early edit on one device and a new session on the other leave consistent totals', () => {
+    const base = fixture();
+    const mine = editSessionRecord(base, 'sess_h17', { stitches: 100 }, TOTAL, '2026-10-12T09:00:00.000Z').sessions;        // 100 fewer
+    const last = base[base.length - 1];
+    const theirs = base.concat([{ id: 'sess_new', date: '2026-10-11', startTime: new Date(2026, 9, 11, 9, 0).toISOString(), endTime: new Date(2026, 9, 11, 9, 30).toISOString(), durationSeconds: 1800, durationMinutes: 30,
+      stitchesCompleted: 60, stitchesUndone: 0, netStitches: 60, totalAtEnd: last.totalAtEnd + 60, percentAtEnd: Math.round((last.totalAtEnd + 60) / TOTAL * 1000) / 10, note: '', coloursWorked: [] }]);
+    const out = SE.mergeTrackingProgress(Object.assign({ done: [], halfDone: {}, sessions: [] }, { statsSessions: mine }), Object.assign({ done: [], halfDone: {}, sessions: [] }, { statsSessions: theirs })).statsSessions;
+    const newest = find(out, 'sess_new');
+    expect(newest.totalAtEnd).toBe(last.totalAtEnd - 100 + 60);
+    expect(newest.percentAtEnd).toBe(Math.round(newest.totalAtEnd / TOTAL * 1000) / 10);
+    // every total is the running sum from the stitches before the first record
+    let run = 50;
+    out.forEach(s => { run += PU.sessionNet(s); expect(s.totalAtEnd).toBe(run); });
+    // merging again changes nothing
+    const again = SE.mergeTrackingProgress(Object.assign({ done: [], halfDone: {}, sessions: [] }, { statsSessions: out }), Object.assign({ done: [], halfDone: {}, sessions: [] }, { statsSessions: theirs })).statsSessions;
+    expect(again.map(s => s.totalAtEnd)).toEqual(out.map(s => s.totalAtEnd));
   });
 });

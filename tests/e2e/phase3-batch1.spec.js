@@ -106,3 +106,35 @@ test('two sessions on one day can be merged, and Undo splits them again', async 
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.timeline-entry')).toHaveCount(4);
 });
+
+test('Undo is refused once the journal has changed since (a note added), so nothing newer is lost', async ({ page }) => {
+  const id = await seed(page);
+  await openStats(page, id);
+  await entry(page, '140 stitches').getByRole('button', { name: 'Delete session' }).click();
+  await expect(page.locator('.timeline-entry')).toHaveCount(3);
+  await entry(page, '30 stitches').getByRole('button', { name: 'Add note' }).click();
+  await page.getByPlaceholder('Add a note about this session...').fill('Evening at the cabin');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Evening at the cabin')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByText('That change cannot be undone now')).toBeVisible();
+  await expect(page.getByText('Undone', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.timeline-entry')).toHaveCount(3);
+  await expect(page.getByText('Evening at the cabin')).toBeVisible();
+});
+
+test('editing only the minutes keeps what was unpicked', async ({ page }) => {
+  const id = await seed(page);
+  await page.evaluate(async () => {
+    const p = await ProjectStorage.get('proj_p3');
+    p.statsSessions = p.statsSessions.map(s => s.id === 's_b' ? Object.assign({}, s, { unitsCompleted: 145, stitchesCompleted: 145, unitsUndone: 5, stitchesUndone: 5, units: 140 }) : s);
+    await ProjectStorage.save(p);
+  });
+  await openStats(page, id);
+  await expect(entry(page, '145 stitches')).toContainText('Unpicked 5');
+  await entry(page, '145 stitches').getByRole('button', { name: 'Edit session' }).click();
+  await page.getByLabel('Minutes').fill('30');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(entry(page, '145 stitches')).toContainText('Unpicked 5');
+  await expect(entry(page, '145 stitches')).toContainText('Active time 30m');
+});

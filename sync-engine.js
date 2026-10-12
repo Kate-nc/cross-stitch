@@ -1231,6 +1231,39 @@ const SyncEngine = (() => {
     return merged;
   }
 
+  // After two journals are joined, each record still carries the "done so far" its own device wrote, which does not
+  // include what the other device added or changed. Rebuild them as a running sum from the stitches that were done
+  // before the first record (the same on both sides, so either side's will do). Records that come out the same stay
+  // as they are.
+  function recomputeMergedTotals(merged, localList, remoteList) {
+    function net(s) { return s.units != null ? s.units : (s.netStitches || 0); }
+    function startMs(s) { var t = new Date(s.startTime || s.start || s.date || 0).getTime(); return isNaN(t) ? 0 : t; }
+    function baselineOf(list) {
+      var first = (list || []).slice().sort(function (a, b) { return startMs(a) - startMs(b); })[0];
+      return first && typeof first.totalAtEnd === "number" ? Math.max(0, first.totalAtEnd - net(first)) : null;
+    }
+    if (!merged.length) return merged;
+    var base = baselineOf(localList);
+    if (base == null) base = baselineOf(remoteList);
+    if (base == null) return merged;
+    // The size of the project, worked out from the record with the most precise percentage, to cap the total and
+    // to give a changed record its percentage.
+    var total = 0, bestPct = 0;
+    merged.forEach(function (s) {
+      if (typeof s.totalAtEnd === "number" && typeof s.percentAtEnd === "number" && s.percentAtEnd > bestPct) { bestPct = s.percentAtEnd; total = s.totalAtEnd * 100 / s.percentAtEnd; }
+    });
+    var run = base;
+    return merged.slice().sort(function (a, b) { return startMs(a) - startMs(b); }).map(function (s) {
+      run += net(s);
+      var at = Math.max(0, run);
+      if (total > 0) at = Math.min(at, Math.round(total));
+      if (s.totalAtEnd === at) return s;
+      var copy = Object.assign({}, s, { totalAtEnd: at });
+      if (total > 0) copy.percentAtEnd = Math.round(at / total * 1000) / 10;
+      return copy;
+    });
+  }
+
   function mergeDeletedIds(a, b) {
     var seen = {}, out = [];
     (a || []).concat(b || []).forEach(function (x) { if (x != null && !seen[x]) { seen[x] = true; out.push(x); } });
@@ -1408,6 +1441,12 @@ const SyncEngine = (() => {
     var deletedSessionIds = mergeDeletedIds(local.deletedSessionIds, remote.deletedSessionIds);
     if (deletedSessionIds.length) merged.deletedSessionIds = deletedSessionIds;
     merged.statsSessions = mergeSessions(local.statsSessions, remote.statsSessions, deletedSessionIds);
+    // Only when both sides have a journal: with one side's alone there is nothing to reconcile.
+    if ((local.statsSessions || []).length && (remote.statsSessions || []).length) {
+      merged.statsSessions = recomputeMergedTotals(merged.statsSessions,
+        (local.statsSessions || []).filter(function (x) { return x && !(x.id != null && deletedSessionIds.indexOf(x.id) >= 0); }),
+        (remote.statsSessions || []).filter(function (x) { return x && !(x.id != null && deletedSessionIds.indexOf(x.id) >= 0); }));
+    }
     merged.sessions = mergeSessions(local.sessions, remote.sessions, deletedSessionIds);
 
     // Total stitching time must be IDEMPOTENT under repeated merges. This was

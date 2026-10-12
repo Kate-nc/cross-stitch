@@ -28,7 +28,7 @@ function NoteEditor({sessionId, currentNote, onSave}){
 function SessionEditor({session, onSave, onCancel}){
   var sd = new Date(session.startTime);
   var hm = isNaN(sd.getTime()) ? '12:00' : ('0' + sd.getHours()).slice(-2) + ':' + ('0' + sd.getMinutes()).slice(-2);
-  var st = React.useState({ date: session.date || '', start: hm, minutes: String(Math.round(getSessionSeconds(session) / 60)), stitches: String(ProgressUnits.sessionNet(session)) });
+  var st = React.useState({ date: session.date || '', start: hm, minutes: String(Math.round(getSessionSeconds(session) / 60)), stitches: String(ProgressUnits.sessionAdded(session)) });
   var f = st[0], setF = st[1];
   var es = React.useState('');
   var error = es[0], setError = es[1];

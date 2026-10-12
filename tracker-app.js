@@ -1838,7 +1838,7 @@ const [importFabricCt, setImportFabricCt] = useState(14);
 
 const loadRef=useRef(null),timerRef=useRef(null),stitchRef=useRef(null);
 const projectIdRef=useRef(null);    // current project's storage ID
-const sessionHistoryVersionRef=useRef(0);   // counts journal changes, so Undo only reverts the latest one
+const statsSessionsLiveRef=useRef(null);   // the journal as last rendered, so an Undo can tell whether anything replaced it
 const deletedSessionIdsRef=useRef([]);   // tombstones of sessions the person deleted or merged away (kept so a sync cannot bring them back)
 const createdAtRef=useRef(null);    // stable createdAt ISO string for the active project
 const namePromptShownRef=useRef(false); // Creator-owned flag, carried through Tracker saves
@@ -2739,6 +2739,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
+statsSessionsLiveRef.current=statsSessions;
 // Session journal: edit, delete, merge. The pure work is in helpers.js; here the result is applied once (one state
 // change, one save) with Undo restoring the previous list and tombstones.
 function applySessionHistoryChange(result,message){
@@ -2747,12 +2748,13 @@ function applySessionHistoryChange(result,message){
   const flush=function(){setTimeout(function(){if(typeof window.__flushProjectToIDB==='function'){var pr=window.__flushProjectToIDB();if(pr&&typeof pr.catch==='function')pr.catch(function(){});}},0);};
   const removed=result.removedIds||[];
   deletedSessionIdsRef.current=removed.length?prevDeleted.concat(removed.filter(function(x){return prevDeleted.indexOf(x)<0;})):prevDeleted;
-  const ver=++sessionHistoryVersionRef.current;
+  const pid=projectIdRef.current,produced=result.sessions;
   setStatsSessions(result.sessions);flush();
   try{window.Toast&&window.Toast.show&&window.Toast.show({message:message,type:'success',duration:9000,undoAction:function(){
-    // A later change made this one's "before" out of date; undoing it would silently undo that too.
-    if(sessionHistoryVersionRef.current!==ver){try{window.Toast.show({message:'That change cannot be undone now: the journal has changed since.',type:'warning',duration:5000});}catch(_){}return;}
-    sessionHistoryVersionRef.current++;deletedSessionIdsRef.current=prevDeleted;setStatsSessions(prevSessions);flush();}});}catch(_){}
+    // Only while the journal is still exactly what this change produced, in the same project: a session that finished
+    // since, a note, another tab's changes or another project would otherwise be overwritten by the old list.
+    if(projectIdRef.current!==pid||statsSessionsLiveRef.current!==produced){try{window.Toast.show({message:'That change cannot be undone now: the journal has changed since.',type:'warning',duration:5000});}catch(_){}return false;}
+    deletedSessionIdsRef.current=prevDeleted;setStatsSessions(prevSessions);flush();}});}catch(_){}
   return {ok:true};
 }
 function editSessionDetails(id,patch){return applySessionHistoryChange(editSessionRecord(statsSessions,id,patch,combinedTotal),'Session changed');}

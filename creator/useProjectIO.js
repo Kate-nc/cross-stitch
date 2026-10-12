@@ -1070,6 +1070,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var tf = state.trackerFieldsRef.current || {};
       if (freshProject.statsSessions) tf.statsSessions = freshProject.statsSessions;
       if (freshProject.deletedSessionIds) tf.deletedSessionIds = freshProject.deletedSessionIds;
+      else delete tf.deletedSessionIds;      // an Undo can leave a project with none
       if (freshProject.statsSettings) tf.statsSettings = freshProject.statsSettings;
       if (freshProject.achievedMilestones) tf.achievedMilestones = freshProject.achievedMilestones;
       if (freshProject.doneSnapshots) tf.doneSnapshots = freshProject.doneSnapshots;

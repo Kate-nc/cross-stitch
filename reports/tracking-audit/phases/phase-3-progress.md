@@ -21,6 +21,12 @@ A rectangle fill of more than 50 stitches asks the same "today or catch-up" ques
 Project Stats cold open on the 500-session project, interleaved against `main`, 3 pairs: main 68.5 / 67.8 / 68.2 ms, branch 75.6 / 66.2 / 55.5 ms (`perf/phase3-batch1/stats-open.txt`). The only per-render addition is one sort of the list to find which records can merge.
 
 ### Known limits
-- Undo after a later change is refused with a message, but Toast then also shows its own "Undone".
+- Undo is refused (with a message, and without the "Undone" toast) unless the journal is still exactly what the change produced, in the same project: a session finishing, a note, another tab's changes or opening another project all make it refuse rather than overwrite.
 - Restoring an old backup over a project brings back sessions deleted since (a restore replaces the project).
 - Merge joins only records on the same stitching day.
+
+### Review fixes (Copilot, PR 289)
+- Stale Undo (High): see the first known limit; `toast.js` skips its "Undone" follow-up when the handler returns `false`.
+- Creator kept old tombstones after an Undo: it now clears `deletedSessionIds` when the refreshed project has none.
+- Editing the date or minutes dropped the unpicked figure: the editor now offers the figure the journal shows (stitches added) and only a changed figure touches the breakdown; unpicked and catch-up are kept.
+- A sync merge left cumulative totals from each device's own list: the merged journal's `totalAtEnd` / `percentAtEnd` are now rebuilt as a running sum from the common starting point.
