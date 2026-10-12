@@ -1038,7 +1038,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     h('div', { className: 'mpd-summary-bar' },
       h('span', null, summary.activeCount + ' active project' + (summary.activeCount !== 1 ? 's' : '')),
       summary.monthStitches > 0 && h('span', null, '\u00B7 ' + summary.monthStitches.toLocaleString('en-GB') + ' stitches this month'),
-      summary.streak > 1 && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' } },
+      summary.streak > 1 && getMotivationPrefs().daily && h('span', { className: 'mpd-streak', style: { display: 'inline-flex', alignItems: 'center', gap:'var(--s-1)' } },
         window.Icons && window.Icons.fire ? window.Icons.fire() : null,
         h('span', null, summary.streak + '-day streak')
       )

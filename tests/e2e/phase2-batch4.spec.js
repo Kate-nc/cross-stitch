@@ -18,6 +18,7 @@ async function seed(page, dayEnd) {
     localStorage.setItem('cs_stitchStyle', 'block');
     ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1'));
     localStorage.setItem('cs_sessionOnboardingDone', '1');
+    localStorage.setItem('cs_pref_showStreaksAndGoals', 'true');       // these tests look at the goals and the streak (a person with a history has them on)
     ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true'));
     localStorage.setItem('cs_pref_trackerIdleMinutes', JSON.stringify(0.05));        // the session closes after about 3 seconds
     if (deh) localStorage.setItem('cs_pref_statsDayEndHour', JSON.stringify(deh));

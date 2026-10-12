@@ -334,9 +334,12 @@
 
     // Streak
     var streak = computeWeeklyStreak(allSessions, data.now ? new Date(data.now) : stitchingNow());
-    if (streak >= 8) add('streak_long', 'fire', 'celebrate', streak + '-week stitching streak \u2014 incredible!');
-    else if (streak >= 4) add('streak_mid', 'fire', 'celebrate', "You've stitched every week for " + streak + ' weeks straight.');
-    else if (streak >= 2) add('streak_short', 'fire', 'encourage', streak + '-week streak going \u2014 keep it up.');
+    // (Not at all when the person has turned streaks off; and plain statements, never a push to keep going.)
+    if (data.showStreaks !== false) {
+      if (streak >= 8) add('streak_long', 'fire', 'celebrate', "You've stitched in each of the last " + streak + ' weeks.');
+      else if (streak >= 4) add('streak_mid', 'fire', 'celebrate', "You've stitched every week for " + streak + ' weeks.');
+      else if (streak >= 2) add('streak_short', 'fire', 'encourage', streak + ' weeks in a row so far.');
+    }
 
     // Speed trend (compare first 5 vs last 5 sessions if there are >=10)
     if (allSessions.length >= 10) {

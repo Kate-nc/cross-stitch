@@ -362,6 +362,8 @@
         (data.summaries || []).filter(s => !s.isComplete && s.finishStatus !== 'completed' && (s.totalStitches || 0) > 0)
       );
     }, [data.summaries]);
+    // Streak insights only when streaks are turned on (Preferences).
+    const mot = (typeof useMotivationPrefs === 'function') ? useMotivationPrefs() : { show: true };
     const insights = useMemo(() => {
       if (typeof InsightsEngine === 'undefined') return [];
       return InsightsEngine.generateInsights({
@@ -370,9 +372,10 @@
         thisWeek: weekComp.thisWeek,
         lastWeek: weekComp.lastWeek,
         stash: data.stash,
-        dismissed: Object.keys(dismissed)
+        dismissed: Object.keys(dismissed),
+        showStreaks: mot.show
       });
-    }, [data.summaries, data.allSessions, weekComp, data.stash, dismissed]);
+    }, [data.summaries, data.allSessions, weekComp, data.stash, dismissed, mot.show]);
 
     const dismissInsight = useCallback(id => {
       setDismissed(prev => {

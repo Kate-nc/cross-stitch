@@ -102,7 +102,11 @@ describe('share text and CSV labels (no stale labels, one definition)', () => {
     expect(text).toContain('Est. finish: about 5 days (around 16 Oct');
     expect(text).toContain('Based on your last 25 days: 2.8 stitching days a week, 135 stitches per stitching day.');
     expect(text).toMatch(/Between \d+ \w+ and \d+ \w+\./);
-    expect(text).toContain('Streak: 1 day (longest: 3)');
+    // the weekly streak is the default; the daily one only when it is asked for; none when streaks are off
+    expect(text).toMatch(/Weeks in a row: \d+ \(most: \d+\)/);
+    expect(text).not.toMatch(/Days in a row/);
+    expect(generateShareText('History Test', o, sessions, 1350, 1600, 0, { showStreaks: true, showDaily: true })).toContain('Days in a row: 1 (most: 3)');
+    expect(generateShareText('History Test', o, sessions, 1350, 1600, 0, { showStreaks: false })).not.toMatch(/in a row/);
     expect(text).toContain('Best day: 300 stitches');
     expect(text).not.toMatch(/Est\. completion/);
   });

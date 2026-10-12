@@ -200,6 +200,7 @@ test('leaving the page with a timer left idle ends it at the last stitch, not 30
   await advance(page, 30);
   await page.goto('/home.html');
   await page.waitForFunction(() => window.ProjectStorage);
+  await page.waitForFunction(() => localStorage.getItem('cs_pending_session_proj_p3b2'), null, { timeout: 10000 }).catch(() => {});
   const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('cs_pending_session_proj_p3b2') || 'null'));
   const rec = Array.isArray(pending) ? pending[0] : pending;
   expect(rec).not.toBeNull();
