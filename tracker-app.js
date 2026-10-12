@@ -640,6 +640,10 @@ function useTrackerPref(key,def){
   },[key]);
   return v;
 }
+// The room kept clear at the chart's right edge for the controls strip (CSS: .tracker-chart-view margin-right).
+function chartEndSpace(scroller){
+  try{const v=scroller.querySelector('.tracker-chart-view');return v?(parseFloat(getComputedStyle(v).marginRight)||0):0;}catch(_){return 0;}
+}
 // Sizes the chart box to what is left of the screen on a phone or tablet: the screen height less everything above
 // and below the chart, measured here rather than guessed in CSS (the box used to be a fixed 600 px: taller than a
 // phone's screen, so the page scrolled and the bar below the chart was out of sight). The result is the CSS variable
@@ -1564,8 +1568,8 @@ function fitWorkAreaView(){
   if(!el)return;
   const vb=viewBoundsRef.current;
   const w=vb.x1-vb.x0,h=vb.y1-vb.y0;
-  const fit=Math.min((el.clientWidth-G-8)/(w*20),(el.clientHeight-G-8)/(h*20));
-  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,fit)).toFixed(3));
+  const fit=Math.min((el.clientWidth-G-8-chartEndSpace(el))/(w*20),(el.clientHeight-G-8)/(h*20));
+  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,Math.floor(fit*20)/20)).toFixed(3));   // scs is a whole number of pixels: round down so it fits
   el.scrollLeft=0;el.scrollTop=0;
   requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
 }
@@ -1574,8 +1578,8 @@ function fitWorkAreaView(){
 function fitWholeView(){
   const el=stitchScrollRef.current;
   if(!el||!sW||!sH){fitSZ();return;}
-  const fit=Math.min((el.clientWidth-G-8)/(sW*20),(el.clientHeight-G-8)/(sH*20));
-  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,fit)).toFixed(3));
+  const fit=Math.min((el.clientWidth-G-8-chartEndSpace(el))/(sW*20),(el.clientHeight-G-8)/(sH*20));
+  setStitchZoom(+Math.max(0.05,Math.min(maxZoom,Math.floor(fit*20)/20)).toFixed(3));   // scs is a whole number of pixels: round down so it fits
   el.scrollLeft=0;el.scrollTop=0;
   requestAnimationFrame(()=>{const e2=stitchScrollRef.current;if(e2){e2.scrollLeft=0;e2.scrollTop=0;}});
 }

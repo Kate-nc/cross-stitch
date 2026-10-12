@@ -37,6 +37,18 @@ const chartBox = (page) => page.evaluate(() => { const r = document.querySelecto
 const overlap = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top);
 const rectOf = (page, sel) => page.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); return r.width ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null; }, sel);
 
+
+// Every visible control and its size (CSS px), as in phase4-batch1.
+const smallControls = (page) => page.evaluate(() => {
+  const out = [];
+  const vis = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+  document.querySelectorAll('button, [role="button"], a[href], input:not([type=hidden]), select, summary, [role="tab"], [role="switch"]').forEach((el) => {
+    if (!vis(el) || el.closest('[aria-hidden="true"]')) return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 43.5 || r.height < 43.5) out.push({ name: (el.getAttribute('aria-label') || el.textContent || el.className).trim().slice(0, 40), w: Math.round(r.width), h: Math.round(r.height) });
+  });
+  return out;
+});
 const pageFits = (page) => page.evaluate(() => ({ sh: document.scrollingElement.scrollHeight, ih: innerHeight, sw: document.scrollingElement.scrollWidth, iw: innerWidth }));
 const railAndView = (page) => page.evaluate(() => {
   const rail = document.querySelector('.ppal-mode-strip').getBoundingClientRect();
@@ -62,6 +74,10 @@ test.describe('phone portrait 393x727', () => {
     await expect(page.locator('.cs-focus-progress')).toContainText('0.0%');
     await expect(page.locator('.tb-topbar')).toBeHidden();
     await expect(page.locator('.tracker-hint')).toHaveCount(0).catch(() => {});
+  });
+  test('in Focus every visible control is at least 44 px', async ({ page }) => {
+    const id = await seed(page); await openTracker(page, id);
+    expect(await smallControls(page)).toEqual([]);
   });
   test('the way back out of Focus shows the top bar again and the chart still fits the screen', async ({ page }) => {
     const id = await seed(page); await openTracker(page, id);
@@ -129,6 +145,10 @@ test.describe('phone portrait 393x727', () => {
 
 test.describe('phone landscape 851x393', () => {
   test.use({ viewport: { width: 851, height: 393 }, hasTouch: true, isMobile: true });
+  test('in Focus every visible control is at least 44 px', async ({ page }) => {
+    const id = await seed(page); await openTracker(page, id);
+    expect(await smallControls(page)).toEqual([]);
+  });
   test('with Focus on (the default) the chart takes at least half the screen, and nothing scrolls', async ({ page }) => {
     const id = await seed(page); await openTracker(page, id);
     expect(await bodyClass(page)).toContain('cs-focus');
@@ -145,6 +165,10 @@ test.describe('phone landscape 851x393', () => {
 
 test.describe('tablet 768x1024', () => {
   test.use({ viewport: { width: 768, height: 1024 }, hasTouch: true, isMobile: true });
+  test('the top bar keeps its percentage on a tablet', async ({ page }) => {
+    const id = await seed(page); await openTracker(page, id);
+    await expect(page.locator('.tb-proj-badge .tb-proj-badge-pct:not(.tb-proj-badge-saved)')).toBeVisible();
+  });
   test('not a phone: no Focus by default, the chart still fits the screen, and the how-to banners go after the first stitch for good', async ({ page }) => {
     const id = await seed(page); await openTracker(page, id);
     expect(await bodyClass(page)).not.toContain('cs-focus');

@@ -8,6 +8,7 @@ test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
 async function seed(page) {
   await page.addInitScript(() => { try {
     localStorage.setItem('cs_stitchStyle', 'block');
+    localStorage.setItem('cs_pref_trackerFocusOnPhone', 'false');   // the top bar and the save status are what these look at
     ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1'));
     localStorage.setItem('cs_sessionOnboardingDone', '1');
     ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true'));

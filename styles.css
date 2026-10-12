@@ -8595,10 +8595,10 @@ body.creator-compact .cs-textsheet {
 
 
 /* ── Phase 4 (small screens and touch) ───────────────────────────────
-   TRACK-07: controls are at least 44 px on touch; the save status is a compact icon on a phone instead of a clipped
-   pill. The older "hide the badge on mobile" rule further up never applied (a later rule set it back to flex), which
+   TRACK-07: controls are at least 44 px on touch; the save status is a compact icon on a phone (a narrow screen, or a
+   short one: a phone on its side) instead of a clipped pill. A tablet keeps the name and the percentage. The older "hide the badge on mobile" rule further up never applied (a later rule set it back to flex), which
    is why it showed as a 22 px sliver. ── */
-@media (max-width: 899px) {
+@media (max-width: 599px), (max-height: 520px) {
   .tb-proj-badge{ padding:0; border:none; background:transparent; flex-shrink:0; max-width:none; overflow:visible; }
   /* The save status shares the percentage's class, so hide the percentage only. */
   .tb-proj-badge .tb-proj-badge-name{ display:none !important; }   /* it is an inline-styled button; the project switcher already names the project */
