@@ -90,3 +90,10 @@ Reproduced first (393x727 touch, fresh prefs): the welcome tour is a modal with 
 
 Tests: `tests/workingContext.test.js` (11), rewritten `tests/resumeRecapModal.test.js`, `tests/e2e/phase4-batch4.spec.js` (5: restore in Navigate, bad context ignored, recap does not block and clears on first mark, first tap after opening a pattern marks, Navigate saved and restored after reload).
 
+### Performance (batch 4)
+Interleaved against `main` (current `origin/main`), phone emulation (393x727 touch, 4x CPU throttle, 300x300 fixture), 3 pairs. Tap median (ms): main 71.5 / 70.3 / 66.2, branch 67.6 / 65.9 / 74.3. Stroke commit: main 65.0 / 65.9 / 58.3, branch 62.6 / 61.6 / 63.3. Desktop tap (120 taps, ms): main 9.3 / 9.5 / 9.9, branch 9.4 / 9.9 / 9.0. Load to chart in the first pairs read 4-10% slower on the branch, so it was re-measured with 12 loads each: main median about 4.17 s, branch about 4.15 s, so that gap was noise (the branch server had just been restarted). No change outside noise. Raw output in `reports/tracking-audit/perf/phase4-batch4/`.
+
+### Known limits
+- The style question is skipped when a pattern is already open on a first visit (Block applies; it is under More controls > Tools).
+- Not verified on real Safari or a real phone.
+
