@@ -385,7 +385,8 @@ function SaveStatusBadge({ status, savedAt, error, onRetry }) {
     label = 'All changes saved';
   }
 
-  var children = [icon, label];
+  // The words can be hidden on a phone (the badge becomes just its icon); they stay for screen readers.
+  var children = [icon, React.createElement('span', { key: 'lbl', className: 'tb-save-label' }, label)];
   if (effective === 'error' && typeof onRetry === 'function') {
     children.push(React.createElement('button', {
       key: 'retry',

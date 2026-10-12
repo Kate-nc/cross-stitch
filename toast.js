@@ -220,8 +220,17 @@
 
     var dismissBtn = document.createElement("button");
     dismissBtn.type = "button";
+    dismissBtn.className = "toast-dismiss";
     dismissBtn.setAttribute("aria-label", "Dismiss");
-    dismissBtn.textContent = "×";
+    // The shared close icon (never a typed glyph); the word is the fallback until the icon library has loaded.
+    var closeSvg = (window.Icons && typeof window.Icons.svgString === "function") ? window.Icons.svgString("x") : "";
+    if (closeSvg) {
+      dismissBtn.innerHTML = closeSvg;
+      dismissBtn.style.display = "inline-flex";
+      dismissBtn.style.alignItems = "center";
+    } else {
+      dismissBtn.textContent = "Close";
+    }
     dismissBtn.style.cssText = [
       "color:var(--text-tertiary)",
       "font-size:16px",

@@ -7371,7 +7371,7 @@ return(
 )}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
-  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
+  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
 </div>}
 {/* The one-time "sessions are tracked" hint is a floating toast (see the
     session-onboarding effect), not a banner here: a banner appeared on the
@@ -7395,7 +7395,7 @@ return(
       <>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Session saved — {sessionSavedToast.stitches} {sessionSavedToast.stitches===1?"stitch":"stitches"} in {formatStatsDuration(sessionSavedToast.durationMin*60)}</span>
         <button onClick={()=>setSessionSavedToast(prev=>({...prev,showNoteInput:true}))}>Add note</button>
-        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss" style={{display:'inline-flex',alignItems:'center'}}>{Icons.x?Icons.x():null}</button>
+        <button onClick={()=>setSessionSavedToast(null)} aria-label="Dismiss" className="tracker-dismiss-btn" style={{display:'inline-flex',alignItems:'center'}}>{Icons.x?Icons.x():null}</button>
       </>
     ):(
       <>
@@ -7430,7 +7430,7 @@ return(
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12
     }}>
       <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {importSuccess}</span>
-      <button onClick={()=>setImportSuccess(null)} style={{
+      <button onClick={()=>setImportSuccess(null)} className="tracker-dismiss-btn" style={{
         padding: "3px 10px", borderRadius:'var(--radius-sm)', border: "1px solid var(--success-soft)", background: "var(--surface)",
         cursor: "pointer", fontSize:'var(--text-xs)', fontWeight: 600, color: "var(--success)", flexShrink: 0
       }}>Dismiss</button>
@@ -7665,7 +7665,7 @@ return(
     <div style={{marginBottom:'var(--s-2)',padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-lg)',fontSize:'var(--text-sm)'}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <span style={{fontWeight:700,fontSize:'var(--text-md)',color:"var(--text-primary)"}}>Navigation &amp; Controls</span>
-        <button onClick={()=>setShowNavHelp(false)} aria-label="Dismiss" style={{background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",padding:"0 4px",lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
+        <button onClick={()=>setShowNavHelp(false)} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",color:"var(--text-tertiary)",cursor:"pointer",padding:"0 4px",lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px"}}>
         {[
@@ -7709,7 +7709,7 @@ return(
       </div>;
       if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
-      if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
+      if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
     })()}
 
