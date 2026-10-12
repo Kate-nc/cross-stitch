@@ -220,7 +220,15 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
     React.createElement("div", {className:"stats-overview-grid"},
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Speed"), React.createElement("span", {className:"stats-value"}, stats.stitchesPerHour + "/hr")),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Time stitched"), React.createElement("span", {className:"stats-value"}, stats.totalTimeFormatted)),
-      React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Est. finish"), React.createElement("span", {className:"stats-value"}, stats.estimatedCompletion), stats.hoursRemaining != null && React.createElement("span", {className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching')),
+      React.createElement("div", {className:"stats-estimate"}, React.createElement("span", {className:"stats-label"}, "Est. finish"),
+        stats.estimate && stats.estimate.enough
+          ? [
+              React.createElement("span", {key:"v", className:"stats-value"}, estFormatDate(stats.estimate.finishDate)),
+              React.createElement("span", {key:"r", className:"stats-sublabel"}, stats.estimate.rangeText),
+              stats.hoursRemaining != null && React.createElement("span", {key:"h", className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching'),
+              React.createElement("span", {key:"b", className:"stats-sublabel stats-estimate-basis"}, stats.estimate.basis)
+            ]
+          : React.createElement("span", {className:"stats-value"}, stats.estimate ? stats.estimate.text : '\u2014')),
       React.createElement("div", null, React.createElement("span", {className:"stats-label"}, "Sessions"), React.createElement("span", {className:"stats-value"}, (statsSessions||[]).length))
     )
   );

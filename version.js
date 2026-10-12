@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.117';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.118',
+    date: 'October 2026',
+    notes: [
+      'One estimate for when a project will be finished. It looks at your last 4 weeks, works out how many stitches you add on a stitching day and how often you stitch, and converts the stitching days you still need into calendar days. It shows a range and says what it is based on (for example "2.8 stitching days a week, 145 stitches per stitching day"). The Tracker, Progress info, Stats, Insights, milestones, the what-if slider, Home cards and the share text now all give the same answer; before, they disagreed and assumed you stitch every day.',
+      'Until you have at least 3 stitching days and 5% done, the estimate says "Not enough history yet" instead of guessing from one short session. A pace figure now always means stitches per stitching day, and the goals panel says so.',
+      'Home project cards no longer count hours of stitching as days; they use the same estimate. They fill in the first time Home opens after this update.',
+    ]
+  },
+  {
     version: '1.0.117',
     date: 'October 2026',
     notes: [

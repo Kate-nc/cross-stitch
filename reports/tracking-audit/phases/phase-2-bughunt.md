@@ -98,3 +98,29 @@ Safari, Firefox, real devices; the day-end setting on a device whose time zone c
 - **Split records inherited all the run's colours (Medium).** True: colours were copied to every part, so the journal and the colour timeline showed colours on the wrong day. Colours are now kept per day while the session runs and each part gets its own day's (older sessions in progress fall back to the run's list). Unit test added.
 - **Changing the day-end hour left the running session's boundary stale (Medium).** True: the cached boundary and day were from the old setting. The preference store now announces changes (`cs:prefchange`) and a change to the day-end hour closes the running session, so earlier marks keep the day they were attributed to and the next mark starts a session under the new setting. Browser test added.
 - **Migration ignored a project set to midnight (Medium), not changed.** 0 is the value every project is seeded with (`dayEndHour: 0` in the default settings), so a saved 0 cannot be told from "never set". Claiming it would let the first project opened, nearly always an untouched default, block the migration of a value the person did choose in another project. Replied on the thread with this.
+
+## Batch 5: one estimator
+
+### Exercised
+- `npm test` (300 suites, 4,000 tests), terminology lint, `node build-runtime-js.js --check`. Playwright: `phase2-batch5` (4) in the touch-tablet project.
+- The audit's worked example in a unit test and in the browser: 10 stitching days in the last 25, 145 per stitching day, 250 left gives "about 5 days" with "Based on your last 25 days: 2.8 stitching days a week, 145 stitches per stitching day" in the Tracker strip, Progress info, project Stats and on the Home card, and the date in the strip equals the date in Stats. A project with two stitching days says "Not enough history yet" in the strip, popover and Stats and shows no Home estimate.
+- The what-if slider: 145 per stitching day gives "about 5 days at 2.8 stitching days a week". Global dashboard: the Goals pace line uses the same pace.
+- Edge cases: unpicking-only and catch-up-only days are not stitching days; sessions older than 28 days are ignored; the cadence floor of one a fortnight; a project younger than 4 weeks uses its age; the day-end hour moves the window with the stitching calendar; nothing stitched for 4 weeks says so.
+- Data safety: no stored data changed except new optional fields on the summary rows (`paceDaily`, `firstActiveDate`, `activeDaysTotal`); the row version bump makes Home's one-time idle refresh fill them in (it writes only the two summary rows, never the project).
+- Performance: interleaved A/B and the tap benchmark, all inside the 5% line (progress log).
+
+### Bugs found
+- **Fixed here (found while reading the copies):** Home project cards computed "Est. 3 weeks" as remaining stitches / stitches per hour and read the hours as days, so a stitcher who does 100 stitches an hour with 3,000 left was told "Est. 2 days" regardless of how often they stitch. They use the estimator now.
+- **Fixed here:** the "pace needed" for a target date (per calendar day) was compared with the average per active day, which could not be compared; both are per stitching day now.
+- **Noted, not fixed:** hours remaining still uses overall speed (stitches per active hour), whose definition is STATS-03 (Phase 3). The mini stats bar and Stats "Speed" are unchanged.
+- **Noted, not fixed:** the legacy dashboard card in `home-screen.js` ("Est. remaining" in hours) is hours of stitching, not a date, so it was left as is.
+
+### Not verified
+The global Recent Pace card in `stats-page.js` and the Insights-page project cards in `stats-insights.js` were checked by unit tests of the shared function and by code reading, not in a browser (the card is off by default in the page's settings and the Insights page needs a project in progress); Safari, Firefox and real devices.
+
+### Review round 1 (Copilot on PR 286; seven findings)
+- **Home's refresh gate still tested for version 1 (Medium).** True, and my browser test could not see it because it seeded a fresh row. With the row version bumped to 2, rows saved before never counted as stale on Home, so they never got `paceDaily` and showed no Home estimate until the project happened to be saved again. `ProjectStorage` now exposes `PROGRESS_ROW_VERSION` and Home compares against it (one shared check). New browser test: a project's row is made to look as it did before (version 1, no pace figures) and Home fills the estimate in.
+- **What-if chart line ended on the wrong date (Medium).** True: it counted from the last recorded session, while the "about N days" beside it counts from today, and its day count lacked the estimator's outer round-up. The line now counts from today on the stitching calendar with the same two round-ups.
+- **Pace needed could miss the target (Medium).** True (400 stitches in 20 days at 4/7 cadence gave 35 per stitching day, which needs 12 stitching days and 21 calendar days). It now divides by the whole stitching opportunities available (rounded down). Unit test checks the pace always gets there in time.
+- **Arrow glyph in the what-if label (Low).** True, house rule; replaced with a colon.
+- **"28 stitching days" wording (three places, Low).** True: the window is 28 calendar days with the stitching days inside it. Comments and the progress report corrected.

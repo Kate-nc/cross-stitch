@@ -52,7 +52,9 @@ test('refreshProgressRows rewrites rows from before units once, leaves the proje
   const before = (await ProjectStorage.get('proj_old')).lastWriteAt;
   expect(await ProjectStorage.refreshProgressRows({ idle: cb => cb() })).toBe(1);
   const row = (await ProjectStorage.listProjects()).find(r => r.id === 'proj_old');
-  expect(row.unitsV).toBe(1);
+  expect(row.unitsV).toBe(2);
+  expect(row.paceDaily).toEqual({});          // the rows now carry what the finish estimate needs (no sessions here)
+  expect(row.activeDaysTotal).toBe(0);
   expect(row.totalStitches).toBe(8);          // 6 cells + 3 half sides (1.5 units), 7.5 rounded
   expect(row.completedStitches).toBe(3);      // 2 full + 2 half sides (1 unit)
   expect((await ProjectStorage.get('proj_old')).lastWriteAt).toBe(before);    // the project itself was not written

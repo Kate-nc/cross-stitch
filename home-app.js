@@ -151,23 +151,15 @@
     return m + ' months ago';
   }
 
-  // Estimated completion date helper — returns a human-readable string like
-  // "Est. Nov 2026" or "Est. 3 weeks" based on velocity and remaining stitches.
-  // Returns null when there is insufficient data to project a date.
-  function etaLabel(stitchesPerHour, completedStitches, totalStitches) {
-    if (!stitchesPerHour || stitchesPerHour <= 0) return null;
-    var remaining = (totalStitches || 0) - (completedStitches || 0);
-    if (remaining < 50) return null; // too close / already done
-    var msRemaining = (remaining / stitchesPerHour) * 3600000;
-    var d = new Date(Date.now() + msRemaining);
-    var diffDays = Math.round(msRemaining / 86400000);
-    if (diffDays < 1) return 'Est. today';
-    if (diffDays === 1) return 'Est. tomorrow';
-    if (diffDays < 14) return 'Est. ' + diffDays + ' days';
-    if (diffDays < 60) return 'Est. ' + Math.round(diffDays / 7) + ' weeks';
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var curYear = new Date().getFullYear();
-    return 'Est. ' + months[d.getMonth()] + (d.getFullYear() !== curYear ? ' ' + d.getFullYear() : '');
+  // Estimated finish for a project row, from the one estimator (helpers.js): "Est. about 3 weeks" or "Est. Nov 2026".
+  // The row carries what it needs (paceDaily, firstActiveDate, activeDaysTotal); rows saved before that have none
+  // until the next refresh and show nothing. Returns null when there is not enough history to say.
+  function etaLabel(p) {
+    if (!p || !p.paceDaily || typeof estimateFromPace !== 'function') return null;
+    var today = getStitchingDate(new Date(), getDayEndHour());
+    var pace = paceFromDaily(p.paceDaily, p.firstActiveDate, today, p.activeDaysTotal);
+    var est = estimateFromPace(pace, (p.totalStitches || 0) - (p.completedStitches || 0), { today: today, percent: p.pct });
+    return est.enough ? 'Est. ' + estFormatShort(est) : null;
   }
 
   function rgbCss(rgb) {
@@ -247,16 +239,11 @@
     // Compute velocity from full project data for ETA projection (R14),
     // memoised by project id/updatedAt so it only recalculates when data changes.
     var activeEta = React.useMemo(function () {
-      if (!(p.totalTime && p.totalTime > 0 && p.pattern && p.done)) return null;
-      var _total = 0, _done = 0;
-      for (var _i = 0; _i < p.pattern.length; _i++) {
-        var _c = p.pattern[_i];
-        if (_c && _c.id !== '__skip__' && _c.id !== '__empty__') _total++;
-      }
-      for (var _j = 0; _j < p.done.length; _j++) { if (p.done[_j] === 1) _done++; }
-      if (_done > 50) return etaLabel(_done / (p.totalTime / 3600), _done, _total);
-      return null;
-    }, [p.id, p.updatedAt, p.totalTime, p.pattern, p.done]);
+      if (!(p.statsSessions && (p.pattern || p.p)) || typeof estimateCompletion !== 'function') return null;
+      var r = ProgressUnits.fromProject(p);
+      var est = estimateCompletion(p.statsSessions, r.remainingUnits, { percent: r.percent });
+      return est.enough ? 'Est. ' + estFormatShort(est) : null;
+    }, [p.id, p.updatedAt, p.statsSessions, p.pattern, p.p, p.done]);
     var metaParts = [
       dim || null,
       p.updatedAt ? ('Updated ' + timeAgo(p.updatedAt)) : null,
@@ -436,7 +423,7 @@
             dim || null,
             p.updatedAt ? timeAgo(p.updatedAt) : null,
             pct !== null ? pct + '%' : null,
-            etaLabel(p.stitchesPerHour, p.completedStitches, p.totalStitches) || null
+            etaLabel(p) || null
           ].filter(Boolean);
           var isOpen = openFor === p.id;
           return h('div', {
@@ -1168,7 +1155,7 @@
             });
             setList(sorted);
             // Rows saved before progress counted half stitches get their figures rewritten once, in idle time.
-            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== 1; })) {
+            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== window.ProjectStorage.PROGRESS_ROW_VERSION; })) {
               window.__progressRowsRefreshing = true;
               window.ProjectStorage.refreshProgressRows().then(function (n) {
                 window.__progressRowsRefreshing = false;
