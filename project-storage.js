@@ -168,8 +168,8 @@ const ProjectStorage = (() => {
         if (idx !== undefined) weeklyStitches[idx] += (ProgressUnits.sessionAdded(s2) || 0);
       }
     }
-    // What the finish estimate needs, without the sessions: what was added on each of the last 28 stitching days, the
-    // first stitching day and how many there have been (see "One estimator" in helpers.js; Home cards use it).
+    // What the finish estimate needs, without the sessions: what was added on each stitching day within the last 28 calendar
+    // days (only the days something was added, so fewer than 28 entries), the first stitching day and how many there have been (see "One estimator" in helpers.js; Home cards use it).
     let paceDaily, firstActiveDate, activeDaysTotal;
     if (typeof dailyAddedMap === 'function') {
       const m = dailyAddedMap(sessions);
@@ -353,6 +353,9 @@ const ProjectStorage = (() => {
   }
 
   return {
+    // The current version of the summary-row definition: a row with another value is rewritten by
+    // refreshProgressRows(). Home asks this instead of hard-coding it.
+    PROGRESS_ROW_VERSION: PROGRESS_ROW_VERSION,
     // Mark projects as synced (sets lastSyncedAt on each).
     async markSynced(projectIds, timestamp) {
       const ts = timestamp || new Date().toISOString();

@@ -105,8 +105,10 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   // Compute what-if end date so we can extend the time axis to fit the projection
   var wiRemaining = totalStitches - last.total;
   // calendar days: the stitching days it takes, spread over how often the person stitches
-  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? Math.ceil(wiRemaining / whatIfPace) / (cadence > 0 ? cadence : 1) : 0;
-  var wiEndDate = wiDays > 0 ? new Date(lastDate.getTime() + wiDays * 86400000) : null;
+  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? Math.ceil(Math.ceil(wiRemaining / whatIfPace) / (cadence > 0 ? cadence : 1)) : 0;
+  // counted from today on the stitching calendar, like the estimate beside it, not from the last recorded session
+  var wiStart = new Date(getStitchingDate(new Date(), getDayEndHour()) + 'T12:00:00');
+  var wiEndDate = wiDays > 0 ? new Date(wiStart.getTime() + wiDays * 86400000) : null;
   // Extend x-axis to include what-if endpoint and/or target date
   var extendedEnd = lastDate;
   if (wiEndDate && wiEndDate > extendedEnd) extendedEnd = wiEndDate;
@@ -391,7 +393,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
           React.createElement("input", {type:"range", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
             onChange:function(e){ setWhatIfPace(parseInt(e.target.value)); }, style:{width:110, cursor:'pointer'}}),
           React.createElement("span", {style:{fontSize:'var(--text-sm)', fontWeight:600, color:'var(--warning)', minWidth:120}},
-            paceVal + " per stitching day \u2192 " + estFormatDays(Math.ceil(Math.ceil(remaining / paceVal) / cadence)) + (cadence < 1 ? " at " + (Math.round(cadence * 70) / 10) + " stitching days a week" : "")),
+            paceVal + " per stitching day: " + estFormatDays(Math.ceil(Math.ceil(remaining / paceVal) / cadence)) + (cadence < 1 ? " at " + (Math.round(cadence * 70) / 10) + " stitching days a week" : "")),
           whatIfPace != null ? React.createElement("button", {onClick:function(){ setWhatIfPace(null); },
             style:{fontSize:'var(--text-xs)', padding:'1px 6px', borderRadius:4, border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-tertiary)'}}, "Reset") : null
         )

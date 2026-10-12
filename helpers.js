@@ -1176,7 +1176,7 @@ function getSessionSeconds(s) {
 // Every "when will it be finished" figure comes from here (Stats, Progress info, the Tracker strip, milestones,
 // global Stats and Insights, Home, share text). It works in stitching days, then converts them to calendar days with
 // how often the person has actually been stitching, and it says what it is based on.
-//   pace window   = the last 28 stitching days, or the days since the first stitching day if that is fewer
+//   pace window   = the last 28 calendar days, or the days since the first stitching day if that is fewer
 //   stitches per stitching day = what was added on stitching days in the window / those days
 //   frequency     = stitching days in the window / window days (never below 1 a fortnight)
 //   calendar days = ceil(ceil(remaining / stitches per stitching day) / frequency)
@@ -1618,7 +1618,8 @@ function checkMilestones(prevTotal, newTotal, totalStitches) {
 function getRequiredPace(remaining, targetDate, frequency) {
   var days = Math.ceil((new Date(targetDate) - new Date()) / 86400000);
   var f = frequency > 0 ? Math.min(1, frequency) : 1;
-  return days > 0 ? Math.ceil(remaining / Math.max(1, days * f)) : null;
+  // Whole stitching days available before the date (rounded down, so the pace shown always gets there in time).
+  return days > 0 ? Math.ceil(remaining / Math.max(1, Math.floor(days * f))) : null;
 }
 
 // "Your pace: 145 stitches per stitching day, 2.8 stitching days a week (last 4 weeks)", or '' with nothing to say.

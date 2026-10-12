@@ -89,11 +89,32 @@ test('the what-if slider converts stitching days to calendar days at the usual c
   await page.evaluate(() => window.__openTrackerStats());
   await page.getByRole('button', { name: 'Cumulative' }).click();
   // 250 left at 145 per stitching day = 2 stitching days, at 2.8 stitching days a week = about 5 days
-  await expect(page.getByText(/145 per stitching day .* about 5 days at 2\.8 stitching days a week/)).toBeVisible();
+  await expect(page.getByText(/145 per stitching day: about 5 days at 2\.8 stitching days a week/)).toBeVisible();
 });
 
 test('global Stats: the goals pace line comes from the same estimator', async ({ page }) => {
   await seed(page, HISTORY);
   await page.goto('/create.html?mode=stats');
   await expect(page.getByText('Your pace: 145 stitches per stitching day, 2.8 stitching days a week (last 25 days)')).toBeVisible({ timeout: 20000 });
+});
+
+test('Home fills in the estimate for a row saved before this update (the one-time refresh)', async ({ page }) => {
+  await seed(page, HISTORY);
+  // Make the project's summary row look as it did before: version 1, no pace figures.
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const open = indexedDB.open('CrossStitchDB');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction(['project_meta', 'stats_summaries'], 'readwrite');
+      ['project_meta', 'stats_summaries'].forEach(n => {
+        const st = tx.objectStore(n);
+        const q = st.get('proj_b5');
+        q.onsuccess = () => { const v = q.result; v.unitsV = 1; delete v.paceDaily; delete v.firstActiveDate; delete v.activeDaysTotal; st.put(v, 'proj_b5'); };
+      });
+      tx.oncomplete = () => { db.close(); resolve(); };
+    };
+  }));
+  await page.goto('/home.html');
+  await expect(page.getByText('Est. about 5 days').first()).toBeVisible({ timeout: 20000 });
 });

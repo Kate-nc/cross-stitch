@@ -119,6 +119,13 @@ describe('milestone dates and the required pace use it too', () => {
     const fourDaysAWeek = getRequiredPace(400, target, 4 / 7);
     expect(fourDaysAWeek).toBeGreaterThan(everyDay);
   });
+  test('the pace needed always gets there in time: whole stitching opportunities, rounded down', () => {
+    const target = new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10);
+    const f = 4 / 7;
+    const need = getRequiredPace(400, target, f);              // 11 whole stitching days in 20 calendar days
+    const stitchingDays = Math.ceil(400 / need);
+    expect(Math.ceil(stitchingDays / f)).toBeLessThanOrEqual(20);
+  });
   test('the pace line says what it is', () => {
     const est = estimateCompletion(historyProject(), 250, { now: NOW, dayEndHour: 0, percent: 95 });
     expect(estPaceLine(est)).toBe('Your pace: 145 stitches per stitching day, 2.8 stitching days a week (last 25 days)');

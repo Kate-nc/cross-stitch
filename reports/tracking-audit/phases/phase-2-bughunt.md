@@ -117,3 +117,10 @@ Safari, Firefox, real devices; the day-end setting on a device whose time zone c
 
 ### Not verified
 The global Recent Pace card in `stats-page.js` and the Insights-page project cards in `stats-insights.js` were checked by unit tests of the shared function and by code reading, not in a browser (the card is off by default in the page's settings and the Insights page needs a project in progress); Safari, Firefox and real devices.
+
+### Review round 1 (Copilot on PR 286; seven findings)
+- **Home's refresh gate still tested for version 1 (Medium).** True, and my browser test could not see it because it seeded a fresh row. With the row version bumped to 2, rows saved before never counted as stale on Home, so they never got `paceDaily` and showed no Home estimate until the project happened to be saved again. `ProjectStorage` now exposes `PROGRESS_ROW_VERSION` and Home compares against it (one shared check). New browser test: a project's row is made to look as it did before (version 1, no pace figures) and Home fills the estimate in.
+- **What-if chart line ended on the wrong date (Medium).** True: it counted from the last recorded session, while the "about N days" beside it counts from today, and its day count lacked the estimator's outer round-up. The line now counts from today on the stitching calendar with the same two round-ups.
+- **Pace needed could miss the target (Medium).** True (400 stitches in 20 days at 4/7 cadence gave 35 per stitching day, which needs 12 stitching days and 21 calendar days). It now divides by the whole stitching opportunities available (rounded down). Unit test checks the pace always gets there in time.
+- **Arrow glyph in the what-if label (Low).** True, house rule; replaced with a colon.
+- **"28 stitching days" wording (three places, Low).** True: the window is 28 calendar days with the stitching days inside it. Comments and the progress report corrected.

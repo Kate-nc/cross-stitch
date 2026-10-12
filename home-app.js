@@ -1155,7 +1155,7 @@
             });
             setList(sorted);
             // Rows saved before progress counted half stitches get their figures rewritten once, in idle time.
-            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== 1; })) {
+            if (window.ProjectStorage.refreshProgressRows && !window.__progressRowsRefreshing && sorted.some(function (p) { return p && p.unitsV !== window.ProjectStorage.PROGRESS_ROW_VERSION; })) {
               window.__progressRowsRefreshing = true;
               window.ProjectStorage.refreshProgressRows().then(function (n) {
                 window.__progressRowsRefreshing = false;
