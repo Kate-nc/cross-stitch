@@ -1149,13 +1149,14 @@ useEffect(()=>{
 },[]);
 // Generic Tracker welcome — fires once on first visit, before the existing
 // StitchingStyleOnboarding (which is domain-specific).
+const welcomeAskedRef=useRef(false); // true when the person asked for the tour (Help menu), so a loaded pattern does not retire it
 const[welcomeOpen,setWelcomeOpen]=useState(()=>{try{return !!(window.WelcomeWizard&&window.WelcomeWizard.shouldShow('tracker'));}catch(_){return false;}});
 // Global "?" shortcut → open Help Centre.
 useEffect(()=>{const h=()=>setModal("help");window.addEventListener("cs:openHelp",h);return()=>window.removeEventListener("cs:openHelp",h);},[]);
 // Command Palette → Shortcuts modal.
 useEffect(()=>{const h=()=>setModal("shortcuts");window.addEventListener("cs:openShortcuts",h);return()=>window.removeEventListener("cs:openShortcuts",h);},[]);
 // "Show welcome tour again" from HelpCentre → re-open the wizard.
-useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker')setWelcomeOpen(true);};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
+useEffect(()=>{const h=(e)=>{if(!e||!e.detail||e.detail.page==='tracker'){welcomeAskedRef.current=true;setWelcomeOpen(true);}};window.addEventListener("cs:showWelcome",h);return()=>window.removeEventListener("cs:showWelcome",h);},[]);
 // Register Tracker-specific Command Palette actions (M9).
 useEffect(()=>{
   if(!window.CommandPalette||!window.CommandPalette.registerPage)return;
@@ -1167,7 +1168,7 @@ useEffect(()=>{
     { id:'trk_export_oxs', label:'Export as Open X-Stitch (.oxs)', section:'action', keywords:['oxs','export','macstitch','winstitch','flosscross','open','x-stitch'],
       action:()=>{ try{ if(typeof doExportOxs==='function') doExportOxs(); }catch(_){} } },
     { id:'trk_show_welcome', label:'Show Welcome Tour', section:'action', keywords:['welcome','tour','onboarding','intro'],
-      action:()=>setWelcomeOpen(true) }
+      action:()=>{welcomeAskedRef.current=true;setWelcomeOpen(true);} }
   ]);
   return()=>{ if(window.CommandPalette) window.CommandPalette.registerPage('tracker',[]); };
 },[]);
@@ -1317,6 +1318,9 @@ const[sessionSummaryData,setSessionSummaryData]=useState(null);
 // project already has stitching sessions. Cleared via Continue/Stats/Switch/Close.
 const[resumeRecap,setResumeRecap]=useState(null);
 const resumeRecapShownRef=useRef(new Set());
+// The recap is only a hello: the first mark, or twenty seconds, retires it.
+useEffect(()=>{if(!resumeRecap)return;const t=setTimeout(()=>setResumeRecap(null),20000);return()=>clearTimeout(t);},[resumeRecap]);
+useEffect(()=>{if(resumeRecap&&trackHistory.length>0)setResumeRecap(null);},[resumeRecap,trackHistory]);
 // The pattern's size no longer matches the saved marks: held here until the user decides (see
 // processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
 const[reconcile,setReconcile]=useState(null);
@@ -3256,6 +3260,7 @@ function doSaveProject(finalName){
     doneSnapshots,
     breadcrumbs,
     stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
+    workingContext: workingContextForSave(focusColour, stitchMode, stitchView, highlightMode),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null
   };
@@ -3428,7 +3433,7 @@ function handleEditInCreator(){
             statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
             achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
             breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
+            blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea, workingContext:project.workingContext,
             startCorner:project.startCorner, colourSequence:project.colourSequence,
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
@@ -3694,6 +3699,16 @@ function processLoadedProject(project){
     setHalfDone(new Map());
   }
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
+  // Back to where the stitcher left off: colour, Mark or Navigate, and how the chart was drawn (TRACK-05).
+  {
+    const _wc=normaliseWorkingContext(project.workingContext,newPal);
+    setStitchMode(_wc?_wc.mode:"track");
+    if(_wc){
+      if(_wc.colour)setFocusColour(_wc.colour);
+      if(_wc.view)setStitchView(_wc.view);
+      if(_wc.highlight)setHighlightMode(_wc.highlight);
+    }
+  }
   setThreadOwned(project.threadOwned||{});
   let _reconcileHeld=false;
   reconcileRef.current=null;savesBlockedRef.current=false;setReconcile(null);
@@ -4368,6 +4383,7 @@ const buildSnapshot = () => {
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
+    workingContext: workingContextForSave(focusColour, stitchMode, stitchView, highlightMode),
     ...v3FieldsRef.current
   };
 };
@@ -4500,7 +4516,7 @@ useEffect(() => {
               statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
               achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
               breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
-              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea,
+              blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea, workingContext:project.workingContext,
               startCorner:project.startCorner, colourSequence:project.colourSequence,
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
@@ -4532,7 +4548,7 @@ useEffect(() => {
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
     // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
     projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand,
-    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones]);
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, focusColour, stitchMode, stitchView, highlightMode, achievedMilestones]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -4723,6 +4739,28 @@ function tierSymFontSz(cSz){
 
 // French knots as saved: {x, y, id, rgb}, or nothing when there are none, so
 // projects without knots save exactly as before.
+// The working context a stitcher comes back to: which colour they were on, Mark or Navigate, and how the
+// chart was drawn. Saved with the project as one optional field and checked on the way back in, because the
+// record may come from another device, an older build, or a pattern since edited in the Creator.
+function workingContextForSave(colour, mode, view, highlight) {
+  var wc = {};
+  if (colour) wc.colour = colour;
+  if (mode === "navigate") wc.mode = mode;
+  if (view && view !== "symbol") wc.view = view;
+  if (view === "highlight" && highlight) wc.highlight = highlight;
+  return Object.keys(wc).length ? wc : undefined;
+}
+function normaliseWorkingContext(wc, pal) {
+  if (!wc || typeof wc !== "object") return null;
+  var out = { colour: null, mode: "track", view: null, highlight: null };
+  if (typeof wc.colour === "string" && Array.isArray(pal) && pal.some(function (m) { return m && m.id === wc.colour; })) out.colour = wc.colour;
+  if (wc.mode === "navigate" || wc.mode === "track") out.mode = wc.mode;
+  if (wc.view === "symbol" || wc.view === "highlight" || wc.view === "realistic") out.view = wc.view;
+  if (wc.highlight === "isolate" || wc.highlight === "outline" || wc.highlight === "tint" || wc.highlight === "spotlight") out.highlight = wc.highlight;
+  // Highlighting needs a colour to highlight.
+  if (out.view === "highlight" && !out.colour) { out.view = null; out.highlight = null; }
+  return out;
+}
 function knotsForSave(knots, projectBrand) {
   return knots && knots.length ? window.Knots.forSave(knots, projectBrand) : undefined;
 }
@@ -7306,6 +7344,15 @@ const _trCoach = (typeof window.useCoachingSequence === 'function')
       rectSelect_tracker: !!pat && _rectSelectThresholdMet && !_rectSelectUsed
     })
   : { active: null, complete: ()=>{}, skip: ()=>{}, skipAll: ()=>{} };
+// First run is one sequence, not three layers: the tour belongs to the empty screen. Once a pattern is on the
+// chart the tour steps aside (its dimmed backdrop used to swallow the first tap, which only closed it) and the
+// "Mark your first stitch" hint takes over. The style question keeps its default and stays in More controls.
+useEffect(()=>{
+  if(!welcomeOpen||!pat||welcomeAskedRef.current)return;
+  setWelcomeOpen(false);
+  try{ if(window.WelcomeWizard)window.WelcomeWizard.markDone('tracker'); }catch(_){}
+  try{ if(!localStorage.getItem("cs_styleOnboardingDone")) localStorage.setItem("cs_styleOnboardingDone","1"); }catch(_){}
+},[welcomeOpen,pat]);
 const _trCoachBlocked = !isActive || !pat || styleOnboardingOpen || welcomeOpen;
 const [_trCoachReady, _setTrCoachReady] = React.useState(false);
 React.useEffect(()=>{
@@ -8614,7 +8661,7 @@ return(
       :<div className="modal-overlay reconcile-overlay" role="alertdialog" aria-modal="true" aria-labelledby="reconcile-title" aria-describedby="reconcile-body"><div className="modal-content reconcile-modal" style={{maxWidth:480}}>{body}</div></div>;
   })()}
   {resumeRecap&&(()=>{
-    // A3: Resume recap modal — fires once per project load when prior sessions exist.
+    // A3: resume recap — a banner (not a dialog, so the chart stays usable) once per project load when prior sessions exist.
     const r=resumeRecap;
     const sm=r.summary||{};
     const dismiss=()=>setResumeRecap(null);
@@ -8639,47 +8686,15 @@ return(
       if(diff>=5)speedNote=(sm.perHour-sm.perHourAvg)+' / hr faster than your average';
       else if(diff<=-5)speedNote=Math.abs(diff)+' / hr slower than your average';
     }
-    return <div className="modal-overlay resume-recap-overlay" role="dialog" aria-modal="true" aria-labelledby="resume-recap-title" onClick={dismiss}>
-      <div className="modal-content resume-recap-modal" onClick={e=>e.stopPropagation()}>
-        <div className="resume-recap-header">
-          <div>
-            <h3 id="resume-recap-title" className="resume-recap-title">Welcome back to {r.projectName}</h3>
-            {lastStr&&<div className="resume-recap-sub">{lastStr}</div>}
-          </div>
-          <button className="resume-recap-close" onClick={dismiss} aria-label="Close">{Icons.x()}</button>
-        </div>
-        <div className="resume-recap-body">
-          <div className="resume-recap-progress">
-            <div className="resume-recap-progress-row">
-              <span className="resume-recap-progress-label">Overall progress</span>
-              <span className="resume-recap-progress-pct">{pct}%</span>
-            </div>
-            <div className="resume-recap-bar"><div className="resume-recap-bar-fill" style={{width:pct+'%'}}/></div>
-            <div className="resume-recap-progress-meta">{r.doneSt.toLocaleString('en-GB')} / {r.totalSt.toLocaleString('en-GB')} stitches</div>
-          </div>
-          <div className="resume-recap-section-label">Your last session</div>
-          <div className="resume-recap-grid">
-            <div className="resume-recap-card">
-              <div className="resume-recap-card-num">{(sm.count||0).toLocaleString('en-GB')}</div>
-              <div className="resume-recap-card-lbl">stitches</div>
-            </div>
-            <div className="resume-recap-card">
-              <div className="resume-recap-card-num">{minutes} m</div>
-              <div className="resume-recap-card-lbl">stitch time</div>
-            </div>
-            <div className="resume-recap-card">
-              <div className="resume-recap-card-num">{sm.perHour!=null?sm.perHour:'—'}</div>
-              <div className="resume-recap-card-lbl">stitches / hr</div>
-            </div>
-          </div>
-          {speedNote&&<div className="resume-recap-note">{speedNote}</div>}
-        </div>
-        <div className="resume-recap-footer">
-          <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
-          <button className="resume-recap-btn" onClick={()=>{dismiss();openProjectStats();}}>Stats</button>
-          <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
-        </div>
+    const hrs=sm.perHour!=null?(' · '+sm.perHour+' / hr'):'';
+    return <div className="resume-recap-banner" role="status" aria-live="polite">
+      <div className="resume-recap-banner-text">
+        <strong>Welcome back to {r.projectName}</strong>
+        <span>{lastStr?lastStr+'. ':''}{pct}% done; last session {(sm.count||0).toLocaleString('en-GB')} stitches in {minutes} m{hrs}{speedNote?' ('+speedNote+')':''}.</span>
       </div>
+      <button className="resume-recap-banner-btn" onClick={()=>{dismiss();openProjectStats();}}>Stats</button>
+      <button className="resume-recap-banner-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
+      <button className="resume-recap-banner-close tracker-dismiss-btn" onClick={dismiss} aria-label="Dismiss">{Icons.x()}</button>
     </div>;
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}

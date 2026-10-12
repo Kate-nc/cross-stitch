@@ -76,3 +76,17 @@ Phone emulation (393x727 touch, 4x CPU throttle, 300x300 fixture), interleaved a
 - Real iOS Safari behaviour of calling `preventDefault` on `touchmove` after the rest (iOS may start scrolling in the first few pixels) is unverified; a stylus (pen pointer) is treated like a finger and was not tried with real hardware.
 - The mobile-audit `pan-ownership` spec was updated to the new contract but cannot run in this sandbox.
 - With Lock on, two fingers still pan and zoom (deliberate gestures); a palm resting with two points could.
+
+## Batch 4: coming back to a project, and first run (TRACK-05)
+
+Reproduced first (393x727 touch, fresh prefs): the welcome tour is a modal with a dimmed scrim, and a click on the scrim closes it, so the first tap on the chart marked nothing (`elementFromPoint` at a cell was `DIV.modal-overlay`, 0 stitches). The "welcome back" recap was a second modal, and the colour, Mark or Navigate and highlight style were thrown away on every load (`setSelectedColorId(null); setFocusColour(null)`; `stitchMode` never saved).
+
+- **Working context** is one optional project field, `workingContext: {colour, mode, view, highlight}`, written by `buildSnapshot()` and the file export, in the autosave dependencies. A default context writes nothing (`undefined`), so older projects and tests see no change and the project version stays 11.
+- **Validated on load** (`normaliseWorkingContext`): the colour must exist in the pattern, mode is `track` or `navigate`, view and highlight come from the known values, and the highlight view is dropped when its colour is gone (a pattern edited in the Creator). A project with no saved context now opens in Mark, as a first open does.
+- **Carried everywhere the other tracker view fields go:** `__updateCreatorTrackerFields` (both call sites), the Creator preserve paths in `creator/useProjectIO.js` (bundle rebuilt), and `tracking-merge.js` `NOT_COMPARED` so the other tab changing it never raises the overwrite question. Backup and restore already pass unknown fields through (JSON round trip tested).
+- **Resume recap is a strip**, not a dialog (`role="status"`, no scrim): the chart works under it, the first mark or 20 s clears it, Stats and Switch project stay as buttons.
+- **First run is one sequence:** once a pattern is on the chart the welcome tour steps aside (and marks itself done), so the first tap marks a stitch and the "Mark your first stitch" hint is the only guide. Asking for the tour from Help still opens it over a loaded pattern (`welcomeAskedRef`). The style question keeps its default and stays under More controls > Tools; that was already the "Skip tour" behaviour.
+- Help ("Coming back to a project"), changelog 1.0.129.
+
+Tests: `tests/workingContext.test.js` (11), rewritten `tests/resumeRecapModal.test.js`, `tests/e2e/phase4-batch4.spec.js` (5: restore in Navigate, bad context ignored, recap does not block and clears on first mark, first tap after opening a pattern marks, Navigate saved and restored after reload).
+

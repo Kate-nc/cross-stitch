@@ -342,6 +342,7 @@ module.exports = {
   loadTrackerFixture,
   sampleCanvasPixel,
   TRACKER_CANVAS,
+  ensureTrackerProjectFixture,
   trackerCellPoint,
   trackerDoneCount,
   trackerHasParkMarker,

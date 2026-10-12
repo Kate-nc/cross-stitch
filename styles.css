@@ -8672,3 +8672,27 @@ body.cs-focus .canvas-area { padding-top: 22px; padding-bottom: calc(72px + env(
 .touch-lock-pill--holding .touch-lock-pill__fill { width: 100%; transition: width var(--unlock-ms, 700ms) linear; }
 @media (prefers-reduced-motion: reduce) { .touch-lock-pill--holding .touch-lock-pill__fill { transition: none; width: 100%; } }
 body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) + 8px); }
+
+/* Phase 4 batch 4 (TRACK-05) — the "welcome back" recap is a strip, not a dialog, so the chart stays usable. */
+.resume-recap-banner {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  top: calc(var(--tb-h, 48px) + 8px); z-index: 900;
+  display: flex; align-items: center; gap: 8px;
+  max-width: min(640px, calc(100vw - 16px)); width: max-content;
+  padding: 8px 8px 8px 14px;
+  background: var(--surface); color: var(--text-primary);
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+}
+.resume-recap-banner-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.resume-recap-banner-text span { color: var(--text-secondary); font-size: var(--text-xs); }
+.resume-recap-banner-btn, .resume-recap-banner-close {
+  min-height: 36px; padding: 0 10px; background: none; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer; font: inherit; white-space: nowrap;
+}
+.resume-recap-banner-close { border: none; display: inline-flex; align-items: center; min-width: 36px; justify-content: center; }
+@media (max-width: 599px) {
+  .resume-recap-banner { flex-wrap: wrap; }
+  .resume-recap-banner-btn { flex: 1; }
+}
