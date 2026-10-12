@@ -156,8 +156,10 @@ function ChartScrubber(props){
 }
 function ChartTable(props){
   var h = React.createElement;
-  var rows = props.rows || [];
-  var shown = rows.length > 40 ? rows.slice(rows.length - 40) : rows;
+  // Only the rows that are shown are built (formatting a date is not free, and a long project has hundreds of days).
+  var total = props.count, first = Math.max(0, total - 40), shown = [];
+  for (var ri = first; ri < total; ri++) shown.push(props.rowAt(ri));
+  var rows = { length: total };
   return h('details', {className:'chart-table'},
     h('summary', null, 'Show the data as a table'),
     h('div', {className:'chart-table-scroll'},
@@ -227,11 +229,11 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
     wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"var(--warning)", strokeWidth:"1.5", strokeDasharray:"5 3"});
   }
   var pctOf = function(v){ return totalStitches > 0 ? Math.round(v / totalStitches * 1000) / 10 : 0; };
-  var xs = []; for (var xi = 0; xi < data.length; xi++) xs.push(xDate(new Date(data[xi].date + 'T12:00:00')));
+  var xsOf = function(){ var a = []; for (var xi = 0; xi < data.length; xi++) a.push(xDate(new Date(data[xi].date + 'T12:00:00'))); return a; };
   var selD = (sel != null && sel < data.length) ? data[sel] : null;
   var selText = selD ? formatShortDate(selD.date) + ': ' + ProgressUnits.formatUnits(selD.total) + ' of ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + pctOf(selD.total) + '%)' : '';
   return React.createElement("div", {className:"chart-container"},
-    React.createElement("svg", {role:"img","aria-label":"Progress over time: " + pctOf(last.total) + "% done by " + formatShortDate(last.date) + ", from " + pctOf(data[0].total) + "% on " + formatShortDate(data[0].date) + ". Tap the chart or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, xs); if (i != null) setSel(i); }},
+    React.createElement("svg", {role:"img","aria-label":"Progress over time: " + pctOf(last.total) + "% done by " + formatShortDate(last.date) + ", from " + pctOf(data[0].total) + "% on " + formatShortDate(data[0].date) + ". Tap the chart or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, xsOf()); if (i != null) setSel(i); }},
       React.createElement("text", {x:pl - 4, y:pt + 10, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches)),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, "0"),
@@ -241,8 +243,8 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
       React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"#534AB7"}),
-      selD ? React.createElement("line", {x1:xs[sel], y1:pt, x2:xs[sel], y2:pt + cH, stroke:"var(--text-primary)", strokeWidth:"1", strokeDasharray:"2 2"}) : null,
-      selD ? React.createElement("circle", {cx:xs[sel], cy:yS(selD.total), r:"5", fill:"var(--surface)", stroke:"var(--text-primary)", strokeWidth:"2"}) : null,
+      selD ? React.createElement("line", {x1:xDate(new Date(selD.date + 'T12:00:00')), y1:pt, x2:xDate(new Date(selD.date + 'T12:00:00')), y2:pt + cH, stroke:"var(--text-primary)", strokeWidth:"1", strokeDasharray:"2 2"}) : null,
+      selD ? React.createElement("circle", {cx:xDate(new Date(selD.date + 'T12:00:00')), cy:yS(selD.total), r:"5", fill:"var(--surface)", stroke:"var(--text-primary)", strokeWidth:"2"}) : null,
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"var(--border)", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
@@ -256,7 +258,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'var(--warning)'}}), "What-if") : null
     ),
     React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selText, label:"Day on the progress chart"}),
-    React.createElement(ChartTable, {caption:"Progress over time", headers:["Date", "Stitches done", "Percent"], rows:data.map(function(d){ return [formatShortDate(d.date), ProgressUnits.formatUnits(d.total), pctOf(d.total) + '%']; })})
+    React.createElement(ChartTable, {caption:"Progress over time", headers:["Date", "Stitches done", "Percent"], count:data.length, rowAt:function(i){ var d = data[i]; return [formatShortDate(d.date), ProgressUnits.formatUnits(d.total), pctOf(d.total) + '%']; }})
   );
 });
 
@@ -307,7 +309,7 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
       React.createElement("span", null, "Today")
     ),
     React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selBText, label:"Day on the stitches per day chart"}),
-    React.createElement(ChartTable, {caption:"Stitches per day", headers:["Date", "Stitches"], rows:data.map(function(d){ return [(d.isToday ? 'Today' : formatShortDate(d.date)), ProgressUnits.formatUnits(d.stitches)]; })})
+    React.createElement(ChartTable, {caption:"Stitches per day", headers:["Date", "Stitches"], count:data.length, rowAt:function(i){ var d = data[i]; return [(d.isToday ? 'Today' : formatShortDate(d.date)), ProgressUnits.formatUnits(d.stitches)]; }})
   );
 });
 
@@ -363,7 +365,7 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'var(--accent)'}}), "7-session avg")
     ),
     React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selSText, label:"Session on the speed chart"}),
-    React.createElement(ChartTable, {caption:"Speed per session", headers:["Date", "Stitches an hour", "Smoothed"], rows:data.map(function(d){ return [formatShortDate(d.date), String(d.speed), String(Math.round(d.smoothedSpeed))]; })})
+    React.createElement(ChartTable, {caption:"Speed per session", headers:["Date", "Stitches an hour", "Smoothed"], count:data.length, rowAt:function(i){ var d = data[i]; return [formatShortDate(d.date), String(d.speed), String(Math.round(d.smoothedSpeed))]; }})
   );
 });
 
@@ -449,7 +451,7 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
     var stitches = dailyMap[dateStr] || 0;
     var isToday = dateStr === todayStr;
     cells.push(React.createElement("div", {key:dateStr, title:dateStr + ': ' + stitches + ' stitches', role:'button', tabIndex:0,
-      'aria-label':formatShortDate(dateStr) + ': ' + ProgressUnits.formatUnits(stitches) + ' stitches', 'aria-pressed':picked === dateStr,
+      'aria-label':day + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'][month] + ': ' + ProgressUnits.formatUnits(stitches) + ' stitches', 'aria-pressed':picked === dateStr,
       onClick:(function(ds){ return function(){ setPicked(ds); }; })(dateStr),
       onFocus:(function(ds){ return function(){ setPicked(ds); }; })(dateStr),
       onKeyDown:(function(ds){ return function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(ds); } }; })(dateStr),
