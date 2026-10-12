@@ -714,8 +714,9 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
      needs to lose to this one while the panel is open. */
   .cs-main.cs-main--palette-open{margin-left:320px;}
   .lpanel{
-    left:0;right:auto;top:0;bottom:0;
-    width:320px;max-width:320px;max-height:100vh;
+    /* Below the app header, so the logo and the Create, Edit and Track tabs stay reachable (TRACK-06). */
+    left:0;right:auto;top:var(--app-header-height, 48px);bottom:0;
+    width:320px;max-width:320px;max-height:calc(100vh - var(--app-header-height, 48px));
     border-radius:0;border-right:1px solid var(--border);border-top:none;
     box-shadow:2px 0 12px rgba(0,0,0,0.08);
     animation:lpanel-slide-right 0.22s ease-out;
@@ -7787,7 +7788,7 @@ body.cs-focus .lpanel-backdrop { display: none !important; }
 /* On narrow screens the strip takes less space */
 @media (max-width:480px){
   .ppal-mode-strip{right:4px;gap:2px;padding:3px;}
-  .ppal-mode-btn{width:40px;min-height:40px;}
+  .ppal-mode-btn{width:44px;min-height:44px;}
 }
 
 /* ── More panel (slides in from right over canvas) ───────────── */
@@ -8591,3 +8592,24 @@ body.creator-compact .cs-textsheet {
 .stats-dashboard .goal-set-btn { color: var(--accent-ink); }
 .stats-container .milestone-badge.achieved .milestone-percent,
 .stats-container .milestone-badge.achieved .milestone-date { color: var(--text-primary); }
+
+
+/* ── Phase 4 (small screens and touch) ───────────────────────────────
+   TRACK-07: controls are at least 44 px on touch; the save status is a compact icon on a phone instead of a clipped
+   pill. The older "hide the badge on mobile" rule further up never applied (a later rule set it back to flex), which
+   is why it showed as a 22 px sliver. ── */
+@media (max-width: 899px) {
+  .tb-proj-badge{ padding:0; border:none; background:transparent; flex-shrink:0; max-width:none; overflow:visible; }
+  /* The save status shares the percentage's class, so hide the percentage only. */
+  .tb-proj-badge .tb-proj-badge-name{ display:none !important; }   /* it is an inline-styled button; the project switcher already names the project */
+  .tb-proj-badge-pct:not(.tb-proj-badge-saved){ display:none; }
+  .tb-proj-badge-saved{ padding:0 4px; }
+  .tb-save-label{ position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; padding:0; }
+  .tb-proj-badge-saved svg{ width:20px; height:20px; }
+  /* A problem is never reduced to an icon. */
+  .tb-proj-badge-saved--error .tb-save-label{ position:static; width:auto; height:auto; margin:0; overflow:visible; clip:auto; white-space:nowrap; }
+}
+@media (pointer: coarse) {
+  .ppal-close, .ppal-more-close, .lp-close, .tracker-dismiss-btn, .toast-dismiss{ min-width:44px; min-height:44px; justify-content:center; }
+  .ppal-more-close::after{ display:none; }
+}

@@ -220,6 +220,7 @@
 
     var dismissBtn = document.createElement("button");
     dismissBtn.type = "button";
+    dismissBtn.className = "toast-dismiss";
     dismissBtn.setAttribute("aria-label", "Dismiss");
     dismissBtn.textContent = "×";
     dismissBtn.style.cssText = [
