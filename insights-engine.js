@@ -177,45 +177,35 @@
   // ── Projections per project ────────────────────────────────────────────────
   // projects: [{ id, name, totalStitches, completedStitches, statsSessions, projectColor? }]
   // Returns: [{ id, name, completionDate, daysRemaining, stitchesPerHour, recentPaceStPerDay, percent, status, projectedText }]
-  function calculateRecentPace(sessions, now, dayMs) {
-    var windowStart = new Date(now.getTime() - 14 * dayMs);
-    var recentSessions = sessions.filter(function (s) {
-      if (!s || !s.date) return false;
-      return new Date(s.date + 'T12:00:00').getTime() >= windowStart.getTime();
-    });
-    var activeDays = new Set(recentSessions.filter(ProgressUnits.sessionActive).map(function (s) { return s.date; })).size;
-    var recentStitches = recentSessions.reduce(function (a, s) { return a + (ProgressUnits.sessionAdded(s) || 0); }, 0);
-    var recentSeconds = recentSessions.reduce(function (a, s) {
-      return a + getSessionDurationSeconds(s);
-    }, 0);
-    var stitchesPerHour = recentSeconds > 0 ? Math.round(recentStitches / (recentSeconds / 3600)) : 0;
-    var pacePerDay = activeDays > 0 ? recentStitches / activeDays : 0;
-    return { activeDays: activeDays, stitchesPerHour: stitchesPerHour, pacePerDay: pacePerDay };
+  // The pace is the shared one (helpers.js, "One estimator"): stitches per stitching day over the last 28 days, and
+  // how many stitching days there were. Kept under these names for the pages that already ask for it.
+  function calculateRecentPace(sessions, now) {
+    var p = computePace(sessions, undefined, now);
+    var seconds = 0, added = 0;
+    for (var i = 0; i < sessions.length; i++) { if (sessions[i]) { seconds += getSessionDurationSeconds(sessions[i]); added += ProgressUnits.sessionAdded(sessions[i]); } }
+    return { activeDays: p.activeDays, windowDays: p.windowDays, stitchesPerHour: seconds > 0 ? Math.round(added / (seconds / 3600)) : 0, pacePerDay: p.perStitchingDay, pace: p };
   }
 
-  function computeCompletionProjection(total, done, remaining, pace, now, dayMs) {
+  function computeCompletionProjection(total, done, remaining, sessions, now) {
     if (total > 0 && done >= total) {
-      return { status: 'complete', completionDate: null, daysRemaining: null, projectedText: 'Complete!' };
+      return { status: 'complete', completionDate: null, daysRemaining: null, projectedText: 'Complete!', estimate: null };
     }
-    if (pace.activeDays < 3 || pace.pacePerDay <= 0) {
-      return { status: 'paused', completionDate: null, daysRemaining: null, projectedText: 'No recent sessions \u2014 can\u2019t project.' };
+    var est = estimateCompletion(sessions, remaining, { now: now, percent: total > 0 ? done / total * 100 : null });
+    if (!est.enough) {
+      return { status: 'paused', completionDate: null, daysRemaining: null, projectedText: est.text, estimate: est };
     }
-    var perCalendarDay = pace.pacePerDay * (pace.activeDays / 14);
-    if (perCalendarDay <= 0) perCalendarDay = pace.pacePerDay / 7;
-    var daysRemaining = Math.ceil(remaining / perCalendarDay);
-    var completionDate = new Date(now.getTime() + daysRemaining * dayMs);
     return {
       status: 'projected',
-      completionDate: completionDate,
-      daysRemaining: daysRemaining,
-      projectedText: '~' + fmtDate(completionDate) + ' at current pace'
+      completionDate: new Date(est.finishDate + 'T12:00:00'),
+      daysRemaining: est.calendarDaysRemaining,
+      projectedText: '~' + fmtDate(new Date(est.finishDate + 'T12:00:00')) + ' (' + estFormatDays(est.calendarDaysRemaining) + ')',
+      estimate: est
     };
   }
 
   function generateProjections(projects, opts) {
     if (!Array.isArray(projects)) return [];
     var now = (opts && opts.now) ? new Date(opts.now) : new Date();
-    var dayMs = 86400000;
     return projects.map(function (p) {
       var total = p.totalStitches || 0;
       var done = p.completedStitches || 0;
@@ -223,8 +213,8 @@
       var remaining = Math.max(0, total - done);
       var sessions = Array.isArray(p.statsSessions) ? p.statsSessions : [];
 
-      var pace = calculateRecentPace(sessions, now, dayMs);
-      var proj = computeCompletionProjection(total, done, remaining, pace, now, dayMs);
+      var pace = calculateRecentPace(sessions, now);
+      var proj = computeCompletionProjection(total, done, remaining, sessions, now);
 
       return {
         id: p.id,
@@ -239,8 +229,9 @@
         daysRemaining: proj.daysRemaining,
         stitchesPerHour: pace.stitchesPerHour,
         recentPacePerDay: Math.round(pace.pacePerDay),
-        activeDaysLast14: pace.activeDays,
-        projectedText: proj.projectedText
+        activeDaysLast28: pace.activeDays,
+        projectedText: proj.projectedText,
+        estimate: proj.estimate
       };
     });
   }

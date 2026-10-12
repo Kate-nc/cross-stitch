@@ -146,3 +146,37 @@ The mark path gained one ref read per progress change; `sessionAdded` replaces `
 | Drag p95 frame gap | 17 ms | 17 ms | 0% |
 | Project Stats open (500 sessions) | 68 ms | 68 ms | 0% |
 | Global Stats open (500 sessions) | 592 ms (545 to 656) | 611 ms (551 to 671) | +3.1% (ranges overlap; under the 5% line) |
+
+## Batch 5: one estimator that states its basis (STATS-02)
+
+### What changed
+- **One function.** `helpers.js` gains the estimator: `dailyAddedMap`, `paceFromDaily`, `computePace`, `estimateFromPace`, `estimateCompletion` (plus `estFormatDate/Days/Short`, `estPaceLine`). It works in stitching days and converts them to calendar days with how often the person stitches:
+  - pace window = the last 28 stitching days, or the days since the first stitching day if that is fewer (the audit's example uses 25);
+  - stitches per stitching day = what was added on stitching days in the window / those days; a stitching day is a day something was added (unpicking-only and catch-up-only days are not);
+  - frequency = stitching days in the window / window days, never below one a fortnight;
+  - calendar days = ceil(ceil(remaining / stitches per stitching day) / frequency); range = 25% faster / slower on both pace and frequency;
+  - no estimate until 3 stitching days and 5% done ("Not enough history yet"), or after 4 idle weeks ("No stitching in the last 4 weeks, so no estimate"); confidence low / medium / high by stitching days in the window.
+- **Every copy now calls it.** Stats "Est. finish" (date, range, basis, hours), the Progress info popover (new "Finish" section: estimate, range, pace, stitching days a week, basis), the Tracker strip ("Estimated finish: about 5 days (around 16 Oct)" and the basis), the milestone dates, `insights-engine.js` projections (and so the Insights cards, the global Completion ETAs and the project cards on the Insights page), the global Recent Pace card (stitches per stitching day, with the stitching-day count and window), the what-if slider (per stitching day, converted to calendar days at the usual cadence, and the chart line with it), Goals (the pace line, and "pace needed" is now per stitching day at the usual cadence, compared with the same pace), the share text and the Tracker's "Est. time remaining", and the Home cards.
+- **Home cards.** They computed "Est. N weeks" as remaining stitches / stitches per hour and read the hours as days (about 24 stitching hours a day). Project rows now carry `paceDaily` (what was added on each of the last 28 stitching days), `firstActiveDate` and `activeDaysTotal`, so a card can use the same estimator without the sessions; the row version is 2, so the existing one-time idle refresh fills them in the first time Home opens. The active project's card uses its sessions directly.
+- Removed the Tracker's unused `estCompletion` and the weighted-pace code (`computeWeightedPace` now returns the estimator's pace).
+- Cost: the pace is worked out when the sessions change, not on every mark; each mark only redoes the arithmetic on what is left.
+
+### Decisions and deviations
+- The estimate is hidden under 3 stitching days or 5%; before, a single 5-minute session gave "2 Dec 2026, ~4 hrs" (the audit's complaint).
+- Hours remaining still divides by overall speed (stitches per active hour); how time and speed are measured is STATS-03 (Phase 3).
+- Window average, not a recency-weighted average: simpler to say in one line ("your last 4 weeks"), and it reproduces the audit's worked example (145 per stitching day, 0.4 stitching days a day, 250 left = 2 stitching days = about 5 calendar days).
+- Home cards for rows saved before this show nothing until the refresh runs (rather than the old wrong number).
+
+### Tests added
+`tests/phase2Batch5.test.js` (16, in Europe/London: the audit's worked example, the other copies agreeing, the three "not enough" reasons, what counts as a stitching day, the 28-day window and the fortnight floor, a young project's window, the day end moving the window, milestones, required pace, the pace line, a Home row), `tests/e2e/phase2-batch5.spec.js` (4: the history project reads "about 5 days" with its basis in the strip, Progress info, Stats and on the Home card and the dates agree; a short-history project says so everywhere; the what-if slider; the global dashboard's pace line). Updated `insights-engine.test.js`, `projectMetaAnyProgress.test.js`, and the jest setup now loads `helpers.js` as the pages do.
+
+### Batch 5 performance (interleaved A/B, main at `faf5158`; raw files in `perf/batch5-ab/`; the machine was noisier than for batch 4, so both sides read about 30% slower on load)
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn chart | 1,880 ms (1,627 to 2,218) | 1,804 ms (1,670 to 1,952) | -4.1% |
+| Tap latency, one tap | 20 ms (17 to 30) | 23 ms (16 to 28) | +12% (1 ms timer, ranges overlap) |
+| Tap latency, 25 taps x 2 sessions x 3 rounds | median 11.4 ms, mean 11.8 | median 11.5 ms, mean 12.0 | +1% (mean +2%) |
+| 60-move drag | 1,105 ms | 1,122 ms | +1.6% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 98 ms (78 to 119) | 92 ms (77 to 103) | -6.6% |
+| Global Stats open (500 sessions) | 910 ms (825 to 978) | 888 ms (811 to 1,055) | -2.4% |

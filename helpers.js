@@ -1171,26 +1171,141 @@ function getSessionSeconds(s) {
   return s.durationSeconds != null ? s.durationSeconds : (s.durationMinutes || 0) * 60;
 }
 
-function computeWeightedPace(sessions, daysWindow) {
-  daysWindow = daysWindow || 14;
-  if (!sessions || sessions.length === 0) return null;
-  var dailyTotals = {};
-  for (var i = 0; i < sessions.length; i++) {
+
+// ═══ One estimator ═══
+// Every "when will it be finished" figure comes from here (Stats, Progress info, the Tracker strip, milestones,
+// global Stats and Insights, Home, share text). It works in stitching days, then converts them to calendar days with
+// how often the person has actually been stitching, and it says what it is based on.
+//   pace window   = the last 28 stitching days, or the days since the first stitching day if that is fewer
+//   stitches per stitching day = what was added on stitching days in the window / those days
+//   frequency     = stitching days in the window / window days (never below 1 a fortnight)
+//   calendar days = ceil(ceil(remaining / stitches per stitching day) / frequency)
+// A stitching day is a day on which something was added (unpicking-only and catch-up-only days are not).
+var EST_WINDOW_DAYS = 28;
+var EST_MIN_ACTIVE_DAYS = 3;
+var EST_MIN_PERCENT = 5;
+
+function estDayNumber(dateStr) {   // whole days since 1970 for 'YYYY-MM-DD' (calendar arithmetic, immune to clock changes)
+  return Math.round(Date.UTC(+dateStr.slice(0, 4), +dateStr.slice(5, 7) - 1, +dateStr.slice(8, 10)) / 86400000);
+}
+function estDateFromNumber(n) {
+  var d = new Date(n * 86400000);
+  return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
+}
+
+// What was added on each stitching day: { daily: { 'YYYY-MM-DD': units }, first: earliest such day, activeDays: count }.
+function dailyAddedMap(sessions) {
+  var daily = {}, first = null, n = 0;
+  for (var i = 0; i < (sessions || []).length; i++) {
     var s = sessions[i];
-    // A day that only unpicked or only caught up is not a stitching day: it must not pull the pace down.
-    if (!ProgressUnits.sessionActive(s)) continue;
-    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + ProgressUnits.sessionAdded(s);
+    if (!s || !s.date) continue;
+    var a = ProgressUnits.sessionAdded(s);
+    if (!(a > 0)) continue;
+    if (daily[s.date] === undefined) { n++; daily[s.date] = 0; }
+    daily[s.date] += a;
+    if (first === null || s.date < first) first = s.date;
   }
-  var dates = Object.keys(dailyTotals).sort().reverse().slice(0, daysWindow);
-  if (dates.length === 0) return null;
-  var weightedSum = 0;
-  var totalWeight = 0;
-  for (var j = 0; j < dates.length; j++) {
-    var weight = dates.length - j;
-    weightedSum += dailyTotals[dates[j]] * weight;
-    totalWeight += weight;
+  return { daily: daily, first: first, activeDays: n };
+}
+
+// The pace over the window ending on `today` (a stitching date string).
+function paceFromDaily(daily, first, today, activeDaysTotal) {
+  var out = { windowDays: 0, activeDays: 0, stitches: 0, perStitchingDay: 0, frequency: 0, daysPerWeek: 0, activeDaysTotal: activeDaysTotal || 0 };
+  if (!first || !today) return out;
+  var age = estDayNumber(today) - estDayNumber(first) + 1;
+  var windowDays = Math.max(1, Math.min(EST_WINDOW_DAYS, age));
+  var startNum = estDayNumber(today) - windowDays + 1, endNum = estDayNumber(today);
+  for (var k in daily) {
+    if (!Object.prototype.hasOwnProperty.call(daily, k)) continue;
+    var n = estDayNumber(k);
+    if (n >= startNum && n <= endNum && daily[k] > 0) { out.activeDays++; out.stitches += daily[k]; }
   }
-  return totalWeight > 0 ? Math.round(weightedSum / totalWeight) : null;
+  out.windowDays = windowDays;
+  if (out.activeDays > 0) {
+    out.perStitchingDay = out.stitches / out.activeDays;
+    out.frequency = Math.min(1, Math.max(out.activeDays / windowDays, 1 / 14));
+    out.daysPerWeek = out.frequency * 7;
+  }
+  return out;
+}
+
+function computePace(sessions, dayEndHour, now) {
+  var m = dailyAddedMap(sessions);
+  var today = getStitchingDate(now || new Date(), dayEndHour === undefined ? getDayEndHour() : dayEndHour);
+  return paceFromDaily(m.daily, m.first, today, m.activeDays);
+}
+
+function estFormatDate(dateStr) {
+  var d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+}
+function estFormatDays(n) {
+  if (n < 1) return 'today';
+  if (n === 1) return 'about a day';
+  if (n < 14) return 'about ' + n + ' days';
+  if (n < 60) return 'about ' + Math.round(n / 7) + ' weeks';
+  return 'about ' + Math.round(n / 30) + ' months';
+}
+
+// remaining: units left. ctx: { today (stitching date), percent (done, 0-100), speed (units per active hour) }.
+function estimateFromPace(pace, remaining, ctx) {
+  ctx = ctx || {};
+  var out = { enough: false, reason: null, text: '', basis: '', confidence: 'none', pace: pace,
+    stitchesPerStitchingDay: Math.round(pace.perStitchingDay), stitchingDaysPerWeek: Math.round(pace.daysPerWeek * 10) / 10,
+    stitchingDaysRemaining: null, calendarDaysRemaining: null, finishDate: null, rangeLow: null, rangeHigh: null,
+    perCalendarDay: pace.perStitchingDay * pace.frequency, hoursRemaining: null, today: ctx.today || null, percent: ctx.percent == null ? null : ctx.percent };
+  if (!(remaining > 0)) { out.reason = 'complete'; out.text = 'Complete'; return out; }
+  if (pace.activeDaysTotal < EST_MIN_ACTIVE_DAYS || (ctx.percent != null && ctx.percent < EST_MIN_PERCENT)) {
+    out.reason = 'history'; out.text = 'Not enough history yet'; return out;
+  }
+  if (!(pace.perStitchingDay > 0)) { out.reason = 'idle'; out.text = 'No stitching in the last 4 weeks, so no estimate'; return out; }
+  var spd = pace.perStitchingDay, f = pace.frequency;
+  var calc = function (p, fr) { return Math.ceil(Math.ceil(remaining / p) / fr); };
+  var days = calc(spd, f);
+  var fast = calc(spd * 1.25, Math.min(1, f * 1.25));
+  var slow = calc(spd * 0.75, Math.max(1 / 14, f * 0.75));
+  var base = estDayNumber(ctx.today);
+  out.enough = true;
+  out.stitchingDaysRemaining = Math.ceil(remaining / spd);
+  out.calendarDaysRemaining = days;
+  out.finishDate = estDateFromNumber(base + days);
+  out.rangeLow = estDateFromNumber(base + fast);
+  out.rangeHigh = estDateFromNumber(base + slow);
+  out.confidence = pace.activeDays >= 10 ? 'high' : (pace.activeDays >= 5 ? 'medium' : 'low');
+  var span = pace.windowDays >= EST_WINDOW_DAYS ? 'your last 4 weeks' : 'your last ' + pace.windowDays + ' day' + (pace.windowDays === 1 ? '' : 's');
+  var dpw = out.stitchingDaysPerWeek;
+  out.basis = 'Based on ' + span + ': ' + dpw + ' stitching day' + (dpw === 1 ? '' : 's') + ' a week, ' +
+    out.stitchesPerStitchingDay.toLocaleString('en-GB') + ' stitches per stitching day';
+  out.text = estFormatDays(days) + ' (around ' + estFormatDate(out.finishDate) + ')';
+  out.rangeText = 'Between ' + estFormatDate(out.rangeLow) + ' and ' + estFormatDate(out.rangeHigh);
+  if (ctx.speed > 0) out.hoursRemaining = remaining / ctx.speed;
+  return out;
+}
+
+// "about 5 days", "about 3 weeks" or "Nov 2026": the short form for cards.
+function estFormatShort(est) {
+  if (!est || !est.enough) return '';
+  if (est.calendarDaysRemaining < 60) return estFormatDays(est.calendarDaysRemaining);
+  var d = new Date(est.finishDate + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', { month: 'short', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+}
+
+// Sessions in, estimate out: the one call most places need.
+function estimateCompletion(sessions, remaining, opts) {
+  opts = opts || {};
+  var deh = opts.dayEndHour === undefined ? getDayEndHour() : opts.dayEndHour;
+  var today = getStitchingDate(opts.now || new Date(), deh);
+  var pace = opts.pace || computePace(sessions, deh, opts.now);
+  var seconds = 0, added = 0;
+  for (var i = 0; i < (sessions || []).length; i++) { seconds += getSessionSeconds(sessions[i]); added += ProgressUnits.sessionAdded(sessions[i]); }
+  var speed = seconds > 0 ? added / (seconds / 3600) : 0;
+  return estimateFromPace(pace, remaining, { today: today, percent: opts.percent, speed: speed });
+}
+
+// Kept for older callers: the pace the estimator uses, per stitching day.
+function computeWeightedPace(sessions, daysWindow) {
+  var p = computePace(sessions);
+  return p.activeDays > 0 ? Math.round(p.perStitchingDay) : null;
 }
 
 function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useActiveDays) {
@@ -1207,25 +1322,23 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   var avgPerCalendarDay = elapsedDays > 0 ? Math.round(totalNetStitches / elapsedDays) : 0;
   var avgPerDay = (useActiveDays !== false) ? avgPerActiveDay : avgPerCalendarDay;
   var remaining = totalStitches - totalCompleted;
-  var recentPace = computeWeightedPace(statsSessions, 14);
-  var paceForEstimate = recentPace || avgPerDay;
-  var daysRemaining = paceForEstimate > 0 ? Math.ceil(remaining / paceForEstimate) : null;
-  var estimatedDate = daysRemaining ? new Date(Date.now() + daysRemaining * 86400000) : null;
-  var hoursRemaining = (stitchesPerHour > 0 && remaining > 0) ? remaining / stitchesPerHour : null;
+  var pct = totalStitches > 0 ? (totalCompleted / totalStitches) * 100 : 0;
+  var estimate = estimateCompletion(statsSessions, remaining, { percent: pct });
+  var hoursRemaining = (estimate.enough && estimate.hoursRemaining != null) ? estimate.hoursRemaining : null;
   return {
     percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
     stitchesPerHour: stitchesPerHour,
     totalTimeFormatted: formatStatsDuration(totalSeconds),
-    estimatedCompletion: estimatedDate
-      ? estimatedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-      : '—',
-    daysRemaining: daysRemaining,
+    // The one estimate (see "One estimator"): the finish date as before for share text, and everything it is based on.
+    estimate: estimate,
+    estimatedCompletion: estimate.enough ? estFormatDate(estimate.finishDate) : '\u2014',
+    daysRemaining: estimate.calendarDaysRemaining,
     hoursRemaining: hoursRemaining,
     remaining: remaining,
     avgPerDay: avgPerDay,
     avgPerActiveDay: avgPerActiveDay,
     avgPerCalendarDay: avgPerCalendarDay,
-    recentPace: recentPace,
+    recentPace: estimate.stitchesPerStitchingDay || null,
     totalMinutes: totalMinutes,
     totalSeconds: totalSeconds,
     uniqueDays: uniqueDays,
@@ -1364,7 +1477,8 @@ function getDailyStitchData(sessions, daysToShow, dayEndHour) {
   return data;
 }
 
-function getMilestones(sessions, totalCompleted, totalStitches, avgPerDay) {
+// `estimate`: the one estimate (computeOverviewStats(...).estimate); each milestone still ahead is dated with it.
+function getMilestones(sessions, totalCompleted, totalStitches, estimate) {
   var percentages = [10, 25, 50, 75, 100];
   var sorted = (sessions && sessions.length > 0)
     ? sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); })
@@ -1382,15 +1496,9 @@ function getMilestones(sessions, totalCompleted, totalStitches, avgPerDay) {
       }
     }
     var estimatedDate = null;
-    if (!achieved && avgPerDay > 0) {
-      var remaining = threshold - totalCompleted;
-      var daysNeeded = Math.ceil(remaining / avgPerDay);
-      var est = new Date();
-      est.setDate(est.getDate() + daysNeeded);
-      var ey = est.getFullYear();
-      var em = ('0' + (est.getMonth() + 1)).slice(-2);
-      var ed = ('0' + est.getDate()).slice(-2);
-      estimatedDate = ey + '-' + em + '-' + ed;
+    if (!achieved && estimate && estimate.pace && estimate.today) {
+      var ms = estimateFromPace(estimate.pace, threshold - totalCompleted, { today: estimate.today, percent: estimate.percent });
+      if (ms.enough) estimatedDate = ms.finishDate;
     }
     var isNext = !achieved;
     if (isNext) {
@@ -1505,9 +1613,21 @@ function checkMilestones(prevTotal, newTotal, totalStitches) {
   return milestones;
 }
 
-function getRequiredPace(remaining, targetDate) {
+// Stitches needed per stitching day to finish by `targetDate`. `frequency` is the share of days the person stitches
+// (the estimator's); without it every day counts as a stitching day.
+function getRequiredPace(remaining, targetDate, frequency) {
   var days = Math.ceil((new Date(targetDate) - new Date()) / 86400000);
-  return days > 0 ? Math.ceil(remaining / days) : null;
+  var f = frequency > 0 ? Math.min(1, frequency) : 1;
+  return days > 0 ? Math.ceil(remaining / Math.max(1, days * f)) : null;
+}
+
+// "Your pace: 145 stitches per stitching day, 2.8 stitching days a week (last 4 weeks)", or '' with nothing to say.
+function estPaceLine(estimate) {
+  if (!estimate || !estimate.pace || !(estimate.pace.activeDays > 0)) return '';
+  var p = estimate.pace;
+  var span = p.windowDays >= EST_WINDOW_DAYS ? 'last 4 weeks' : 'last ' + p.windowDays + ' day' + (p.windowDays === 1 ? '' : 's');
+  return 'Your pace: ' + estimate.stitchesPerStitchingDay.toLocaleString('en-GB') + ' stitches per stitching day, ' +
+    estimate.stitchingDaysPerWeek + ' stitching day' + (estimate.stitchingDaysPerWeek === 1 ? '' : 's') + ' a week (' + span + ')';
 }
 
 // ═══ Phase D: Sharing & Export helpers ═══

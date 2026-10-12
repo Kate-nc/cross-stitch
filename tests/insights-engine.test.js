@@ -96,7 +96,7 @@ describe('InsightsEngine.generateProjections', () => {
     expect(out[0].projectedText).toBe('Complete!');
   });
 
-  test('returns "can\u2019t project" status when fewer than 3 active days', () => {
+  test('says there is not enough history when fewer than 3 stitching days', () => {
     const today = new Date();
     const ymd = today.toISOString().slice(0, 10);
     const out = InsightsEngine.generateProjections([{
@@ -104,7 +104,7 @@ describe('InsightsEngine.generateProjections', () => {
       statsSessions: [makeSession(ymd, 50)]
     }], { now: today });
     expect(out[0].status).toBe('paused');
-    expect(out[0].projectedText).toMatch(/can.?t project/);
+    expect(out[0].projectedText).toBe('Not enough history yet');
   });
 
   test('produces a future date when there is enough recent pace', () => {

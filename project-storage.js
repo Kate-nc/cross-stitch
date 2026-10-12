@@ -10,7 +10,7 @@ const ProjectStorage = (() => {
   const STATS_STORE = "stats_summaries";
   // Rows written before progress was counted in units (progress-units.js) have no unitsV; refreshProgressRows()
   // rewrites them once. Bump this if the definition ever changes again.
-  const PROGRESS_ROW_VERSION = 1;
+  const PROGRESS_ROW_VERSION = 2;
   const ACTIVE_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project";
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
@@ -168,6 +168,17 @@ const ProjectStorage = (() => {
         if (idx !== undefined) weeklyStitches[idx] += (ProgressUnits.sessionAdded(s2) || 0);
       }
     }
+    // What the finish estimate needs, without the sessions: what was added on each of the last 28 stitching days, the
+    // first stitching day and how many there have been (see "One estimator" in helpers.js; Home cards use it).
+    let paceDaily, firstActiveDate, activeDaysTotal;
+    if (typeof dailyAddedMap === 'function') {
+      const m = dailyAddedMap(sessions);
+      const cutoff = estDateFromNumber(estDayNumber(getStitchingDate(new Date(), getDayEndHour())) - (EST_WINDOW_DAYS - 1));
+      paceDaily = {};
+      Object.keys(m.daily).forEach(k => { if (k >= cutoff) paceDaily[k] = m.daily[k]; });
+      firstActiveDate = m.first;
+      activeDaysTotal = m.activeDays;
+    }
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
@@ -194,6 +205,9 @@ const ProjectStorage = (() => {
       stitchesThisWeek,
       stitchesThisMonth,
       weeklyStitches,
+      paceDaily,
+      firstActiveDate,
+      activeDaysTotal,
       thumbnail: p.thumbnail || null,
       fabricCt: s.fabricCt || 14,
       // Stash-Adapt: surface a tiny pointer to the source project so the

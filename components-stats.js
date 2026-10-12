@@ -90,7 +90,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
 
 // ═══ Phase B: Charts & Milestones ═══
 
-var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace}){
+var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace, cadence}){
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
   var width = 600, height = 130;
@@ -104,7 +104,8 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   var lastDate = new Date(last.date + 'T12:00:00');
   // Compute what-if end date so we can extend the time axis to fit the projection
   var wiRemaining = totalStitches - last.total;
-  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? wiRemaining / whatIfPace : 0;
+  // calendar days: the stitching days it takes, spread over how often the person stitches
+  var wiDays = (whatIfPace > 0 && wiRemaining > 0) ? Math.ceil(wiRemaining / whatIfPace) / (cadence > 0 ? cadence : 1) : 0;
   var wiEndDate = wiDays > 0 ? new Date(lastDate.getTime() + wiDays * 86400000) : null;
   // Extend x-axis to include what-if endpoint and/or target date
   var extendedEnd = lastDate;
@@ -361,7 +362,9 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
   var targetDate = statsSettings && statsSettings.targetDate;
   var _whatIf = React.useState(null);
   var whatIfPace = _whatIf[0], setWhatIfPace = _whatIf[1];
-  var defaultPace = (overviewStats && overviewStats.avgPerDay) || 50;
+  var est = overviewStats && overviewStats.estimate;
+  var cadence = est && est.pace && est.pace.frequency > 0 ? est.pace.frequency : 1;
+  var defaultPace = (est && est.stitchesPerStitchingDay) || (overviewStats && overviewStats.avgPerDay) || 50;
   var paceVal = whatIfPace != null ? whatIfPace : defaultPace;
   var remaining = Math.max(0, totalStitches - (totalCompleted || 0));
   var chartTitles = {cumulative: 'Progress over time', daily: 'Stitches per day', speed: 'Speed trend', calendar: 'Monthly calendar'};
@@ -376,7 +379,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
       )
     ),
     chartView === 'cumulative'
-      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate, whatIfPace:paceVal})
+      ? React.createElement(CumulativeChart, {sessions:statsSessions, totalStitches:totalStitches, targetDate:targetDate, whatIfPace:paceVal, cadence:cadence})
       : chartView === 'speed'
         ? React.createElement(SpeedTrendChart, {sessions:statsSessions})
         : chartView === 'calendar'
@@ -388,7 +391,7 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
           React.createElement("input", {type:"range", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
             onChange:function(e){ setWhatIfPace(parseInt(e.target.value)); }, style:{width:110, cursor:'pointer'}}),
           React.createElement("span", {style:{fontSize:'var(--text-sm)', fontWeight:600, color:'var(--warning)', minWidth:120}},
-            paceVal + " st/day \u2192 ~" + Math.ceil(remaining / paceVal) + " days"),
+            paceVal + " per stitching day \u2192 " + estFormatDays(Math.ceil(Math.ceil(remaining / paceVal) / cadence)) + (cadence < 1 ? " at " + (Math.round(cadence * 70) / 10) + " stitching days a week" : "")),
           whatIfPace != null ? React.createElement("button", {onClick:function(){ setWhatIfPace(null); },
             style:{fontSize:'var(--text-xs)', padding:'1px 6px', borderRadius:4, border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-tertiary)'}}, "Reset") : null
         )
@@ -467,12 +470,12 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
   );
 }
 
-function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
+function TargetDateSetting({currentTarget, remaining, avgPerDay, frequency, onSet}){
   var st = React.useState(currentTarget || '');
   var date = st[0], setDate = st[1];
   React.useEffect(function(){ setDate(currentTarget || ''); }, [currentTarget]);
 
-  var paceNeeded = date ? getRequiredPace(remaining, date) : null;
+  var paceNeeded = date ? getRequiredPace(remaining, date, frequency) : null;
   var todayStr = new Date().toISOString().slice(0, 10);
 
   return React.createElement("div", {className:"target-setting"},
@@ -485,7 +488,7 @@ function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
         date ? 'Set target' : 'Clear target')
     ),
     paceNeeded && React.createElement("p", {className:"goal-suggestion"},
-      "You\u2019d need ", React.createElement("strong", null, paceNeeded + " stitches/day"), " to finish by then")
+      "You\u2019d need ", React.createElement("strong", null, paceNeeded + " stitches per stitching day"), " to finish by then")
   );
 }
 
@@ -519,8 +522,10 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
   var weekStitches = getStatsThisWeekStitches(statsSessions || [], dayEndHour);
   var monthStitches = getStatsThisMonthStitches(statsSessions || [], dayEndHour);
   var remaining = totalStitches - totalCompleted;
-  var requiredPace = targetDate ? getRequiredPace(remaining, targetDate) : null;
-  var avgPerDay = overviewStats ? overviewStats.avgPerDay : 0;
+  var requiredPace = targetDate ? getRequiredPace(remaining, targetDate, (overviewStats && overviewStats.estimate && overviewStats.estimate.pace && overviewStats.estimate.pace.frequency) || 0) : null;
+  var estimate = overviewStats && overviewStats.estimate;
+  var paceFreq = estimate && estimate.pace && estimate.pace.frequency > 0 ? estimate.pace.frequency : 0;
+  var avgPerDay = overviewStats ? ((estimate && estimate.stitchesPerStitchingDay) || overviewStats.avgPerDay) : 0;
   var activeDays = overviewStats ? overviewStats.activeDays : 0;
   var elapsedDays = overviewStats ? overviewStats.elapsedDays : 0;
 
@@ -567,15 +572,9 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
       React.createElement("button", {type:"button",className:"goal-set-btn", onClick:function(){ onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:null})); }}, "Clear")
     ),
     monthlyGoal && goalRow("This month so far", monthStitches, monthlyGoal),
-    activeDays > 0 && React.createElement("div", {className:"goal-pace-context"},
-      "Avg pace: " + avgPerDay + "/day (" +
-      (useActiveDays
-        ? activeDays + " active day" + (activeDays !== 1 ? "s" : "")
-        : "over " + elapsedDays + " day" + (elapsedDays !== 1 ? "s" : "")) +
-      (useActiveDays && elapsedDays > activeDays ? " of " + elapsedDays + " elapsed" : "") + ")"
-    ),
+    estPaceLine(estimate) && React.createElement("div", {className:"goal-pace-context"}, estPaceLine(estimate)),
     React.createElement("div", {style:{marginTop:'var(--s-4)'}}),
-    React.createElement(TargetDateSetting, {currentTarget:targetDate, remaining:remaining, avgPerDay:avgPerDay,
+    React.createElement(TargetDateSetting, {currentTarget:targetDate, remaining:remaining, avgPerDay:avgPerDay, frequency:paceFreq,
       onSet:function(v){ onUpdateSettings(Object.assign({}, statsSettings, {targetDate:v})); }}),
     targetDate && requiredPace && React.createElement("div", {className:"goal-progress", style:{marginTop:'var(--s-2)'}},
       React.createElement("div", {className:"goal-row"},
@@ -1261,7 +1260,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   }, []);
   var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
-  var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
+  var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.estimate);
   var dayEndHour = getDayEndHour(statsSettings);
   var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
 

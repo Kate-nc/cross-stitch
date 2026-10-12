@@ -1965,16 +1965,18 @@ function setAllParkLayersVisible(visible){
 const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=getDayEndHour(statsSettings);return getStatsThisWeekStitches(statsSessions,deh)+getLiveWeekStitches(currentAutoSessionRef.current,deh);},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 // Completion projection — derived from InsightsEngine when available.
-const completionProjection=useMemo(()=>{
-  if(typeof InsightsEngine==='undefined')return null;
+// The one estimate (helpers.js, "One estimator"). The pace comes from the sessions, so it is worked out when they
+// change, not on every mark; each mark only redoes the arithmetic on what is left.
+const estPaceInfo=useMemo(()=>{
+  const deh=getDayEndHour(statsSettings);
+  let seconds=0,added=0;
+  for(let i=0;i<(statsSessions||[]).length;i++){seconds+=getSessionSeconds(statsSessions[i]);added+=ProgressUnits.sessionAdded(statsSessions[i]);}
+  return{pace:computePace(statsSessions||[],deh),speed:seconds>0?added/(seconds/3600):0,deh};
+},[statsSessions,statsSettings]);
+const completionEstimate=useMemo(()=>{
   if(!totalStitchable||!Array.isArray(statsSessions)||statsSessions.length===0)return null;
-  const results=InsightsEngine.generateProjections([{
-    id:projectIdRef.current,name:projectName,
-    totalStitches:combinedTotal,completedStitches:combinedDone,
-    statsSessions:statsSessions
-  }]);
-  return results&&results[0]?results[0]:null;
-},[combinedTotal,combinedDone,statsSessions,projectName]);
+  return estimateFromPace(estPaceInfo.pace,Math.max(0,combinedTotal-combinedDone),{today:getStitchingDate(new Date(),estPaceInfo.deh),percent:progAll.percent,speed:estPaceInfo.speed});
+},[estPaceInfo,combinedTotal,combinedDone,progAll,totalStitchable,statsSessions]);
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 // Plan B Phase 1: Progress info chip + AppInfoPopover state.
 const [progressInfoOpen,setProgressInfoOpen]=useState(false);
@@ -2099,7 +2101,6 @@ useEffect(()=>{
   prevFocusDoneRef.current=isNowComplete;
 },[countsVer,focusColour,stitchView,highlightSkipDone,pal,areaColourCounts]);
 
-const estCompletion=useMemo(()=>{let t=totalTime+liveAutoElapsed;if(combinedDone<=0||t<60)return null;return Math.round((combinedTotal-combinedDone)*(t/combinedDone));},[totalTime,liveAutoElapsed,combinedDone,combinedTotal]);
 
 /* ── Chart rulers ────────────────────────────────────────────────────────
    The sticky column and row rulers render one <div> per column and per row —
@@ -2758,7 +2759,8 @@ function copyProgressSummary(){
   let coloursComplete=Object.values(colourDoneCounts).filter(c=>c.done>=c.total&&c.total>0).length;
   let totalColours=pal?pal.length:0;
   let stPerHr=t>=60&&combinedDone>0?Math.round(combinedDone/(t/3600)):null;
-  let estRem=t>=60&&combinedDone>0?Math.round((combinedTotal-combinedDone)*(t/combinedDone)):null;
+  const estNow=completionEstimate&&completionEstimate.enough?completionEstimate:null;
+  let estRem=estNow&&estNow.hoursRemaining!=null?Math.round(estNow.hoursRemaining*3600):null;
   let lines=["\u{1F9F5} Cross Stitch Progress Update"];
   lines.push("Project: "+(projectName||sW+"\u00D7"+sH+" pattern"));
   lines.push("Progress: "+ProgressUnits.formatUnits(combinedDone)+"/"+ProgressUnits.formatUnits(combinedTotal)+" stitches ("+progAll.percent.toFixed(1)+"%)");
@@ -2768,7 +2770,8 @@ function copyProgressSummary(){
   if(t>=60)lines.push("Time stitched: "+fmtTime(t)+" ("+(statsSessions?statsSessions.length:0)+" sessions)");
   else lines.push("Time stitched: Not tracked yet");
   if(stPerHr)lines.push("Speed: "+stPerHr+" stitches/hour");
-  if(estRem)lines.push("Est. remaining: "+fmtTime(estRem));
+  if(estNow)lines.push("Est. finish: "+estNow.text+" ("+estNow.basis.charAt(0).toLowerCase()+estNow.basis.slice(1)+")");
+  if(estRem)lines.push("Est. time remaining: "+fmtTime(estRem));
   lines.push("Pattern: "+sW+"\u00D7"+sH+", "+totalColours+" colours, "+fabricCt+"ct");
   copyText(lines.join("\n"),"progress");
 }
@@ -7208,9 +7211,21 @@ return(
     if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
     const timeRows = [['Time spent', fmtL(totalSec)]];
     if (speedPerHour > 0) {
-      timeRows.push(['Average pace', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
-      if (remainingStitches > 0) {
-        timeRows.push(['Remaining', fmtL(Math.round(remainingStitches/speedPerHour*3600))]);
+      timeRows.push(['Speed', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
+      const leftAll = Math.max(0, combinedTotal - combinedDone);
+      if (leftAll > 0) {
+        timeRows.push(['Time remaining', fmtL(Math.round(leftAll/speedPerHour*3600))]);
+      }
+    }
+    // One estimate for the finish date, with what it is based on (the same one the Stats pages use).
+    const est = completionEstimate;
+    const finishRows = [];
+    if (est && combinedTotal - combinedDone > 0) {
+      finishRows.push(['Estimated finish', est.enough ? est.text : est.text]);
+      if (est.enough) {
+        finishRows.push(['Range', est.rangeText.replace(/^Between /, '')]);
+        finishRows.push(['Pace', `${est.stitchesPerStitchingDay.toLocaleString('en-GB')} per stitching day`]);
+        finishRows.push(['Stitching days', `${est.stitchingDaysPerWeek} a week`]);
       }
     }
     // Build sparkline data: stitches per active day, last 30 active days.
@@ -7233,6 +7248,12 @@ return(
         React.createElement(window.AppInfoDivider),
         React.createElement(window.AppInfoSection, { title: 'Time' },
           React.createElement(window.AppInfoGrid, { rows: timeRows })),
+        ...(finishRows.length?[
+          React.createElement(window.AppInfoDivider),
+          React.createElement(window.AppInfoSection, { title: 'Finish' },
+            React.createElement(window.AppInfoGrid, { rows: finishRows }),
+            est&&est.enough?React.createElement('div',{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginTop:4}},est.basis):null)
+        ]:[]),
         ...(sparkDays.length>=2?[
           React.createElement(window.AppInfoDivider),
           React.createElement(window.AppInfoSection, { title: 'Daily progress' },
@@ -7250,10 +7271,12 @@ return(
   })()}
 </div>
 </div>}
-{!isEditMode&&completionProjection&&completionProjection.status==='projected'&&progressPct<100&&(
+{!isEditMode&&completionEstimate&&progressPct<100&&(
   <div className="completion-projection-bar" aria-live="polite">
-    <span className="completion-projection-text">{completionProjection.projectedText}</span>
-    {completionProjection.stitchesPerHour>0&&<span className="completion-projection-speed">{completionProjection.stitchesPerHour.toLocaleString('en-GB')} st/hr recently</span>}
+    {completionEstimate.enough
+      ?<><span className="completion-projection-text">Estimated finish: {completionEstimate.text}</span>
+        <span className="completion-projection-speed" title={completionEstimate.rangeText}>{completionEstimate.basis}</span></>
+      :<span className="completion-projection-text completion-projection-text--none">Estimated finish: {completionEstimate.text}</span>}
   </div>
 )}
 {hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>

@@ -214,7 +214,7 @@
           ? h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', fontStyle: 'italic' } }, p.projectedText)
           : h('div', null,
               h('div', { style: { fontSize:'var(--text-sm)', color: accent, fontWeight: 600 } }, p.projectedText),
-              p.stitchesPerHour > 0 && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } }, p.stitchesPerHour + ' st/hr recently')
+              p.estimate && p.estimate.enough && h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 } }, p.estimate.basis)
             )
     );
   }

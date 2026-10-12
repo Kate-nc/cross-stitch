@@ -1480,8 +1480,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   const paceData = useMemo(() => {
     if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.calculateRecentPace) return null;
-    const now = (typeof getStitchingNow === 'function' && typeof getDayEndHour === 'function') ? getStitchingNow(getDayEndHour()) : new Date();
-    return window.InsightsEngine.calculateRecentPace(allSessions, now, 86400000);
+    return window.InsightsEngine.calculateRecentPace(allSessions);
   }, [allSessions]);
 
   // ── Buying Impact: for each non-owned thread referenced by wishlist
@@ -2055,7 +2054,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         paceData && paceData.activeDays > 0
           ? h('div', null,
               h('div', { className: 'gsd-metric-value' }, fmtNum(Math.round(paceData.pacePerDay))),
-              h('div', { className: 'gsd-metric-sub' }, 'stitches / day across ' + paceData.activeDays + ' active day' + (paceData.activeDays === 1 ? '' : 's'))
+              h('div', { className: 'gsd-metric-sub' }, 'stitches per stitching day (' + paceData.activeDays + ' stitching day' + (paceData.activeDays === 1 ? '' : 's') + ' in ' + (paceData.windowDays >= 28 ? 'your last 4 weeks' : 'your last ' + paceData.windowDays + ' day' + (paceData.windowDays === 1 ? '' : 's')) + ')')
             )
           : h('div', null,
               h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
@@ -2358,7 +2357,8 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
             h('span', { style: { fontWeight: 600, color: 'var(--text-primary)' } }, p.name || 'Untitled'),
             p.projectedText
               ? h('span', { style: { color: 'var(--text-secondary)', marginLeft: 8 } }, p.projectedText)
-              : h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 8 } }, 'not enough data')
+              : h('span', { style: { color: 'var(--text-tertiary)', marginLeft: 8 } }, 'not enough data'),
+            p.estimate && p.estimate.enough && h('div', { style: { fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)' } }, p.estimate.basis)
           ))
         )
       )
