@@ -30,3 +30,19 @@ Project Stats cold open on the 500-session project, interleaved against `main`, 
 - Creator kept old tombstones after an Undo: it now clears `deletedSessionIds` when the refreshed project has none.
 - Editing the date or minutes dropped the unpicked figure: the editor now offers the figure the journal shows (stitches added) and only a changed figure touches the breakdown; unpicked and catch-up are kept.
 - A sync merge left cumulative totals from each device's own list: the merged journal's `totalAtEnd` / `percentAtEnd` are now rebuilt as a running sum from the common starting point.
+
+## Batch 2: explicit timer, labelled estimates, forgot to stop (STATS-03)
+- **Timer:** `Start timer` (palette header chip, Session panel) opens a session now, `timer: true`, using the existing "manual" timing rule (the whole time it runs, minus pauses and hidden-tab time). No idle auto-finalise for a timer session. The clock in the progress strip is a button that opens the Session panel (Pause / Resume / Stop timer); the chip is a labelled button, at least 44 px on touch. `Stop timer` shows "You stitched for N min" and lets the minutes be changed before saving; a timer with nothing marked saves nothing (and says so).
+- **Timing basis:** every saved session gets `timingBasis`: `timer`, `auto` or `edited` (the minutes were changed when stopping, or in the journal editor). Sessions saved before this read as `auto` (`ProgressUnits.sessionBasis`). No past figure changes; they are labelled.
+- **Labels ("estimated"):** journal entries (`(timed)` / `(edited)` / `(estimated)`, plus a per-session speed), Progress info (Time spent, Speed), the share text and picture, global Stats (Time stitching, Average speed) and the session CSV (new last column `Time measured`). `sessionSpeedPerHour` gives no speed for an estimated session under 10 minutes; a timed one always has one.
+- **Forgot to stop:** a timer running with the tab visible and nothing marked for the idle time (`trackerIdleMinutes`, or 30 minutes if "never") asks: Trim to my last stitch / Keep going (asks again after another idle period) / Stop now. Leaving the page, or switching project, with a timer left idle ends it at the last mark.
+- **Found and fixed on the way:** switching project through the project picker while a session was running dropped the session (it was never saved); it is now finished and saved under the project it belonged to (its backup is recovered when that project is opened). Test `switching project while a timer runs…` fails without the fix.
+- **Performance:** the 1 s clock no longer re-renders the Tracker: it lives in a tiny external store read by three small components (`LiveElapsed`). It now shows seconds (m:ss), which costs about two text-node updates a second.
+- **Not changed:** the three timing modes stay as they were (they are "auto variants"); Home and Library rows still compute speed without the label (they have no per-session basis in the summary row).
+
+### Review fixes (Copilot, PR 290)
+- Merging two records now takes the least certain timing basis (estimated if either was, else edited, else timed).
+- A timed or edited run that crossed the day end keeps `timingBasis` on every day record (`splitSessionByDays`).
+- Stop freezes the timer: the time the Stop button was pressed is passed with the minutes, so time spent in the dialog is not added and an unchanged figure is not marked edited.
+- "Keep going" with the idle preference at "never" waits the same 30 minutes the prompt uses, not 5.
+- The ticking clock in the progress strip is hidden from the strip's polite live region (the button keeps its fixed label), so assistive technology does not announce it every second.

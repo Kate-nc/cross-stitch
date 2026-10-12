@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.121';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.122',
+    date: 'October 2026',
+    notes: [
+      'A timer you control. "Start timer" (on the colour palette header and in the Session panel) starts a session now and counts the whole time it runs, minus pauses and time the tab was hidden. Stop it from the timer in the progress strip or the Session panel: you are shown "You stitched for 46 min" and can change the minutes before it is saved.',
+      'Time and speed now say how they were measured. Sessions you timed show "(timed)", ones where you set the minutes show "(edited)", and everything else (the default, and every session from before this update) shows "(estimated)", because it is worked out from when you marked stitches. Time and speed totals, the share text and the Time stitched figure carry "(estimated)" when any of the time was worked out. Sessions are unchanged; only the labels are new. The CSV has a new "Time measured" column at the end. A session saved from automatic timing that is shorter than 10 minutes no longer shows a speed.',
+      'Forgot to stop? If a timer runs past your idle time with nothing marked, you are asked whether to trim it to your last stitch. Leaving the page or switching project with a timer left idle ends it at your last stitch, and switching project with a session running now keeps the session on the project it belonged to (before, it was lost).',
+    ]
+  },
+  {
     version: '1.0.121',
     date: 'October 2026',
     notes: [

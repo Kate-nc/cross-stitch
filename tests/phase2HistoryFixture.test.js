@@ -97,7 +97,7 @@ describe('share text and CSV labels (no stale labels, one definition)', () => {
     const o = computeOverviewStats(sessions, 1350, 1600, true);
     const text = generateShareText('History Test', o, sessions, 1350, 1600, 0);
     expect(text).toContain('[x] 1,350 / 1,600 stitches (84.4%)');
-    expect(text).toContain('Speed: 172 stitches/hour · 135 per stitching day recently');
+    expect(text).toContain('Speed: 172 stitches/hour (estimated) · 135 per stitching day recently');
     expect(text).not.toMatch(/\/day average/);
     expect(text).toContain('Est. finish: about 5 days (around 16 Oct');
     expect(text).toContain('Based on your last 25 days: 2.8 stitching days a week, 135 stitches per stitching day.');
@@ -115,10 +115,11 @@ describe('share text and CSV labels (no stale labels, one definition)', () => {
   test('the session CSV headers say what each column is, and carry catch-up and unpicking separately', () => {
     const s2 = { ...sessions[0], unitsCompleted: 10, unitsUndone: 3, units: 7, stitchesCompleted: 10, stitchesUndone: 3, netStitches: 7, catchUp: 4, totalAtEnd: 12.5, percentAtEnd: 0.8 };
     const csv = generateSessionCSV([s2]).split('\n');
-    expect(csv[0]).toBe('Date,Start Time,End Time,Duration (min),Stitches Completed,Stitches Undone,Net Stitches,Cumulative Total,Percent Complete,Note,Catch-up');
+    expect(csv[0]).toBe('Date,Start Time,End Time,Duration (min),Stitches Completed,Stitches Undone,Net Stitches,Cumulative Total,Percent Complete,Note,Catch-up,Time measured');
     const cells = csv[1].split(',');
     expect(cells.slice(4, 7)).toEqual(['10', '3', '7']);
     expect(cells[7]).toBe('12.5');
-    expect(cells[cells.length - 1]).toBe('4');
+    expect(cells[cells.length - 2]).toBe('4');
+    expect(cells[cells.length - 1]).toBe('auto');
   });
 });

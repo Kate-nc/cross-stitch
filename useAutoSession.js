@@ -78,10 +78,28 @@
     const isUnloadingRef=useRef(false);
 
     // Variables for auto-session live display
-    const [liveAutoElapsed, setLiveAutoElapsed] = useState(0);
+    // The running clock ticks once a second. It lives in a tiny external store, read only by the few small components
+    // that draw it (LiveElapsed in tracker-app.js), so a tick re-renders those and not the Tracker and its chart.
+    const elapsedStoreRef = useRef(null);
+    if (!elapsedStoreRef.current) {
+      const subs = new Set();
+      elapsedStoreRef.current = {
+        value: 0,
+        set: function(v){ if (this.value === v) return; this.value = v; subs.forEach(function(f){ f(); }); },
+        subscribe: function(f){ subs.add(f); return function(){ subs.delete(f); }; }
+      };
+    }
+    const elapsedStore = elapsedStoreRef.current;
+    const setLiveAutoElapsed = function(v){ elapsedStore.set(v); };
     const [liveAutoStitches, setLiveAutoStitches] = useState(0);
     const [liveAutoIsPaused, setLiveAutoIsPaused] = useState(false);
     const autoSessionDisplayTimerRef = useRef(null);
+    // A session can be open with nothing marked yet (the person started the timer), so the chip and panel cannot
+    // key off the stitch count: these two follow the session itself.
+    const [liveSessionOpen, setLiveSessionOpen] = useState(false);
+    const [liveIsTimer, setLiveIsTimer] = useState(false);
+    // Set when a timer has run well past the last mark: { lastMarkT, idleMs }. The Tracker shows "Forgot to stop?".
+    const [forgotStop, setForgotStop] = useState(null);
 
     // Manual pause/resume — state + ref mirror for shortcut handler
     const [manuallyPaused, setManuallyPaused] = useState(false);
@@ -94,6 +112,50 @@
       try{return getStitchingDate(now,getDayEndHour(statsSettings));}
       catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
     }
+    // Opens the session record. An automatic session starts at the first mark; a timer session (the person pressed
+    // Start timer) starts now and counts the whole time it is running, minus pauses and time the tab was hidden.
+    function openAutoSession(now,timer){
+      currentAutoSessionRef.current={
+        id:'sess_'+now,
+        date:getStitchingDateLocal(now),
+        startTime:new Date(now).toISOString(),
+        startMs:now,
+        lastMarkT:null,
+        timer:!!timer,
+        timingMode:timer?'manual':getTimingMode(),
+        stitchesCompleted:0,
+        stitchesUndone:0,
+        unitsCompleted:0,
+        unitsUndone:0,
+        catchUp:0,
+        byDay:{},
+        coloursWorked:new Set(),
+        // Event log: timestamped events drive all duration computation.
+        eventLog:[{kind:'start',t:now}]
+      };
+      // Seed hidden state if the tab is already hidden when the session starts.
+      if(document.hidden){
+        currentAutoSessionRef.current.eventLog.push({kind:'hidden',t:now});
+      }
+      setLiveAutoStitches(0);
+      setLiveAutoElapsed(0);
+      setLiveAutoIsPaused(document.hidden);
+      setLiveSessionOpen(true);
+      setLiveIsTimer(!!timer);
+      setForgotStop(null);
+    }
+    // Start timer: only when no session is open (a session already running keeps measuring itself).
+    function startTimer(){
+      if(currentAutoSessionRef.current||isUnloadingRef.current)return false;
+      openAutoSession(Date.now(),true);
+      return true;
+    }
+    // "Keep going" on the forgot-to-stop prompt: ask again after another idle period.
+    function snoozeForgotStop(){
+      const cs=currentAutoSessionRef.current;
+      if(cs){cs.forgotAsked=false;const t=getIdleThresholdMs();cs.snoozeUntil=Date.now()+Math.max(isFinite(t)?t:30*60*1000,5*60*1000);}
+      setForgotStop(null);
+    }
     // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see
     // progress-units.js). Callers that only mark full stitches may leave them out.
     function recordAutoActivity(completed,undone,completedUnits,undoneUnits,catchUpUnits){
@@ -103,28 +165,7 @@
         if(!currentAutoSessionRef.current){
           // Guard: don't start a new session if the tab is unloading.
           if(isUnloadingRef.current)return;
-          currentAutoSessionRef.current={
-            id:'sess_'+now,
-            date:getStitchingDateLocal(now),
-            startTime:new Date(now).toISOString(),
-            timingMode:getTimingMode(),
-            stitchesCompleted:0,
-            stitchesUndone:0,
-            unitsCompleted:0,
-            unitsUndone:0,
-            catchUp:0,
-            byDay:{},
-            coloursWorked:new Set(),
-            // Event log: timestamped events drive all duration computation.
-            eventLog:[{kind:'start',t:now}]
-          };
-          // Seed hidden state if the tab is already hidden when the session starts.
-          if(document.hidden){
-            currentAutoSessionRef.current.eventLog.push({kind:'hidden',t:now});
-          }
-          setLiveAutoStitches(0);
-          setLiveAutoElapsed(0);
-          setLiveAutoIsPaused(document.hidden);
+          openAutoSession(now,false);
         }
         // Auto-resume manual pause on stitch activity (stitch implies intent to continue).
         if(manuallyPausedRef.current){
@@ -134,6 +175,8 @@
         }
         // Record the stitch event (net delta for the activity burst).
         currentAutoSessionRef.current.eventLog.push({kind:'stitch',t:now,delta:completed-undone});
+        currentAutoSessionRef.current.lastMarkT=now;
+        currentAutoSessionRef.current.forgotAsked=false;currentAutoSessionRef.current.snoozeUntil=null;setForgotStop(null);
         currentAutoSessionRef.current.stitchesCompleted+=completed;
         currentAutoSessionRef.current.stitchesUndone+=undone;
         currentAutoSessionRef.current.unitsCompleted+=cu;
@@ -178,16 +221,23 @@
         // the session — duration is computed from the event log, not the timer.
         clearTimeout(autoIdleTimerRef.current);
         var idleMs=getIdleThresholdMs();
-        if(isFinite(idleMs)){
+        // A timer session ends when the person stops it (or says "trim" when they forgot), not by itself.
+        if(isFinite(idleMs)&&!currentAutoSessionRef.current.timer){
           autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
         }
       }catch(e){}
     }
-    function finaliseAutoSession(){
+    // opts (all optional): endMs, finish the session at that time (trim to the last mark); durationSeconds, the
+    // minutes the person confirmed or edited when stopping the timer.
+    function finaliseAutoSession(opts){
       try{
+        opts=opts&&typeof opts==='object'&&!opts.nativeEvent&&!opts.target?opts:{};
         const session=currentAutoSessionRef.current;
         if(!session||session.stitchesCompleted+session.stitchesUndone===0){
           currentAutoSessionRef.current=null;
+          clearTimeout(autoIdleTimerRef.current);
+          manuallyPausedRef.current=false;setManuallyPaused(false);
+          setLiveSessionOpen(false);setLiveIsTimer(false);setForgotStop(null);setLiveAutoIsPaused(false);setLiveAutoElapsed(0);setLiveAutoStitches(0);
           return;
         }
         // Flush any colour IDs pending between the last recordAutoActivity call and now.
@@ -199,10 +249,21 @@
         // Duration: pure function of the event log — live display and saved value
         // use the same clock. The cap credits the tail (natural dwell after the
         // last stitch) and excludes any interval longer than capMs.
-        const endTimeMs=Date.now();
+        // Leaving the page or the project with a timer that has sat idle past the threshold: the person walked away
+        // without stopping it, so it ends at the last mark rather than counting the time since.
+        if(opts.trimIfIdle&&session.timer&&typeof opts.endMs!=='number'&&session.lastMarkT){
+          const thr=getIdleThresholdMs(),limit=isFinite(thr)?thr:30*60*1000;
+          if(Date.now()-session.lastMarkT>=limit)opts=Object.assign({},opts,{endMs:session.lastMarkT});
+        }
+        const endTimeMs=typeof opts.endMs==='number'?Math.min(Date.now(),Math.max(session.startMs||0,opts.endMs)):Date.now();
         const capMs=getActiveGapCapMs();
         const timingMode=session.timingMode||getTimingMode();
-        const activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs,timingMode));
+        let activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs,timingMode));
+        // How the time was measured: the timer, or worked out from the marks; the person's own figure is "edited".
+        let timingBasis=session.timer?'timer':'auto';
+        if(typeof opts.durationSeconds==='number'&&opts.durationSeconds>=0&&Math.abs(opts.durationSeconds*1000-activeDurationMs)>30000){
+          activeDurationMs=opts.durationSeconds*1000;timingBasis='edited';
+        }
         // Progress at the end of the session, in units (the Tracker keeps these two numbers current).
         const ref=autoStatsRef.current||{doneUnits:0,totalUnits:0};
         const tc=ref.doneUnits||0,ts=ref.totalUnits||0;
@@ -212,6 +273,7 @@
           startTime:session.startTime,
           endTime:new Date(endTimeMs).toISOString(),
           timingModeUsed:timingMode,
+          timingBasis:timingBasis,
           durationSeconds:Math.max(1,Math.round(activeDurationMs/1000)),
           durationMinutes:Math.max(1,Math.round(activeDurationMs/60000)),
           stitchesCompleted:session.stitchesCompleted,
@@ -268,6 +330,7 @@
         setLiveAutoIsPaused(false);
         setLiveAutoElapsed(0);
         setLiveAutoStitches(0);
+        setLiveSessionOpen(false);setLiveIsTimer(false);setForgotStop(null);
         // Show note prompt toast (not during page unload)
         if(!isUnloadingRef.current&&ProgressUnits.sessionAdded(finalised)>0){
           setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(ProgressUnits.sessionAdded(finalised)),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
@@ -276,7 +339,7 @@
         // result into their own snapshot (the unload save). Not enumerable, so it is never written out itself.
         try{Object.defineProperty(finalised,'records',{value:records,enumerable:false});}catch(_){}
         return finalised;
-      }catch(e){currentAutoSessionRef.current=null;return null;}
+      }catch(e){currentAutoSessionRef.current=null;setLiveSessionOpen(false);setLiveIsTimer(false);return null;}
     }
     finaliseAutoSessionRef.current=finaliseAutoSession;
 
@@ -290,6 +353,7 @@
       setLiveAutoIsPaused(false);
       setLiveAutoElapsed(0);
       setLiveAutoStitches(0);
+      setLiveSessionOpen(false);setLiveIsTimer(false);setForgotStop(null);
       setSessionSavedToast(null);
     }
 
@@ -320,6 +384,13 @@
           currentAutoSessionRef.current.timingMode || getTimingMode()
         );
         setLiveAutoElapsed(Math.floor(elapsedMs / 1000));
+        // Forgot to stop? A timer that has run past the idle threshold with nothing marked, while the person is looking.
+        const cs=currentAutoSessionRef.current;
+        if(cs&&cs.timer&&!document.hidden&&!manuallyPausedRef.current&&!cs.forgotAsked){
+          const now=Date.now(),since=cs.lastMarkT||cs.startMs||now,thr=getIdleThresholdMs();
+          const limit=isFinite(thr)?thr:30*60*1000;
+          if(now-since>=limit&&(!cs.snoozeUntil||now>=cs.snoozeUntil)){cs.forgotAsked=true;setForgotStop({lastMarkT:cs.lastMarkT||null,idleMs:now-since});}
+        }
       }, 1000);
       return () => clearInterval(autoSessionDisplayTimerRef.current);
     }, []);
@@ -361,7 +432,8 @@
 
     return {
       statsSessions, setStatsSessions, totalTime,
-      liveAutoElapsed, liveAutoStitches, liveAutoIsPaused,
+      elapsedStore, liveAutoStitches, liveAutoIsPaused,
+      liveSessionOpen, liveIsTimer, forgotStop, startTimer, snoozeForgotStop,
       currentTimingMode,
       manuallyPaused, setManuallyPaused, manuallyPausedRef,
       celebration, setCelebration, celebratedRef, goalCelebrationRef,

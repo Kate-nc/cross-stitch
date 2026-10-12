@@ -1146,6 +1146,7 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
       startTime: i === 0 ? whole.startTime : new Date(startMs).toISOString(),
       endTime: last ? whole.endTime : new Date(endMs).toISOString(),
       timingModeUsed: whole.timingModeUsed,
+      timingBasis: whole.timingBasis,
       durationSeconds: shares[i],
       durationMinutes: Math.round(shares[i] / 60),
       stitchesCompleted: d.sc || 0,
@@ -1292,6 +1293,11 @@ function mergeSessionRecords(sessions, id, totalUnits, nowIso) {
   merged.durationMinutes = Math.round(merged.durationSeconds / 60);
   var cu = ProgressUnits.sessionCatchUp(a) + ProgressUnits.sessionCatchUp(b);
   if (cu > 0) merged.catchUp = cu; else delete merged.catchUp;
+  // How the merged time was measured is the least certain of the two: estimated if either part was, else edited if
+  // either was, else timed.
+  var ba = ProgressUnits.sessionBasis(a), bb = ProgressUnits.sessionBasis(b);
+  var basis = (ba === 'auto' || bb === 'auto') ? 'auto' : (ba === 'edited' || bb === 'edited') ? 'edited' : 'timer';
+  if (basis === 'auto') delete merged.timingBasis; else merged.timingBasis = basis;
   var ms = (a.milestones || []).concat(b.milestones || []);
   if (ms.length) merged.milestones = ms; else delete merged.milestones;
   var rest = sessions.filter(function(s) { return s && s.id !== a.id && s.id !== b.id; });
@@ -1302,6 +1308,26 @@ function withoutDeletedSessions(sessions, deletedIds) {
   if (!deletedIds || !deletedIds.length) return sessions;
   var gone = {}; deletedIds.forEach(function(x) { gone[x] = 1; });
   return (sessions || []).filter(function(s) { return !(s && gone[s.id]); });
+}
+
+// ═══ Time and speed: what was measured and what was worked out ═══
+// A session's time is exact when the person ran the timer or set the minutes, and an estimate when it was worked out
+// from when stitches were marked (the default, and every older session). Speed is not shown for an estimated session
+// shorter than this: a few minutes either side changes it too much to mean anything.
+var MIN_ESTIMATED_SPEED_SECONDS = 600;
+function sessionSpeedPerHour(s) {
+  var sec = getSessionSeconds(s), added = ProgressUnits.sessionAdded(s);
+  if (!(sec > 0) || !(added > 0)) return null;
+  if (ProgressUnits.sessionBasis(s) === 'auto' && sec < MIN_ESTIMATED_SPEED_SECONDS) return null;
+  return Math.round(added / (sec / 3600));
+}
+// True when any of the sessions' time was worked out rather than measured (so the total and the speed are estimates).
+function sessionsTimeIsEstimated(sessions) {
+  return (sessions || []).some(function(s) { return getSessionSeconds(s) > 0 && ProgressUnits.sessionBasis(s) === 'auto'; });
+}
+function timingBasisLabel(s) {
+  var b = ProgressUnits.sessionBasis(s);
+  return b === 'timer' ? 'timed' : b === 'edited' ? 'edited' : 'estimated';
 }
 
 function getSessionSeconds(s) {
@@ -1468,6 +1494,7 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
     percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
     stitchesPerHour: stitchesPerHour,
     totalTimeFormatted: formatStatsDuration(totalSeconds),
+    timeIsEstimated: sessionsTimeIsEstimated(statsSessions),
     // The one estimate (see "One estimator"): the finish date as before for share text, and everything it is based on.
     estimate: estimate,
     estimatedCompletion: estimate.enough ? estFormatDate(estimate.finishDate) : '\u2014',
@@ -1783,10 +1810,10 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     (projectName || 'Cross Stitch Project') + ' — Progress Update',
     '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
     '[x] ' + totalCompleted.toLocaleString('en-GB') + ' / ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + percent + '%)',
-    'Time: ' + formatStatsDuration(stats.totalSeconds) + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
+    'Time: ' + formatStatsDuration(stats.totalSeconds) + (stats.timeIsEstimated ? ' (estimated)' : '') + ' across ' + sessions.length + ' session' + (sessions.length !== 1 ? 's' : ''),
     // Speed is stitches per active hour; the pace is per stitching day over the last 4 weeks (the same figure as the
     // estimate below it), so each says what it measures.
-    'Speed: ' + stats.stitchesPerHour + ' stitches/hour' + (stats.recentPace ? ' \u00b7 ' + stats.recentPace.toLocaleString('en-GB') + ' per stitching day recently' : '')
+    'Speed: ' + stats.stitchesPerHour + ' stitches/hour' + (stats.timeIsEstimated ? ' (estimated)' : '') + (stats.recentPace ? ' \u00b7 ' + stats.recentPace.toLocaleString('en-GB') + ' per stitching day recently' : '')
   ];
 
   if (streaks.current > 0 || streaks.longest > 0) {
@@ -1819,7 +1846,7 @@ function generateSessionCSV(sessions) {
   var headers = [
     'Date', 'Start Time', 'End Time', 'Duration (min)',
     'Stitches Completed', 'Stitches Undone', 'Net Stitches',
-    'Cumulative Total', 'Percent Complete', 'Note', 'Catch-up'
+    'Cumulative Total', 'Percent Complete', 'Note', 'Catch-up', 'Time measured'
   ];
   var rows = [];
   var sorted = (sessions || []).slice().sort(function(a, b) {
@@ -1833,7 +1860,7 @@ function generateSessionCSV(sessions) {
     rows.push([
       s.date, startT, endT, s.durationMinutes,
       s.unitsCompleted != null ? s.unitsCompleted : s.stitchesCompleted, s.unitsCompleted != null ? s.unitsUndone : s.stitchesUndone, ProgressUnits.sessionNet(s),
-      s.totalAtEnd, s.percentAtEnd, '"' + note + '"', ProgressUnits.sessionCatchUp(s)
+      s.totalAtEnd, s.percentAtEnd, '"' + note + '"', ProgressUnits.sessionCatchUp(s), ProgressUnits.sessionBasis(s)
     ].join(','));
   }
   return [headers.join(',')].concat(rows).join('\n');

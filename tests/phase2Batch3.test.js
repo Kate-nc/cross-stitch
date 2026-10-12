@@ -86,8 +86,8 @@ describe('CSV', () => {
   test('has a Catch-up column at the end and keeps the existing ones', () => {
     const csv = generateSessionCSV([sess(day(0), 400, 0, { catchUp: 387, note: '' })]);
     const [head, row] = csv.split('\n');
-    expect(head.endsWith('Note,Catch-up')).toBe(true);
-    expect(row.endsWith(',387')).toBe(true);
+    expect(head.endsWith('Note,Catch-up,Time measured')).toBe(true);
+    expect(row.endsWith(',387,auto')).toBe(true);
   });
 });
 

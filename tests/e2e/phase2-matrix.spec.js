@@ -205,8 +205,9 @@ test('legacy project with only totalTime: Home, global Stats and the Tracker sho
   await expect(page.locator('.info-strip-counts')).toHaveText('100 done · 300 to go');
   const pop = await popoverText(page);
   expect(pop).toContain('100 / 400 (25.0%)');
-  expect(pop).toMatch(/Time spent\s*2 hrs 0 min/);
-  expect(pop).toMatch(/Speed\s*50 st\/hr/);
+  // the old time was never measured, so it is labelled as an estimate (Phase 3)
+  expect(pop).toMatch(/Time spent \(estimated\)\s*2 hrs 0 min/);
+  expect(pop).toMatch(/Speed \(estimated\)\s*50 st\/hr/);
   expect(pop).not.toMatch(bad);
   await expect(page.locator('.completion-projection-bar')).toContainText('Not enough history yet');
 });

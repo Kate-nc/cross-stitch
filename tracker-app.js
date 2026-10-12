@@ -586,7 +586,13 @@ function PdfExportModal({onClose,onExport}){
 }
 
 // ── Session Config Modal ──
-function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
+// The running timer's clock. Only this component re-renders on each tick (see elapsedStore in useAutoSession.js).
+function fmtClock(s){s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;const p=n=>(n<10?"0":"")+n;return h>0?h+":"+p(m)+":"+p(sec):m+":"+p(sec);}
+function LiveElapsed({store}){
+  const v=React.useSyncExternalStore(store.subscribe,()=>store.value);
+  return fmtClock(v);
+}
+function SessionConfigModal({onStart,onClose,liveAutoStitches}){
   const[timeChoice,setTimeChoice]=useState(null);
   const[goalStitches,setGoalStitches]=useState("");
   return(
@@ -611,6 +617,57 @@ function SessionConfigModal({onStart,onClose,liveAutoElapsed,liveAutoStitches}){
       </div>
     </div>
   );
+}
+
+// ── Stopping the timer: confirm or edit the minutes ──
+function StopTimerDialog({seconds,stitches,onSave,onKeep,onClose}){
+  const startMin=Math.max(1,Math.round(seconds/60));
+  const[minutes,setMinutes]=useState(String(startMin));
+  const nothing=!(stitches>0);
+  const O=window.Overlay;
+  const m=Number(minutes);
+  const valid=minutes!==''&&Number.isFinite(m)&&m>=1&&m<=1440;
+  const body=<>
+    <h3 id="stoptimer-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>{nothing?"Nothing marked yet":"You stitched for "+startMin+" min"}</h3>
+    <div id="stoptimer-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
+      {nothing
+        ?<p style={{marginTop:0,marginBottom:0}}>No stitches were marked while the timer ran, so no session will be saved.</p>
+        :<>
+          <p style={{marginTop:0}}>{Math.round(stitches).toLocaleString('en-GB')} stitches in that time. Change the minutes if the timer ran when you were not stitching.</p>
+          <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:'var(--text-sm)'}}>Minutes
+            <input type="number" inputMode="numeric" min={1} max={1440} step={1} value={minutes} onChange={e=>setMinutes(e.target.value)} autoFocus style={{padding:'8px 10px',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',fontSize:'var(--text-lg)',minHeight:44,width:120}}/>
+          </label>
+          {!valid&&<p role="alert" style={{margin:'var(--s-2) 0 0',fontSize:'var(--text-sm)'}}>Enter between 1 and 1,440 minutes.</p>}
+        </>}
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
+      <button className="resume-recap-btn resume-recap-btn--primary" disabled={!nothing&&!valid} onClick={()=>onSave(nothing?null:Math.round(m*60))}>{nothing?"Stop without saving":"Save session"}</button>
+      <button className="resume-recap-btn" onClick={onKeep}>Keep timing</button>
+    </div>
+  </>;
+  return O
+    ?<O variant="dialog" maxWidth={420} labelledBy="stoptimer-title" describedBy="stoptimer-body" onClose={onClose} panelProps={{'data-stoptimer':'1'}}><div style={{padding:'var(--s-4)'}}>{body}</div></O>
+    :<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stoptimer-title"><div className="modal-content" style={{maxWidth:420}}>{body}</div></div>;
+}
+// ── Forgot to stop? ──
+function ForgotStopDialog({info,onTrim,onStop,onKeep}){
+  const O=window.Overlay;
+  const mins=Math.max(1,Math.round((info.idleMs||0)/60000));
+  const none=!info.lastMarkT;
+  const body=<>
+    <h3 id="forgotstop-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>Forgot to stop?</h3>
+    <div id="forgotstop-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
+      <p style={{margin:0}}>{none?"Your timer has been running for "+mins+" min and nothing has been marked.":"Your timer has run for "+mins+" min since your last stitch."} {none?"Stopping now will not save a session, since there is nothing in it.":"Trim it to your last stitch to leave that time out."}</p>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
+      <button className="resume-recap-btn resume-recap-btn--primary" onClick={onTrim}>{none?"Stop without saving":"Trim to my last stitch"}</button>
+      <button className="resume-recap-btn" onClick={onKeep}>Keep going</button>
+      {!none&&<button className="resume-recap-btn" onClick={onStop}>Stop now</button>}
+    </div>
+  </>;
+  return O
+    ?<O variant="dialog" maxWidth={420} labelledBy="forgotstop-title" describedBy="forgotstop-body" onClose={onKeep} panelProps={{'data-forgotstop':'1'}}><div style={{padding:'var(--s-4)'}}>{body}</div></O>
+    :<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="forgotstop-title"><div className="modal-content" style={{maxWidth:420}}>{body}</div></div>;
 }
 
 // ── Session Summary Modal ──
@@ -1148,6 +1205,7 @@ const blockAdvanceTimerRef=useRef(null);
 // ── Explicit session mode ──
 const[explicitSession,setExplicitSession]=useState(null);
 const[sessionConfigOpen,setSessionConfigOpen]=useState(false);
+const[stopTimerAsk,setStopTimerAsk]=useState(null);   // { seconds, stitches } while the Stop dialog is open
 const[sessionTimeChoice,setSessionTimeChoice]=useState(null);
 const[sessionGoalInput,setSessionGoalInput]=useState("");
 const[sessionSummaryData,setSessionSummaryData]=useState(null);
@@ -1864,7 +1922,7 @@ const flushedGenRef=useRef(-1);
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,liveAutoElapsed,liveAutoStitches,liveAutoIsPaused,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
 const[projectName,setProjectName]=useState("");
@@ -3374,6 +3432,9 @@ function processLoadedProject(project){
   const brand=window.projectThreadBrand?window.projectThreadBrand(project):"dmc";
   // Install the loaded project's identity before any downstream work so a
   // later render-time failure can't cause the next auto-save to mint a copy.
+  // A session still running belongs to the project being left: finish it now, while the project id is still that
+  // one, so it is kept (its backup is written under that id and is recovered when that project is opened again).
+  try{if(currentAutoSessionRef.current&&finaliseAutoSessionRef.current&&projectIdRef.current&&project.id&&project.id!==projectIdRef.current)finaliseAutoSessionRef.current({trimIfIdle:true});}catch(_){}
   projectIdRef.current = project.id || null;
   let s=project.settings||{};
   const nextW=project.w||s.sW||project.settings?.w||80;
@@ -4367,7 +4428,7 @@ useEffect(() => {
     if (!project) return;
     let projectToSave = project;
     // Finalise any active auto-session and merge into the snapshot
-    const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current() : null;
+    const finalisedSession = finaliseAutoSessionRef.current ? finaliseAutoSessionRef.current({trimIfIdle:true}) : null;
     if (finalisedSession) {
       // A run that crossed the day end was saved as one record per day: merge all of them, not the whole run.
       const finalisedRecords = finalisedSession.records || [finalisedSession];
@@ -5135,7 +5196,7 @@ useEffect(()=>{
   try{localStorage.setItem("cs_sessionOnboardingDone","1");}catch(_){}
   try{
     if(window.Toast&&window.Toast.show)window.Toast.show({
-      message:"Sessions are tracked automatically as you stitch. Your stats are in the Session panel.",
+      message:"Sessions are tracked automatically as you stitch, so their time is an estimate. For an exact time, use Start timer in the Session panel.",
       type:"info",duration:8000,
       action:()=>{setLeftSidebarTab("session");setMorePanelOpen(true);},actionLabel:"Open",
     });
@@ -7198,7 +7259,7 @@ return(
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{bt}</span>:null;})()}
-    {liveAutoStitches>0&&<span className="info-strip-timer"><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> {fmtTime(liveAutoElapsed)} &middot; {formatTimingModeShortLabel(currentTimingMode)}</span>}
+    {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -7228,9 +7289,10 @@ return(
       ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
     if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
-    const timeRows = [['Time spent', fmtL(totalSec)]];
+    const timeEst = sessionsTimeIsEstimated(statsSessions || []);
+    const timeRows = [['Time spent' + (timeEst ? ' (estimated)' : ''), fmtL(totalSec)]];
     if (speedPerHour > 0) {
-      timeRows.push(['Speed', `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
+      timeRows.push(['Speed' + (timeEst ? ' (estimated)' : ''), `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
       const leftAll = Math.max(0, combinedTotal - combinedDone);
       if (leftAll > 0) {
         timeRows.push(['Time remaining', fmtL(Math.round(leftAll/speedPerHour*3600))]);
@@ -7475,9 +7537,13 @@ return(
         <div className="ppal-progress-bar"><div className="ppal-progress-fill" style={{width:progressPct+"%"}}/></div>
         <div className="ppal-header-stats">
           <span className="ppal-pct">{progressPct>=100?"Complete!":progressPct.toFixed(1)+"%"}</span>
-          {liveAutoStitches>0&&<span className="ppal-session-chip" role="button" tabIndex={0} title="Open Session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
-            {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}{fmtTime(liveAutoElapsed)}{" · "}{liveAutoStitches}{" st · "}{formatTimingModeShortLabel(currentTimingMode)}
-          </span>}
+          {liveSessionOpen
+            ?<button type="button" className="ppal-session-chip" title="Open Session controls" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}>
+              {liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}{" "}<LiveElapsed store={elapsedStore}/>{liveAutoStitches>0?" \u00B7 "+liveAutoStitches+" st":""}{" \u00B7 "}{liveIsTimer?"Timer":formatTimingModeShortLabel(currentTimingMode)}
+            </button>
+            :<button type="button" className="ppal-session-chip ppal-session-chip--start" title="Start a timer for this stitching session" onClick={()=>startTimer()}>
+              {Icons.play?Icons.play():null}{" "}Start timer
+            </button>}
         </div>
       </div>
       {/* ─ Sort row ─ */}
@@ -7916,7 +7982,7 @@ return(
 
         {/* -- Session tab -- */}
         {leftSidebarTab==="session"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {currentAutoSessionRef.current?<>
+          {liveSessionOpen?<>
             <div style={{background:"var(--surface-secondary)",borderRadius:"var(--radius-md)",padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <span style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)"}}>Active session</span>
@@ -7924,16 +7990,18 @@ return(
                   ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--warning-soft)",color:"var(--warning)",fontWeight:600}}>Paused</span>
                   :<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--success-soft)",color:"var(--success)",fontWeight:600}}>Active</span>
                 }
-                <Tooltip text={formatTimingModeDescription(currentTimingMode)+' Open preferences to change.'} width={220}>
+                {liveIsTimer
+                  ?<span style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)"}}>Timer</span>
+                  :<Tooltip text={formatTimingModeDescription(currentTimingMode)+' Open preferences to change.'} width={220}>
                   <button type="button"
                     onClick={e=>{e.stopPropagation();setPreferencesInitialCategory('tracker');setPreferencesOpen(true);}}
                     style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:"var(--radius-sm)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:600,border:"1px solid var(--border)",cursor:"pointer"}}
                     aria-label={"Session timing mode: "+formatTimingModeLabel(currentTimingMode)+". "+formatTimingModeDescription(currentTimingMode)+" Open preferences to change."}
                   >{formatTimingModeLabel(currentTimingMode)}</button>
-                </Tooltip>
+                </Tooltip>}
               </div>
               <div style={{display:"flex",gap:24}}>
-                <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Time</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}>{fmtTime(liveAutoElapsed)}</div></div>
+                <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{liveIsTimer?"Time":"Time (estimated)"}</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)",fontVariantNumeric:"tabular-nums"}}><LiveElapsed store={elapsedStore}/></div></div>
                 <div><div style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>Stitches</div><div style={{fontSize:'var(--text-lg)',fontWeight:700,color:"var(--text-primary)"}}>{liveAutoStitches.toLocaleString('en-GB')}</div></div>
               </div>
             </div>
@@ -7963,15 +8031,24 @@ return(
                 {" "}{manuallyPaused?"Resume":"Pause"}
               </button>
               <button
-                onClick={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();setMorePanelOpen(false);}}
+                onClick={()=>{
+                  const cs=currentAutoSessionRef.current;
+                  if(cs&&cs.timer){const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}
+                  else if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();
+                  setMorePanelOpen(false);
+                }}
                 style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--danger-soft)",background:"var(--danger-soft)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--danger)",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}
-                aria-label="End session"
+                aria-label={liveIsTimer?"Stop timer":"End session"}
               >
-                {Icons.x?Icons.x():null}{" End session"}
+                {Icons.x?Icons.x():null}{liveIsTimer?" Stop timer":" End session"}
               </button>
             </div>
           </>:<>
-            <p style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",margin:0}}>No active session. Stitching automatically starts a session.</p>
+            <p style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",margin:0}}>No active session. Stitching starts one automatically and its time is worked out from your stitches (an estimate). Start the timer for an exact time.</p>
+            <button
+              onClick={()=>{startTimer();setMorePanelOpen(false);}}
+              style={{padding:"10px 12px",minHeight:44,borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+            >Start timer</button>
             <button
               onClick={()=>{setSessionConfigOpen(true);setMorePanelOpen(false);}}
               style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
@@ -8281,7 +8358,7 @@ return(
     onSkip: ()=>_trCoach.skip('rectSelect_tracker'),
     onSkipAll: ()=>_trCoach.skipAll()
   })}
-  {sessionConfigOpen&&<SessionConfigModal liveAutoElapsed={liveAutoElapsed} liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
+  {sessionConfigOpen&&<SessionConfigModal liveAutoStitches={liveAutoStitches} onClose={()=>setSessionConfigOpen(false)} onStart={cfg=>{
     setExplicitSession({startTime:Date.now(),timeAvail:cfg.timeAvail,stitchGoal:cfg.stitchGoal,startStitches:doneCount,blocks:[]});
     setSessionConfigOpen(false);
   }}/>}
@@ -8291,6 +8368,13 @@ return(
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(ProgressUnits.sessionAdded(sess)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
+  {stopTimerAsk&&<StopTimerDialog seconds={stopTimerAsk.seconds} stitches={stopTimerAsk.stitches}
+    onKeep={()=>setStopTimerAsk(null)} onClose={()=>setStopTimerAsk(null)}
+    onSave={sec=>{const endMs=stopTimerAsk.endMs;setStopTimerAsk(null);if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(sec==null?undefined:{endMs:endMs,durationSeconds:sec});}}/>}
+  {forgotStop&&!stopTimerAsk&&<ForgotStopDialog info={forgotStop}
+    onKeep={()=>snoozeForgotStop()}
+    onTrim={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(forgotStop.lastMarkT?{endMs:forgotStop.lastMarkT}:undefined);}}
+    onStop={()=>{const cs=currentAutoSessionRef.current;if(!cs)return;const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}}/>}
   {markAllAsk&&(()=>{
     const O=window.Overlay;
     const body=<>
