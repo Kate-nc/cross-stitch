@@ -47,7 +47,7 @@ What changed:
 - **Regression of batch 1 found and fixed:** the compact save status hid the project name and percentage below 900 px, which includes a tablet in portrait; it now applies only to a narrow or short (phone on its side) screen. The Phase 2 matrix spec ("header chip shows 50%") caught it.
 
 ### Performance (batch 2)
-Phone emulation (393x727 touch, CPU throttled 4x, 300x300 fixture), interleaved against `main`, 3 pairs of 30 taps: median ms main 65.0 / 67.8 / 69.7, branch 64.4 / 67.4 / 64.1; load to chart main 4071 / 4327 / 4238, branch 3997 / 4227 / 4168 (`perf/phase4-batch2/phone.txt`, harness `phonebench.js`). Desktop tap latency in `tap.txt`.
+Phone emulation (393x727 touch, CPU throttled 4x, 300x300 fixture), interleaved against `main`, 3 pairs of 30 taps: median ms main 65.0 / 67.8 / 69.7, branch 64.4 / 67.4 / 64.1; load to chart main 4071 / 4327 / 4238, branch 3997 / 4227 / 4168 (`perf/phase4-batch2/phone.txt`, harness `phonebench.js`). Desktop (1440x900, 3 pairs of 90 taps): median ms main 9.6 / 8.7 / 8.5, branch 9.0 / 8.8 / 8.3 (`tap.txt`). No regression either way.
 
 ### Known limits
 - No separate toggle to leave Focus for a session: Exit focus is the way back, and it returns on the next open (turn it off in Preferences to stop that).
