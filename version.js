@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.125';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.126',
+    date: 'October 2026',
+    notes: [
+      'On a laptop, the colour panel no longer covers the logo and the Create, Edit and Track tabs: it now sits below the top bar.',
+      'On a phone or tablet, the buttons beside the chart, the close buttons and the Dismiss buttons are all at least 44 px, so they are easier to hit. The save status in the top bar is now a small tick or pencil you can see, instead of a clipped sliver.'
+    ]
+  },
+  {
     version: '1.0.125',
     date: 'October 2026',
     notes: [

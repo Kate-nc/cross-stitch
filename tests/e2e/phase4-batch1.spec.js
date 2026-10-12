@@ -94,3 +94,16 @@ for (const vp of [{ width: 393, height: 727, label: 'phone portrait' }, { width:
     });
   });
 }
+
+test.describe('shared header on other pages (phone)', () => {
+  test.use({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true });
+  for (const url of ['/create.html?id=proj_p4', '/home.html', '/manager.html?from=home']) {
+    test('no sideways scroll and the header fits: ' + url, async ({ page }) => {
+      await seed(page);
+      await page.goto(url);
+      await page.waitForTimeout(1500);
+      const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth }));
+      expect(m.sw).toBeLessThanOrEqual(m.iw);
+    });
+  }
+});

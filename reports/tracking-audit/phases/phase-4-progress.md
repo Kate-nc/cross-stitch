@@ -24,3 +24,10 @@ Reproduced first (new spec `tests/e2e/phase4-batch1.spec.js`): with the colour p
 - **TRACK-06:** the docked panel now starts below the header (`top: var(--app-header-height)`) instead of at the top of the window; the header is never covered, and the main column already clears the panel's width, so banners stay inside it. One CSS rule; no JavaScript, no layout variable needed.
 - **Targets (phone and tablet, coarse pointer):** rail buttons 44 x 44 (were 40 below 480 px), palette and More close buttons, the legend close, the three tracker banner Dismiss buttons and the Toast Dismiss button all 44 x 44 minimum. The size audit in the new spec walks every visible button, link, input and select on 393x727 and 851x393 and expects none under 44 px.
 - **Save badge:** on a phone (below 900 px) the header's project/save pill was a 22 px sliver, clipped and unreadable (the older rule meant to hide it never applied, because a later rule set it back to `display:flex`). It is now the save icon alone, with its words kept for screen readers; the project name stays in the project switcher beside it. A save error or conflict keeps its words on screen.
+
+### Performance (batch 1)
+Interleaved against `main`, 3 pairs of 90 taps: median ms main 10.8 / 10.6 / 11.6, branch 11.1 / 10.9 / 11.0. CSS and one wrapping span only; no regression (`perf/phase4-batch1/tap.txt`).
+
+### Known limits
+- The project name in the top bar is not shown under 900 px (it was clipped away already); the project switcher still shows it.
+- Targets of dense controls elsewhere (More-panel chips, tabs) are the later batches' and the other audits' business; the audit here covers what is visible on the Tracker's first screen at 393x727 and 851x393.
