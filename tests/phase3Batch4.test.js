@@ -92,6 +92,22 @@ describe('the preference', () => {
     window.ProjectStorage = { listProjects: () => Promise.resolve([{ id: 'a', unitsV: 2, activeDaysTotal: 0, completedStitches: 0 }]) };
     return new Promise(res => P.resolveMotivation(res)).then(v => expect(v).toBe(false));
   });
+  test('goals in the older settings key count as existing goals', () => {
+    localStorage.setItem('cs_stats_settings', JSON.stringify({ dailyGoal: 100 }));
+    const P = loadPrefs();
+    return new Promise(res => P.resolveMotivation(res)).then(v => expect(v).toBe(true));
+  });
+  test('a goal that is only inside an otherwise empty project (the list rows do not carry it) counts', () => {
+    const P = loadPrefs();
+    const projects = { a: { id: 'a' }, b: { id: 'b', statsSettings: { weeklyGoal: 500 } } };
+    window.ProjectStorage = { listProjects: () => Promise.resolve([{ id: 'a', unitsV: 2 }, { id: 'b', unitsV: 2 }]), get: id => Promise.resolve(projects[id]) };
+    return new Promise(res => P.resolveMotivation(res)).then(v => expect(v).toBe(true));
+  });
+  test('empty projects with no goals anywhere stay calm', () => {
+    const P = loadPrefs();
+    window.ProjectStorage = { listProjects: () => Promise.resolve([{ id: 'a', unitsV: 2 }]), get: () => Promise.resolve({ id: 'a' }) };
+    return new Promise(res => P.resolveMotivation(res)).then(v => expect(v).toBe(false));
+  });
   test('a decision already made is never overridden', () => {
     const P = loadPrefs();
     P.set('showStreaksAndGoals', false);

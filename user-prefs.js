@@ -314,13 +314,32 @@
       if (_read("showDailyStreak", null) === null) _write("showDailyStreak", !!existing);
       if (done) done(!!existing);
     }
-    try { if (_hasGoals(JSON.parse(localStorage.getItem("cs_global_goals") || "null"))) return decide(true); } catch (_) {}
+    // The canonical key, then the older one readGlobalGoals() still falls back to.
+    var goalKeys = ["cs_global_goals", "cs_stats_settings"];
+    for (var gi = 0; gi < goalKeys.length; gi++) {
+      try { if (_hasGoals(JSON.parse(localStorage.getItem(goalKeys[gi]) || "null"))) return decide(true); } catch (_) {}
+    }
     try { var gs = JSON.parse(localStorage.getItem("cs_globalStreak") || "null"); if (gs && gs.current > 0) return decide(true); } catch (_) {}
     if (typeof window === "undefined" || !window.ProjectStorage || typeof window.ProjectStorage.listProjects !== "function") return;   // not decidable here
-    window.ProjectStorage.listProjects().then(function(list) {
-      decide((list || []).some(function(r) {
+    var PS = window.ProjectStorage;
+    PS.listProjects().then(function(list) {
+      list = list || [];
+      if (list.some(function(r) {
         return r && (r.activeDaysTotal > 0 || (r.unitsV == null && r.completedStitches > 0) || _hasGoals(r.statsSettings));
-      }));
+      })) return decide(true);
+      // The list rows carry no goals, so a goal set on an otherwise empty project is only in the project itself.
+      // Looked at once, one project at a time, and only when nothing above settled it.
+      if (typeof PS.get !== "function") return decide(false);
+      var i = 0;
+      (function next() {
+        if (i >= list.length) return decide(false);
+        var row = list[i++];
+        if (!row || row.id == null) return next();
+        Promise.resolve(PS.get(row.id)).then(function(p) {
+          if (p && _hasGoals(p.statsSettings)) return decide(true);
+          next();
+        }, function() { next(); });
+      })();
     }).catch(function() {});
   }
   // Pages call this once storage has loaded; it also runs by itself shortly after the page does.
