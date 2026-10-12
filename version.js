@@ -8,6 +8,16 @@ window.APP_VERSION = '1.0.126';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.127',
+    date: 'October 2026',
+    notes: [
+      'More room for the chart on a phone or tablet. The chart now fills the screen instead of a fixed 600 px box that ran off the bottom, so the page no longer needs scrolling to reach the bar under it.',
+      'On a phone the Tracker opens in Focus: the top bar and progress strip tuck away behind a thin progress line, with Exit focus at the bottom. Focus now really hides them (it did not before). You can turn this off under Preferences > Stitch Tracker > Phones and small screens.',
+      'The controls beside the chart no longer cover the last column (you can scroll clear of them), their first button shows your current colour (the floating Palette pill is gone), and you can put them on the left for left-handed stitching.',
+      'The how-to-mark hints go away after your first marked stitch and stay away.'
+    ]
+  },
+  {
     version: '1.0.126',
     date: 'October 2026',
     notes: [

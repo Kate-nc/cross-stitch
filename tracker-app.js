@@ -620,6 +620,76 @@ function SessionConfigModal({onStart,onClose,liveAutoStitches}){
 }
 
 // ── Stopping the timer: confirm or edit the minutes ──
+// ── Small screens (tracking audit TRACK-07) ─────────────────────────────
+// A phone, by the size of its screen (not the window, so rotating does not change the answer) and a touch screen.
+function isPhoneScreen(){
+  try{
+    const coarse=!!(window.matchMedia&&window.matchMedia('(pointer: coarse)').matches);
+    const sc=window.screen||{};
+    return coarse&&Math.min(sc.width||window.innerWidth,sc.height||window.innerHeight)<600;
+  }catch(_){return false;}
+}
+// A UserPrefs value that follows changes made in Preferences while the Tracker is open.
+function useTrackerPref(key,def){
+  const get=()=>{try{const v=window.UserPrefs&&window.UserPrefs.get(key);return v==null?def:v;}catch(_){return def;}};
+  const[v,setV]=useState(get);
+  useEffect(()=>{
+    const on=()=>setV(get());
+    window.addEventListener('cs:prefchange',on);
+    return()=>window.removeEventListener('cs:prefchange',on);
+  },[key]);
+  return v;
+}
+// Sizes the chart box to what is left of the screen on a phone or tablet: the screen height less everything above
+// and below the chart, measured here rather than guessed in CSS (the box used to be a fixed 600 px: taller than a
+// phone's screen, so the page scrolled and the bar below the chart was out of sight). The result is the CSS variable
+// --tracker-chart-h, which only the small-screen rules read. It is measured on layout changes (a banner appearing, the
+// top bar tucked away, rotating, the on-screen keyboard), never per stitch marked.
+function useFillChartHeight(chartRef,ready){
+  useEffect(()=>{
+    const chart=chartRef.current;
+    if(!ready||!chart||typeof ResizeObserver==='undefined')return;
+    const area=chart.parentElement;
+    if(!area)return;
+    const mq=window.matchMedia?window.matchMedia('(max-width: 1023px), (pointer: coarse)'):null;
+    let raf=0,last=null;
+    const measure=()=>{
+      raf=0;
+      if(!mq||!mq.matches){if(last!==null){chart.style.removeProperty('--tracker-chart-h');last=null;}return;}
+      const vv=window.visualViewport;
+      const vh=vv?vv.height:window.innerHeight;
+      const top=chart.getBoundingClientRect().top+(window.scrollY||0);
+      const below=area.scrollHeight-chart.offsetTop-chart.offsetHeight;   // the bar and hint under the chart, and the padding
+      const h=Math.max(200,Math.floor(vh-top-below));
+      if(last===null||Math.abs(h-last)>=1){last=h;chart.style.setProperty('--tracker-chart-h',h+'px');}
+    };
+    const queue=()=>{if(!raf)raf=requestAnimationFrame(measure);};
+    const ro=new ResizeObserver(queue);
+    const watched=new Set();
+    const watch=()=>{
+      const els=[area,document.documentElement,document.querySelector('.tb-topbar'),document.querySelector('.info-strip-wrap')];
+      Array.prototype.forEach.call(area.children,c=>els.push(c));
+      els.forEach(e=>{if(e&&!watched.has(e)){watched.add(e);ro.observe(e);}});
+    };
+    watch();
+    const mo=new MutationObserver(()=>{watch();queue();});
+    mo.observe(area,{childList:true});
+    window.addEventListener('resize',queue);
+    window.addEventListener('orientationchange',queue);
+    if(window.visualViewport)window.visualViewport.addEventListener('resize',queue);
+    if(mq&&mq.addEventListener)mq.addEventListener('change',queue);
+    queue();
+    return()=>{
+      if(raf)cancelAnimationFrame(raf);
+      ro.disconnect();mo.disconnect();
+      window.removeEventListener('resize',queue);window.removeEventListener('orientationchange',queue);
+      if(window.visualViewport)window.visualViewport.removeEventListener('resize',queue);
+      if(mq&&mq.removeEventListener)mq.removeEventListener('change',queue);
+      chart.style.removeProperty('--tracker-chart-h');
+    };
+  },[ready]);
+}
+
 function StopTimerDialog({seconds,stitches,onSave,onKeep,onClose}){
   const startMin=Math.max(1,Math.round(seconds/60));
   const[minutes,setMinutes]=useState(String(startMin));
@@ -1844,7 +1914,8 @@ useEffect(()=>{
 // mini-bar (.cs-focus-bar). Toggled with the F key (when no input is
 // focused) or via the toolbar button. body.cs-focus is what styles.css
 // hooks into to hide chrome surfaces.
-const[focusMode,setFocusMode]=useState(false);
+// On a phone it starts on (the top bar and strip tucked away, the chart given the screen); Preferences can turn that off.
+const[focusMode,setFocusMode]=useState(()=>{try{return isPhoneScreen()&&!(window.UserPrefs&&window.UserPrefs.get('trackerFocusOnPhone')===false);}catch(_){return false;}});
 const focusBarRef=useRef(null);
 const[focusBarFaded,setFocusBarFaded]=useState(false);
 const focusFadeTimerRef=useRef(null);
@@ -1951,6 +2022,15 @@ const tOverflowRef=useRef(null);
 const soloTimerRef=useRef(null);
 
 const doneCount=countsVer>=0?doneCountRef.current:0;
+// The how-to-mark banners go once a stitch has been marked, and stay gone (remembered across sessions).
+const[hintsSeen,setHintsSeen]=useState(()=>{try{return !!(window.UserPrefs&&window.UserPrefs.get('trackerHintsSeen'));}catch(_){return false;}});
+useEffect(()=>{
+  if(hintsSeen||doneCount<=0)return;
+  setHintsSeen(true);
+  try{window.UserPrefs&&window.UserPrefs.set('trackerHintsSeen',true);}catch(_){}
+},[doneCount>0,hintsSeen]);
+const handedness=useTrackerPref('trackerHandedness','right')==='left'?'left':'right';
+useFillChartHeight(stitchScrollRef,!!pat);
 // Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
 const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
 const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0;
@@ -7636,7 +7716,7 @@ return(
     </div>
     </div>}
 
-    <div className="ppal-canvas-col">
+    <div className={"ppal-canvas-col"+(handedness==="left"?" ppal-canvas-col--left":"")}>
     <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
     {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
@@ -7707,8 +7787,8 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track") return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
-      if(stitchMode==="navigate") return <div style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
+      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
     })()}
@@ -7858,7 +7938,7 @@ return(
       </div>
     </div>
 
-    <div style={{background:"var(--text-primary)", color:"var(--surface)", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:'var(--text-sm)', fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom:'var(--s-3)'}}>
+    <div className={"tracker-hover-wrap"+(hlRow>=0&&hlCol>=0?"":" tracker-hover-wrap--idle")} style={{background:"var(--text-primary)", color:"var(--surface)", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:'var(--text-sm)', fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom:'var(--s-3)'}}>
       {/* Written directly by renderHoverBar(); React never updates these children. */}
       <span ref={hoverBarRef} className="tracker-hover-bar">{"—"}</span>
       <span ref={guideLiveRef} className="tracker-sr-only" aria-live="polite"/>
@@ -7869,7 +7949,7 @@ return(
       </button>}
     </div>
 
-    {doneCount===0&&totalStitchable>0&&stitchMode==="track"&&<div style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
+    {doneCount===0&&!hintsSeen&&totalStitchable>0&&stitchMode==="track"&&<div className="tracker-hint" style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     </div>{/* end canvas-area */}
     {/* ─ Phone chip ─ */}
@@ -7886,8 +7966,13 @@ return(
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
       <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode"} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
-        <span className="ppal-mode-btn-icon">{Icons.palette?Icons.palette():null}</span>
-        <span className="ppal-mode-btn-label">Colours</span>
+        {(()=>{
+          const cur=pal&&focusColour&&cmap&&cmap[focusColour];
+          return <>
+            <span className="ppal-mode-btn-icon">{cur?<span className="ppal-mode-swatch" aria-hidden="true" style={{background:"rgb("+cur.rgb+")"}}/>:(Icons.palette?Icons.palette():null)}</span>
+            <span className="ppal-mode-btn-label">{cur?String(cur.id):"Colours"}</span>
+          </>;
+        })()}
       </button>
       <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":"Mark stitches (T)"} aria-pressed={stitchMode==="track"}>
         <span className="ppal-mode-btn-icon">{Icons.check()}</span>
@@ -8804,6 +8889,10 @@ return(
 {celebration&&motivation.show&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
 {/* Touch-1 H-2: Focus mini-bar. Renders only when focus mode is on.
     The Exit button never fades — it's the user's only way out. */}
+{focusMode&&<div className="cs-focus-progress" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
+  <span className="cs-focus-progress__fill" style={{width:Math.min(100,Math.max(0,progressPct))+"%"}}/>
+  <span className="cs-focus-progress__text">{progressPct>=100?"Complete":progressPct.toFixed(1)+"%"+(effectiveCombinedTotal>0?" \u00b7 "+ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))+" to go":"")}</span>
+</div>}
 {focusMode&&<div
   ref={focusBarRef}
   className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}

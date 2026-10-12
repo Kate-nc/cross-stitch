@@ -7395,10 +7395,10 @@ button[aria-disabled="true"] {
 /* ── Focus mode — strip chrome down to canvas + floating mini-bar ── */
 body.cs-focus .header,
 body.cs-focus .info-strip,
-body.cs-focus .toolbar-row,
+body.cs-focus .toolbar-row:not(.ppal-mode-strip),
 body.cs-focus .tracker-action-bar,
 body.cs-focus .rpanel,
-body.cs-focus .lpanel,
+body.cs-focus .lpanel:not(.lpanel--open):not(.lpanel--rail),
 body.cs-focus .status-bar {
   display: none !important;
 }
@@ -7411,7 +7411,7 @@ body.cs-focus .canvas-area,
 body.cs-focus .stitch-wrap,
 body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important; max-height: 100vh !important; padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
 /* Don't render the lpanel-backdrop scrim either — there's no panel. */
-body.cs-focus .lpanel-backdrop { display: none !important; }
+/* (the scrim is only drawn while the colour panel is open, which Focus now leaves alone) */
 
 /* The Focus mini-bar is a fixed pill at the bottom-centre of the
    viewport. Always above modals' backdrop is intentional — it's the
@@ -8613,3 +8613,41 @@ body.creator-compact .cs-textsheet {
   .ppal-close, .ppal-more-close, .lp-close, .tracker-dismiss-btn, .toast-dismiss{ min-width:44px; min-height:44px; justify-content:center; }
   .ppal-more-close::after{ display:none; }
 }
+
+
+/* ── Phase 4 batch 2 (TRACK-07): give the chart the screen ───────────────
+   Focus mode now actually tucks the top bar and the progress strip away (it was written for class names this page no
+   longer uses), leaves a thin progress line and the floating bar with Exit focus, and keeps the controls strip. On a
+   phone it is the default. The chart box is sized from the measured space (useFillChartHeight in tracker-app.js). */
+body.cs-focus .tb-topbar,
+body.cs-focus .info-strip-wrap,
+body.cs-focus .tracker-hint,
+body.cs-focus .tracker-hover-wrap { display: none !important; }
+body.cs-focus .canvas-area { padding-top: 22px; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important; }
+.cs-focus-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 18px; z-index: var(--z-coachmark, 1200);
+  background: var(--surface-tertiary); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; pointer-events: none; overflow: hidden;
+}
+.cs-focus-progress__fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent-light); }
+.cs-focus-progress__text { position: relative; padding: 0 10px; font-size: 11px; font-weight: 600; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+
+/* The colour the controls strip's first button stands for; the Palette pill that floated over the hint banner is gone. */
+.ppal-mode-swatch { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); }
+.ppal-phone-chip { display: none !important; }
+/* Nothing to say on a touch screen when no guide is placed (there is no hover). */
+@media (pointer: coarse) { .tracker-hover-wrap--idle { display: none !important; } }
+
+@media (max-width: 1023px), (pointer: coarse) {
+  /* The measured space; 600 px until it has been measured. The colour drawer's own shorter height still wins. */
+  .tracker-chart-scroll { max-height: var(--tracker-chart-h, 600px); }
+  .tracker-chart-scroll.is-drawer { max-height: 340px; }
+  /* End space so the last column can be scrolled clear of the controls strip. Only the scroll extent grows. */
+  .tracker-chart-view { margin-right: 60px; }
+  .ppal-canvas-col--left .tracker-chart-view { margin-right: 0; }
+  .ppal-canvas-col--left .tracker-chart-scroll { margin-left: 60px; }
+  .ppal-canvas-col--left .ppal-mode-strip { right: auto; left: 8px; }
+}
+/* The way out of Focus is a touch target, not a keyboard hint. */
+.cs-focus-bar .cs-focus-exit { white-space: nowrap; }
+@media (pointer: coarse) { .cs-focus-bar .cs-focus-exit kbd { display: none; } }

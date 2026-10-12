@@ -212,6 +212,8 @@
             ["Park markers list", "The Park markers list in the sidebar shows each parked colour, with a checkbox to hide its markers and a Clear all button."],
             ["Undo", "Undo (Ctrl+Z) covers parking too: placing or removing a park marker, and Clear all, are steps like marking stitches."],
             ["French knots", "In Mark mode, tap or click a knot to mark it done: it fills in. Tap it again to unmark it; Undo works too. Knots count towards your progress, one each, and the colours drawer shows them under their thread."],
+            ["Stitching on a phone", "On a phone the Tracker opens in Focus: the top bar and the progress strip are tucked away, so the chart fills the screen above a thin progress line (the percentage and how many stitches are left). Tap Exit focus at the bottom to bring them back. Preferences > Stitch Tracker > Phones and small screens can turn this off. The buttons beside the chart (Colours, Mark, Move, Fit, Area, Undo, More) can sit on the left instead of the right there too. The first button shows the colour you are on; tap it to choose another."],
+            ["The how-to-mark banners", "The short hints above and below the chart go away as soon as you have marked your first stitch, and they do not come back. The gestures are listed here, under Mark mode."],
             ["Colours drawer (D)", "Shows your progress per colour. Click a colour to highlight only those stitches on the chart. On a laptop it sits at the left, below the top bar, so the logo and the Create, Edit and Track tabs stay clickable; on a phone it opens over the chart from the Colours button."]
           ]
         },
