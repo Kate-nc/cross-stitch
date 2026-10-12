@@ -54,3 +54,17 @@ Real iOS Safari and Android devices (the page keeps the browser from scrolling o
 ### Review round 1 (Copilot on PR 296; two findings, both verified)
 - **"Undo N stitches" could undo something else (medium).** True: the button always ran the ordinary Undo, so after another mark, a park or an Undo within the 8 seconds it would have undone that instead. The message is now bound to the exact history entry of its stroke: it goes as soon as that entry is no longer the newest step (a later mark, a park, an Undo, a project switch), and if it is somehow pressed after that it declines and says so. New browser test: stroke of 8, one more tap, the message is gone and nothing was undone.
 - **Paint could report an inactive mode (medium).** True: with "Drag to mark stitches" off in Preferences the drag hook is inert, yet the Paint chip and the "Paint" label still appeared. The Paint chip is not offered when drag marking is off, and the strip says Mark. (Lock touches still works there: it stops the touch before the legacy tap handlers see it.) New browser test.
+
+## Batch 4 (TRACK-05: coming back to a project, first run)
+
+Found by reading the diff and by the regression run:
+- **A same-project reload would have reset Mark or Navigate mid-session.** `processLoadedProject` has a dozen callers (cross-tab merge, restore, handoff); applying the saved context on each would flip a person back to the autosave's (up to 5 s old) mode. The context is now applied only when the project id differs from the one on screen (`_sameProjectReload`). Colour was already cleared on every load before this batch; unchanged.
+- **The "Show welcome tour" command would have been undone at once** by the rule that retires the tour when a pattern is on the chart; asking for it (Help, or `cs:showWelcome`) sets `welcomeAskedRef`, which the rule respects.
+- **`if(...)a;b;` slip** while adding that flag to the event handler (the second statement escaped the `if`); caught on re-reading, braces added.
+- **Regression run (94 specs):** one failure, `phase3-batch4` "a goal reached says so only when goals are shown". Not an app bug: the spec waited 4 s for the old "Continue stitching" button, which no longer exists, and the goal message (shown on load, auto-dismissed) had gone by the time it looked. The wait is removed from that spec. Passes on `main` and on the branch after the change.
+- Two guards tripped and were satisfied rather than relaxed: the auto-save dependency list must end with `achievedMilestones]`, and every Dismiss button needs `tracker-dismiss-btn` (44 px on touch).
+
+Known limits:
+- The style question ("How do you usually work") no longer appears when a pattern is already open on first visit; the default (Block) applies and it is under More controls > Tools. A person who opens the Tracker empty still gets the full tour.
+- The saved context follows the 5 s autosave, so a change in the last seconds before closing the tab is covered only by the unload flush (same as every other saved field).
+

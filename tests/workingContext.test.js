@@ -71,6 +71,9 @@ describe('the field travels with the project', () => {
     expect(io).toMatch(/tf\.workingContext\s*=\s*freshProject\.workingContext/);
     expect(read('creator/bundle.js')).toMatch(/workingContext = freshProject\.workingContext/);
   });
+  test('a reload of the project already on screen leaves the current mode and view alone', () => {
+    expect(tracker).toMatch(/_sameProjectReload=!!project\.id&&project\.id===projectIdRef\.current;[\s\S]*?if\(!_sameProjectReload\)\{\s*const _wc=normaliseWorkingContext/);
+  });
   test('is restored on load through the validator', () => {
     expect(tracker).toMatch(/normaliseWorkingContext\(project\.workingContext,newPal\)/);
   });

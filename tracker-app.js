@@ -3564,6 +3564,7 @@ function processLoadedProject(project){
   // A session still running belongs to the project being left: finish it now, while the project id is still that
   // one, so it is kept (its backup is written under that id and is recovered when that project is opened again).
   try{if(currentAutoSessionRef.current&&finaliseAutoSessionRef.current&&projectIdRef.current&&project.id&&project.id!==projectIdRef.current)finaliseAutoSessionRef.current({trimIfIdle:true});}catch(_){}
+  const _sameProjectReload=!!project.id&&project.id===projectIdRef.current; // a reload of what is on screen keeps the person's current mode and view
   projectIdRef.current = project.id || null;
   let s=project.settings||{};
   const nextW=project.w||s.sW||project.settings?.w||80;
@@ -3700,7 +3701,7 @@ function processLoadedProject(project){
   }
   setSelectedColorId(null);setFocusColour(null);setTrackHistory([]);setRedoStack([]);
   // Back to where the stitcher left off: colour, Mark or Navigate, and how the chart was drawn (TRACK-05).
-  {
+  if(!_sameProjectReload){
     const _wc=normaliseWorkingContext(project.workingContext,newPal);
     setStitchMode(_wc?_wc.mode:"track");
     if(_wc){
