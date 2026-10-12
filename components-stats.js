@@ -475,7 +475,8 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
     ),
     React.createElement("div", {style:{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:2}}, cells),
     React.createElement("div", {className:"chart-readout", role:"status", "aria-live":"polite", style:{marginTop:'var(--s-2)'}},
-      picked && picked.slice(0, 7) === prefix ? formatShortDate(picked) + ': ' + ProgressUnits.formatUnits(dailyMap[picked] || 0) + ' stitches' : 'Tap a day to read how many stitches it had.')
+      picked && picked.slice(0, 7) === prefix ? formatShortDate(picked) + ': ' + ProgressUnits.formatUnits(dailyMap[picked] || 0) + ' stitches' : 'Tap a day to read how many stitches it had.'),
+    React.createElement(ChartTable, {caption:"Stitches per day in " + monthName, headers:["Date", "Stitches"], count:daysInMonth, rowAt:function(i){ var ds = prefix + '-' + String(i + 1).padStart(2, '0'); return [(i + 1) + ' ' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'][month], ProgressUnits.formatUnits(dailyMap[ds] || 0)]; }})
   );
 });
 

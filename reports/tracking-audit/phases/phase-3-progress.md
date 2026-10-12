@@ -59,3 +59,7 @@ Project Stats cold open on the 500-session project, interleaved against `main`, 
 
 ### Performance (batch 3)
 First open of project Stats on the 500-session project (the number that matters; later opens are about 1.3 ms), interleaved against `main`, 3 pairs. **A first version failed the guard**: branch 90.9 / 117.9 / 147.1 ms against main 61.6 / 92.2 / 102.7 ms. Cause: the new chart tables and tap positions formatted every day of a long project (a date format is not free) although only the latest 40 table rows are shown. Fixed by building only the rows shown and the positions only when a chart is tapped. After the fix: branch 69.0 / 64.2 / 56.6 ms, main 72.2 / 85.4 / 78.9 ms (`perf/phase3-batch3/`).
+
+### Review fixes (Copilot, PR 291)
+- The calendar view now has its data table too (the month's days), so every chart view has one; the e2e test opens it.
+- Open Stats (and the two other places that opened Stats from the Tracker: the Session panel's View Stats and the welcome-back recap's Stats) set the Stats tab to this project first (`openProjectStats`); before, the first click opened the all-projects tab the page starts on, and later clicks reopened whichever tab was last used. The e2e test now checks the project tab and its headline.

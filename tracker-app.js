@@ -4468,6 +4468,8 @@ useEffect(() => {
 // callers (e.g. the standalone Stats page's project-card click) request a
 // specific project's stats — StatsContainer will lazy-load it from IDB if it
 // isn't the currently-open one.
+// This project's own Stats (not whichever tab was open last, and not the all-projects tab the page starts on).
+function openProjectStats(){setStatsTab(projectIdRef.current||'all');setStatsView(true);}
 useEffect(() => {
   window.__openTrackerStats = function(targetId) {
     setStatsTab(targetId || projectIdRef.current || 'all');
@@ -7348,7 +7350,7 @@ return(
           )
         ]:[]),
         React.createElement(window.AppInfoDivider),
-        React.createElement('button',{type:'button',className:'stats-export-btn',style:{width:'100%',justifyContent:'center',minHeight:44},onClick:()=>{setProgressInfoOpen(false);setStatsView(true);}},'Open Stats')
+        React.createElement('button',{type:'button',className:'stats-export-btn',style:{width:'100%',justifyContent:'center',minHeight:44},onClick:()=>{setProgressInfoOpen(false);openProjectStats();}},'Open Stats')
       ]
     });
   })()}
@@ -8058,7 +8060,7 @@ return(
             {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
           </>}
           {statsSessions&&statsSessions.length>0&&<button
-            onClick={()=>{setMorePanelOpen(false);setStatsView(true);}}
+            onClick={()=>{setMorePanelOpen(false);openProjectStats();}}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",display:"flex",alignItems:"center",gap:6,marginTop:4}}
           >{Icons.barChart?Icons.barChart():null} View Stats</button>}
         </div>}
@@ -8486,7 +8488,7 @@ return(
         </div>
         <div className="resume-recap-footer">
           <button className="resume-recap-btn" onClick={()=>{dismiss();if(typeof onGoHome==='function')onGoHome();else window.location.href='home.html';}}>Switch project</button>
-          <button className="resume-recap-btn" onClick={()=>{dismiss();setStatsView(true);}}>Stats</button>
+          <button className="resume-recap-btn" onClick={()=>{dismiss();openProjectStats();}}>Stats</button>
           <button className="resume-recap-btn resume-recap-btn--primary" onClick={dismiss} autoFocus>Continue stitching</button>
         </div>
       </div>

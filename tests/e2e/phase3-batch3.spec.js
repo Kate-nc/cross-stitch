@@ -134,6 +134,10 @@ test('charts can be read without hovering: a tap, or the slider from the keyboar
   await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await page.locator('.chart-section [role="button"][aria-label$="stitches"]').nth(5).click();
   await expect(page.locator('.chart-section .chart-readout')).toContainText(/stitches$/);
+  // and the month as a table (every chart view has one)
+  await page.locator('.chart-section details.chart-table summary').click();
+  await expect(page.locator('.chart-section .chart-table caption')).toContainText('Stitches per day in');
+  expect(await page.locator('.chart-section .chart-table tbody tr').count()).toBeGreaterThanOrEqual(28);
 });
 
 test('Progress info has a link to the Stats page', async ({ page }) => {
@@ -145,7 +149,9 @@ test('Progress info has a link to the Stats page', async ({ page }) => {
   await cont.waitFor({ timeout: 4000 }).then(() => cont.click()).catch(() => {});
   await page.getByRole('button', { name: /Progress info/ }).click();
   await page.getByRole('button', { name: 'Open Stats', exact: true }).click();
-  await expect(page.locator('.stats-dashboard')).toBeVisible();
+  // this project's own page, the first time (the page starts on the all-projects tab)
+  await expect(page.locator('.gsd-tab--on')).toContainText('Phase3 batch3');
+  await expect(page.locator('.stats-overview')).toContainText('of 1,600 stitches');
 });
 
 test('a project with no colour data says so once, not on every colour', async ({ page }) => {
