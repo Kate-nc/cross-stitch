@@ -118,3 +118,31 @@ Before the formatter fix the 50-tap bench read medians 8.9 (main) vs 9.4 ms (bra
 | Global Stats open (500 sessions) | 632 ms | 610 ms | -3.5% |
 
 The mark path gained one ref read per progress change; `sessionAdded` replaces `sessionNet` at the readers with the same cost.
+
+## Batch 4: day boundaries (STATS-05)
+
+### What changed
+- **Each stitch on the day it was made.** A running session keeps what it has added per stitching day (`byDay`, updated with one comparison per mark: the day is only worked out when the previous day's end has passed). When the session is saved, a run that crossed the day end becomes one record per day (`splitSessionByDays` in `helpers.js`): records share `groupId` (the whole run's id), ids stay unique (`<id>`, `<id>_d2`), durations are split from the event log and add up, progress at the end of an earlier part is what the later parts had not yet added, catch-up and unpicking stay with their day, and milestones go with the last part. The usual case (one day) is one record, as before.
+- **Live and saved "Today" agree.** The live session is read per day (`getLiveTodayStitches`, `getLiveWeekStitches`, `getLiveMonthStitches`), so at 00:02 Today shows the 2 stitches made after midnight and still shows 2 after the session is saved (the audit saw it change from 30 to 0).
+- **One date helper.** `getStitchingDate` (helpers.js) is the only definition; `getStitchingDateLocal` in the session hook now calls it. New alongside it: `getDayEndHour`, `getStitchingNow`, `nextStitchingDayBoundary` (built from calendar fields, so a 23- or 25-hour day still ends at the right wall-clock time), `getStatsWeekStartStr`, `getStatsMonthStartStr`. Activity ("today" and period starts), the week comparison in `stats-insights.js`, the streak and pace "now" in `insights-engine.js` and the recent pace on the global page now use the stitching calendar; they used the raw clock.
+- **One "Day ends at" setting.** It now sits beside the goals in Stats (it was at the bottom of a 4,000 px page) and in Preferences (Stitch Tracker, Statistics), with the one-line explanation "Late-night stitching counts for the previous day until this hour." It is the app-wide `statsDayEndHour` preference. A value a project saved before this becomes the setting the first time that project is opened, if none is set; until then projects without a setting fall back to their own value.
+- A pending-session backup in `localStorage` can now hold the records of a split session (the reader accepts one or many).
+
+### Decisions and deviations
+- The day-end preference is one value for the whole app rather than per project, because the global pages have no project to read it from; the audit asked for the setting to be in Preferences, which implies the same.
+- Sessions already saved keep their `date`; nothing is rewritten.
+- The idle gap between two days of a run is not shown; each part's duration is the active time on its side of the boundary.
+
+### Tests added
+`tests/phase2Batch4.test.js` (12, run in Europe/London: the audit's 23:50 / 00:02 example, a 2:00 AM day end, the clocks going back on 25 October 2026 (a 25-hour day, with 01:30 happening twice) and forward on 29 March 2026, the split (group, unique ids, durations add up, progress adds up, catch-up and unpicking with their day), live days, `getDayEndHour` precedence), `tests/e2e/phase2-batch4.spec.js` (4, faked clock: a session across midnight saves as 3 on the 10th and 2 on the 11th and Today is 2 live and after saving; with a 2:00 AM day end the same marks are one day; "Day ends at" beside the goals; Preferences has it). Updated `cross-mode-persistence`.
+
+### Batch 4 performance (interleaved A/B, main at `7274272`; raw files in `perf/batch4-ab/`)
+| Measure | main (median, range) | this branch | Change |
+|---|---|---|---|
+| Load to drawn chart | 1,396 ms (1,211 to 1,502) | 1,374 ms (1,214 to 1,666) | -1.6% |
+| Tap latency, one tap | 18 ms (14 to 22) | 16 ms (13 to 19) | -14% (noise) |
+| Tap latency, 25 taps x 2 sessions x 3 rounds | median 8.9 ms, mean 9.8 | median 8.5 ms, mean 9.0 | -5% (faster) |
+| 60-move drag | 1,073 ms | 1,056 ms | -1.5% |
+| Drag p95 frame gap | 17 ms | 17 ms | 0% |
+| Project Stats open (500 sessions) | 68 ms | 68 ms | 0% |
+| Global Stats open (500 sessions) | 592 ms (545 to 656) | 611 ms (551 to 671) | +3.1% (ranges overlap; under the 5% line) |

@@ -1,0 +1,71 @@
+{
+  "label": "B2",
+  "runs": 4,
+  "at": "2026-10-11T19:58:27.203Z",
+  "loadToCanvasMs": {
+    "median": 1364,
+    "min": 1214,
+    "max": 1378,
+    "runs": [
+      1355,
+      1364,
+      1214,
+      1378
+    ]
+  },
+  "tapLatencyMs": {
+    "median": 16,
+    "min": 13,
+    "max": 19,
+    "runs": [
+      16,
+      14,
+      19,
+      13
+    ]
+  },
+  "drag60Ms": {
+    "median": 1057,
+    "min": 1036,
+    "max": 1068,
+    "runs": [
+      1068,
+      1036,
+      1039,
+      1057
+    ]
+  },
+  "dragFrameGapP95Ms": {
+    "median": 17,
+    "min": 17,
+    "max": 17,
+    "runs": [
+      17,
+      17,
+      17,
+      17
+    ]
+  },
+  "projectStatsOpenMs": {
+    "median": 65,
+    "min": 61,
+    "max": 71,
+    "runs": [
+      61,
+      71,
+      65,
+      62
+    ]
+  },
+  "globalStatsOpenMs": {
+    "median": 656,
+    "min": 576,
+    "max": 656,
+    "runs": [
+      656,
+      608,
+      576,
+      656
+    ]
+  }
+}

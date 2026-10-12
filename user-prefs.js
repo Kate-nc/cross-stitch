@@ -120,6 +120,7 @@
     trackerShowParking:    true,
     trackerUndoDepth:      50,
     trackerCelebrate:      true,
+    statsDayEndHour:       null,     // hour the stitching day ends (0 = midnight); null = not set, projects may still supply one
     trackerMarkAllAs:      "ask",   // ask | catchup | today: what marking a whole colour done counts as
     // C3 — the unified pointer pipeline (useDragMark) is now the default.
     // Set this preference to false to fall back to plain tap-to-mark only
@@ -254,6 +255,8 @@
 
   function _write(key, value) {
     try { localStorage.setItem(PREFIX_GLOBAL + key, JSON.stringify(value)); } catch (_) {}
+    // Tell the page, so code holding a derived value (the Tracker's running session and its day boundary) can react.
+    try { if (typeof window !== 'undefined' && window.dispatchEvent && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('cs:prefchange', { detail: { key: key } })); } catch (_) {}
   }
 
   // Load all global prefs, merging with defaults

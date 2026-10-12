@@ -1047,6 +1047,9 @@ function migrateHalfStitch(entry) {
 
 // ═══ Stats helpers ═══
 
+// THE one date helper: which stitching day a moment belongs to. Late-night stitching counts for the previous day
+// until `dayEndHour` (0 = midnight). Everything that needs "today" or "the day of this stitch" goes through this
+// (the Tracker, project Stats, global Stats, Activity, Insights); do not re-derive it.
 function getStitchingDate(now, dayEndHour) {
   var d = new Date(now);
   if (dayEndHour > 0 && d.getHours() < dayEndHour) {
@@ -1056,6 +1059,112 @@ function getStitchingDate(now, dayEndHour) {
   var m = ('0' + (d.getMonth() + 1)).slice(-2);
   var day = ('0' + d.getDate()).slice(-2);
   return y + '-' + m + '-' + day;
+}
+
+// The hour the stitching day ends. One setting for the whole app (Preferences, and beside the goals in Stats);
+// projects that saved their own value before there was one still supply it until the person sets it.
+function getDayEndHour(statsSettings) {
+  try {
+    var v = window.UserPrefs && window.UserPrefs.get && window.UserPrefs.get('statsDayEndHour');
+    if (typeof v === 'number' && v >= 0 && v <= 12) return v;
+  } catch (_) {}
+  var p = statsSettings && statsSettings.dayEndHour;
+  return typeof p === 'number' && p > 0 ? p : 0;
+}
+
+// A Date standing for "now" on the stitching calendar: before the day-end hour it is still yesterday. Code that
+// used `new Date()` as "today" uses this so its week, month and "today" agree with the sessions' dates.
+function getStitchingNow(dayEndHour) {
+  var d = new Date();
+  if (dayEndHour > 0 && d.getHours() < dayEndHour) d.setDate(d.getDate() - 1);
+  return d;
+}
+
+// The moment (ms) the stitching day that contains `ms` ends: the next local `dayEndHour`:00. Built from calendar
+// fields, so a day that is 23 or 25 hours long (clocks changing) still ends at the right wall-clock time.
+function nextStitchingDayBoundary(ms, dayEndHour) {
+  var deh = dayEndHour || 0;
+  var d = new Date(ms);
+  var b = new Date(d.getFullYear(), d.getMonth(), d.getDate(), deh, 0, 0, 0);
+  if (b.getTime() <= ms) b = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, deh, 0, 0, 0);
+  return b.getTime();
+}
+
+// First day (YYYY-MM-DD) of the stitching week (Monday) and month that contain today.
+function getStatsWeekStartStr(dayEndHour) {
+  var today = new Date(getStitchingDate(new Date(), dayEndHour || 0) + 'T00:00:00');
+  var offset = today.getDay() === 0 ? 6 : today.getDay() - 1;
+  var monday = new Date(today); monday.setDate(today.getDate() - offset);
+  return formatLocalDateYYYYMMDD(monday);
+}
+function getStatsMonthStartStr(dayEndHour) {
+  return getStitchingDate(new Date(), dayEndHour || 0).slice(0, 7) + '-01';
+}
+
+// What the session still running has added on this stitching day / since a day, so "today" reads the same live
+// and once the session is saved (a session that crosses the day end is saved as one record per day).
+function getLiveTodayStitches(cur, dayEndHour) {
+  return ProgressUnits.liveAddedOn(cur, getStitchingDate(new Date(), dayEndHour || 0));
+}
+function getLiveWeekStitches(cur, dayEndHour) { return ProgressUnits.liveAddedFrom(cur, getStatsWeekStartStr(dayEndHour)); }
+function getLiveMonthStitches(cur, dayEndHour) { return ProgressUnits.liveAddedFrom(cur, getStatsMonthStartStr(dayEndHour)); }
+
+// A session that runs across the day end becomes one record per stitching day, so each stitch is on the day it was
+// made (the day's totals do not change when the session is saved). `whole` is the finalised record for the whole
+// run, `byDay` the per-day counters kept while it ran ({ date: { t0, sc, su, uc, uu, cu } }), `activeMs` the active
+// time of each day, `totalUnits` the project's size in units. Records share `groupId` (the whole run's id); ids stay
+// unique. Progress at the end of an earlier part is what the later parts had not yet added.
+function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
+  var dates = Object.keys(byDay).sort();
+  var parts = [];
+  var laterUnits = 0;
+  var netOf = function(d) { return (byDay[d].uc || 0) - (byDay[d].uu || 0); };
+  for (var k = dates.length - 1; k > 0; k--) laterUnits += netOf(dates[k]);
+  var sumLater = laterUnits;
+  // The saved duration of the whole run, shared out by each day's active time (cumulative rounding), so the parts
+  // add up to exactly what the run was saved as, whatever the rounding.
+  var totalMs = 0, shares = [], cum = 0, prevCumSec = 0;
+  for (var q = 0; q < dates.length; q++) totalMs += Math.max(0, activeMs[q] || 0);
+  var wholeSec = whole.durationSeconds || 0;
+  for (var q2 = 0; q2 < dates.length; q2++) {
+    cum += Math.max(0, activeMs[q2] || 0);
+    var cumSec = q2 === dates.length - 1 ? wholeSec : Math.round(wholeSec * (totalMs > 0 ? cum / totalMs : (q2 + 1) / dates.length));
+    shares.push(Math.max(0, cumSec - prevCumSec));
+    prevCumSec = cumSec;
+  }
+  for (var i = 0; i < dates.length; i++) {
+    var d = byDay[dates[i]];
+    var last = i === dates.length - 1;
+    var startMs = i === 0 ? new Date(whole.startTime).getTime() : nextStitchingDayBoundary(byDay[dates[i - 1]].t0, dayEndHour);
+    var endMs = last ? new Date(whole.endTime).getTime() : nextStitchingDayBoundary(d.t0, dayEndHour);
+    if (i > 0) sumLater -= netOf(dates[i]);
+    var totalAt = last ? whole.totalAtEnd : Math.max(0, whole.totalAtEnd - sumLater);
+    var rec = {
+      id: i === 0 ? whole.id : whole.id + '_d' + (i + 1),
+      groupId: whole.id,
+      date: dates[i],
+      startTime: i === 0 ? whole.startTime : new Date(startMs).toISOString(),
+      endTime: last ? whole.endTime : new Date(endMs).toISOString(),
+      timingModeUsed: whole.timingModeUsed,
+      durationSeconds: shares[i],
+      durationMinutes: Math.round(shares[i] / 60),
+      stitchesCompleted: d.sc || 0,
+      stitchesUndone: d.su || 0,
+      netStitches: (d.sc || 0) - (d.su || 0),
+      units: netOf(dates[i]),
+      unitsCompleted: d.uc || 0,
+      unitsUndone: d.uu || 0,
+      totalAtEnd: totalAt,
+      percentAtEnd: totalUnits > 0 ? Math.round(Math.min(totalAt, totalUnits) / totalUnits * 1000) / 10 : 0,
+      note: whole.note || '',
+      // the colours worked on that day (kept per day while the session ran), else the whole run's
+      coloursWorked: d.cl ? Array.from(d.cl) : (whole.coloursWorked ? whole.coloursWorked.slice() : [])
+    };
+    if (d.cu > 0) rec.catchUp = d.cu;
+    if (last && whole.milestones) rec.milestones = whole.milestones;
+    parts.push(rec);
+  }
+  return parts;
 }
 
 function getSessionSeconds(s) {
@@ -1147,13 +1256,7 @@ function getStatsTodaySeconds(sessions, dayEndHour) {
 }
 
 function getStatsThisWeekStitches(sessions, dayEndHour) {
-  var todayStr = getStitchingDate(new Date(), dayEndHour || 0);
-  var today = new Date(todayStr + 'T00:00:00');
-  var dayOfWeek = today.getDay();
-  var mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  var monday = new Date(today);
-  monday.setDate(today.getDate() - mondayOffset);
-  var mondayStr = formatLocalDateYYYYMMDD(monday);
+  var mondayStr = getStatsWeekStartStr(dayEndHour);
   return filterSessionsByDateRange(sessions, function(s) { return s.date >= mondayStr; });
 }
 

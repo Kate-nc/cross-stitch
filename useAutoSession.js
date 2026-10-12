@@ -89,16 +89,10 @@
 
     // ═══ Auto-session recording ═══
     function getStitchingDateLocal(now){
-      // NOTE: attribution uses local date at session-start time. Cross-midnight
-      // sessions are attributed to the day they started. A future PR may revisit
-      // this; do not change attribution semantics here.
-      try{
-        const d=new Date(now);
-        const deh=(statsSettings&&statsSettings.dayEndHour)||0;
-        if(deh>0&&d.getHours()<deh)d.setDate(d.getDate()-1);
-        const y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
-        return y+'-'+m+'-'+day;
-      }catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+      // Each stitch is attributed to the day it was made, by the one shared date helper (getStitchingDate in
+      // helpers.js); a session that crosses the day end is saved as one record per day (see finaliseAutoSession).
+      try{return getStitchingDate(now,getDayEndHour(statsSettings));}
+      catch(e){const d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
     }
     // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see
     // progress-units.js). Callers that only mark full stitches may leave them out.
@@ -119,6 +113,7 @@
             unitsCompleted:0,
             unitsUndone:0,
             catchUp:0,
+            byDay:{},
             coloursWorked:new Set(),
             // Event log: timestamped events drive all duration computation.
             eventLog:[{kind:'start',t:now}]
@@ -143,6 +138,20 @@
         currentAutoSessionRef.current.stitchesUndone+=undone;
         currentAutoSessionRef.current.unitsCompleted+=cu;
         currentAutoSessionRef.current.unitsUndone+=uu;
+        // What was added on which stitching day. The day only needs working out when the previous one has ended
+        // (a comparison per mark, not a date calculation).
+        {
+          const cs=currentAutoSessionRef.current;
+          if(!cs.byDay)cs.byDay={};
+          if(!cs.dayBoundary||now>=cs.dayBoundary){
+            const deh=getDayEndHour(statsSettings);
+            cs.curDate=getStitchingDate(now,deh);
+            cs.dayBoundary=nextStitchingDayBoundary(now,deh);
+          }
+          const bd=cs.byDay[cs.curDate]||(cs.byDay[cs.curDate]={t0:now,sc:0,su:0,uc:0,uu:0,cu:0});
+          bd.sc+=completed;bd.su+=undone;bd.uc+=cu;bd.uu+=uu;
+          if(catchUpUnits)bd.cu+=catchUpUnits;
+        }
         // Bulk marks the person said were catch-up (not stitching done now): in progress, left out of pace.
         if(catchUpUnits)currentAutoSessionRef.current.catchUp+=catchUpUnits;
         // DEFECT-011: a flurry of undos right after enabling Live tracking can drive
@@ -161,7 +170,8 @@
         setLiveAutoIsPaused(document.hidden||manuallyPausedRef.current);
         // Merge any pending colour IDs into the session
         if(pendingColoursRef.current.size>0){
-          pendingColoursRef.current.forEach(c=>currentAutoSessionRef.current.coloursWorked.add(c));
+          const _cs=currentAutoSessionRef.current,_day=_cs.byDay&&_cs.byDay[_cs.curDate];
+          pendingColoursRef.current.forEach(c=>{_cs.coloursWorked.add(c);if(_day)(_day.cl||(_day.cl=new Set())).add(c);});
           pendingColoursRef.current.clear();
         }
         // Arm the idle-finalise timer (session lifecycle). Only fires to close
@@ -182,7 +192,8 @@
         }
         // Flush any colour IDs pending between the last recordAutoActivity call and now.
         if(pendingColoursRef.current.size>0&&session.coloursWorked){
-          pendingColoursRef.current.forEach(c=>session.coloursWorked.add(c));
+          const _day=session.byDay&&session.byDay[session.curDate];
+          pendingColoursRef.current.forEach(c=>{session.coloursWorked.add(c);if(_day)(_day.cl||(_day.cl=new Set())).add(c);});
           pendingColoursRef.current.clear();
         }
         // Duration: pure function of the event log — live display and saved value
@@ -221,11 +232,23 @@
           finalised.milestones=pendingMilestonesRef.current.slice();
           pendingMilestonesRef.current=[];
         }
-        setStatsSessions(prev=>[...(prev||[]),finalised]);
+        // One record per stitching day when the session ran across the day end; the usual case is one record.
+        let records=[finalised];
+        const days=session.byDay?Object.keys(session.byDay).sort():[];
+        if(days.length>1){
+          try{
+            const deh=getDayEndHour(statsSettings);
+            const bounds=days.slice(0,-1).map(d=>nextStitchingDayBoundary(session.byDay[d].t0,deh));
+            const prefix=bounds.map(b=>Math.max(0,computeActiveMs(session.eventLog.filter(e=>e.t<b),b,capMs,timingMode)));
+            const ms=days.map((d,i)=>i===0?prefix[0]:(i<days.length-1?prefix[i]-prefix[i-1]:activeDurationMs-prefix[i-1]));
+            records=splitSessionByDays(finalised,session.byDay,ms,ts,deh);
+          }catch(e){records=[finalised];}
+        }else if(days.length===1){finalised.date=days[0];}
+        setStatsSessions(prev=>[...(prev||[]),...records]);
         // Synchronous localStorage backup so the session survives if the tab is closed
         // before the 5-second auto-save timer fires (beforeunload IDB writes are async
         // and may not complete in time). Cleared once the auto-save timer succeeds.
-        try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(finalised));}catch(_){}
+        try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(records.length>1?records:finalised));}catch(_){}
         // Update lastTouchedAt and finishStatus in v3FieldsRef.
         // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
         if(projectIdRef.current){
@@ -249,6 +272,9 @@
         if(!isUnloadingRef.current&&ProgressUnits.sessionAdded(finalised)>0){
           setSessionSavedToast({sessionId:finalised.id,stitches:Math.round(ProgressUnits.sessionAdded(finalised)),durationMin:finalised.durationMinutes,showNoteInput:false,noteText:''});
         }
+        // The records that were saved (more than one when the run crossed the day end), for callers that merge the
+        // result into their own snapshot (the unload save). Not enumerable, so it is never written out itself.
+        try{Object.defineProperty(finalised,'records',{value:records,enumerable:false});}catch(_){}
         return finalised;
       }catch(e){currentAutoSessionRef.current=null;return null;}
     }
@@ -322,6 +348,14 @@
         }
       },0);
     }
+
+    // A changed "Day ends at" closes the running session, so what was marked before the change keeps the day it was
+    // attributed to and the next mark starts a session under the new setting.
+    useEffect(()=>{
+      const onPref=e=>{try{if(e&&e.detail&&e.detail.key==='statsDayEndHour'&&currentAutoSessionRef.current&&finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(_){}};
+      window.addEventListener('cs:prefchange',onPref);
+      return()=>window.removeEventListener('cs:prefchange',onPref);
+    },[]);
 
     var currentTimingMode=(currentAutoSessionRef.current&&currentAutoSessionRef.current.timingMode)||getTimingMode();
 

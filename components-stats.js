@@ -35,7 +35,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette}){
   var grouped = groupSessionsByDate(sessions || []);
   var sortedDates = Object.keys(grouped).sort().reverse();
   var displayDates = showAll ? sortedDates : sortedDates.slice(0, 10);
-  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var dayEndHour = getDayEndHour(statsSettings);
   var children = [];
   if (!sessions || sessions.length === 0) {
     children.push(React.createElement("p", {key:"empty", style:{fontSize:'var(--text-md)', color:'var(--text-tertiary)'}}, "No sessions recorded yet. Start stitching to see your journal!"));
@@ -356,7 +356,7 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
 });
 
 function StatsChartSection({statsSessions, statsSettings, totalStitches, chartView, setChartView, overviewStats, totalCompleted}){
-  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var dayEndHour = getDayEndHour(statsSettings);
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
   var _whatIf = React.useState(null);
@@ -489,12 +489,31 @@ function TargetDateSetting({currentTarget, remaining, avgPerDay, onSet}){
   );
 }
 
+// "Day ends at": one setting for the whole app (also in Preferences). Late-night stitching counts for the previous day
+// until this hour, in the Tracker, project Stats, global Stats, Activity and Insights alike.
+function DayEndSetting({statsSettings, onUpdateSettings}){
+  var hour = getDayEndHour(statsSettings);
+  function labelFor(h) { return h === 0 ? "Midnight" : h + ":00 AM"; }
+  return React.createElement("div", {className:"day-end-setting", style:{marginBottom:'var(--s-3)'}},
+    React.createElement("label", {className:"goal-label", htmlFor:"day-ends-at"}, "Day ends at"),
+    React.createElement("select", {id:"day-ends-at", value:hour, className:"goal-input", style:{maxWidth:160},
+      onChange:function(e){
+        var h = parseInt(e.target.value, 10) || 0;
+        try { if (window.UserPrefs) window.UserPrefs.set('statsDayEndHour', h); } catch (_) {}
+        onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:h}));
+      }},
+      [0,1,2,3,4,5].map(function(h){ return React.createElement("option", {key:h, value:h}, labelFor(h)); })
+    ),
+    React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, "Late-night stitching counts for the previous day until this hour.")
+  );
+}
+
 function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitches, overviewStats, onUpdateSettings}){
   var dailyGoal = statsSettings && statsSettings.dailyGoal;
   var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
   var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
   var targetDate = statsSettings && statsSettings.targetDate;
-  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var dayEndHour = getDayEndHour(statsSettings);
   var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
   var weekStitches = getStatsThisWeekStitches(statsSessions || [], dayEndHour);
@@ -522,6 +541,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
 
   return React.createElement("div", {className:"goal-tracker-panel"},
     React.createElement("h3", {className:"stats-section-title"}, "Goals"),
+    React.createElement(DayEndSetting, {statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),
     React.createElement(DailyGoalSetting, {currentGoal:dailyGoal, avgPerDay:avgPerDay, remaining:remaining,
       onSet:function(v){ onUpdateSettings(Object.assign({}, statsSettings, {dailyGoal:v})); }}),
     dailyGoal && goalRow("Today so far", todayStitches, dailyGoal),
@@ -1242,7 +1262,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var useActiveDays = statsSettings && statsSettings.useActiveDays !== false;
   var overviewStats = computeOverviewStats(statsSessions || [], totalCompleted, totalStitches, useActiveDays);
   var milestones = getMilestones(statsSessions || [], totalCompleted, totalStitches, overviewStats.avgPerDay);
-  var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+  var dayEndHour = getDayEndHour(statsSettings);
   var timingMode = (statsSettings && typeof statsSettings.timingMode === 'string') ? statsSettings.timingMode : '';
 
   if (showComparison) {
@@ -1353,19 +1373,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     ),
     React.createElement("div", {style:{marginTop:20, padding:'var(--s-4)', background:'var(--surface-secondary)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)'}},
       React.createElement("h4", {style:{fontSize:'var(--text-lg)', fontWeight:600, color:'var(--text-primary)', marginTop:0, marginBottom:'var(--s-2)'}}, "Settings"),
-      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
-        "Day ends at:",
-        React.createElement("select", {value:dayEndHour, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {dayEndHour:parseInt(e.target.value)})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},
-          React.createElement("option", {value:0}, "Midnight"),
-          React.createElement("option", {value:1}, "1:00 AM"),
-          React.createElement("option", {value:2}, "2:00 AM"),
-          React.createElement("option", {value:3}, "3:00 AM"),
-          React.createElement("option", {value:4}, "4:00 AM"),
-          React.createElement("option", {value:5}, "5:00 AM")
-        )
-      ),
-      React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, "Stitches after this time count for the previous day"),
-      React.createElement("div", {style:{height:10}}),
       React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
         "Session timing:",
         React.createElement("select", {value:timingMode, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},

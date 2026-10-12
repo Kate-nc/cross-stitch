@@ -151,7 +151,7 @@ var ProgressRing=React.memo(function ProgressRing({percent, size}){
 });
 
 var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted, totalStitches, statsSettings, onOpenStats, currentAutoSession}){
-    var dayEndHour = (statsSettings && statsSettings.dayEndHour) || 0;
+    var dayEndHour = getDayEndHour(statsSettings);
     var todayStitches = getStatsTodayStitches(statsSessions || [], dayEndHour);
     var todaySeconds = getStatsTodaySeconds(statsSessions || [], dayEndHour);
     var dailyGoal = statsSettings && statsSettings.dailyGoal;
@@ -159,7 +159,7 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var liveTodayStitches = todayStitches;
     var liveTodaySeconds = todaySeconds;
     if (currentAutoSession) {
-      liveTodayStitches += ProgressUnits.liveSessionAdded(currentAutoSession);
+      liveTodayStitches += getLiveTodayStitches(currentAutoSession, dayEndHour);
       var elapsed = Math.round((Date.now() - new Date(currentAutoSession.startTime).getTime() - (currentAutoSession.totalPausedMs||0)) / 1000);
       liveTodaySeconds += Math.max(0, elapsed);
     }
@@ -167,17 +167,16 @@ var MiniStatsBar=React.memo(function MiniStatsBar({statsSessions, totalCompleted
     var isStreakRecord = streaks.current > 0 && streaks.current >= streaks.longest;
     var weeklyGoal = statsSettings && statsSettings.weeklyGoal;
     var monthlyGoal = statsSettings && statsSettings.monthlyGoal;
-    var liveExtra = currentAutoSession ? ProgressUnits.liveSessionAdded(currentAutoSession) : 0;
-    var activeGoal = null;
+        var activeGoal = null;
     if (dailyGoal > 0) {
       var gPct = liveTodayStitches / dailyGoal * 100;
       activeGoal = {label: 'Today', current: liveTodayStitches, target: dailyGoal, pct: gPct, met: liveTodayStitches >= dailyGoal};
     } else if (weeklyGoal > 0) {
-      var weekSt = getStatsThisWeekStitches(statsSessions || [], dayEndHour) + liveExtra;
+      var weekSt = getStatsThisWeekStitches(statsSessions || [], dayEndHour) + getLiveWeekStitches(currentAutoSession, dayEndHour);
       var gPct = weekSt / weeklyGoal * 100;
       activeGoal = {label: 'This week', current: weekSt, target: weeklyGoal, pct: gPct, met: weekSt >= weeklyGoal};
     } else if (monthlyGoal > 0) {
-      var monthSt = getStatsThisMonthStitches(statsSessions || [], dayEndHour) + liveExtra;
+      var monthSt = getStatsThisMonthStitches(statsSessions || [], dayEndHour) + getLiveMonthStitches(currentAutoSession, dayEndHour);
       var gPct = monthSt / monthlyGoal * 100;
       activeGoal = {label: 'This month', current: monthSt, target: monthlyGoal, pct: gPct, met: monthSt >= monthlyGoal};
     }

@@ -74,3 +74,27 @@ Safari, Firefox, real devices; the catch-up dialog with a screen reader (it uses
 ### Review round 1 (Copilot on PR 284; six findings, all verified)
 - **Active days still counted inactive sessions (Medium, five places).** True: the streak helpers had the filter but the overview of recent pace (`insights-engine.js`), the weekly summary (`stats-insights.js`), global Stats active days and the this-week/last-week comparison (`components-stats.js`), project comparison metadata (`project-storage.js`) and `computeWeightedPace` (`helpers.js`, which gave an unpick-only day a zero weight that pulled pace down) still counted every dated session. All now use `ProgressUnits.sessionActive`. Two unit tests added (pace unchanged by an unpick-only or catch-up-only day; overview active days).
 - **Report said four e2e tests (Low).** True, there are five; corrected.
+
+## Batch 4: day boundaries
+
+### Exercised
+- `npm test` (299 suites, 3,982 tests), terminology lint, `node build-runtime-js.js --check`. Playwright: `phase2-batch4` (4), plus `progress-units`, `phase2-batch1`, `phase2-batch3`, `save-badge`, `backup-reminder`, `cross-tab-merge`, `phase1-hunt` and `tracker-touch` (42 of 43 passed; the one failure is the two-finger fling test, see below).
+- The audit's worked example with a faked clock: 3 marks at 23:58 and 2 at 00:01 save as 3 on the 10th and 2 on the 11th (one group, unique ids); Today reads 2 live and 2 after the session is saved; with the day ending at 2:00 AM they are one day of 5.
+- Clock changes: the 25-hour day (25 October 2026) and 23-hour day (29 March 2026) end at the right wall-clock time; both 01:30s of the repeated hour belong to the previous day under a 2:00 AM day end.
+- Data safety: no format change (optional `groupId` and per-day records; ids unique); existing sessions are not touched; a pending-session backup written by the old code (one object) still loads.
+- Performance: interleaved A/B and the tap benchmark, all inside the 5% line (progress log).
+
+### Bugs found
+- **Fixed here:** Activity, the week comparison, Insights streaks and the global recent pace used the raw clock for "today", so late-night stitching counted for the wrong week or day on the global pages. They use the stitching calendar now.
+- **Pre-existing, noted and not fixed:** `tests/e2e/tracker-touch.spec.js` "a two-finger fling coasts after release" is timing-sensitive; it fails 3 of 3 on `main` in this container as well (and only passed earlier on retry). Not related to this batch.
+- **Noted:** a session left open across the day end with no further marks keeps showing the old day's live figure until the next mark or until it closes on idle (10 minutes by default).
+
+### Not verified
+Safari, Firefox, real devices; the day-end setting on a device whose time zone changes mid-session (the boundary is computed in the device's local time); global Stats and Activity with a faked clock (covered by the shared helper's unit tests, not by a browser run).
+
+### Review round 1 (Copilot on PR 285; five findings)
+- **Unload save stored the unsplit run and duplicated split records (High).** True: `finaliseAutoSession` returned the whole-run record and the unload handler merged that one into its snapshot, while the pending backup held the split records; recovery then skipped the first (same id) and added the rest. The finalise function now also exposes the saved records (a non-enumerable `records` property) and the unload save merges every record that is not already there. Source test added.
+- **Split durations could exceed the run's total (Medium).** True (two 0.6 s parts each rounded up to 1 s). The run's saved seconds are now shared out by each day's active time with cumulative rounding, so the parts add up exactly; minutes follow. Unit tests added.
+- **Split records inherited all the run's colours (Medium).** True: colours were copied to every part, so the journal and the colour timeline showed colours on the wrong day. Colours are now kept per day while the session runs and each part gets its own day's (older sessions in progress fall back to the run's list). Unit test added.
+- **Changing the day-end hour left the running session's boundary stale (Medium).** True: the cached boundary and day were from the old setting. The preference store now announces changes (`cs:prefchange`) and a change to the day-end hour closes the running session, so earlier marks keep the day they were attributed to and the next mark starts a session under the new setting. Browser test added.
+- **Migration ignored a project set to midnight (Medium), not changed.** 0 is the value every project is seeded with (`dayEndHour: 0` in the default settings), so a saved 0 cannot be told from "never set". Claiming it would let the first project opened, nearly always an untouched default, block the migration of a value the person did choose in another project. Replied on the thread with this.
