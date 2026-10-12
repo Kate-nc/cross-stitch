@@ -555,7 +555,7 @@
             [0, 1, 2, 3, 4, 5].map(function (n) { return h("option", { key: n, value: n }, n === 0 ? "Midnight" : n + ":00 AM"); })
           )
         ),
-        h(Row, { last: true, label: "Marking a whole colour done counts as",
+        h(Row, { last: true, label: "Marking a whole colour or a large rectangle done counts as",
           desc: "Catch-up raises your progress but is left out of today's count, your pace, your goals and your streak, so catching up from paper does not inflate them." },
           h(Segmented, { value: markAllAs[0], onChange: markAllAs[1], options: [
             { value: "ask",     label: "Ask me" },

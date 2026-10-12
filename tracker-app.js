@@ -2751,7 +2751,8 @@ function requestMarkColourDone(cid,md){
 function answerMarkAllAsk(asCatchUp){
   const a=markAllAsk;setMarkAllAsk(null);if(!a)return;
   try{if(window.UserPrefs)window.UserPrefs.set('trackerMarkAllAs',asCatchUp?'catchup':'today');}catch(_){}
-  markColourDone(a.cid,true,asCatchUp);
+  // The same question covers a rectangle fill (a.set) and a whole-colour Done (a.cid).
+  if(a.set)_commitBulk(a.set,a.intent,a.source,asCatchUp);else markColourDone(a.cid,true,asCatchUp);
 }
 // History entry shapes:
 //   • Legacy: bare array of {idx,oldVal} — single-cell or per-pixel drag.
@@ -6828,7 +6829,10 @@ const[dragMarkPulse,setDragMarkPulse]=useState(null);
 // doneCount>0 auto-complete below).
 const[_rectSelectUsed,_setRectSelectUsed]=useState(false);
 
-const _commitBulk=useCallback(function(set,intent,source){
+// Marking more than this many cells in one rectangle asks (once, then remembers) whether it is today's stitching or
+// catch-up; smaller fills are ordinary stitching, as drag-marking always is.
+const BULK_ASK_MIN=50;
+const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
   // React commits a prior setDone don't rewind earlier in-session marks.
   const cur=doneRef.current;
@@ -6849,6 +6853,11 @@ const _commitBulk=useCallback(function(set,intent,source){
     }
   });
   if(!changes.length)return;
+  if(source==='range'&&want===1&&asCatchUp===undefined&&changes.length>BULK_ASK_MIN){
+    let pref='ask';try{pref=(window.UserPrefs&&window.UserPrefs.get('trackerMarkAllAs'))||'ask';}catch(_){}
+    if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return;}
+    asCatchUp=pref==='catchup';
+  }
   pushBulkToggleHistory(changes,source);
   applyDoneCountsDelta(changes,pat,nd);
   doneRef.current=nd;
@@ -6869,7 +6878,7 @@ const _commitBulk=useCallback(function(set,intent,source){
   let _bulkCompleted=0,_bulkUndone=0;
   for(let _i=0;_i<changes.length;_i++){if(changes[_i].oldVal===0)_bulkCompleted++;else _bulkUndone++;}
   if(_bulkCompleted>0||_bulkUndone>0){
-    recordAutoActivity(_bulkCompleted,_bulkUndone);
+    recordAutoActivity(_bulkCompleted,_bulkUndone,_bulkCompleted,_bulkUndone,asCatchUp&&want===1?_bulkCompleted:0);
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
   if(source==='range')_setRectSelectUsed(true);

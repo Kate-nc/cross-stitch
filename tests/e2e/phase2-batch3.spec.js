@@ -105,7 +105,39 @@ test('Preferences has the catch-up choice and it is saved', async ({ page }) => 
   await page.waitForTimeout(800);
   await page.evaluate(() => window.dispatchEvent(new Event('cs:openPreferences')));
   await page.getByRole('button', { name: /Stitch Tracker/ }).first().click();
-  await expect(page.getByText('Marking a whole colour done counts as')).toBeVisible();
+  await expect(page.getByText('Marking a whole colour or a large rectangle done counts as')).toBeVisible();
   await page.getByRole('button', { name: 'Today\'s stitching' }).click();
   await expect.poll(() => page.evaluate(() => window.UserPrefs.get('trackerMarkAllAs'))).toBe('today');
+});
+
+// A rectangle fill is the other way to record a lot of stitching at once: it asks the same question.
+async function rectFill(page) {
+  const a = await trackerCellPoint(page, 0, 0), b = await trackerCellPoint(page, 9, 9);
+  await page.mouse.click(a.x, a.y); await page.waitForTimeout(300);
+  await page.keyboard.down('Shift'); await page.mouse.click(b.x, b.y); await page.keyboard.up('Shift');
+  await page.waitForTimeout(600);
+}
+
+test('a rectangle fill of a hundred stitches asks, and as catch-up it leaves Today alone', async ({ page }) => {
+  const id = await seed(page);
+  await page.goto('/stitch.html?id=' + id);
+  await page.waitForSelector(TRACKER_CANVAS);
+  await page.waitForTimeout(800);
+  await rectFill(page);
+  await expect(page.getByText("Count these as today's stitching?")).toBeVisible();
+  await page.getByRole('button', { name: 'Count as catch-up' }).click();
+  await page.waitForTimeout(600);
+  await expect(page.locator('.info-strip-counts')).toHaveText(/^1\d\d done/);        // the 20 earlier + the rectangle
+  expect(await popoverRow(page, 'Today')).toBe('1');                                   // only the first single tap
+  expect(await page.evaluate(() => window.UserPrefs.get('trackerMarkAllAs'))).toBe('catchup');
+});
+
+test('a rectangle fill counted as today adds to Today, and a remembered choice is not asked again', async ({ page }) => {
+  const id = await seed(page, 'today');
+  await page.goto('/stitch.html?id=' + id);
+  await page.waitForSelector(TRACKER_CANVAS);
+  await page.waitForTimeout(800);
+  await rectFill(page);
+  await expect(page.getByText("Count these as today's stitching?")).toHaveCount(0);
+  expect(await popoverRow(page, 'Today')).toBe('100');
 });
