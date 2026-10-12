@@ -63,7 +63,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit,
   if (palette) { for (var pi = 0; pi < palette.length; pi++) { var pc = palette[pi]; if (pc.id && pc.rgb) colourMap[pc.id] = pc; } }
   var grouped = groupSessionsByDate(sessions || []);
   var sortedDates = Object.keys(grouped).sort().reverse();
-  var displayDates = showAll ? sortedDates : sortedDates.slice(0, 10);
+  var displayDates = showAll ? sortedDates : sortedDates.slice(0, 5);
   var dayEndHour = getDayEndHour(statsSettings);
   var children = [];
   if (!sessions || sessions.length === 0) {
@@ -108,17 +108,20 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit,
         }
         if (session.note) contentChildren.push(React.createElement("p", {key:"note", className:"timeline-note"}, '"' + session.note + '"'));
         var sid = session.id;
-        contentChildren.push(React.createElement("button", {key:"add-note", className:"timeline-add-note", onClick:(function(id){ return function(){ setEditingId(id); }; })(sid)}, session.note ? 'Edit note' : 'Add note'));
+        var actions = [React.createElement("button", {key:"add-note", className:"timeline-add-note", onClick:(function(id){ return function(){ setEditingId(id); }; })(sid)}, session.note ? 'Edit note' : 'Add note')];
+        var editor = null;
         if (canEdit && onEditSession) {
           if (formId === sid) {
-            contentChildren.push(React.createElement(SessionEditor, {key:"sess-edit", session:session, onCancel:function(){ setFormId(null); }, onSave:function(id, patch){ var r = onEditSession(id, patch); if (!(r && r.error)) setFormId(null); return r; }}));
+            editor = React.createElement(SessionEditor, {key:"sess-edit", session:session, onCancel:function(){ setFormId(null); }, onSave:function(id, patch){ var r = onEditSession(id, patch); if (!(r && r.error)) setFormId(null); return r; }});
           } else {
             var canMerge = mergeNext[sid];
-            contentChildren.push(React.createElement("button", {key:"edit-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ setFormId(id); }; })(sid)}, 'Edit session'));
-            if (canMerge) contentChildren.push(React.createElement("button", {key:"merge-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onMergeSession(id); }; })(sid)}, 'Merge with next'));
-            if (onDeleteSession) contentChildren.push(React.createElement("button", {key:"del-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onDeleteSession(id); }; })(sid)}, 'Delete session'));
+            actions.push(React.createElement("button", {key:"edit-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ setFormId(id); }; })(sid)}, 'Edit session'));
+            if (canMerge) actions.push(React.createElement("button", {key:"merge-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onMergeSession(id); }; })(sid)}, 'Merge with next'));
+            if (onDeleteSession) actions.push(React.createElement("button", {key:"del-sess", className:"timeline-add-note", onClick:(function(id){ return function(){ onDeleteSession(id); }; })(sid)}, 'Delete session'));
           }
         }
+        contentChildren.push(React.createElement("div", {key:"actions", className:"timeline-actions"}, actions));
+        if (editor) contentChildren.push(editor);
       }
       if (session.edited) contentChildren.push(React.createElement("span", {key:"edited", className:"timeline-duration", title:"You changed this session's details"}, "edited"));
       timelineEntries.push(React.createElement("div", {key:session.id, className:"timeline-entry"},
@@ -131,17 +134,57 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit,
     React.createElement("h3", {style:{fontSize:'var(--text-xl)', fontWeight:700, color:'var(--text-primary)', marginBottom:'var(--s-3)'}}, "Session journal"),
     children,
     React.createElement("div", {className:"timeline-track"}, timelineEntries),
-    !showAll && sessions && sessions.length > 10 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
+    !showAll && sortedDates.length > 5 && React.createElement("button", {className:"timeline-show-all", onClick:function(){ setShowAll(true); }}, "View all " + sessions.length + " sessions")
   );
 }
 
 // ═══ Phase B: Charts & Milestones ═══
 
+// Reading a chart without hovering. A tap or click on the chart, or the slider under it (which works from the keyboard
+// and with a screen reader), picks a point; its value is written in a visible line under the chart. Every chart also
+// has its data as a table.
+function ChartScrubber(props){
+  var h = React.createElement;
+  var hasSel = props.sel != null && props.sel >= 0 && props.sel < props.count;
+  var text = hasSel ? props.text : '';
+  return h('div', {className:'chart-scrubber'},
+    h('div', {className:'chart-readout', role:'status', 'aria-live':'polite'}, hasSel ? text : 'Tap the chart, or move the slider, to read a value.'),
+    h('input', {type:'range', className:'chart-scrub-range', min:0, max:Math.max(0, props.count - 1), step:1, value:hasSel ? props.sel : Math.max(0, props.count - 1),
+      'aria-label':props.label, 'aria-valuetext':hasSel ? text : 'No value chosen yet',
+      onChange:function(e){ props.setSel(Number(e.target.value)); }})
+  );
+}
+function ChartTable(props){
+  var h = React.createElement;
+  var rows = props.rows || [];
+  var shown = rows.length > 40 ? rows.slice(rows.length - 40) : rows;
+  return h('details', {className:'chart-table'},
+    h('summary', null, 'Show the data as a table'),
+    h('div', {className:'chart-table-scroll'},
+      h('table', null,
+        h('caption', null, props.caption + (rows.length > shown.length ? ' (latest ' + shown.length + ' of ' + rows.length + ')' : '')),
+        h('thead', null, h('tr', null, props.headers.map(function(t, i){ return h('th', {key:i, scope:'col'}, t); }))),
+        h('tbody', null, shown.map(function(r, i){ return h('tr', {key:i}, r.map(function(v, j){ return h('td', {key:j}, v); })); }))
+      )
+    )
+  );
+}
+// The index of the nearest of `xs` (viewBox x positions) to a pointer event on an svg whose viewBox is `vbWidth` wide.
+function chartNearestIndex(e, vbWidth, xs){
+  var r = e.currentTarget.getBoundingClientRect();
+  if (!r.width) return null;
+  var fx = (e.clientX - r.left) / r.width * vbWidth;
+  var best = 0, bd = Infinity;
+  for (var i = 0; i < xs.length; i++) { var d = Math.abs(xs[i] - fx); if (d < bd) { bd = d; best = i; } }
+  return best;
+}
+
 var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches, targetDate, whatIfPace, cadence}){
+  var selSt = React.useState(null); var sel = selSt[0], setSel = selSt[1];
   var data = getCumulativeProgressData(sessions);
   if (data.length < 2) return React.createElement("p", {className:"stats-empty"}, "Start stitching to see your progress chart");
   var width = 600, height = 130;
-  var pl = 36, pr = 8, pt = 8, pb = 4;
+  var pl = 46, pr = 8, pt = 8, pb = 4;
   var cW = width - pl - pr, cH = height - pt - pb;
   var maxY = Math.max(totalStitches, 1);
   var yS = function(v){ return pt + cH - (v / maxY) * cH; };
@@ -183,17 +226,23 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   if (wiDays > 0 && wiEndDate) {
     wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"var(--warning)", strokeWidth:"1.5", strokeDasharray:"5 3"});
   }
+  var pctOf = function(v){ return totalStitches > 0 ? Math.round(v / totalStitches * 1000) / 10 : 0; };
+  var xs = []; for (var xi = 0; xi < data.length; xi++) xs.push(xDate(new Date(data[xi].date + 'T12:00:00')));
+  var selD = (sel != null && sel < data.length) ? data[sel] : null;
+  var selText = selD ? formatShortDate(selD.date) + ': ' + ProgressUnits.formatUnits(selD.total) + ' of ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + pctOf(selD.total) + '%)' : '';
   return React.createElement("div", {className:"chart-container"},
-    React.createElement("svg", {role:"img","aria-label":"Cumulative progress chart",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
-      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, formatCompact(totalStitches)),
-      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, formatCompact(totalStitches / 2)),
-      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, "0"),
+    React.createElement("svg", {role:"img","aria-label":"Progress over time: " + pctOf(last.total) + "% done by " + formatShortDate(last.date) + ", from " + pctOf(data[0].total) + "% on " + formatShortDate(data[0].date) + ". Tap the chart or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, xs); if (i != null) setSel(i); }},
+      React.createElement("text", {x:pl - 4, y:pt + 10, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches)),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches / 2)),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, "0"),
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"var(--border)", strokeWidth:"0.5", strokeDasharray:"4 4"}),
       React.createElement("line", {x1:xDate(firstDate), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#CFC4AC", strokeWidth:"1", strokeDasharray:"4 4"}),
       wiLine,
       React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
       React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
       React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"#534AB7"}),
+      selD ? React.createElement("line", {x1:xs[sel], y1:pt, x2:xs[sel], y2:pt + cH, stroke:"var(--text-primary)", strokeWidth:"1", strokeDasharray:"2 2"}) : null,
+      selD ? React.createElement("circle", {cx:xs[sel], cy:yS(selD.total), r:"5", fill:"var(--surface)", stroke:"var(--text-primary)", strokeWidth:"2"}) : null,
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"var(--border)", strokeWidth:"0.5"})
     ),
     React.createElement("div", {className:"chart-x-labels"},
@@ -205,11 +254,14 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel),
       wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'var(--warning)'}}), "What-if") : null
-    )
+    ),
+    React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selText, label:"Day on the progress chart"}),
+    React.createElement(ChartTable, {caption:"Progress over time", headers:["Date", "Stitches done", "Percent"], rows:data.map(function(d){ return [formatShortDate(d.date), ProgressUnits.formatUnits(d.total), pctOf(d.total) + '%']; })})
   );
 });
 
 var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysToShow, dayEndHour}){
+  var selSt = React.useState(null); var sel = selSt[0], setSel = selSt[1];
   daysToShow = daysToShow || 14;
   var data = getDailyStitchData(sessions, daysToShow, dayEndHour);
   var maxVal = 1;
@@ -229,11 +281,15 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
       React.createElement("rect", {key:d.date, x:x, y:height - barH, width:barW, height:Math.max(barH, 0),
         fill:d.isToday ? '#5DCAA5' : 'var(--accent)',
         opacity:d.isToday ? 1 : op,
-        rx:"2", stroke:d.isToday ? 'var(--accent)' : 'none', strokeWidth:d.isToday ? 1 : 0},
-        React.createElement("title", null, formatShortDate(d.date) + ': ' + d.stitches + ' stitches')
+        rx:"2", stroke:sel === j ? 'var(--text-primary)' : (d.isToday ? 'var(--accent)' : 'none'), strokeWidth:sel === j ? 3 : (d.isToday ? 1 : 0)},
+        React.createElement("title", null, formatShortDate(d.date) + ': ' + ProgressUnits.formatUnits(d.stitches) + ' stitches')
       )
     );
   }
+  var barXs = []; for (var bx = 0; bx < data.length; bx++) barXs.push(bx * (barW + barGap) + barW / 2);
+  var selB = (sel != null && sel < data.length) ? data[sel] : null;
+  var selBText = selB ? (selB.isToday ? 'Today' : formatShortDate(selB.date)) + ': ' + ProgressUnits.formatUnits(selB.stitches) + ' stitches' + (dailyGoal ? ' (goal ' + dailyGoal + ')' : '') : '';
+  var totalShown = 0; for (var ts = 0; ts < data.length; ts++) totalShown += data[ts].stitches;
   var mid = data[Math.floor(data.length / 2)];
   var svgChildren = [];
   if (dailyGoal) {
@@ -243,24 +299,27 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
   svgChildren = svgChildren.concat(barElements);
   return React.createElement("div", {className:"chart-container"},
     React.createElement("div", {style:{position:'relative'}},
-      React.createElement("svg", {role:"img","aria-label":"Daily stitches bar chart",viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block'}}, svgChildren)
+      React.createElement("svg", {role:"img","aria-label":"Stitches per day for the last " + data.length + " days: " + ProgressUnits.formatUnits(totalShown) + " in all. Tap a bar or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, barXs); if (i != null) setSel(i); }}, svgChildren)
     ),
     React.createElement("div", {className:"chart-x-labels"},
       React.createElement("span", null, formatShortDate(data[0].date)),
       React.createElement("span", null, formatShortDate(mid.date)),
       React.createElement("span", null, "Today")
-    )
+    ),
+    React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selBText, label:"Day on the stitches per day chart"}),
+    React.createElement(ChartTable, {caption:"Stitches per day", headers:["Date", "Stitches"], rows:data.map(function(d){ return [(d.isToday ? 'Today' : formatShortDate(d.date)), ProgressUnits.formatUnits(d.stitches)]; })})
   );
 });
 
 // ═══ Phase E: Speed Trend Chart ═══
 
 var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
+  var selSt = React.useState(null); var sel = selSt[0], setSel = selSt[1];
   var raw = getSpeedTrendData(sessions);
   if (raw.length < 3) return React.createElement("p", {className:"stats-empty"}, "Need more sessions (≥10 min each) to show speed trend");
   var data = getRollingAverage(raw);
   var width = 600, height = 130;
-  var pl = 42, pr = 8, pt = 8, pb = 4;
+  var pl = 58, pr = 8, pt = 8, pb = 4;
   var cW = width - pl - pr, cH = height - pt - pb;
   var maxY = 1;
   for (var i = 0; i < data.length; i++) { if (data[i].speed > maxY) maxY = data[i].speed; }
@@ -270,9 +329,12 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   // Raw dots
   var dots = [];
   for (var j = 0; j < data.length; j++) {
-    dots.push(React.createElement("circle", {key:'d'+j, cx:xS(j), cy:yS(data[j].speed), r:"3", fill:"var(--accent)", opacity:"0.3"},
+    dots.push(React.createElement("circle", {key:'d'+j, cx:xS(j), cy:yS(data[j].speed), r:sel === j ? "5" : "3", fill:"var(--accent)", opacity:sel === j ? "1" : "0.3", stroke:sel === j ? 'var(--text-primary)' : 'none', strokeWidth:sel === j ? 2 : 0},
       React.createElement("title", null, formatShortDate(data[j].date) + ': ' + data[j].speed + ' st/hr')));
   }
+  var spXs = []; for (var sx = 0; sx < data.length; sx++) spXs.push(xS(sx));
+  var selS = (sel != null && sel < data.length) ? data[sel] : null;
+  var selSText = selS ? formatShortDate(selS.date) + ': ' + selS.speed + ' stitches an hour (the smoothed line is at ' + Math.round(selS.smoothedSpeed) + ')' : '';
   // Smoothed line (only if 3+ points)
   var linePts = [];
   for (var k = 0; k < data.length; k++) linePts.push(xS(k) + ',' + yS(data[k].smoothedSpeed));
@@ -281,10 +343,10 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   // Y-axis labels
   var yMid = Math.round(maxY / 2);
   return React.createElement("div", {className:"chart-container"},
-    React.createElement("svg", {role:"img","aria-label":"Speed trend chart",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block'}},
-      React.createElement("text", {x:pl - 4, y:pt + 6, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, maxY + '/hr'),
-      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, yMid + '/hr'),
-      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"9", fill:"var(--text-tertiary)"}, "0"),
+    React.createElement("svg", {role:"img","aria-label":"Speed trend over " + data.length + " sessions of at least 10 minutes: latest " + last.speed + " stitches an hour, smoothed " + Math.round(last.smoothedSpeed) + ". Tap the chart or use the slider below to read a session.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, spXs); if (i != null) setSel(i); }},
+      React.createElement("text", {x:pl - 4, y:pt + 10, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, maxY + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, yMid + '/hr'),
+      React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, "0"),
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"var(--border)", strokeWidth:"0.5", strokeDasharray:"4 4"}),
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"var(--border)", strokeWidth:"0.5"}),
       dots,
@@ -299,7 +361,9 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {style:{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'var(--accent)', opacity:0.3, verticalAlign:'middle', marginRight:'var(--s-1)'}}), "Per session"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'var(--accent)'}}), "7-session avg")
-    )
+    ),
+    React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selSText, label:"Session on the speed chart"}),
+    React.createElement(ChartTable, {caption:"Speed per session", headers:["Date", "Stitches an hour", "Smoothed"], rows:data.map(function(d){ return [formatShortDate(d.date), String(d.speed), String(Math.round(d.smoothedSpeed))]; })})
   );
 });
 
@@ -326,7 +390,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
     var nameLabel = p.name || p.id;
     var dateInfo = tl
       ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' – ' + formatShortDate(tl.lastDate) : '') + ' · ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
-      : 'No session data';
+      : '';
     rows.push(React.createElement("div", {key:p.id, className:"colour-tl-row" + (isComplete ? ' complete' : '')},
       React.createElement("div", {className:"colour-tl-swatch", style:swatchStyle}),
       React.createElement("div", {className:"colour-tl-info"},
@@ -343,8 +407,9 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
   }
   return React.createElement("div", {className:"colour-timeline"},
     React.createElement("h3", {className:"stats-section-title"}, "Colour Timeline"),
-    !hasAnyData && React.createElement("p", {className:"stats-empty", style:{marginTop:'var(--s-2)'}}, "Colour tracking data will appear as you stitch"),
-    React.createElement("div", {className:"colour-tl-list"}, rows)
+    !hasAnyData
+      ? React.createElement("p", {className:"stats-empty", style:{marginTop:'var(--s-2)'}}, "Which colours you worked on is recorded as you stitch. Nothing is recorded for this project yet.")
+      : React.createElement("div", {className:"colour-tl-list"}, rows)
   );
 });
 
@@ -352,6 +417,7 @@ var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colour
 
 var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
   var _mo = React.useState(0); var monthOffset = _mo[0], setMonthOffset = _mo[1];
+  var _pk = React.useState(null); var picked = _pk[0], setPicked = _pk[1];
   var now = new Date();
   var targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   var year = targetMonth.getFullYear();
@@ -382,8 +448,12 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
     var dateStr = prefix + '-' + String(day).padStart(2, '0');
     var stitches = dailyMap[dateStr] || 0;
     var isToday = dateStr === todayStr;
-    cells.push(React.createElement("div", {key:dateStr, title:dateStr + ': ' + stitches + ' stitches',
-      style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'3px 2px',
+    cells.push(React.createElement("div", {key:dateStr, title:dateStr + ': ' + stitches + ' stitches', role:'button', tabIndex:0,
+      'aria-label':formatShortDate(dateStr) + ': ' + ProgressUnits.formatUnits(stitches) + ' stitches', 'aria-pressed':picked === dateStr,
+      onClick:(function(ds){ return function(){ setPicked(ds); }; })(dateStr),
+      onFocus:(function(ds){ return function(){ setPicked(ds); }; })(dateStr),
+      onKeyDown:(function(ds){ return function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(ds); } }; })(dateStr),
+      style:{cursor:'pointer',outlineOffset:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'3px 2px',
         borderRadius:4,fontSize:'var(--text-xs)',fontWeight:isToday?700:400,color:isToday?'var(--accent)':'var(--text-secondary)',
         background:isToday?'var(--accent-light)':'transparent',border:isToday?'1px solid var(--accent-border)':'1px solid transparent',minWidth:0}},
       React.createElement("span", null, day),
@@ -401,7 +471,9 @@ var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
       monthOffset !== 0 ? React.createElement("button", {type:"button","aria-label":"Jump to current month",onClick:function(){ setMonthOffset(0); },
         style:{fontSize:'var(--text-xs)',padding:'2px 6px',borderRadius:4,border:'1px solid var(--border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--text-tertiary)',marginLeft:'var(--s-1)'}}, "Today") : null
     ),
-    React.createElement("div", {style:{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:2}}, cells)
+    React.createElement("div", {style:{display:'grid',gridTemplateColumns:'repeat(7, 1fr)',gap:2}}, cells),
+    React.createElement("div", {className:"chart-readout", role:"status", "aria-live":"polite", style:{marginTop:'var(--s-2)'}},
+      picked && picked.slice(0, 7) === prefix ? formatShortDate(picked) + ': ' + ProgressUnits.formatUnits(dailyMap[picked] || 0) + ' stitches' : 'Tap a day to read how many stitches it had.')
   );
 });
 
@@ -437,9 +509,9 @@ function StatsChartSection({statsSessions, statsSettings, totalStitches, chartVi
     chartView === 'cumulative' && overviewStats && remaining > 0
       ? React.createElement("div", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', padding:'6px 0 0', flexWrap:'wrap'}},
           React.createElement("span", {style:{fontSize:'var(--text-sm)', color:'var(--text-tertiary)'}}, "What-if pace:"),
-          React.createElement("input", {type:"range", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
+          React.createElement("input", {type:"range", "aria-label":"What-if pace, stitches per stitching day", "aria-valuetext":paceVal + " per stitching day", min:1, max:Math.max(defaultPace * 5, 500), value:paceVal, step:1,
             onChange:function(e){ setWhatIfPace(parseInt(e.target.value)); }, style:{width:110, cursor:'pointer'}}),
-          React.createElement("span", {style:{fontSize:'var(--text-sm)', fontWeight:600, color:'var(--warning)', minWidth:120}},
+          React.createElement("span", {style:{fontSize:'var(--text-sm)', fontWeight:600, color:'var(--text-primary)', minWidth:120}},
             paceVal + " per stitching day: " + estFormatDays(Math.ceil(Math.ceil(remaining / paceVal) / cadence)) + (cadence < 1 ? " at " + (Math.round(cadence * 70) / 10) + " stitching days a week" : "")),
           whatIfPace != null ? React.createElement("button", {onClick:function(){ setWhatIfPace(null); },
             style:{fontSize:'var(--text-xs)', padding:'1px 6px', borderRadius:4, border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-tertiary)'}}, "Reset") : null
@@ -505,7 +577,7 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
     React.createElement("div", {className:"goal-input-row"},
       React.createElement("input", {type:"number", min:"0", max:"9999", step:"25", value:value,
         onChange:function(e){ setValue(e.target.value); },
-        placeholder:"e.g. 300", className:"goal-input"}),
+        placeholder:"e.g. 300", className:"goal-input", "aria-label":"Daily stitch goal"}),
       React.createElement("button", {className:"goal-set-btn", onClick:function(){
         var v = parseInt(value, 10);
         onSet(v > 0 ? v : null);
@@ -515,7 +587,7 @@ function DailyGoalSetting({currentGoal, avgPerDay, remaining, onSet}){
       presets.map(function(p){ return React.createElement("button", {type:"button",key:p.label, className:"goal-preset-btn" + (currentGoal === p.value ? ' active' : ''), onClick:function(){ setValue(String(p.value)); onSet(p.value); }}, p.label + ' (' + p.value + ')'); })
     ),
     currentGoal && remaining > 0 && React.createElement("p", {className:"goal-suggestion"},
-      "At " + currentGoal + " per stitching day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + " stitching days")
+      "At " + currentGoal + " per stitching day, you\u2019d finish in ~" + Math.ceil(remaining / currentGoal) + (Math.ceil(remaining / currentGoal) === 1 ? " stitching day" : " stitching days"))
   );
 }
 
@@ -530,7 +602,7 @@ function TargetDateSetting({currentTarget, remaining, avgPerDay, frequency, onSe
   return React.createElement("div", {className:"target-setting"},
     React.createElement("label", {className:"goal-label"}, "Target completion date"),
     React.createElement("div", {className:"goal-input-row"},
-      React.createElement("input", {type:"date", value:date, min:todayStr,
+      React.createElement("input", {type:"date", value:date, min:todayStr, "aria-label":"Target completion date",
         onChange:function(e){ setDate(e.target.value); },
         className:"goal-input"}),
       React.createElement("button", {type:"button",className:"goal-set-btn", onClick:function(){ onSet(date || null); }},
@@ -602,7 +674,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
     React.createElement("label", {className:"goal-label"}, "Weekly stitch goal"),
     React.createElement("div", {className:"goal-input-row"},
       React.createElement("input", {type:"number", min:"0", max:"20000", step:"50",
-        className:"goal-input", placeholder:"e.g. 500",
+        className:"goal-input", placeholder:"e.g. 500", "aria-label":"Weekly stitch goal",
         defaultValue: weeklyGoal != null ? String(weeklyGoal) : '',
         key: String(weeklyGoal),
         onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{weeklyGoal:v>0?v:null})); }}),
@@ -613,7 +685,7 @@ function GoalTracker({statsSettings, statsSessions, totalCompleted, totalStitche
     React.createElement("label", {className:"goal-label"}, "Monthly stitch goal"),
     React.createElement("div", {className:"goal-input-row"},
       React.createElement("input", {type:"number", min:"0", max:"75000", step:"50",
-        className:"goal-input", placeholder:"e.g. 3000",
+        className:"goal-input", placeholder:"e.g. 3000", "aria-label":"Monthly stitch goal",
         defaultValue: monthlyGoal != null ? String(monthlyGoal) : '',
         key: String(monthlyGoal),
         onBlur:function(e){ var v=parseInt(e.target.value); onUpdateSettings(Object.assign({},statsSettings,{monthlyGoal:v>0?v:null})); }}),
@@ -876,9 +948,9 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
     sections&&sections.length===0&&React.createElement("p",{style:{fontSize:'var(--text-md)',color:'var(--text-tertiary)',margin:0}},"No pattern loaded"),
     React.createElement("div",{style:{display:'flex',alignItems:'center',gap:'var(--s-2)',fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginTop:'var(--s-1)'}},
       "Section size:",
-      React.createElement("input",{type:"number",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
+      React.createElement("input",{type:"number","aria-label":"Section width in stitches",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
       " by ",
-      React.createElement("input",{type:"number",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
+      React.createElement("input",{type:"number","aria-label":"Section height in stitches",min:5,max:200,value:secRows,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionRows:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
       "stitches",
       React.createElement("button",{type:"button",disabled:!canEdit,onClick:function(){if(!canEdit)return;onUpdateSettings(Object.assign({},statsSettings,{sectionCols:50,sectionRows:50}));},style:{fontSize:'var(--text-xs)',padding:'2px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',background:'var(--surface-secondary)',cursor:canEdit?'pointer':'default',color:'var(--text-tertiary)',opacity:canEdit?1:0.6}},"Reset")
     )
@@ -977,7 +1049,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   return React.createElement("div",{style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'var(--s-4)'}},
     React.createElement("h4",{style:{fontSize:'var(--text-lg)',fontWeight:600,color:'var(--text-primary)',margin:'0 0 10px'}},"Before / After Comparison"),
     React.createElement("div",{style:{display:'flex',gap:'var(--s-2)',marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement("select",{value:selectedId||'',onChange:function(e){setSelectedId(e.target.value||null);},style:{fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',flex:'1',minWidth:0}},
+      React.createElement("select",{value:selectedId||'',"aria-label":"Snapshot to compare with",onChange:function(e){setSelectedId(e.target.value||null);},style:{fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',flex:'1',minWidth:0}},
         React.createElement("option",{value:''},"Select a snapshot to compare\u2026"),
         (doneSnapshots||[]).slice().reverse().map(function(s){
           return React.createElement("option",{key:s.id,value:s.id},snapLabel(s)+(s.doneCount?' \u2014 '+s.doneCount+' stitches':''));
@@ -1011,7 +1083,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
     ),
     React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
       React.createElement("input",{"aria-label":"Snapshot label",type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}),
-      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
+      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent-hover)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
     ),
     (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
   );
@@ -1290,6 +1362,24 @@ function drawProgressCard(canvas, opts) {
   ctx.fillText('Made with stitchx', W - 18, H - 7);
 }
 
+// A group of the Stats page that starts closed: a native details element, so it works from the keyboard and with a
+// screen reader, and remembers (in this browser only) whether it was left open. Its contents are only built while open.
+function StatsAccordion(props){
+  var h = React.createElement;
+  var key = 'cs_stats_acc_' + props.id;
+  var init = false;
+  try { init = localStorage.getItem(key) === '1'; } catch (e) {}
+  var st = React.useState(init);
+  var open = st[0], setOpen = st[1];
+  return h('details', {className:'stats-accordion', open:open, onToggle:function(e){
+      var o = e.currentTarget.open;
+      if (o !== open) { setOpen(o); try { localStorage.setItem(key, o ? '1' : '0'); } catch (err) {} }
+    }},
+    h('summary', {className:'stats-accordion-summary'}, props.title),
+    open ? h('div', {className:'stats-accordion-body'}, props.children) : null
+  );
+}
+
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onEditSession, onDeleteSession, onMergeSession, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
   if(canEdit==null)canEdit=true;
   var chartSt = React.useState('cumulative');
@@ -1387,7 +1477,11 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts}),
+    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, todayStitches:getStatsTodayStitches(statsSessions || [], dayEndHour), weekStitches:getStatsThisWeekStitches(statsSessions || [], dayEndHour)}),
+    React.createElement("div", {className:"stats-two-col", style:{marginTop:16}},
+      React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
+      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour})
+    ),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
@@ -1402,37 +1496,40 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
     ),
-    React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
-      React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
-      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour})
-    ),
-    React.createElement("div", {style:{marginTop:20}},
-      React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
-    ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})
-    ),
-    React.createElement("div", {className:"stats-two-col", style:{marginTop:20}},
-      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit}),
-      React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
     ),
     React.createElement("div", {style:{marginTop:20}},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette, canEdit:canEdit, onEditSession:onEditSession, onDeleteSession:onDeleteSession, onMergeSession:onMergeSession})
     ),
-    React.createElement("div", {style:{marginTop:20, padding:'var(--s-4)', background:'var(--surface-secondary)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)'}},
-      React.createElement("h4", {style:{fontSize:'var(--text-lg)', fontWeight:600, color:'var(--text-primary)', marginTop:0, marginBottom:'var(--s-2)'}}, "Settings"),
-      React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
-        "Session timing:",
-        React.createElement("select", {value:timingMode, onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)'}},
-          React.createElement("option", {value:''}, "Use global default"),
-          React.createElement("option", {value:'classic'}, "Classic"),
-          React.createElement("option", {value:'batchAware'}, "Batch-friendly"),
-          React.createElement("option", {value:'manual'}, "Manual timer")
+    React.createElement(StatsAccordion, {id:"colour-timeline", title:"Colour timeline"},
+      React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
+    ),
+    React.createElement(StatsAccordion, {id:"sections", title:"Sections"},
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit})
+    ),
+    React.createElement(StatsAccordion, {id:"comparison", title:"Comparison"},
+      React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
+    ),
+    React.createElement(StatsAccordion, {id:"settings", title:"Settings"},
+      React.createElement("div", null,
+        React.createElement("label", {style:{display:'flex', alignItems:'center', gap:'var(--s-2)', flexWrap:'wrap', fontSize:'var(--text-md)', color:'var(--text-secondary)'}},
+          "Session timing:",
+          React.createElement("select", {value:timingMode, "aria-label":"Session timing for this project", onChange:function(e){ onUpdateSettings(Object.assign({}, statsSettings, {timingMode:e.target.value || null})); }, style:{fontSize:'var(--text-sm)', padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', minHeight:36}},
+            React.createElement("option", {value:''}, "Use global default"),
+            React.createElement("option", {value:'classic'}, "Classic"),
+            React.createElement("option", {value:'batchAware'}, "Batch-friendly"),
+            React.createElement("option", {value:'manual'}, "Manual timer")
+          )
+        ),
+        React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-secondary)', margin:'4px 0 0'}}, timingMode ? "This project overrides the global tracker timing mode." : "This project follows the global tracker timing mode from Preferences."),
+        // (The "Pace calculation" choice, active days or calendar days, was removed: every pace and estimate now uses
+        // stitching days, from one calculation, so it changed nothing.)
+        React.createElement("p", {style:{margin:'var(--s-3) 0 0'}},
+          React.createElement("button", {type:"button", className:"stats-export-btn", onClick:function(){ try { window.dispatchEvent(new Event('cs:openPreferences')); } catch (e) {} }}, "Open Preferences"),
+          React.createElement("span", {style:{fontSize:'var(--text-xs)', color:'var(--text-secondary)', marginLeft:'var(--s-2)'}}, "Day ends at, timing and the other tracker settings are there too.")
         )
-      ),
-      React.createElement("p", {style:{fontSize:'var(--text-xs)', color:'var(--text-tertiary)', margin:'4px 0 0'}}, timingMode ? "This project overrides the global tracker timing mode." : "This project follows the global tracker timing mode from Preferences."),
-      // (The "Pace calculation" choice, active days or calendar days, was removed: every pace and estimate now uses
-      // stitching days, from one calculation, so it changed nothing.)
+      )
     )
   );
 }

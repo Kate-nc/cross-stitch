@@ -7338,7 +7338,7 @@ return(
         ...(sparkDays.length>=2?[
           React.createElement(window.AppInfoDivider),
           React.createElement(window.AppInfoSection, { title: 'Daily progress' },
-            React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:40,paddingTop:4},'aria-label':'Daily stitches bar chart'},
+            React.createElement('div',{style:{display:'flex',alignItems:'flex-end',gap:2,height:40,paddingTop:4},role:'img','aria-label':'Stitches per stitching day, last '+sparkDays.length+' stitching days; latest '+sparkDays[sparkDays.length-1].count.toLocaleString('en-GB')+'. Open Stats for the full chart.'},
               sparkDays.map(({date,count})=>React.createElement('div',{
                 key:date,
                 title:date+': '+count.toLocaleString('en-GB')+' stitches',
@@ -7346,7 +7346,9 @@ return(
               }))
             )
           )
-        ]:[])
+        ]:[]),
+        React.createElement(window.AppInfoDivider),
+        React.createElement('button',{type:'button',className:'stats-export-btn',style:{width:'100%',justifyContent:'center',minHeight:44},onClick:()=>{setProgressInfoOpen(false);setStatsView(true);}},'Open Stats')
       ]
     });
   })()}
@@ -7399,7 +7401,7 @@ return(
   </div>
 )}
 </>}
-<div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px"}}>
+<div className="cs-page-content" style={{maxWidth:(!statsView&&pat&&pal)?'none':1100,margin:(!statsView&&pat&&pal)?0:"0 auto",padding:(!statsView&&pat&&pal)?0:"20px 16px",width:(!statsView&&pat&&pal)?undefined:"100%"}}>
   {/* The same floating card the home screen's import shows (styles.css
       .import-busy): above the chart and sidebar, where a line in the page
       would sit under the sidebar. */}

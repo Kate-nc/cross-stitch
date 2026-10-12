@@ -48,6 +48,8 @@ const DONE = Array.from({ length: sW * sH }, (_, i) => (i < 6 ? 1 : 0));
 
 async function renderOtherProject(stored) {
   const { w, fills } = makeWindow();
+  // The groups that start closed on the Stats page (Phase 3) are only built when open; this test is about their canvases.
+  ['colour-timeline', 'sections', 'comparison', 'settings'].forEach((k) => w.localStorage.setItem('cs_stats_acc_' + k, '1'));
   w.ProjectStorage = {
     listProjects: () => Promise.resolve([{ id: 'current', name: 'Current' }, { id: stored.id, name: stored.name }]),
     get: () => Promise.resolve(stored)

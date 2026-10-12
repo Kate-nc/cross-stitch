@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.122';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.123',
+    date: 'October 2026',
+    notes: [
+      'The project Stats page is easier to use on a phone. It no longer scrolls sideways (the milestones now wrap, and a long project name no longer widens the page), and the top card shows how far along you are, today, this week and the estimated finish with what it is based on, all on the first screen. Goals and streaks come next, then the charts and the session journal (the latest five days to start with). Colour timeline, Sections, Comparison and Settings are collapsed groups that remember whether you opened them. Progress info has an Open Stats button.',
+      'Charts can be read without hovering: tap a chart, or move the slider under it (it works from the keyboard and with a screen reader), and the value for that day or session is written under the chart. Each chart also has its data as a table, a description for screen readers, and larger axis labels. The calendar shows a day\'s stitches when you tap it.',
+      'Smaller fixes: "~1 stitching days" now reads "~1 stitching day"; a project with no recorded colours says so once instead of "No session data" on every colour; the goal and date fields have labels for screen readers; small grey text on the Stats pages is darker so it passes contrast checks.',
+    ]
+  },
+  {
     version: '1.0.122',
     date: 'October 2026',
     notes: [

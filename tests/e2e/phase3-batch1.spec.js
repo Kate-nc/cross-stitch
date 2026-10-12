@@ -74,7 +74,7 @@ test('editing a session changes its figures, is marked edited, and is saved', as
   await openStats(page, id);
   await entry(page, '140 stitches').getByRole('button', { name: 'Edit session' }).click();
   await page.getByLabel('Minutes').fill('20');
-  await page.getByLabel('Stitches').fill('120');
+  await page.getByLabel('Stitches', { exact: true }).fill('120');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(entry(page, '120 stitches')).toContainText('edited');
   await expect(entry(page, '120 stitches')).toContainText('Active time 20m');
