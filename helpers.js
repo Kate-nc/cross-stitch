@@ -1146,6 +1146,7 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
       startTime: i === 0 ? whole.startTime : new Date(startMs).toISOString(),
       endTime: last ? whole.endTime : new Date(endMs).toISOString(),
       timingModeUsed: whole.timingModeUsed,
+      timingBasis: whole.timingBasis,
       durationSeconds: shares[i],
       durationMinutes: Math.round(shares[i] / 60),
       stitchesCompleted: d.sc || 0,
@@ -1292,6 +1293,11 @@ function mergeSessionRecords(sessions, id, totalUnits, nowIso) {
   merged.durationMinutes = Math.round(merged.durationSeconds / 60);
   var cu = ProgressUnits.sessionCatchUp(a) + ProgressUnits.sessionCatchUp(b);
   if (cu > 0) merged.catchUp = cu; else delete merged.catchUp;
+  // How the merged time was measured is the least certain of the two: estimated if either part was, else edited if
+  // either was, else timed.
+  var ba = ProgressUnits.sessionBasis(a), bb = ProgressUnits.sessionBasis(b);
+  var basis = (ba === 'auto' || bb === 'auto') ? 'auto' : (ba === 'edited' || bb === 'edited') ? 'edited' : 'timer';
+  if (basis === 'auto') delete merged.timingBasis; else merged.timingBasis = basis;
   var ms = (a.milestones || []).concat(b.milestones || []);
   if (ms.length) merged.milestones = ms; else delete merged.milestones;
   var rest = sessions.filter(function(s) { return s && s.id !== a.id && s.id !== b.id; });

@@ -7259,7 +7259,7 @@ return(
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{bt}</span>:null;})()}
-    {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</button>}
+    {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
 </div>
 <div className="app-info-chip-wrap info-strip-chip-wrap">
@@ -8033,7 +8033,7 @@ return(
               <button
                 onClick={()=>{
                   const cs=currentAutoSessionRef.current;
-                  if(cs&&cs.timer){setStopTimerAsk({seconds:Math.floor(computeActiveMs(cs.eventLog,Date.now(),90000,'manual')/1000),stitches:liveAutoStitches});}
+                  if(cs&&cs.timer){const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}
                   else if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();
                   setMorePanelOpen(false);
                 }}
@@ -8370,11 +8370,11 @@ return(
   })()}
   {stopTimerAsk&&<StopTimerDialog seconds={stopTimerAsk.seconds} stitches={stopTimerAsk.stitches}
     onKeep={()=>setStopTimerAsk(null)} onClose={()=>setStopTimerAsk(null)}
-    onSave={sec=>{setStopTimerAsk(null);if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(sec==null?undefined:{durationSeconds:sec});}}/>}
+    onSave={sec=>{const endMs=stopTimerAsk.endMs;setStopTimerAsk(null);if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(sec==null?undefined:{endMs:endMs,durationSeconds:sec});}}/>}
   {forgotStop&&!stopTimerAsk&&<ForgotStopDialog info={forgotStop}
     onKeep={()=>snoozeForgotStop()}
     onTrim={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(forgotStop.lastMarkT?{endMs:forgotStop.lastMarkT}:undefined);}}
-    onStop={()=>{const cs=currentAutoSessionRef.current;if(!cs)return;setStopTimerAsk({seconds:Math.floor(computeActiveMs(cs.eventLog,Date.now(),90000,'manual')/1000),stitches:liveAutoStitches});}}/>}
+    onStop={()=>{const cs=currentAutoSessionRef.current;if(!cs)return;const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}}/>}
   {markAllAsk&&(()=>{
     const O=window.Overlay;
     const body=<>

@@ -153,7 +153,7 @@
     // "Keep going" on the forgot-to-stop prompt: ask again after another idle period.
     function snoozeForgotStop(){
       const cs=currentAutoSessionRef.current;
-      if(cs){cs.forgotAsked=false;const t=getIdleThresholdMs();cs.snoozeUntil=Date.now()+Math.max(isFinite(t)?t:0,5*60*1000);}
+      if(cs){cs.forgotAsked=false;const t=getIdleThresholdMs();cs.snoozeUntil=Date.now()+Math.max(isFinite(t)?t:30*60*1000,5*60*1000);}
       setForgotStop(null);
     }
     // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see

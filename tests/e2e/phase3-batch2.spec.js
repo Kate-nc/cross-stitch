@@ -206,3 +206,21 @@ test('leaving the page with a timer left idle ends it at the last stitch, not 30
   expect(rec.timingBasis).toBe('timer');
   expect(rec.durationSeconds).toBeLessThan(60);
 });
+
+test('Stop freezes the timer: time spent in the dialog is not added, and an unchanged figure is not "edited"', async ({ page }) => {
+  const id = await seed(page);
+  cursor = 0;
+  await open(page, id);
+  await startTimer(page);
+  await mark(page, 5); await advance(page, 8); await page.waitForTimeout(1200);
+  await expect(page.locator('.info-strip-timer')).toHaveAttribute('aria-live', 'off');   // the ticking clock is not announced
+  await openControls(page);
+  await page.getByRole('button', { name: 'Stop timer' }).click();
+  await expect(page.getByText(/You stitched for 8 min/)).toBeVisible();
+  await advance(page, 5);                                   // the dialog sits open for five more minutes
+  await page.getByRole('button', { name: 'Save session' }).click();
+  await expect.poll(async () => (await sessions(page)).length, { timeout: 15000 }).toBe(1);
+  const s = (await sessions(page))[0];
+  expect(s.timingBasis).toBe('timer');
+  expect(Math.abs(s.durationSeconds - 480)).toBeLessThan(30);
+});

@@ -39,3 +39,10 @@ Project Stats cold open on the 500-session project, interleaved against `main`, 
 - **Found and fixed on the way:** switching project through the project picker while a session was running dropped the session (it was never saved); it is now finished and saved under the project it belonged to (its backup is recovered when that project is opened). Test `switching project while a timer runs…` fails without the fix.
 - **Performance:** the 1 s clock no longer re-renders the Tracker: it lives in a tiny external store read by three small components (`LiveElapsed`). It now shows seconds (m:ss), which costs about two text-node updates a second.
 - **Not changed:** the three timing modes stay as they were (they are "auto variants"); Home and Library rows still compute speed without the label (they have no per-session basis in the summary row).
+
+### Review fixes (Copilot, PR 290)
+- Merging two records now takes the least certain timing basis (estimated if either was, else edited, else timed).
+- A timed or edited run that crossed the day end keeps `timingBasis` on every day record (`splitSessionByDays`).
+- Stop freezes the timer: the time the Stop button was pressed is passed with the minutes, so time spent in the dialog is not added and an unchanged figure is not marked edited.
+- "Keep going" with the idle preference at "never" waits the same 30 minutes the prompt uses, not 5.
+- The ticking clock in the progress strip is hidden from the strip's polite live region (the button keeps its fixed label), so assistive technology does not announce it every second.

@@ -54,3 +54,31 @@ describe('speed', () => {
     expect(computeOverviewStats(list, 130, 1000).stitchesPerHour).toBe(Math.round(total / hours));
   });
 });
+
+describe('provenance survives the journal operations', () => {
+  const TOTAL = 1000;
+  const mk = (id, extra) => sess(Object.assign({ id, date: '2026-10-10', startTime: '2026-10-10T10:00:00.000Z', endTime: '2026-10-10T10:20:00.000Z', totalAtEnd: 30 }, extra));
+  const basisAfterMerge = (x, y) => {
+    const a = mk('a', x), b = mk('b', Object.assign({ startTime: '2026-10-10T11:00:00.000Z', endTime: '2026-10-10T11:20:00.000Z', totalAtEnd: 60 }, y));
+    const r = mergeSessionRecords([a, b], 'a', TOTAL);
+    return PU.sessionBasis(r.sessions.find(s => s.id === 'a'));
+  };
+  test('merging takes the least certain basis', () => {
+    expect(basisAfterMerge({ timingBasis: 'timer' }, {})).toBe('auto');
+    expect(basisAfterMerge({}, { timingBasis: 'timer' })).toBe('auto');
+    expect(basisAfterMerge({ timingBasis: 'timer' }, { timingBasis: 'edited' })).toBe('edited');
+    expect(basisAfterMerge({ timingBasis: 'edited' }, { timingBasis: 'timer' })).toBe('edited');
+    expect(basisAfterMerge({ timingBasis: 'timer' }, { timingBasis: 'timer' })).toBe('timer');
+    expect(basisAfterMerge({}, {})).toBe('auto');
+  });
+  test('a timed session that ran across the day end keeps its basis on every day record', () => {
+    const whole = mk('w', { timingBasis: 'timer', startTime: new Date(2026, 9, 10, 23, 0).toISOString(), endTime: new Date(2026, 9, 11, 1, 0).toISOString(), durationSeconds: 7200, totalAtEnd: 20, stitchesCompleted: 20, netStitches: 20, units: 20, unitsCompleted: 20, unitsUndone: 0 });
+    const t0 = new Date(2026, 9, 10, 23, 0).getTime();
+    const parts = splitSessionByDays(whole, { '2026-10-10': { t0: t0, sc: 12, su: 0, uc: 12, uu: 0, cu: 0 }, '2026-10-11': { t0: t0 + 3600000, sc: 8, su: 0, uc: 8, uu: 0, cu: 0 } }, [3600000, 3600000], 100, 0);
+    expect(parts).toHaveLength(2);
+    parts.forEach(p => expect(PU.sessionBasis(p)).toBe('timer'));
+    // and one that was automatic stays automatic (no field)
+    const auto = splitSessionByDays(mk('x', { startTime: whole.startTime, endTime: whole.endTime, durationSeconds: 7200, units: 20, unitsCompleted: 20, unitsUndone: 0 }), { '2026-10-10': { t0: t0, sc: 12, su: 0, uc: 12, uu: 0, cu: 0 }, '2026-10-11': { t0: t0 + 3600000, sc: 8, su: 0, uc: 8, uu: 0, cu: 0 } }, [3600000, 3600000], 100, 0);
+    auto.forEach(p => expect(PU.sessionBasis(p)).toBe('auto'));
+  });
+});
