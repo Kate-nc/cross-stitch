@@ -3256,7 +3256,8 @@ async function mergeRemoteProject(info){
   const nd=Uint8Array.from(TM.mergeDone(base.done,local.done,remote.done));
   const mergedHalf=TM.mergeHalfDone(base.halfDone,local.halfDone,remote.halfDone);
   const mergedKnots=TM.mergeSet(base.knotsDone,local.knotsDone,remote.knotsDone);
-  const mergedDeleted=(local.deletedSessionIds||[]).concat((remote.deletedSessionIds||[]).filter(function(x){return (local.deletedSessionIds||[]).indexOf(x)<0;}));
+  // A deletion the other tab made is added; one it took back (Undo) is dropped, as for any other set.
+  const mergedDeleted=TM.mergeSet(base.deletedSessionIds,local.deletedSessionIds,remote.deletedSessionIds);
   deletedSessionIdsRef.current=mergedDeleted;
   const mergedSessions=withoutDeletedSessions(TM.mergeSessions(base.statsSessions,local.statsSessions,remote.statsSessions),mergedDeleted);
   const mergedMilestones=TM.mergeMilestones(local.achievedMilestones,remote.achievedMilestones);

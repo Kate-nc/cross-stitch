@@ -137,12 +137,9 @@ test('two tabs deleting different sessions: both stay deleted and neither tab br
   await entries(page).filter({ hasText: '100 stitches' }).getByRole('button', { name: 'Delete session' }).click();
   await expect.poll(async () => (await saved(page)).deleted.length, { timeout: 15000 }).toBe(1);
   await entries(other).filter({ hasText: '30 stitches' }).getByRole('button', { name: 'Delete session' }).click();
-  await expect.poll(async () => (await saved(page)).deleted.length, { timeout: 20000 }).toBeGreaterThan(0);
-  await page.waitForTimeout(3000);
-  const s = await saved(page);
   // whatever order the two saves landed in, a delete that was made must not be undone by the other tab's stale copy
-  expect(s.deleted.sort()).toEqual(['s_a', 's_c']);
-  expect(s.sessions.map(x => x.id)).toEqual(['s_b']);
+  await expect.poll(async () => { const s = await saved(page); return JSON.stringify([s.deleted.slice().sort(), s.sessions.map(x => x.id)]); }, { timeout: 30000 })
+    .toBe(JSON.stringify([['s_a', 's_c'], ['s_b']]));
   expect(errs).toEqual([]);
 });
 
@@ -161,5 +158,27 @@ test('editing one day of a run that crossed midnight changes that day only, and 
   expect(s.find(x => x.id === 'r_b').totalAtEnd).toBe(50 - 5);
   expect(s.find(x => x.id === 's_z').totalAtEnd).toBe(90 - 5);
   await cleanText(page, 'after editing one day of a split run');
+  expect(errs).toEqual([]);
+});
+
+test('two tabs: an Undo in the tab that deleted is picked up by the other tab, and is not deleted again by its next save', async ({ page, context }) => {
+  const errs = watchErrors(page);
+  const id = await seed(page);
+  await openStats(page, id);
+  const other = await context.newPage();
+  await other.addInitScript(() => { try { localStorage.setItem('cs_first_run_done', '1'); } catch (_) {} });
+  await openStats(other, id);
+  await entries(page).filter({ hasText: '100 stitches' }).getByRole('button', { name: 'Delete session' }).click();
+  await expect.poll(async () => (await saved(page)).deleted.length, { timeout: 15000 }).toBe(1);
+  await expect(entries(other)).toHaveCount(2, { timeout: 20000 });          // the other tab absorbed the deletion
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(async () => (await saved(page)).deleted.length, { timeout: 15000 }).toBe(0);
+  await expect(entries(other)).toHaveCount(3, { timeout: 20000 });          // and the Undo
+  // the other tab saves something of its own: the deletion must not come back
+  await entries(other).filter({ hasText: '30 stitches' }).getByRole('button', { name: 'Add note' }).click();
+  await other.getByRole('textbox').last().fill('a note');
+  await other.getByRole('button', { name: /^Save/ }).last().click().catch(() => {});
+  await other.evaluate(() => window.__flushProjectToIDB());
+  await expect.poll(async () => { const s = await saved(page); return JSON.stringify([s.deleted, s.sessions.length]); }, { timeout: 30000 }).toBe(JSON.stringify([[], 3]));
   expect(errs).toEqual([]);
 });

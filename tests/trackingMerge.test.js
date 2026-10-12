@@ -56,6 +56,14 @@ describe('mergeSessions edits', () => {
   });
 });
 
+describe('deletion tombstones merge as a set', () => {
+  test('a deletion made in the other tab is added; an Undo there removes it again', () => {
+    expect(TM.mergeSet([], [], ['s1'])).toEqual(['s1']);              // other tab deleted s1
+    expect(TM.mergeSet(['s1'], ['s1'], [])).toEqual([]);              // it then took the deletion back
+    expect(TM.mergeSet(['s1'], ['s1', 's2'], [])).toEqual(['s2']);    // our own new deletion survives their Undo
+  });
+});
+
 describe('canMerge', () => {
   test('a session deleted in the other tab (a tombstone) is merged, not a reason to ask', () => {
     const r = { ...base(), deletedSessionIds: ['s1'] };

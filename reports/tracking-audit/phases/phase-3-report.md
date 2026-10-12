@@ -43,7 +43,7 @@ Rule: nothing slows the app by more than 5%. Every batch was measured interleave
 | Tap latency, re-run (3 pairs, 90 taps) | 10.5 / 10.4 / 9.5 | 10.0 / 10.4 / 10.6 | about +2% |
 | Tap latency, larger run (5 pairs, 120 taps, alternating order) | 10.7 / 10.6 / 11.9 / 11.4 / 9.9 | 10.3 / 10.6 / 10.2 / 12.0 / 10.8 | -1% (means +1%) |
 
-I am reporting all three tap runs, not only the last. The first one read over the line; the other two did not, and the pooled median over all 11 pairs is +3% (10.7 to 11.0 ms), inside this machine's run-to-run spread (the same code varies by about 1 ms between runs). I could not reproduce a regression, so I did not change code for it; if you see tap slowness on a real device, that is the first place to look (the per-tap work Phase 3 added is only the preference read and the timer store).
+I am reporting all three tap runs, not only the last. The first one read over the line; the other two did not, and the mean of the 11 per-run medians is +3% (10.7 to 11.0 ms; the individual samples were not pooled), inside this machine's run-to-run spread (the same code varies by about 1 ms between runs). I could not reproduce a regression, so I did not change code for it; if you see tap slowness on a real device, that is the first place to look (the per-tap work Phase 3 added is only the preference read and the timer store).
 
 ## Data and migration statement (as shipped)
 
