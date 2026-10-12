@@ -57,6 +57,10 @@ describe('mergeSessions edits', () => {
 });
 
 describe('canMerge', () => {
+  test('a session deleted in the other tab (a tombstone) is merged, not a reason to ask', () => {
+    const r = { ...base(), deletedSessionIds: ['s1'] };
+    expect(TM.canMerge(base(), { pattern: pat(4) }, r)).toBe(true);
+  });
   const base = () => ({ pattern: pat(4), name: 'A', settings: { sW: 2, sH: 2 }, done: [0, 0, 0, 0] });
   test('marks only: yes', () => {
     const r = { ...base(), done: [1, 0, 0, 0], statsSessions: [{ id: 9 }] };
