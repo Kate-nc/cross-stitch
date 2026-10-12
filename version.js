@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.127';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.128',
+    date: 'October 2026',
+    notes: [
+      'A swipe no longer marks stitches. On a touch screen a quick one-finger swipe scrolls the chart and marks nothing; a tap still marks one stitch at once. To paint a run, rest a finger on a stitch for a moment and then drag.',
+      'New Paint mode (More > Controls): a one-finger drag paints at once, for long rows. New Lock touches: the chart ignores fingers so a propped-up tablet cannot mark by accident; hold the Touches locked pill and lift to unlock. Neither changes the mouse, and neither is kept after a reload.',
+      'After one drag or rectangle marks more than five stitches, a message offers Undo N stitches for a few seconds. The buttons on messages are now at least 44 px on a touch screen.'
+    ]
+  },
+  {
     version: '1.0.127',
     date: 'October 2026',
     notes: [

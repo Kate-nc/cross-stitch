@@ -60,6 +60,7 @@ test('a second finger abandons the gesture however late it lands', () => {
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0, x: 0, y: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);
   s = step(s, { type: 'POINTER_MOVE', idx: 6, time: 300, x: 40, y: 0 }, ctx, fx);
   expect(s.mode).toBe('drag');
   s = step(s, { type: 'POINTER_DOWN', idx: 9, time: 600,
@@ -164,6 +165,7 @@ test('drag across 5 cells emits one COMMIT_DRAG with set of 5; intent from first
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);   // the finger rested first: from here a move paints
   s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 50 }, ctx, fx);
   s = step(s, { type: 'POINTER_MOVE', idx: 13, time: 100 }, ctx, fx);
   s = step(s, { type: 'POINTER_MOVE', idx: 14, time: 150 }, ctx, fx);
@@ -186,6 +188,7 @@ test('drag intent is "unmark" when first cell is already done', () => {
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);   // the finger rested first: from here a move paints
   s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 50 }, ctx, fx);
   s = step(s, { type: 'POINTER_UP', idx: 12, time: 100 }, ctx, fx);
   const commits = fx.filter(e => e.type === 'COMMIT_DRAG');
@@ -202,6 +205,7 @@ test('drag over __skip__ cell excludes it from the commit set', () => {
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);   // the finger rested first: from here a move paints
   s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 50 }, ctx, fx);
   s = step(s, { type: 'POINTER_MOVE', idx: 13, time: 100 }, ctx, fx); // skip
   s = step(s, { type: 'POINTER_MOVE', idx: 14, time: 150 }, ctx, fx);
@@ -269,6 +273,7 @@ test('POINTER_CANCEL discards drag with no commit', () => {
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+  s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);   // the finger rested first: from here a move paints
   s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 50 }, ctx, fx);
   s = step(s, { type: 'POINTER_MOVE', idx: 13, time: 100 }, ctx, fx);
   s = step(s, { type: 'POINTER_CANCEL' }, ctx, fx);
@@ -678,4 +683,110 @@ test('after the long-press finger lifts, a new finger completes the rectangle', 
   const commits = fx.filter(e => e.type === 'COMMIT_RANGE');
   expect(commits).toHaveLength(1);
   expect(commits[0].set.size).toBe(9);
+});
+
+
+// ─── Touch intent (tracking audit TRACK-08) ─────────────────────────────
+describe('touch intent: a swipe scrolls, a rested finger paints', () => {
+  const w = 10, h = 10;
+  const down = (s, ctx, fx, extra) => step(s, Object.assign({ type: 'POINTER_DOWN', idx: 11, time: 0, x: 0, y: 0, pointerId: 1, shiftKey: false, pointerType: 'touch' }, extra), ctx, fx);
+  const committed = fx => fx.filter(e => e.type === 'COMMIT_DRAG' || e.type === 'COMMIT_RANGE' || e.type === 'TOGGLE_CELL');
+
+  test('a one-finger swipe that starts moving at once marks nothing', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    expect(s.armed).toBe(false);
+    expect(fx.map(e => e.type)).toContain('START_HOLD');
+    for (let i = 1; i <= 8; i++) s = step(s, { type: 'POINTER_MOVE', idx: 11 + i, time: i * 10, x: i * 20, y: 0 }, ctx, fx);
+    expect(s.mode).toBe('scroll');
+    s = step(s, { type: 'POINTER_UP', idx: 19, time: 200 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(committed(fx)).toHaveLength(0);
+  });
+
+  test('a cancel from the browser taking the scroll leaves nothing behind', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    s = step(s, { type: 'POINTER_MOVE', idx: 14, time: 30, x: 60, y: 0 }, ctx, fx);
+    s = step(s, { type: 'POINTER_CANCEL' }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(committed(fx)).toHaveLength(0);
+  });
+
+  test('a finger that rested (HOLD_ARMED) and then moves paints what it crosses', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);
+    expect(s.armed).toBe(true);
+    for (let i = 1; i <= 4; i++) s = step(s, { type: 'POINTER_MOVE', idx: 11 + i, time: 130 + i * 10, x: i * 20, y: 0 }, ctx, fx);
+    expect(s.mode).toBe('drag');
+    s = step(s, { type: 'POINTER_UP', idx: 15, time: 400 }, ctx, fx);
+    const c = fx.find(e => e.type === 'COMMIT_DRAG');
+    expect([...c.set].sort((a, b) => a - b)).toEqual([11, 12, 13, 14, 15]);
+  });
+
+  test('a tap is still instant: no wait, no hold needed', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    s = step(s, { type: 'POINTER_UP', idx: 11, time: 60 }, ctx, fx);
+    expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+  });
+
+  test('HOLD_ARMED after the finger has already left, or after a scroll, changes nothing', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    s = step(s, { type: 'POINTER_MOVE', idx: 14, time: 30, x: 60, y: 0 }, ctx, fx);
+    s = step(s, { type: 'HOLD_ARMED' }, ctx, fx);
+    expect(s.mode).toBe('scroll');
+    expect(s.armed).toBe(false);
+  });
+
+  test('Paint mode paints at once, with no rest needed', () => {
+    const ctx = Object.assign(makeCtx(w, h, makePattern(w, h)), { paint: true });
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    expect(s.armed).toBe(true);
+    expect(fx.map(e => e.type)).not.toContain('START_HOLD');
+    s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 20, x: 25, y: 0 }, ctx, fx);
+    s = step(s, { type: 'POINTER_MOVE', idx: 13, time: 40, x: 50, y: 0 }, ctx, fx);
+    s = step(s, { type: 'POINTER_UP', idx: 13, time: 60 }, ctx, fx);
+    expect([...fx.find(e => e.type === 'COMMIT_DRAG').set].sort((a, b) => a - b)).toEqual([11, 12, 13]);
+  });
+
+  test('Lock touches: a finger does nothing, a mouse still works', () => {
+    const ctx = Object.assign(makeCtx(w, h, makePattern(w, h)), { locked: true });
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    expect(s.mode).toBe('idle');
+    s = step(s, { type: 'POINTER_UP', idx: 11, time: 40 }, ctx, fx);
+    expect(committed(fx)).toHaveLength(0);
+    s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 100, x: 0, y: 0, pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+    s = step(s, { type: 'POINTER_UP', idx: 11, time: 140 }, ctx, fx);
+    expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+  });
+
+  test('a mouse drag is unchanged: no rest needed', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'POINTER_DOWN', idx: 11, time: 0, x: 0, y: 0, pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+    expect(s.armed).toBe(true);
+    s = step(s, { type: 'POINTER_MOVE', idx: 12, time: 20, x: 25, y: 0 }, ctx, fx);
+    s = step(s, { type: 'POINTER_UP', idx: 12, time: 60 }, ctx, fx);
+    expect(fx.filter(e => e.type === 'COMMIT_DRAG')).toHaveLength(1);
+  });
+
+  test('a new touch after a stuck scroll gesture is not blocked', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx);
+    s = step(s, { type: 'POINTER_MOVE', idx: 14, time: 30, x: 60, y: 0 }, ctx, fx);
+    expect(s.mode).toBe('scroll');
+    s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 900, x: 0, y: 0, pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
+    expect(s.mode).toBe('pending');
+  });
 });

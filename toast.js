@@ -163,6 +163,7 @@
     if (undoAction) {
       var undoBtn = document.createElement("button");
       undoBtn.type = "button";
+      undoBtn.className = "toast-action";
       undoBtn.textContent = undoLabel;
       undoBtn.setAttribute("aria-label", undoLabel);
       undoBtn.style.cssText = [
@@ -189,6 +190,7 @@
     function actionButton(label, onClick, keepOpen) {
       var btn = document.createElement("button");
       btn.type = "button";
+      btn.className = "toast-action";
       btn.textContent = label;
       btn.setAttribute("aria-label", label);
       btn.style.cssText = [

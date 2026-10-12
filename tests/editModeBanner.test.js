@@ -30,7 +30,7 @@ describe('Tracker edit-mode strip (A2)', () => {
   });
 
   test('primary "Mark" button relabels to "Modify" in edit mode', () => {
-    expect(trackerSrc).toMatch(/isEditMode\?"Modify":"Mark"/);
+    expect(trackerSrc).toMatch(/isEditMode\?"Modify":\(paintMode&&_isCoarsePointer\?"Paint":"Mark"\)/);   // Paint mode (touch) relabels the Mark button too
     // Button picks up the destructive red variant rather than the default
     // green when in edit mode.
     expect(trackerSrc).toMatch(/isEditMode\?" tb-btn--red":" tb-btn--green"/);

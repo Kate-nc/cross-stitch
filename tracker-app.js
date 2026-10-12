@@ -694,6 +694,34 @@ function useFillChartHeight(chartRef,ready){
   },[ready]);
 }
 
+// Lock touches (TRACK-08): while the chart ignores fingers this pill says so. Holding it until it fills, then lifting
+// the finger, unlocks (a stray finger would only tap it, not hold it; unlocking on the lift keeps the pill under the
+// finger until the touch is over). A keyboard or switch user can unlock with Enter or Space at once.
+function TouchLockPill({onUnlock}){
+  const[holding,setHolding]=useState(false);
+  const[ready,setReady]=useState(false);
+  const[released,setReleased]=useState(false);
+  const timerRef=useRef(null);
+  const readyRef=useRef(false);
+  const goTimerRef=useRef(null);
+  const holdMs=(window.TouchConstants&&window.TouchConstants.UNLOCK_HOLD_MS)||700;
+  const stop=()=>{if(timerRef.current){clearTimeout(timerRef.current);timerRef.current=null;}readyRef.current=false;setHolding(false);setReady(false);};
+  useEffect(()=>()=>{if(timerRef.current)clearTimeout(timerRef.current);if(goTimerRef.current)clearTimeout(goTimerRef.current);},[]);
+  return <button type="button" className={"touch-lock-pill"+(holding?" touch-lock-pill--holding":"")+(ready?" touch-lock-pill--ready":"")}
+    style={{"--unlock-ms":holdMs+"ms"}}
+    onPointerDown={e=>{e.preventDefault();setHolding(true);if(timerRef.current)clearTimeout(timerRef.current);timerRef.current=setTimeout(()=>{timerRef.current=null;readyRef.current=true;setReady(true);},holdMs);}}
+    // Unlock a moment after the finger lifts, not at once: the browser's follow-up click would otherwise land on whatever
+    // is under the finger once the pill has gone.
+    onPointerUp={()=>{const go=readyRef.current;stop();if(go){setReleased(true);goTimerRef.current=setTimeout(()=>{goTimerRef.current=null;onUnlock();},400);}}}
+    onPointerCancel={stop} onPointerLeave={stop}
+    onContextMenu={e=>e.preventDefault()}
+    onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onUnlock();}}}
+    aria-label="Touches are locked. Hold, then lift your finger, to unlock; or press Enter.">
+    <span className="touch-lock-pill__icon" aria-hidden="true">{Icons.lock?Icons.lock():null}</span>
+    <span>{released?"Unlocked":(ready?"Lift to unlock":"Touches locked. Hold to unlock")}</span>
+    <span className="touch-lock-pill__fill" aria-hidden="true"/>
+  </button>;
+}
 function StopTimerDialog({seconds,stitches,onSave,onKeep,onClose}){
   const startMin=Math.max(1,Math.round(seconds/60));
   const[minutes,setMinutes]=useState(String(startMin));
@@ -1918,6 +1946,11 @@ useEffect(()=>{
 // mini-bar (.cs-focus-bar). Toggled with the F key (when no input is
 // focused) or via the toolbar button. body.cs-focus is what styles.css
 // hooks into to hide chrome surfaces.
+// Touch intent (TRACK-08). Paint mode: a one-finger drag paints at once instead of scrolling. Lock touches: a finger on
+// the chart does nothing (a propped-up device). Neither is remembered across a reload, so nobody is locked out by a stale
+// setting; both leave the mouse alone.
+const[paintMode,setPaintMode]=useState(false);
+const[touchLocked,setTouchLocked]=useState(false);
 // On a phone it starts on (the top bar and strip tucked away, the chart given the screen); Preferences can turn that off.
 const[focusMode,setFocusMode]=useState(()=>{try{return isPhoneScreen()&&!(window.UserPrefs&&window.UserPrefs.get('trackerFocusOnPhone')===false);}catch(_){return false;}});
 const focusBarRef=useRef(null);
@@ -6338,17 +6371,26 @@ function handleStitchWheel(e){
 
 // R6 — who owns a one-finger drag on the chart.
 //
-// In track mode that gesture *is* drag-marking, so the compositor must not
-// take it and the canvas keeps `touch-action: none`. Everywhere else (nav
-// mode, edit mode) a one-finger drag is only ever a pan, and the compositor
-// does that far better than a JS handler writing scrollLeft on every frame.
+// A one-finger drag is a pan almost everywhere, and the compositor does that far better than a JS handler writing
+// scrollLeft on every frame. In Mark mode it is a pan too, until the finger has rested on a stitch for a moment (the
+// hook's "armed" state) or Paint mode is on: only then is it drag-marking and the page must not scroll. So the canvas
+// keeps `touch-action: pan-x pan-y` and touchmove calls preventDefault only once the chart owns the gesture. In
+// Paint mode and with the touches locked the canvas is `touch-action: none` and the chart owns every touch.
 //
 // Two-finger gestures are always ours — they pinch-zoom the chart, not the
 // page — so handleTouchStart still calls preventDefault for them, which stops
 // the browser panning a two-finger drag when touch-action would otherwise
 // allow it.
 function chartOwnsGesture(e){
-  return e.touches.length>1||_dragMarkActive;
+  if(e.touches.length>1)return true;
+  // Locked: a stray finger neither marks nor scrolls.
+  if(touchLocked)return true;
+  if(!_dragMarkActive)return false;
+  if(paintMode)return true;
+  // One finger in Mark mode scrolls natively (a quick swipe marks nothing) until it has rested on a stitch long
+  // enough to paint; from then on the page must not scroll under it. See useDragMark.js, "Touch intent".
+  const g=dragMarkGetStateRef.current&&dragMarkGetStateRef.current();
+  return !!(g&&(g.mode==='drag'||g.armed||(g.mode==='range'&&g.held)));
 }
 
 // Two-finger pan momentum: after a pan (not a pinch) the chart coasts and
@@ -7018,6 +7060,9 @@ const[_rectSelectUsed,_setRectSelectUsed]=useState(false);
 // Marking more than this many cells in one rectangle asks (once, then remembers) whether it is today's stitching or
 // catch-up; smaller fills are ordinary stitching, as drag-marking always is.
 const BULK_ASK_MIN=50;
+const bulkUndoToastRef=useRef(null);
+const bulkUndoRef=useRef(null);
+bulkUndoRef.current=undoTrack;   // always the current one: the toast's button outlives the render that made it
 const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
   // React commits a prior setDone don't rewind earlier in-session marks.
@@ -7068,6 +7113,19 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
     prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
   }
   if(source==='range')_setRectSelectUsed(true);
+  // A stroke or rectangle that marked (or unmarked) a good many stitches at once offers a way back, because a stray
+  // swipe is easy to make and hard to untangle later. Undo is the ordinary one (this was one history step).
+  const _bulkMin=(window.TouchConstants&&window.TouchConstants.BULK_UNDO_MIN)||5;
+  if(changes.length>_bulkMin&&window.Toast&&window.Toast.show){
+    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
+    const n=changes.length;
+    bulkUndoToastRef.current=window.Toast.show({
+      message:n.toLocaleString('en-GB')+' stitches '+(want===1?'marked':'unmarked'),
+      type:'info',duration:8000,
+      undoLabel:'Undo '+n.toLocaleString('en-GB')+' stitches',
+      undoAction:function(){if(bulkUndoRef.current)bulkUndoRef.current();}
+    });
+  }
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -7133,6 +7191,8 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
     onCommitDrag:_dragMarkOnCommitDrag,
     onCommitRange:_dragMarkOnCommitRange,
     isEditMode:!_dragMarkActive,
+    paintMode:paintMode,
+    touchLocked:touchLocked,
   })
   :{handlers:{},dragState:{mode:'idle',path:new Set(),anchor:null,intent:null}};
 const _dragMarkHandlers=_dragMark.handlers;
@@ -7792,7 +7852,7 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap or drag to mark · Long-press for a rectangle · Two fingers to pan and zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
@@ -7874,7 +7934,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:_dragMarkActive?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -7979,9 +8039,9 @@ return(
           </>;
         })()}
       </button>
-      <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":"Mark stitches (T)"} aria-pressed={stitchMode==="track"}>
+      <button className={"ppal-mode-btn"+(stitchMode==="track"?" ppal-mode-btn--on":"")+(isEditMode?" tb-btn--red":" tb-btn--green")} onClick={()=>setStitchMode("track")} title={isEditMode?"Modify pattern (M)":(paintMode&&_isCoarsePointer?"Mark stitches (T): Paint mode is on":"Mark stitches (T)")} aria-pressed={stitchMode==="track"}>
         <span className="ppal-mode-btn-icon">{Icons.check()}</span>
-        <span className="ppal-mode-btn-label">{isEditMode?"Modify":"Mark"}</span>
+        <span className="ppal-mode-btn-label">{isEditMode?"Modify":(paintMode&&_isCoarsePointer?"Paint":"Mark")}</span>
       </button>
       <button className={"ppal-mode-btn"+(stitchMode==="navigate"?" ppal-mode-btn--on":"")} onClick={()=>setStitchMode("navigate")} title="Navigate (N)" aria-pressed={stitchMode==="navigate"}>
         <span className="ppal-mode-btn-icon">{Icons.hand()}</span>
@@ -8020,6 +8080,14 @@ return(
         </button>
         <button className="ppal-more-close" onClick={()=>setMorePanelOpen(false)} aria-label="Close controls">{Icons.x()}</button>
       </div>
+      {_isCoarsePointer&&<div className="ppal-touch-row" role="group" aria-label="Touch">
+        <button className={"ppal-utility-chip"+(paintMode?" ppal-utility-chip--on":"")} onClick={()=>setPaintMode(v=>!v)} aria-pressed={paintMode} title="Paint mode: one finger paints a run of stitches at once instead of scrolling the chart">
+          {Icons.brush?Icons.brush():null}{" Paint"}
+        </button>
+        <button className={"ppal-utility-chip"+(touchLocked?" ppal-utility-chip--on":"")} onClick={()=>{setTouchLocked(v=>!v);setMorePanelOpen(false);}} aria-pressed={touchLocked} title="Lock touches: a finger on the chart does nothing, so a propped-up device cannot mark by accident. Hold the Locked pill to unlock">
+          {Icons.lock?Icons.lock():null}{" Lock touches"}
+        </button>
+      </div>}
       <div className="ppal-more-tabs">
         {[["highlight","Highlight"],["view","View"],["session","Session"],["layers","Layers"],["tools","Tools"]].map(([k,l])=>
           <button key={k} aria-pressed={leftSidebarTab===k} className={"ppal-more-tab"+(leftSidebarTab===k?" ppal-more-tab--on":"")} onClick={()=>setLeftSidebarTab(k)}>{l}</button>
@@ -8919,6 +8987,7 @@ return(
     {Icons.x&&Icons.x()}<span style={{marginLeft:6}}>Exit focus</span><kbd style={{marginLeft:8,padding:"1px 6px",fontSize:11,fontWeight:600,background:"var(--surface-alt,var(--surface))",border:"1px solid var(--line)",borderRadius:4,fontFamily:"inherit",color:"var(--text-secondary)"}}>Esc</kbd>
   </button>
 </div>}
+{touchLocked&&<TouchLockPill onUnlock={()=>setTouchLocked(false)}/>}
 {/* color-3 (C2): swatch detail popover (portalled to body) */}
 {paletteDetail&&window.SwatchDetailPopover&&React.createElement(window.SwatchDetailPopover,{thread:paletteDetail,anchorRect:paletteDetail.anchorRect,onClose:()=>setPaletteDetail(null)})}
 </div>

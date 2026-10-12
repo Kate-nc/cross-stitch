@@ -29,6 +29,15 @@
      //     path: Set<number>, anchor: number|null,
      //     intent: 'mark'|'unmark'|null }
 
+   Touch intent (tracking audit TRACK-08)
+   ──────────────────────────────────────
+   A one-finger swipe on a touch screen scrolls the chart and marks nothing. Painting begins only when the finger has
+   rested on a stitch for PAINT_HOLD_MS (about 120 ms) and then moves; a tap is still instant. `paintMode: true` (the
+   explicit Paint mode) skips the wait, and `touchLocked: true` makes touch and pen input do nothing at all (a
+   propped-up device). Mouse and trackpad are not affected by either. While the finger is held and armed the parent
+   keeps the page from scrolling (getDragState().armed); before that the browser is free to pan, which is what makes
+   a quick swipe a scroll.
+
    Behaviours
    ──────────
    1. Single-cell tap (down + up on same cell within 200ms) → onToggleCell.
@@ -73,6 +82,7 @@
   function longPressMs()    { var c = TC(); return c ? c.LONG_PRESS_MS : 500; }
   function multiTouchMs()   { var c = TC(); return c ? c.MULTI_TOUCH_GRACE_MS : 100; }
   function tapSlopPx()      { var c = TC(); return c ? c.TAP_SLOP_PX : 10; }
+  function paintHoldMs()    { var c = TC(); return c ? c.PAINT_HOLD_MS : 120; }
 
   // ─── Pure helpers ────────────────────────────────────────────────────
   function isMarkableAt(pattern, idx) {
@@ -132,12 +142,15 @@
         startIdx: -1, startTime: 0, startX: 0, startY: 0,
         pointerType: 'mouse', pointerId: null, moved: false,
         lastAnchor: s.lastAnchor, lastIntent: s.lastIntent,
-        pointerCount: 0, shiftReleased: false,
+        pointerCount: 0, shiftReleased: false, armed: false,
       };
     }
 
     switch (action.type) {
       case 'POINTER_DOWN': {
+        // A gesture left over as 'scroll' (the browser took the touch and the end never reached us) must not block
+        // the next one.
+        if (s.mode === 'scroll') s = idle();
         // Multi-touch: a second finger means pan / pinch-zoom (two fingers
         // move the chart in Mark mode; one finger marks). It abandons the
         // one-finger gesture without committing anything, however late it
@@ -201,6 +214,9 @@
           };
         }
 
+        var nonMouse = (action.pointerType || 'mouse') !== 'mouse';
+        // Locked: a touch does nothing (mouse is unaffected).
+        if (nonMouse && ctx.locked) return { state: s, effects: effects };
         // Pending: nothing committed yet.
         var path = new Set();
         if (isMarkableAt(ctx.pattern, action.idx)) path.add(action.idx);
@@ -212,8 +228,10 @@
         // turned into a range anchor and swallowed the click instead of
         // toggling the cell. See the pointerType==='mouse' bypass in the
         // POINTER_UP 'pending' branch below for the other half of this fix.
-        if ((action.pointerType || 'mouse') !== 'mouse') {
+        if (nonMouse) {
           effects.push({ type: 'START_LONG_PRESS' });
+          // Touch paints only once the finger has rested; Paint mode paints at once.
+          if (!ctx.paint) effects.push({ type: 'START_HOLD' });
         }
         return {
           state: {
@@ -228,6 +246,7 @@
             pointerType: action.pointerType || 'mouse',
             pointerId: action.pointerId,
             moved: false,
+            armed: !nonMouse || !!ctx.paint,
             lastAnchor: s.lastAnchor,
             pointerCount: 1,
           },
@@ -235,8 +254,14 @@
         };
       }
 
+      case 'HOLD_ARMED': {
+        // The finger has rested long enough: from here a move paints.
+        if (s.mode !== 'pending' || s.moved) return { state: s, effects: effects };
+        return { state: next({ armed: true }), effects: effects };
+      }
+
       case 'POINTER_MOVE': {
-        if (s.mode === 'idle' || s.mode === 'range') return { state: s, effects: effects };
+        if (s.mode === 'idle' || s.mode === 'range' || s.mode === 'scroll') return { state: s, effects: effects };
         if (s.mode === 'shiftRange') {
           // Live rubber-band: keep the last valid cell under the pointer
           // (falls back to the previous one if it wanders over a
@@ -271,6 +296,12 @@
             // Inside slop — keep pending, do not promote.
             return { state: s, effects: effects };
           }
+        }
+        // A touch that travels before it has rested is a scroll, not a stroke: abandon it without marking anything
+        // (the browser pans the chart; the page does not stop it until the finger has been armed).
+        if (s.mode === 'pending' && s.pointerType && s.pointerType !== 'mouse' && !s.armed) {
+          effects.push({ type: 'CLEAR_LONG_PRESS' });
+          return { state: next({ mode: 'scroll', moved: true }), effects: effects };
         }
         // Movement detected → cancel long-press.
         var newMoved = true;
@@ -324,6 +355,7 @@
       case 'POINTER_UP': {
         if (s.mode === 'idle') return { state: s, effects: effects };
         effects.push({ type: 'CLEAR_LONG_PRESS' });
+        if (s.mode === 'scroll') return { state: idle(), effects: effects };
 
         if (s.mode === 'range') {
           // Tap after long-press anchor → commit rectangle.
@@ -442,7 +474,7 @@
       startIdx: -1, startTime: 0, startX: 0, startY: 0,
       pointerType: 'mouse', pointerId: null, moved: false,
       lastAnchor: null, lastIntent: null, pointerCount: 0, otherIdx: null,
-      shiftReleased: false,
+      shiftReleased: false, armed: false,
     };
   }
 
@@ -483,6 +515,7 @@
 
     var stateRef = R.useRef(initialState());
     var longPressTimerRef = R.useRef(null);
+    var holdTimerRef = R.useRef(null);
     var lastTouchStartRef = R.useRef(0);
     var bcastRef = R.useRef(0);
 
@@ -502,6 +535,10 @@
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
+      }
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
       }
     }
 
@@ -523,6 +560,12 @@
             longPressTimerRef.current = null;
             dispatch({ type: 'LONG_PRESS_FIRED' });
           }, longPressMs());
+        } else if (ef.type === 'START_HOLD') {
+          if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+          holdTimerRef.current = setTimeout(function () {
+            holdTimerRef.current = null;
+            dispatch({ type: 'HOLD_ARMED' });
+          }, paintHoldMs());
         } else if (ef.type === 'CLEAR_LONG_PRESS') {
           clearLongPress();
         }
@@ -538,6 +581,8 @@
         w: o.w, h: o.h,
         pattern: patternRef.current,
         done: doneRef.current,
+        paint: !!o.paintMode,
+        locked: !!o.touchLocked,
       };
       var r = dragMarkReducer(stateRef.current, action, ctx);
       stateRef.current = r.state;
@@ -666,7 +711,7 @@
       // drag that has not been released yet if the tab is hidden or closed.
       getDragState: function () {
         var s = stateRef.current;
-        return { mode: s.mode, path: s.path, anchor: s.anchor, intent: s.intent };
+        return { mode: s.mode, path: s.path, anchor: s.anchor, intent: s.intent, armed: !!s.armed, held: !!s.held };
       },
       notifyShiftUp: notifyShiftUp,
       reset: reset,
