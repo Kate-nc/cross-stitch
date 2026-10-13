@@ -15,7 +15,7 @@
   --accent-border: #E8B89A;
   --text-primary: #1B1814;
   --text-secondary: #5C5448;
-  --text-tertiary: #8A8270;
+  --text-tertiary: #6F6757;   /* 4.5:1 or better on every light surface (was #8A8270, 3.6 to 3.8) */
   --border: #E5DCCB;
   --border-subtle: #EFE7D6;
   --surface: #ffffff;
@@ -42,10 +42,12 @@
   --line:              #E5DCCB;
   --line-2:            #D8CDB6;
   --text-muted:        #8A8270;
-  --text-on-accent:    #FFF8F0;
+  --text-on-accent:    #FFFFFF;     /* 4.54:1 on --accent (the cream it was, #FFF8F0, is 4.31) */
   --accent-2:          #944526;
   --accent-soft:       #F4DDCF;
   --accent-ink:        #5C2A14;
+  --accent-text:       #944526;     /* the accent as TEXT on the page or a tinted chip: 5.1:1 on --accent-soft, 6.7:1 on white */
+  --success-text:      #3F6A31;     /* the success green as text on --success-soft or the page: 4.8:1 or better */
   --success:           #4F7D3F;     /* sage */
   --success-soft:      #DEE7D2;
   --warning:           #C0883A;     /* amber */
@@ -117,7 +119,7 @@
   --accent-border:     #6E3A22;
   --text-primary:      #F4EFE7;     /* warm parchment */
   --text-secondary:    #B6AC9C;
-  --text-tertiary:     #847B6C;
+  --text-tertiary:     #9D9383;     /* 4.8:1 or better on every dark surface (was #847B6C, 3.6 to 4.2) */
   --border:            #3A352E;
   --border-subtle:     #2A2724;
   --surface:           #1C1A18;     /* raised body */
@@ -134,6 +136,8 @@
   --accent-2:          #F0A07A;
   --accent-soft:       #3A2418;
   --accent-ink:        #F4DDCF;
+  --accent-text:       var(--accent);
+  --success-text:      var(--success);
   --success:           #88B077;
   --success-soft:      #2C3A24;
   --warning:           #E6B069;
@@ -184,7 +188,7 @@ button{font-family:inherit; transition: var(--transition-ui);}
 }
 button:active { filter: brightness(0.94); }
 select{font-family:inherit}
-input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }   /* the accent, not the pale --accent-border: a focus ring needs 3:1 against the page */
 *:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 *:focus:not(:focus-visible){outline:none;}
 ::-webkit-scrollbar{width:6px;height:6px}
@@ -791,7 +795,7 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 .tb-app-tab{font-size:13px;font-weight:500;color:var(--text-tertiary);text-decoration:none;padding:6px 14px;border-radius:var(--radius-md);border:none;background:transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all 0.12s;position:relative;}
 @media (hover: hover){.tb-app-tab:hover{background:var(--surface-tertiary);color:var(--text-secondary);filter:none;}}
 .tb-app-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-.tb-app-tab--active{background:transparent;color:var(--accent);font-weight:600;}
+.tb-app-tab--active{background:transparent;color:var(--accent-text);font-weight:600;}
 .tb-app-tab--active::after{content:'';position:absolute;bottom:-14px;left:12px;right:12px;height:2px;background:var(--accent);border-radius:2px;}
 /* Portrait tablets (iPad Mini is 768px): the top bar measures ~856px, and
    left alone it widened the layout viewport past the screen, so the
@@ -850,12 +854,12 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
 
 /* Active project badge */
 .tb-proj-badge{display:flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:var(--accent-light);border:1px solid var(--accent-border);flex-shrink:1;min-width:0;max-width:260px;overflow:hidden;}
-.tb-proj-badge-name{font-size:11px;font-weight:600;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;background:none;border:none;padding:0;font-family:inherit;cursor:default;}
+.tb-proj-badge-name{font-size:11px;font-weight:600;color:var(--accent-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;background:none;border:none;padding:0;font-family:inherit;cursor:default;}
 .tb-proj-badge-name--editable{cursor:text;border-bottom:1px dashed transparent;transition:border-color 0.15s;}
 @media (hover: hover){.tb-proj-badge-name--editable:hover{border-bottom-color:var(--accent);}}
 .tb-proj-badge-input{font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 4px;outline:none;background:var(--surface);width:160px;max-width:30vw;font-family:inherit;}
-.tb-proj-badge-pct{font-size:10px;font-weight:500;color:var(--success);flex-shrink:0;background:var(--success-soft);padding:1px 5px;border-radius:8px;white-space:nowrap;}
-.tb-proj-badge-saved{background:transparent;color:var(--success);font-weight:600;font-size:10px;padding:0 4px;display:inline-flex;align-items:center;gap:3px;}
+.tb-proj-badge-pct{font-size:10px;font-weight:500;color:var(--success-text);flex-shrink:0;background:var(--success-soft);padding:1px 5px;border-radius:8px;white-space:nowrap;}
+.tb-proj-badge-saved{background:transparent;color:var(--success-text);font-weight:600;font-size:10px;padding:0 4px;display:inline-flex;align-items:center;gap:3px;}
 
 /* Stash status badges (Thread Organiser) */
 .stash-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;}
@@ -1530,7 +1534,10 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   border-top: 2.5px solid var(--accent);
 }
 .legend-line.dashed {
-  border-top: 1.5px dashed var(--border);
+  border-top: 1.5px dashed var(--text-tertiary);
+}
+.legend-line.dotted {
+  border-top: 2px dotted var(--warning);
 }
 .stats-empty {
   font-size: 13px;
@@ -1570,33 +1577,34 @@ input:focus, select:focus, button:focus { outline: 2px solid var(--accent-border
   border-color: var(--success-soft);
 }
 .milestone-badge.achieved .milestone-percent {
-  color: var(--success);
+  color: var(--success-text);
   font-weight: 700;
 }
 .milestone-badge.achieved .milestone-date {
-  color: var(--success);
+  color: var(--success-text);
 }
 .milestone-badge.next {
   background: var(--accent-light);
   border-color: var(--accent-border);
 }
 .milestone-badge.next .milestone-percent {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
 }
 .milestone-badge.next .milestone-date {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .milestone-badge.future {
   background: var(--surface-secondary);
-  opacity: 0.55;
+  border: 1.5px dashed var(--text-tertiary);   /* upcoming is dashed, achieved is solid and ticked, next is heavier: not colour alone */
 }
-.milestone-badge.future .milestone-percent {
+.milestone-badge.future .milestone-percent,
+.milestone-badge.future .milestone-date {
   color: var(--text-tertiary);
 }
-.milestone-badge.future .milestone-date {
-  color: var(--border);
-}
+.milestone-badge.next { border-width: 2.5px; }
+.milestone-badge .milestone-mark { display: inline-flex; margin-right: 3px; vertical-align: -0.1em; }
+.milestone-badge .milestone-state { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 2px; }
 .milestone-percent {
   font-size: 16px;
   font-weight: 600;
@@ -2685,7 +2693,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 
 /* ═══ Stats: Colour Progress ═══ */
 .colour-progress {
-  background: var(--surface-primary, #fff);
+  background: var(--surface);   /* was an undefined token with a white fallback: a white panel in dark mode, under pale text */
   border: 1px solid var(--border, #E5DCCB);
   border-radius: 10px;
   padding: 14px 16px;
@@ -2815,7 +2823,7 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-fill--done{background:var(--success);}
 .info-strip-today{background:var(--success);border-radius:0 2px 2px 0;animation:todayGlow 2s ease-in-out infinite alternate;}
 .info-strip-row{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:24px;max-width:1300px;margin:0 auto;width:100%;gap:12px;}
-.info-strip-pct{font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.info-strip-pct{font-size:11px;font-weight:700;color:var(--accent-text);white-space:nowrap;display:flex;align-items:center;gap:4px;}
 .info-strip-counts{font-size:11px;font-weight:400;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .info-strip-breakdown{font-size:11px;font-weight:400;color:var(--text-tertiary);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;background:none;border:0;padding:0;font-family:inherit;cursor:pointer;}
@@ -3273,7 +3281,7 @@ kbd {
 }
 @media (hover: hover){.gsd-tab:hover { color: var(--text-secondary); }}
 .gsd-tab--on {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
   border-bottom-color: var(--accent);
 }
@@ -5818,7 +5826,7 @@ details[open] .creator-popover-difficulty__summary::before {
   height: 24px;
   border-radius: 50%;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
   font-size: 11px;
   flex-shrink: 0;
@@ -7438,7 +7446,8 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
   z-index: var(--z-coachmark, 1200);
   transition: opacity 220ms ease-out;
 }
-.cs-focus-bar.cs-focus-bar--faded > *:not(.cs-focus-exit) { opacity: 0.55; }
+.cs-focus-bar.cs-focus-bar--faded > *:not(.cs-focus-exit) { opacity: 0.8; }   /* it recedes, but its labels stay readable (0.55 left them at 2.6:1) */
+.cs-focus-bar.cs-focus-bar--faded button:not(.cs-focus-exit) { color: var(--text-primary); }
 .cs-focus-bar:hover > *,
 .cs-focus-bar:focus-within > * { opacity: 1 !important; }
 .cs-focus-bar button {
@@ -7636,8 +7645,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
   right: 8px;
   font-size: 10px;
   line-height: 1;
-  color: var(--text-secondary);
-  opacity: 0.55;
+  color: var(--text-tertiary);
   pointer-events: none;
   user-select: none;
   z-index: 9;
@@ -7711,14 +7719,14 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .ppal-tile-list{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 0;}
 .ppal-tile{display:flex;align-items:stretch;gap:0;cursor:pointer;border-radius:0;border-bottom:0.5px solid var(--border);transition:background var(--motion-fast);}
 @media (hover: hover){.ppal-tile:hover{background:var(--surface-secondary);}}
-.ppal-tile--on{background:var(--accent-light)!important;}
+.ppal-tile--on{background:var(--accent-light)!important;box-shadow:inset 4px 0 0 var(--accent-text);}   /* the selected colour has a bar on its edge, not only a tint */
 .ppal-tile--done:not(.ppal-tile--on){opacity:0.5;}
 .ppal-tile-swatch{width:40px;min-width:40px;border-radius:0;border-right:1px solid var(--border);flex-shrink:0;cursor:pointer;}
 @media (pointer:coarse){.ppal-tile-swatch{width:48px;min-width:48px;}}
 .ppal-tile-body{flex:1;min-width:0;padding:6px 10px;display:flex;flex-direction:column;gap:3px;}
 .ppal-tile-id-row{display:flex;align-items:center;gap:6px;}
 .ppal-tile-id{font-size:11px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;flex-shrink:0;}
-.ppal-tile--on .ppal-tile-id{color:var(--accent);}
+.ppal-tile--on .ppal-tile-id{color:var(--accent-text);font-weight:700;}
 .ppal-tile-name{font-size:11px;color:var(--text-secondary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ppal-tile-pct{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex-shrink:0;}
 .ppal-tile-bar{height:3px;background:var(--surface-tertiary);border-radius:2px;overflow:hidden;}
@@ -7781,7 +7789,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
   padding:4px 2px;
 }
 @media (hover: hover){.ppal-mode-btn:hover{background:var(--surface-tertiary);color:var(--text-primary);}}
-.ppal-mode-btn--on{background:var(--accent-light);color:var(--accent);}
+.ppal-mode-btn--on{background:var(--accent-light);color:var(--accent-text);}
 .ppal-mode-btn:disabled{opacity:0.35;cursor:not-allowed;}
 .ppal-mode-btn-icon{display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1;}
 .ppal-mode-btn-label{font-size:9px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;line-height:1;}
@@ -7824,7 +7832,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .ppal-more-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .ppal-more-title{font-size:var(--text-sm);font-weight:700;color:var(--text-primary);flex:1;}
 .ppal-utility-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:var(--radius-pill);border:1px solid var(--border);background:var(--surface-secondary);color:var(--text-secondary);font-size:10px;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0;}
-.ppal-utility-chip--on{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent);}
+.ppal-utility-chip--on{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent-text);}
 @media (hover: hover){.ppal-utility-chip:hover{background:var(--surface-tertiary);}}
 .ppal-more-close{background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:4px;border-radius:4px;display:inline-flex;align-items:center;flex-shrink:0;margin-left:4px;}
 @media (hover: hover){.ppal-more-close:hover{color:var(--text-primary);background:var(--surface-tertiary);}}
@@ -7832,7 +7840,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .ppal-more-tabs::-webkit-scrollbar{display:none;}
 .ppal-more-tab{flex:1;min-width:52px;padding:8px 4px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--text-secondary);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;transition:color var(--motion-fast),border-color var(--motion-fast);}
 @media (hover: hover){.ppal-more-tab:hover{color:var(--text-primary);}}
-.ppal-more-tab--on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;}
+.ppal-more-tab--on{color:var(--accent-text);border-bottom-color:var(--accent);font-weight:700;}
 .ppal-more-content{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:16px;}
 
 /* ── Phone-only colour chip trigger (top of canvas) ─────────── */

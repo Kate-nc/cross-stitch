@@ -22,7 +22,7 @@ const VPS = [{ n: 'desktop', w: 1440, h: 900, touch: false }, { n: 'phone', w: 3
       await page.addScriptTag({ content: AXE }).catch(() => {});
       const res = await page.evaluate(async () => { try { return await axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa'] }, resultTypes: ['violations'] }); } catch (e) { return { error: String(e) }; } });
       if (res.error) { console.log('axe error', state, res.error); return; }
-      for (const v of res.violations) report.axe.push({ viewport: vp.n, theme, state, rule: v.id, impact: v.impact, category: classify(v.id), nodes: v.nodes.length, example: (v.nodes[0] && v.nodes[0].target.join(' ')).slice(0, 120), help: v.help });
+      for (const v of res.violations) report.axe.push({ viewport: vp.n, theme, state, rule: v.id, impact: v.impact, category: classify(v.id), nodes: v.nodes.length, example: (v.nodes[0] && v.nodes[0].target.join(' ')).slice(0, 120), help: v.help, detail: v.id === 'color-contrast' ? v.nodes.map(n => { const d = (n.any[0] && n.any[0].data) || {}; return { t: n.target.join(' ').slice(0, 110), fg: d.fgColor, bg: d.bgColor, ratio: d.contrastRatio, need: d.expectedContrastRatio, size: d.fontSize, text: ((n.html || '').replace(/<[^>]+>/g, '|').slice(0, 60)) }; }) : undefined });
       console.log(vp.n, theme, state, 'violations:', res.violations.map(v => v.id + '(' + v.nodes.length + ',' + v.impact + ')').join(' ') || 'none');
     };
     await page.goto(BASE + 'stitch.html?id=' + id); await page.waitForSelector(T.TRACKER_CANVAS, { timeout: 90000 }); await page.waitForTimeout(2000);
@@ -32,7 +32,7 @@ const VPS = [{ n: 'desktop', w: 1440, h: 900, touch: false }, { n: 'phone', w: 3
       // Tab sweep: does each stop show a focus indicator?
       await page.mouse.click(5, 5).catch(() => {});
       for (let i = 0; i < 70; i++) {
-        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab'); await page.waitForTimeout(350);   // controls ease their outline in (transition: all); read it once it has settled
         const f = await page.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null; const cs = getComputedStyle(e); const r = e.getBoundingClientRect();
           return { tag: e.tagName.toLowerCase(), cls: String(e.className).slice(0, 40), label: (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 24), outlineStyle: cs.outlineStyle, outlineW: parseFloat(cs.outlineWidth), outlineColor: cs.outlineColor, shadow: cs.boxShadow !== 'none', visible: r.width > 0 && r.height > 0 }; });
         if (f && f.visible) { f.indicator = (f.outlineStyle !== 'none' && f.outlineW > 0) || f.shadow; report.focus.push(f); }

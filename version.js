@@ -8,6 +8,16 @@ window.APP_VERSION = '1.0.134';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.135',
+    date: 'October 2026',
+    notes: [
+      'Easier to read. Small and secondary text, the active tab, the save status, the milestone figures and the Stats colour list now meet a 4.5 to 1 contrast against their background in the light and dark themes (several were between 2 and 4). In the dark theme the Stats colour panel was a white box under pale text; it is now dark.',
+      'The dark theme now uses its own, lighter accent colour everywhere. It was being overridden by the light one, which left accent text hard to read on dark.',
+      'On a narrow screen, including a desktop browser zoomed to 200%, the colour legend now starts shut so the chart is what you see. Open it with the Colours button.',
+      'State is no longer shown by colour alone: the selected colour in the legend has an edge bar, a finished milestone is ticked, the next one says Next and upcoming ones are dashed, and the progress chart tells its three lines apart by solid, dashed and dotted. The keyboard focus ring on buttons is now the accent rather than a pale peach.'
+    ]
+  },
+  {
     version: '1.0.134',
     date: 'October 2026',
     notes: [

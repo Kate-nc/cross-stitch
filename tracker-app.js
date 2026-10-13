@@ -834,7 +834,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:'var(--text-md)',fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {p.name||"Untitled"}
-                    {isActive&&<span style={{marginLeft:'var(--s-2)',fontSize:10,fontWeight:700,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 6px",borderRadius:'var(--radius-md)',verticalAlign:"middle"}}>ACTIVE</span>}
+                    {isActive&&<span style={{marginLeft:'var(--s-2)',fontSize:10,fontWeight:700,color:"var(--accent-text)",background:"var(--accent-light)",padding:"1px 6px",borderRadius:'var(--radius-md)',verticalAlign:"middle"}}>ACTIVE</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginTop:'var(--s-1)'}}>
                     <div style={{flex:1,height:5,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
@@ -1831,8 +1831,10 @@ const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
         if(legacy===false)return "hidden";
       }catch(_){}
     }
-    // First run — default by viewport type.
+    // First run — default by viewport type. Below 1024 px the palette is a sheet over the chart, so it starts shut there whatever
+    // the input device (a desktop browser zoomed to 200% is 720 px wide and used to open on a sheet that covered the chart).
     if(window.TouchConstants&&window.TouchConstants.isCompactTouch())return "hidden";
+    if(window.matchMedia&&window.matchMedia("(max-width:1023px)").matches)return "hidden";
     return "open";
   }catch(_){return "hidden";}
 });
@@ -7730,7 +7732,7 @@ return(
       :<span className="completion-projection-text completion-projection-text--none">Estimated finish: {completionEstimate.text}</span>}
   </div>
 )}
-{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
+{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent-text)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
   <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
 </div>}
@@ -7821,7 +7823,7 @@ return(
             stitchx project files
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
-            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
+            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent-text)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
             KG-Chart / Pattern Keeper XML format
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
@@ -7837,7 +7839,7 @@ return(
 
       <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
-        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
+        <a href="home.html?tab=create" style={{color:"var(--accent-text)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
       </div>
       <div style={{marginTop:12}}>
         <a href="home.html" style={{color:"var(--text-secondary)", fontWeight:500, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4, fontSize:'var(--text-md)'}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Back to my projects</a>
@@ -8061,14 +8063,14 @@ return(
     {(()=>{
       if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"var(--warning)",background:"var(--warning-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--warning)", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
       if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Complete! Next: {advanceToast}</div>;
-      if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent-text)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
         <div style={{display:"flex",gap:'var(--s-2)'}}>
-          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent)"}}>Next block</button>}
+          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent-text)"}}>Next block</button>}
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent-ink)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
@@ -8319,7 +8321,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["symbol","Symbol"],["colour","Colour + symbol"],["highlight","Highlight"]].map(([v,l])=>
                 <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
                   onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
                 >{l}</button>
               )}
@@ -8330,7 +8332,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([v,l])=>
                 <button key={v} className="ppal-hl-mode-btn"
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
                   onClick={()=>{setStitchView("highlight");setHighlightMode(v);}} aria-pressed={highlightMode===v&&stitchView==="highlight"}
                 >{l}</button>
               )}
@@ -8354,7 +8356,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["fill","Thread colour"],["tick","Corner tick"]].map(([v,l])=>
                 <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
                   onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerDoneStyle',v);}catch(_){}}} aria-pressed={doneStyle===v}
                 >{l}</button>
               )}
@@ -8365,7 +8367,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[[true,"Show"],[false,"Hide"]].map(([v,l])=>
                 <button key={l}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+((minimapPref!==false)===v?"var(--accent)":"var(--border)"),background:(minimapPref!==false)===v?"var(--accent)":"var(--surface)",color:(minimapPref!==false)===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer"}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+((minimapPref!==false)===v?"var(--accent)":"var(--border)"),background:(minimapPref!==false)===v?"var(--accent)":"var(--surface)",color:(minimapPref!==false)===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer"}}
                   onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerMinimap',v);}catch(_){}}} aria-pressed={(minimapPref!==false)===v}
                 >{l}</button>
               )}
@@ -8453,11 +8455,11 @@ return(
             <p style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",margin:0}}>No active session. Stitching starts one automatically and its time is worked out from your stitches (an estimate). Start the timer for an exact time.</p>
             <button
               onClick={()=>{startTimer();setMorePanelOpen(false);}}
-              style={{padding:"10px 12px",minHeight:44,borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+              style={{padding:"10px 12px",minHeight:44,borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-on-accent)",fontWeight:600}}
             >Start timer</button>
             <button
               onClick={()=>{setSessionConfigOpen(true);setMorePanelOpen(false);}}
-              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-on-accent)",fontWeight:600}}
             >Session settings</button>
             {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
           </>}
@@ -8503,7 +8505,7 @@ return(
             :<div style={{display:"flex",gap:6}}>
               {[["track","Mark"],["navigate","Navigate"]].map(([v,l])=>
                 <button key={v}
-                  style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
+                  style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
                   onClick={()=>setStitchMode(v)} aria-pressed={stitchMode===v}
                 >{l}</button>
               )}
@@ -8521,8 +8523,8 @@ return(
               }} className="ppal-check"/>
             </label>
             {focusEnabled&&focusBlock&&<div style={{display:"flex",gap:12}}>
-              <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
-              <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
+              <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent-text)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
+              <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent-text)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
             </div>}
           </div>}
           <button
@@ -8910,7 +8912,7 @@ return(
               v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
             }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
-        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
+        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent-text)",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
         <button onClick={()=>{
           (async()=>{
             if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
@@ -8921,7 +8923,7 @@ return(
         }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
       <div style={{marginTop:'var(--s-3)',paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"center"}}>
-        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
+        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent-text)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
       </div>
     </div>
   </div>}
@@ -9045,7 +9047,7 @@ return(
               <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
               <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>{threadLabel(currentEntry)}</span>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
-              <span style={{fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:600}}>Current</span>
+              <span style={{fontSize:'var(--text-xs)',color:"var(--accent-text)",fontWeight:600}}>Current</span>
             </div>
           ) : null}
 
@@ -9063,7 +9065,7 @@ return(
                   <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>{threadLabel(p)}</span>
                   <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
                   <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>
-                  {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
+                  {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent-text)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
                 </div>
               );
             })}
@@ -9151,14 +9153,14 @@ return(
     }} onClick={e=>e.stopPropagation()}>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"fwd")} style={{
         display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
-        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent-text)"
       }}>
         <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 0,14 14,14" fill="var(--accent-light)"/></svg>
         Mark /
       </button>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"bck")} style={{
         display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
-        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent-text)"
       }}>
         <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 14,0 0,14" fill="var(--accent-light)"/></svg>
         Mark \

@@ -56,8 +56,12 @@
 
   function applyAccent() {
     var col = get("appAccentColour", "#B85C38");
-    if (typeof col === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(col)) {
+    if (typeof col === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(col) && col.toLowerCase() !== "#b85c38") {
       try { document.documentElement.style.setProperty("--accent", col); } catch (_) {}
+    } else {
+      // The default accent is the theme's own (a lighter terracotta in dark mode). Setting it inline here, as this used to,
+      // pinned the light theme's value over the dark theme's and left accent text at 3.8 to 1 on the dark surfaces.
+      try { document.documentElement.style.removeProperty("--accent"); } catch (_) {}
     }
   }
 
