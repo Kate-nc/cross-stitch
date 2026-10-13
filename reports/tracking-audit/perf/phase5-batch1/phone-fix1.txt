@@ -1,0 +1,12 @@
+== port 8001 (8001=main, 8000=branch) pair 1
+{"label":"pf1","strokes":8,"strokeMedian":76.9,"taps":24,"tapMedian":81.2,"tapP90":87.2,"loadMedianMs":5057,"loads":[5056,5057]}
+== port 8000 (8001=main, 8000=branch) pair 1
+{"label":"pf1","strokes":8,"strokeMedian":80.4,"taps":24,"tapMedian":82,"tapP90":109.6,"loadMedianMs":4614,"loads":[4370,4614]}
+== port 8000 (8001=main, 8000=branch) pair 2
+{"label":"pf2","strokes":8,"strokeMedian":78.8,"taps":24,"tapMedian":80.8,"tapP90":96.6,"loadMedianMs":4088,"loads":[4088,3986]}
+== port 8001 (8001=main, 8000=branch) pair 2
+{"label":"pf2","strokes":8,"strokeMedian":81.4,"taps":24,"tapMedian":77.8,"tapP90":102.5,"loadMedianMs":4927,"loads":[4927,4879]}
+== port 8001 (8001=main, 8000=branch) pair 3
+{"label":"pf3","strokes":8,"strokeMedian":95.9,"taps":24,"tapMedian":85.9,"tapP90":100.8,"loadMedianMs":5328,"loads":[5328,5192]}
+== port 8000 (8001=main, 8000=branch) pair 3
+{"label":"pf3","strokes":8,"strokeMedian":78.4,"taps":24,"tapMedian":94.9,"tapP90":130.3,"loadMedianMs":4341,"loads":[4279,4341]}

@@ -2233,6 +2233,7 @@ useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel))
 // Tier 1 (zoomed-out) fade strength for un-stitched cells. 0 = off (full colour),
 // 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
 // view at full saturation when zoomed out.
+const stitchLookRef=useRef({cmap:null,fade:-1,done:null,pend:null});   // drawStitch's per-colour looks, kept between paints
 const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
@@ -4970,8 +4971,11 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
 
   // The two looks of a colour for this paint, by palette id: one property read per cell instead of a map lookup, and nothing
   // built per cell (the shared caches in colour-utils.js sit behind these).
-  const doneLooks=Object.create(null),pendLooks=Object.create(null);
+  // They live across paints (a one-stitch repaint reuses them) and are rebuilt when the palette or the fade changes.
   const pendFade=tier<=2?lowZoomFade:0.5;
+  let lc=stitchLookRef.current;
+  if(lc.cmap!==cmap||lc.fade!==pendFade){lc=stitchLookRef.current={cmap:cmap,fade:pendFade,done:Object.create(null),pend:Object.create(null)};}
+  const doneLooks=lc.done,pendLooks=lc.pend;
   function doneLookOf(m){let l=doneLooks[m.id];if(!l)l=doneLooks[m.id]=doneStitchLook(m.rgb);return l;}
   function pendLookOf(m){let l=pendLooks[m.id];if(!l)l=pendLooks[m.id]=pendingStitchLook(m.rgb,pendFade);return l;}
   // The "tick" done style: a dark corner triangle with a pale edge, readable on a pale or a dark cell.

@@ -62,7 +62,9 @@ describe('how the Tracker draws it', () => {
     expect(tracker).toMatch(/if\(isDn\)drawDoneTick\(px,py\)/);
   });
   test('the looks are fetched once per colour per paint, and a symbol costs no canvas save/restore per cell', () => {
-    expect(tracker).toMatch(/const doneLooks=Object\.create\(null\),pendLooks=Object\.create\(null\)/);
+    expect(tracker).toMatch(/const stitchLookRef=useRef\(\{cmap:null,fade:-1,done:null,pend:null\}\)/);
+    expect(tracker).toMatch(/if\(lc\.cmap!==cmap\|\|lc\.fade!==pendFade\)\{lc=stitchLookRef\.current=/);
+    expect(tracker).toMatch(/const doneLooks=lc\.done,pendLooks=lc\.pend/);
     expect(tracker).toMatch(/function doneLookOf\(m\)\{let l=doneLooks\[m\.id\];if\(!l\)l=doneLooks\[m\.id\]=doneStitchLook\(m\.rgb\)/);
     const branch = tracker.slice(tracker.indexOf('const isSymV=stitchView==="symbol",solid=tier<=2;'), tracker.indexOf('}else if(highlightMode==="outline"||highlightMode==="tint"){'));
     expect(branch).not.toMatch(/ctx\.save\(\)|ctx\.restore\(\)/);
