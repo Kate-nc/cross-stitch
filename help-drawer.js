@@ -76,7 +76,7 @@
           body: "Import a file from Home > Create new > Import a chart, by dropping it on the Create new tab or the Creator, or with File > Open….",
           bullets: [
             ["PDF charts", "Charts saved as PDF by the designer, including Pattern Keeper-compatible PDFs. The colours, symbols and size are read from the chart and you can check them before saving. Scanned or photographed charts can't be read yet, and nor can password-protected PDFs."],
-            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross. French knots come in too; beads and other ornaments are left out, and the review says how many."],
+            [".oxs files", "The open cross-stitch format. Most design programs can export it, including Pattern Maker, PCStitch, WinStitch, MacStitch and FlossCross. French knots come in too. Beads are kept with the project (not drawn yet, and not counted in your progress); any other ornament is left out, and the review says how many."],
             ["stitchx .json files and backups", "Projects downloaded with File > Download (.json). A full backup of every project is restored with File > Restore from Backup… instead."],
             ["Images", "JPG, PNG, GIF, WebP and BMP pictures are converted into a new pattern."],
             ["Not supported yet", "Files saved in another program's own format: Pattern Maker (.xsd), PCStitch (.pat), XStitch Pro (.xsp) and others. Photos of a paper chart are converted as pictures, not read as charts."],

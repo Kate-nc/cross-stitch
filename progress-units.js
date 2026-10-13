@@ -198,6 +198,29 @@
     return n;
   }
 
+  // Backstitch lines marked done, counted one by one. The key is the one backstitch.js makes (endpoints in order, then
+  // the colour); it is written out here because the Home and Stats pages do not load backstitch.js. A test holds the two
+  // together. Lines are only counted when the record has them, so a project without backstitch reports nothing.
+  function bsKey(l) {
+    var x1 = Number(l.x1), y1 = Number(l.y1), x2 = Number(l.x2), y2 = Number(l.y2);
+    if (x2 < x1 || (x2 === x1 && y2 < y1)) { var tx = x1, ty = y1; x1 = x2; y1 = y2; x2 = tx; y2 = ty; }
+    var c = l.colorId != null && l.colorId !== "" ? String(l.colorId) : (l.color != null ? String(l.color) : "");
+    return x1 + "," + y1 + "," + x2 + "," + y2 + "," + c;
+  }
+  function countBackstitch(p) {
+    var lines = Array.isArray(p.bsLines) ? p.bsLines : [];
+    if (!lines.length) return { done: 0, total: 0 };
+    var keys = new Set(Array.isArray(p.bsDone) ? p.bsDone : []), total = 0, done = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      if (!l || !isFinite(Number(l.x1)) || !isFinite(Number(l.y1)) || !isFinite(Number(l.x2)) || !isFinite(Number(l.y2))) continue;
+      if (Number(l.x1) === Number(l.x2) && Number(l.y1) === Number(l.y2)) continue;
+      total++;
+      if (keys.size && keys.has(bsKey(l))) done++;
+    }
+    return { done: done, total: total };
+  }
+
   function countsFromProject(p) {
     if (!p) return {};
     var pat = p.pattern || p.p;
@@ -210,7 +233,8 @@
     return {
       full: { done: fullDone, total: fullTotal },
       half: { done: countSides(p.halfDone), total: countSides(p.halfStitches) },
-      knot: { done: kd, total: knots.length }
+      knot: { done: kd, total: knots.length },
+      backstitch: countBackstitch(p)
     };
   }
 

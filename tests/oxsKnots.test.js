@@ -100,8 +100,52 @@ describe('French knots in OXS', () => {
 </chart>`;
     const r = parseOXS(xml);
     expect(r.knots.map(k => [k.x, k.y, k.id])).toEqual([[3, 5, '666'], [6, 2, '310'], [4, 2, '310']]);
-    expect(r.warnings.some(w => /1 bead or other ornament was not imported/.test(w))).toBe(true);
+    expect(r.warnings.some(w => /1 bead was kept with the chart/.test(w))).toBe(true);
+    expect(r.beads).toEqual([{ x: 1, y: 1, label: 'Bright Red', rgb: [204, 0, 0] }]);
     expect(importResultToProject(r).knots).toHaveLength(3);
+  });
+});
+
+describe('Beads in OXS (Phase 6)', () => {
+  // A bead's colour is not a DMC number, so the importer matches by colour: it needs the colour helpers.
+  beforeAll(() => {
+    global.rgbToLab = (r, g, b) => [r, g, b];
+    global.dE = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+    global.DMC.forEach(d => { d.lab = d.rgb; });
+  });
+  const head = `<?xml version="1.0" encoding="UTF-8"?><chart><properties chartwidth="4" chartheight="4" />
+  <palette>
+    <color index="1" number="310" name="Black" red="0" green="0" blue="0" />
+    <color index="2" number="00123" name="Mill Hill seed bead" red="200" green="180" blue="40" />
+  </palette><fullstitches><stitch x="0" y="0" palindex="1" /></fullstitches>
+  <ornaments_inc_knots_and_beads>`;
+  const tail = '</ornaments_inc_knots_and_beads></chart>';
+
+  test('beads are kept with their own name and colour, not turned into a thread', () => {
+    const r = parseOXS(head + '<object x1="1.5" y1="2.5" palindex="2" objecttype="bead" /><object x1="3" y1="1" palindex="2" objecttype="bead" />' + tail);
+    expect(r.beads).toEqual([
+      { x: 3, y: 5, label: 'Mill Hill seed bead', rgb: [200, 180, 40] },
+      { x: 6, y: 2, label: 'Mill Hill seed bead', rgb: [200, 180, 40] }
+    ]);
+    expect(r.knots).toEqual([]);
+    expect(importResultToProject(r).beads).toHaveLength(2);
+  });
+  test('the same bead twice at one place is one bead; a bead off the chart is reported', () => {
+    const r = parseOXS(head + '<object x1="1.5" y1="1.5" palindex="2" objecttype="bead" /><object x1="1.5" y1="1.5" palindex="2" objecttype="bead" /><object x1="9" y1="9" palindex="2" objecttype="bead" />' + tail);
+    expect(r.beads).toHaveLength(1);
+    expect(r.warnings.some(w => /1 ornament was not imported/.test(w))).toBe(true);
+  });
+  test('a chart without beads has no beads field in the project', () => {
+    const r = parseOXS(head + tail);
+    expect(r.beads).toEqual([]);
+    expect(importResultToProject(r).beads).toBeUndefined();
+  });
+  test('beads export as bead ornaments and read back', () => {
+    const beads = [{ x: 1, y: 1, label: 'Mill Hill seed bead', rgb: [200, 180, 40] }];
+    const { xml } = generateOXS({ w: 2, h: 2, name: 'B', pattern: [solid('310', [0, 0, 0])], bsLines: [], beads });
+    expect(xml).toMatch(/<object x1="0.5" y1="0.5" palindex="\d+" objecttype="bead" \/>/);
+    const back = parseOXS(xml);
+    expect(back.beads).toEqual([{ x: 1, y: 1, label: 'Mill Hill seed bead', rgb: [200, 180, 40] }]);
   });
 });
 
