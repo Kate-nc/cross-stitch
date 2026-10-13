@@ -115,7 +115,33 @@
     return out;
   }
 
+  var CENTRES = { TL: [0.25, 0.25], TR: [0.75, 0.25], BL: [0.25, 0.75], BR: [0.75, 0.75] };
+
+  // The quarter of a cell nearest a point inside it (nx, ny in 0..1) among those that hold a thread, or null. `onlyId`
+  // limits it to quarters of that thread (a colour lock).
+  function pick(entry, nx, ny, onlyId) {
+    if (!entry) return null;
+    var best = null, bd = Infinity;
+    POSITIONS.forEach(function (p) {
+      var q = entry[p];
+      if (!q || (onlyId && q.id !== onlyId)) return;
+      var dx = nx - CENTRES[p][0], dy = ny - CENTRES[p][1], d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = p; }
+    });
+    return best;
+  }
+
+  // For the keyboard: the quarter a press should act on in a cell. The first quarter (in TL TR BL BR order) that is
+  // not done yet; when every one is done, the last, so a press unmarks them from the end.
+  function nextToMark(entry, doneSet, onlyId) {
+    var have = POSITIONS.filter(function (p) { return entry && entry[p] && (!onlyId || entry[p].id === onlyId); });
+    if (!have.length) return null;
+    for (var i = 0; i < have.length; i++) if (!(doneSet && doneSet.has(have[i]))) return have[i];
+    return have[have.length - 1];
+  }
+
   var api = {
+    pick: pick, nextToMark: nextToMark,
     POSITIONS: POSITIONS, toMap: toMap, live: live, forSave: forSave, toggle: toggle, has: has,
     progress: progress, byThread: byThread, remap: remap
   };

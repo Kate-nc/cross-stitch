@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.137';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.137',
+    date: 'October 2026',
+    notes: [
+      'Quarter stitches can be marked as done. In Mark mode, tap or click the quarter you have stitched (with a mouse, a finger or Enter at the keyboard guide); each shows faded until it is done, Undo and Redo cover it, and it is saved, kept in a backup and synced like every other mark. The colours drawer counts them as, for example, 2/3 fractional, and a colour used only in quarter stitches no longer reads 0/0.',
+      'Progress now includes quarter stitches, each worth a quarter of a full stitch. A chart that has them can therefore show a lower percentage than before until they are stitched (the Home cards, the library, Stats and the share text all agree). Backstitch still has its own count and is not in the percentage.'
+    ]
+  },
+  {
     version: '1.0.136',
     date: 'October 2026',
     notes: [

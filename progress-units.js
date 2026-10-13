@@ -9,7 +9,8 @@
  *   counts → { full: {done, total}, half: {done, total}, knot: {done, total}, ... }
  *
  * `half` counts half-stitch SIDES (a cell with both legs is two), as the Tracker's counters do.
- * Backstitch is listed separately: it is not part of the percentage.
+ * `quarter` counts quarter stitches (fractional.js), a quarter of a full stitch each. Backstitch is listed separately:
+ * it is not part of the percentage.
  *
  * Older sessions mixed units (a half stitch was counted as a whole stitch); they are never rewritten. New
  * sessions carry `units`, and sessionNet() reads `units` when it is there and `netStitches` otherwise.
@@ -221,6 +222,30 @@
     return { done: done, total: total };
   }
 
+  // Quarter stitches in a record: partialStitches is [[cellIndex, {TL, TR, BL, BR}], ...] (each position that holds a
+  // thread is one quarter) and partialDone [[cellIndex, ["TL", ...]], ...] the ones marked. A mark counts only where
+  // there is a quarter to mark, as fractional.js does.
+  function countQuarters(p) {
+    var ps = Array.isArray(p.partialStitches) ? p.partialStitches : [];
+    if (!ps.length) return { done: 0, total: 0 };
+    var marks = new Map();
+    (Array.isArray(p.partialDone) ? p.partialDone : []).forEach(function (e) {
+      if (e && e.length === 2 && Array.isArray(e[1])) marks.set(Number(e[0]), e[1]);
+    });
+    var POS = ["TL", "TR", "BL", "BR"], total = 0, done = 0;
+    for (var i = 0; i < ps.length; i++) {
+      var e = ps[i], cell = e && e[1];
+      if (!cell) continue;
+      var m = marks.get(Number(e[0]));
+      for (var j = 0; j < 4; j++) {
+        if (!cell[POS[j]]) continue;
+        total++;
+        if (m && m.indexOf(POS[j]) !== -1) done++;
+      }
+    }
+    return { done: done, total: total };
+  }
+
   function countsFromProject(p) {
     if (!p) return {};
     var pat = p.pattern || p.p;
@@ -234,6 +259,7 @@
       full: { done: fullDone, total: fullTotal },
       half: { done: countSides(p.halfDone), total: countSides(p.halfStitches) },
       knot: { done: kd, total: knots.length },
+      quarter: countQuarters(p),
       backstitch: countBackstitch(p)
     };
   }

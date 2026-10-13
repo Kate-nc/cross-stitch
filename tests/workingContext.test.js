@@ -92,7 +92,7 @@ describe('the field travels with the project', () => {
 
 describe('palm guard reaches touches the Tracker handles itself (French knots)', () => {
   test('the knot branch tells the drag-mark hook about the finger going down and coming up', () => {
-    expect(tracker).toMatch(/knotPressRef\.current=\{k,id:e\.pointerId,x:e\.clientX,y:e\.clientY\};if\(_dragMarkHandlers\.onExtraTouchDown\)_dragMarkHandlers\.onExtraTouchDown\(e\);return;/);
+    expect(tracker).toMatch(/knotPressRef\.current=\{k,q,id:e\.pointerId,x:e\.clientX,y:e\.clientY\};if\(_dragMarkHandlers\.onExtraTouchDown\)_dragMarkHandlers\.onExtraTouchDown\(e\);return;/);
     expect(tracker).toMatch(/if\(_dragMarkHandlers\.onExtraTouchEnd\)_dragMarkHandlers\.onExtraTouchEnd\(e\);\s*if\(Math\.hypot/);
   });
 });
