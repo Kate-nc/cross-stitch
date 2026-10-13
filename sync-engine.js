@@ -1538,6 +1538,31 @@ const SyncEngine = (() => {
       merged.knotsDone = kd;
     }
 
+    // Backstitch and quarter-stitch done marks (Phase 6): a union, so work marked on either device stays marked.
+    // Beads (untracked ornaments from an OXS import) travel with the pattern: keep whichever side has them.
+    if (Array.isArray(local.bsDone) || Array.isArray(remote.bsDone)) {
+      var bdSeen = Object.create(null), bd = [];
+      (local.bsDone || []).concat(remote.bsDone || []).forEach(function (kk) {
+        if (typeof kk !== "string" || bdSeen[kk]) return;
+        bdSeen[kk] = true; bd.push(kk);
+      });
+      merged.bsDone = bd;
+    }
+    if (Array.isArray(local.partialDone) || Array.isArray(remote.partialDone)) {
+      var pdPos = Object.create(null), pdOrder = [];
+      (local.partialDone || []).concat(remote.partialDone || []).forEach(function (e) {
+        if (!e || e.length !== 2 || !Array.isArray(e[1])) return;
+        var set = pdPos[e[0]];
+        if (!set) { set = pdPos[e[0]] = Object.create(null); pdOrder.push(e[0]); }
+        e[1].forEach(function (pp) { set[pp] = true; });
+      });
+      merged.partialDone = pdOrder.sort(function (a, b) { return a - b; }).map(function (idx) {
+        return [idx, ["TL", "TR", "BL", "BR"].filter(function (pp) { return pdPos[idx][pp]; })];
+      }).filter(function (e) { return e[1].length; });
+    }
+    merged.beads = Array.isArray(local.beads) ? local.beads : remote.beads;
+    if (merged.beads === undefined) delete merged.beads;
+
     // Merge per-day stitch history (sync fix #7). Drives lifetime totals and
     // the activity charts, and was previously local-only.
     merged.stitchLog = mergeStitchLogs(local.stitchLog, remote.stitchLog);

@@ -27,7 +27,7 @@
   // restore its stale value, so the caller asks instead.
   var NOT_COMPARED = {
     id: 1, page: 1, version: 1, pattern: 1, createdAt: 1, updatedAt: 1, lastWriteAt: 1, lastWriteTabId: 1,
-    done: 1, halfDone: 1, knotsDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
+    done: 1, halfDone: 1, knotsDone: 1, bsDone: 1, partialDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
     savedZoom: 1, savedScroll: 1, hlRow: 1, hlCol: 1, focusBlock: 1, workingContext: 1, breadcrumbs: 1,
     doneSnapshots: 1, stitchLog: 1, totalTime: 1, lastTouchedAt: 1, startedAt: 1, completedAt: 1, finishStatus: 1
   };
@@ -112,6 +112,27 @@
         if (v) merged[side] = v;
       });
       if (merged.fwd || merged.bck) out.push([k, merged]);
+    });
+    return out;
+  }
+
+  // partialDone is a list of [cellIndex, [positions]]: quarter stitches marked done. Merged per cell and per
+  // position, like halfDone's two sides. Returns the saved shape, cells in index order.
+  var QPOS = ["TL", "TR", "BL", "BR"];
+  function mergeQuarterDone(base, local, remote) {
+    function toM(list) {
+      var m = new Map();
+      (Array.isArray(list) ? list : []).forEach(function (e) {
+        if (e && e.length === 2 && Array.isArray(e[1])) m.set(e[0], new Set(e[1]));
+      });
+      return m;
+    }
+    var b = toM(base), l = toM(local), r = toM(remote), keys = new Set(), out = [];
+    [b, l, r].forEach(function (m) { m.forEach(function (_, k) { keys.add(k); }); });
+    Array.from(keys).sort(function (x, y) { return x - y; }).forEach(function (k) {
+      var bs = b.get(k) || new Set(), ls = l.get(k) || new Set(), rs = r.get(k) || new Set();
+      var list = QPOS.filter(function (p) { return rs.has(p) !== bs.has(p) ? rs.has(p) : ls.has(p); });
+      if (list.length) out.push([k, list]);
     });
     return out;
   }
@@ -206,7 +227,7 @@
   var api = {
     inferOldShapes: inferOldShapes, remapCandidates: remapCandidates, remapHalfDone: remapHalfDone,
     canMerge: canMerge, whyNot: whyNot, samePattern: samePattern, mergeDone: mergeDone,
-    mergeHalfDone: mergeHalfDone, mergeSet: mergeSet, mergeSessions: mergeSessions,
+    mergeHalfDone: mergeHalfDone, mergeQuarterDone: mergeQuarterDone, mergeSet: mergeSet, mergeSessions: mergeSessions,
     mergeMilestones: mergeMilestones
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

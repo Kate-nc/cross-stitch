@@ -51,6 +51,8 @@ function importResultToProject(result, fabricCt = 14, name = "") {
     bsLines: result.bsLines || [],
     // French knots (knots.js), when the chart has any.
     knots: result.knots && result.knots.length ? result.knots : undefined,
+    // Beads from an OXS chart: kept, drawn, not tracked.
+    beads: result.beads && result.beads.length ? result.beads : undefined,
     done: null,
     parkMarkers: [],
     totalTime: 0,
@@ -157,6 +159,9 @@ function parseOXS(xmlString) {
 
   // Parse palette
   const paletteMap = {};
+  // What the file calls each palette entry (label and colour), before it is matched to a DMC thread: a bead is not a
+  // thread, so a bead's own name and colour are what the project keeps.
+  const rawPalette = {};
   const palContainer = chart.querySelector("palette") || chart.querySelector("Palette") || chart.querySelector("colors") || chart.querySelector("Colors");
   if (palContainer) {
     const colorSelectors = ['color', 'Color', 'thread', 'Thread', 'entry', 'Entry'];
@@ -244,6 +249,8 @@ function parseOXS(xmlString) {
         const hex = el.getAttribute("color") || el.getAttribute("hex") || el.getAttribute("rgb");
         if (hex) rgb = parseHexColor(hex);
       }
+
+      rawPalette[index] = { label: nameStr || sourceLabel, rgb: (rgb && !isNaN(rgb[0]) && !isNaN(rgb[1]) && !isNaN(rgb[2])) ? rgb : null };
 
       if (!dmcThread && rgb && !isNaN(rgb[0]) && !isNaN(rgb[1]) && !isNaN(rgb[2])) {
         // Find nearest DMC
@@ -381,16 +388,38 @@ function parseOXS(xmlString) {
   // French knots. KG-Chart and other OXS writers keep knots and beads as
   // ornaments: <ornaments_inc_knots_and_beads><object x1 y1 palindex
   // objecttype="knot"/>, with x1, y1 in stitches. A knot goes to the nearest
-  // grid corner or stitch centre, in half-stitch units (knots.js). Beads and
-  // other ornaments have nowhere to go yet and are reported.
+  // grid corner or stitch centre, in half-stitch units (knots.js). Beads are
+  // kept the same way, as untracked ornaments (they are not threads and are not
+  // counted in the progress); other ornaments have nowhere to go and are reported.
   const knots = [];
   const _knotAt = {};
+  const beads = [];
+  const _beadAt = {};
   let otherOrnaments = 0;
   const ornContainer = chart.querySelector("ornaments_inc_knots_and_beads") || chart.querySelector("ornaments") ||
                        chart.querySelector("Ornaments");
   if (ornContainer) {
     ornContainer.querySelectorAll("object, Object, ornament, Ornament").forEach(el => {
       const kind = (el.getAttribute("objecttype") || el.getAttribute("type") || "").toLowerCase();
+      if (kind.indexOf("bead") !== -1 && kind.indexOf("knot") === -1) {
+        const bx = parseFloat(el.getAttribute("x1") || el.getAttribute("x"));
+        const by = parseFloat(el.getAttribute("y1") || el.getAttribute("y"));
+        if (isNaN(bx) || isNaN(by) || bx < 0 || by < 0 || bx > width || by > height) { otherOrnaments++; return; }
+        const bIdx = el.getAttribute("palindex") || el.getAttribute("color") || el.getAttribute("index");
+        const raw = rawPalette[bIdx] || {};
+        const bcx = Math.round(bx), bcy = Math.round(by);
+        const bmx = Math.min(width - 1, Math.floor(bx)), bmy = Math.min(height - 1, Math.floor(by));
+        const bCentre = Math.pow(bx - bmx - 0.5, 2) + Math.pow(by - bmy - 0.5, 2) < Math.pow(bx - bcx, 2) + Math.pow(by - bcy, 2);
+        const px = bCentre ? 2 * bmx + 1 : 2 * bcx, py = bCentre ? 2 * bmy + 1 : 2 * bcy;
+        const bKey = px + "," + py + "," + (raw.label || "");
+        if (_beadAt[bKey]) return;
+        _beadAt[bKey] = true;
+        const bead = { x: px, y: py };
+        if (raw.label) bead.label = String(raw.label);
+        if (raw.rgb) bead.rgb = raw.rgb;
+        beads.push(bead);
+        return;
+      }
       if (kind.indexOf("knot") === -1) { otherOrnaments++; return; }
       const fx = parseFloat(el.getAttribute("x1") || el.getAttribute("x"));
       const fy = parseFloat(el.getAttribute("y1") || el.getAttribute("y"));
@@ -413,8 +442,12 @@ function parseOXS(xmlString) {
 
   const warnings = [];
   if (otherOrnaments > 0) {
-    warnings.push(otherOrnaments + (otherOrnaments === 1 ? " bead or other ornament was" : " beads or other ornaments were") +
-      " not imported: only French knots are supported.");
+    warnings.push(otherOrnaments + (otherOrnaments === 1 ? " ornament was" : " ornaments were") +
+      " not imported: only French knots and beads are supported.");
+  }
+  if (beads.length > 0) {
+    warnings.push(beads.length + (beads.length === 1 ? " bead was" : " beads were") +
+      " kept with the chart. Beads are not threads and are not counted in your progress.");
   }
   for (const _idx in _usedSubstitutions) {
     const _e = _substitutions[_idx];
@@ -429,6 +462,7 @@ function parseOXS(xmlString) {
     pattern,
     bsLines,
     knots,
+    beads,
     stitchCount,
     paletteSize: Object.keys(paletteMap).length,
     warnings
@@ -454,6 +488,7 @@ function generateOXS(project) {
   const pattern = Array.isArray(project.pattern) ? project.pattern : [];
   const bsLines = Array.isArray(project.bsLines) ? project.bsLines : [];
   const knots = Array.isArray(project.knots) ? project.knots : [];
+  const beads = Array.isArray(project.beads) ? project.beads : [];
   const name = (project.name || '').replace(/[<>&"']/g, c => ({
     '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
   }[c]));
@@ -542,6 +577,16 @@ function generateOXS(project) {
     }
   }
 
+  // Beads (not threads): one palette entry per label and colour, under a key no thread can have.
+  function beadKey(b) { return 'bead:' + (b.label || 'Bead') + '|' + (Array.isArray(b.rgb) ? b.rgb.join(',') : ''); }
+  for (const b of beads) {
+    const k = beadKey(b);
+    if (palMap[k]) continue;
+    const rgb = Array.isArray(b.rgb) && b.rgb.length === 3 ? b.rgb : [128, 128, 128];
+    const label = b.label || 'Bead';
+    palMap[k] = { index: palIndex++, name: label, number: label, r: rgb[0], g: rgb[1], b: rgb[2] };
+  }
+
   // ── Pass 2: build XML ─────────────────────────────────────────────────────
   function esc(s) {
     return String(s).replace(/[<>&"']/g, c => ({
@@ -592,12 +637,17 @@ function generateOXS(project) {
 
   // French knots, as ornaments (x1, y1 in stitches: corners whole, centres
   // at .5), the way parseOXS reads them back.
-  if (knots.length > 0) {
+  if (knots.length > 0 || beads.length > 0) {
     lines.push('  <ornaments_inc_knots_and_beads>');
     for (const k of knots) {
       const pe = palMap[knotThreadKey(k)];
       if (!pe) continue;
       lines.push('    <object x1="' + (k.x / 2) + '" y1="' + (k.y / 2) + '" palindex="' + pe.index + '" objecttype="knot" />');
+    }
+    for (const b of beads) {
+      const pe = palMap[beadKey(b)];
+      if (!pe) continue;
+      lines.push('    <object x1="' + (b.x / 2) + '" y1="' + (b.y / 2) + '" palindex="' + pe.index + '" objecttype="bead" />');
     }
     lines.push('  </ornaments_inc_knots_and_beads>');
   }

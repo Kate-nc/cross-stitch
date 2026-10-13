@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.136';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.136',
+    date: 'October 2026',
+    notes: [
+      'Beads in an imported .oxs chart are now kept with the project (their position, name and colour) instead of being left out, and are written back when you export .oxs. They are not threads and are not counted in your progress. Nothing draws them on the chart yet.',
+      'Behind the scenes: projects can now store which backstitch lines and quarter stitches are done, ready for marking them. Nothing changes on screen yet; older projects open as before and older versions of the app ignore the new fields.'
+    ]
+  },
+  {
     version: '1.0.135',
     date: 'October 2026',
     notes: [

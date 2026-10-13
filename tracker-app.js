@@ -1419,11 +1419,16 @@ const[partialStitches,setPartialStitches]=useState(new Map());
 // keys ("x,y") of those marked done.
 const[knots,setKnots]=useState([]);
 const[knotsDone,setKnotsDone]=useState([]);
+// Backstitch lines marked done (backstitch.js keys) and quarter stitches marked done (fractional.js: Map of
+// cellIndex -> Set of positions). Beads from an imported chart are carried untouched (they are not tracked).
+const[bsDone,setBsDone]=useState([]);
+const[partialDone,setPartialDone]=useState(new Map());
+const beadsRef=useRef(undefined);
 // Progress record (ProjectStorage.saveProgress): the marks, written about every 400 ms.
 // owner is the (project id, state) pair as of the last committed render, so a write can
 // never put one project's marks under another project's id while switching.
 const progressOwnerRef=useRef(null);
-const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null});
+const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,bsDone:null,partialDone:null});
 const progressTimerRef=useRef(null);
 // Save badge (header). One honest status for the whole project, derived from refs so that
 // updating it costs nothing on the mark path: React skips a setState to the same value.
@@ -3300,6 +3305,9 @@ function doSaveProject(finalName){
     partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand),
     knotsDone: knotsDone.length?knotsDone.slice():undefined,
+    bsDone: window.Backstitch?window.Backstitch.forSave(bsDone):undefined,
+    partialDone: window.Fractional?window.Fractional.forSave(partialDone):undefined,
+    beads: beadsRef.current,
     statsSessions,
     deletedSessionIds:deletedSessionIdsRef.current.length?deletedSessionIdsRef.current.slice():undefined,
     statsSettings,
@@ -3338,7 +3346,7 @@ function doExportOxs(){
     window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
     return;
   }
-  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],knots:knots,name:projectName||'pattern'});
+  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],knots:knots,beads:beadsRef.current||[],name:projectName||'pattern'});
   if(result.warnings&&result.warnings.length>0){
     window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
   }
@@ -3427,6 +3435,8 @@ async function mergeRemoteProject(info){
   const nd=Uint8Array.from(TM.mergeDone(base.done,local.done,remote.done));
   const mergedHalf=TM.mergeHalfDone(base.halfDone,local.halfDone,remote.halfDone);
   const mergedKnots=TM.mergeSet(base.knotsDone,local.knotsDone,remote.knotsDone);
+  const mergedBs=TM.mergeSet(base.bsDone,local.bsDone,remote.bsDone);
+  const mergedQuarters=TM.mergeQuarterDone(base.partialDone,local.partialDone,remote.partialDone);
   // A deletion the other tab made is added; one it took back (Undo) is dropped, as for any other set.
   const mergedDeleted=TM.mergeSet(base.deletedSessionIds,local.deletedSessionIds,remote.deletedSessionIds);
   deletedSessionIdsRef.current=mergedDeleted;
@@ -3440,6 +3450,8 @@ async function mergeRemoteProject(info){
   setDone(nd);
   setHalfDone(hdMap);
   setKnotsDone(mergedKnots);
+  setBsDone(mergedBs);
+  setPartialDone(window.Fractional?window.Fractional.toMap(mergedQuarters):new Map());
   setStatsSessions(mergedSessions);
   setAchievedMilestones(mergedMilestones);
   // The undo history describes cells whose value just changed under it.
@@ -3485,7 +3497,7 @@ function handleEditInCreator(){
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
             halfStitches:project.halfStitches, halfDone:project.halfDone,
-            knotsDone:project.knotsDone,
+            knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads,
             finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
             lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
             stitchLog:_v3h.stitchLog
@@ -3711,6 +3723,9 @@ function processLoadedProject(project){
   setPartialStitches(partialMap);
   setKnots(knotList);
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
+  setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines):[]);
+  setPartialDone(window.Fractional?window.Fractional.live(window.Fractional.toMap(project.partialDone),partialMap):new Map());
+  beadsRef.current=Array.isArray(project.beads)&&project.beads.length?project.beads:undefined;
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
@@ -4429,6 +4444,7 @@ const buildSnapshot = () => {
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
+    bsDone: window.Backstitch ? window.Backstitch.forSave(bsDone) : undefined, partialDone: window.Fractional ? window.Fractional.forSave(partialDone) : undefined, beads: beadsRef.current,
     statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots,
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
@@ -4510,6 +4526,8 @@ function writeProgressNow() {
       done: done,
       halfDone: o.halfDone.size ? [...o.halfDone.entries()] : [],
       knotsDone: o.knotsDone,
+      bsDone: o.bsDone,
+      partialDone: (window.Fractional && window.Fractional.forSave(o.partialDone)) || [],
       baseWriteAt: seen && typeof seen.lastWriteAt === 'number' ? seen.lastWriteAt : null,
       tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
     });
@@ -4571,7 +4589,7 @@ useEffect(() => {
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
               halfStitches:project.halfStitches, halfDone:project.halfDone,
-              knotsDone:project.knotsDone,
+              knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads,
               finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
               lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
               stitchLog:_v3.stitchLog
@@ -4594,7 +4612,7 @@ useEffect(() => {
   }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
+    halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
     // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
     projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand,
@@ -4733,7 +4751,7 @@ useEffect(() => {
   if (!pat) return;
   uiGenRef.current++;
   refreshSaveUi();
-}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone,
+}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone,
     statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
     originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs,
     projectDesigner, projectDescription, partialStitches, projectFabricColour, threadBrand,
@@ -4756,10 +4774,10 @@ useEffect(() => {
   // owner changes, or the timer would fire for the new project and drop them.
   const _prev = progressOwnerRef.current;
   if (_prev && _prev.id !== id && progressTimerRef.current) writeProgressNow();
-  progressOwnerRef.current = { id, done, halfDone, knotsDone };
+  progressOwnerRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone };
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
-    progressBaseRef.current = { id, done, halfDone, knotsDone };
+    progressBaseRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone };
     uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
     // Another project: its own save state, and writes still running for the old one must not touch it.
     { const u = saveUiRef.current; u.error = null; u.savedOnce = false; u.inFlight = 0; u.conflict = false; u.epoch++; }
@@ -4767,9 +4785,9 @@ useEffect(() => {
     refreshSaveUi();
     return;
   }
-  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone) return;
+  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone && b.bsDone === bsDone && b.partialDone === partialDone) return;
   scheduleProgressWrite();
-}, [done, halfDone, knotsDone]);
+}, [done, halfDone, knotsDone, bsDone, partialDone]);
 useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimerRef.current); }, []);
 
 // ── Zoom-adaptive tier helpers ──
