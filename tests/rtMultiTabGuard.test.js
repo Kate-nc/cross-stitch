@@ -26,7 +26,7 @@ describe('tracker-app.js — multi-tab live-tracking guard (DEFECT-008)', () => 
   });
 
   test('emits a warning Toast when another tab is detected', () => {
-    expect(SRC).toMatch(/Live tracking is active in another tab/);
+    expect(SRC).toMatch(/Using up stash thread as you stitch is on in another tab/);
     expect(SRC).toMatch(/type:\s*['"]warning['"]/);
   });
 

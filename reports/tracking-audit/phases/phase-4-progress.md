@@ -97,3 +97,31 @@ Interleaved against `main` (current `origin/main`), phone emulation (393x727 tou
 - The style question is skipped when a pattern is already open on a first visit (Block applies; it is under More controls > Tools).
 - Not verified on real Safari or a real phone.
 
+## Batch 5: keep the screen on, and plainer words (TRACK-11, COMMON-01)
+
+Reproduced first: the chip read "Sleep" / "Awake" (which state does the word describe?), the wake lock was off by default and needed that chip, and the setting could not say "never".
+
+TRACK-11 (`useWakeLock.js`, the live hook; `wake-lock.js` is the older class and is unchanged):
+- `trackerWakeLock` is now `"auto"` (default) | `"always"` | `"never"`. An older stored `true` reads as Always, `false` and unset as Automatic.
+- **Automatic** takes the lock at the first mark of a session on a touch screen (`pointer: coarse`), feature-detected (`navigator.wakeLock`); it says so once ("Keeping the screen on while you stitch", a Turn off button, 9 s; flag `cs_wakelock_told`) and re-takes it whenever the browser gives it back (tab shown again). A computer is left alone.
+- **Always** takes it as the Tracker opens, on any device. **Never** never does.
+- The chip reads **Keep screen on** and shows whether it is held. Tapping it off remembers Never; tapping it on remembers Always.
+- Released after 15 minutes without a mark (re-taken by the next one) and when the Tracker closes; a lock the person released is not brought back when the tab is shown.
+- Preferences > Stitch Tracker > Phones and small screens has the three choices.
+
+COMMON-01:
+- **Navigate stays.** `TERMINOLOGY.md` names "Mark mode (and Navigate mode)", so the doc settles it and the audit's "ask if the doc does not" did not apply; changing it is a copy change if you decide otherwise.
+- "Live tracking (RT)" is now **Use up stash thread as I stitch** (control, the other-tab warning, wiki). Sleep / Awake is Keep screen on.
+- **Highlight options in one tab:** the chart view picker moved from the View tab into the Highlight tab, beside the highlight style, Counting aids and Skip done stitches; View keeps Zoom and Lock detail level. The picker offered a **Realistic** button that set a view the chart does not draw (the bug noted in Copilot round 1 of batch 4); it is now **Colour + symbol**, the real view (the V key and Preferences already had it).
+- Help: "Keeping the screen on" and "Highlight tab", changelog 1.0.130. `npm run lint:terminology` passes; the shortcut-sync test passes (no shortcut changed).
+
+Tests: `tests/useWakeLock.test.js` (13, the real hook in jsdom with a mocked Wake Lock), `tests/e2e/phase4-batch5.spec.js` (5), updated `trackerLeftSidebar`, `rtMultiTabGuard`. Also fixed `tests/phase3Batch4.test.js` "weekly streak", which failed on `main` today (a Tuesday): its dates (1, 9, 16, 23 days ago) only form four weeks in a row on some weekdays; they are now relative to the weekday.
+
+### Performance (batch 5)
+Interleaved against `main` (current `origin/main`), phone emulation (393x727 touch, 4x CPU throttle, 300x300 fixture), 3 pairs. This machine was about 30% slower than during batch 4 for both sides, which the interleaving cancels. Tap median (ms): main 91.4 / 93.3 / 87.2, branch 83.7 / 88.9 / 90.8. Stroke commit: main 88.2 / 87.4 / 78.6, branch 79.7 / 79.6 / 89.7. Desktop tap (120 taps): main 11.3 / 11.2 / 11.4, branch 11.9 / 10.4 / 10.8. Load to chart: main 5781 / 5883 / 5580, branch 5584 / 6666 / 5618 (one slow load in the middle pair). No change outside noise; the per-mark wake-lock call returns at once once the lock is held. Raw output in `reports/tracking-audit/perf/phase4-batch5/`.
+
+### Known limits
+- Wake Lock on real iOS Safari (16.4+ in the browser, a home-screen app behaves differently) and on Android is unverified: only mocked here, and feature-detected so an unsupported browser does nothing.
+- A lock is taken by a mark, so a person who only watches the chart (Navigate) is not kept awake; the chip does it on demand.
+- One cross-tab spec ("a stitch unpicked in the other tab is not brought back") failed once in the 79-spec regression with two workers and passed on its own and in the previous batch's run: a mouse-drag timing flake in the second tab, in code this batch does not touch.
+

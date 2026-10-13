@@ -1071,7 +1071,7 @@ const[dockY,setDockY]=useState(()=>{
   try{const v=parseInt(localStorage.getItem("tracker_dock_y")||"",10);return Number.isFinite(v)?v:40;}catch(_){return 40;}
 });
 useEffect(()=>{try{localStorage.setItem("tracker_dock_y",String(dockY));}catch(_){}},[dockY]);
-const { wakeLockActive, toggleWakeLock } = window.useWakeLock();
+const { wakeLockActive, toggleWakeLock, keepAwakeOnMark } = window.useWakeLock();
 // Tag the document body with `tracker-mobile` while the Tracker is mounted on a
 // touch / narrow viewport. CSS scopes the new bottom action bar and quick-
 // switcher drawer to this class so desktop layout is untouched.
@@ -1328,6 +1328,14 @@ useEffect(()=>{
   return()=>clearTimeout(t);
 },[resumeRecap]);
 useEffect(()=>{if(resumeRecap&&trackHistory.length>0)setResumeRecap(null);},[resumeRecap,trackHistory]);
+// Marking is what keeps the screen on (TRACK-11): the first mark of a session takes the wake lock on a touch screen.
+const prevHistRef=useRef({len:0,last:null});
+useEffect(()=>{
+  // Only a stitch or a knot going on to the history counts: not an undo (the history shrinks) and not a parked thread.
+  const last=trackHistory.length?trackHistory[trackHistory.length-1]:null, prev=prevHistRef.current;
+  prevHistRef.current={len:trackHistory.length,last};
+  if(last&&last!==prev.last&&trackHistory.length>=prev.len&&last.type!=="PARK"&&keepAwakeOnMark)keepAwakeOnMark();
+},[trackHistory,keepAwakeOnMark]);
 // The pattern's size no longer matches the saved marks: held here until the user decides (see
 // processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
 const[reconcile,setReconcile]=useState(null);
@@ -1705,7 +1713,7 @@ const rtDebounceRef=useRef(null);
 const rtConsumptionRef=useRef({});
 // Tracks which thread ids have already triggered a low-thread toast this session.
 const rtLowToastedRef=useRef(new Set());
-// Expose the snapshot setters on window for the "Live tracking (RT)" toggle in
+// Expose the snapshot setters on window for the "Use up stash thread as I stitch" toggle in
 // the palette More panel, which renders in a different component scope.
 // __setRtStashSnapshot replaces the snapshot unconditionally (used by project-load).
 // __ensureRtStashSnapshot sets the snapshot ONLY IF the current ref is empty — used by
@@ -1719,7 +1727,7 @@ useEffect(function(){
   };
   return function(){delete window.__setRtStashSnapshot;delete window.__ensureRtStashSnapshot;};
 },[]);
-// Listen for the disable request dispatched by that same Live tracking toggle.
+// Listen for the disable request dispatched by that same stash toggle.
 useEffect(function(){
   function onDisable(){setModal('rt_disable_confirm');}
   window.addEventListener('cs:rtDisableRequest',onDisable);
@@ -2508,7 +2516,7 @@ useEffect(()=>{
     if(!warned&&window.Toast){
       warned=true;
       window.Toast.show({
-        message:'Live tracking is active in another tab — stash deductions may collide. Disable Live in one tab to avoid lost edits.',
+        message:'Using up stash thread as you stitch is on in another tab — stash deductions may collide. Turn it off in one tab to avoid lost edits.',
         type:'warning',duration:8000
       });
     }
@@ -8154,8 +8162,8 @@ return(
     <div id="ppal-more-panel" className={"ppal-more-panel"+(morePanelOpen?" ppal-more-panel--open":"")} role="dialog" aria-label="Tracker controls" aria-hidden={!morePanelOpen}>
       <div className="ppal-more-header">
         <span className="ppal-more-title">Controls</span>
-        <button className={"ppal-utility-chip"+(wakeLockActive?" ppal-utility-chip--on":"")} onClick={toggleWakeLock} aria-pressed={wakeLockActive} title={wakeLockActive?"Screen stays awake — tap to release":"Keep screen awake"}>
-          {Icons.dot?Icons.dot():null}{" "}{wakeLockActive?"Awake":"Sleep"}
+        <button className={"ppal-utility-chip"+(wakeLockActive?" ppal-utility-chip--on":"")} onClick={toggleWakeLock} aria-pressed={wakeLockActive} title={wakeLockActive?"The screen stays on while you stitch. Tap to let it sleep.":"Keep the screen on while you stitch"}>
+          {Icons.dot?Icons.dot():null}{" Keep screen on"}
         </button>
         <button className={"ppal-utility-chip"+(focusMode?" ppal-utility-chip--on":"")} onClick={()=>setFocusMode(v=>!v)} aria-pressed={focusMode} title={focusMode?"Exit focus mode (F)":"Enter focus mode (F)"}>
           {focusMode?(Icons.focusExit?Icons.focusExit():null):(Icons.focus?Icons.focus():null)}{" Focus"}
@@ -8180,6 +8188,17 @@ return(
         {/* -- Highlight tab -- */}
         {leftSidebarTab==="highlight"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Chart view</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["symbol","Symbol"],["colour","Colour + symbol"],["highlight","Highlight"]].map(([v,l])=>
+                <button key={v}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
+                  onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Highlight style</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([v,l])=>
@@ -8203,17 +8222,6 @@ return(
 
         {/* -- View tab -- */}
         {leftSidebarTab==="view"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div>
-            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Stitch view</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[["symbol","Symbol"],["highlight","Highlight"],["realistic","Realistic"]].map(([v,l])=>
-                <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
-                  onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
-                >{l}</button>
-              )}
-            </div>
-          </div>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -8382,7 +8390,7 @@ return(
           >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
-            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Live tracking (RT)</span>
+            <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Use up stash thread as I stitch</span>
             <input type="checkbox" checked={!!wastePrefs.enabled} onChange={e=>{
               if(!e.target.checked&&typeof setWastePrefs==='function'){
                 // Turning off: dispatch to TrackerApp via a custom event
@@ -8773,8 +8781,8 @@ return(
   {modal==="rt_disable_confirm"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="rt-disable-title" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():null}</button>
-      <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Turn off live tracking?</h3>
-      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread deductions made so far.</p>
+      <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Stop using up stash thread as you stitch?</h3>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread already taken from your stash.</p>
       <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
         <button onClick={()=>{
           setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});

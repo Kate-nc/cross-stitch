@@ -408,6 +408,7 @@
     var showDaily = usePref("showDailyStreak", null);
     var focusPhone = usePref("trackerFocusOnPhone", true);
     var handed = usePref("trackerHandedness", "right");
+    var wakeLock = usePref("trackerWakeLock", "auto");
     var dayEnd = usePref("statsDayEndHour", 0);
 
     return h("div", null,
@@ -545,6 +546,13 @@
       h(Section, { title: "Phones and small screens" },
         h(Row, { label: "Tuck the top bar away while stitching on a phone", desc: "On a phone the Tracker opens with the top bar and progress strip hidden, so the chart gets the screen; a thin progress line and an Exit focus button stay. Off keeps them showing. Tablets and computers are not affected." },
           h(Switch, { checked: focusPhone[0] !== false, onChange: focusPhone[1], "aria-label": "Tuck the top bar away while stitching on a phone" })
+        ),
+        h(Row, { label: "Keep the screen on while stitching", desc: "Automatic keeps a phone or tablet screen lit from your first mark, and lets it sleep after 15 minutes without one. Always does this on any device, from the moment the Tracker opens. Never leaves it to your device. Not every browser can do this." },
+          h(Segmented, { value: wakeLock[0] === true || wakeLock[0] === "always" ? "always" : (wakeLock[0] === "never" ? "never" : "auto"), onChange: wakeLock[1], options: [
+            { value: "auto",   label: "Automatic" },
+            { value: "always", label: "Always" },
+            { value: "never",  label: "Never" }
+          ] })
         ),
         h(Row, { last: true, label: "Controls side", desc: "Which side of the chart the Mark, Nav and Undo buttons sit on. Left suits left-handed stitching; the chart then makes room for them." },
           h(Segmented, { value: handed[0] === "left" ? "left" : "right", onChange: handed[1], options: [

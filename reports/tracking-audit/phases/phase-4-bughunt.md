@@ -76,3 +76,19 @@ All seven findings checked against the code; all real, all fixed:
 - **Project switch / same-project reload:** a switch sets the focus colour from the saved context (or none) and leaves Highlight view for Symbol when the project has no colour saved; a same-project reload keeps the current colour while the pattern still has it.
 - **`APP_VERSION`:** I had edited it; CI bumps it on merge. Restored to 1.0.128 (the 1.0.129 changelog entry stays).
 - **Banner:** `--app-header-height` instead of an undefined `--tb-h`; buttons 44 px on coarse pointers; the 20 s timeout waits while focus is inside the banner.
+
+## Batch 5 (TRACK-11, COMMON-01)
+
+- **`npm test` would have hung.** The first version of the hook test left 15-minute idle timers running in the jsdom windows, so Jest never exited (found by the test run not finishing; it passed with `--forceExit`). Each window is now closed after its test. The idle timer itself is deliberate.
+- **A lock released by the person must not come back.** The old hook re-took the lock on every tab show if the pref said so; with Automatic there is no such pref, so a `wantRef` tracks "should be held": cleared on release, kept when the browser takes the lock (tab hidden). Tested both ways.
+- **Date-dependent test:** `phase3Batch4` weekly streak failed on `main` today (see progress). Not caused by this batch; made weekday-proof rather than skipped.
+- The V shortcut already cycles symbol / colour / highlight, which showed the "Realistic" button was the stray one.
+
+
+### Copilot round 1 (batch 5)
+Five findings, all real, all fixed:
+- **Request race (high):** two quick marks before the first `request()` settled could take two locks and keep only the last, and a request could land after the Tracker closed. A request in flight is now shared (`pendingRef`); `wantRef` is set before the wait, and a lock that arrives after a release or an unmount is released rather than kept.
+- **Parking a thread took the lock:** the history also holds `PARK` entries (and shrinks on undo). The trigger now needs a new last entry, no shrink, and not `PARK`.
+- **Preference changes were not live:** the hook listens for `cs:prefchange`; Never lets go at once, Always takes the lock now.
+- **Idle test only read the source:** it now runs the captured 15-minute timer and checks the release, the inactive state, and that the next mark takes the lock again; further tests cover shared requests, a lock arriving after Never or after unmount, and the preference events.
+- **Retired term in the confirmation:** the dialog was still "Turn off live tracking?"; now "Stop using up stash thread as you stitch?".
