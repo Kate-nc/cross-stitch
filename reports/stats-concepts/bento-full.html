@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stats bento: full mockup</title>
+<style>
+:root{--accent:#B85C38;--accent-light:#F4DDCF;--accent-border:#E8B89A;--accent-ink:#5C2A14;--tp:#1B1814;--ts:#5C5448;--tt:#8A8270;--border:#E5DCCB;--bs:#EFE7D6;--surface:#fff;--s2:#FBF8F3;--success:#4F7D3F;--success-soft:#DEE7D2;--warning:#C0883A;--warning-soft:#F2E2BE;--danger:#A53D3D;--bg:#F6F1E8}
+@media (prefers-color-scheme:dark){:root{--accent:#D9825C;--accent-light:#3A2418;--accent-border:#6B4430;--accent-ink:#F4DDCF;--tp:#F3EDE2;--ts:#C2B8A6;--tt:#948B79;--border:#3A342B;--bs:#2E2922;--surface:#221E19;--s2:#1B1814;--success:#8DB97A;--success-soft:#26331F;--warning:#E0A85A;--warning-soft:#3B2F17;--danger:#D98080;--bg:#14110E}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tp);font:14px/1.45 Inter,system-ui,sans-serif}
+.wrap{max-width:1360px;margin:0 auto;padding:20px 16px 64px}
+h1{font-size:22px;margin:0 0 4px}.lede{color:var(--ts);margin:0 0 14px;max-width:80ch}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.bar .sep{width:1px;height:22px;background:var(--border);margin:0 6px}
+button{font:inherit;padding:6px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ts);border-radius:999px;cursor:pointer}
+button[aria-pressed=true],button[aria-selected=true]{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent-ink);font-weight:600}
+.opt{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0 12px;color:var(--ts);font-size:13px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.opt b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tt);margin-bottom:2px}
+.frame{container-type:inline-size;margin:0 auto;width:100%;border:1px solid var(--border);border-radius:12px;background:var(--s2);padding:16px;transition:width .2s}
+.frame[data-w=tablet]{width:780px;max-width:100%}.frame[data-w=phone]{width:390px;max-width:100%}
+/* app chrome */
+.chrome{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+.chrome h2{margin:0;font-size:20px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;background:var(--surface);overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent}
+.nav{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto}
+.nav a{padding:9px 14px;color:var(--ts);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;font-size:13px}
+.nav a.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+.side{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:start}
+.side .nav{flex-direction:column;border:0;position:sticky;top:8px;margin:0}
+.side .nav a{border:0;border-radius:8px}.side .nav a.on{background:var(--accent-light);color:var(--accent-ink)}
+@container (max-width:700px){.side{grid-template-columns:1fr}.side .nav{flex-direction:row;position:static;border-bottom:1px solid var(--border)}}
+.jump{position:sticky;top:0;z-index:5;display:flex;gap:6px;flex-wrap:wrap;background:var(--s2);padding:6px 0 10px}
+.zone{margin:0 0 20px;scroll-margin-top:50px}
+.zone>h3{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--tt);margin:0 0 8px;display:flex;gap:10px;align-items:baseline}
+.zone>h3 small{letter-spacing:0;text-transform:none;font-weight:400}
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;}
+.w3{grid-column:span 3}.w4{grid-column:span 4}.w5{grid-column:span 5}.w6{grid-column:span 6}.w7{grid-column:span 7}.w8{grid-column:span 8}.w12{grid-column:1/-1}
+@container (max-width:1000px){.grid>*{grid-column:span 6!important}.grid>.w12,.grid>.w7,.grid>.w8{grid-column:1/-1!important}}
+@container (max-width:560px){.grid>*{grid-column:1/-1!important}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:8px;position:relative}
+.card.hero{background:linear-gradient(180deg,var(--surface),var(--s2))}
+.th{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tt);margin:0;font-weight:600}
+.share{width:20px;height:20px;color:var(--tt);flex:none}
+.big{font-size:30px;font-weight:700;line-height:1.1}.mid{font-size:20px;font-weight:700}.sub{font-size:12px;color:var(--ts)}
+.up{color:var(--success);font-weight:600}.dn{color:var(--danger);font-weight:600}
+.src{display:none;font-size:11px;color:var(--accent);border-top:1px dashed var(--accent-border);padding-top:6px;margin-top:auto}
+.annot .src{display:block}
+.ring{width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--bs) 0);display:grid;place-items:center;flex:none}
+.ring::after{content:attr(data-l);width:calc(100% - 20px);height:calc(100% - 20px);border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:13px}
+.ring.s{width:56px;height:56px}.ring.s::after{width:calc(100% - 14px);height:calc(100% - 14px);font-size:11px}
+.met{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px}.met b{display:block;font-size:16px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--bs);font-size:13px}.row:first-of-type{border-top:0}.row span:first-child{color:var(--ts)}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;border:1px solid var(--border);font-size:12px;color:var(--ts);background:var(--surface)}
+.chip.a{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent-ink);font-weight:600}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chart{height:150px;border-radius:8px;background:linear-gradient(to top,var(--bs) 1px,transparent 1px) 0 0/100% 37px,var(--s2);position:relative;overflow:hidden}.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.bars{display:flex;align-items:flex-end;gap:4px;height:80px}.bars i{flex:1;background:var(--accent-border);border-radius:3px 3px 0 0;display:block}.bars i.h{background:var(--accent)}
+.hb{display:grid;grid-template-columns:minmax(70px,auto) 1fr auto;gap:8px;align-items:center;font-size:12px;padding:3px 0}.hb .t{height:8px;border-radius:4px;background:var(--bs);overflow:hidden}.hb .t i{display:block;height:100%;background:var(--accent);border-radius:4px}.hb .t i.g{background:var(--success)}
+.sw{display:flex;gap:4px;flex-wrap:wrap}.sw i{width:22px;height:22px;border-radius:5px;display:block;border:1px solid rgba(0,0,0,.08)}
+.ms{display:flex;gap:6px}.ms i{flex:1;font-style:normal;text-align:center;border-radius:8px;padding:8px 2px;background:var(--success-soft);color:var(--success);font-weight:700;font-size:13px}.ms i small{display:block;font-weight:400;font-size:10px}.ms i.n{background:var(--accent-light);color:var(--accent)}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px}.heat i{aspect-ratio:1;max-height:16px;border-radius:3px;background:var(--bs);display:block}
+.heat i.l1{background:#EBC9B3}.heat i.l2{background:#D99872}.heat i.l3{background:var(--accent)}
+.hw{display:grid;grid-template-columns:repeat(24,1fr);gap:2px}.hw i{aspect-ratio:1;border-radius:2px;background:var(--bs);display:block}.hw i.l1{background:#EBC9B3}.hw i.l2{background:#D99872}.hw i.l3{background:var(--accent)}
+.sess{display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--bs);font-size:13px}.sess:first-of-type{border-top:0}.dot{width:8px;height:8px;border-radius:50%;flex:none}.sess b{margin-left:auto}.sess small{color:var(--tt)}
+.sec{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}.sec i{aspect-ratio:1;border-radius:3px;display:block;background:var(--success-soft)}.sec i.p{background:var(--warning-soft)}.sec i.e{background:var(--bs)}
+.stack{display:flex;height:18px;border-radius:5px;overflow:hidden}.stack i{display:block}
+.donut{width:90px;height:90px;border-radius:50%;flex:none;position:relative}.donut::after{content:"";position:absolute;inset:22px;border-radius:50%;background:var(--surface)}
+.scat{height:130px;position:relative;border-left:1px solid var(--border);border-bottom:1px solid var(--border);margin-left:4px}.scat i{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);opacity:.8;transform:translate(-50%,50%)}
+.prog{height:8px;border-radius:4px;background:var(--bs);overflow:hidden}.prog i{display:block;height:100%;background:var(--accent)}
+.btns{display:flex;gap:6px;flex-wrap:wrap}.empty{color:var(--tt);font-size:13px;padding:30px;text-align:center;border:1px dashed var(--border);border-radius:10px}
+.flex{display:flex;gap:12px;align-items:center}
+/* inventory */
+.inv{margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:auto}
+.inv table{border-collapse:collapse;width:100%;font-size:12px}.inv th,.inv td{text-align:left;padding:6px 10px;border-top:1px solid var(--bs);vertical-align:top}.inv th{color:var(--tt);font-size:11px;text-transform:uppercase;letter-spacing:.05em;border:0;background:var(--s2);position:sticky;top:0}
+.inv td.m{color:var(--accent);font-weight:600}.badge{display:inline-block;background:var(--warning-soft);color:var(--warning);border-radius:999px;padding:0 7px;font-size:11px;margin-left:4px}
+</style></head><body><div class="wrap">
+<h1>Stats page: full bento mockup</h1>
+<p class="lede">Every stat the app currently computes (Stitching, Stash, Showcase, Activity, Insights tabs and the per-project dashboard), drawn as a tile and placed three different ways. Sample data throughout. Switch scope, width and placement; turn on <b>Show current location</b> to see where each tile lives today, and <b>Inventory</b> for the full old-to-new map.</p>
+<div class="bar" id="opts"></div>
+<div class="bar">
+ <div class="seg" id="scope"><button data-s="p" aria-pressed="false">This project</button><button data-s="g" aria-pressed="true">All projects</button></div>
+ <div class="seg" id="vp"><button data-w="desktop" aria-pressed="true">Desktop</button><button data-w="tablet" aria-pressed="false">Tablet</button><button data-w="phone" aria-pressed="false">Phone</button></div>
+ <span class="sep"></span><button id="annot" aria-pressed="false">Show current location</button><button id="invbtn" aria-pressed="false">Inventory</button>
+</div>
+<div class="opt" id="optinfo"></div>
+<div class="frame" id="frame" data-w="desktop"><div class="chrome"><h2 id="ttl">Stats</h2><span class="sub" id="scopeNote"></span></div><div id="stage"></div></div>
+<div class="inv" id="inv" hidden></div>
+</div>
+<script>
+/* ---------- helpers ---------- */
+var seed=11;function rnd(){seed=(seed*9301+49297)%233280;return seed/233280}
+function heat(n,cls){var o='';for(var i=0;i<n;i++){var r=rnd();o+='<i'+(r>.9?' class="l3"':r>.75?' class="l2"':r>.55?' class="l1"':'')+'></i>'}return '<div class="'+cls+'">'+o+'</div>'}
+function bars(a,hi){return '<div class="bars">'+a.map(function(v,i){return '<i style="height:'+v+'%"'+(hi!=null&&hi===i?' class="h"':'')+'></i>'}).join('')+'</div>'}
+function row(a,b){return '<div class="row"><span>'+a+'</span><b>'+b+'</b></div>'}
+function hb(l,p,v,g){return '<div class="hb"><span>'+l+'</span><div class="t"><i'+(g?' class="g"':'')+' style="width:'+p+'%"></i></div><b>'+v+'</b></div>'}
+function sw(c){return '<div class="sw">'+c.map(function(x){return '<i style="background:'+x+'"></i>'}).join('')+'</div>'}
+function met(a){return '<div class="met">'+a.map(function(m){return '<div><div class="lbl">'+m[0]+'</div><b>'+m[1]+'</b><div class="sub">'+(m[2]||'')+'</div></div>'}).join('')+'</div>'}
+function line(){return '<div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" vector-effect="non-scaling-stroke" points="0,38 10,34 20,32 35,30 50,24 60,22 75,18 85,14 100,8"/><polyline fill="none" stroke="var(--tt)" stroke-dasharray="3 3" stroke-width="1" vector-effect="non-scaling-stroke" points="0,38 100,10"/></svg></div>'}
+function chips(a,on){return '<div class="chips">'+a.map(function(x,i){return '<span class="chip'+(i===on?' a':'')+'">'+x+'</span>'}).join('')+'</div>'}
+function sess(a){return a.map(function(s){return '<div class="sess"><span class="dot" style="background:'+(s[3]||'var(--accent)')+'"></span><div>'+s[0]+'<br><small>'+s[1]+'</small></div><b>'+s[2]+'</b></div>'}).join('')}
+function ring(p,l,c){return '<div class="ring'+(c||'')+'" style="--p:'+p+'" data-l="'+l+'"></div>'}
+function stack(a){return '<div class="stack">'+a.map(function(x){return '<i style="width:'+x[0]+'%;background:'+x[1]+'"></i>'}).join('')+'</div>'}
+var SH='<svg class="share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg>';
+var COL=['#B85C38','#4F7D3F','#C0883A','#2E4A6B','#7A4E7E','#5C5448','#D9A7A0','#3E8E8E'];
+
+/* ---------- tile catalogue: id -> {t:title, s:scope(p|g|b), w:default width, hero, share, cur:where it lives today, r:render} ---------- */
+var T={
+hero:{t:'Project progress',s:'p',w:5,hero:1,cur:'Project dashboard: overview card',r:function(){return '<div class="flex">'+ring(84,'84%')+'<div><div class="big">1,350</div><div class="sub">of 1,600 stitches</div></div></div>'+met([['Speed','172/hr'],['Time','7h 50m'],['Est. finish','13 Oct','~2 hrs'],['Sessions','10']])}},
+totals:{t:'All-time totals',s:'g',w:5,hero:1,share:1,cur:'Stitching: All time; Stash: Lifetime stitches; Showcase: Lifetime stitches',r:function(){return '<div class="big">1,350</div><div class="sub">lifetime stitches &middot; about 0 km of thread</div>'+met([['Time','7h 50m','10 active days'],['Avg speed','172/hr'],['Projects','0 / 1','1 in progress']])}},
+streak:{t:'Streak',s:'b',w:3,cur:'Stitching: streak banner; Project: Streaks panel; Stash: Weekly streak',r:function(){return '<div class="big">1 day</div><div class="sub">Daily streak, keep it going</div>'+row('Weekly streak','4 weeks')+row('Longest','3 days')+row('Best day','300 (8 Oct)')}},
+pace:{t:'Pace',s:'b',w:4,cur:'Stash: Recent pace; Activity: Pace stats (4 cards)',r:function(){return '<div class="mid">138 <span class="sub">stitches / day</span></div>'+met([['Per session','138'],['Est. hours','~8'],['Avg session','~50m'],['Active days','10','of 25']])}},
+week:{t:'This week vs last',s:'b',w:5,cur:'Stitching: This week vs last week; Insights: Weekly summary',r:function(){return met([['Stitches','440','<span class=up>+76%</span>'],['Time','2h 25m','<span class=up>+61%</span>'],['St/hour','182','<span class=up>+9%</span>'],['Days active','2 / 7','-1 vs last']])+bars([30,70,45,85,20,55,35],3)}},
+goals:{t:'Goals',s:'b',w:4,cur:'Project: Goals tracker; Stitching: Goals',r:function(){return '<div><div class="row"><span>Daily</span><b>0 / 175</b></div><div class="prog"><i style="width:0"></i></div></div><div><div class="row"><span>Weekly</span><b>440 / 500</b></div><div class="prog"><i style="width:88%"></i></div></div><div><div class="row"><span>Monthly</span><b>1,350 / 3,000</b></div><div class="prog"><i style="width:45%"></i></div></div>'+chips(['Easy 125','Moderate 175','Ambitious 200'])}},
+chart:{t:'Progress over time',s:'b',w:7,share:1,cur:'Project: Progress chart (Daily / Cumulative / Speed / Calendar, what-if slider)',r:function(){return chips(['Daily','Cumulative','Speed','Calendar'],1)+line()+'<div class="sub">What-if pace: 135 st/day, about 2 days to finish</div>'}},
+miles:{t:'Milestones',s:'p',w:5,cur:'Project: Milestones',r:function(){return '<div class="ms"><i>10%<small>18 Sep</small></i><i>25%<small>24 Sep</small></i><i>50%<small>2 Oct</small></i><i>75%<small>8 Oct</small></i><i class="n">100%<small>~13 Oct</small></i></div>'}},
+projects:{t:'Projects',s:'g',w:6,cur:'Stitching: Projects cards; Insights: Your projects; Stash: Active projects',r:function(){return '<div class="flex">'+ring(84,'84%','')+'<div><b>History Test</b><div class="sub">250 left &middot; ~17 Oct at current pace</div></div></div><div class="flex">'+ring(40,'40%','')+'<div><b>Autumn Sampler</b><div class="sub">960 left &middot; on pace for Dec</div></div></div>'}},
+eta:{t:'Completion ETAs',s:'g',w:4,cur:'Stash: Completion ETAs; Insights: project projections',r:function(){return row('History Test','17 Oct')+row('Autumn Sampler','12 Dec')+row('Winter Robin','Not started')}},
+finish:{t:'Finishes',s:'g',w:3,cur:'Stash: Finished this year + Finish rate',r:function(){return '<div class="big">0</div><div class="sub">finished this year</div>'+row('Finish rate','0%')+row('Started','1')}},
+recent:{t:'Recent sessions',s:'b',w:4,cur:'Stitching: Recent sessions; Project: Session timeline (edit / merge)',r:function(){return sess([['9 Oct','1h 10m &middot; History Test','+220'],['7 Oct','55m &middot; History Test','+180','var(--success)'],['5 Oct','40m &middot; Autumn Sampler','+140','var(--warning)']])+'<span class="chip">Show all</span>'}},
+heat:{t:'Stitching calendar',s:'b',w:8,share:1,cur:'Activity: heatmap; Project chart: Calendar mode',r:function(){return '<div class="lbl" style="margin-bottom:-2px"></div>'+heat(182,'heat')+chips(['12 months','6 months','This year','All time'],0)}},
+actins:{t:'Habit highlights',s:'b',w:4,cur:'Activity: Favourite day, Cadence, Biggest day; Stitching: Insights strip',r:function(){return row('Favourite day','Sunday')+row('Cadence','Every 2-3 days')+row('Biggest day','300 on 8 Oct')}},
+busiest:{t:'Busiest weeks',s:'b',w:4,cur:'Activity: Busiest weeks / months',r:function(){return row('#1 Week of 6 Oct','440')+row('#2 Week of 29 Sep','310')+row('#3 Week of 22 Sep','180')}},
+rhythm:{t:'Stitching rhythm',s:'b',w:6,cur:'Insights: Stitching rhythm; Stash: Peak stitching time',r:function(){return heat(168,'hw').replace('class="hw"','class="hw" style="grid-auto-flow:row"')+'<div class="sub">Peak time: evenings, 8-10pm</div>'}},
+season:{t:'Seasonal stitching',s:'g',w:6,cur:'Stash: Seasonal stitching',r:function(){return bars([20,30,25,40,35,30,25,40,70,85,60,30],9)+'<div class="sub">Busiest in October</div>'}},
+feed:{t:'Insights',s:'g',w:6,cur:'Insights: Insights list (dismissible)',r:function(){return sess([['You stitch most on Sundays','Based on 10 sessions',''],['Your pace is up 9% this week','Compared with last week',''],['3 projects share 12 threads','Kitting opportunity','']])}},
+colprog:{t:'Colour progress',s:'p',w:4,cur:'Project: Colour progress',r:function(){return hb('DMC 310',90,'90%',1)+hb('DMC 321',72,'72%')+hb('DMC 666',55,'55%')+hb('DMC 3799',20,'20%')}},
+coltime:{t:'Colour timeline',s:'p',w:6,cur:'Project: Colour timeline (accordion)',r:function(){return stack([[34,COL[0]],[22,COL[1]],[18,COL[2]],[14,COL[3]],[12,COL[4]]])+stack([[10,COL[0]],[30,COL[1]],[20,COL[2]],[25,COL[3]],[15,COL[4]]])+stack([[5,COL[0]],[10,COL[1]],[35,COL[2]],[30,COL[3]],[20,COL[4]]])+'<div class="sub">Which colours you stitched in each session</div>'}},
+sections:{t:'Sections',s:'p',w:4,cur:'Project: Sections (accordion)',r:function(){return '<div class="sec"><i></i><i></i><i></i><i></i><i class="p"></i><i class="p"></i><i class="e"></i><i class="e"></i><i></i><i></i><i></i><i class="p"></i><i class="e"></i><i class="e"></i><i class="e"></i><i class="e"></i></div><div class="sub">5 of 16 sections complete</div>'}},
+compare:{t:'Before / after',s:'p',w:4,cur:'Project: Comparison (accordion)',r:function(){return '<div class="flex"><div class="chart" style="flex:1;height:90px"></div><div class="chart" style="flex:1;height:90px"></div></div><div class="sub">Snapshot 1 Oct vs now</div>'}},
+exp:{t:'Share and export',s:'p',w:3,cur:'Project: export bar',r:function(){return '<div class="btns"><span class="chip a">Copy summary</span><span class="chip">CSV</span><span class="chip">Save image</span></div>'}},
+settings:{t:'Project settings',s:'p',w:3,cur:'Project: Settings (accordion)',r:function(){return row('Session timing','Global default')+row('Day ends at','00:00')+'<span class="chip">Open Preferences</span>'}},
+colusage:{t:'Colour usage',s:'b',w:6,cur:'Insights: Colour usage heatmap; Stash: Most-used colours',r:function(){return hb('DMC 310',95,'12 projects')+hb('DMC 321',70,'9')+hb('DMC 666',60,'8')+hb('Blanc',40,'5')+sw(COL)}},
+print:{t:'Colour fingerprint',s:'g',w:4,cur:'Stash: Your colour fingerprint',r:function(){return '<div class="mid">62% <span class="sub">match to typical stitcher</span></div>'+hb('Over-used',60,'Reds')+hb('Under-used',35,'Blues',1)}},
+fam:{t:'Colour families',s:'g',w:4,cur:'Stash: Colour families',r:function(){return '<div class="flex"><div class="donut" style="background:conic-gradient('+COL[0]+' 0 30%,'+COL[1]+' 0 50%,'+COL[3]+' 0 70%,'+COL[2]+' 0 85%,'+COL[5]+' 0)"></div><div class="sub">Reds 30% &middot; Greens 20% &middot; Blues 20% &middot; Golds 15%</div></div>'}},
+dmc:{t:'DMC palette coverage',s:'g',w:4,cur:'Stash: DMC palette coverage',r:function(){return '<div class="flex">'+ring(46,'46%','')+'<div class="sub">161 of 350 DMC colours owned</div></div>'}},
+cover:{t:'Coverage ratio',s:'g',w:3,cur:'Stash: Coverage ratio',r:function(){return '<div class="big">71%</div><div class="sub">of your patterns\' threads are in stock</div>'}},
+sable:{t:'SABLE index',s:'g',w:4,share:1,cur:'Stash + Showcase: SABLE index / Stash vs use',r:function(){return '<div class="mid">1.4</div><div class="sub">Your stash is growing</div>'+line()}},
+age:{t:'Stash age',s:'g',w:4,share:1,cur:'Stash + Showcase: Stash age',r:function(){return stack([[40,'#EBC9B3'],[30,'#D99872'],[20,COL[0]],[10,'#7A3A1F']])+'<div class="sub">&lt;6m 40% &middot; 6-12m 30% &middot; 1-2y 20% &middot; 2y+ 10%</div>'}},
+oldest:{t:'Longest companions',s:'g',w:4,share:1,cur:'Stash: Oldest WIPs; Showcase: Longest companion',r:function(){return row('Winter Robin','2y 3m')+row('Beach Hut','1y 8m')+row('Autumn Sampler','5m')}},
+ready:{t:'Ready to start',s:'g',w:4,cur:'Stash: Ready to start',r:function(){return '<div class="sub">Patterns fully kitted from your stash</div>'+row('Winter Robin','100%')+row('Floral Border','100%')}},
+dups:{t:'Possible duplicates',s:'g',w:4,cur:'Stash: Possible duplicates',r:function(){return row('DMC 3799 / 3799','2 skeins')+row('DMC 310 / 310','4 skeins')+'<span class="chip">Review</span>'}},
+never:{t:'Threads ready and waiting',s:'g',w:4,cur:'Stash: Threads never used',r:function(){return sw(COL.concat(COL))+'<div class="sub">16 threads bought but never stitched</div>'}},
+source:{t:'Pattern source',s:'g',w:4,cur:'Stash: Pattern source',r:function(){return hb('Designed here',55,'55%')+hb('Imported',30,'30%')+hb('Purchased',15,'15%')}},
+usewhat:{t:'Use what you have',s:'g',w:4,cur:'Stash: Use what you have',r:function(){return row('Floral Border','8 matches')+row('Beach Hut','5 matches')}},
+buy:{t:'Best threads to buy',s:'g',w:4,cur:'Stash: Highest-impact threads to buy',r:function(){return row('DMC 3799','unlocks 3 patterns')+row('DMC 702','unlocks 2')+row('DMC 666','unlocks 2')}},
+designers:{t:'Designers',s:'g',w:4,cur:'Stash: Designer leaderboard',r:function(){return hb('Studio A',80,'6')+hb('Studio B',45,'3')+hb('Studio C',25,'2')}},
+brand:{t:'Brand alignment',s:'g',w:4,cur:'Stash: Brand alignment',r:function(){return row('DMC','92%')+row('Anchor','6%')+row('Other','2%')}},
+quarter:{t:'Started vs finished',s:'g',w:6,cur:'Stash: Started vs finished by quarter',r:function(){return bars([40,60,35,80,55,45,70,30],7)+'<div class="sub">Quarterly starts and finishes</div>'}},
+diff:{t:'Difficulty vs completion',s:'g',w:6,cur:'Stash: Difficulty vs completion',r:function(){return '<div class="scat"><i style="left:15%;bottom:80%"></i><i style="left:30%;bottom:60%"></i><i style="left:55%;bottom:45%"></i><i style="left:70%;bottom:25%"></i><i style="left:85%;bottom:15%"></i></div><div class="sub">Harder patterns finish less often</div>'}},
+shareall:{t:'Share cards',s:'g',w:4,cur:'Showcase: share cards and full-page share',r:function(){return '<div class="btns"><span class="chip a">Share page</span><span class="chip">Lifetime card</span><span class="chip">Stash card</span></div>'}}
+};
+
+/* ---------- placement options: pages -> zones -> tile ids (id:width overrides) ---------- */
+var OPTS=[
+{n:'A. One scroll, five zones',mode:'scroll',
+ d:['One page, no tabs. Everything flows down in labelled zones; a sticky jump bar moves you between them.','Best for: seeing the whole picture and discovering stats you never opened. Risk: long page, so tiles at the bottom (stash analytics) get little attention.','Tab URLs (?tab=) would map to zone anchors.'],
+ pages:[{n:'All',z:[
+  ['Now',['hero:5','totals:5','streak:3','week:5','pace:4','goals:4','recent:3'],'Headlines'],
+  ['Progress',['chart:7','miles:5','projects:6','eta:4','finish:3','colprog:4','coltime:6','sections:4','compare:4'],'Pattern and project progress'],
+  ['Habits',['heat:8','actins:4','rhythm:6','busiest:4','season:6'],'When and how you stitch'],
+  ['Stash and colours',['sable:4','age:4','oldest:4','cover:3','dmc:4','fam:4','colusage:6','print:4','ready:4','never:4','dups:4','usewhat:4','buy:4'],'What you own and use'],
+  ['Portfolio insights',['feed:6','quarter:6','diff:6','source:4','designers:4','brand:4'],'Across all your patterns'],
+  ['Tools',['exp:3','settings:3','shareall:4'],'Export and settings']]}]},
+{n:'B. Keep the five tabs',mode:'tabs',
+ d:['Same top-level tabs as today (Stitching, Activity, Stash, Insights, Showcase), but each is a bento that fills the width instead of a 700px column.','Best for: least disruption; existing links and habits keep working. Merge duplicates (streak, pace, week, SABLE) into one tile that lives in one tab.','Showcase becomes a curated view of tiles that have a share button.'],
+ pages:[
+  {n:'Stitching',z:[['',['hero:5','totals:5','streak:3','week:5','goals:4','recent:3','chart:7','miles:5','projects:6','colprog:4','coltime:6','sections:4','compare:4','exp:3','settings:3']]]},
+  {n:'Activity',z:[['',['heat:8','pace:4','actins:4','busiest:4','rhythm:6','season:6']]]},
+  {n:'Stash',z:[['',['cover:3','sable:4','age:4','oldest:4','fam:4','dmc:4','colusage:6','ready:4','never:4','dups:4','usewhat:4','buy:4','print:4','source:4','designers:4','brand:4']]]},
+  {n:'Insights',z:[['',['feed:6','finish:3','eta:4','quarter:6','diff:6','print:4']]]},
+  {n:'Showcase',z:[['',['totals:6','sable:6','age:6','oldest:6','heat:8','shareall:4']]]}]},
+{n:'C. Overview + areas',mode:'side',
+ d:['A new Overview landing made of one headline tile per area, plus a left sidebar of focused areas (Progress, Habits, Stash, Colours, Portfolio).','Best for: a calm first screen and short pages; areas map to how stitchers ask questions ("how am I doing", "when do I stitch", "what do I own"). Sidebar becomes chips on phones.','Cost: biggest regrouping, since Stash analytics get split into Stash and Colours.'],
+ pages:[
+  {n:'Overview',z:[['',['hero:5','totals:5','streak:3','week:5','goals:4','chart:7','miles:5','heat:8','projects:6','sable:4','recent:4']]]},
+  {n:'Progress',z:[['',['chart:7','miles:5','projects:6','eta:4','finish:3','goals:4','recent:4','sections:4','compare:4','exp:3']]]},
+  {n:'Habits',z:[['',['heat:8','streak:3','pace:4','actins:4','rhythm:6','busiest:4','season:6']]]},
+  {n:'Stash',z:[['',['cover:3','sable:4','age:4','oldest:4','ready:4','never:4','dups:4','usewhat:4','buy:4','source:4']]]},
+  {n:'Colours',z:[['',['colprog:4','coltime:6','colusage:6','fam:4','dmc:4','print:4','brand:4','designers:4']]]},
+  {n:'Portfolio',z:[['',['feed:6','quarter:6','diff:6','eta:4','finish:3','shareall:4','settings:3']]]}]}
+];
+
+/* ---------- state + render ---------- */
+var st={o:0,scope:'g',w:'desktop',annot:false,inv:false,page:0};
+function esc(s){return s}
+function tile(spec,span){var p=spec.split(':'),id=p[0],x=T[id];if(!x)return '';
+ return '<div class="card'+(x.hero?' hero':'')+'" style="grid-column:span '+span+'" data-id="'+id+'"><div class="th"><p class="lbl">'+x.t+'</p>'+(x.share?SH:'')+'</div>'+x.r()+'<div class="src">Today: '+x.cur+'</div></div>'}
+function vis(spec){var x=T[spec.split(':')[0]];return x&&(x.s==='b'||x.s===st.scope)}
+function pack(ids){var rows=[],cur=[],sum=0;ids.forEach(function(s){var p=s.split(':'),w=+(p[1]||T[p[0]].w);if(sum+w>12){rows.push(cur);cur=[];sum=0}cur.push([s,w]);sum+=w});if(cur.length)rows.push(cur);
+ var out=[];rows.forEach(function(r){var sum=r.reduce(function(a,x){return a+x[1]},0),left=12-sum,i=r.length-1;while(left>0){r[i][1]++;left--;i=i>0?i-1:r.length-1}r.forEach(function(x){out.push([x[0],x[1]])})});return out}
+function zoneHtml(z,i,show){var ids=z[1].filter(vis);if(!ids.length)return '';seed=11+i;
+ return '<section class="zone" id="z'+i+'">'+(z[0]?'<h3>'+z[0]+(z[2]?' <small>'+z[2]+'</small>':'')+'</h3>':'')+'<div class="grid">'+pack(ids).map(function(x){return tile(x[0],x[1])}).join('')+'</div></section>'}
+function render(){
+ var o=OPTS[st.o],pages=o.pages.filter(function(p){return p.z.some(function(z){return z[1].some(vis)})});
+ if(st.page>=pages.length)st.page=0;
+ var h='';
+ if(o.mode==='scroll'){var zs=o.pages[0].z.filter(function(z){return z[1].some(vis)});
+  h='<div class="jump">'+zs.map(function(z,i){return '<button onclick="document.getElementById(\'z'+o.pages[0].z.indexOf(z)+'\').scrollIntoView({behavior:\'smooth\'})">'+z[0]+'</button>'}).join('')+'</div>'+o.pages[0].z.map(function(z,i){return zoneHtml(z,i)}).join('')}
+ else{var cur=pages[st.page];var nav=pages.map(function(p,i){return '<a class="'+(i===st.page?'on':'')+'" onclick="st.page='+i+';render()">'+p.n+'</a>'}).join('');
+  var body=cur?cur.z.map(function(z,i){return zoneHtml(z,i)}).join(''):'';
+  if(!body.trim())body='<div class="empty">Nothing in this area for the selected scope.</div>';
+  h=o.mode==='tabs'?'<div class="nav">'+nav+'</div>'+body:'<div class="side"><div class="nav">'+nav+'</div><div>'+body+'</div></div>'}
+ if(st.scope==='p'&&o.mode!=='scroll'&&false){}
+ document.getElementById('stage').innerHTML=h;
+ document.getElementById('stage').className=st.annot?'annot':'';
+ document.getElementById('ttl').textContent='Stats: '+(st.scope==='p'?'History Test':'All projects');
+ document.getElementById('scopeNote').textContent=st.scope==='p'?'Portfolio and stash tiles are hidden in project scope':'Project-only tiles (milestones, sections, colour timeline) are hidden';
+ var d=o.d;document.getElementById('optinfo').innerHTML='<div><b>Idea</b>'+d[0]+'</div><div><b>Trade-offs</b>'+d[1]+'</div><div><b>Notes</b>'+d[2]+'</div>';
+ var iv=document.getElementById('inv');iv.hidden=!st.inv;if(st.inv)iv.innerHTML=inventory();
+ [].forEach.call(document.querySelectorAll('#opts button'),function(b,i){b.setAttribute('aria-pressed',i===st.o)});
+}
+function placement(id){var o=OPTS[st.o],out=[];o.pages.forEach(function(p){p.z.forEach(function(z){if(z[1].some(function(s){return s.split(':')[0]===id}))out.push(p.n+(z[0]?' / '+z[0]:''))})});return out}
+function inventory(){var ids=Object.keys(T);var r='<table><tr><th>Stat tile</th><th>Scope</th><th>Where it lives today</th><th>Placement in '+OPTS[st.o].n+'</th></tr>';
+ ids.forEach(function(id){var x=T[id],pl=placement(id),dup=x.cur.split(';').length>1||/\+/.test(x.cur);r+='<tr><td><b>'+x.t+'</b>'+(dup?'<span class="badge">merged duplicate</span>':'')+'</td><td>'+({p:'Project',g:'All projects',b:'Both'}[x.s])+'</td><td>'+x.cur+'</td><td class="m">'+(pl.join('<br>')||'-')+'</td></tr>'});
+ return r+'</table>'}
+/* controls */
+var ob=document.getElementById('opts');OPTS.forEach(function(o,i){var b=document.createElement('button');b.textContent=o.n;b.onclick=function(){st.o=i;st.page=0;render()};ob.appendChild(b)});
+[].forEach.call(document.querySelectorAll('#scope button'),function(b){b.onclick=function(){st.scope=b.dataset.s;[].forEach.call(document.querySelectorAll('#scope button'),function(x){x.setAttribute('aria-pressed',x===b)});render()}});
+[].forEach.call(document.querySelectorAll('#vp button'),function(b){b.onclick=function(){document.getElementById('frame').dataset.w=b.dataset.w;[].forEach.call(document.querySelectorAll('#vp button'),function(x){x.setAttribute('aria-pressed',x===b)})}});
+document.getElementById('annot').onclick=function(){st.annot=!st.annot;this.setAttribute('aria-pressed',st.annot);render()};
+document.getElementById('invbtn').onclick=function(){st.inv=!st.inv;this.setAttribute('aria-pressed',st.inv);render()};
+render();
+</script></body></html>
