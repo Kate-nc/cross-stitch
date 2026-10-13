@@ -92,7 +92,7 @@ test('on-screen keyboard: with the viewport halved, the More panel stays inside 
   await context.close();
 });
 
-test('rotation mid-session keeps the marks and the selection of a rectangle', async ({ browser }) => {
+test('rotation mid-session keeps the marks, and a tap after the turn lands on the cell under the finger', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true }); await installLocalCdn(context);
   const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page);
@@ -152,6 +152,16 @@ test('stylus: a tap marks, a quick swipe does not, a rest then a drag paints', a
   console.log('HUNT pen quick swipe, total marked ' + (await trackerDoneCount(page)));
   const done = await trackerDoneCount(page);
   expect(done, 'a tap marks one and a quick swipe adds nothing').toBe(1);
+  // Rest the pen on a stitch for longer than the hold, then drag five cells along the row: it paints what it crosses.
+  const rest = await cell(4, 12);
+  await dispatchPointerSequence(canvas, [{ type: 'pointerdown', x: rest.x, y: rest.y, pointerId: 7, pointerType: 'pen' }]);
+  await page.waitForTimeout(250);
+  const drag = []; for (let i = 1; i <= 5; i++) drag.push(await cell(4 + i, 12));
+  const last = drag[drag.length - 1];
+  await dispatchPointerSequence(canvas, drag.map(q => ({ type: 'pointermove', x: q.x, y: q.y, pointerId: 7, pointerType: 'pen' })).concat([{ type: 'pointerup', x: last.x, y: last.y, pointerId: 7, pointerType: 'pen' }]));
+  await page.waitForTimeout(400);
+  console.log('HUNT pen rest-then-drag, total marked ' + (await trackerDoneCount(page)));
+  expect(await trackerDoneCount(page), 'the rested drag paints the cell it rested on and five more').toBe(1 + 6);
   expect(errors).toEqual([]);
   await context.close();
 });

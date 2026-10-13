@@ -112,3 +112,9 @@ Driven by `tests/e2e/phase4-hunt.spec.js` (8 specs, `HUNT` lines in the log) plu
 ### Not verified
 Safari and Firefox (including Safari dynamic viewport units, which batch 2 relies on); real devices, real stylus pressure or hover, a real on-screen keyboard (only a halved viewport was emulated); real palm rejection by the OS; the dark theme on the Phase 4 additions; screen-reader behaviour of the recap strip, Keep screen on and the Highlight tab; the Wake Lock itself (mocked).
 
+### Copilot round 1 (closing PR)
+Four findings, all real or fair:
+- **A finger on a French knot bypassed the palm guard.** The Tracker handles a knot touch itself and returns before the drag-mark hook, so that finger was not counted: with one finger already marking and a second on a knot, the count stayed 1 and the mark could still commit. The hook now has `onExtraTouchDown` / `onExtraTouchEnd`, called from the knot branch; they join the finger count, abandon a mark under way, and treat a second finger on an idle chart as a palm. Reducer tests and a wiring test.
+- **The palm fix and the short-viewport fix had no help or changelog entry** (AGENTS.md asks for both on user-visible changes). Added: help "A hand on the screen", changelog 1.0.131.
+- **Two hunt tests claimed more than they checked.** The rotation test was named for a rectangle selection it never made: renamed to what it checks (marks survive the turn, a tap after it lands on the cell under the finger). The stylus test did not cover the rested drag: it now rests the pen for 250 ms, drags five cells and expects the rested cell and the five (7 stitches in all with the earlier tap).
+

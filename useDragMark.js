@@ -445,6 +445,22 @@
         return { state: s, effects: effects };
       }
 
+      // A touch the Tracker handled itself (a finger on a French knot): it never reaches POINTER_DOWN, but it is still a
+      // finger on the chart, so a gesture under way is abandoned and a second finger on an idle chart is a palm.
+      case 'EXTRA_TOUCH': {
+        var underWay = s.mode === 'pending' || s.mode === 'drag' || (s.mode === 'range' && s.held);
+        if (underWay) {
+          effects.push({ type: 'CLEAR_LONG_PRESS' });
+          return { state: multi(), effects: effects };
+        }
+        if (s.mode === 'idle' && (action.touchCount || 1) > 1) return { state: multi(), effects: effects };
+        return { state: s, effects: effects };
+      }
+      case 'TOUCH_END': {
+        if (s.mode === 'multi' && (action.touchCount || 0) === 0) return { state: idle(), effects: effects };
+        return { state: s, effects: effects };
+      }
+
       case 'POINTER_CANCEL': {
         effects.push({ type: 'CLEAR_LONG_PRESS' });
         if (s.mode === 'multi' && (action.touchCount || 0) > 0) return { state: s, effects: effects };
@@ -501,7 +517,7 @@
         handlers: {
           onPointerDown: noop, onPointerMove: noop,
           onPointerUp: noop, onPointerCancel: noop,
-          onContextMenu: noop,
+          onContextMenu: noop, onExtraTouchDown: noop, onExtraTouchEnd: noop,
         },
         dragState: { mode: 'idle', path: new Set(), anchor: null, intent: null },
         getDragState: function () { return { mode: 'idle', path: new Set(), anchor: null, intent: null }; },
@@ -684,6 +700,22 @@
       dispatch({ type: 'POINTER_CANCEL', touchCount: touchIdsRef.current.size });
     }, [isEdit]);
 
+    // For a touch the Tracker handles before this hook sees it (a French knot): keep the finger count and the palm guard
+    // honest without starting or ending a mark.
+    var onExtraTouchDown = R.useCallback(function (e) {
+      if (!e || e.pointerType !== 'touch') return;
+      var t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      var live = touchIdsRef.current;
+      live.forEach(function (at, id) { if (t - at > TOUCH_STALE_MS) live.delete(id); });
+      live.set(e.pointerId, t);
+      dispatch({ type: 'EXTRA_TOUCH', touchCount: live.size });
+    }, []);
+    var onExtraTouchEnd = R.useCallback(function (e) {
+      if (!e || e.pointerType !== 'touch') return;
+      touchIdsRef.current.delete(e.pointerId);
+      dispatch({ type: 'TOUCH_END', touchCount: touchIdsRef.current.size });
+    }, []);
+
     var onContextMenu = R.useCallback(function (e) {
       // Suppress browser context menu on long-press in range mode.
       if (stateRef.current.mode === 'range' || stateRef.current.mode === 'drag'
@@ -711,7 +743,7 @@
         handlers: {
           onPointerDown: noop, onPointerMove: noop,
           onPointerUp: noop, onPointerCancel: noop,
-          onContextMenu: noop,
+          onContextMenu: noop, onExtraTouchDown: noop, onExtraTouchEnd: noop,
         },
         dragState: { mode: 'idle', path: new Set(),
                      anchor: null, intent: null },
@@ -728,6 +760,8 @@
         onPointerUp: onPointerUp,
         onPointerCancel: onPointerCancel,
         onContextMenu: onContextMenu,
+        onExtraTouchDown: onExtraTouchDown,
+        onExtraTouchEnd: onExtraTouchEnd,
       },
       dragState: dragState,
       // The gesture's state right now (React state lags a render). Used to save a

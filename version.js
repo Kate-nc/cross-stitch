@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.130';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.131',
+    date: 'October 2026',
+    notes: [
+      'A resting palm no longer marks stitches: with three or more fingers on the chart, nothing is marked until every finger has lifted (a finger landing on a French knot counts too).',
+      'On a very short screen, such as a phone with the browser zoomed in to 200%, the row of controls beside the chart now scrolls, so More can always be reached.'
+    ]
+  },
+  {
     version: '1.0.130',
     date: 'October 2026',
     notes: [

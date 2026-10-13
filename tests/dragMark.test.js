@@ -851,6 +851,41 @@ describe('many fingers (palm)', () => {
     expect(s.mode).toBe('idle');
   });
 
+  test('a finger on a French knot (handled by the Tracker, never a POINTER_DOWN) still abandons a mark under way', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1);
+    expect(s.mode).toBe('pending');
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 2 }, ctx, fx);
+    expect(s.mode).toBe('multi');
+    s = up(s, ctx, fx, 8, 1);                                // the marking finger lifts first
+    expect(s.mode).toBe('multi');                            // the knot finger is still down
+    s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(marks(fx)).toHaveLength(0);
+  });
+
+  test('a knot finger landing on an idle chart with another finger down is part of a palm', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 2 }, ctx, fx);
+    expect(s.mode).toBe('multi');
+    s = down(s, ctx, fx, 5, 8, 3);                           // a third finger on a stitch
+    expect(s.mode).toBe('multi');
+    s = up(s, ctx, fx, 8, 1); s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(marks(fx)).toHaveLength(0);
+  });
+
+  test('a lone knot touch changes nothing', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 1 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+  });
+
   test('a mouse is unaffected', () => {
     const ctx = makeCtx(w, h, makePattern(w, h));
     let s = initialState(); const fx = [];

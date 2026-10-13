@@ -7313,7 +7313,7 @@ function toggleKnotDone(k){
 const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
     const k=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey?knotAtPoint(e.clientX,e.clientY):null;
-    if(k){knotPressRef.current={k,id:e.pointerId,x:e.clientX,y:e.clientY};return;}
+    if(k){knotPressRef.current={k,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
     knotPressRef.current=null;
     if(_dragMarkHandlers.onPointerDown)_dragMarkHandlers.onPointerDown(e);
   },
@@ -7325,6 +7325,7 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     const p=knotPressRef.current;
     if(p&&p.id===e.pointerId){
       knotPressRef.current=null;
+      if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
       if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12)toggleKnotDone(p.k);
       return;
     }

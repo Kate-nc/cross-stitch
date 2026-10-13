@@ -13,7 +13,7 @@ Status: all six findings are done across five batches (PRs 294 to 298, all merge
 | #298 | 5: keep the screen on, plainer words | TRACK-11, COMMON-01 | Wake lock is Automatic (first mark on a touch screen), Always or Never; Sleep / Awake is Keep screen on; "Live tracking (RT)" is "Use up stash thread as I stitch"; the chart view moved into the Highlight tab, with Colour + symbol replacing a Realistic button the chart could not draw |
 | this PR | closing | end-of-phase hunt | A palm (three or more fingers) no longer marks; the controls strip scrolls on a very short viewport; hunt specs, screenshot harness, this report |
 
-Changelog entries 1.0.126 to 1.0.130 and the in-app help (Mark mode, Paint and Lock touches, Undoing a stroke, Coming back to a project, Keeping the screen on, Highlight tab) cover all of it. Every batch had a Copilot review round; all findings were checked, fixed or answered, and the threads resolved (the details are in `phase-4-bughunt.md`).
+Changelog entries 1.0.126 to 1.0.131 and the in-app help (Mark mode, Paint and Lock touches, Undoing a stroke, Coming back to a project, Keeping the screen on, Highlight tab, A hand on the screen) cover all of it. Every batch had a Copilot review round; all findings were checked, fixed or answered, and the threads resolved (the details are in `phase-4-bughunt.md`).
 
 ## Acceptance criteria against the prompt
 
@@ -29,7 +29,7 @@ Changelog entries 1.0.126 to 1.0.130 and the in-app help (Mark mode, Paint and L
 
 ## End-of-phase bug hunt
 
-See `phase-4-bughunt.md`. Two real bugs found and fixed: a palm of three or more fingers marked the odd-numbered fingers' stitches, and at browser zoom 200% on a phone (196x364) the More button sat below the fold and could not be reached. Checked and fine: 200% on a tablet and desktop, rotation mid-session with marks made, mouse and trackpad wheel, Ctrl+wheel (zooms the chart, not the page), stylus tap and quick swipe, a halved viewport with the More panel open, and Creator, Home and Manager before and after. What was not driven is listed there and below.
+See `phase-4-bughunt.md`. Two real bugs found and fixed: a palm of three or more fingers marked the odd-numbered fingers' stitches (a finger landing on a French knot, which the Tracker handles itself, was not counted either; fixed in the review round), and at browser zoom 200% on a phone (196x364) the More button sat below the fold and could not be reached. Checked and fine: 200% on a tablet and desktop, rotation mid-session with marks made, mouse and trackpad wheel, Ctrl+wheel (zooms the chart, not the page), stylus tap and quick swipe, a halved viewport with the More panel open, and Creator, Home and Manager before and after. What was not driven is listed there and below.
 
 ## Performance
 
