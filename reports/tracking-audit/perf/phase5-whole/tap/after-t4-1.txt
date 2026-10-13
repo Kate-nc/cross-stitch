@@ -1,0 +1,3 @@
+{"heap0":21.46,"tap":140.53,"heap1":22.2}
+{"heap0":21.44,"tap":145.82,"heap1":22.22}
+RESULT {"label":"after","throttle":4,"sessions":2,"tap":145.82,"heap0":21.46,"heap1":22.22}
