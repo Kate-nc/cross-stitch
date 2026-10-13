@@ -834,7 +834,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:'var(--text-md)',fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {p.name||"Untitled"}
-                    {isActive&&<span style={{marginLeft:'var(--s-2)',fontSize:10,fontWeight:700,color:"var(--accent)",background:"var(--accent-light)",padding:"1px 6px",borderRadius:'var(--radius-md)',verticalAlign:"middle"}}>ACTIVE</span>}
+                    {isActive&&<span style={{marginLeft:'var(--s-2)',fontSize:10,fontWeight:700,color:"var(--accent-text)",background:"var(--accent-light)",padding:"1px 6px",borderRadius:'var(--radius-md)',verticalAlign:"middle"}}>ACTIVE</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:'var(--s-2)',marginTop:'var(--s-1)'}}>
                     <div style={{flex:1,height:5,background:"var(--border)",borderRadius:3,overflow:"hidden"}}>
@@ -1053,6 +1053,10 @@ const { stitchView, setStitchView, stitchZoom, setStitchZoom, stitchZoomRef,
 // The guide crosshair as drawStitch sees it (read through a ref because the
 // guide is repainted incrementally, not by a full renderStitch).
 const guideRef=useRef({row:-1,col:-1});
+// Keyboard marking (Phase 5, TRACK-10): true once the arrow keys or Enter have taken the guide, so Space and Enter act on it; a
+// pointer press, Esc or a change of mode hands it back. kbAnchorRef is the last stitch marked from the keyboard (for Shift+Enter).
+const kbGuideRef=useRef(false);
+const kbAnchorRef=useRef(null);
 guideRef.current={row:hlRow,col:hlCol};
 
 const[loadError,setLoadError]=useState(null);
@@ -1632,6 +1636,27 @@ function fitWholeView(){
 }
 // "Fit" fits the work area while one is active, the whole pattern otherwise.
 function fitChart(){if(areaOn)fitWorkAreaView();else fitWholeView();}
+// The overview's two calls into the chart. What the chart shows, in cells: the sticky ruler covers the first G pixels
+// of the box, so the first visible cell is at scroll position / scs and the box holds (width - G) / scs of them.
+const minimapGetView=useCallback(()=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return null;
+  const off=chartScrollOffset();
+  const x0=(el.scrollLeft+off.x)/scs,y0=(el.scrollTop+off.y)/scs;
+  return{x0:x0,y0:y0,x1:x0+(el.clientWidth-G)/scs,y1:y0+(el.clientHeight-G)/scs};
+},[scs]);
+// Centre the chart on a cell (the overview's tap and drag).
+const minimapJump=useCallback((cx,cy)=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return;
+  const off=chartScrollOffset();
+  el.scrollLeft=Math.max(0,cx*scs-(el.clientWidth-G)/2-off.x);
+  el.scrollTop=Math.max(0,cy*scs-(el.clientHeight-G)/2-off.y);
+},[scs]);
+// The lowest zoom: one pixel a stitch, which Fit can now reach, so every zoom-out control must be able to stay there.
+const MIN_STITCH_ZOOM=0.05;
+// A new mode or a different pattern hands the guide back from the keyboard too (a stale coordinate must not be marked in another project).
+useEffect(()=>{kbGuideRef.current=false;kbAnchorRef.current=null;},[stitchMode,pat]);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -1806,8 +1831,10 @@ const[leftSidebarMode,setLeftSidebarMode]=useState(()=>{
         if(legacy===false)return "hidden";
       }catch(_){}
     }
-    // First run — default by viewport type.
+    // First run — default by viewport type. Below 1024 px the palette is a sheet over the chart, so it starts shut there whatever
+    // the input device (a desktop browser zoomed to 200% is 720 px wide and used to open on a sheet that covered the chart).
     if(window.TouchConstants&&window.TouchConstants.isCompactTouch())return "hidden";
+    if(window.matchMedia&&window.matchMedia("(max-width:1023px)").matches)return "hidden";
     return "open";
   }catch(_){return "hidden";}
 });
@@ -2234,6 +2261,9 @@ useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel))
 // 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
 // view at full saturation when zoomed out.
 const stitchLookRef=useRef({cmap:null,fade:-1,done:null,pend:null});   // drawStitch's per-colour looks, kept between paints
+const minimapPref=useTrackerPref('trackerMinimap',true);   // the pattern overview in the corner of the chart
+const minimapApiRef=useRef(null);                          // set by the overview while it is mounted: cellsChanged(changes,nd)
+const[minimapFocusOpen,setMinimapFocusOpen]=useState(false);   // on a phone in Focus the overview stays shut until asked for
 const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
@@ -5956,6 +5986,7 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
 // ones, each of which paints its neighbours as well. Off-tile cells are
 // skipped; they are painted from `done` when scrolled to.
 function paintDoneChanges(changes,nd){
+  if(nd&&minimapApiRef.current)minimapApiRef.current.cellsChanged(changes,nd);   // the overview: only the blocks these cells fall in
   if(!stitchRef.current||!pat||!cmap||!nd)return;
   const t=chartTileRef.current;
   if(!t||!(t.w>0))return;
@@ -6116,13 +6147,51 @@ function handleStitchContextMenu(e){
 }
 
 function handleStitchKeyDown(e){
-  // Navigate mode, chart focused: the arrow keys move the guide crosshair
-  // (Shift: 10 stitches), so the guide — and parking at it with Menu or
-  // Shift+F10 below — works without a pointer. Claimed here, before the
-  // shortcut registry, which skips events that are already handled.
-  if(stitchMode==="navigate"&&!isEditMode&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&GUIDE_KEYS[e.key]){
+  // The chart has focus. The rules, in one place (also in the Help drawer):
+  //  - The arrow keys move the guide, in Mark and Navigate mode (Shift: 10 stitches). Row mode keeps Up and Down for rows.
+  //    Alt+arrows still move the spotlight, and with focus off the chart Left and Right still change the highlighted colour.
+  //  - Mark mode: Enter marks or unmarks the stitch at the guide; Space does too once the guide is the keyboard's;
+  //    Shift+Enter fills the rectangle from the last stitch marked this way. `[` and `]` change colour wherever focus is.
+  //  - Esc clears the guide. Claimed here, before the shortcut registry, which skips events that are already handled.
+  const plain=!e.altKey&&!e.ctrlKey&&!e.metaKey;
+  const inMark=stitchMode==="track"&&!isEditMode&&!!pat;
+  if((stitchMode==="navigate"||stitchMode==="track")&&!isEditMode&&plain&&GUIDE_KEYS[e.key]){
+    if(rowModeActive&&stitchMode!=="navigate"&&(e.key==="ArrowUp"||e.key==="ArrowDown"))return;   // row mode owns Up and Down
     e.preventDefault();
+    kbGuideRef.current=true;
     moveGuideBy(GUIDE_KEYS[e.key][0]*(e.shiftKey?10:1),GUIDE_KEYS[e.key][1]*(e.shiftKey?10:1));
+    return;
+  }
+  const isEnter=e.key==="Enter"&&!e.altKey&&!e.ctrlKey&&!e.metaKey;
+  const isSpace=(e.key===" "||e.code==="Space")&&plain&&!e.shiftKey;
+  if(inMark&&(isEnter||(isSpace&&kbGuideRef.current))){
+    e.preventDefault();
+    if(e.repeat)return;
+    const g=guideRef.current;
+    const onChart=g&&g.row>=0&&g.col>=0&&g.row<sH&&g.col<sW;
+    if(!kbGuideRef.current||!onChart){
+      // First press: take (or drop) the guide, so the next one marks where the guide is rather than somewhere unseen.
+      kbGuideRef.current=true;
+      if(!onChart)moveGuideBy(0,0);
+      return;
+    }
+    const idx=g.row*sW+g.col;
+    const cell=pat[idx];
+    if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return;
+    const anchor=kbAnchorRef.current;
+    if(isEnter&&e.shiftKey&&anchor&&anchor.idx!==idx){
+      const ax=anchor.idx%sW,ay=(anchor.idx-ax)/sW;
+      const set=new Set();
+      for(let y=Math.min(ay,g.row);y<=Math.max(ay,g.row);y++)for(let x=Math.min(ax,g.col);x<=Math.max(ax,g.col);x++)set.add(y*sW+x);
+      // The anchor moves only when the rectangle was committed: not when a colour lock filtered every stitch, and not while the
+      // "mark all as" question is open (cancelling it must not leave the next Shift+Enter starting from an endpoint never marked).
+      if(_commitBulk(set,anchor.intent,'range'))kbAnchorRef.current={idx:idx,intent:anchor.intent};
+      return;
+    }
+    const was=doneRef.current[idx];
+    _dragMarkOnToggle(idx);
+    const now=doneRef.current[idx];
+    if(now!==was)kbAnchorRef.current={idx:idx,intent:now?'mark':'unmark'};   // a colour lock can refuse the mark
     return;
   }
   if(e.key!=="ContextMenu"&&!(e.shiftKey&&e.key==="F10"))return;
@@ -6132,6 +6201,8 @@ function handleStitchKeyDown(e){
   toggleParkAt(guide.col,guide.row);
 }
 
+// Every way of clearing the guide goes through here, so the keyboard's ownership and range anchor go with it.
+function clearGuide(){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;}
 const GUIDE_KEYS={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
 // Move the guide by (dx,dy) stitches — or, with no guide yet, drop it at the
 // middle of the view — keeping it inside the chart (or the work area's view)
@@ -6242,8 +6313,10 @@ function toggleGuideAt(gx,gy){
   else{setHlRow(gy);setHlCol(gx);}
 }
 
+// A pointer press hands the guide back from the keyboard (kbGuideRef): Space pans again and Enter does not mark under a stale guide.
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
+  kbGuideRef.current=false;kbAnchorRef.current=null;
   stopPanMomentum();
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Right-click parks (handleStitchContextMenu). Without this a right-click
@@ -6445,7 +6518,7 @@ function handleStitchWheel(e){
   // maxZoom is applied last: on a pattern so large that maxZoom falls under
   // the 0.3 floor, the ceiling still has to win or the ref and the scale
   // factor would disagree.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,oldZoom+delta));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));
   const scale=newZoom/oldZoom;
   scheduleZoomUpdate(newZoom);
   requestAnimationFrame(()=>{
@@ -6553,7 +6626,7 @@ function handleTouchMove(e){
   // Absolute from the gesture start rather than compounded per move, so the
   // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
   // the zoom actually applied; ceiling last, as in handleStitchWheel.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,ts.pinchZoom*dist/ts.pinchDist));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,ts.pinchZoom*dist/ts.pinchDist));
   const rect=container.getBoundingClientRect();
   const midX=(t0.clientX+t1.clientX)/2-rect.left;
   const midY=(t0.clientY+t1.clientY)/2-rect.top;
@@ -6632,6 +6705,18 @@ useEffect(()=>{
 
 // Helper: cycle to the next/previous focusable colour, auto-picking the
 // first when none is currently set (so [/] always do something useful).
+// Move keyboard focus into the colour legend (opening it if it is shut): onto the selected colour's tile, else the first.
+// Tab and Shift+Tab walk the tiles; Enter or Space selects one.
+function focusLegend(){
+  if(leftSidebarMode!=="open")setLeftSidebarMode("open");
+  let tries=0;
+  (function go(){
+    const tiles=document.querySelectorAll('.ppal-tile');
+    const target=document.querySelector('.ppal-tile--on')||tiles[0];
+    if(target&&target.getBoundingClientRect().width>0){try{target.scrollIntoView({block:'nearest'});}catch(_){}target.focus();return;}
+    if(++tries<12)setTimeout(go,40);
+  })();
+}
 function cycleFocusColour(direction){
   setFocusColour(prev=>{
     if(!focusableColors.length)return prev;
@@ -6867,8 +6952,8 @@ const trackerShortcuts=!isActive ? [] : [
       // Close the palette panel on mobile/tablet (≤1023px). On desktop the
       // panel is persistent so ESC intentionally leaves it open.
       if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
-      // Last: in Navigate mode, Esc clears the guide crosshair.
-      if(stitchMode==="navigate"&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);return;}
+      // Last: Esc clears the guide crosshair (in Navigate mode, or when the keyboard has taken it in Mark mode).
+      if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){clearGuide();return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -7000,7 +7085,7 @@ const trackerShortcuts=!isActive ? [] : [
     run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
   { id: "tracker.zoom.out", keys: "-", scope: "tracker",
     description: "Zoom out",
-    run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
+    run: () => setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.1).toFixed(2))) },
   { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
     description: "Zoom to fit",
     run: () => fitChart() },
@@ -7009,10 +7094,22 @@ const trackerShortcuts=!isActive ? [] : [
     run: () => setAreaPickerOpen(true) },
 
   // Highlight-view-only: focus-colour cycling and highlight modes.
-  { id: "tracker.hl.next", keys: ["]", "arrowright"], scope: "tracker.view.highlight",
+  { id: "tracker.col.next", keys: "]", scope: "tracker.notedit",
+    description: "Next colour (the one selected in the legend)",
+    run: () => cycleFocusColour(+1) },
+  { id: "tracker.col.prev", keys: "[", scope: "tracker.notedit",
+    description: "Previous colour (the one selected in the legend)",
+    run: () => cycleFocusColour(-1) },
+  { id: "tracker.legend", keys: "g", scope: "tracker.notedit",
+    description: "Go to the colour legend",
+    run: () => focusLegend() },
+  { id: "tracker.chartFocus", keys: "shift+g", scope: "tracker.notedit",
+    description: "Go to the chart",
+    run: () => { const c=stitchRef.current;if(c)c.focus(); } },
+  { id: "tracker.hl.next", keys: "arrowright", scope: "tracker.view.highlight",
     description: "Next focus colour",
     run: () => cycleFocusColour(+1) },
-  { id: "tracker.hl.prev", keys: ["[", "arrowleft"], scope: "tracker.view.highlight",
+  { id: "tracker.hl.prev", keys: "arrowleft", scope: "tracker.view.highlight",
     description: "Previous focus colour",
     run: () => cycleFocusColour(-1) },
   { id: "tracker.hl.isolate", keys: "1", scope: "tracker.view.highlight",
@@ -7167,7 +7264,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
   // React commits a prior setDone don't rewind earlier in-session marks.
   const cur=doneRef.current;
-  if(!pat||!cur||!set||!set.size)return;
+  if(!pat||!cur||!set||!set.size)return false;
   const want=intent==='mark'?1:0;
   const changes=[];
   const nd=new Uint8Array(cur);
@@ -7183,10 +7280,10 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
       nd[idx]=want;
     }
   });
-  if(!changes.length)return;
+  if(!changes.length)return false;
   if(source==='range'&&want===1&&asCatchUp===undefined&&changes.length>BULK_ASK_MIN){
     let pref='ask';try{pref=(window.UserPrefs&&window.UserPrefs.get('trackerMarkAllAs'))||'ask';}catch(_){}
-    if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return;}
+    if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return false;}
     asCatchUp=pref==='catchup';
   }
   pushBulkToggleHistory(changes,source);
@@ -7236,6 +7333,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
       }
     });
   }
+  return true;   // something was marked or unmarked (false: nothing changed, or the "mark all as" question is open)
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -7634,7 +7732,7 @@ return(
       :<span className="completion-projection-text completion-projection-text--none">Estimated finish: {completionEstimate.text}</span>}
   </div>
 )}
-{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
+{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent-text)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
   <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
   <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
 </div>}
@@ -7725,7 +7823,7 @@ return(
             stitchx project files
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
-            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
+            <span style={{padding:"3px 8px", background:"var(--surface-secondary)", color:"var(--accent-text)", borderRadius:'var(--radius-sm)', border:"1px solid var(--accent-light)", fontWeight:600, fontSize:'var(--text-xs)', width:64, textAlign:"center", flexShrink:0}}>.oxs</span>
             KG-Chart / Pattern Keeper XML format
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10, fontSize:'var(--text-md)', color:"var(--text-secondary)"}}>
@@ -7741,7 +7839,7 @@ return(
 
       <div style={{marginTop:30, paddingTop:20, borderTop:"0.5px solid var(--border)"}}>
         <p style={{fontSize:'var(--text-lg)', color:"var(--text-secondary)", marginBottom:10}}>Need a pattern?</p>
-        <a href="home.html?tab=create" style={{color:"var(--accent)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
+        <a href="home.html?tab=create" style={{color:"var(--accent-text)", fontWeight:600, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span>Pattern Creator</a>
       </div>
       <div style={{marginTop:12}}>
         <a href="home.html" style={{color:"var(--text-secondary)", fontWeight:500, textDecoration:"none", display:'inline-flex', alignItems:'center', gap:4, fontSize:'var(--text-md)'}}><span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronLeft?Icons.chevronLeft():null}</span>Back to my projects</a>
@@ -7965,14 +8063,14 @@ return(
     {(()=>{
       if(isEditMode) return <div style={{fontSize:'var(--text-sm)',color:"var(--warning)",background:"var(--warning-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--warning)", fontWeight: 600}}>EDITING — <span style={{fontWeight:400}}>Tap a <b>stitch on the grid</b> to edit that cell only · Tap a <b>colour in the list below</b> to reassign all stitches of that colour</span></div>;
       if(advanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--success)",background:"var(--success-soft)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--success-soft)",fontWeight:600,display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Complete! Next: {advanceToast}</div>;
-      if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      if(blockAdvanceToast) return <div style={{fontSize:'var(--text-sm)',color:"var(--accent-text)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"1px solid var(--accent-border)",fontWeight:600,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} {blockAdvanceToast.label} complete — {blockAdvanceToast.stitches} stitches</span>
         <div style={{display:"flex",gap:'var(--s-2)'}}>
-          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent)"}}>Next block</button>}
+          {blockAdvanceToast.next&&<button onClick={()=>{setFocusBlock(blockAdvanceToast.next);setBlockAdvanceToast(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"1px solid var(--accent-border)",background:"var(--surface)",cursor:"pointer",fontWeight:600,color:"var(--accent-text)"}}>Next block</button>}
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent-ink)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
       if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
@@ -8054,7 +8152,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -8129,7 +8227,7 @@ return(
       <span ref={guideLiveRef} className="tracker-sr-only" aria-live="polite"/>
       {/* Touch has no Esc, and re-tapping the exact guide cell is easy to
           miss, so the guide gets a visible way out wherever it is shown. */}
-      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={()=>{setHlRow(-1);setHlCol(-1);}} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
+      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={clearGuide} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
         <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.x?Icons.x():null}</span>Clear guide
       </button>}
     </div>
@@ -8137,6 +8235,7 @@ return(
     {doneCount===0&&!hintsSeen&&totalStitchable>0&&stitchMode==="track"&&<div className="tracker-hint" style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     </div>{/* end canvas-area */}
+    {pat&&cmap&&window.TrackerMinimap&&minimapPref!==false&&!isEditMode&&React.createElement(window.TrackerMinimap,{pat,cmap,sW,sH,done,scrollRef:stitchScrollRef,getView:minimapGetView,onJump:minimapJump,apiRef:minimapApiRef,viewKey:scs+"|"+sW+"|"+sH+"|"+focusMode+"|"+handedness,side:handedness==="left"?"right":"left",collapsed:focusMode&&isPhoneScreen()&&!minimapFocusOpen,onOpen:()=>setMinimapFocusOpen(true)})}
     {/* ─ Phone chip ─ */}
     {pal&&focusColour&&cmap&&cmap[focusColour]
       ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
@@ -8222,7 +8321,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["symbol","Symbol"],["colour","Colour + symbol"],["highlight","Highlight"]].map(([v,l])=>
                 <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchView===v?"var(--accent)":"var(--border)"),background:stitchView===v?"var(--accent)":"var(--surface)",color:stitchView===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchView===v?600:400}}
                   onClick={()=>setStitchView(v)} aria-pressed={stitchView===v}
                 >{l}</button>
               )}
@@ -8233,7 +8332,7 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["isolate","Isolate"],["outline","Outline"],["tint","Tint"],["spotlight","Spotlight"]].map(([v,l])=>
                 <button key={v} className="ppal-hl-mode-btn"
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--border)"),background:highlightMode===v&&stitchView==="highlight"?"var(--accent)":"var(--surface)",color:highlightMode===v&&stitchView==="highlight"?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:highlightMode===v&&stitchView==="highlight"?600:400}}
                   onClick={()=>{setStitchView("highlight");setHighlightMode(v);}} aria-pressed={highlightMode===v&&stitchView==="highlight"}
                 >{l}</button>
               )}
@@ -8257,8 +8356,19 @@ return(
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[["fill","Thread colour"],["tick","Corner tick"]].map(([v,l])=>
                 <button key={v}
-                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
                   onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerDoneStyle',v);}catch(_){}}} aria-pressed={doneStyle===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Pattern overview</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[[true,"Show"],[false,"Hide"]].map(([v,l])=>
+                <button key={l}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+((minimapPref!==false)===v?"var(--accent)":"var(--border)"),background:(minimapPref!==false)===v?"var(--accent)":"var(--surface)",color:(minimapPref!==false)===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer"}}
+                  onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerMinimap',v);}catch(_){}}} aria-pressed={(minimapPref!==false)===v}
                 >{l}</button>
               )}
             </div>
@@ -8266,7 +8376,7 @@ return(
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
+              <button onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",minWidth:40,textAlign:"center"}}>{Math.round((stitchZoom||1)*100)}%</span>
               <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom in">&#43;</button>
               <button onClick={fitChart} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
@@ -8345,11 +8455,11 @@ return(
             <p style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",margin:0}}>No active session. Stitching starts one automatically and its time is worked out from your stitches (an estimate). Start the timer for an exact time.</p>
             <button
               onClick={()=>{startTimer();setMorePanelOpen(false);}}
-              style={{padding:"10px 12px",minHeight:44,borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+              style={{padding:"10px 12px",minHeight:44,borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-on-accent)",fontWeight:600}}
             >Start timer</button>
             <button
               onClick={()=>{setSessionConfigOpen(true);setMorePanelOpen(false);}}
-              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--accent-ink)",fontWeight:600}}
+              style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--accent)",background:"var(--accent)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-on-accent)",fontWeight:600}}
             >Session settings</button>
             {explicitSession&&<button onClick={()=>setExplicitSession(null)} style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>End explicit session</button>}
           </>}
@@ -8395,7 +8505,7 @@ return(
             :<div style={{display:"flex",gap:6}}>
               {[["track","Mark"],["navigate","Navigate"]].map(([v,l])=>
                 <button key={v}
-                  style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
+                  style={{flex:1,padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(stitchMode===v?"var(--accent)":"var(--border)"),background:stitchMode===v?"var(--accent)":"var(--surface)",color:stitchMode===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:stitchMode===v?600:400}}
                   onClick={()=>setStitchMode(v)} aria-pressed={stitchMode===v}
                 >{l}</button>
               )}
@@ -8413,8 +8523,8 @@ return(
               }} className="ppal-check"/>
             </label>
             {focusEnabled&&focusBlock&&<div style={{display:"flex",gap:12}}>
-              <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
-              <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
+              <button onClick={()=>setFocusBlock(_getStartBlock())} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent-text)",cursor:"pointer",fontFamily:"inherit"}}>Restart sections</button>
+              <button onClick={()=>setStyleOnboardingOpen(true)} style={{fontSize:'var(--text-xs)',padding:0,background:"none",border:"none",color:"var(--accent-text)",cursor:"pointer",fontFamily:"inherit"}}>Change style</button>
             </div>}
           </div>}
           <button
@@ -8802,7 +8912,7 @@ return(
               v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
             }
           })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
-        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
+        }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent-text)",cursor:"pointer",fontWeight:600}}>Deduct Partial (keep 1 per colour)</button>
         <button onClick={()=>{
           (async()=>{
             if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
@@ -8813,7 +8923,7 @@ return(
         }} style={{padding:"10px 20px",fontSize:'var(--text-lg)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontWeight:500}}>Skip</button>
       </div>
       <div style={{marginTop:'var(--s-3)',paddingTop:10,borderTop:"1px solid var(--border)",display:"flex",justifyContent:"center"}}>
-        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
+        <button onClick={()=>{window.location.search='?mode=stats&tab=showcase';}} style={{fontSize:'var(--text-sm)',color:"var(--accent-text)",background:"none",border:"none",cursor:"pointer",fontWeight:600,display:'inline-flex',alignItems:'center',gap:4}}>See your updated stats <span aria-hidden="true" style={{display:'inline-flex'}}>{Icons.chevronRight?Icons.chevronRight():null}</span></button>
       </div>
     </div>
   </div>}
@@ -8937,7 +9047,7 @@ return(
               <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
               <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>{threadLabel(currentEntry)}</span>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
-              <span style={{fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:600}}>Current</span>
+              <span style={{fontSize:'var(--text-xs)',color:"var(--accent-text)",fontWeight:600}}>Current</span>
             </div>
           ) : null}
 
@@ -8955,7 +9065,7 @@ return(
                   <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>{threadLabel(p)}</span>
                   <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
                   <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>
-                  {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
+                  {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent-text)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
                 </div>
               );
             })}
@@ -9043,14 +9153,14 @@ return(
     }} onClick={e=>e.stopPropagation()}>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"fwd")} style={{
         display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
-        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent-text)"
       }}>
         <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 0,14 14,14" fill="var(--accent-light)"/></svg>
         Mark /
       </button>
       <button onClick={()=>_markHalfDoneFromDisambig(halfDisambig.idx,"bck")} style={{
         display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-sm)',border:"none",
-        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent)"
+        background:"var(--surface-secondary)",cursor:"pointer",fontSize:'var(--text-sm)',fontWeight:500,color:"var(--accent-text)"
       }}>
         <svg width="14" height="14" viewBox="0 0 14 14"><polygon points="0,0 14,0 0,14" fill="var(--accent-light)"/></svg>
         Mark \
@@ -9079,7 +9189,7 @@ return(
     return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
   })()}
   <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
-  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
   <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
   <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.plus&&Icons.plus()}</button>
   <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">

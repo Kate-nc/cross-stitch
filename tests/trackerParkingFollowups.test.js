@@ -111,7 +111,7 @@ describe('status bar', () => {
   });
 
   test('a Clear guide button appears while there is a guide', () => {
-    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{\(\)=>\{setHlRow\(-1\);setHlCol\(-1\);\}\}/);
+    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{clearGuide\}/);
   });
 
   test('hovering shows the thread in every mode, not only Mark', () => {
@@ -123,7 +123,8 @@ describe('status bar', () => {
 describe('keyboard guide', () => {
   test('arrow keys move the guide in Navigate mode, Shift by 10', () => {
     const b = body('function handleStitchKeyDown(e){', '\n}\n');
-    expect(b).toMatch(/if\(stitchMode==="navigate"&&!isEditMode&&!e\.altKey&&!e\.ctrlKey&&!e\.metaKey&&GUIDE_KEYS\[e\.key\]\)\{\s*e\.preventDefault\(\);/);
+    // Phase 5 batch 3: Mark mode moves the guide too (row mode keeps Up and Down).
+    expect(b).toMatch(/\(stitchMode==="navigate"\|\|stitchMode==="track"\)&&!isEditMode&&plain&&GUIDE_KEYS\[e\.key\]\)\{[\s\S]{0,260}e\.preventDefault\(\);/);
     expect(b).toMatch(/\(e\.shiftKey\?10:1\)/);
   });
 
@@ -135,6 +136,6 @@ describe('keyboard guide', () => {
   });
 
   test('the chart label says how', () => {
-    expect(src).toMatch(/aria-label="Cross stitch pattern grid\. In Navigate mode the arrow keys move the guide; Menu or Shift\+F10 parks a thread at the guide\."/);
+    expect(src).toMatch(/aria-label="Cross stitch pattern grid\. The arrow keys move the guide\. In Mark mode Enter or Space marks the stitch at the guide and Shift\+Enter fills a rectangle from the last one; Menu or Shift\+F10 parks a thread at the guide\."/);
   });
 });

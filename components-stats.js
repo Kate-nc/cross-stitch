@@ -226,7 +226,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   // What-if projection line (now drawn within the extended chart area)
   var wiLine = null;
   if (wiDays > 0 && wiEndDate) {
-    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"var(--warning)", strokeWidth:"1.5", strokeDasharray:"5 3"});
+    wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"var(--warning)", strokeWidth:"2", strokeLinecap:"round", strokeDasharray:"0.1 4"});   // dotted: not the same dash as the pace line
   }
   var pctOf = function(v){ return totalStitches > 0 ? Math.round(v / totalStitches * 1000) / 10 : 0; };
   var xsOf = function(){ var a = []; for (var xi = 0; xi < data.length; xi++) a.push(xDate(new Date(data[xi].date + 'T12:00:00'))); return a; };
@@ -238,11 +238,11 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches / 2)),
       React.createElement("text", {x:pl - 4, y:pt + cH, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, "0"),
       React.createElement("line", {x1:pl, y1:pt + cH / 2, x2:width - pr, y2:pt + cH / 2, stroke:"var(--border)", strokeWidth:"0.5", strokeDasharray:"4 4"}),
-      React.createElement("line", {x1:xDate(firstDate), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"#CFC4AC", strokeWidth:"1", strokeDasharray:"4 4"}),
+      React.createElement("line", {x1:xDate(firstDate), y1:yS(0), x2:paceEndX, y2:paceEndY, stroke:"var(--text-tertiary)", strokeWidth:"1.5", strokeDasharray:"5 4"}),   // dashed, in a colour that shows on the page
       wiLine,
-      React.createElement("polygon", {points:fillPoints, fill:"#534AB7", opacity:"0.08"}),
-      React.createElement("polyline", {points:points, fill:"none", stroke:"#534AB7", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
-      React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"#534AB7"}),
+      React.createElement("polygon", {points:fillPoints, fill:"var(--accent)", opacity:"0.08"}),
+      React.createElement("polyline", {points:points, fill:"none", stroke:"var(--accent)", strokeWidth:"2.5", strokeLinecap:"round", strokeLinejoin:"round"}),
+      React.createElement("circle", {cx:lastX, cy:yS(last.total), r:"4", fill:"var(--accent)"}),
       selD ? React.createElement("line", {x1:xDate(new Date(selD.date + 'T12:00:00')), y1:pt, x2:xDate(new Date(selD.date + 'T12:00:00')), y2:pt + cH, stroke:"var(--text-primary)", strokeWidth:"1", strokeDasharray:"2 2"}) : null,
       selD ? React.createElement("circle", {cx:xDate(new Date(selD.date + 'T12:00:00')), cy:yS(selD.total), r:"5", fill:"var(--surface)", stroke:"var(--text-primary)", strokeWidth:"2"}) : null,
       React.createElement("line", {x1:pl, y1:pt + cH, x2:width - pr, y2:pt + cH, stroke:"var(--border)", strokeWidth:"0.5"})
@@ -255,7 +255,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel),
-      wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dashed", style:{borderColor:'var(--warning)'}}), "What-if") : null
+      wiLine ? React.createElement("span", null, React.createElement("span", {className:"legend-line dotted"}), "What-if") : null
     ),
     React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selText, label:"Day on the progress chart"}),
     React.createElement(ChartTable, {caption:"Progress over time", headers:["Date", "Stitches done", "Percent"], count:data.length, rowAt:function(i){ var d = data[i]; return [formatShortDate(d.date), ProgressUnits.formatUnits(d.total), pctOf(d.total) + '%']; }})
@@ -283,7 +283,7 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
       React.createElement("rect", {key:d.date, x:x, y:height - barH, width:barW, height:Math.max(barH, 0),
         fill:d.isToday ? '#5DCAA5' : 'var(--accent)',
         opacity:d.isToday ? 1 : op,
-        rx:"2", stroke:sel === j ? 'var(--text-primary)' : (d.isToday ? 'var(--accent)' : 'none'), strokeWidth:sel === j ? 3 : (d.isToday ? 1 : 0)},
+        rx:"2", stroke:(sel === j || d.isToday) ? 'var(--text-primary)' : 'none', strokeWidth:sel === j ? 3 : (d.isToday ? 2 : 0)}   /* today is outlined, not just a different green */,
         React.createElement("title", null, formatShortDate(d.date) + ': ' + ProgressUnits.formatUnits(d.stitches) + ' stitches')
       )
     );
@@ -296,7 +296,7 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
   var svgChildren = [];
   if (dailyGoal) {
     svgChildren.push(React.createElement("line", {key:"goal", x1:0, y1:height - yS(dailyGoal), x2:width, y2:height - yS(dailyGoal), stroke:"var(--accent)", strokeWidth:"2", strokeDasharray:"4 4", opacity:"0.4"}));
-    svgChildren.push(React.createElement("text", {key:"goal-lbl", x:width - 4, y:height - yS(dailyGoal) - 4, textAnchor:"end", fontSize:"10", fill:"var(--accent)"}, "Goal: " + dailyGoal));
+    svgChildren.push(React.createElement("text", {key:"goal-lbl", x:width - 4, y:height - yS(dailyGoal) - 4, textAnchor:"end", fontSize:"10", fill:"var(--accent-text)"}, "Goal: " + dailyGoal));
   }
   svgChildren = svgChildren.concat(barElements);
   return React.createElement("div", {className:"chart-container"},
@@ -550,9 +550,12 @@ var MilestoneTracker=React.memo(function MilestoneTracker({milestones, achievedM
     } else {
       dateLabel = m.estimatedDate ? '~' + formatShortDate(m.estimatedDate) : '\u2014';
     }
+    // The state is not colour alone: achieved is ticked, next says so, upcoming is dashed (styles.css).
+    var mark = m.achieved && window.Icons && window.Icons.check ? React.createElement("span", {className:"milestone-mark"}, window.Icons.check()) : null;
     badges.push(React.createElement("div", {key:m.percent, className:cls},
-      React.createElement("span", {className:"milestone-percent"}, m.percent + '%'),
-      React.createElement("span", {className:"milestone-date"}, dateLabel)
+      React.createElement("span", {className:"milestone-percent"}, mark, m.percent + '%'),
+      React.createElement("span", {className:"milestone-date"}, dateLabel),
+      !m.achieved && m.isNext ? React.createElement("span", {className:"milestone-state"}, "Next") : null
     ));
   }
   return React.createElement("div", {className:"milestones"},

@@ -19,7 +19,8 @@ function documented() {
   const start = src.indexOf("var SHORTCUTS = [");
   const end = src.indexOf("];", start);
   const block = src.slice(start, end);
-  const re = /\{\s*id:\s*"([^"]+)",\s*scope:\s*"([^"]+)",\s*keys:\s*\[([^\]]*)\]/g;
+  // Quote-aware: a key list may contain "[" or "]" itself.
+  const re = /\{\s*id:\s*"([^"]+)",\s*scope:\s*"([^"]+)",\s*keys:\s*\[((?:\s*"(?:[^"\\]|\\.)*"\s*,?)*)\s*\]/g;
   const out = [];
   let m;
   while ((m = re.exec(block))) {
@@ -35,7 +36,7 @@ function documented() {
 // ── Registered shortcuts (registry `keys:` fields) ─────────────────────
 function registered(file) {
   const src = read(file);
-  const re = /\{\s*id:\s*['"]([^'"]+)['"],\s*keys:\s*(\[[^\]]*\]|"[^"]*"|'[^']*'),\s*scope:\s*['"]([^'"]+)['"]([^}]*)/g;
+  const re = /\{\s*id:\s*['"]([^'"]+)['"],\s*keys:\s*(\[(?:\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')\s*,?)*\s*\]|"[^"]*"|'[^']*'),\s*scope:\s*['"]([^'"]+)['"]([^}]*)/g;
   const out = [];
   let m;
   while ((m = re.exec(src))) {
@@ -68,7 +69,7 @@ function isRegistryKey(label) {
   if (label === "Right-click" || label === "Menu" || label === "Shift+F10") return false;
   return true;
 }
-const NON_REGISTRY_IDS = new Set(["t.guide", "t.guideKeys", "t.park", "t.parkGuide"]);
+const NON_REGISTRY_IDS = new Set(["t.guide", "t.guideKeys", "t.park", "t.parkGuide", "t.markGuide", "t.markRange"]);
 
 const FILES = {
   creator: "creator/useKeyboardShortcuts.js",

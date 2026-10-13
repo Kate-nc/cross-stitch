@@ -4,17 +4,44 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.133';
+window.APP_VERSION = '1.0.136';
 
 window.APP_CHANGELOG = [
   {
-    version: '1.0.133',
+    version: '1.0.137',
     date: 'October 2026',
     notes: [
       'The Stats page now uses the whole width of your screen. Every tab is a grid of tiles that wrap to fit (one column on a phone), instead of one narrow column down the middle.',
       'Each figure now lives in one place. The Stitching tab holds your totals, streak, recent pace and the week summary; the Stash tab no longer repeats lifetime stitches, active projects, the weekly streak or the recent pace, and Insights no longer repeats the weekly summary.',
       'In a project\'s Stats, streaks and milestones sit beside the summary and your goals sit beside the chart. Showcase stays on the all-projects page only.',
       'A project\'s Stats has a new Visuals view (the button above the tiles). Sections, the Before / After comparison, Colour progress and the Colour timeline are open and full size there, instead of folded away at the bottom.'
+    ]
+  },
+  {
+    version: '1.0.135',
+    date: 'October 2026',
+    notes: [
+      'Easier to read. Small and secondary text, the active tab, the save status, the milestone figures and the Stats colour list now meet a 4.5 to 1 contrast against their background in the light and dark themes (several were between 2 and 4). In the dark theme the Stats colour panel was a white box under pale text; it is now dark.',
+      'The dark theme now uses its own, lighter accent colour everywhere. It was being overridden by the light one, which left accent text hard to read on dark.',
+      'On a narrow screen, including a desktop browser zoomed to 200%, the colour legend now starts shut so the chart is what you see. Open it with the Colours button.',
+      'State is no longer shown by colour alone: the selected colour in the legend has an edge bar, a finished milestone is ticked, the next one says Next and upcoming ones are dashed, and the progress chart tells its three lines apart by solid, dashed and dotted. The keyboard focus ring on buttons is now the accent rather than a pale peach.'
+    ]
+  },
+  {
+    version: '1.0.134',
+    date: 'October 2026',
+    notes: [
+      'You can now mark stitches without a mouse or touch screen. Tab to the chart, move the guide with the arrow keys (Shift moves 10 stitches), and press Enter to mark or unmark the stitch at the guide. Shift+Enter marks the rectangle from the last stitch you marked with the keyboard to the guide, as Shift+click does. Space marks too once the arrow keys have the guide; Esc or a click gives it back to hold-to-pan.',
+      '[ and ] now change the colour in every view (they only worked in Highlight view), G moves keyboard focus into the colour legend and Shift+G back to the chart. In row mode Up and Down still change the row.',
+      'The controls panel, when it is shut, can no longer be tabbed into. The chart shows an outline when the keyboard has it.'
+    ]
+  },
+  {
+    version: '1.0.133',
+    date: 'October 2026',
+    notes: [
+      'A pattern overview in the corner of the Tracker chart. When the pattern is bigger than the chart box, a small map shows the whole of it with finished areas in full thread colour, the rest faded, and the part you are looking at outlined. Tap or drag it to jump there. It updates as you mark stitches without slowing the chart, and you can hide it in More > View or Preferences > Stitch Tracker.',
+      'On a phone in Focus mode the overview starts closed; the map button opens it.'
     ]
   },
   {
