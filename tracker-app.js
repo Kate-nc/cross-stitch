@@ -1655,7 +1655,8 @@ const minimapJump=useCallback((cx,cy)=>{
 },[scs]);
 // The lowest zoom: one pixel a stitch, which Fit can now reach, so every zoom-out control must be able to stay there.
 const MIN_STITCH_ZOOM=0.05;
-useEffect(()=>{kbGuideRef.current=false;kbAnchorRef.current=null;},[stitchMode]);
+// A new mode or a different pattern hands the guide back from the keyboard too (a stale coordinate must not be marked in another project).
+useEffect(()=>{kbGuideRef.current=false;kbAnchorRef.current=null;},[stitchMode,pat]);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -6180,8 +6181,9 @@ function handleStitchKeyDown(e){
       const ax=anchor.idx%sW,ay=(anchor.idx-ax)/sW;
       const set=new Set();
       for(let y=Math.min(ay,g.row);y<=Math.max(ay,g.row);y++)for(let x=Math.min(ax,g.col);x<=Math.max(ax,g.col);x++)set.add(y*sW+x);
-      _commitBulk(set,anchor.intent,'range');
-      kbAnchorRef.current={idx:idx,intent:anchor.intent};
+      // The anchor moves only when the rectangle was committed: not when a colour lock filtered every stitch, and not while the
+      // "mark all as" question is open (cancelling it must not leave the next Shift+Enter starting from an endpoint never marked).
+      if(_commitBulk(set,anchor.intent,'range'))kbAnchorRef.current={idx:idx,intent:anchor.intent};
       return;
     }
     const was=doneRef.current[idx];
@@ -6197,6 +6199,8 @@ function handleStitchKeyDown(e){
   toggleParkAt(guide.col,guide.row);
 }
 
+// Every way of clearing the guide goes through here, so the keyboard's ownership and range anchor go with it.
+function clearGuide(){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;}
 const GUIDE_KEYS={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
 // Move the guide by (dx,dy) stitches — or, with no guide yet, drop it at the
 // middle of the view — keeping it inside the chart (or the work area's view)
@@ -6947,7 +6951,7 @@ const trackerShortcuts=!isActive ? [] : [
       // panel is persistent so ESC intentionally leaves it open.
       if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
       // Last: Esc clears the guide crosshair (in Navigate mode, or when the keyboard has taken it in Mark mode).
-      if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;return;}
+      if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){clearGuide();return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -7258,7 +7262,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
   // React commits a prior setDone don't rewind earlier in-session marks.
   const cur=doneRef.current;
-  if(!pat||!cur||!set||!set.size)return;
+  if(!pat||!cur||!set||!set.size)return false;
   const want=intent==='mark'?1:0;
   const changes=[];
   const nd=new Uint8Array(cur);
@@ -7274,10 +7278,10 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
       nd[idx]=want;
     }
   });
-  if(!changes.length)return;
+  if(!changes.length)return false;
   if(source==='range'&&want===1&&asCatchUp===undefined&&changes.length>BULK_ASK_MIN){
     let pref='ask';try{pref=(window.UserPrefs&&window.UserPrefs.get('trackerMarkAllAs'))||'ask';}catch(_){}
-    if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return;}
+    if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return false;}
     asCatchUp=pref==='catchup';
   }
   pushBulkToggleHistory(changes,source);
@@ -7327,6 +7331,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
       }
     });
   }
+  return true;   // something was marked or unmarked (false: nothing changed, or the "mark all as" question is open)
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
@@ -8220,7 +8225,7 @@ return(
       <span ref={guideLiveRef} className="tracker-sr-only" aria-live="polite"/>
       {/* Touch has no Esc, and re-tapping the exact guide cell is easy to
           miss, so the guide gets a visible way out wherever it is shown. */}
-      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={()=>{setHlRow(-1);setHlCol(-1);}} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
+      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={clearGuide} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
         <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.x?Icons.x():null}</span>Clear guide
       </button>}
     </div>

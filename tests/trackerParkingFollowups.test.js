@@ -111,7 +111,7 @@ describe('status bar', () => {
   });
 
   test('a Clear guide button appears while there is a guide', () => {
-    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{\(\)=>\{setHlRow\(-1\);setHlCol\(-1\);\}\}/);
+    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{clearGuide\}/);
   });
 
   test('hovering shows the thread in every mode, not only Mark', () => {

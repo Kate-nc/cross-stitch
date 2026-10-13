@@ -38,8 +38,26 @@ describe('chart key handler', () => {
 describe('who owns the guide', () => {
   test('a pointer press, Esc and a change of mode hand it back', () => {
     expect(tracker).toMatch(/function handleStitchMouseDown\(e\)\{\n  if\(!stitchRef\.current\|\|!pat\)return;\n  kbGuideRef\.current=false;kbAnchorRef\.current=null;/);
-    expect(tracker).toMatch(/useEffect\(\(\)=>\{kbGuideRef\.current=false;kbAnchorRef\.current=null;\},\[stitchMode\]\)/);
-    expect(tracker).toMatch(/\(stitchMode==="navigate"\|\|kbGuideRef\.current\)&&hlRow>=0&&hlCol>=0\)\{setHlRow\(-1\);setHlCol\(-1\);kbGuideRef\.current=false/);
+    expect(tracker).toMatch(/useEffect\(\(\)=>\{kbGuideRef\.current=false;kbAnchorRef\.current=null;\},\[stitchMode,pat\]\)/);
+    expect(tracker).toMatch(/\(stitchMode==="navigate"\|\|kbGuideRef\.current\)&&hlRow>=0&&hlCol>=0\)\{clearGuide\(\);return;\}/);
+  });
+});
+
+describe('review fixes (Copilot on #303)', () => {
+  test('the Clear guide button, Esc and every other way of clearing the guide go through one helper that also hands back the keyboard', () => {
+    expect(tracker).toMatch(/function clearGuide\(\)\{setHlRow\(-1\);setHlCol\(-1\);kbGuideRef\.current=false;kbAnchorRef\.current=null;\}/);
+    expect(tracker).toMatch(/className="tracker-hover-bar__clear" onClick=\{clearGuide\}/);
+    expect(tracker).toMatch(/hlRow>=0&&hlCol>=0\)\{clearGuide\(\);return;\}/);
+  });
+  test('a different pattern hands the guide back too, not only a change of mode', () => {
+    expect(tracker).toMatch(/kbGuideRef\.current=false;kbAnchorRef\.current=null;\},\[stitchMode,pat\]\)/);
+  });
+  test('_commitBulk says whether it committed, and the range anchor moves only then', () => {
+    const bulk = tracker.slice(tracker.indexOf('const _commitBulk=useCallback'), tracker.indexOf('const _dragMarkOnToggle=useCallback'));
+    expect(bulk).toMatch(/if\(!changes\.length\)return false;/);
+    expect(bulk).toMatch(/setMarkAllAsk\(\{set:set,intent:intent,source:source\}\);return false;/);
+    expect(bulk).toMatch(/\n  return true;/);
+    expect(handler).toMatch(/if\(_commitBulk\(set,anchor\.intent,'range'\)\)kbAnchorRef\.current=\{idx:idx,intent:anchor\.intent\}/);
   });
 });
 

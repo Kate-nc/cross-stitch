@@ -143,3 +143,19 @@ test('the pointer still marks, and Space pans again after a click hands the guid
   await press(page, 'Space'); await page.waitForTimeout(200);
   expect(await doneCount(page), 'Space no longer marks after a click').toBe(base + 1);
 });
+
+test('the Clear guide button hands the guide back from the keyboard (no hidden anchor, and Space does not recreate the guide)', async ({ page }) => {
+  await open(page);
+  await tabToChart(page);
+  await press(page, 'ArrowRight'); await press(page, 'Enter'); await press(page, 'Enter'); await page.waitForTimeout(200);
+  const base = await doneCount(page);
+  await page.locator('.tracker-hover-bar__clear').click(); await page.waitForTimeout(200);
+  expect(await guideText(page)).not.toMatch(/Guide\s+Row/);
+  await page.evaluate(() => document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]').focus());
+  await press(page, 'Space'); await page.waitForTimeout(200);
+  expect(await doneCount(page), 'Space does not mark').toBe(base);
+  expect(await guideText(page), 'and does not bring the guide back').not.toMatch(/Guide\s+Row/);
+  // The old anchor is gone: a Shift+Enter as the first mark marks the one stitch at the guide, not a rectangle back to the old anchor.
+  await press(page, 'ArrowRight', 6); await press(page, 'Shift+Enter'); await page.waitForTimeout(250);
+  expect(await doneCount(page), 'one stitch, not a rectangle').toBe(base + 1);
+});
