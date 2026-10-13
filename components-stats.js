@@ -1396,6 +1396,10 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
   var hasMultiSt = React.useState(false);
   var hasMultiProjects = hasMultiSt[0], setHasMultiProjects = hasMultiSt[1];
   var cardCanvasRef = React.useRef(null);
+  // Overview (numbers, chart, goals, sessions) or Visuals (sections, comparison, colour charts). Remembered between visits.
+  var viewSt = React.useState(function() { try { return localStorage.getItem('cs_stats_view') === 'visuals' ? 'visuals' : 'overview'; } catch (e) { return 'overview'; } });
+  var view = viewSt[0], setViewRaw = viewSt[1];
+  function setView(v) { setViewRaw(v); try { localStorage.setItem('cs_stats_view', v); } catch (e) {} }
   var mot = useMotivationPrefs();     // streaks, goals and celebrations on or off (Preferences)
   React.useEffect(function() {
     if (typeof ProjectStorage !== 'undefined') {
@@ -1485,6 +1489,17 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
+    React.createElement("div", {className:"stats-viewtabs", role:"tablist", "aria-label":"Stats view"},
+      React.createElement("button", {type:"button", role:"tab", "aria-selected":view==="overview", className:"stats-viewtab"+(view==="overview"?" stats-viewtab--on":""), onClick:function(){setView("overview");}}, "Overview"),
+      React.createElement("button", {type:"button", role:"tab", "aria-selected":view==="visuals", className:"stats-viewtab"+(view==="visuals"?" stats-viewtab--on":""), onClick:function(){setView("visuals");}}, "Visuals")
+    ),
+    view === "visuals" ? React.createElement("div", {className:"bento"},
+    React.createElement("div", {className:"bento-cell bento-cell--xl"},
+      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit})),
+    React.createElement("div", {className:"bento-cell bento-cell--md"}, React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})),
+    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})),
+    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts}))
+    ) :
     React.createElement("div", {className:"bento"},
     React.createElement("div", {className:"bento-cell bento-cell--lg"},
       React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, todayStitches:getStatsTodayStitches(statsSessions || [], dayEndHour), weekStitches:getStatsThisWeekStitches(statsSessions || [], dayEndHour)}),
@@ -1509,16 +1524,6 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette, canEdit:canEdit, onEditSession:onEditSession, onDeleteSession:onDeleteSession, onMergeSession:onMergeSession})
     ),
     React.createElement("div", {className:"bento-cell bento-cell--md bento-cell--stack"},
-    React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions}),
-    React.createElement(StatsAccordion, {id:"colour-timeline", title:"Colour timeline"},
-      React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
-    ),
-    React.createElement(StatsAccordion, {id:"sections", title:"Sections"},
-      React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit})
-    ),
-    React.createElement(StatsAccordion, {id:"comparison", title:"Comparison"},
-      React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})
-    ),
     React.createElement(StatsAccordion, {id:"settings", title:"Settings"},
       React.createElement("div", null,
         !mot.show && React.createElement(DayEndSetting, {statsSettings:statsSettings, onUpdateSettings:onUpdateSettings}),

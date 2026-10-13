@@ -56,9 +56,27 @@ describe('merged duplicates: each figure lives in one place', () => {
   });
 });
 
+describe('project Stats: Overview and Visuals views', () => {
+  test('the picture-based stats are on their own Visuals view, not folded into accordions', () => {
+    expect(COMPONENTS).toContain('"Visuals"');
+    expect(COMPONENTS).toContain("cs_stats_view");
+    ['colour-timeline', 'sections', 'comparison'].forEach(id => {
+      expect(COMPONENTS).not.toContain('StatsAccordion, {id:"' + id + '"');
+    });
+    ['SectionGrid', 'ComparisonView', 'ColourTimeline', 'ColourProgress'].forEach(c => {
+      expect(COMPONENTS).toContain('React.createElement(' + c + ',');
+    });
+  });
+  test('the view switch is styled', () => {
+    expect(CSS).toContain('.stats-viewtabs');
+    expect(CSS).toContain('.stats-viewtab--on');
+  });
+});
+
 describe('help', () => {
   test('the in-app help describes the new layout and where each figure lives', () => {
     expect(HELP).toContain('tiles that wrap to fit');
     expect(HELP).toContain('Each figure appears in one place only');
+    expect(HELP).toContain('Visuals button');
   });
 });
