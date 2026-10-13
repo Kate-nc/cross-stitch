@@ -38,7 +38,7 @@
      which is why we measure the side limit and infer the area budget from it
      rather than allocating a square. */
   var GRID_GUTTER  = 28;   // must match `const G` in tracker-app.js
-  var SCS_MIN      = 2;    // matches the existing Math.max(2, ...) floor
+  var SCS_MIN      = 1;    // one pixel a stitch: the least that lets Fit hold a 300-stitch side in a 600 px box (was 2)
   var SCS_PER_ZOOM = 20;   // scs = round(20 * stitchZoom)
   var ZOOM_MAX     = 4;    // matches the existing wheel/pinch/button ceiling
 

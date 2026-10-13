@@ -1,0 +1,4 @@
+{"heap0":21.4,"zoom":97.32,"zoomSteps":12,"panP95":83.4,"panMed":16.7,"pan":27.19,"drag60":731.08,"tap":30.35,"heap1":19.22}
+{"heap0":20.82,"zoom":97.49,"zoomSteps":12,"panP95":133.3,"panMed":16.7,"pan":28.54,"drag60":834.88,"tap":30.28,"heap1":19.24}
+{"heap0":21.38,"zoom":100.71,"zoomSteps":12,"panP95":83.4,"panMed":16.7,"pan":25.29,"drag60":724.03,"tap":31.85,"heap1":19.22}
+RESULT {"label":"main","throttle":1,"sessions":3,"zoom":97.49,"pan":27.19,"panP95":83.4,"drag60":731.08,"tap":30.35,"heap0":21.38,"heap1":19.22}

@@ -18,3 +18,16 @@ Known limits and decisions to revisit:
 - **Colour view changed more than Symbol view:** a not-done stitch in Colour view is now a lighter, desaturated thread colour (it was the full thread colour, identical to done); done is the full colour. That is what makes done readable in Colour view (greyscale gap 3 to 65 to 95), but someone who used Colour view to preview the finished piece in full colour now sees the not-done part pale. The fade is the existing `lowZoomFade` setting at the solid tiers and 0.5 at symbol tiers.
 - Highlight views keep their own rules (no change), and the Creator and PDF paths are separate code.
 - Not verified: Safari and real devices; the realistic fabric texture preference (`trackerCanvasTexture`) with the new fills was not compared by eye.
+
+## Batch 2 (pattern overview and Fit)
+
+Found and fixed during the work (each by a failing check or a screenshot):
+- **Fit did not fit 300x300**: cells could not go under 2 px, so a 300-row pattern overflowed a 600 px box by about 35 px; the tall 120x400 fixture overflowed by 230 px. The floor is now 1 px.
+- **The map sat below the chart**, over the hover bar's Clear guide button, and then (first try at a corner) under the tool rail. It now sits in the bottom corner of the chart box opposite the rail, by handedness.
+- **The phone's map button appeared at the page's top left**: its position was computed from `offsetParent`, which is null while an element is hidden, and nothing re-ran it once the button showed. Position now comes from the parent element and re-runs when the map's state changes.
+- **Drag-60 cost**: the map repainted per marked cell; it now gathers blocks and paints once a frame. The layout reads that ran on every zoom step now run only when the map's corner, size or state changes.
+- The used-icon snapshot test failed when the icon was first referenced by the Tracker and passed again once the button moved into the module (the snapshot is unchanged).
+
+Checked and fine: marking and undo keep the map right (undo restores its pixel), and a load builds it; switching projects frees and rebuilds it; a pattern that fits shows no map and builds none; resizing the window keeps it in the chart box; left-handed layout moves it right; phone Focus starts closed and the button opens it; dark theme; print hides it; no emojis (an SVG icon is used).
+
+Not driven: Safari and a real phone or tablet; a screen reader on the map (screen-reader work is deferred by instruction; the map has a plain group name and arrow-key operation only); work-area mode with the map shown (it maps the whole pattern, the rectangle follows the area's scroll through the same offsets, but I did not look at it); a 1000x1000 pattern in a browser (only the compute was timed); high-contrast mode beyond a forced-colours rule that I did not render.

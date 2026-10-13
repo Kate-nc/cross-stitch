@@ -95,3 +95,40 @@ Found while testing: the touch-tablet Playwright project's iPad profile (user ag
 | Desktop mouse tap | -1.8% | |
 
 The single mark read +5.2% and then +15% in two earlier runs of 2 and 3 rounds at 4x; with 100 marks per session and 8 sessions per side it is +0.7%, so those were noise (round-to-round spread on this figure is 5% or more). Load to chart read -14% (noise; it moves from -9% to +15% between runs of builds that differ in code that cannot affect loading). Raw data: `reports/tracking-audit/perf/phase5-batch1/`.
+
+## Batch 2: pattern overview (minimap) and Fit
+
+### What shipped
+- **Pattern overview** (`tracker-minimap.js`, a plain-JS React component loaded by `stitch.html` and `index.html`, in the `sw.js` precache). One canvas of at most 200 px on its longer side (150 px for 300x300, 167 px for 500x500, 200 px for 1000x1000); a pixel is the average of a block of cells (2x2, 3x3, 5x5), done cells in their thread colour and not-done cells faded, from the batch 1 looks, so "done is full colour, not done is faded" reads the same at every zoom (the audit said "brighter"; done is the more vivid and the darker of the two, which is what the greyscale test measures). The visible part is an outlined rectangle moved by direct style writes; tap or drag the map to centre the chart there; arrow keys on the focused map move the view (Shift for bigger steps).
+- It shows only when the chart is bigger than its box (a pattern that fits never builds one), sits in the bottom corner of the chart box opposite the tool rail (left for right-handed, right for left-handed), is smaller (96 px) on a phone, and on a phone in Focus starts closed behind a map button.
+- Preference `trackerMinimap` (default on): More > View and Preferences > Stitch Tracker. Hidden in print and in edit mode; forced-colours borders.
+- **Fit**: it already held a pattern whole on both axes (Phase 2), but a 300x300 pattern in a 600 px box needs cells under 2 px and the floor was 2 px, so it overflowed by about 35 px. The floor (`SCS_MIN` in `useCanvasOverlays.js`) is now 1 px. Fit at 300x300 now holds the pattern whole (square 300x300, wide 400x120, tall 120x400 all checked in the browser).
+
+### How it stays cheap
+- Built once per pattern, in idle slices of 6 ms, and only when first shown. Compute for a full build, measured warm: 4.4 ms (300x300), 9.9 ms (500x500), 32.7 ms (1000x1000).
+- A mark calls `api.cellsChanged(changes, nd)` from `paintDoneChanges`; the blocks it falls in are gathered and painted once a frame (30 blocks recompute in 0.03 to 0.07 ms). Any other change to `done` (load, undo of an edit, merge) is one idle rebuild. The component skips its own re-render when the new `done` is the one it was just told about.
+- Layout is read only when the map's corner, size or state changes, never per scroll frame; a scroll writes one transform.
+- The canvas and pixel buffer are dropped when the pattern changes or the map unmounts (checked by switching a 300x300 project to a 40x40 one in the app: the map is rebuilt at 40x40 and hidden, since the whole pattern fits).
+- It never draws on the chart canvas, so the canvas size cap and tile logic (`chartTileFor`, `maxChartCellSize`) are untouched.
+
+### Performance (batch 2), interleaved against `main` at 8928d72, 300x300 fixture with 20% done
+The numbers took four passes because the first three would not settle:
+| Pass | zoom | pan | drag 60 | tap |
+|---|---|---|---|---|
+| 1 (3 rounds) | +4.3% | +3.5% | +4.2% | +1.0% |
+| 2 (4 rounds, after memo and style-write trims) | +8.4% | +0.5% | +7.3% | +1.9% |
+| 3 (4 rounds, after per-frame batching and no per-zoom layout reads) | +6.0% | +8.0% | +13.5% | -0.3% |
+| 4: three-way, 4 rounds | overview on -1.0%, off -3.9% | on +5.6%, off +6.9% | on +0.7%, off +2.7% | on +1.2%, off -1.5% |
+| A/A: `main` against itself, 4 rounds | +0.9% | +4.1% | -7.9% | -2.8% |
+
+Reading it: the three-way run switches the overview off with its own preference, so the branch differs from `main` by nothing else but the overview and the 1 px floor. Overview on against overview off: zoom +3%, pan -1%, drag -2%, tap +3%. The A/A run shows how far identical code swings in this sandbox: up to 8% on drag and 4% on pan. Every difference above is inside that, the overview's own work measured directly is under a tenth of a millisecond per stroke and a few milliseconds for a full build, and heap is +0.5% (19.2 to 19.3 MB). I am not able to resolve effects under about 8% on drag with this setup, so I am reporting that as "not distinguishable from noise, with direct measurements showing the cost is small", not as "zero".
+Raw runs: `reports/tracking-audit/perf/phase5-batch2/` (`r2` to `r5`; `r5` is the A/A). `harness/drawbench.js` gained `MINIMAP_OFF=1`; `harness/mapshots.js` takes the screenshots in `screens/phase5/map-*.png`.
+
+### Orientation aids (step 3)
+Already in the Tracker and kept: the sticky rulers with bold labels every 10 stitches, 10-stitch grid lines, and the dashed centre lines. Page or section boundaries are not drawn: an imported chart's page layout is not stored with the project (the import review reads it and drops it), so there is no data to draw from.
+
+### Tests
+`tests/trackerMinimap.test.js` (14: block size, block colour, done at least 40 darker, one block changes, fabric, no id in the key, and the wiring: mount, `paintDoneChanges` hook, visible range and jump inverse, preference, loaders and precache, no chart canvas use, help, changelog, one-pixel floor); `tests/e2e/phase5-batch2.spec.js` (13: bounded canvas and done corner stronger in colour, rectangle follows scroll, tap and drag jump, one mark changes one pixel, undo restores it, Fit for square/wide/tall, hide from the View tab, arrow keys, 500x500, left-handed side, resize, phone Focus closed then opened).
+
+### Test runs (batch 2)
+`npm test`: 310 suites, 4,159 tests pass. Full `touch-tablet-chromium` project: 279 pass, 5 fail on the first run: `creator-touch` x2 (stale, known since Phase 4), `save-durability` and `phase4-batch5` "Keep screen on" chip (both pass on a rerun, load flakes), and `import-review-phone` "Start stitching opens the pattern in the Tracker at 0%", which fails the same way on `main` at 8928d72 (a first-run style question covers the page and the "0%" text is not visible), so it is not from this batch.

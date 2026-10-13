@@ -1632,6 +1632,25 @@ function fitWholeView(){
 }
 // "Fit" fits the work area while one is active, the whole pattern otherwise.
 function fitChart(){if(areaOn)fitWorkAreaView();else fitWholeView();}
+// The overview's two calls into the chart. What the chart shows, in cells: the sticky ruler covers the first G pixels
+// of the box, so the first visible cell is at scroll position / scs and the box holds (width - G) / scs of them.
+const minimapGetView=useCallback(()=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return null;
+  const off=chartScrollOffset();
+  const x0=(el.scrollLeft+off.x)/scs,y0=(el.scrollTop+off.y)/scs;
+  return{x0:x0,y0:y0,x1:x0+(el.clientWidth-G)/scs,y1:y0+(el.clientHeight-G)/scs};
+},[scs]);
+// Centre the chart on a cell (the overview's tap and drag).
+const minimapJump=useCallback((cx,cy)=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return;
+  const off=chartScrollOffset();
+  el.scrollLeft=Math.max(0,cx*scs-(el.clientWidth-G)/2-off.x);
+  el.scrollTop=Math.max(0,cy*scs-(el.clientHeight-G)/2-off.y);
+},[scs]);
+// The lowest zoom: one pixel a stitch, which Fit can now reach, so every zoom-out control must be able to stay there.
+const MIN_STITCH_ZOOM=0.05;
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -2234,6 +2253,9 @@ useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel))
 // 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
 // view at full saturation when zoomed out.
 const stitchLookRef=useRef({cmap:null,fade:-1,done:null,pend:null});   // drawStitch's per-colour looks, kept between paints
+const minimapPref=useTrackerPref('trackerMinimap',true);   // the pattern overview in the corner of the chart
+const minimapApiRef=useRef(null);                          // set by the overview while it is mounted: cellsChanged(changes,nd)
+const[minimapFocusOpen,setMinimapFocusOpen]=useState(false);   // on a phone in Focus the overview stays shut until asked for
 const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
@@ -5956,6 +5978,7 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
 // ones, each of which paints its neighbours as well. Off-tile cells are
 // skipped; they are painted from `done` when scrolled to.
 function paintDoneChanges(changes,nd){
+  if(nd&&minimapApiRef.current)minimapApiRef.current.cellsChanged(changes,nd);   // the overview: only the blocks these cells fall in
   if(!stitchRef.current||!pat||!cmap||!nd)return;
   const t=chartTileRef.current;
   if(!t||!(t.w>0))return;
@@ -6445,7 +6468,7 @@ function handleStitchWheel(e){
   // maxZoom is applied last: on a pattern so large that maxZoom falls under
   // the 0.3 floor, the ceiling still has to win or the ref and the scale
   // factor would disagree.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,oldZoom+delta));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));
   const scale=newZoom/oldZoom;
   scheduleZoomUpdate(newZoom);
   requestAnimationFrame(()=>{
@@ -6553,7 +6576,7 @@ function handleTouchMove(e){
   // Absolute from the gesture start rather than compounded per move, so the
   // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
   // the zoom actually applied; ceiling last, as in handleStitchWheel.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,ts.pinchZoom*dist/ts.pinchDist));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,ts.pinchZoom*dist/ts.pinchDist));
   const rect=container.getBoundingClientRect();
   const midX=(t0.clientX+t1.clientX)/2-rect.left;
   const midY=(t0.clientY+t1.clientY)/2-rect.top;
@@ -7000,7 +7023,7 @@ const trackerShortcuts=!isActive ? [] : [
     run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
   { id: "tracker.zoom.out", keys: "-", scope: "tracker",
     description: "Zoom out",
-    run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
+    run: () => setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.1).toFixed(2))) },
   { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
     description: "Zoom to fit",
     run: () => fitChart() },
@@ -8137,6 +8160,7 @@ return(
     {doneCount===0&&!hintsSeen&&totalStitchable>0&&stitchMode==="track"&&<div className="tracker-hint" style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     </div>{/* end canvas-area */}
+    {pat&&cmap&&window.TrackerMinimap&&minimapPref!==false&&!isEditMode&&React.createElement(window.TrackerMinimap,{pat,cmap,sW,sH,done,scrollRef:stitchScrollRef,getView:minimapGetView,onJump:minimapJump,apiRef:minimapApiRef,viewKey:scs+"|"+sW+"|"+sH+"|"+focusMode+"|"+handedness,side:handedness==="left"?"right":"left",collapsed:focusMode&&isPhoneScreen()&&!minimapFocusOpen,onOpen:()=>setMinimapFocusOpen(true)})}
     {/* ─ Phone chip ─ */}
     {pal&&focusColour&&cmap&&cmap[focusColour]
       ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
@@ -8264,9 +8288,20 @@ return(
             </div>
           </div>
           <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Pattern overview</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[[true,"Show"],[false,"Hide"]].map(([v,l])=>
+                <button key={l}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+((minimapPref!==false)===v?"var(--accent)":"var(--border)"),background:(minimapPref!==false)===v?"var(--accent)":"var(--surface)",color:(minimapPref!==false)===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer"}}
+                  onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerMinimap',v);}catch(_){}}} aria-pressed={(minimapPref!==false)===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
+              <button onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",minWidth:40,textAlign:"center"}}>{Math.round((stitchZoom||1)*100)}%</span>
               <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom in">&#43;</button>
               <button onClick={fitChart} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
@@ -9079,7 +9114,7 @@ return(
     return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
   })()}
   <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
-  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
   <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
   <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.plus&&Icons.plus()}</button>
   <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">

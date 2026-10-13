@@ -10,6 +10,7 @@
 const T = require('./tk');
 const label = process.argv[2] || 'draw', SESSIONS = Number(process.argv[3] || 3), THROTTLE = Number(process.env.THROTTLE || 1);
 const TAPS = Number(process.env.TAPS || 30), TAP_ONLY = process.env.TAP_ONLY === '1';   // TAP_ONLY: skip zoom, pan and drag; many marks
+const MINIMAP_OFF = process.env.MINIMAP_OFF === '1';   // run the branch with the overview hidden (isolates its cost)
 const BASE = 'http://127.0.0.1:' + (process.env.AUDIT_PORT || '8000') + '/';
 const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const metric = async (cdp, name) => (await cdp.send('Performance.getMetrics')).metrics.find(m => m.name === name).value;
@@ -20,7 +21,7 @@ const task = cdp => metric(cdp, 'TaskDuration');
     const { ctx, close } = await T.launch({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
     page.on('pageerror', e => console.log('pageerror', e.message.slice(0, 160)));
-    await page.addInitScript(() => { try { localStorage.setItem('cs_stitchStyle', 'block'); ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1')); localStorage.setItem('cs_sessionOnboardingDone', '1'); ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true')); sessionStorage.setItem('cs_eviction_warned', '1'); } catch (e) {} });
+    await page.addInitScript((off) => { try { localStorage.setItem('cs_stitchStyle', 'block'); ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1')); localStorage.setItem('cs_sessionOnboardingDone', '1'); ['firstStitch_tracker', 'rectSelect_tracker', 'firstStitch_creator', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true')); sessionStorage.setItem('cs_eviction_warned', '1'); if (off) localStorage.setItem('cs_pref_trackerMinimap', 'false'); } catch (e) {} }, MINIMAP_OFF);
     await page.goto(BASE + 'home.html'); await page.waitForFunction(() => window.ProjectStorage);
     const id = await page.evaluate(async () => {
       const W = 300, H = 300; const pal = [['310', [0, 0, 0]], ['666', [200, 0, 0]], ['798', [40, 80, 160]], ['typ', [230, 200, 60]], ['3790', [120, 90, 70]], ['white', [245, 245, 240]]];

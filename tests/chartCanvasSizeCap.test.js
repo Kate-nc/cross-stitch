@@ -157,9 +157,9 @@ describe('the cap is actually wired into the tracker', () => {
   });
 
   test('the wheel and pinch handlers clamp to maxZoom, not the bare 4', () => {
-    // Ceiling applied last so it still wins when maxZoom < the 0.3 floor.
-    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,oldZoom\+delta\)\)/);
-    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,ts\.pinchZoom\*dist\/ts\.pinchDist\)\)/);
+    // Ceiling applied last so it still wins when maxZoom < the floor (MIN_STITCH_ZOOM, 0.05: one pixel a stitch, what Fit can set).
+    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(MIN_STITCH_ZOOM,oldZoom\+delta\)\)/);
+    expect(trackerSrc).toMatch(/Math\.min\(maxZoom,Math\.max\(MIN_STITCH_ZOOM,ts\.pinchZoom\*dist\/ts\.pinchDist\)\)/);
     expect(trackerSrc).not.toMatch(/Math\.min\(4,oldZoom/);
   });
 
