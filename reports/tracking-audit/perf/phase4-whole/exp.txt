@@ -21,3 +21,4 @@
 == port 8007 (8002=before, 8000=now, 8007=now without per-mark effects) round 4
 {"label":"exp4","strokes":60,"strokeMedian":74.9,"taps":40,"tapMedian":77.8,"tapP90":93.6,"loadMedianMs":5367,"loads":[5057,5367]}
 == port 8000 (8002=before, 8000=now, 8007=now without per-mark effects) round 4
+{"label":"exp4","strokes":60,"strokeMedian":78.9,"taps":40,"tapMedian":85.7,"tapP90":108.6,"loadMedianMs":6274,"loads":[5224,6274]}

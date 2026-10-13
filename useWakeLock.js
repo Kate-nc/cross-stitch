@@ -75,7 +75,16 @@
       pendingRef.current=p;
       return p;
     },[]);
-    const armIdle=()=>{clearIdle();idleRef.current=setTimeout(()=>{releaseWakeLock();},IDLE_RELEASE_MS);};
+    const armedAtRef=useRef(0);
+    const armIdle=()=>{clearIdle();armedAtRef.current=Date.now();idleRef.current=setTimeout(()=>{releaseWakeLock();},IDLE_RELEASE_MS);};
+    // Every mark calls keepAwakeOnMark, so the common case (a lock already held) must cost next to nothing: the idle
+    // clock is only restarted if the last restart was over half a minute ago (15 minutes with an error of 30 s),
+    // and the mode is read from a cache that the preference event keeps current, not from storage on every mark.
+    const modeRef=useRef(null);
+    const currentMode=()=>{
+      if(modeRef.current===null){try{modeRef.current=wakeLockMode(window.UserPrefs&&window.UserPrefs.get('trackerWakeLock'));}catch(_){modeRef.current='auto';}}
+      return modeRef.current;
+    };
     const toggleWakeLock=useCallback(async()=>{
       if(wakeLockActive){
         await releaseWakeLock();
@@ -91,10 +100,9 @@
     // Called on every mark. In Automatic mode on a touch screen the first mark of a session takes the lock (once, with
     // a message saying so and how to stop it); every mark restarts the idle clock. Never means never.
     const keepAwakeOnMark=useCallback(async()=>{
-      let mode='auto';
-      try{mode=wakeLockMode(window.UserPrefs&&window.UserPrefs.get('trackerWakeLock'));}catch(_){}
+      const mode=currentMode();
       if(mode==='never'||!supported())return;
-      if(wakeLockRef.current){armIdle();return;}
+      if(wakeLockRef.current){if(Date.now()-armedAtRef.current>30000)armIdle();return;}
       if(mode==='auto'&&!isTouchScreen())return;
       const ok=await acquireWakeLock();
       if(!ok)return;
@@ -112,8 +120,8 @@
 
     // A change in Preferences (or the chip) acts at once: Never lets go of a lock held now, Always takes one now.
     const reconcileMode=useCallback(()=>{
-      let mode='auto';
-      try{mode=wakeLockMode(window.UserPrefs&&window.UserPrefs.get('trackerWakeLock'));}catch(_){}
+      modeRef.current=null;                                   // re-read after a change
+      const mode=currentMode();
       if(mode==='never'){if(wakeLockRef.current||pendingRef.current)releaseWakeLock();}
       else if(mode==='always'&&!wakeLockRef.current&&!pendingRef.current){acquireWakeLock().then(ok=>{if(ok)armIdle();});}
     },[acquireWakeLock,releaseWakeLock]);
