@@ -1,0 +1,2559 @@
+{
+ "label": "batch4-before",
+ "axe": [
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 12,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".tb-proj-badge-pct:nth-child(2)",
+     "fg": "#4f7d3f",
+     "bg": "#dee7d2",
+     "ratio": 3.79,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|0%|"
+    },
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|All changes saved|"
+    },
+    {
+     "t": ".tracker-hint:nth-child(1)",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|"
+    },
+    {
+     "t": "button[aria-label=\"Cycle colour palette mode\"] > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Colours|"
+    },
+    {
+     "t": ".tb-btn--green > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Mark|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#a49e95",
+     "bg": "#fbf8f3",
+     "ratio": 2.5,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 11,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".tb-proj-badge-pct:nth-child(2)",
+     "fg": "#4f7d3f",
+     "bg": "#dee7d2",
+     "ratio": 3.79,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|0%|"
+    },
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|All changes saved|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(1)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Chart view|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#5c2a14",
+     "bg": "#b85c38",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(2) > div:nth-child(1)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight style|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 13,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".tb-proj-badge-pct:nth-child(2)",
+     "fg": "#4f7d3f",
+     "bg": "#dee7d2",
+     "ratio": 3.79,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|0%|"
+    },
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|Saved just now|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(2) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|25%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(3) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|50%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(4) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|75%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(5) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|100%|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#a49e95",
+     "bg": "#fbf8f3",
+     "ratio": 2.5,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "global Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 8,
+   "example": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"home.html?tab=create\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"create.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"stitch.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Track|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"manager.html?from=home\"]",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > .tb-proj-switcher > .tb-proj-switcher__btn[aria-label=\"Switch p",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > .tb-proj-badge > .tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Small Heart Sampler|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > .tb-proj-badge > .tb-proj-badge-pct",
+     "fg": "#4f7d3f",
+     "bg": "#dee7d2",
+     "ratio": 3.79,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|0%|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#a49e95",
+     "bg": "#fbf8f3",
+     "ratio": 2.5,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 12,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": ".tb-app-tab--active",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Track|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".info-strip-pct",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|0.0%|"
+    },
+    {
+     "t": ".tracker-hint:nth-child(1)",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|"
+    },
+    {
+     "t": "button[aria-label=\"Cycle colour palette mode\"] > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Colours|"
+    },
+    {
+     "t": ".tb-btn--green > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Mark|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#6d675d",
+     "bg": "#14120f",
+     "ratio": 3.33,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 12,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": ".tb-app-tab--active",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Track|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".info-strip-pct",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|0.0%|"
+    },
+    {
+     "t": ".ppal-more-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(1)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Chart view|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#f4ddcf",
+     "bg": "#b85c38",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(2) > div:nth-child(1)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight style|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 37,
+   "example": "a[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "a[href=\"home.html?tab=create\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "a[href=\"create.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": ".tb-app-tab--active",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Track|"
+    },
+    {
+     "t": "a[href=\"manager.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": ".tb-app-tab:nth-child(5)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": ".tb-proj-switcher__avatar",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": ".tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|"
+    },
+    {
+     "t": ".info-strip-pct",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|0.0%|"
+    },
+    {
+     "t": ".gsd-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Small Heart Sampler|"
+    },
+    {
+     "t": ".active",
+     "fg": "#1c1a18",
+     "bg": "#b85c38",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Cumulative|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(2) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|25%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(3) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|50%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(4) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|75%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(5) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|100%|"
+    },
+    {
+     "t": ".colour-progress > .stats-section-title",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "10.5pt (14px)",
+     "text": "|Colour Progress|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(1)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|0 / 6 colours complete|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(2)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Most remaining: DMC 3865 (641 stitches)|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(3)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Least remaining: DMC 700 (61 left)|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 3865|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Winter White|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|641 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 666|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Red Br|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|387 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 321|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Red|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|304 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 310|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Black|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|130 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 912|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Emerald Lt|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|77 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 700|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Grn Br|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|61 left|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#6d675d",
+     "bg": "#14120f",
+     "ratio": 3.33,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "global Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 9,
+   "example": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"home.html?tab=create\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"home.html?tab=create\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Create|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"create.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Edit|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"stitch.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Track|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab[href=\"manager.html?from=home\"]",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stash|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > nav > .tb-app-tab--active.tb-app-tab[aria-current=\"page\"]",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stats|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > .tb-proj-switcher > .tb-proj-switcher__btn[aria-label=\"Switch p",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|SH|"
+    },
+    {
+     "t": "div:nth-child(3) > header > .tb-topbar-inner > .tb-proj-badge > .tb-proj-badge-name",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Small Heart Sampler|"
+    },
+    {
+     "t": ".gsd-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stitching|"
+    },
+    {
+     "t": "#app-version-badge",
+     "fg": "#6d675d",
+     "bg": "#14120f",
+     "ratio": 3.33,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|v1.0.134|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 2,
+   "example": ".ppal-mode-btn--on > .ppal-mode-btn-label",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".ppal-mode-btn--on > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Mark|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#fff8f0",
+     "bg": "#b85c38",
+     "ratio": 4.3,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 5,
+   "example": ".ppal-utility-chip--on",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".ppal-utility-chip--on",
+     "fg": "#b85c38",
+     "bg": "#f4ddcf",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(1)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Chart view|"
+    },
+    {
+     "t": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#5c2a14",
+     "bg": "#b85c38",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(2) > div:nth-child(1)",
+     "fg": "#8a8270",
+     "bg": "#ffffff",
+     "ratio": 3.81,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight style|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#fff8f0",
+     "bg": "#b85c38",
+     "ratio": 4.3,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "light",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 6,
+   "example": ".future.milestone-badge:nth-child(2) > .milestone-percent",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".future.milestone-badge:nth-child(2) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|25%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(3) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|50%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(4) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|75%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(5) > .milestone-percent",
+     "fg": "#a5a19a",
+     "bg": "#fdfbf8",
+     "ratio": 2.49,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|100%|"
+    },
+    {
+     "t": "button[aria-label=\"Reset zoom\"]",
+     "fg": "#a5a19a",
+     "bg": "#ffffff",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|94%|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#fff8f0",
+     "bg": "#b85c38",
+     "ratio": 4.3,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 2,
+   "example": ".ppal-mode-btn--on > .ppal-mode-btn-label",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".ppal-mode-btn--on > .ppal-mode-btn-label",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "6.8pt (9px)",
+     "text": "|Mark|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#1b1410",
+     "bg": "#b85c38",
+     "ratio": 4,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 6,
+   "example": ".ppal-utility-chip--on",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".ppal-utility-chip--on",
+     "fg": "#b85c38",
+     "bg": "#3a2418",
+     "ratio": 3.2,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|"
+    },
+    {
+     "t": ".ppal-more-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(1)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Chart view|"
+    },
+    {
+     "t": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#f4ddcf",
+     "bg": "#b85c38",
+     "ratio": 3.47,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(2) > div:nth-child(1)",
+     "fg": "#847b6c",
+     "bg": "#1c1a18",
+     "ratio": 4.15,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Highlight style|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#1b1410",
+     "bg": "#b85c38",
+     "ratio": 4,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 30,
+   "example": ".gsd-tab--on",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".gsd-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Small Heart Sampler|"
+    },
+    {
+     "t": ".active",
+     "fg": "#1c1a18",
+     "bg": "#b85c38",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Cumulative|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(2) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|25%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(3) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|50%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(4) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|75%|"
+    },
+    {
+     "t": ".future.milestone-badge:nth-child(5) > .milestone-percent",
+     "fg": "#716a61",
+     "bg": "#181613",
+     "ratio": 3.38,
+     "need": "4.5:1",
+     "size": "12.0pt (16px)",
+     "text": "|100%|"
+    },
+    {
+     "t": ".colour-progress > .stats-section-title",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "10.5pt (14px)",
+     "text": "|Colour Progress|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(1)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|0 / 6 colours complete|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(2)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Most remaining: DMC 3865 (641 stitches)|"
+    },
+    {
+     "t": ".stats-colour-summary > span:nth-child(3)",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Least remaining: DMC 700 (61 left)|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 3865|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Winter White|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(1) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|641 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 666|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Red Br|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(2) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|387 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 321|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Red|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(3) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|304 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 310|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Black|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(4) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|130 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 912|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Emerald Lt|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(5) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|77 left|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-id",
+     "fg": "#f4efe7",
+     "bg": "#ffffff",
+     "ratio": 1.14,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|DMC 700|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-name",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|Christmas Grn Br|"
+    },
+    {
+     "t": ".stats-colour-row:nth-child(6) > .colour-remaining",
+     "fg": "#b6ac9c",
+     "bg": "#ffffff",
+     "ratio": 2.24,
+     "need": "4.5:1",
+     "size": "8.3pt (11px)",
+     "text": "|61 left|"
+    },
+    {
+     "t": "button[aria-label=\"Reset zoom\"]",
+     "fg": "#716a61",
+     "bg": "#1c1a18",
+     "ratio": 3.25,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|94%|"
+    },
+    {
+     "t": ".cs-focus-exit > span",
+     "fg": "#1b1410",
+     "bg": "#b85c38",
+     "ratio": 4,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Exit focus|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "global Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": ".gsd-tab--on",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".gsd-tab--on",
+     "fg": "#b85c38",
+     "bg": "#1c1a18",
+     "ratio": 3.82,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|Stitching|"
+    }
+   ]
+  }
+ ],
+ "focus": [
+  {
+   "tag": "span",
+   "cls": "tb-logo",
+   "label": "stitch",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Create",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Edit",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab tb-app-tab--active",
+   "label": "Track",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stash",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stats",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-switcher__btn",
+   "label": "Switch project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-badge-name tb-proj-badge-name--e",
+   "label": "Rename project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-sync-indicator",
+   "label": "Sync status",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link",
+   "label": "Open command palette (Ct",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-desktop-only",
+   "label": "Keyboard shortcuts",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-help-btn",
+   "label": "Open help (?)",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-page-btn",
+   "label": "File",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "info-strip",
+   "label": "0.0%0 done · 1,600 to go",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "app-info-chip info-strip-chip",
+   "label": "Progress info",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-pin-btn",
+   "label": "Pin colour panel open",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-close",
+   "label": "Close palette panel",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-session-chip ppal-session-chip--sta",
+   "label": "Start timer",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "Remaining",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "% done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn ppal-sort-btn--on",
+   "label": "DMC ID",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 310",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 310 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 321",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 321 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 666",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 666 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 700",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 700 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 912",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 912 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 3865",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 3865 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "canvas",
+   "cls": "",
+   "label": "Cross stitch pattern gri",
+   "outlineStyle": "none",
+   "outlineW": 0,
+   "outlineColor": "rgb(27, 24, 20)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "div",
+   "cls": "tracker-minimap",
+   "label": "Pattern overview. Arrow ",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": true,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn ppal-mode-btn--on",
+   "label": "Cycle colour palette mod",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn ppal-mode-btn--on tb-btn--",
+   "label": "Mark",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Nav",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Fit",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Area",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "More",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "skip-to-content",
+   "label": "Skip to content",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(255, 255, 255)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "span",
+   "cls": "tb-logo",
+   "label": "stitch",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Create",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Edit",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab tb-app-tab--active",
+   "label": "Track",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stash",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stats",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(138, 130, 112)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-switcher__btn",
+   "label": "Switch project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-badge-name tb-proj-badge-name--e",
+   "label": "Rename project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-sync-indicator",
+   "label": "Sync status",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link",
+   "label": "Open command palette (Ct",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-desktop-only",
+   "label": "Keyboard shortcuts",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-help-btn",
+   "label": "Open help (?)",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-page-btn",
+   "label": "File",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "info-strip",
+   "label": "0.0%0 done · 1,600 to go",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "app-info-chip info-strip-chip",
+   "label": "Progress info",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-pin-btn",
+   "label": "Pin colour panel open",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-close",
+   "label": "Close palette panel",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-session-chip ppal-session-chip--sta",
+   "label": "Start timer",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "Remaining",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "% done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn ppal-sort-btn--on",
+   "label": "DMC ID",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  }
+ ],
+ "banners": [
+  {
+   "cls": "tracker-hint",
+   "text": "Click or drag to mark/unmark cross stitc",
+   "fg": "rgb(184, 92, 56)",
+   "bg": "rgb(244, 221, 207)",
+   "ratio": 3.48
+  },
+  {
+   "cls": "tracker-hint",
+   "text": "Tap any stitch on the canvas to mark it ",
+   "fg": "rgb(92, 42, 20)",
+   "bg": "rgb(244, 221, 207)",
+   "ratio": 8.96
+  }
+ ]
+}

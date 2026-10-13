@@ -50,3 +50,19 @@ Review round on #303 (Copilot), all three real and fixed:
 - **The Clear guide button left the keyboard's guide and range anchor behind**, so Space recreated the guide instead of panning and a later Shift+Enter could fill from a hidden old anchor. Esc, the button and the keyboard now go through one `clearGuide()`; a browser test covers the button.
 - **The range anchor advanced even when nothing was committed** (every stitch filtered by a colour lock) or while the "mark all as" question was open (cancelling it left the anchor at an endpoint never marked). `_commitBulk` now returns whether it committed, and the anchor moves only then. One consequence: if the question is answered "yes" the stitches are marked but the anchor stays where it was, so the next Shift+Enter fills from the earlier anchor. That is the safe side of the two, and it is noted here rather than hidden.
 - **A different pattern did not hand the guide back** (only a mode change did), so Space or Enter could mark a stale coordinate in the next project. The reset now also runs when the pattern changes (checked at source level; a project switch in the browser with a keyboard guide held was not driven).
+
+## Batch 4 (accessibility fixes without a screen reader)
+
+Found and fixed while doing it:
+- **The default accent was written inline on every load**, which pinned the light theme's value over the dark theme's (the biggest single cause of the 166 contrast failures: all accent text on dark).
+- **A token that did not exist** (`--surface-primary`) made the Stats colour panel a white box under pale text in dark mode.
+- **Two buttons I added in batches 1 and 2** (finished-stitch style, pattern overview Show/Hide) had accent-ink text on an accent fill (2.6:1 light, 2.1 dark), like five existing ones; all now use `--text-on-accent`.
+- **The focus ring on buttons and inputs was a pale peach**, because `button:focus` (more specific than `*:focus-visible`) set it to `--accent-border`.
+- **My own first reading of the focus sweep was wrong**: nine stops looked ringless only because the ring eases in over 120 ms and the sweep read it at once. Stated in the audit script and the notes; no ring was missing.
+- **200% zoom**: on first use the palette opened as a sheet over the entire chart on a non-touch device 720 px wide, and the main controls could not be clicked.
+- **The progress chart's lines**: the Actual line was a hard-coded purple while its legend swatch was the accent; the pace line was `#CFC4AC`; the what-if line shared the pace line's dash. Now solid, dashed, dotted, in token colours.
+- After raising `--text-tertiary` the whole app shifted slightly darker in captions; I looked at Home, Manager, Stats and the Tracker in both themes (`reports/tracking-audit/screens/phase5/a11y-*.png`) and nothing broke.
+
+Checked and fine: a chosen accent colour still wins and survives a theme change; the first-use banner is 8.96:1; the Focus bar's idle fade still recedes (0.8, primary-coloured labels); reduced motion is unaffected (no new animation); the PDF export files are untouched. The Creator shares these tokens and was not looked at.
+
+Not done or not driven: a screen reader on any of it, by instruction; `aria-required-children` and `nested-interactive` (24 nodes) remain; a chosen custom accent colour is not checked for contrast; the Creator and Manager pages were looked at but not run through axe (the prompt scopes this to the Tracker and both Stats pages); the heatmap ramp and multi-project colours on Stats were left (see above); Windows high-contrast mode was not rendered; text-only zoom and OS large-text settings were not exercised (the app sizes text in px).

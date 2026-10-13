@@ -1,0 +1,1055 @@
+{
+ "label": "batch4-after1",
+ "axe": [
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": ".tb-save-label",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|All changes saved|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 2,
+   "example": ".tb-save-label",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|All changes saved|"
+    },
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#5c2a14",
+     "bg": "#b85c38",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "light",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": ".tb-save-label",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".tb-save-label",
+     "fg": "#4f7d3f",
+     "bg": "#f4ddcf",
+     "ratio": 3.7,
+     "need": "4.5:1",
+     "size": "7.5pt (10px)",
+     "text": "|Saved just now|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "aria-required-children",
+   "impact": "critical",
+   "category": "screen-reader (deferred)",
+   "nodes": 1,
+   "example": ".ppal-tile-list",
+   "help": "Certain ARIA roles must contain particular children"
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": ".ppal-more-content > div > div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#f4ddcf",
+     "bg": "#e2865b",
+     "ratio": 2.06,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    }
+   ]
+  },
+  {
+   "viewport": "desktop",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "nested-interactive",
+   "impact": "serious",
+   "category": "screen-reader (deferred)",
+   "nodes": 6,
+   "example": "div[aria-label=\"Select DMC 310\"]",
+   "help": "Interactive controls must not be nested"
+  },
+  {
+   "viewport": "phone",
+   "theme": "light",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#5c2a14",
+     "bg": "#b85c38",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "light",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": "button[aria-label=\"Reset zoom\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "button[aria-label=\"Reset zoom\"]",
+     "fg": "#a5a19a",
+     "bg": "#ffffff",
+     "ratio": 2.57,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|94%|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "tracker + More panel",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "div:nth-child(1) > div:nth-child(2) > button:nth-child(1)",
+     "fg": "#f4ddcf",
+     "bg": "#e2865b",
+     "ratio": 2.06,
+     "need": "4.5:1",
+     "size": "9.0pt (12px)",
+     "text": "|Symbol|"
+    }
+   ]
+  },
+  {
+   "viewport": "phone",
+   "theme": "dark",
+   "state": "project Stats",
+   "rule": "color-contrast",
+   "impact": "serious",
+   "category": "contrast",
+   "nodes": 1,
+   "example": "button[aria-label=\"Reset zoom\"]",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "detail": [
+    {
+     "t": "button[aria-label=\"Reset zoom\"]",
+     "fg": "#716a61",
+     "bg": "#1c1a18",
+     "ratio": 3.25,
+     "need": "4.5:1",
+     "size": "9.8pt (13px)",
+     "text": "|94%|"
+    }
+   ]
+  }
+ ],
+ "focus": [
+  {
+   "tag": "span",
+   "cls": "tb-logo",
+   "label": "stitch",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Create",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Edit",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab tb-app-tab--active",
+   "label": "Track",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(148, 69, 38)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stash",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stats",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-switcher__btn",
+   "label": "Switch project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-badge-name tb-proj-badge-name--e",
+   "label": "Rename project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-sync-indicator",
+   "label": "Sync status",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link",
+   "label": "Open command palette (Ct",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-desktop-only",
+   "label": "Keyboard shortcuts",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-help-btn",
+   "label": "Open help (?)",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-page-btn",
+   "label": "File",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "info-strip",
+   "label": "0.0%0 done · 1,600 to go",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "app-info-chip info-strip-chip",
+   "label": "Progress info",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-pin-btn",
+   "label": "Pin colour panel open",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-close",
+   "label": "Close palette panel",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-session-chip ppal-session-chip--sta",
+   "label": "Start timer",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "Remaining",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "% done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn ppal-sort-btn--on",
+   "label": "DMC ID",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 310",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 310 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 321",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 321 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 666",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 666 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 700",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 700 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 912",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 912 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile",
+   "label": "Select DMC 3865",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "ppal-tile-swatch",
+   "label": "View DMC 3865 detail",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-tile-done-btn",
+   "label": "Done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "canvas",
+   "cls": "",
+   "label": "Cross stitch pattern gri",
+   "outlineStyle": "none",
+   "outlineW": 0,
+   "outlineColor": "rgb(27, 24, 20)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "div",
+   "cls": "tracker-minimap",
+   "label": "Pattern overview. Arrow ",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": true,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn ppal-mode-btn--on",
+   "label": "Cycle colour palette mod",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn ppal-mode-btn--on tb-btn--",
+   "label": "Mark",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Nav",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Fit",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "Area",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-mode-btn",
+   "label": "More",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "skip-to-content",
+   "label": "Skip to content",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(255, 255, 255)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "span",
+   "cls": "tb-logo",
+   "label": "stitch",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Create",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Edit",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab tb-app-tab--active",
+   "label": "Track",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(148, 69, 38)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stash",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "a",
+   "cls": "tb-app-tab",
+   "label": "Stats",
+   "outlineStyle": "solid",
+   "outlineW": 0,
+   "outlineColor": "rgb(111, 103, 87)",
+   "shadow": false,
+   "visible": true,
+   "indicator": false
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-switcher__btn",
+   "label": "Switch project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-proj-badge-name tb-proj-badge-name--e",
+   "label": "Rename project",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-sync-indicator",
+   "label": "Sync status",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link",
+   "label": "Open command palette (Ct",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-desktop-only",
+   "label": "Keyboard shortcuts",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-nav-link tb-help-btn",
+   "label": "Open help (?)",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "tb-page-btn",
+   "label": "File",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "div",
+   "cls": "info-strip",
+   "label": "0.0%0 done · 1,600 to go",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "app-info-chip info-strip-chip",
+   "label": "Progress info",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(184, 92, 56)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-pin-btn",
+   "label": "Pin colour panel open",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-close",
+   "label": "Close palette panel",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-session-chip ppal-session-chip--sta",
+   "label": "Start timer",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "Remaining",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn",
+   "label": "% done",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  },
+  {
+   "tag": "button",
+   "cls": "ppal-sort-btn ppal-sort-btn--on",
+   "label": "DMC ID",
+   "outlineStyle": "solid",
+   "outlineW": 2,
+   "outlineColor": "rgb(232, 184, 154)",
+   "shadow": false,
+   "visible": true,
+   "indicator": true
+  }
+ ],
+ "banners": [
+  {
+   "cls": "tracker-hint",
+   "text": "Click or drag to mark/unmark cross stitc",
+   "fg": "rgb(92, 42, 20)",
+   "bg": "rgb(244, 221, 207)",
+   "ratio": 8.96
+  },
+  {
+   "cls": "tracker-hint",
+   "text": "Tap any stitch on the canvas to mark it ",
+   "fg": "rgb(92, 42, 20)",
+   "bg": "rgb(244, 221, 207)",
+   "ratio": 8.96
+  }
+ ]
+}
