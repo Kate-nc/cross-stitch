@@ -19,3 +19,18 @@
 == b3 (port 8005) round 2
 {"label":"bis2","strokes":8,"strokeMedian":74.9,"taps":24,"tapMedian":81,"tapP90":106.8,"loadMedianMs":5470,"loads":[5470,5422]}
 == b4 (port 8006) round 2
+{"label":"bis2","strokes":8,"strokeMedian":88.7,"taps":24,"tapMedian":91.2,"tapP90":108.9,"loadMedianMs":5482,"loads":[5161,5482]}
+== now (port 8000) round 2
+{"label":"bis2","strokes":8,"strokeMedian":81.9,"taps":24,"tapMedian":79,"tapP90":124.3,"loadMedianMs":6520,"loads":[5479,6520]}
+== before (port 8002) round 3
+{"label":"bis3","strokes":8,"strokeMedian":77.7,"taps":24,"tapMedian":87,"tapP90":99,"loadMedianMs":5213,"loads":[5213,5101]}
+== b1 (port 8003) round 3
+{"label":"bis3","strokes":8,"strokeMedian":79.9,"taps":24,"tapMedian":78.5,"tapP90":120.3,"loadMedianMs":5915,"loads":[5915,5587]}
+== b2 (port 8004) round 3
+{"label":"bis3","strokes":8,"strokeMedian":72.5,"taps":24,"tapMedian":84.1,"tapP90":117.5,"loadMedianMs":5611,"loads":[5611,4777]}
+== b3 (port 8005) round 3
+{"label":"bis3","strokes":8,"strokeMedian":70.6,"taps":24,"tapMedian":82.2,"tapP90":101.4,"loadMedianMs":5567,"loads":[5567,4755]}
+== b4 (port 8006) round 3
+{"label":"bis3","strokes":8,"strokeMedian":84.9,"taps":24,"tapMedian":86.7,"tapP90":116.2,"loadMedianMs":5627,"loads":[5627,5616]}
+== now (port 8000) round 3
+{"label":"bis3","strokes":8,"strokeMedian":81.1,"taps":24,"tapMedian":88.1,"tapP90":108.9,"loadMedianMs":5364,"loads":[5364,5271]}
