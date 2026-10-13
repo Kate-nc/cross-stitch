@@ -66,9 +66,12 @@ describe('Tracker left sidebar (toolbar-rework phase 1)', () => {
     expect(hlBlock).toMatch(/setHighlightSkipDone\(/);
   });
 
-  test('View tab wires zoom, view mode, lock-detail and layers', () => {
+  test('View tab wires zoom, lock-detail and layers; the chart view lives in the Highlight tab (Phase 4, COMMON-01)', () => {
     const viewBlock = trackerSrc.split('leftSidebarTab==="view"')[1] || '';
-    expect(viewBlock).toMatch(/setStitchView\(/);
+    const hlBlock = (trackerSrc.split('leftSidebarTab==="highlight"')[1] || '').split('leftSidebarTab==="view"')[0];
+    expect(hlBlock).toMatch(/setStitchView\(/);
+    expect(hlBlock).toMatch(/\["colour","Colour \+ symbol"\]/);
+    expect(hlBlock).not.toMatch(/Realistic/);
     expect(viewBlock).toMatch(/setStitchZoom\(/);
     expect(viewBlock).toMatch(/setLockDetailLevel\(/);
     expect(viewBlock).toMatch(/setLayerVis\(/);

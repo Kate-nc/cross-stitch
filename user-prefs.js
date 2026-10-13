@@ -142,10 +142,10 @@
     // in localStorage are harmless; nothing reads it.)
     // Palette legend sort: id | done | count
     trackerLegendSort:      "id",
-    // Phase 4 (UX-12) — re-acquire the screen wake-lock on next session
-    // when the user toggles the header "Awake" chip on. Persisted as the
-    // user's last preference so the lock survives reloads.
-    trackerWakeLock:        false,
+    // Keep the screen on while stitching. "auto" takes the wake lock at the first mark on a touch screen (and
+    // says so once); "always" takes it as the Tracker opens; "never" never does. Older builds stored true / false
+    // (the chip left on / the default): true reads as "always", false as "auto".
+    trackerWakeLock:        "auto",
 
     // ─── Small screens (tracking audit TRACK-07) ────────────────────────
     trackerFocusOnPhone:    true,        // open the Tracker in Focus (top bar and strip tucked away) on a phone

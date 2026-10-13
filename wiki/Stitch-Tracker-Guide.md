@@ -136,7 +136,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 
 ## Live Thread Tracking
 
-**More controls > Tools > Live tracking (RT)** deducts thread from your stash in the Stash Manager as you mark stitches, allowing for thread tails and waste. Set up your stash in the Stash Manager first.
+**More controls > Tools > Use up stash thread as I stitch** deducts thread from your stash in the Stash Manager as you mark stitches, allowing for thread tails and waste. Set up your stash in the Stash Manager first.
 
 ## Importing Patterns
 

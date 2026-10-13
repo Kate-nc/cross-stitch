@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.129';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.130',
+    date: 'October 2026',
+    notes: [
+      'On a phone or tablet the screen now stays on while you stitch: it is kept lit from your first mark, lets go after 15 minutes without one, and says so once with a Turn off button. The old Sleep / Awake chip is now Keep screen on, and Preferences has Automatic, Always and Never.',
+      'Plainer wording: "Live tracking (RT)" is now "Use up stash thread as I stitch". The Highlight tab now holds the chart view and the highlight style together, and the chart view has Colour + symbol where a Realistic button used to do nothing useful.'
+    ]
+  },
+  {
     version: '1.0.129',
     date: 'October 2026',
     notes: [

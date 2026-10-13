@@ -19,8 +19,9 @@ const sess = (date, n) => ({ id: 's' + date, date, units: n == null ? 10 : n, un
 
 describe('weekly streak (the default)', () => {
   test('counts weeks in a row; a gap of days inside a week costs nothing', () => {
-    // one session in each of the last 4 weeks, nowhere near consecutive days
-    const list = [dayAgo(1), dayAgo(9), dayAgo(16), dayAgo(23)].map(d => sess(d));
+    // one session in each of the last 4 weeks, on a different weekday each time (whatever today is, none are consecutive days)
+    const dow = (new Date().getDay() + 6) % 7;                            // 0 = Monday
+    const list = [dayAgo(dow), dayAgo(dow + 7 - 2), dayAgo(dow + 14 - 4), dayAgo(dow + 21 - 1)].map(d => sess(d));
     const r = computeWeeklyStreaks(list, 0);
     expect(r.current).toBeGreaterThanOrEqual(3);          // the current week may be the first or second back, depending on the weekday
     expect(r.longest).toBeGreaterThanOrEqual(r.current);
