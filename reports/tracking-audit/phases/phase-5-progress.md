@@ -78,3 +78,20 @@ Tick style: the corner of a done cell is 0 to 126 luminance against 255 for a no
 Tests: `tests/doneStyle.test.js` (16), `tests/e2e/phase5-batch1.spec.js` (12: the greyscale gaps in both views at 3, 8 and 19 px, the tick, single-stitch repaint touching only its own cell, switching the style live, the View tab control).
 
 Found while testing: the touch-tablet Playwright project's iPad profile (user agent and 2x density) holds a 300x300 chart at about 5 px cells under the iOS canvas limits whatever zoom is saved, so the measuring spec runs as a desktop browser at 1x. That is existing behaviour (a real iPad has the same ceiling for that pattern), not a change.
+
+### Performance (batch 1), interleaved against `main`, 300x300 fixture with 20% done (`harness/drawbench.js`, `phonebench.js`, `tapbench.js`)
+**The first version failed the 5% rule**: a full repaint (a zoom step) was +26% (114 to 144 ms), a 37 px pan step +30%, pan p95 frame gap +19%; at 4x throttle +16%, +11% and +11%. Cause, found by reading the new per-cell path: a string key built per cell in `pendingStitchLook`, a map lookup per cell, and a canvas `save()` / `restore()` pair around every symbol, now also run for the 20% of cells that are done. Fixed by a numeric cache key, per-colour looks held once per paint (then kept between paints, rebuilt only when the palette or fade changes), and setting `globalAlpha` directly instead of save and restore. After the fix, medians over interleaved rounds (branch against main):
+
+| Measure | 1x CPU | 4x throttle |
+|---|---|---|
+| Full repaint (zoom step) | -13% (3 rounds; -14% in the run before) | -13% |
+| Pan, task time per step | -11% (-22% before) | -19% |
+| Pan p95 frame gap | -25% | -21% |
+| Drag-mark of 60 cells | +0.1% | +3.5% (-2.9% in the run before) |
+| Single mark, 100 marks x 2 sessions x 4 rounds | +2.2% (mean +0.7%) | +0.7% (mean +1.0%) |
+| JS heap after GC | +1.1% (19.0 to 19.2 MB) | +1.2% |
+| Phone tap latency (393x727 touch, 4x CPU) | +1.0% | |
+| Phone stroke commit | -3.2% | |
+| Desktop mouse tap | -1.8% | |
+
+The single mark read +5.2% and then +15% in two earlier runs of 2 and 3 rounds at 4x; with 100 marks per session and 8 sessions per side it is +0.7%, so those were noise (round-to-round spread on this figure is 5% or more). Load to chart read -14% (noise; it moves from -9% to +15% between runs of builds that differ in code that cannot affect loading). Raw data: `reports/tracking-audit/perf/phase5-batch1/`.
