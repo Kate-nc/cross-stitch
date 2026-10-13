@@ -1,0 +1,146 @@
+[
+ {
+  "case": "look-symbol-3-light",
+  "pct": 78.95
+ },
+ {
+  "case": "look-symbol-8-light",
+  "pct": 78.86
+ },
+ {
+  "case": "look-symbol-19-light",
+  "pct": 13.96
+ },
+ {
+  "case": "look-symbol-32-light",
+  "pct": 25.6
+ },
+ {
+  "case": "look-colour-3-light",
+  "pct": 66.68
+ },
+ {
+  "case": "look-colour-8-light",
+  "pct": 66.77
+ },
+ {
+  "case": "look-colour-19-light",
+  "pct": 69.58
+ },
+ {
+  "case": "look-colour-32-light",
+  "pct": 64.19
+ },
+ {
+  "case": "look-highlight-3-light",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-8-light",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-19-light",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-32-light",
+  "pct": 0
+ },
+ {
+  "case": "look-symbol-3-dark",
+  "pct": 78.95
+ },
+ {
+  "case": "look-symbol-8-dark",
+  "pct": 78.86
+ },
+ {
+  "case": "look-symbol-19-dark",
+  "pct": 13.96
+ },
+ {
+  "case": "look-symbol-32-dark",
+  "pct": 25.6
+ },
+ {
+  "case": "look-colour-3-dark",
+  "pct": 66.68
+ },
+ {
+  "case": "look-colour-8-dark",
+  "pct": 66.77
+ },
+ {
+  "case": "look-colour-19-dark",
+  "pct": 69.58
+ },
+ {
+  "case": "look-colour-32-dark",
+  "pct": 64.19
+ },
+ {
+  "case": "look-highlight-3-dark",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-8-dark",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-19-dark",
+  "pct": 0
+ },
+ {
+  "case": "look-highlight-32-dark",
+  "pct": 0
+ },
+ {
+  "case": "special-symbol-19-light",
+  "pct": 22.31
+ },
+ {
+  "case": "special-symbol-32-light",
+  "pct": 18.59
+ },
+ {
+  "case": "special-colour-19-light",
+  "pct": 46.96
+ },
+ {
+  "case": "special-colour-32-light",
+  "pct": 38.22
+ },
+ {
+  "case": "special-highlight-19-light",
+  "pct": 0
+ },
+ {
+  "case": "special-highlight-32-light",
+  "pct": 0
+ },
+ {
+  "case": "special-symbol-19-dark",
+  "pct": 22.31
+ },
+ {
+  "case": "special-symbol-32-dark",
+  "pct": 18.59
+ },
+ {
+  "case": "special-colour-19-dark",
+  "pct": 46.96
+ },
+ {
+  "case": "special-colour-32-dark",
+  "pct": 38.22
+ },
+ {
+  "case": "special-highlight-19-dark",
+  "pct": 0
+ },
+ {
+  "case": "special-highlight-32-dark",
+  "pct": 0
+ }
+]

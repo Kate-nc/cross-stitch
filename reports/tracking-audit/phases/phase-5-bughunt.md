@@ -66,3 +66,25 @@ Found and fixed while doing it:
 Checked and fine: a chosen accent colour still wins and survives a theme change; the first-use banner is 8.96:1; the Focus bar's idle fade still recedes (0.8, primary-coloured labels); reduced motion is unaffected (no new animation); the PDF export files are untouched. The Creator shares these tokens and was not looked at.
 
 Not done or not driven: a screen reader on any of it, by instruction; `aria-required-children` and `nested-interactive` (24 nodes) remain; a chosen custom accent colour is not checked for contrast; the Creator and Manager pages were looked at but not run through axe (the prompt scopes this to the Tracker and both Stats pages); the heatmap ramp and multi-project colours on Stats were left (see above); Windows high-contrast mode was not rendered; text-only zoom and OS large-text settings were not exercised (the app sizes text in px).
+
+## End-of-phase hunt
+
+Everything below is on `main` at 1.0.135 (all four batches merged), against `main` at 1.0.131 (the commit before Phase 5) where a comparison makes sense.
+
+**Visual regression, pixel for pixel (`harness/phase5hunt.js`, `screens/phase5/hunt2/`).** 36 cases: the 300x300 fixture and the special-stitches fixture (half stitches, partial stitches, knots, backstitch, with every third stitch done), in Symbol, Colour and Highlight views, at 3, 8, 19 and 32 px cells (the tiers) for the first and 19 and 32 px for the second, in the light and dark theme.
+- **Highlight view: 0% of pixels differ in all 16 Highlight cases** (12 on the big fixture, 4 on the special one). Its done look was not touched.
+- **Symbol and Colour differ, by design:** a done stitch is its thread colour with a dimmed symbol, a not-done one is paler (Symbol: 79% of pixels at 3 and 8 px, 14% at 19, 26% at 32; Colour: 64 to 70% at every size, because every not-done stitch is paler now). Half stitches, partial stitches, knots and backstitch drew correctly with the new look (looked at by eye in before and after pairs from `hunt2/`).
+- **The chart canvas is the same in the light and dark theme** (identical differences in both), as it was before: it has its own fabric colour setting.
+- **Realistic view:** the Tracker has none (Phase 4 removed the picker's Realistic button because the chart never drew it), so there is nothing to compare; the Creator's realistic preview is a different feature and was not touched.
+
+**Counting aids, spotlight, work area, parking marker (`harness/phase5features.js`, `screens/phase5/features/`).** Each drawn on the special-stitches fixture with some of it done: counting aids and their grid lines are intact; the spotlight outlines a section and fades the rest, with done stitches in the spotlit section showing the new look; a work area (the 50 by 50 picker, "Work on this area") shows only its part; a parking marker and the guide crosshair draw over a done stitch. Nothing overdrawn or clipped.
+
+**`prefers-reduced-motion` and forced colours.** The same shots with `reducedMotion: reduce` and `forcedColors: active` (I looked at the plain and the spotlight shots) render the same chart; no animation was added in Phase 5 (the overview moves by a transform write, the panel visibility change is instant under reduced motion). The overview has a forced-colours border rule that I did not render with the overview on.
+
+**The overview at 300x300, 500x500 and 800x800 (`harness/mapstress.js`).** Map canvas 150x150, 167x167, 200x200 pixels. JS heap after a GC with the overview on against off: 21.5 against 21.4 MB, 49.3 against 49.3, 121.2 against 121.2. Load to a built map: 1.4 s, 2.3 s, 3.1 s from navigation (the map builds in idle slices after the chart; the compute alone is 4, 10 and 33 ms). The page's long tasks are the same list with the overview on and off within noise (the longest, 492 ms at 800x800 on, 421 ms off, is the load itself). Switching a 300x300 project to a 40x40 one rebuilds the map at 40x40 and hides it (batch 2).
+
+**PDF export.** `pdf-export-worker.js`, `creator/pdfChartLayout.js` and `creator/pdfExport.js` have no change between 1.0.131 and 1.0.135 (`git diff --stat` is empty), so the Pattern Keeper compatibility is untouched.
+
+**Found in this hunt:** nothing that needed a code change. One mistake in my harness, caught here: sharing one project id across cases made the page being left overwrite the next case's zoom on its way out (the Phase 3 durability work), which produced differences that were not real; each case has its own project now.
+
+Not driven: Safari and real devices; the 1000x1000 case in a browser; the overview with forced colours; a screen reader on anything (deferred).
