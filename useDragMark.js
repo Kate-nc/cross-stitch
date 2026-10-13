@@ -136,6 +136,10 @@
     var s = state;
     var effects = [];
     function next(patch) { return Object.assign({}, s, patch); }
+    // Two or more fingers on the chart (a palm, or a pan / pinch): nothing is marked until every finger has lifted.
+    // Without this the cancel for the second finger left the state idle, so a third finger started a fresh gesture
+    // and its release marked a stitch.
+    function multi() { return Object.assign(idle(), { mode: 'multi' }); }
     function idle() {
       return {
         mode: 'idle', path: new Set(), anchor: null, intent: null,
@@ -151,6 +155,10 @@
         // A gesture left over as 'scroll' (the browser took the touch and the end never reached us) must not block
         // the next one.
         if (s.mode === 'scroll') s = idle();
+        if (s.mode === 'multi') {
+          if ((action.touchCount || 1) <= 1) s = idle();      // a lone finger: the last gesture's end never reached us
+          else return { state: s, effects: effects };
+        }
         // Multi-touch: a second finger means pan / pinch-zoom (two fingers
         // move the chart in Mark mode; one finger marks). It abandons the
         // one-finger gesture without committing anything, however late it
@@ -165,10 +173,12 @@
           if (action.pointerType === 'touch' && action.pointerId !== s.pointerId
               && firstDown) {
             effects.push({ type: 'CLEAR_LONG_PRESS' });
-            return { state: idle(), effects: effects };
+            return { state: multi(), effects: effects };
           }
           return { state: s, effects: effects };
         }
+        // A second (or third...) finger landing while nothing is under way: part of a palm or a pinch, not a tap.
+        if (action.pointerType === 'touch' && (action.touchCount || 1) > 1) return { state: multi(), effects: effects };
 
         // Shift+click: begin a LIVE rubber-band rectangle from the last
         // anchor instead of committing immediately. The rectangle preview
@@ -261,7 +271,7 @@
       }
 
       case 'POINTER_MOVE': {
-        if (s.mode === 'idle' || s.mode === 'range' || s.mode === 'scroll') return { state: s, effects: effects };
+        if (s.mode === 'idle' || s.mode === 'range' || s.mode === 'scroll' || s.mode === 'multi') return { state: s, effects: effects };
         if (s.mode === 'shiftRange') {
           // Live rubber-band: keep the last valid cell under the pointer
           // (falls back to the previous one if it wanders over a
@@ -356,6 +366,7 @@
         if (s.mode === 'idle') return { state: s, effects: effects };
         effects.push({ type: 'CLEAR_LONG_PRESS' });
         if (s.mode === 'scroll') return { state: idle(), effects: effects };
+        if (s.mode === 'multi') return { state: (action.touchCount || 0) > 0 ? s : idle(), effects: effects };   // over when the last finger lifts
 
         if (s.mode === 'range') {
           // Tap after long-press anchor → commit rectangle.
@@ -436,6 +447,7 @@
 
       case 'POINTER_CANCEL': {
         effects.push({ type: 'CLEAR_LONG_PRESS' });
+        if (s.mode === 'multi' && (action.touchCount || 0) > 0) return { state: s, effects: effects };
         return { state: idle(), effects: effects };
       }
 
@@ -479,6 +491,7 @@
   }
 
   // ─── React hook ─────────────────────────────────────────────────────
+  var TOUCH_STALE_MS = 5000;
   function useDragMark(opts) {
     var R = (typeof window !== 'undefined' && window.React) || null;
     if (!R) {
@@ -517,6 +530,10 @@
     var longPressTimerRef = R.useRef(null);
     var holdTimerRef = R.useRef(null);
     var lastTouchStartRef = R.useRef(0);
+    // The touch pointers on the chart now, id -> when they landed. A pointerup that never arrives (the app was
+    // switched away, the browser took the touch) must not leave a finger counted for ever, so a contact older than
+    // TOUCH_STALE_MS is forgotten when the next one lands; a palm that rests longer than that stops counting too.
+    var touchIdsRef = R.useRef(new Map());
     var bcastRef = R.useRef(0);
 
     var _ds = R.useState({ mode: 'idle', path: new Set(),
@@ -617,6 +634,9 @@
       if (e.pointerType === 'touch') {
         // Track start time for multi-touch guard.
         lastTouchStartRef.current = t;
+        var live = touchIdsRef.current;
+        live.forEach(function (at, id) { if (t - at > TOUCH_STALE_MS) live.delete(id); });
+        live.set(e.pointerId, t);
       }
       var idx = cellAtPoint(e.clientX, e.clientY);
       try {
@@ -633,6 +653,7 @@
         pointerId: e.pointerId != null ? e.pointerId : 0,
         shiftKey: !!e.shiftKey,
         pointerType: e.pointerType || 'mouse',
+        touchCount: touchIdsRef.current.size,
       });
     }, [isEdit, cellAtPoint]);
 
@@ -648,17 +669,19 @@
     }, [isEdit, cellAtPoint]);
 
     var onPointerUp = R.useCallback(function (e) {
+      if (e && e.pointerType === 'touch') touchIdsRef.current.delete(e.pointerId);
       if (isEdit) return;
       if (typeof cellAtPoint !== 'function') return;
       var idx = cellAtPoint(e.clientX, e.clientY);
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
-      dispatch({ type: 'POINTER_UP', idx: idx, time: t });
+      dispatch({ type: 'POINTER_UP', idx: idx, time: t, touchCount: touchIdsRef.current.size });
     }, [isEdit, cellAtPoint]);
 
-    var onPointerCancel = R.useCallback(function () {
+    var onPointerCancel = R.useCallback(function (e) {
+      if (e && e.pointerType === 'touch') touchIdsRef.current.delete(e.pointerId);
       if (isEdit) return;
-      dispatch({ type: 'POINTER_CANCEL' });
+      dispatch({ type: 'POINTER_CANCEL', touchCount: touchIdsRef.current.size });
     }, [isEdit]);
 
     var onContextMenu = R.useCallback(function (e) {

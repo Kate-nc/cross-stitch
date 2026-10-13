@@ -42,15 +42,19 @@ const pageFits = page => page.evaluate(() => ({
 const reachableByName = (page, re) => page.evaluate((src) => {
   const rx = new RegExp(src, 'i');
   const els = [...document.querySelectorAll('button, [role=button]')].filter(b => rx.test((b.getAttribute('aria-label') || '') + ' ' + b.textContent) && b.getBoundingClientRect().width > 0);
-  return els.map(el => { const r = el.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  return els.map(el => { el.scrollIntoView({ block: 'nearest', inline: 'nearest' });          // a person scrolls a strip that does not fit
+    const r = el.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     const top = document.elementFromPoint(cx, cy); return { text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20), inView: cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight, ok: !!top && (el === top || el.contains(top)) }; });
 }, re.source);
 
 for (const vp of [{ name: 'phone at 200% (196x364)', w: 196, h: 364, touch: true }, { name: 'tablet at 200% (384x512)', w: 384, h: 512, touch: true }, { name: 'desktop at 200% (720x450)', w: 720, h: 450, touch: false }]) {
   test('browser zoom 200%: ' + vp.name, async ({ browser }) => {
-    const context = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, hasTouch: vp.touch, isMobile: vp.touch });
+    const context = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, hasTouch: vp.touch, isMobile: vp.touch }); await installLocalCdn(context);
     const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
     await openProject(page);
+    // At this width the colour panel opens as an overlay over the controls (as it did before Phase 4); a tap outside closes it.
+    const backdrop = page.locator('.lpanel-backdrop');
+    if (await backdrop.count()) { await backdrop.first().click({ position: { x: 5, y: 5 } }); await page.waitForTimeout(400); }
     const fit = await pageFits(page);
     console.log('HUNT zoom200 ' + vp.name + ' ' + JSON.stringify(fit));
     expect(fit.sw, 'no sideways scroll of the page').toBeLessThanOrEqual(fit.iw + 1);
@@ -66,26 +70,22 @@ for (const vp of [{ name: 'phone at 200% (196x364)', w: 196, h: 364, touch: true
   });
 }
 
-test('on-screen keyboard: the viewport loses its lower half while a field is focused', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true });
-  const page = await context.newPage();
+test('on-screen keyboard: with the viewport halved, the More panel stays inside it and can be closed', async ({ browser }) => {
+  // Renaming is not offered in the Tracker below desktop widths in either build (the project switcher names the
+  // project; probed on the build before Phase 4 too), so a keyboard over a Tracker field does not arise there. What a
+  // keyboard (or a split-screen window) does do is halve the viewport while a panel is open: the panel must still fit.
+  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true }); await installLocalCdn(context);
+  const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page, { focusOnPhone: false });
-  const rename = await reachableByName(page, /rename project/i);
-  console.log('HUNT keyboard rename buttons on a phone: ' + JSON.stringify(rename));
-  // The phone's way to a text field: the rename control if it is on screen, otherwise any text input the Tracker offers.
-  let target = page.locator('button[aria-label="Rename project"]:visible').first();
-  if (await target.count()) { await target.click(); await page.waitForTimeout(300); }
-  const input = page.locator('input[type=text]:visible, input:not([type]):visible').first();
-  console.log('HUNT keyboard input present: ' + (await input.count()));
-  if (await input.count()) {
-    await input.focus();
-    await page.setViewportSize({ width: 393, height: 380 });          // what the keyboard leaves
-    await page.waitForTimeout(500);
-    const r = await input.boundingBox();
-    console.log('HUNT keyboard input box ' + JSON.stringify(r));
-    expect(r && r.y >= 0 && r.y + r.height <= 380, 'the field stays in the visible part').toBe(true);
-    await page.setViewportSize({ width: 393, height: 727 }); await page.waitForTimeout(500);
-  }
+  console.log('HUNT keyboard: rename control on a 393 px phone: ' + (await page.locator('button[aria-label="Rename project"]:visible').count()));
+  await page.locator('.ppal-mode-btn', { hasText: /More/i }).click(); await page.waitForTimeout(400);
+  await page.setViewportSize({ width: 393, height: 380 }); await page.waitForTimeout(500);
+  const box = await page.evaluate(() => { const p = document.getElementById('ppal-more-panel'); const r = p.getBoundingClientRect(); const c = document.querySelector('.ppal-more-close').getBoundingClientRect(); const sh = document.scrollingElement.scrollHeight; window.scrollTo(0, 9999); const r2 = p.getBoundingClientRect(); const out = { top: Math.round(r.top), bottom: Math.round(r.bottom), vh: innerHeight, closeTop: Math.round(c.top), closeBottom: Math.round(c.bottom), pageScrollHeight: sh, bottomAfterScroll: Math.round(r2.bottom) }; window.scrollTo(0, 0); return out; });
+  console.log('HUNT keyboard More panel ' + JSON.stringify(box));
+  expect(Math.min(box.bottom, box.bottomAfterScroll), 'the whole panel can be brought into the visible part (it fits, or the page scrolls to it)').toBeLessThanOrEqual(box.vh + 1);
+  expect(box.closeTop >= 0 && box.closeBottom <= box.vh, 'its close button is on screen').toBe(true);
+  await page.locator('.ppal-more-close').click(); await page.waitForTimeout(300);
+  await page.setViewportSize({ width: 393, height: 727 }); await page.waitForTimeout(500);
   const fit = await pageFits(page);
   expect(fit.canvas.h, 'the chart comes back to its size').toBeGreaterThan(300);
   expect(errors).toEqual([]);
@@ -93,7 +93,7 @@ test('on-screen keyboard: the viewport loses its lower half while a field is foc
 });
 
 test('rotation mid-session keeps the marks and the selection of a rectangle', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true });
+  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true }); await installLocalCdn(context);
   const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page);
   const touch = await trackerTouchDriver(page);
@@ -114,7 +114,7 @@ test('rotation mid-session keeps the marks and the selection of a rectangle', as
 });
 
 test('mouse and trackpad: the wheel scrolls the chart and marks nothing; Ctrl+wheel zooms it', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } }); await installLocalCdn(context);
   const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page);
   const p = await trackerCellPoint(page, 10, 10);
@@ -138,7 +138,7 @@ test('mouse and trackpad: the wheel scrolls the chart and marks nothing; Ctrl+wh
 });
 
 test('stylus: a tap marks, a quick swipe does not, a rest then a drag paints', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true });
+  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true }); await installLocalCdn(context);
   const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page);
   const canvas = page.locator(TRACKER_CANVAS);
@@ -157,7 +157,7 @@ test('stylus: a tap marks, a quick swipe does not, a rest then a drag paints', a
 });
 
 test('palm: three fingers on the chart mark nothing and do not break the next tap', async ({ browser }) => {
-  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true });
+  const context = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true }); await installLocalCdn(context);
   const page = await context.newPage(); page.on('pageerror', e => errors.push(String(e)));
   await openProject(page);
   const touch = await trackerTouchDriver(page);
