@@ -58,12 +58,8 @@ const DEFAULT_STATS_VISIBILITY = {
 };
 
 const SECTION_LABELS = {
-  lifetimeStitches: 'Lifetime Stitches',
-  activeProjects: 'Active Projects',
   finishedThisYear: 'Finished This Year',
   coverage: 'Coverage Ratio',
-  streak: 'Weekly Streak',
-  pace: 'Recent Pace',
   sableIndex: 'SABLE Index',
   stashComposition: 'Colour Families',
   dmcCoverage: 'DMC Palette Coverage',
@@ -444,117 +440,6 @@ function CustomiseModal({ visibility, onChange, tolerance, onToleranceChange, on
           }}),
           label
         )
-      )
-    )
-  );
-}
-
-// ── Share Card Modal ─────────────────────────────────────────────
-function ShareCardModal({ lifetimeStitches, onClose }) {
-  const canvasRef = useRef(null);
-  const [rendered, setRendered] = useState(false);
-
-  if (window.useEscape) window.useEscape(onClose); else useEffect(() => {
-    const handler = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const draw = () => {
-      const ctx = canvas.getContext('2d');
-      const W = 1080, H = 1080;
-      canvas.width = W; canvas.height = H;
-      // Background
-      ctx.fillStyle = '#faf9f7';
-      ctx.fillRect(0, 0, W, H);
-      // Decorative border
-      ctx.strokeStyle = '#B85C38';
-      ctx.lineWidth = 6;
-      ctx.strokeRect(40, 40, W - 80, H - 80);
-      // Inner decorative cross-stitch pattern
-      ctx.fillStyle = '#E5DCCB';
-      for (let x = 80; x < W - 80; x += 30) {
-        ctx.fillRect(x, 70, 4, 4);
-        ctx.fillRect(x, H - 74, 4, 4);
-      }
-      // Title
-      ctx.fillStyle = '#8A8270';
-      ctx.font = '600 32px Inter, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('LIFETIME STITCHES', W / 2, 280);
-      // Main number
-      ctx.fillStyle = '#1B1814';
-      ctx.font = '800 120px Inter, system-ui, sans-serif';
-      ctx.fillText(fmtNum(lifetimeStitches), W / 2, 480);
-      // Thread length
-      const km = threadKm(lifetimeStitches);
-      ctx.fillStyle = '#B85C38';
-      ctx.font = '500 36px Inter, system-ui, sans-serif';
-      ctx.fillText(`≈ ${km} km of thread`, W / 2, 560);
-      // Cross-stitch icon area
-      ctx.fillStyle = '#E5DCCB';
-      const cx = W / 2, cy = 680;
-      for (let i = -3; i <= 3; i++) {
-        for (let j = -1; j <= 1; j++) {
-          ctx.fillRect(cx + i * 22 - 8, cy + j * 22 - 8, 16, 16);
-        }
-      }
-      ctx.fillStyle = '#B85C38';
-      ctx.fillRect(cx - 8, cy - 8, 16, 16);
-      // Watermark
-      ctx.fillStyle = '#A89E89';
-      ctx.font = '400 20px Inter, system-ui, sans-serif';
-      ctx.fillText('stitchx', W / 2, H - 100);
-      setRendered(true);
-    };
-    // Ensure font is loaded
-    if (document.fonts && document.fonts.load) {
-      document.fonts.load('120px Inter').then(draw).catch(draw);
-    } else {
-      draw();
-    }
-  }, [lifetimeStitches]);
-
-  const handleDownload = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = 'lifetime-stitches.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  }, []);
-
-  const handleCopy = useCallback(async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    try {
-      const blob = await new Promise((resolve, reject) => {
-        const _t = setTimeout(() => reject(new Error('toBlob timed out')), 8000);
-        canvas.toBlob(b => { clearTimeout(_t); if (b) resolve(b); else reject(new Error('toBlob returned null')); }, 'image/png');
-      });
-      if (typeof ClipboardItem === 'undefined') {
-        throw new TypeError('ClipboardItem is not available in this browser');
-      }
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    } catch (e) {
-      console.warn('Copy to clipboard failed:', e);
-      if (window.Toast && window.Toast.show) {
-        window.Toast.show({ message: 'Copy is not supported in this browser. Please right-click the image to save or copy it.', type: 'info', duration: 6000 });
-      }
-    }
-  }, []);
-
-  return h('div', { className: 'modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'share-stats-title', onClick: onClose },
-    h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480, textAlign: 'center' } },
-      h('button', { className: 'modal-close', onClick: onClose, 'aria-label': 'Close' }, window.Icons && window.Icons.x ? window.Icons.x() : null),
-      h('h3', { id: 'share-stats-title', style: { marginTop: 0, marginBottom:'var(--s-3)', fontSize: 18, color: 'var(--text-primary)' } }, 'Share Your Stats'),
-      h('canvas', { ref: canvasRef, style: { width: '100%', maxWidth: 360, borderRadius:'var(--radius-md)', border: '1px solid var(--border)', marginBottom:'var(--s-3)' } }),
-      rendered && h('div', { style: { display: 'flex', gap:'var(--s-2)', justifyContent: 'center' } },
-        h('button', { onClick: handleDownload, style: { padding: '8px 16px', background: 'var(--accent)', color: 'var(--surface)', border: 'none', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Download PNG'),
-        h('button', { onClick: handleCopy, style: { padding: '8px 16px', background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize:'var(--text-md)', fontWeight: 600, cursor: 'pointer' } }, 'Copy to Clipboard')
       )
     )
   );
@@ -1078,7 +963,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const [loading, setLoading] = useState(true);
   const [visibility, setVisibility] = useState(loadStatsVisibility);
   const [showCustomise, setShowCustomise] = useState(false);
-  const [showShareCard, setShowShareCard] = useState(false);
   const [dismissedDupes, setDismissedDupes] = useState(loadDismissedDuplicates);
   const [activityLoaded, setActivityLoaded] = useState(() => typeof window.StatsActivity === 'function');
   const [insightsLoaded, setInsightsLoaded] = useState(() => typeof window.StatsInsights === 'function');
@@ -1448,40 +1332,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     }
     return out;
   }, [richProjects]);
-
-  const streakData = useMemo(() => {
-    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.computeWeeklyStreak) return { current: 0, longest: 0 };
-    const current = window.InsightsEngine.computeWeeklyStreak(allSessions);
-    // Longest streak: scan back over all weeks
-    if (allSessions.length === 0) return { current: 0, longest: current };
-    const weekKeys = new Set();
-    for (const s of allSessions) {
-      const ds = s.date || (s.startTime || '').slice(0, 10);
-      if (!ds) continue;
-      const d = new Date(ds + 'T12:00:00');
-      if (isNaN(d.getTime())) continue;
-      // ISO week-start (Monday)
-      const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
-      const m = new Date(d); m.setDate(d.getDate() - dow);
-      weekKeys.add(ymd(m)); // local date — matches heatmap bucketing (Work item 4)
-    }
-    const sortedWeeks = Array.from(weekKeys).sort();
-    let longest = 0, run = 0, prev = null;
-    for (const wk of sortedWeeks) {
-      if (prev) {
-        const diff = (new Date(wk) - new Date(prev)) / 86400000;
-        if (Math.round(diff) === 7) run++; else run = 1;
-      } else run = 1;
-      if (run > longest) longest = run;
-      prev = wk;
-    }
-    return { current, longest: Math.max(longest, current) };
-  }, [allSessions]);
-
-  const paceData = useMemo(() => {
-    if (typeof window.InsightsEngine === 'undefined' || !window.InsightsEngine.calculateRecentPace) return null;
-    return window.InsightsEngine.calculateRecentPace(allSessions);
-  }, [allSessions]);
 
   // ── Buying Impact: for each non-owned thread referenced by wishlist
   //    patterns, count the number of distinct patterns it appears in. ────────
@@ -2008,24 +1858,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
     // ── Top row: 4 metric cards ──────────────────────────────────
     h('div', { className: 'gsd-metrics' },
-      show('lifetimeStitches') && h(StatCard, { title: 'Lifetime Stitches', id: 'stats-lifetimeStitches' },
-        lifetimeStitches > 0
-          ? h('div', null,
-              h('div', { className: 'gsd-metric-value' }, fmtNum(lifetimeStitches)),
-              h('div', { className: 'gsd-metric-sub' }, '≈ ' + threadKm(lifetimeStitches) + ' km of thread'),
-              h('div', { style: { marginTop: 6, display: 'flex', gap: 6 } },
-                h('button', { onClick: e => { e.stopPropagation(); setShowShareCard(true); }, style: { fontSize:'var(--text-xs)', padding: '3px 8px', background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 600 } }, 'Share card')
-              )
-            )
-          : h('div', null,
-              h('div', { className: 'gsd-metric-value' }, '0'),
-              h('div', { className: 'gsd-metric-sub' }, 'Your stitches will count here as you mark them off')
-            )
-      ),
-      show('activeProjects') && h(StatCard, { title: 'Active Projects', id: 'stats-activeProjects', onClick: () => onNavigateToProject && window.history.replaceState({}, '', '?mode=track') },
-        h('div', { className: 'gsd-metric-value' }, fmtNum(activeProjectCount)),
-        activeProjectCount === 0 && h('div', { className: 'gsd-metric-sub' }, 'No active projects right now')
-      ),
       show('finishedThisYear') && h(StatCard, { title: 'Finished This Year', id: 'stats-finishedThisYear' },
         h('div', { className: 'gsd-metric-value' }, fmtNum(finishedThisYear)),
         finishedThisYear === 0 && h('div', { className: 'gsd-metric-sub' }, 'Finish a project to see it here')
@@ -2041,28 +1873,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
               h('div', { className: 'gsd-metric-sub' }, 'Add a pattern to see how your stash covers it')
             )
       ),
-      show('streak') && h(StatCard, { title: 'Weekly Streak', id: 'stats-streak' },
-        streakData.current > 0
-          ? h('div', null,
-              h('div', { className: 'gsd-metric-value' }, streakData.current),
-              h('div', { className: 'gsd-metric-sub' }, 'week' + (streakData.current === 1 ? '' : 's') + ' in a row' + (streakData.longest > streakData.current ? ' (best: ' + streakData.longest + ')' : ''))
-            )
-          : h('div', null,
-              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '0'),
-              h('div', { className: 'gsd-metric-sub' }, 'A new run of weeks begins with your next session')
-            )
-      ),
-      show('pace') && h(StatCard, { title: 'Recent Pace', id: 'stats-pace' },
-        paceData && paceData.activeDays > 0
-          ? h('div', null,
-              h('div', { className: 'gsd-metric-value' }, fmtNum(Math.round(paceData.pacePerDay))),
-              h('div', { className: 'gsd-metric-sub' }, 'stitches per stitching day (' + paceData.activeDays + ' stitching day' + (paceData.activeDays === 1 ? '' : 's') + ' in ' + (paceData.windowDays >= 28 ? 'your last 4 weeks' : 'your last ' + paceData.windowDays + ' day' + (paceData.windowDays === 1 ? '' : 's')) + ')')
-            )
-          : h('div', null,
-              h('div', { className: 'gsd-metric-value', style: { color: 'var(--text-tertiary)' } }, '—'),
-              h('div', { className: 'gsd-metric-sub' }, 'No recent activity to measure pace')
-            )
-      )
     ),
 
     // ── Middle row: SABLE + Hue Wheel ────────────────────────────
@@ -2387,7 +2197,6 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
     // ── Modals ───────────────────────────────────────────────────
     showCustomise && h(CustomiseModal, { visibility, onChange: handleVisibilityChange, tolerance: matchTolerance, onToleranceChange: t => { setMatchTolerance(t); saveMatchTolerance(t); }, onClose: () => setShowCustomise(false) }),
-    showShareCard && h(ShareCardModal, { lifetimeStitches, onClose: () => setShowShareCard(false) })
   );
 }
 
