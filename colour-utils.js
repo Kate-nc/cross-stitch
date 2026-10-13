@@ -54,6 +54,41 @@ findBest.precomputeBlends = function(palette) {
 };
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
+// ── How a stitch looks done and not done in the Tracker (Phase 5, TRACK-09) ──────────────────────────────────────
+// Done is the thread colour, held to at most DONE_MAX_LUM so that even a white or cream thread stays clearly darker than
+// the fabric (and than a not-done cell), whatever the screen or the printout. Not done is the thread colour
+// desaturated and lightened (`fade` is how much of it is lost, 0 to 1). Both are plain data so they can be cached per
+// colour: drawing a chart must not build a colour string per cell.
+var DONE_MAX_LUM = 180;
+var PENDING_FADE = 0.65;
+var _stitchLookCache = new Map();
+function doneStitchLook(rgb) {
+  var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+  var hit = _stitchLookCache.get(key);
+  if (hit) return hit;
+  var L = luminance(rgb), k = L > DONE_MAX_LUM ? DONE_MAX_LUM / L : 1;
+  var r = Math.round(rgb[0] * k), g = Math.round(rgb[1] * k), b = Math.round(rgb[2] * k);
+  // The symbol on a done cell stays, dimmed: a record of what was stitched, not a thing still to do.
+  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: luminance([r, g, b]), ink: luminance([r, g, b]) > 140 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.5)' };
+  if (_stitchLookCache.size > 4000) _stitchLookCache.clear();
+  _stitchLookCache.set(key, look);
+  return look;
+}
+function pendingStitchLook(rgb, fade) {
+  var f = fade > 0 && fade < 1 ? fade : PENDING_FADE;
+  var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2], ck = 'p' + Math.round(f * 100) + ':' + key;
+  var hit = _stitchLookCache.get(ck);
+  if (hit) return hit;
+  var L = luminance(rgb), keep = 1 - f;
+  // Desaturate (towards the grey of the same lightness), then lighten towards the fabric.
+  function ch(c) { var d = c * 0.45 + L * 0.55; return Math.round(255 - (255 - d) * keep); }
+  var r = ch(rgb[0]), g = ch(rgb[1]), b = ch(rgb[2]);
+  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: luminance([r, g, b]), ink: 'rgba(27,24,20,0.9)' };
+  if (_stitchLookCache.size > 4000) _stitchLookCache.clear();
+  _stitchLookCache.set(ck, look);
+  return look;
+}
+
 function quantize(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
@@ -2272,4 +2307,4 @@ _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE }; }

@@ -1,0 +1,5 @@
+== port 8001 (8001=main, 8000=branch) round 1
+RESULT {"label":"d1","throttle":1,"sessions":2,"zoom":113.54,"pan":35.47,"panP95":149.9,"drag60":773.9,"tap":31.71,"heap0":20.81,"heap1":19.04}
+== port 8000 (8001=main, 8000=branch) round 1
+RESULT {"label":"d1","throttle":1,"sessions":2,"zoom":125.42,"pan":38.99,"panP95":133.3,"drag60":767.01,"tap":29.27,"heap0":21.36,"heap1":19.06}
+== port 8000 (8001=main, 8000=branch) round 2

@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.131';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.132',
+    date: 'October 2026',
+    notes: [
+      'Finished stitches are easier to tell from the rest. In Symbol and Colour views a done stitch now fills with its thread colour and keeps a dimmed symbol (the old pale green wash is gone), and zoomed far out every stitch is one pixel: done in its thread colour, not done faded, so a big pattern at Fit is no longer a blank grid.',
+      'New choice: Corner tick (More > View, or Preferences > Stitch Tracker > Finished stitches) keeps each stitch as it was and adds a dark tick in its corner. Both are clear in greyscale.'
+    ]
+  },
+  {
     version: '1.0.131',
     date: 'October 2026',
     notes: [
