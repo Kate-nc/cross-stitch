@@ -54,12 +54,22 @@ describe('how the Tracker draws it', () => {
     expect(draw.slice(0, 12000)).not.toMatch(/#D5E5C8/);
   });
   test('the low-zoom tier paints done in the thread colour and not-done faded, from the cached looks', () => {
-    expect(tracker).toMatch(/isDn\?doneStitchLook\(m\.rgb\)\.fill:pendingStitchLook\(m\.rgb,lowZoomFade\)\.fill/);
+    expect(tracker).toMatch(/isDn\?doneLookOf\(m\)\.fill:pendLookOf\(m\)\.fill/);
   });
   test('Symbol and Colour views use the same two looks and honour the done style', () => {
     expect(tracker).toMatch(/if\(stitchView==="symbol"\|\|stitchView==="colour"\)\{/);
     expect(tracker).toMatch(/isDn&&\(solid\|\|doneStyle!=="tick"\)/);
     expect(tracker).toMatch(/if\(isDn\)drawDoneTick\(px,py\)/);
+  });
+  test('the looks are fetched once per colour per paint, and a symbol costs no canvas save/restore per cell', () => {
+    expect(tracker).toMatch(/const doneLooks=Object\.create\(null\),pendLooks=Object\.create\(null\)/);
+    expect(tracker).toMatch(/function doneLookOf\(m\)\{let l=doneLooks\[m\.id\];if\(!l\)l=doneLooks\[m\.id\]=doneStitchLook\(m\.rgb\)/);
+    const branch = tracker.slice(tracker.indexOf('const isSymV=stitchView==="symbol",solid=tier<=2;'), tracker.indexOf('}else if(highlightMode==="outline"||highlightMode==="tint"){'));
+    expect(branch).not.toMatch(/ctx\.save\(\)|ctx\.restore\(\)/);
+    expect(branch).not.toMatch(/rgb\(\$\{|`/);                 // no colour string built per cell
+  });
+  test('the colour cache is keyed by a number, not a string built per lookup', () => {
+    expect(read('colour-utils.js')).toMatch(/ck = \(Math\.round\(f \* 100\) \+ 1\) \* 16777216 \+ key/);
   });
   test('the done style reaches the repaint: it is in the chart effect\'s dependencies', () => {
     expect(tracker).toMatch(/lockDetailLevel,lowZoomFade,doneStyle,rowModeActive/);
