@@ -1,0 +1,23 @@
+[
+ {
+  "cell": 3,
+  "view": "colour",
+  "done": 126.5,
+  "notDone": 123.2,
+  "gap": 3.4
+ },
+ {
+  "cell": 8,
+  "view": "colour",
+  "done": 122.1,
+  "notDone": 118.8,
+  "gap": 3.3
+ },
+ {
+  "cell": 19,
+  "view": "colour",
+  "done": 124.2,
+  "notDone": 127,
+  "gap": 2.8
+ }
+]
