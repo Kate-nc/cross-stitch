@@ -4968,6 +4968,12 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
   }
 
+  // The two looks of a colour for this paint, by palette id: one property read per cell instead of a map lookup, and nothing
+  // built per cell (the shared caches in colour-utils.js sit behind these).
+  const doneLooks=Object.create(null),pendLooks=Object.create(null);
+  const pendFade=tier<=2?lowZoomFade:0.5;
+  function doneLookOf(m){let l=doneLooks[m.id];if(!l)l=doneLooks[m.id]=doneStitchLook(m.rgb);return l;}
+  function pendLookOf(m){let l=pendLooks[m.id];if(!l)l=pendLooks[m.id]=pendingStitchLook(m.rgb,pendFade);return l;}
   // The "tick" done style: a dark corner triangle with a pale edge, readable on a pale or a dark cell.
   function drawDoneTick(px,py){
     const t=Math.max(4,Math.round(cSz*0.42));
@@ -4986,7 +4992,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
         // Done is the thread colour; not done is that colour desaturated and lightened (colour-utils.js), so done
         // areas stand out at a glance, in greyscale too.
-        ctx.fillStyle=isDn?doneStitchLook(m.rgb).fill:pendingStitchLook(m.rgb,lowZoomFade).fill;ctx.fillRect(px,py,cSz,cSz);
+        ctx.fillStyle=isDn?doneLookOf(m).fill:pendLookOf(m).fill;ctx.fillRect(px,py,cSz,cSz);
         continue;
       }
 
@@ -5014,14 +5020,14 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         const isSymV=stitchView==="symbol",solid=tier<=2;
         const showSym=info&&symAlpha>0.01&&(!solid||cSz>=7);
         if(isDn&&(solid||doneStyle!=="tick")){
-          const lk=doneStitchLook(m.rgb);
+          const lk=doneLookOf(m);
           ctx.fillStyle=lk.fill;ctx.fillRect(px,py,cSz,cSz);
-          if(showSym){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=lk.ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=lk.ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
         }else{
           let ink;
           if(isSymV&&!solid){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);ink="#1B1814";}
-          else{const pl=pendingStitchLook(m.rgb,solid?lowZoomFade:0.5);ctx.fillStyle=pl.fill;ctx.fillRect(px,py,cSz,cSz);ink=pl.ink;}
-          if(showSym){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+          else{const pl=pendLookOf(m);ctx.fillStyle=pl.fill;ctx.fillRect(px,py,cSz,cSz);ink=pl.ink;}
+          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
           if(isDn)drawDoneTick(px,py);
         }
       }else if(highlightMode==="outline"||highlightMode==="tint"){

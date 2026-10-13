@@ -3,3 +3,14 @@ RESULT {"label":"d1","throttle":1,"sessions":2,"zoom":113.54,"pan":35.47,"panP95
 == port 8000 (8001=main, 8000=branch) round 1
 RESULT {"label":"d1","throttle":1,"sessions":2,"zoom":125.42,"pan":38.99,"panP95":133.3,"drag60":767.01,"tap":29.27,"heap0":21.36,"heap1":19.06}
 == port 8000 (8001=main, 8000=branch) round 2
+RESULT {"label":"d2","throttle":1,"sessions":2,"zoom":151.87,"pan":52.66,"panP95":150,"drag60":839.43,"tap":32.08,"heap0":20.82,"heap1":19.1}
+== port 8001 (8001=main, 8000=branch) round 2
+RESULT {"label":"d2","throttle":1,"sessions":2,"zoom":122.78,"pan":30.16,"panP95":133.3,"drag60":817.07,"tap":29.83,"heap0":21.38,"heap1":19.01}
+== port 8001 (8001=main, 8000=branch) round 3
+RESULT {"label":"d3","throttle":1,"sessions":2,"zoom":109.55,"pan":31.3,"panP95":133.3,"drag60":787.86,"tap":30.41,"heap0":21.36,"heap1":19.03}
+== port 8000 (8001=main, 8000=branch) round 3
+RESULT {"label":"d3","throttle":1,"sessions":2,"zoom":140.73,"pan":40.53,"panP95":166.7,"drag60":792.15,"tap":30.84,"heap0":21.87,"heap1":19.57}
+== port 8000 (8001=main, 8000=branch) round 4
+RESULT {"label":"d4","throttle":1,"sessions":2,"zoom":146.69,"pan":40.47,"panP95":183.2,"drag60":807.76,"tap":31.89,"heap0":21.37,"heap1":19.15}
+== port 8001 (8001=main, 8000=branch) round 4
+RESULT {"label":"d4","throttle":1,"sessions":2,"zoom":114.76,"pan":30.91,"panP95":116.8,"drag60":767.39,"tap":31.02,"heap0":21.37,"heap1":19.03}

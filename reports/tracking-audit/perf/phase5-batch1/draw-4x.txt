@@ -1,0 +1,8 @@
+== port 8001 (8001=main, 8000=branch) 4x round 1
+RESULT {"label":"d4x1","throttle":4,"sessions":2,"zoom":565.57,"pan":142.42,"panP95":666.6,"drag60":4973.31,"tap":144.61,"heap0":20.81,"heap1":19}
+== port 8000 (8001=main, 8000=branch) 4x round 1
+RESULT {"label":"d4x1","throttle":4,"sessions":2,"zoom":687,"pan":175.4,"panP95":866.7,"drag60":4851.24,"tap":150.28,"heap0":20.82,"heap1":19.02}
+== port 8000 (8001=main, 8000=branch) 4x round 2
+RESULT {"label":"d4x2","throttle":4,"sessions":2,"zoom":730.07,"pan":167.29,"panP95":850,"drag60":5272.33,"tap":159.32,"heap0":21.38,"heap1":19}
+== port 8001 (8001=main, 8000=branch) 4x round 2
+RESULT {"label":"d4x2","throttle":4,"sessions":2,"zoom":655.45,"pan":165.83,"panP95":883.3,"drag60":5250.63,"tap":146.83,"heap0":21.37,"heap1":18.99}

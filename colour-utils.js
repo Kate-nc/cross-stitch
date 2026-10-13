@@ -76,7 +76,8 @@ function doneStitchLook(rgb) {
 }
 function pendingStitchLook(rgb, fade) {
   var f = fade > 0 && fade < 1 ? fade : PENDING_FADE;
-  var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2], ck = 'p' + Math.round(f * 100) + ':' + key;
+  // A number, not a string: this is looked up per cell when a chart is drawn, and a string built each time is garbage.
+  var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2], ck = (Math.round(f * 100) + 1) * 16777216 + key;
   var hit = _stitchLookCache.get(ck);
   if (hit) return hit;
   var L = luminance(rgb), keep = 1 - f;
