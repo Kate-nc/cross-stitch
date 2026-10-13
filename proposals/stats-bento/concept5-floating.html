@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concept 5: Floating Minimalist Bento</title>
+    <style>
+        :root {
+            --bg: #e2e8f0; /* Soft cool gray background */
+            --surface: rgba(255, 255, 255, 0.7); /* Translucent cards */
+            --surface-solid: #ffffff;
+            --text-pri: #0f172a;
+            --text-sec: #64748b;
+            --accent: #ea580c; /* Orange accent */
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            background-image: radial-gradient(at 0% 0%, #f8fafc 0px, transparent 50%),
+                              radial-gradient(at 100% 100%, #e0e7ff 0px, transparent 50%);
+            background-attachment: fixed;
+            margin: 0;
+            padding: 40px;
+            color: var(--text-pri);
+        }
+
+        .glass-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-auto-rows: 200px;
+            gap: 24px;
+        }
+
+        .glass-card {
+            background: var(--surface);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 32px; /* Very round */
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Layout spans */
+        .featured { grid-column: 1 / -1; grid-row: span 2; background: var(--surface-solid); }
+        .tall { grid-row: span 2; }
+        .wide { grid-column: span 2; }
+
+        /* Content styling */
+        .title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-sec);
+            margin-bottom: auto;
+        }
+
+        .data-block {
+            margin-top: auto;
+        }
+
+        .value {
+            font-size: 48px;
+            font-weight: 200; /* Thin modern font */
+            letter-spacing: -2px;
+            line-height: 1.1;
+            color: var(--text-pri);
+        }
+        .featured .value {
+            font-size: 100px;
+            font-weight: 300;
+            background: linear-gradient(135deg, var(--accent), #f43f5e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sub {
+            font-size: 14px;
+            color: var(--text-sec);
+            margin-top: 8px;
+        }
+
+        .abstract-art {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(234, 88, 12, 0.1), rgba(244, 63, 94, 0.1));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            font-size: 24px;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .glass-grid { grid-template-columns: 1fr; }
+            .wide { grid-column: span 1; }
+            .featured { grid-row: span 1; }
+            .featured .value { font-size: 64px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glass-grid">
+
+        <div class="glass-card featured">
+            <div class="title">Total Lifetime Progress</div>
+            <div class="data-block" style="display:flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <div class="value">124,592</div>
+                    <div class="sub">Stitches completed across all time</div>
+                </div>
+                <div style="width: 40%; height: 100px; background: rgba(0,0,0,0.03); border-radius: 16px; display:flex; align-items:center; justify-content:center; color:#94a3b8;">
+                    [ Elegant Graph ]
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card tall">
+            <div class="title">Stash vs Use (SABLE)</div>
+            <div class="abstract-art" style="border-radius: 12px; background:transparent; border: 1px dashed #cbd5e1;">📈</div>
+            <div class="data-block">
+                <div class="value" style="font-size:36px;">Balanced</div>
+                <div class="sub">Your stash growth matches your stitching output.</div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="title">Current Streak</div>
+            <div class="abstract-art" style="width:40px; height:40px; font-size:16px;">🔥</div>
+            <div class="data-block">
+                <div class="value">12</div>
+                <div class="sub">Consecutive weeks active</div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="title">Active WIPs</div>
+            <div class="abstract-art" style="width:40px; height:40px; font-size:16px;">🧵</div>
+            <div class="data-block">
+                <div class="value">4</div>
+                <div class="sub">2 projects nearing finish</div>
+            </div>
+        </div>
+
+        <div class="glass-card wide">
+            <div class="title">DMC Palette Coverage</div>
+            <div class="data-block" style="display:flex; align-items: center; gap: 24px;">
+                <div class="value" style="font-size: 64px;">84%</div>
+                <div style="flex:1;">
+                    <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                        <div style="width: 84%; height: 100%; background: var(--accent); border-radius: 4px;"></div>
+                    </div>
+                    <div class="sub">420 of 500 catalog colors owned</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

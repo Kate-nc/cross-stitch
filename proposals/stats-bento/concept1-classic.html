@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concept 1: Classic Bento</title>
+    <style>
+        :root {
+            --bg: #f9f9fb;
+            --surface: #ffffff;
+            --text-pri: #111827;
+            --text-sec: #4b5563;
+            --accent: #B85C38;
+            --border: #e5e7eb;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 0;
+            color: var(--text-pri);
+        }
+        header {
+            padding: 24px 32px;
+            text-align: center;
+        }
+        h1 { margin: 0; font-size: 24px; }
+
+        .bento-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: minmax(140px, auto);
+            gap: 20px;
+        }
+
+        .bento-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        .bento-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .span-2 { grid-column: span 2; }
+        .span-2-row { grid-row: span 2; }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-sec);
+            margin-bottom: 12px;
+        }
+
+        .val-huge { font-size: 64px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+        .val-large { font-size: 42px; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+        .sub-text { font-size: 14px; color: var(--text-sec); }
+
+        .chart-placeholder {
+            flex-grow: 1;
+            background: #f3f4f6;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-weight: 500;
+            margin-top: 16px;
+        }
+
+        /* Mock specific cards */
+        .card-accent {
+            background: var(--accent);
+            color: white;
+            border: none;
+        }
+        .card-accent .card-title, .card-accent .sub-text { color: rgba(255,255,255,0.8); }
+
+        @media (max-width: 1024px) {
+            .bento-grid { grid-template-columns: repeat(3, 1fr); }
+            .span-2 { grid-column: span 2; }
+        }
+
+        @media (max-width: 768px) {
+            .bento-grid { grid-template-columns: repeat(2, 1fr); }
+            .span-2 { grid-column: span 2; }
+            .span-2-row { grid-row: auto; }
+        }
+
+        @media (max-width: 480px) {
+            .bento-grid { grid-template-columns: 1fr; }
+            .span-2 { grid-column: 1; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Stats Dashboard</h1>
+        <p class="sub-text">Classic Bento Concept</p>
+    </header>
+
+    <div class="bento-container">
+        <div class="bento-grid">
+
+            <!-- Hero Stat (2x2) -->
+            <div class="bento-card span-2 span-2-row card-accent">
+                <div>
+                    <div class="card-title">Lifetime Stitches</div>
+                    <div class="val-huge">124,592</div>
+                    <div class="sub-text">≈ 1.5 km of thread</div>
+                </div>
+                <div class="chart-placeholder" style="background: rgba(255,255,255,0.1); color: white;">
+                    [ Activity Heatmap Graphic ]
+                </div>
+            </div>
+
+            <!-- Standard Stats (1x1) -->
+            <div class="bento-card">
+                <div class="card-title">Active Projects</div>
+                <div class="val-large">4</div>
+                <div class="sub-text">2 near completion</div>
+            </div>
+
+            <div class="bento-card">
+                <div class="card-title">Streak</div>
+                <div class="val-large">12</div>
+                <div class="sub-text">Weeks in a row</div>
+            </div>
+
+            <!-- Wide Chart (2x1) -->
+            <div class="bento-card span-2">
+                <div class="card-title">SABLE Index</div>
+                <div style="display:flex; justify-content: space-between; align-items: baseline;">
+                    <div class="val-large">Balanced</div>
+                    <div class="sub-text">Adding = Using</div>
+                </div>
+                <div class="chart-placeholder">[ Line Chart ]</div>
+            </div>
+
+            <!-- Tall Chart (1x2) -->
+            <div class="bento-card span-2-row">
+                <div class="card-title">Colour Families</div>
+                <div class="chart-placeholder">[ Donut Chart ]</div>
+                <div class="sub-text" style="margin-top: 16px; text-align: center;">420 total threads</div>
+            </div>
+
+            <!-- Standard Stats (1x1) -->
+            <div class="bento-card">
+                <div class="card-title">Coverage</div>
+                <div class="val-large">84%</div>
+                <div class="sub-text">of needed threads owned</div>
+            </div>
+
+            <div class="bento-card">
+                <div class="card-title">Oldest WIP</div>
+                <div class="val-large">342d</div>
+                <div class="sub-text">Starry Night (42%)</div>
+            </div>
+
+            <div class="bento-card span-2">
+                <div class="card-title">Ready to Start</div>
+                <div style="display:flex; justify-content: space-between; align-items: baseline;">
+                    <div class="val-large">3</div>
+                    <div class="sub-text">Patterns fully kitted</div>
+                </div>
+                <div class="chart-placeholder">[ Pattern Chips ]</div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
