@@ -1,0 +1,38 @@
+[
+ {
+  "case": "highlight-19",
+  "differing": 0,
+  "of": 504000,
+  "pct": 0
+ },
+ {
+  "case": "highlight-8",
+  "differing": 0,
+  "of": 504000,
+  "pct": 0
+ },
+ {
+  "case": "highlight-3",
+  "differing": 0,
+  "of": 504000,
+  "pct": 0
+ },
+ {
+  "case": "special-19",
+  "differing": 118365,
+  "of": 504000,
+  "pct": 23.49
+ },
+ {
+  "case": "special-colour-19",
+  "differing": 248726,
+  "of": 504000,
+  "pct": 49.35
+ },
+ {
+  "case": "dark-symbol-19",
+  "differing": 86260,
+  "of": 504000,
+  "pct": 17.12
+ }
+]

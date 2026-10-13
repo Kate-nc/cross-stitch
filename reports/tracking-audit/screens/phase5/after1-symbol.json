@@ -1,0 +1,23 @@
+[
+ {
+  "cell": 3,
+  "view": "symbol",
+  "done": 112.4,
+  "notDone": 207.4,
+  "gap": 95
+ },
+ {
+  "cell": 8,
+  "view": "symbol",
+  "done": 108.1,
+  "notDone": 202,
+  "gap": 93.9
+ },
+ {
+  "cell": 19,
+  "view": "symbol",
+  "done": 114.4,
+  "notDone": 235.7,
+  "gap": 121.2
+ }
+]

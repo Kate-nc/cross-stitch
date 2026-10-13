@@ -2233,6 +2233,8 @@ useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel))
 // Tier 1 (zoomed-out) fade strength for un-stitched cells. 0 = off (full colour),
 // 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
 // view at full saturation when zoomed out.
+const stitchLookRef=useRef({cmap:null,fade:-1,done:null,pend:null});   // drawStitch's per-colour looks, kept between paints
+const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
@@ -4967,6 +4969,21 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
   }
 
+  // The two looks of a colour for this paint, by packed RGB (an id is not unique across brands: DMC 310 and Anchor 310 differ): one property read per cell instead of a map lookup, and nothing
+  // built per cell (the shared caches in colour-utils.js sit behind these).
+  // They live across paints (a one-stitch repaint reuses them) and are rebuilt when the palette or the fade changes.
+  const pendFade=tier<=2?lowZoomFade:0.5;
+  let lc=stitchLookRef.current;
+  if(lc.cmap!==cmap||lc.fade!==pendFade){lc=stitchLookRef.current={cmap:cmap,fade:pendFade,done:Object.create(null),pend:Object.create(null)};}
+  const doneLooks=lc.done,pendLooks=lc.pend;
+  function doneLookOf(m){const k=(m.rgb[0]<<16)|(m.rgb[1]<<8)|m.rgb[2];let l=doneLooks[k];if(!l)l=doneLooks[k]=doneStitchLook(m.rgb);return l;}
+  function pendLookOf(m){const k=(m.rgb[0]<<16)|(m.rgb[1]<<8)|m.rgb[2];let l=pendLooks[k];if(!l)l=pendLooks[k]=pendingStitchLook(m.rgb,pendFade);return l;}
+  // The "tick" done style: a dark corner triangle with a pale edge, readable on a pale or a dark cell.
+  function drawDoneTick(px,py){
+    const t=Math.max(4,Math.round(cSz*0.42));
+    ctx.fillStyle="rgba(27,24,20,0.92)";ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+t);ctx.closePath();ctx.fill();
+    ctx.strokeStyle="rgba(255,255,255,0.9)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py+t);ctx.stroke();
+  }
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
@@ -4977,8 +4994,9 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
       if(tier===1&&!partialStitches.has(idx)){
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
-        if(isDn||lowZoomFade<=0){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else{const f=lowZoomFade,inv=1-f,r2=Math.round(m.rgb[0]*inv+255*f),g2=Math.round(m.rgb[1]*inv+255*f),b2=Math.round(m.rgb[2]*inv+255*f);ctx.fillStyle=`rgb(${r2},${g2},${b2})`;ctx.fillRect(px,py,cSz,cSz);}
+        // Done is the thread colour; not done is that colour desaturated and lightened (colour-utils.js), so done
+        // areas stand out at a glance, in greyscale too.
+        ctx.fillStyle=isDn?doneLookOf(m).fill:pendLookOf(m).fill;ctx.fillRect(px,py,cSz,cSz);
         continue;
       }
 
@@ -4999,12 +5017,23 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         continue;
       }
       if(layerVis.full){
-      if(stitchView==="symbol"){
-        if(isDn){ctx.fillStyle="#D5E5C8";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fSym;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-      }else if(stitchView==="colour"){
-        ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+      if(stitchView==="symbol"||stitchView==="colour"){
+        // Done versus not done without relying on a pale tint (TRACK-09). Below the symbol tiers every cell is one solid
+        // pixel (done in the thread colour, not done faded); from the symbol tiers up, a done cell fills with its thread
+        // colour and keeps a dimmed symbol, or (the "tick" style) keeps its look and gains a corner tick.
+        const isSymV=stitchView==="symbol",solid=tier<=2;
+        const showSym=info&&symAlpha>0.01&&(!solid||cSz>=7);
+        if(isDn&&(solid||doneStyle!=="tick")){
+          const lk=doneLookOf(m);
+          ctx.fillStyle=lk.fill;ctx.fillRect(px,py,cSz,cSz);
+          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=lk.ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
+        }else{
+          let ink;
+          if(isSymV&&!solid){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);ink="#1B1814";}
+          else{const pl=pendLookOf(m);ctx.fillStyle=pl.fill;ctx.fillRect(px,py,cSz,cSz);ink=pl.ink;}
+          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
+          if(isDn)drawDoneTick(px,py);
+        }
       }else if(highlightMode==="outline"||highlightMode==="tint"){
         ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
         if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
@@ -5240,7 +5269,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -8223,6 +8252,17 @@ return(
 
         {/* -- View tab -- */}
         {leftSidebarTab==="view"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Finished stitches</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[["fill","Thread colour"],["tick","Corner tick"]].map(([v,l])=>
+                <button key={v}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
+                  onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerDoneStyle',v);}catch(_){}}} aria-pressed={doneStyle===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>

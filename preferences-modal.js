@@ -383,6 +383,7 @@
   // STITCH TRACKER
   // --------------------------------------------------------------------
   function TrackerPanel() {
+    var doneStyle = usePref("trackerDoneStyle", "fill");
     var defView = usePref("trackerDefaultView", "symbol");
     var defHl = usePref("trackerDefaultHighlightMode", "isolate");
     var dimLv = usePref("trackerDimLevel", 0.1);
@@ -421,6 +422,12 @@
             { value: "symbol",    label: "Symbol" },
             { value: "colour",    label: "Col + Symbol" },
             { value: "highlight", label: "Highlight" }
+          ]})
+        ),
+        h(Row, { label: "Finished stitches", desc: "How a done stitch looks in Symbol and Colour views. Thread colour fills it with its thread colour and dims the symbol, so finished areas stand out even in greyscale. Corner tick keeps the stitch as it was and adds a dark tick in its corner. Zoomed far out, finished stitches always show in their thread colour." },
+          h(Segmented, { value: doneStyle[0] === "tick" ? "tick" : "fill", onChange: doneStyle[1], options: [
+            { value: "fill", label: "Thread colour" },
+            { value: "tick", label: "Corner tick" }
           ]})
         ),
         h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non-matching colours." },

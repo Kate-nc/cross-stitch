@@ -1,0 +1,6 @@
+{"heap0":20.79,"zoom":148.73,"zoomSteps":12,"panP95":100.1,"panMed":16.7,"pan":32.14,"drag60":793.21,"tap":30.76,"heap1":19.01}
+{"heap0":20.77,"zoom":125.28,"zoomSteps":12,"panP95":100.1,"panMed":16.7,"pan":29.91,"drag60":817.35,"tap":32.38,"heap1":18.98}
+{"heap0":20.81,"zoom":115.39,"zoomSteps":12,"panP95":150,"panMed":16.7,"pan":31.83,"drag60":778.86,"tap":29.8,"heap1":19}
+{"heap0":20.81,"zoom":119.97,"zoomSteps":12,"panP95":150,"panMed":16.7,"pan":34.79,"drag60":773.38,"tap":30.31,"heap1":19.03}
+{"heap0":21.38,"zoom":121.26,"zoomSteps":12,"panP95":100,"panMed":16.7,"pan":29.75,"drag60":724.95,"tap":30.52,"heap1":19.03}
+RESULT {"label":"base-main","throttle":1,"sessions":5,"zoom":121.26,"pan":31.83,"panP95":100.1,"drag60":778.86,"tap":30.52,"heap0":20.81,"heap1":19.01}
