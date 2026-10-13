@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stats layout concepts</title>
+<style>
+:root{--accent:#B85C38;--accent-light:#F4DDCF;--accent-border:#E8B89A;--accent-ink:#5C2A14;--tp:#1B1814;--ts:#5C5448;--tt:#8A8270;--border:#E5DCCB;--bs:#EFE7D6;--surface:#fff;--s2:#FBF8F3;--success:#4F7D3F;--success-soft:#DEE7D2;--warning:#C0883A;--warning-soft:#F2E2BE;--bg:#F6F1E8}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--accent:#D9825C;--accent-light:#3A2418;--accent-border:#6B4430;--accent-ink:#F4DDCF;--tp:#F3EDE2;--ts:#C2B8A6;--tt:#948B79;--border:#3A342B;--bs:#2E2922;--surface:#221E19;--s2:#1B1814;--success:#8DB97A;--success-soft:#26331F;--warning:#E0A85A;--warning-soft:#3B2F17;--bg:#14110E}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tp);font:14px/1.45 Inter,system-ui,sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:22px;margin:0 0 4px}.lede{color:var(--ts);margin:0 0 16px;max-width:75ch}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
+.tabs button,.vp button{font:inherit;padding:6px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ts);border-radius:999px;cursor:pointer}
+.tabs button[aria-selected=true],.vp button[aria-pressed=true]{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent-ink);font-weight:600}
+.vp{display:flex;gap:6px;align-items:center;color:var(--tt);font-size:12px;margin-bottom:8px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:12px 0 20px}
+.meta div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}
+.meta b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tt);margin-bottom:4px}
+.meta p{margin:0;font-size:13px;color:var(--ts)}
+.frame{container-type:inline-size;margin:0 auto;width:100%;border:1px solid var(--border);border-radius:12px;background:var(--s2);padding:16px;transition:width .2s;overflow:hidden}
+.frame[data-w="tablet"]{width:760px;max-width:100%}.frame[data-w="phone"]{width:390px;max-width:100%}
+.concept[hidden]{display:none}
+/* shared mock atoms */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;min-width:0}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tt);margin:0 0 6px;font-weight:600}
+.big{font-size:30px;font-weight:700;line-height:1.1}.sub{font-size:12px;color:var(--ts)}
+.pos{color:var(--success);font-weight:600}
+.ring{--p:84;width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--bs) 0);display:grid;place-items:center;flex:none}
+.ring::after{content:attr(data-l);width:calc(100% - 20px);height:calc(100% - 20px);border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:14px}
+.chart{height:150px;border-radius:8px;background:linear-gradient(to top,var(--bs) 1px,transparent 1px) 0 0/100% 37px,var(--s2);position:relative;overflow:hidden}
+.chart svg{position:absolute;inset:0;width:100%;height:100%}
+.ms{display:flex;gap:6px}.ms i{flex:1;font-style:normal;text-align:center;border-radius:8px;padding:8px 2px;background:var(--success-soft);color:var(--success);font-weight:700;font-size:13px}.ms i.n{background:var(--accent-light);color:var(--accent)}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--bs);font-size:13px}.row:first-of-type{border-top:0}.row span:first-child{color:var(--ts)}
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font-size:12px;color:var(--ts)}
+.chip.a{background:var(--accent-light);border-color:var(--accent-border);color:var(--accent-ink);font-weight:600}
+.sw{display:flex;gap:4px;flex-wrap:wrap}.sw i{width:22px;height:22px;border-radius:5px;display:block}
+.heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,1fr);gap:3px}.heat{max-height:150px}.heat i{aspect-ratio:1;max-height:18px;border-radius:3px;background:var(--bs);display:block}
+.heat i.l1{background:#EBC9B3}.heat i.l2{background:#D99872}.heat i.l3{background:var(--accent)}
+.sess{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--bs);font-size:13px}.sess:first-of-type{border-top:0}.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}.sess b{margin-left:auto}
+.bars{display:flex;align-items:flex-end;gap:4px;height:70px}.bars i:nth-child(1){height:30%}.bars i:nth-child(2){height:70%}.bars i:nth-child(3){height:45%}.bars i:nth-child(4){height:85%}.bars i:nth-child(5){height:20%}.bars i:nth-child(6){height:55%}.bars i:nth-child(7){height:35%}.bars i:nth-child(n+8){height:60%}.bars i{flex:1;background:var(--accent-border);border-radius:3px 3px 0 0;display:block}.bars i.h{background:var(--accent)}
+.sec{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}.sec i{aspect-ratio:1;border-radius:3px;display:block;background:var(--success-soft)}.sec i.p{background:var(--warning-soft)}.sec i.e{background:var(--bs)}
+.kpis{display:flex;gap:10px;flex-wrap:wrap}.kpi{flex:1 1 120px}
+/* 1 bento */
+.bento{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.bento>.hero{grid-column:span 5;grid-row:span 2;display:flex;flex-direction:column;gap:12px}
+.bento>.wide{grid-column:span 7}.bento>.t3{grid-column:span 3}.bento>.t4{grid-column:span 4}.bento>.t5{grid-column:span 5}.bento>.t6{grid-column:span 6}.bento>.t7{grid-column:span 7}.bento>.full{grid-column:1/-1}
+@container (max-width:900px){.bento>*{grid-column:span 6!important;grid-row:auto!important}.bento>.full,.bento>.hero{grid-column:1/-1!important}}
+@container (max-width:520px){.bento>*{grid-column:1/-1!important}}
+/* 2 rail */
+.rail{display:grid;grid-template-columns:300px 1fr;gap:14px;align-items:start}
+.rail aside{position:sticky;top:8px;display:flex;flex-direction:column;gap:12px}
+.rail main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.rail main .full{grid-column:1/-1}
+@container (max-width:800px){.rail{grid-template-columns:1fr}.rail aside{position:static}}
+@container (max-width:560px){.rail main{grid-template-columns:1fr}}
+/* 3 command bar */
+.strip{position:sticky;top:0;display:grid;grid-template-columns:auto repeat(5,1fr);gap:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.strip>div{padding:10px 14px;border-left:1px solid var(--bs)}.strip>div:first-child{border:0;display:flex;align-items:center;gap:10px}
+.cols3{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,3fr) minmax(0,3fr);gap:12px;align-items:start}.cols3>div{display:flex;flex-direction:column;gap:12px}
+@container (max-width:1000px){.cols3{grid-template-columns:1fr 1fr}.cols3>div:first-child{grid-column:1/-1}.strip{grid-template-columns:repeat(3,1fr)}.strip>div:first-child{grid-column:1/-1}}
+@container (max-width:560px){.cols3{grid-template-columns:1fr}.strip{grid-template-columns:1fr 1fr}}
+/* 4 section nav */
+.nav{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:start}
+.nav nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:8px}.nav nav a{padding:8px 10px;border-radius:8px;color:var(--ts);font-size:13px;display:flex;justify-content:space-between}
+.nav nav a.on{background:var(--accent-light);color:var(--accent-ink);font-weight:600}.nav nav small{color:var(--tt)}
+.nav .pane{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.nav .pane .full{grid-column:1/-1}
+@container (max-width:700px){.nav{grid-template-columns:1fr}.nav nav{flex-direction:row;overflow:auto;position:static}.nav nav a{white-space:nowrap}}
+/* 5 heatmap first */
+.h5{display:flex;flex-direction:column;gap:12px}
+.hm{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:16px}
+.hm .kp{display:flex;flex-direction:column;gap:12px;justify-content:space-between}
+.mason{columns:3 260px;column-gap:12px}.mason>.card{break-inside:avoid;margin-bottom:12px}
+@container (max-width:760px){.hm{grid-template-columns:1fr}.hm .kp{flex-direction:row;flex-wrap:wrap}}
+@media (max-width:640px){.wrap{padding:16px 12px}}
+</style></head><body><div class="wrap">
+<h1>Stats page: five layout concepts</h1>
+<p class="lede">Mock-ups using the real Workshop tokens and the real sections of the Stitching, Stash and Project dashboards (sample data: "History Test", 1,350 / 1,600). Each frame is container-responsive, so use the width buttons to see how it reflows. Nothing here touches the app code yet.</p>
+<div class="tabs" role="tablist" id="tabs"></div>
+<div class="vp">Preview width: <button data-w="desktop" aria-pressed="true">Desktop</button><button data-w="tablet" aria-pressed="false">Tablet</button><button data-w="phone" aria-pressed="false">Phone</button></div>
+<div id="info"></div>
+<div class="frame" id="frame" data-w="desktop">
+
+<!-- 1 BENTO -->
+<section class="concept" data-i="0"><div class="bento">
+ <div class="card hero"><p class="lbl">History Test</p><div style="display:flex;gap:16px;align-items:center"><div class="ring" data-l="84%"></div><div><div class="big">1,350</div><div class="sub">of 1,600 stitches</div></div></div>
+  <div class="kpis"><div class="kpi"><p class="lbl">Speed</p><b>172/hr</b></div><div class="kpi"><p class="lbl">Time</p><b>7h 50m</b></div><div class="kpi"><p class="lbl">Est. finish</p><b>13 Oct</b></div><div class="kpi"><p class="lbl">Sessions</p><b>10</b></div></div>
+  <div class="ms"><i>10%</i><i>25%</i><i>50%</i><i>75%</i><i class="n">100%</i></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto"><span class="chip a">Copy summary</span><span class="chip">CSV</span><span class="chip">Save image</span></div></div>
+ <div class="card wide"><p class="lbl">Progress over time</p><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" points="0,38 10,34 20,32 35,30 50,24 60,22 75,18 85,14 100,8"/></svg></div></div>
+ <div class="card t4"><p class="lbl">Streak</p><div class="big">1 day</div><div class="sub">Best: 3 days</div></div>
+ <div class="card t3"><p class="lbl">Goal today</p><div class="big">0 / 175</div><div class="sub">Set a goal</div></div>
+ <div class="card t5"><p class="lbl">This week</p><div class="bars"><i></i><i class="h"></i><i></i><i class="h"></i><i></i><i></i><i></i></div></div>
+ <div class="card t4"><p class="lbl">Colour progress</p><div class="sw"><i style="background:#B85C38"></i><i style="background:#4F7D3F"></i><i style="background:#C0883A"></i><i style="background:#5C5448"></i><i style="background:#E8B89A"></i><i style="background:#2E4A6B"></i></div></div>
+ <div class="card t4"><p class="lbl">Sections</p><div class="sec"><i></i><i></i><i></i><i></i><i class="p"></i><i class="p"></i><i class="e"></i><i class="e"></i></div></div>
+ <div class="card t4"><p class="lbl">Recent sessions</p><div class="sess"><span class="dot"></span>9 Oct<b>+220</b></div><div class="sess"><span class="dot"></span>7 Oct<b>+180</b></div></div>
+</div></section>
+
+<!-- 2 RAIL -->
+<section class="concept" data-i="1" hidden><div class="rail">
+ <aside><div class="card" style="text-align:center"><div class="ring" data-l="84%" style="margin:0 auto 10px"></div><div class="big">1,350</div><div class="sub">of 1,600 &middot; ~17 Oct at current pace</div></div>
+  <div class="card"><div class="row"><span>Speed</span><b>172/hr</b></div><div class="row"><span>Time</span><b>7h 50m</b></div><div class="row"><span>Sessions</span><b>10</b></div><div class="row"><span>Streak</span><b>1 day</b></div></div>
+  <div class="card"><p class="lbl">Share</p><div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip a">Copy summary</span><span class="chip">CSV</span><span class="chip">Image</span></div></div></aside>
+ <main><div class="card full"><p class="lbl">Progress over time</p><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" points="0,38 10,34 20,32 35,30 50,24 60,22 75,18 85,14 100,8"/></svg></div></div>
+  <div class="card"><p class="lbl">Milestones</p><div class="ms"><i>10</i><i>25</i><i>50</i><i>75</i><i class="n">100</i></div></div>
+  <div class="card"><p class="lbl">Goals</p><div class="row"><span>Daily</span><b>0 / 175</b></div><div class="row"><span>Weekly</span><b>440 / 500</b></div></div>
+  <div class="card"><p class="lbl">Colour progress</p><div class="sw"><i style="background:#B85C38"></i><i style="background:#4F7D3F"></i><i style="background:#C0883A"></i><i style="background:#2E4A6B"></i></div></div>
+  <div class="card"><p class="lbl">Sections</p><div class="sec"><i></i><i></i><i></i><i class="p"></i><i class="e"></i><i class="e"></i><i></i><i></i></div></div>
+  <div class="card full"><p class="lbl">Sessions</p><div class="sess"><span class="dot"></span>9 Oct &middot; 1h 10m<b>+220</b></div><div class="sess"><span class="dot"></span>7 Oct &middot; 55m<b>+180</b></div></div></main>
+</div></section>
+
+<!-- 3 COMMAND BAR -->
+<section class="concept" data-i="2" hidden>
+ <div class="strip"><div><div class="ring" data-l="84%" style="width:52px;height:52px"></div><div><b>History Test</b><div class="sub">~17 Oct at this pace</div></div></div>
+  <div><p class="lbl">Stitches</p><b>1,350</b></div><div><p class="lbl">Speed</p><b>172/hr</b></div><div><p class="lbl">Time</p><b>7h 50m</b></div><div><p class="lbl">Streak</p><b>1 day</b></div><div><p class="lbl">Week</p><b class="pos">+76%</b></div></div>
+ <div class="cols3">
+  <div><div class="card"><p class="lbl">Progress over time</p><div class="chart" style="height:220px"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" points="0,38 10,34 20,32 35,30 50,24 60,22 75,18 85,14 100,8"/></svg></div></div>
+   <div class="card"><p class="lbl">Colour timeline</p><div class="bars"><i></i><i class="h"></i><i></i><i class="h"></i><i></i><i class="h"></i><i></i><i></i><i class="h"></i></div></div></div>
+  <div><div class="card"><p class="lbl">Goals</p><div class="row"><span>Daily</span><b>0 / 175</b></div><div class="row"><span>Weekly</span><b>440 / 500</b></div></div>
+   <div class="card"><p class="lbl">Milestones</p><div class="ms"><i>25</i><i>50</i><i class="n">75</i></div></div>
+   <div class="card"><p class="lbl">Sections</p><div class="sec"><i></i><i></i><i class="p"></i><i class="e"></i></div></div></div>
+  <div><div class="card"><p class="lbl">Sessions</p><div class="sess"><span class="dot"></span>9 Oct<b>+220</b></div><div class="sess"><span class="dot"></span>7 Oct<b>+180</b></div><div class="sess"><span class="dot"></span>5 Oct<b>+140</b></div></div>
+   <div class="card"><p class="lbl">Colour progress</p><div class="sw"><i style="background:#B85C38"></i><i style="background:#4F7D3F"></i><i style="background:#C0883A"></i></div></div></div>
+ </div></section>
+
+<!-- 4 SECTION NAV -->
+<section class="concept" data-i="3" hidden><div class="nav">
+ <nav><a class="on">Overview</a><a>Progress <small>chart</small></a><a>Colours <small>12</small></a><a>Sessions <small>10</small></a><a>Sections</a><a>Goals &amp; streaks</a><a>Settings</a></nav>
+ <div class="pane">
+  <div class="card full" style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><div class="ring" data-l="84%"></div><div><div class="big">1,350 <span class="sub">of 1,600</span></div><div class="sub">~17 Oct at current pace</div></div><div class="kpis" style="flex:1;min-width:240px"><div class="kpi"><p class="lbl">Speed</p><b>172/hr</b></div><div class="kpi"><p class="lbl">Time</p><b>7h 50m</b></div><div class="kpi"><p class="lbl">Sessions</p><b>10</b></div></div></div>
+  <div class="card full"><p class="lbl">Progress over time</p><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" points="0,38 10,34 20,32 35,30 50,24 60,22 75,18 85,14 100,8"/></svg></div></div>
+  <div class="card"><p class="lbl">Milestones</p><div class="ms"><i>25</i><i>50</i><i class="n">75</i></div></div>
+  <div class="card"><p class="lbl">Streak</p><div class="big">1 day</div><div class="sub">Best 3 days</div></div>
+ </div></div></section>
+
+<!-- 5 HEATMAP FIRST -->
+<section class="concept" data-i="4" hidden><div class="h5">
+ <div class="card hm"><div><p class="lbl">Stitching days &middot; last 26 weeks</p><div class="heat" id="heat"></div><div class="sub" style="margin-top:8px">Less <span class="chip">&nbsp;</span> More</div></div>
+  <div class="kp"><div style="display:flex;gap:12px;align-items:center"><div class="ring" data-l="84%" style="width:64px;height:64px"></div><div><div class="big" style="font-size:24px">1,350</div><div class="sub">of 1,600</div></div></div><div><p class="lbl">Streak</p><b>1 day</b></div><div><p class="lbl">Speed</p><b>172/hr</b></div></div></div>
+ <div class="mason">
+  <div class="card"><p class="lbl">Progress over time</p><div class="chart"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline fill="none" stroke="var(--accent)" stroke-width="1.2" points="0,38 20,32 50,24 75,18 100,8"/></svg></div></div>
+  <div class="card"><p class="lbl">Milestones</p><div class="ms"><i>25</i><i>50</i><i class="n">75</i></div></div>
+  <div class="card"><p class="lbl">Goals</p><div class="row"><span>Daily</span><b>0 / 175</b></div><div class="row"><span>Weekly</span><b>440 / 500</b></div></div>
+  <div class="card"><p class="lbl">Sessions</p><div class="sess"><span class="dot"></span>9 Oct<b>+220</b></div><div class="sess"><span class="dot"></span>7 Oct<b>+180</b></div></div>
+  <div class="card"><p class="lbl">Colour progress</p><div class="sw"><i style="background:#B85C38"></i><i style="background:#4F7D3F"></i><i style="background:#C0883A"></i><i style="background:#2E4A6B"></i></div></div>
+  <div class="card"><p class="lbl">Sections</p><div class="sec"><i></i><i></i><i class="p"></i><i class="e"></i></div></div>
+ </div></div></section>
+</div></div>
+<script>
+var C=[
+["1. Bento grid","A 12-column grid of mixed-size tiles. A tall hero tile carries the ring, key numbers, milestones and export buttons; the chart sits beside it; small tiles fill the rest. Reflows 12 > 6 > 1 columns.","Closest to today's content: StatsDashboard's blocks become tiles; OverviewCards + MilestoneTracker merge into the hero. Lowest risk, and the same grid idea can serve the Stash tab's StatCards.","Medium: CSS grid in styles.css, small reorder in StatsDashboard."],
+["2. Sticky side rail","A left rail (summary, metrics, share) stays on screen while a two-column area scrolls. You always see the headline numbers, and wide screens are used fully.","Rail = OverviewCards + export bar. Main = StatsChartSection, GoalTracker, StreaksPanel, ColourProgress, SectionGrid, SessionTimeline. Collapses to a stack under 800px.","Medium: new wrapper layout, rail needs position:sticky under the existing sticky gsd-tabs bar."],
+["3. Command bar + 3 columns","A sticky KPI strip across the top (progress, stitches, speed, time, streak, week) then three columns: chart/timeline wide, goals/milestones/sections, sessions/colours. Dashboard feel, most information per screen.","Strip replaces OverviewCards and the 'this week vs last week' block. Columns re-home existing panels; the accordions (Colour timeline, Sections, Comparison) become ordinary cards.","Higher: densest, so the cards need compact variants and the accordions lose their collapse."],
+["4. Section navigation","A left list (Overview, Progress, Colours, Sessions, Sections, Goals, Settings) shows one themed pane at a time, like a settings page. Shorter pages, nothing to scroll past; becomes a horizontal chip row on phones.","Fits the existing tab pattern (StatsContainer tabs) and the accordion content. Panes are the current components unchanged, just regrouped.","Medium-high: needs section state and URL param like the existing ?tab=, but it hides content behind clicks."],
+["5. Heatmap first","A full-width stitching-days calendar is the hero, with ring and key metrics beside it, then a masonry of cards (CSS columns) that packs uneven cards without gaps. Most distinctive and most visual.","The calendar view already exists as a chart mode in StatsChartSection, so it is promoted to the top. Masonry suits the very uneven card heights on the Stash/Insights tabs.","Medium: promote the calendar chart and add a column-based layout; no new data needed."]];
+var tabs=document.getElementById('tabs'),info=document.getElementById('info'),secs=document.querySelectorAll('.concept');
+C.forEach(function(c,i){var b=document.createElement('button');b.textContent=c[0];b.setAttribute('role','tab');b.onclick=function(){show(i)};tabs.appendChild(b)});
+function show(i){secs.forEach(function(s,j){s.hidden=i!==j});[].forEach.call(tabs.children,function(b,j){b.setAttribute('aria-selected',i===j)});var c=C[i];info.innerHTML='<div class="meta"><div><b>Idea</b><p>'+c[1]+'</p></div><div><b>Fit with current code</b><p>'+c[2]+'</p></div><div><b>Effort and risk</b><p>'+c[3]+'</p></div></div>'}
+document.querySelectorAll('.vp button').forEach(function(b){b.onclick=function(){document.getElementById('frame').dataset.w=b.dataset.w;document.querySelectorAll('.vp button').forEach(function(x){x.setAttribute('aria-pressed',x===b)})}});
+var h=document.getElementById('heat'),s=7;for(var k=0;k<182;k++){s=(s*9301+49297)%233280;var r=s/233280,i=document.createElement('i');if(r>.9)i.className='l3';else if(r>.75)i.className='l2';else if(r>.6)i.className='l1';h.appendChild(i)}
+show(0);
+</script></body></html>
