@@ -445,6 +445,13 @@ window.Icons = (function() {
         p('M9 11V8.5a1.5 1.5 0 0 0-3 0v6.4c0 1.4.4 2.7 1.2 3.8L9 21h7a4 4 0 0 0 4-4v-4')
       );
     },
+    // Pattern overview (the Tracker minimap): a framed map with a smaller frame inside it for the visible part.
+    minimap: function() {
+      return svg16(
+        rc(3, 4, 18, 16, 2),
+        rc(8, 8, 7, 6, 1)
+      );
+    },
     // Enter focus / fullscreen — four corner brackets pointing inward.
     focus: function() {
       return svg(

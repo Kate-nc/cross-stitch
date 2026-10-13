@@ -76,6 +76,7 @@ var PRECACHE_URLS = [
   './useAutoSession.js',
   './useStitchCounts.js',
   './useDragMark.js',
+  './tracker-minimap.js',
   './work-area.js',
   './components/WorkAreaPicker.js',
   './components/ModeToggle.js',

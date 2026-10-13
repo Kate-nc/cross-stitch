@@ -148,6 +148,7 @@
     trackerWakeLock:        "auto",
 
     // ─── Small screens (tracking audit TRACK-07) ────────────────────────
+    trackerMinimap:         true,        // the pattern overview in the Tracker corner (shown only when the chart is bigger than its box)
     trackerDoneStyle:       "fill",      // how a finished stitch shows in Symbol and Colour views: fill (thread colour, dimmed symbol) | tick (corner tick)
     trackerFocusOnPhone:    true,        // open the Tracker in Focus (top bar and strip tucked away) on a phone
     trackerHandedness:      "right",     // right | left: which side of the chart the controls strip sits on

@@ -384,6 +384,7 @@
   // --------------------------------------------------------------------
   function TrackerPanel() {
     var doneStyle = usePref("trackerDoneStyle", "fill");
+    var minimapOn = usePref("trackerMinimap", true);
     var defView = usePref("trackerDefaultView", "symbol");
     var defHl = usePref("trackerDefaultHighlightMode", "isolate");
     var dimLv = usePref("trackerDimLevel", 0.1);
@@ -428,6 +429,12 @@
           h(Segmented, { value: doneStyle[0] === "tick" ? "tick" : "fill", onChange: doneStyle[1], options: [
             { value: "fill", label: "Thread colour" },
             { value: "tick", label: "Corner tick" }
+          ]})
+        ),
+        h(Row, { label: "Pattern overview", desc: "A small map of the whole pattern in the corner of the chart, with finished areas brighter. It shows only when the pattern is bigger than the chart box. Tap or drag it to jump there." },
+          h(Segmented, { value: minimapOn[0] === false ? "off" : "on", onChange: function (v) { minimapOn[1](v === "on"); }, options: [
+            { value: "on", label: "Show" },
+            { value: "off", label: "Hide" }
           ]})
         ),
         h(Row, { last: true, label: "Highlight rendering", desc: "How the focused colour is emphasised in highlight view. Outline draws marching ants around matching cells; tint paints a translucent overlay; spotlight dims everything else; isolate hides non-matching colours." },

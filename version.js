@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.132';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.133',
+    date: 'October 2026',
+    notes: [
+      'A pattern overview in the corner of the Tracker chart. When the pattern is bigger than the chart box, a small map shows the whole of it with finished areas brighter and the part you are looking at outlined. Tap or drag it to jump there. It updates as you mark stitches without slowing the chart, and you can hide it in More > View or Preferences > Stitch Tracker.',
+      'On a phone in Focus mode the overview starts closed; the map button opens it.'
+    ]
+  },
+  {
     version: '1.0.132',
     date: 'October 2026',
     notes: [

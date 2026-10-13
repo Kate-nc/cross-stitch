@@ -1632,6 +1632,23 @@ function fitWholeView(){
 }
 // "Fit" fits the work area while one is active, the whole pattern otherwise.
 function fitChart(){if(areaOn)fitWorkAreaView();else fitWholeView();}
+// The overview's two calls into the chart. What the chart shows, in cells: the sticky ruler covers the first G pixels
+// of the box, so the first visible cell is at scroll position / scs and the box holds (width - G) / scs of them.
+const minimapGetView=useCallback(()=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return null;
+  const off=chartScrollOffset();
+  const x0=(el.scrollLeft+off.x)/scs,y0=(el.scrollTop+off.y)/scs;
+  return{x0:x0,y0:y0,x1:x0+(el.clientWidth-G)/scs,y1:y0+(el.clientHeight-G)/scs};
+},[scs]);
+// Centre the chart on a cell (the overview's tap and drag).
+const minimapJump=useCallback((cx,cy)=>{
+  const el=stitchScrollRef.current;
+  if(!el||!(scs>0))return;
+  const off=chartScrollOffset();
+  el.scrollLeft=Math.max(0,cx*scs-(el.clientWidth-G)/2-off.x);
+  el.scrollTop=Math.max(0,cy*scs-(el.clientHeight-G)/2-off.y);
+},[scs]);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -2234,6 +2251,9 @@ useEffect(()=>{try{localStorage.setItem('cs_lockDetail',String(lockDetailLevel))
 // 0.15 = subtle, 0.55 = strong (legacy behaviour). Default 0 keeps the colour
 // view at full saturation when zoomed out.
 const stitchLookRef=useRef({cmap:null,fade:-1,done:null,pend:null});   // drawStitch's per-colour looks, kept between paints
+const minimapPref=useTrackerPref('trackerMinimap',true);   // the pattern overview in the corner of the chart
+const minimapApiRef=useRef(null);                          // set by the overview while it is mounted: cellsChanged(changes,nd)
+const[minimapFocusOpen,setMinimapFocusOpen]=useState(false);   // on a phone in Focus the overview stays shut until asked for
 const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
@@ -5956,6 +5976,7 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
 // ones, each of which paints its neighbours as well. Off-tile cells are
 // skipped; they are painted from `done` when scrolled to.
 function paintDoneChanges(changes,nd){
+  if(nd&&minimapApiRef.current)minimapApiRef.current.cellsChanged(changes,nd);   // the overview: only the blocks these cells fall in
   if(!stitchRef.current||!pat||!cmap||!nd)return;
   const t=chartTileRef.current;
   if(!t||!(t.w>0))return;
@@ -8137,6 +8158,7 @@ return(
     {doneCount===0&&!hintsSeen&&totalStitchable>0&&stitchMode==="track"&&<div className="tracker-hint" style={{fontSize:'var(--text-xs)',color:"var(--accent-ink)",background:"var(--accent-soft)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-sm)',padding:"6px 10px",marginBottom:'var(--s-2)',textAlign:"center"}}>Tap any stitch on the canvas to mark it as done</div>}
 
     </div>{/* end canvas-area */}
+    {pat&&cmap&&window.TrackerMinimap&&minimapPref!==false&&!isEditMode&&React.createElement(window.TrackerMinimap,{pat,cmap,sW,sH,done,scrollRef:stitchScrollRef,getView:minimapGetView,onJump:minimapJump,apiRef:minimapApiRef,viewKey:scs+"|"+sW+"|"+sH+"|"+focusMode+"|"+handedness,side:handedness==="left"?"right":"left",collapsed:focusMode&&isPhoneScreen()&&!minimapFocusOpen,onOpen:()=>setMinimapFocusOpen(true)})}
     {/* ─ Phone chip ─ */}
     {pal&&focusColour&&cmap&&cmap[focusColour]
       ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
@@ -8259,6 +8281,17 @@ return(
                 <button key={v}
                   style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(doneStyle===v?"var(--accent)":"var(--border)"),background:doneStyle===v?"var(--accent)":"var(--surface)",color:doneStyle===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:doneStyle===v?600:400}}
                   onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerDoneStyle',v);}catch(_){}}} aria-pressed={doneStyle===v}
+                >{l}</button>
+              )}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Pattern overview</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[[true,"Show"],[false,"Hide"]].map(([v,l])=>
+                <button key={l}
+                  style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+((minimapPref!==false)===v?"var(--accent)":"var(--border)"),background:(minimapPref!==false)===v?"var(--accent)":"var(--surface)",color:(minimapPref!==false)===v?"var(--accent-ink)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer"}}
+                  onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerMinimap',v);}catch(_){}}} aria-pressed={(minimapPref!==false)===v}
                 >{l}</button>
               )}
             </div>
