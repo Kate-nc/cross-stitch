@@ -55,7 +55,8 @@ describe('Navigate mode press', () => {
 
   test('Esc clears the guide in Navigate mode, after every other Esc target', () => {
     const esc = body('{ id: "tracker.esc"', '} },');
-    const clear = esc.indexOf('if(stitchMode==="navigate"&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);return;}');
+    // Phase 5 batch 3: also when the keyboard has taken the guide in Mark mode.
+    const clear = esc.indexOf('if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);');
     expect(clear).toBeGreaterThan(esc.indexOf('setLeftSidebarOpen(false)'));
   });
 

@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.132';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.134',
+    date: 'October 2026',
+    notes: [
+      'You can now mark stitches without a mouse or touch screen. Tab to the chart, move the guide with the arrow keys (Shift moves 10 stitches), and press Enter to mark or unmark the stitch at the guide. Shift+Enter marks the rectangle from the last stitch you marked with the keyboard to the guide, as Shift+click does. Space marks too once the arrow keys have the guide; Esc or a click gives it back to hold-to-pan.',
+      '[ and ] now change the colour in every view (they only worked in Highlight view), G moves keyboard focus into the colour legend and Shift+G back to the chart. In row mode Up and Down still change the row.',
+      'The controls panel, when it is shut, can no longer be tabbed into. The chart shows an outline when the keyboard has it.'
+    ]
+  },
+  {
     version: '1.0.133',
     date: 'October 2026',
     notes: [

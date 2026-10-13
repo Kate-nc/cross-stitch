@@ -1053,6 +1053,10 @@ const { stitchView, setStitchView, stitchZoom, setStitchZoom, stitchZoomRef,
 // The guide crosshair as drawStitch sees it (read through a ref because the
 // guide is repainted incrementally, not by a full renderStitch).
 const guideRef=useRef({row:-1,col:-1});
+// Keyboard marking (Phase 5, TRACK-10): true once the arrow keys or Enter have taken the guide, so Space and Enter act on it; a
+// pointer press, Esc or a change of mode hands it back. kbAnchorRef is the last stitch marked from the keyboard (for Shift+Enter).
+const kbGuideRef=useRef(false);
+const kbAnchorRef=useRef(null);
 guideRef.current={row:hlRow,col:hlCol};
 
 const[loadError,setLoadError]=useState(null);
@@ -1651,6 +1655,7 @@ const minimapJump=useCallback((cx,cy)=>{
 },[scs]);
 // The lowest zoom: one pixel a stitch, which Fit can now reach, so every zoom-out control must be able to stay there.
 const MIN_STITCH_ZOOM=0.05;
+useEffect(()=>{kbGuideRef.current=false;kbAnchorRef.current=null;},[stitchMode]);
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -6139,13 +6144,50 @@ function handleStitchContextMenu(e){
 }
 
 function handleStitchKeyDown(e){
-  // Navigate mode, chart focused: the arrow keys move the guide crosshair
-  // (Shift: 10 stitches), so the guide — and parking at it with Menu or
-  // Shift+F10 below — works without a pointer. Claimed here, before the
-  // shortcut registry, which skips events that are already handled.
-  if(stitchMode==="navigate"&&!isEditMode&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&GUIDE_KEYS[e.key]){
+  // The chart has focus. The rules, in one place (also in the Help drawer):
+  //  - The arrow keys move the guide, in Mark and Navigate mode (Shift: 10 stitches). Row mode keeps Up and Down for rows.
+  //    Alt+arrows still move the spotlight, and with focus off the chart Left and Right still change the highlighted colour.
+  //  - Mark mode: Enter marks or unmarks the stitch at the guide; Space does too once the guide is the keyboard's;
+  //    Shift+Enter fills the rectangle from the last stitch marked this way. `[` and `]` change colour wherever focus is.
+  //  - Esc clears the guide. Claimed here, before the shortcut registry, which skips events that are already handled.
+  const plain=!e.altKey&&!e.ctrlKey&&!e.metaKey;
+  const inMark=stitchMode==="track"&&!isEditMode&&!!pat;
+  if((stitchMode==="navigate"||stitchMode==="track")&&!isEditMode&&plain&&GUIDE_KEYS[e.key]){
+    if(rowModeActive&&stitchMode!=="navigate"&&(e.key==="ArrowUp"||e.key==="ArrowDown"))return;   // row mode owns Up and Down
     e.preventDefault();
+    kbGuideRef.current=true;
     moveGuideBy(GUIDE_KEYS[e.key][0]*(e.shiftKey?10:1),GUIDE_KEYS[e.key][1]*(e.shiftKey?10:1));
+    return;
+  }
+  const isEnter=e.key==="Enter"&&!e.altKey&&!e.ctrlKey&&!e.metaKey;
+  const isSpace=(e.key===" "||e.code==="Space")&&plain&&!e.shiftKey;
+  if(inMark&&(isEnter||(isSpace&&kbGuideRef.current))){
+    e.preventDefault();
+    if(e.repeat)return;
+    const g=guideRef.current;
+    const onChart=g&&g.row>=0&&g.col>=0&&g.row<sH&&g.col<sW;
+    if(!kbGuideRef.current||!onChart){
+      // First press: take (or drop) the guide, so the next one marks where the guide is rather than somewhere unseen.
+      kbGuideRef.current=true;
+      if(!onChart)moveGuideBy(0,0);
+      return;
+    }
+    const idx=g.row*sW+g.col;
+    const cell=pat[idx];
+    if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return;
+    const anchor=kbAnchorRef.current;
+    if(isEnter&&e.shiftKey&&anchor&&anchor.idx!==idx){
+      const ax=anchor.idx%sW,ay=(anchor.idx-ax)/sW;
+      const set=new Set();
+      for(let y=Math.min(ay,g.row);y<=Math.max(ay,g.row);y++)for(let x=Math.min(ax,g.col);x<=Math.max(ax,g.col);x++)set.add(y*sW+x);
+      _commitBulk(set,anchor.intent,'range');
+      kbAnchorRef.current={idx:idx,intent:anchor.intent};
+      return;
+    }
+    const was=doneRef.current[idx];
+    _dragMarkOnToggle(idx);
+    const now=doneRef.current[idx];
+    if(now!==was)kbAnchorRef.current={idx:idx,intent:now?'mark':'unmark'};   // a colour lock can refuse the mark
     return;
   }
   if(e.key!=="ContextMenu"&&!(e.shiftKey&&e.key==="F10"))return;
@@ -6265,8 +6307,10 @@ function toggleGuideAt(gx,gy){
   else{setHlRow(gy);setHlCol(gx);}
 }
 
+// A pointer press hands the guide back from the keyboard (kbGuideRef): Space pans again and Enter does not mark under a stale guide.
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
+  kbGuideRef.current=false;kbAnchorRef.current=null;
   stopPanMomentum();
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
   // Right-click parks (handleStitchContextMenu). Without this a right-click
@@ -6655,6 +6699,18 @@ useEffect(()=>{
 
 // Helper: cycle to the next/previous focusable colour, auto-picking the
 // first when none is currently set (so [/] always do something useful).
+// Move keyboard focus into the colour legend (opening it if it is shut): onto the selected colour's tile, else the first.
+// Tab and Shift+Tab walk the tiles; Enter or Space selects one.
+function focusLegend(){
+  if(leftSidebarMode!=="open")setLeftSidebarMode("open");
+  let tries=0;
+  (function go(){
+    const tiles=document.querySelectorAll('.ppal-tile');
+    const target=document.querySelector('.ppal-tile--on')||tiles[0];
+    if(target&&target.getBoundingClientRect().width>0){try{target.scrollIntoView({block:'nearest'});}catch(_){}target.focus();return;}
+    if(++tries<12)setTimeout(go,40);
+  })();
+}
 function cycleFocusColour(direction){
   setFocusColour(prev=>{
     if(!focusableColors.length)return prev;
@@ -6890,8 +6946,8 @@ const trackerShortcuts=!isActive ? [] : [
       // Close the palette panel on mobile/tablet (≤1023px). On desktop the
       // panel is persistent so ESC intentionally leaves it open.
       if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
-      // Last: in Navigate mode, Esc clears the guide crosshair.
-      if(stitchMode==="navigate"&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);return;}
+      // Last: Esc clears the guide crosshair (in Navigate mode, or when the keyboard has taken it in Mark mode).
+      if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -7032,10 +7088,22 @@ const trackerShortcuts=!isActive ? [] : [
     run: () => setAreaPickerOpen(true) },
 
   // Highlight-view-only: focus-colour cycling and highlight modes.
-  { id: "tracker.hl.next", keys: ["]", "arrowright"], scope: "tracker.view.highlight",
+  { id: "tracker.col.next", keys: "]", scope: "tracker.notedit",
+    description: "Next colour (the one selected in the legend)",
+    run: () => cycleFocusColour(+1) },
+  { id: "tracker.col.prev", keys: "[", scope: "tracker.notedit",
+    description: "Previous colour (the one selected in the legend)",
+    run: () => cycleFocusColour(-1) },
+  { id: "tracker.legend", keys: "g", scope: "tracker.notedit",
+    description: "Go to the colour legend",
+    run: () => focusLegend() },
+  { id: "tracker.chartFocus", keys: "shift+g", scope: "tracker.notedit",
+    description: "Go to the chart",
+    run: () => { const c=stitchRef.current;if(c)c.focus(); } },
+  { id: "tracker.hl.next", keys: "arrowright", scope: "tracker.view.highlight",
     description: "Next focus colour",
     run: () => cycleFocusColour(+1) },
-  { id: "tracker.hl.prev", keys: ["[", "arrowleft"], scope: "tracker.view.highlight",
+  { id: "tracker.hl.prev", keys: "arrowleft", scope: "tracker.view.highlight",
     description: "Previous focus colour",
     run: () => cycleFocusColour(-1) },
   { id: "tracker.hl.isolate", keys: "1", scope: "tracker.view.highlight",
@@ -8077,7 +8145,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. In Navigate mode the arrow keys move the guide; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(

@@ -31,3 +31,17 @@ Found and fixed during the work (each by a failing check or a screenshot):
 Checked and fine: marking and undo keep the map right (undo restores its pixel), and a load builds it; switching projects frees and rebuilds it; a pattern that fits shows no map and builds none; resizing the window keeps it in the chart box; left-handed layout moves it right; phone Focus starts closed and the button opens it; dark theme; print hides it; no emojis (an SVG icon is used).
 
 Not driven: Safari and a real phone or tablet; a screen reader on the map (screen-reader work is deferred by instruction; the map has a plain group name and arrow-key operation only); work-area mode with the map shown (it maps the whole pattern, the rectangle follows the area's scroll through the same offsets, but I did not look at it); a 1000x1000 pattern in a browser (only the compute was timed); high-contrast mode beyond a forced-colours rule that I did not render.
+
+## Batch 3 (keyboard parity)
+
+Found and fixed while building:
+- **Space doubled as pan and mark.** Marking on Space would have broken hold-to-pan for anyone whose chart had focus after a click. Space marks only while the keyboard has the guide (arrow keys or Enter took it), and a pointer press, Esc or a mode change gives it back. Tested both ways.
+- **A guide left over from Navigate mode** (a click there sets it) would have made the first Enter in Mark mode mark under it. The first Enter only takes the guide.
+- **A colour lock that refuses a mark** must not become the anchor for Shift+Enter; the anchor moves only when the stitch actually changed.
+- **Key auto-repeat** would toggle a stitch on and off while Enter is held; repeats are ignored.
+- **`helpDrawerShortcutsSync` skipped any key list containing `[` or `]`** because its regexes ended a list at the first `]`, so `[` and `]` were never checked either way. Fixed; the real entries pass.
+- **The shut More panel was in the tab order** (it was only translated off screen): 0 stops in 120 Tabs now.
+
+Checked and fine: Shift+arrows move 10 stitches; the guide scrolls into view; Edit mode ignores the keys; typing in a text field never reaches the chart handler (it is on the canvas) or the single-key shortcuts (the registry's input guard); Alt+arrows still move the spotlight; a click still marks; the dark theme outline; reduced motion (the panel's visibility change is instant then).
+
+Not driven: a physical keyboard on a Mac (Cmd+Z is the registry's `mod`); stitches that are half stitches or French knots at the guide (Enter toggles the full stitch only; parking is still Shift+F10 or Menu); a colour lock refusing a keyboard mark in the browser (pinned at source level and by the shared function only); Safari and Firefox focus-ring behaviour of `:has(canvas:focus-visible)` (Chromium only); any screen-reader behaviour, by instruction.
