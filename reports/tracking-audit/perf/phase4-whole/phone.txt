@@ -1,0 +1,3 @@
+== port 8002 (8002=before phase 4, 8000=now) pair 1
+{"label":"p1","strokes":8,"strokeMedian":77.9,"taps":24,"tapMedian":86.2,"tapP90":120.8,"loadMedianMs":5667,"loads":[5667,5382]}
+== port 8000 (8002=before phase 4, 8000=now) pair 1
