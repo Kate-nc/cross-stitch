@@ -1329,7 +1329,13 @@ useEffect(()=>{
 },[resumeRecap]);
 useEffect(()=>{if(resumeRecap&&trackHistory.length>0)setResumeRecap(null);},[resumeRecap,trackHistory]);
 // Marking is what keeps the screen on (TRACK-11): the first mark of a session takes the wake lock on a touch screen.
-useEffect(()=>{if(trackHistory.length>0&&keepAwakeOnMark)keepAwakeOnMark();},[trackHistory,keepAwakeOnMark]);
+const prevHistRef=useRef({len:0,last:null});
+useEffect(()=>{
+  // Only a stitch or a knot going on to the history counts: not an undo (the history shrinks) and not a parked thread.
+  const last=trackHistory.length?trackHistory[trackHistory.length-1]:null, prev=prevHistRef.current;
+  prevHistRef.current={len:trackHistory.length,last};
+  if(last&&last!==prev.last&&trackHistory.length>=prev.len&&last.type!=="PARK"&&keepAwakeOnMark)keepAwakeOnMark();
+},[trackHistory,keepAwakeOnMark]);
 // The pattern's size no longer matches the saved marks: held here until the user decides (see
 // processLoadedProject). While it is set nothing is written, so closing the tab changes nothing.
 const[reconcile,setReconcile]=useState(null);
@@ -8775,8 +8781,8 @@ return(
   {modal==="rt_disable_confirm"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="rt-disable-title" onClick={()=>setModal(null)}>
     <div className="modal-content" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():null}</button>
-      <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Turn off live tracking?</h3>
-      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread deductions made so far.</p>
+      <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Stop using up stash thread as you stitch?</h3>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread already taken from your stash.</p>
       <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
         <button onClick={()=>{
           setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});

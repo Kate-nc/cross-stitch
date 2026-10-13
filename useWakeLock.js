@@ -55,16 +55,25 @@
       if(s){try{await s.release();}catch(_){}}
       setWakeLockActive(false);
     },[]);
-    const acquireWakeLock=useCallback(async()=>{
-      try{
-        if(!supported())return false;
-        const sentinel=await navigator.wakeLock.request('screen');
-        wakeLockRef.current=sentinel;
-        wantRef.current=true;
-        setWakeLockActive(true);
-        sentinel.addEventListener&&sentinel.addEventListener('release',()=>{if(wakeLockRef.current===sentinel){setWakeLockActive(false);wakeLockRef.current=null;}});   // the browser took it (tab hidden): wantRef stays, so it comes back
-        return true;
-      }catch(_){setWakeLockActive(false);return false;}
+    const pendingRef=useRef(null);    // the request in flight: two quick marks share it rather than taking two locks
+    const acquireWakeLock=useCallback(()=>{
+      if(wakeLockRef.current)return Promise.resolve(true);
+      if(pendingRef.current)return pendingRef.current;
+      if(!supported())return Promise.resolve(false);
+      wantRef.current=true;           // set before the wait: a release that lands while it is pending clears it, and the answer is then handed back
+      const p=(async()=>{
+        try{
+          const sentinel=await navigator.wakeLock.request('screen');
+          if(!wantRef.current){try{await sentinel.release();}catch(_){}return false;}   // let go (or the Tracker closed) while the request was pending: do not hold an orphan
+          wakeLockRef.current=sentinel;
+          setWakeLockActive(true);
+          sentinel.addEventListener&&sentinel.addEventListener('release',()=>{if(wakeLockRef.current===sentinel){setWakeLockActive(false);wakeLockRef.current=null;}});   // the browser took it (tab hidden): wantRef stays, so it comes back
+          return true;
+        }catch(_){wantRef.current=false;setWakeLockActive(false);return false;}
+        finally{pendingRef.current=null;}
+      })();
+      pendingRef.current=p;
+      return p;
     },[]);
     const armIdle=()=>{clearIdle();idleRef.current=setTimeout(()=>{releaseWakeLock();},IDLE_RELEASE_MS);};
     const toggleWakeLock=useCallback(async()=>{
@@ -100,6 +109,19 @@
         }
       }catch(_){}
     },[acquireWakeLock,releaseWakeLock]);
+
+    // A change in Preferences (or the chip) acts at once: Never lets go of a lock held now, Always takes one now.
+    const reconcileMode=useCallback(()=>{
+      let mode='auto';
+      try{mode=wakeLockMode(window.UserPrefs&&window.UserPrefs.get('trackerWakeLock'));}catch(_){}
+      if(mode==='never'){if(wakeLockRef.current||pendingRef.current)releaseWakeLock();}
+      else if(mode==='always'&&!wakeLockRef.current&&!pendingRef.current){acquireWakeLock().then(ok=>{if(ok)armIdle();});}
+    },[acquireWakeLock,releaseWakeLock]);
+    useEffect(()=>{
+      function onPref(e){if(!e||!e.detail||e.detail.key==='trackerWakeLock')reconcileMode();}
+      window.addEventListener('cs:prefchange',onPref);
+      return()=>window.removeEventListener('cs:prefchange',onPref);
+    },[reconcileMode]);
 
     useEffect(()=>{
       let cancelled=false;

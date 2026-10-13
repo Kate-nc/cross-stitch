@@ -84,3 +84,11 @@ All seven findings checked against the code; all real, all fixed:
 - **Date-dependent test:** `phase3Batch4` weekly streak failed on `main` today (see progress). Not caused by this batch; made weekday-proof rather than skipped.
 - The V shortcut already cycles symbol / colour / highlight, which showed the "Realistic" button was the stray one.
 
+
+### Copilot round 1 (batch 5)
+Five findings, all real, all fixed:
+- **Request race (high):** two quick marks before the first `request()` settled could take two locks and keep only the last, and a request could land after the Tracker closed. A request in flight is now shared (`pendingRef`); `wantRef` is set before the wait, and a lock that arrives after a release or an unmount is released rather than kept.
+- **Parking a thread took the lock:** the history also holds `PARK` entries (and shrinks on undo). The trigger now needs a new last entry, no shrink, and not `PARK`.
+- **Preference changes were not live:** the hook listens for `cs:prefchange`; Never lets go at once, Always takes the lock now.
+- **Idle test only read the source:** it now runs the captured 15-minute timer and checks the release, the inactive state, and that the next mark takes the lock again; further tests cover shared requests, a lock arriving after Never or after unmount, and the preference events.
+- **Retired term in the confirmation:** the dialog was still "Turn off live tracking?"; now "Stop using up stash thread as you stitch?".
