@@ -145,3 +145,48 @@ test('a 500x500 pattern: map canvas stays at 200 px or less and builds without b
   expect(Math.max(i.cw, i.ch)).toBeLessThanOrEqual(200);
   expect(await px(page, 5, 5)).toBeLessThan(await px(page, i.cw - 5, i.ch - 5));
 });
+
+test('undo takes the mark back out of the map (the map follows every route that changes done)', async ({ page }) => {
+  await open(page, { zoom: 0.95 });
+  const before = await px(page, 100, 100);
+  const scs = await page.evaluate(() => { const sc = document.querySelector('.tracker-chart-scroll'); const s = document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width; sc.scrollLeft = 200 * s - 300; sc.scrollTop = 200 * s - 200; return s; });
+  await page.waitForTimeout(500);
+  const spot = await page.evaluate((s) => { const c = document.querySelector('canvas[aria-label^="Cross stitch pattern grid"]'); const t = c.__chartTile || { x: 0, y: 0 }; const r = c.getBoundingClientRect(); return { x: r.left - t.x + 28 + 200.5 * s, y: r.top - t.y + 28 + 200.5 * s }; }, scs);
+  await page.mouse.click(spot.x, spot.y); await page.waitForTimeout(500);
+  const marked = await px(page, 100, 100);
+  expect(marked).not.toBeCloseTo(before, 0);
+  await page.keyboard.press('Control+z'); await page.waitForTimeout(700);
+  expect(await px(page, 100, 100)).toBeCloseTo(before, 1);
+});
+
+test('left-handed layout puts the map on the right, away from the tool rail on the left', async ({ page }) => {
+  await open(page, { zoom: 0.4, prefs: { trackerHandedness: 'left' } });
+  const i = await info(page);
+  const sc = await page.evaluate(() => document.querySelector('.tracker-chart-scroll').getBoundingClientRect().toJSON());
+  expect(i.box.x + i.box.width, 'inside the chart box').toBeLessThanOrEqual(sc.right);
+  expect(i.box.x, 'in the right half').toBeGreaterThan(sc.x + sc.width / 2);
+});
+
+test('resizing the window keeps the map inside the chart box', async ({ page }) => {
+  await open(page, { zoom: 0.4 });
+  await page.setViewportSize({ width: 1000, height: 700 }); await page.waitForTimeout(800);
+  const i = await info(page);
+  const sc = await page.evaluate(() => document.querySelector('.tracker-chart-scroll').getBoundingClientRect().toJSON());
+  expect(i.shown).toBe(true);
+  expect(i.box.x).toBeGreaterThanOrEqual(sc.x); expect(i.box.x + i.box.width).toBeLessThanOrEqual(sc.right + 1);
+  expect(i.box.y).toBeGreaterThanOrEqual(sc.y); expect(i.box.y + i.box.height).toBeLessThanOrEqual(sc.bottom + 1);
+});
+
+test('on a phone in Focus the map starts closed behind a button, and the button opens it', async ({ browser, context }) => {
+  const phone = await browser.newContext({ viewport: { width: 393, height: 727 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+  await installLocalCdn(phone);
+  const page = await phone.newPage();
+  await open(page, { zoom: 0.5 });
+  await expect(page.locator('.tracker-minimap-open')).toBeVisible();
+  expect((await info(page)).shown).toBe(false);
+  await page.locator('.tracker-minimap-open').click(); await page.waitForTimeout(600);
+  const i = await info(page);
+  expect(i.shown).toBe(true);
+  expect(Math.max(i.box.width, i.box.height), 'smaller on a phone').toBeLessThanOrEqual(100);
+  await phone.close();
+});
