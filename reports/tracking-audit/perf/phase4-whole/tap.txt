@@ -1,0 +1,12 @@
+== port 8002 (8002=before phase 4, 8000=now) pair 1
+{"label":"t1","n":120,"median":11,"p90":16,"mean":12.13}
+== port 8000 (8002=before phase 4, 8000=now) pair 1
+{"label":"t1","n":120,"median":11.3,"p90":15.4,"mean":12.35}
+== port 8002 (8002=before phase 4, 8000=now) pair 2
+{"label":"t2","n":120,"median":11.6,"p90":17.1,"mean":12.38}
+== port 8000 (8002=before phase 4, 8000=now) pair 2
+{"label":"t2","n":120,"median":11,"p90":15.7,"mean":12.02}
+== port 8002 (8002=before phase 4, 8000=now) pair 3
+{"label":"t3","n":120,"median":11.5,"p90":15.2,"mean":11.82}
+== port 8000 (8002=before phase 4, 8000=now) pair 3
+{"label":"t3","n":120,"median":11.9,"p90":15.9,"mean":12.36}
