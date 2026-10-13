@@ -9,6 +9,7 @@
 //   heap     JS heap after a GC, before and after the scenarios:                      MB
 const T = require('./tk');
 const label = process.argv[2] || 'draw', SESSIONS = Number(process.argv[3] || 3), THROTTLE = Number(process.env.THROTTLE || 1);
+const TAPS = Number(process.env.TAPS || 30), TAP_ONLY = process.env.TAP_ONLY === '1';   // TAP_ONLY: skip zoom, pan and drag; many marks
 const BASE = 'http://127.0.0.1:' + (process.env.AUDIT_PORT || '8000') + '/';
 const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const metric = async (cdp, name) => (await cdp.send('Performance.getMetrics')).metrics.find(m => m.name === name).value;
@@ -35,6 +36,7 @@ const task = cdp => metric(cdp, 'TaskDuration');
     const heap = async () => { await cdp.send('HeapProfiler.enable').catch(() => {}); await cdp.send('HeapProfiler.collectGarbage').catch(() => {}); return (await metric(cdp, 'JSHeapUsedSize')) / 1048576; };
     const heap0 = await heap();
     const r = { heap0 };
+    if (!TAP_ONLY) {
     // zoom: full repaints
     await page.mouse.move(700, 400);
     let t0 = await task(cdp);
@@ -62,16 +64,17 @@ const task = cdp => metric(cdp, 'TaskDuration');
     for (let i = 1; i <= 60; i++) await page.mouse.move(a.x + (b.x - a.x) * i / 60, a.y);
     await page.mouse.up(); await page.waitForTimeout(500);
     r.drag60 = ((await task(cdp)) - t0) * 1000;
+    }
     // taps
     t0 = await task(cdp);
-    for (let i = 0; i < 30; i++) { const p = await T.cellPt(page, 3 + (i % 25), 20 + Math.floor(i / 25) * 2); await page.mouse.click(p.x, p.y); await page.waitForTimeout(90); }
+    for (let i = 0; i < TAPS; i++) { const p = await T.cellPt(page, 3 + (i % 25), 20 + Math.floor(i / 25) * 2); await page.mouse.click(p.x, p.y); await page.waitForTimeout(90); }
     await page.waitForTimeout(300);
-    r.tap = ((await task(cdp)) - t0) / 30 * 1000;
+    r.tap = ((await task(cdp)) - t0) / TAPS * 1000;
     r.heap1 = await heap();
-    runs.push(r); console.log(JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, +v.toFixed(2)]))));
+    runs.push(r); console.log(JSON.stringify(Object.fromEntries(Object.entries(r).filter(([k, v]) => typeof v === 'number').map(([k, v]) => [k, +v.toFixed(2)]))));
     await close();
   }
   const out = { label, throttle: THROTTLE, sessions: runs.length };
-  for (const k of ['zoom', 'pan', 'panP95', 'drag60', 'tap', 'heap0', 'heap1']) out[k] = +med(runs.map(r => r[k])).toFixed(2);
+  for (const k of ['zoom', 'pan', 'panP95', 'drag60', 'tap', 'heap0', 'heap1']) { const v = med(runs.map(r => r[k]).filter(x => x != null)); if (v != null) out[k] = +v.toFixed(2); }
   console.log('RESULT ' + JSON.stringify(out));
 })();
