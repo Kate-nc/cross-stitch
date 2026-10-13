@@ -117,7 +117,11 @@ COMMON-01:
 
 Tests: `tests/useWakeLock.test.js` (13, the real hook in jsdom with a mocked Wake Lock), `tests/e2e/phase4-batch5.spec.js` (5), updated `trackerLeftSidebar`, `rtMultiTabGuard`. Also fixed `tests/phase3Batch4.test.js` "weekly streak", which failed on `main` today (a Tuesday): its dates (1, 9, 16, 23 days ago) only form four weeks in a row on some weekdays; they are now relative to the weekday.
 
+### Performance (batch 5)
+Interleaved against `main` (current `origin/main`), phone emulation (393x727 touch, 4x CPU throttle, 300x300 fixture), 3 pairs. This machine was about 30% slower than during batch 4 for both sides, which the interleaving cancels. Tap median (ms): main 91.4 / 93.3 / 87.2, branch 83.7 / 88.9 / 90.8. Stroke commit: main 88.2 / 87.4 / 78.6, branch 79.7 / 79.6 / 89.7. Desktop tap (120 taps): main 11.3 / 11.2 / 11.4, branch 11.9 / 10.4 / 10.8. Load to chart: main 5781 / 5883 / 5580, branch 5584 / 6666 / 5618 (one slow load in the middle pair). No change outside noise; the per-mark wake-lock call returns at once once the lock is held. Raw output in `reports/tracking-audit/perf/phase4-batch5/`.
+
 ### Known limits
 - Wake Lock on real iOS Safari (16.4+ in the browser, a home-screen app behaves differently) and on Android is unverified: only mocked here, and feature-detected so an unsupported browser does nothing.
 - A lock is taken by a mark, so a person who only watches the chart (Navigate) is not kept awake; the chip does it on demand.
+- One cross-tab spec ("a stitch unpicked in the other tab is not brought back") failed once in the 79-spec regression with two workers and passed on its own and in the previous batch's run: a mouse-drag timing flake in the second tab, in code this batch does not touch.
 
