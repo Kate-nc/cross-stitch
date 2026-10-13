@@ -7802,6 +7802,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 @keyframes ppal-fade-in{from{opacity:0;}to{opacity:1;}}
 @media (prefers-reduced-motion:reduce){.ppal-more-backdrop{animation:none;}}
 .ppal-more-panel{
+  visibility:hidden;                       /* shut: out of the tab order and of reach, not only off screen */
   position:absolute;
   top:0;
   right:0;
@@ -7815,10 +7816,10 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
   display:flex;
   flex-direction:column;
   transform:translateX(100%);
-  transition:transform var(--motion);
+  transition:transform var(--motion),visibility 0s linear 0.2s;
   overflow:hidden;
 }
-.ppal-more-panel--open{transform:translateX(0);}
+.ppal-more-panel--open{transform:translateX(0);visibility:visible;transition-delay:0s;}
 @media (prefers-reduced-motion:reduce){.ppal-more-panel{transition:none;}}
 .ppal-more-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .ppal-more-title{font-size:var(--text-sm);font-weight:700;color:var(--text-primary);flex:1;}
@@ -8713,3 +8714,7 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .tracker-minimap-open:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 @media (forced-colors:active){.tracker-minimap__view{border-color:Highlight;}.tracker-minimap{border-color:CanvasText;}}
 @media print{.tracker-minimap,.tracker-minimap-open{display:none!important;}}
+
+/* Keyboard focus on the chart: the guide crosshair is the cursor, and the box shows the chart is where keys go. */
+.tracker-chart-scroll:has(canvas:focus-visible){outline:2px solid var(--accent);outline-offset:-2px;}
+.tracker-chart-scroll canvas:focus-visible{outline:none;}

@@ -132,3 +132,38 @@ Already in the Tracker and kept: the sticky rulers with bold labels every 10 sti
 
 ### Test runs (batch 2)
 `npm test`: 310 suites, 4,159 tests pass. Full `touch-tablet-chromium` project: 279 pass, 5 fail on the first run: `creator-touch` x2 (stale, known since Phase 4), `save-durability` and `phase4-batch5` "Keep screen on" chip (both pass on a rerun, load flakes), and `import-review-phone` "Start stitching opens the pattern in the Tracker at 0%", which fails the same way on `main` at 8928d72 (a first-run style question covers the page and the "0%" text is not visible), so it is not from this batch.
+
+## Batch 3: keyboard parity (TRACK-10), no screen-reader work
+
+### The overload, resolved
+Before: the arrow keys meant a different thing in each mode. In Navigate mode they moved the guide; in Row mode Up and Down changed the row; in Highlight view Left and Right cycled the colour (and that also fired from the chart); in Mark mode with the chart focused they scrolled the page by default. Space was hold-to-pan only. There was no way to mark from the keyboard at all.
+
+The rule now (one block of comments in `handleStitchKeyDown`, and in the Help drawer):
+- **Chart focused, Mark or Navigate mode:** the arrow keys move the guide (Shift: 10 stitches). The one exception is Row mode, which keeps Up and Down for rows (Left and Right still move the guide). Alt+arrows still move the spotlight.
+- **Mark mode, chart focused:** Enter marks or unmarks the stitch at the guide; Space does too once the arrow keys have the guide; Shift+Enter marks or unmarks the rectangle from the last stitch marked from the keyboard to the guide (the same intent as Shift+click, through the same bulk path, so the "mark all as" question, colour lock, history and the "Undo N stitches" toast all behave as they do for the pointer). The first Enter only shows (or drops) the guide, so the next one marks where the guide is rather than somewhere unseen.
+- **Navigate mode never marks**, from the keyboard either (its whole point is that nothing marks by accident). This is narrower than the prompt's "in Navigate mode (or whenever the chart has focus)"; I read the second clause as the rule and kept Navigate's contract.
+- **Anywhere:** `[` and `]` now change the colour in every view (they only worked in Highlight view); the arrow keys still do in Highlight view when focus is off the chart; `G` goes to the colour legend (its tiles were already operable with Enter and Space), `Shift+G` goes back to the chart, `T` and `N` switch mode, Ctrl+Z undoes.
+- **Esc** clears the guide in Mark mode too (when the keyboard has it). A pointer press, Esc or a change of mode hands the guide back, which also gives Space back to hold-to-pan (Space marks only while the keyboard has the guide; this is the one place Space changes meaning, and only after the arrow keys are used).
+- **A shut More panel** is `visibility:hidden` (it was only moved off screen, so its buttons were in the tab order); it opens normally.
+- **Visible focus on the chart:** the chart box gets a 2 px accent outline when the keyboard has the chart (`:has(canvas:focus-visible)`), and the guide crosshair is the cursor.
+- **Not done, by instruction:** no live region and no new announcement. The existing guide announcement in Navigate mode is untouched.
+
+### Evidence
+- Tab reaches the chart in 35 presses from the top of the page (hence `Shift+G` and `G`); the chart's own outline shows.
+- `tests/e2e/phase5-batch3.spec.js` (5) drives the loop with real key presses: Space with no keyboard guide does not mark; arrows move the guide; Enter marks, Enter unmarks, Space marks; a 5 by 3 Shift+Enter rectangle marks 15; Ctrl+Z takes it back as one step; `]` and `[` change the selected colour; `G` lands on a legend tile; `Shift+G` returns to the chart; `N` then Enter marks nothing; Esc clears the guide; Row mode Down changes the row and Right still moves the guide; the shut panel takes no tab stop in 120 Tabs, and opens; a click marks one stitch and Space no longer marks. Run against `main` the four new-behaviour specs fail and the click regression spec passes (it tests something that must not change).
+- `tests/keyboardMarking.test.js` (17) pins the same rules at source level, including that no announcement was added. `tests/helpDrawerShortcutsSync.test.js` passes; its two key-list regexes were not quote-aware, so key lists containing `[` or `]` were silently skipped. They are now, and everything passes.
+- Older tests that pin source text: `trackerNavMode` (the Esc clause) and `trackerParkingFollowups` (the arrow-key condition and the chart's label) were updated for the new rule; `parkMarkerCorners` (a 400-character window in `handleStitchMouseDown`) and `helpDrawer` (the legacy wording "Hold to pan the canvas freely") are satisfied by shortening my insert and keeping the old wording. None of them guarded behaviour that this batch changed beyond the rule itself.
+
+### Performance (batch 3), interleaved against `main` at 131f339, 300x300 fixture with 20% done
+No drawing code changed; the keyboard path calls the same single-stitch and bulk functions the pointer does. Medians of 3 rounds at 1x (2 at 4x CPU throttle):
+| | 1x | 4x |
+|---|---|---|
+| full repaint per zoom step | +1.4% | -4.0% |
+| pan, per step | +3.3% | +2.5% |
+| drag of 60 cells | +0.5% | -2.2% |
+| single mark | +2.0% | -1.0% |
+| heap after GC | +0.1% | +0.0% |
+All inside the noise measured in batch 2 (an A/A run of `main` against itself swung up to 8% on drag and 4% on pan). Raw runs in `reports/tracking-audit/perf/phase5-batch3/`.
+
+### Test runs (batch 3)
+`npm test`: 311 suites, 4,176 tests pass. Full `touch-tablet-chromium` project: 285 pass, 5 fail on the first run. `creator-touch` x2 (stale since Phase 4) and `import-review-phone` "Start stitching ... 0%" (fails the same way on `main`) are the known ones. `phase2-batch1` "Fit puts a tall pattern wholly in the box" passed on a rerun alone (a load flake; batch 2's run and this rerun both pass). `phase3-hunt` "two tabs deleting different sessions" fails on rerun here and on `main` at 131f339 too (a two-tab timing test, not from this batch; its sibling "two tabs: an Undo ..." failed here once and passed on `main`, so it is flaky).
