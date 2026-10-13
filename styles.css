@@ -1447,8 +1447,9 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 
 /* ═══ Stats: Dashboard ═══ */
 .stats-dashboard {
-  max-width: 700px;
+  max-width: 1280px;
   margin: 0 auto;
+  padding: 0 var(--s-4);
 }
 
 /* ═══ Stats: Charts ═══ */
@@ -3215,7 +3216,7 @@ kbd {
 
 /* Stats container with tab bar */
 .stats-container {
-  max-width: 800px;
+  max-width: 1280px;
   margin: 0 auto;
   /* the page's width, never the widest thing inside it (a long project name in the tab bar used to widen the whole
      page on a phone) */
@@ -3289,6 +3290,8 @@ kbd {
 /* Dashboard body */
 .gsd {
   padding: 0 16px;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 @media (min-width: 600px) {
   .gsd { padding: 0 20px; }
@@ -3306,12 +3309,9 @@ kbd {
 /* Metric cards */
 .gsd-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
   margin-bottom: 0.5rem;
-}
-@media (min-width: 600px) {
-  .gsd-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .gsd-metric {
   background: var(--surface);
@@ -8712,6 +8712,84 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
    where More could not be reached because nothing on the page scrolls. */
 .ppal-mode-strip { max-height: calc(100% - 8px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 
+/* ═══ Stats: bento layout ═══
+   One shared grid for every stats tab. A wrapping flex row, so each row of
+   tiles always fills the full width and a hidden tile never leaves a gap.
+   Size classes set a preferred width; flex-grow shares out what is left. */
+.bento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.bento-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 300px;
+}
+.bento-cell--sm   { flex: 1 1 200px; }
+.bento-cell--md   { flex: 1.3 1 300px; }
+.bento-cell--lg   { flex: 2 1 440px; }
+.bento-cell--xl   { flex: 3 1 620px; }
+.bento-cell--full { flex: 1 1 100%; }
+.bento-cell > .gsd-section-label,
+.bento-cell > .stats-section-title { margin: 0 0 var(--s-2); }
+.bento-cell > :where(:not(.gsd-section-label):not(.stats-section-title)) {
+  flex: 1 1 auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.bento-cell > .stats-accordion { margin-top: 0; align-self: stretch; }
+@media (max-width: 640px) {
+  .bento-cell,
+  .bento-cell--sm,
+  .bento-cell--md,
+  .bento-cell--lg,
+  .bento-cell--xl { flex-basis: 100%; }
+}
+.gsd-week-summary {
+  margin: var(--s-3) 0 0;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.bento-cell.gsd-timeline > :not(.gsd-section-label) { flex: none; }
+.gsd-tl-cols { column-width: 320px; column-gap: var(--s-5); }
+.gsd-tl-cols .gsd-tl-day { break-inside: avoid; }
+.bento-cell--stack { gap: var(--s-3); }
+.bento-cell--stack > * { flex: 1 1 auto; }
+
+.bento-cell > .stats-export-bar { flex: none; margin-top: var(--s-3); }
+.bento-cell .gsd-insights { align-content: start; }
+@media (max-width: 640px) {
+  .gsd-metrics > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* Overview / Visuals switch in a project's Stats */
+.stats-viewtabs {
+  display: inline-flex;
+  margin: 0 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  overflow: hidden;
+}
+.stats-viewtab {
+  padding: 6px 18px;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+.stats-viewtab--on { background: var(--accent-light); color: var(--accent-ink); font-weight: 600; }
+.stats-viewtab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ── Tracker pattern overview (Phase 5, TRACK-09) ─────────────────────────────────────────────────────────────── */
 .tracker-minimap{position:absolute;left:0;top:0;z-index:20;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-tertiary);box-shadow:var(--shadow-sm);overflow:hidden;touch-action:none;cursor:pointer;user-select:none;-webkit-user-select:none;}

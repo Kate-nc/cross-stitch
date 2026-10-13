@@ -421,7 +421,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
   }, []);
 
   const lnk = { fontSize:'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
-  const wrap = { maxWidth: 700, margin: '0 auto', padding: '0 16px 80px' };
+  const wrap = { maxWidth: 1280, margin: '0 auto', padding: '0 16px 80px' };
 
   if (!premium) {
     return h('div', { style: wrap },
@@ -479,17 +479,20 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
       h('button', { onClick: handleDismissFilter, style: Object.assign({}, lnk, { fontSize:'var(--text-sm)', color: 'var(--accent-hover)' }) }, 'Clear filter \u2192')
     ),
 
-    // ── Heatmap ───────────────────────────────────────────────────
-    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', padding: '16px 16px 12px', marginBottom:'var(--s-3)' } },
-      h(ActivityHeatmap, {
-        grid,
-        byDay,
-        onCellHover: handleCellHover,
-        onCellLeave: handleCellLeave,
-        onCellClick: handleCellClick,
-        highlightDate: selectedDay ? selectedDay.date : null
-      })
+    // ── Period selector ───────────────────────────────────────────
+    h('div', { style: { display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' } },
+      PERIODS.map(p => h('button', {
+        key: p.value,
+        onClick: () => handlePeriodChange(p.value),
+        style: {
+          padding: '5px 12px', borderRadius: 20, fontSize:'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          background: period === p.value ? 'var(--accent)' : 'var(--surface, #fff)',
+          color: period === p.value ? 'var(--surface)' : 'var(--text-secondary)',
+          border: '1px solid ' + (period === p.value ? 'var(--accent)' : 'var(--border)')
+        }
+      }, p.label))
     ),
+
 
     // ── Tooltip (fixed, follows cursor) ──────────────────────────
     tooltip && h('div', {
@@ -513,65 +516,21 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
       h('button', { onClick: () => setSelectedDay(null), 'aria-label': 'Dismiss', style: { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '0 4px', lineHeight: 1 } }, '\xd7')
     ),
 
-    // ── Period selector ───────────────────────────────────────────
-    h('div', { style: { display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' } },
-      PERIODS.map(p => h('button', {
-        key: p.value,
-        onClick: () => handlePeriodChange(p.value),
-        style: {
-          padding: '5px 12px', borderRadius: 20, fontSize:'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-          background: period === p.value ? 'var(--accent)' : 'var(--surface, #fff)',
-          color: period === p.value ? 'var(--surface)' : 'var(--text-secondary)',
-          border: '1px solid ' + (period === p.value ? 'var(--accent)' : 'var(--border)')
-        }
-      }, p.label))
+    // ── Bento: calendar, busiest periods, pace figures, habit highlights ─────
+    h('div', { className: 'bento' },
+    h('div', { className: 'bento-cell bento-cell--xl' },
+    h('div', { style: { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', padding: '16px 16px 12px', marginBottom:'var(--s-3)' } },
+      h(ActivityHeatmap, {
+        grid,
+        byDay,
+        onCellHover: handleCellHover,
+        onCellLeave: handleCellLeave,
+        onCellClick: handleCellClick,
+        highlightDate: selectedDay ? selectedDay.date : null
+      })
+    )
     ),
-
-    // ── Insights ──────────────────────────────────────────────────
-    insights.length > 0 && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 } },
-      insights.map(ins => h('div', {
-        key: ins.id,
-        onClick: ins.date ? () => {
-          const found = grid.find(d => d.date === ins.date);
-          if (found) setSelectedDay(prev => prev && prev.date === ins.date ? null : found);
-        } : undefined,
-        style: {
-          background: 'var(--surface, #fff)', border: '1px solid var(--border)',
-          borderRadius:'var(--radius-lg)', padding: '12px 14px', fontSize:'var(--text-md)', color: 'var(--text-primary)',
-          lineHeight: 1.5, cursor: ins.date ? 'pointer' : 'default'
-        }
-      },
-        h('div', { style: { fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom:'var(--s-1)' } }, ins.label),
-        ins.text
-      ))
-    ),
-
-    // ── Pace stats (4 cards) ──────────────────────────────────────
-    paceStats && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 } },
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
-        h('div', { className: 'gsd-metric-label' }, 'Avg. per Session'),
-        h('div', { className: 'gsd-metric-value' }, fmtNum(paceStats.avgPerSession)),
-        h('div', { className: 'gsd-metric-sub' }, 'stitches per active day')
-      ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
-        h('div', { className: 'gsd-metric-label' }, 'Est. Hours'),
-        h('div', { className: 'gsd-metric-value' }, '\u2248 ' + paceStats.estHours),
-        h('div', { className: 'gsd-metric-sub' }, paceStats.rateLabel)
-      ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
-        h('div', { className: 'gsd-metric-label' }, 'Avg. Session'),
-        h('div', { className: 'gsd-metric-value' }, '~' + fmtHours(paceStats.sessionHours)),
-        h('div', { className: 'gsd-metric-sub' }, 'per active day')
-      ),
-      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
-        h('div', { className: 'gsd-metric-label' }, 'Active Days'),
-        h('div', { className: 'gsd-metric-value' }, paceStats.sessionCount),
-        h('div', { className: 'gsd-metric-sub' }, 'of ' + paceStats.totalDays + ' in period')
-      )
-    ),
-
-    // ── Busiest periods ───────────────────────────────────────────
-    busiestPeriods.length > 0 && h('div', {
+    busiestPeriods.length > 0 && h('div', { className: 'bento-cell bento-cell--md' }, h('div', {
       style: { background: 'var(--surface, #fff)', border: '1px solid var(--border)', borderRadius:'var(--radius-xl)', overflow: 'hidden', marginBottom: 20 }
     },
       h('div', { style: { padding: '12px 16px', borderBottom: '1px solid var(--border)', fontSize:'var(--text-xs)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)' } },
@@ -598,6 +557,46 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
           h('div', { style: { width: 60, flexShrink: 0 } }, h(Sparkline, { days: p.days }))
         );
       })
+    )),
+    paceStats && h('div', { className: 'bento-cell bento-cell--md' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 } },
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
+        h('div', { className: 'gsd-metric-label' }, 'Avg. per Session'),
+        h('div', { className: 'gsd-metric-value' }, fmtNum(paceStats.avgPerSession)),
+        h('div', { className: 'gsd-metric-sub' }, 'stitches per active day')
+      ),
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
+        h('div', { className: 'gsd-metric-label' }, 'Est. Hours'),
+        h('div', { className: 'gsd-metric-value' }, '\u2248 ' + paceStats.estHours),
+        h('div', { className: 'gsd-metric-sub' }, paceStats.rateLabel)
+      ),
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
+        h('div', { className: 'gsd-metric-label' }, 'Avg. Session'),
+        h('div', { className: 'gsd-metric-value' }, '~' + fmtHours(paceStats.sessionHours)),
+        h('div', { className: 'gsd-metric-sub' }, 'per active day')
+      ),
+      h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
+        h('div', { className: 'gsd-metric-label' }, 'Active Days'),
+        h('div', { className: 'gsd-metric-value' }, paceStats.sessionCount),
+        h('div', { className: 'gsd-metric-sub' }, 'of ' + paceStats.totalDays + ' in period')
+      )
+    )),
+    insights.length > 0 && h('div', { className: 'bento-cell bento-cell--lg' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 } },
+      insights.map(ins => h('div', {
+        key: ins.id,
+        onClick: ins.date ? () => {
+          const found = grid.find(d => d.date === ins.date);
+          if (found) setSelectedDay(prev => prev && prev.date === ins.date ? null : found);
+        } : undefined,
+        style: {
+          background: 'var(--surface, #fff)', border: '1px solid var(--border)',
+          borderRadius:'var(--radius-lg)', padding: '12px 14px', fontSize:'var(--text-md)', color: 'var(--text-primary)',
+          lineHeight: 1.5, cursor: ins.date ? 'pointer' : 'default'
+        }
+      },
+        h('div', { style: { fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom:'var(--s-1)' } }, ins.label),
+        ins.text
+      ))
+    )),
     ),
 
     // ── Empty state ───────────────────────────────────────────────

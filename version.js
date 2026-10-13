@@ -4,15 +4,25 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.137';
+window.APP_VERSION = '1.0.138';
 
 window.APP_CHANGELOG = [
   {
-    version: '1.0.137',
+    version: '1.0.139',
     date: 'October 2026',
     notes: [
       'Quarter stitches can be marked as done. In Mark mode, tap or click the quarter you have stitched (with a mouse, a finger or Enter at the keyboard guide); each shows faded until it is done, Undo and Redo cover it, and it is saved, kept in a backup and synced like every other mark. The colours drawer counts them as, for example, 2/3 fractional, and a colour used only in quarter stitches no longer reads 0/0.',
       'Progress now includes quarter stitches, each worth a quarter of a full stitch. A chart that has them can therefore show a lower percentage than before until they are stitched (the Home cards, the library, Stats and the share text all agree). Backstitch still has its own count and is not in the percentage.'
+    ]
+  },
+  {
+    version: '1.0.138',
+    date: 'October 2026',
+    notes: [
+      'The Stats page now uses the whole width of your screen. Every tab is a grid of tiles that wrap to fit (one column on a phone), instead of one narrow column down the middle.',
+      'Each figure now lives in one place. The Stitching tab holds your totals, streak, recent pace and the week summary; the Stash tab no longer repeats lifetime stitches, active projects, the weekly streak or the recent pace, and Insights no longer repeats the weekly summary.',
+      'In a project\'s Stats, streaks and milestones sit beside the summary and your goals sit beside the chart. Showcase stays on the all-projects page only.',
+      'A project\'s Stats has a new Visuals view (the button above the tiles). Sections, the Before / After comparison, Colour progress and the Colour timeline are open and full size there, instead of folded away at the bottom.'
     ]
   },
   {

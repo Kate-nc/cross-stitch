@@ -46,10 +46,12 @@ function makeWindow() {
 const sW = 4, sH = 4;
 const DONE = Array.from({ length: sW * sH }, (_, i) => (i < 6 ? 1 : 0));
 
-async function renderOtherProject(stored) {
+async function renderOtherProject(stored, view = 'visuals') {
   const { w, fills } = makeWindow();
-  // The groups that start closed on the Stats page (Phase 3) are only built when open; this test is about their canvases.
-  ['colour-timeline', 'sections', 'comparison', 'settings'].forEach((k) => w.localStorage.setItem('cs_stats_acc_' + k, '1'));
+  // The sections, comparison and colour charts live on the Visuals view, which is only built when chosen; this test is
+  // about their canvases. (Settings is still a group that starts closed.)
+  w.localStorage.setItem('cs_stats_view', view);
+  w.localStorage.setItem('cs_stats_acc_settings', '1');
   w.ProjectStorage = {
     listProjects: () => Promise.resolve([{ id: 'current', name: 'Current' }, { id: stored.id, name: stored.name }]),
     get: () => Promise.resolve(stored)
@@ -81,10 +83,14 @@ describe('StatsContainer — another project loaded from storage', () => {
   test('compact-format projects (.p grid) render and count their stitches', async () => {
     const p = [];
     for (let i = 0; i < sW * sH; i++) p.push(i < 8 ? ['310'] : i < 14 ? ['321'] : ['', 'k']);
-    const { text, fills } = await renderOtherProject({ id: 'compact', name: 'Compact', settings: { sW, sH }, p, done: DONE, statsSessions: [] });
-    expect(text).not.toMatch(/Stats failed to render/);
-    expect(text).toMatch(/6\s*\/\s*14|of 14/);
-    expect(fills).toContain('rgb(0,0,0)');
+    const stored = { id: 'compact', name: 'Compact', settings: { sW, sH }, p, done: DONE, statsSessions: [] };
+    // The count is on the Overview; the comparison canvas is on the Visuals view.
+    const overview = await renderOtherProject(stored, 'overview');
+    expect(overview.text).not.toMatch(/Stats failed to render/);
+    expect(overview.text).toMatch(/6\s*\/\s*14|of 14/);
+    const visuals = await renderOtherProject(stored, 'visuals');
+    expect(visuals.text).not.toMatch(/Stats failed to render/);
+    expect(visuals.fills).toContain('rgb(0,0,0)');
   });
 });
 

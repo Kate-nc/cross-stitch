@@ -122,9 +122,13 @@ const COMPONENTS_STATS_SRC = fs.readFileSync(path.join(__dirname, '..', 'compone
 // ── S1: Weekly vs Daily streak labels are unambiguous ────────────────────────────
 
 describe('S1 — streak label disambiguation', () => {
-  test('stats-page.js StatCard uses "Weekly Streak", not "Stitching Streak"', () => {
-    expect(STATS_PAGE_SRC).toContain("title: 'Weekly Streak'");
+  test('the streak is one tile on the Stitching tab; the Stash tab no longer repeats it, and nothing says "Stitching Streak"', () => {
+    // (Layout rework: each figure lives in one place, so the Stash tab's "Weekly Streak" card was merged into the
+    // Stitching tab's Streak tile.)
+    expect(STATS_PAGE_SRC).not.toContain("title: 'Weekly Streak'");
     expect(STATS_PAGE_SRC).not.toContain("title: 'Stitching Streak'");
+    expect(COMPONENTS_STATS_SRC).toContain("'Streak'");
+    expect(COMPONENTS_STATS_SRC).not.toContain('Stitching Streak');
   });
 
   test('components-stats.js labels the weekly and the daily streak apart ("weeks in a row" / "days in a row")', () => {
