@@ -120,6 +120,10 @@ const ProjectStorage = (() => {
     const out = Object.assign({}, project, { done: Array.from(rec.done) });
     if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
     out.knotsDone = Array.isArray(rec.knotsDone) && rec.knotsDone.length ? rec.knotsDone : undefined;
+    // Backstitch and quarter-stitch marks (Phase 6): a record from a build that did not know them has no such field,
+    // and then the project's own marks stand; a record that has the field (even empty) is the newer truth.
+    if (Array.isArray(rec.bsDone)) out.bsDone = rec.bsDone.length ? rec.bsDone : undefined;
+    if (Array.isArray(rec.partialDone)) out.partialDone = rec.partialDone.length ? rec.partialDone : undefined;
     return out;
   }
 
@@ -194,7 +198,7 @@ const ProjectStorage = (() => {
       unitsV: PROGRESS_ROW_VERSION,
       // Any stitching done at all, including half stitches alone (completedStitches counts full stitches and
       // knots only). Used to decide whether a backup reminder is worth showing.
-      anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))),
+      anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))) || (Array.isArray(p.bsDone) && p.bsDone.length > 0) || (Array.isArray(p.partialDone) && p.partialDone.length > 0),
       source: p.source || p.page || "unknown",
       sessionCount: sessions.length,
       totalMinutes: totalMinutes,
@@ -716,7 +720,7 @@ const ProjectStorage = (() => {
     // baseWriteAt, the project's lastWriteAt when it was written. Any later write
     // to the project (the Tracker's own full save, a sync import, a restore, a
     // rename) changes lastWriteAt, which makes the record stale and ignored.
-    // data: { done: Uint8Array|Array, halfDone: [[idx,{fwd,bck}]], knotsDone: [],
+    // data: { done: Uint8Array|Array, halfDone: [[idx,{fwd,bck}]], knotsDone: [], bsDone: [], partialDone: [[idx,[pos]]],
     //         baseWriteAt: number|null, tabId }
     async saveProgress(id, data) {
       if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
@@ -728,6 +732,7 @@ const ProjectStorage = (() => {
           id: PROGRESS_PREFIX + id, projectId: id, v: 1,
           done: data.done instanceof Uint8Array ? data.done : Uint8Array.from(data.done),
           halfDone: data.halfDone || [], knotsDone: data.knotsDone || [],
+          bsDone: data.bsDone || [], partialDone: data.partialDone || [],
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
           tabId: data.tabId || null, updatedAt: Date.now()
         };

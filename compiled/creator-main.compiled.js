@@ -1748,6 +1748,19 @@ function CreatorApp({
         return tf && Array.isArray(tf.knotsDone) ? tf.knotsDone.slice() : [];
       }
       var resizedKnots = window.Knots ? window.Knots.offset(state.knots, spec.offsetX || 0, spec.offsetY || 0, spec.newW, spec.newH) : state.knots || [];
+      function bsDoneNow() {
+        return tf && Array.isArray(tf.bsDone) ? tf.bsDone.slice() : [];
+      }
+      function partialDoneNow() {
+        return tf && Array.isArray(tf.partialDone) ? tf.partialDone : [];
+      }
+      // Backstitch marks move with their lines; quarter marks move with their cells and are dropped if the cell is cropped away.
+      var resizedBsDone = window.Backstitch ? window.Backstitch.offsetDone(bsDoneNow(), spec.offsetX || 0, spec.offsetY || 0) : bsDoneNow();
+      var resizedPartialDone = window.Fractional ? window.Fractional.forSave(window.Fractional.remap(window.Fractional.toMap(partialDoneNow()), state.sW, spec.newW, spec.newH, spec.offsetX || 0, spec.offsetY || 0)) || [] : partialDoneNow();
+      function beadsNow() {
+        return tf && Array.isArray(tf.beads) ? tf.beads : [];
+      }
+      var resizedBeads = window.Knots ? window.Knots.offset(beadsNow(), spec.offsetX || 0, spec.offsetY || 0, spec.newW, spec.newH) : beadsNow();
       var resizedKnotsDone = window.Knots ? window.Knots.offsetDone(knotsDoneNow(), spec.offsetX || 0, spec.offsetY || 0) : knotsDoneNow();
       var result = window.applyCanvasResize(state.pat, state.bsLines, state.done, state.partialStitches, state.parkMarkers, state.sW, state.sH, spec);
       if (!result) return;
@@ -1760,7 +1773,10 @@ function CreatorApp({
         ps: [...state.partialStitches.entries()],
         parkMarkers: state.parkMarkers.slice(),
         knots: (state.knots || []).slice(),
-        knotsDone: knotsDoneNow()
+        knotsDone: knotsDoneNow(),
+        bsDone: bsDoneNow(),
+        partialDone: partialDoneNow(),
+        beads: beadsNow()
       };
       var nextSnap = {
         sW: spec.newW,
@@ -1771,7 +1787,10 @@ function CreatorApp({
         ps: [...result.newPartialStitches.entries()],
         parkMarkers: result.newParkMarkers,
         knots: resizedKnots,
-        knotsDone: resizedKnotsDone
+        knotsDone: resizedKnotsDone,
+        bsDone: resizedBsDone,
+        partialDone: resizedPartialDone,
+        beads: resizedBeads
       };
       var builtPal = state.buildPaletteWithScratch(result.newPat);
       state.setSW(spec.newW);
@@ -1782,7 +1801,12 @@ function CreatorApp({
       state.setPartialStitches(result.newPartialStitches);
       state.setParkMarkers(result.newParkMarkers);
       if (state.setKnots) state.setKnots(resizedKnots);
-      if (tf) tf.knotsDone = resizedKnotsDone;
+      if (tf) {
+        tf.knotsDone = resizedKnotsDone;
+        if (resizedBsDone.length) tf.bsDone = resizedBsDone;else delete tf.bsDone;
+        if (resizedPartialDone.length) tf.partialDone = resizedPartialDone;else delete tf.partialDone;
+        if (resizedBeads.length) tf.beads = resizedBeads;else delete tf.beads;
+      }
       state.setPal(builtPal.pal);
       state.setCmap(builtPal.cmap);
       state.setRedoHistory([]);

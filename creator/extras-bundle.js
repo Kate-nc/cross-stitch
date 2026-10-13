@@ -4116,7 +4116,8 @@ window.CreatorExportTab = function CreatorExportTab() {
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
-            knots: ctx.knots || []
+            knots: ctx.knots || [],
+            beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {

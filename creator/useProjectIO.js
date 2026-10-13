@@ -453,6 +453,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       _tf.halfDone = project.halfDone;
     if (Array.isArray(project.knotsDone) && project.knotsDone.length > 0)
       _tf.knotsDone = project.knotsDone;
+    // Backstitch and quarter-stitch done marks, and beads: carried so a Creator save does not drop them.
+    if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
+    if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
+    if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = project.beads;
     // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
     if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
     if (project.startedAt)            _tf.startedAt = project.startedAt;
@@ -1094,6 +1098,10 @@ window.useProjectIO = function useProjectIO(state, history, options) {
         tf.halfDone = freshProject.halfDone;
       if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
         tf.knotsDone = freshProject.knotsDone;
+      // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
+      if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
+      if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
+      if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = freshProject.beads;
       // Refresh v3 stats fields
       if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;
       if (freshProject.startedAt)            tf.startedAt = freshProject.startedAt;
