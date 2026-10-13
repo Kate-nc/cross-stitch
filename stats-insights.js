@@ -168,27 +168,6 @@
   }
 
   // ── Sub-components ───────────────────────────────────────────────────────
-  function WeeklySummaryCard({ thisWeek, lastWeek }) {
-    const text = useMemo(() => {
-      if (typeof InsightsEngine === 'undefined') return '';
-      return InsightsEngine.generateWeeklySummary(thisWeek, lastWeek);
-    }, [thisWeek, lastWeek]);
-    return h('div', {
-      style: {
-        background: 'linear-gradient(135deg, var(--accent-light) 0%, #ecfeff 100%)',
-        border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-lg)',
-        padding: '16px 20px', marginBottom:'var(--s-4)'
-      }
-    },
-      h('div', {
-        style: { fontSize:'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.06, color: 'var(--accent)', marginBottom:'var(--s-2)' }
-      }, 'This week'),
-      h('p', {
-        style: { margin: 0, fontSize:'var(--text-lg)', lineHeight: 1.6, color: 'var(--text-primary)' }
-      }, text || 'Nothing to summarise yet \u2014 stitch a few sessions to see your weekly story.')
-    );
-  }
-
   function ProjectionCard({ p }) {
     const isComplete = p.status === 'complete';
     const isPaused = p.status === 'paused';
@@ -419,45 +398,50 @@
       );
     }
 
-    return h('div', { style: { padding: '12px 0 40px' } },
-      // Weekly summary
-      h(WeeklySummaryCard, { thisWeek: weekComp.thisWeek, lastWeek: weekComp.lastWeek }),
-
-      // Projects section
-      projections.length > 0 && h('div', null,
-        h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Your projects'),
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, margin: '8px 0 16px' } },
-          projections.map(p => h(ProjectionCard, { key: p.id, p: p }))
-        )
-      ),
-
-      // Insights list
-      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Insights'),
-      insights.length > 0
-        ? h('div', { style: { margin: '8px 0 16px' } },
-            insights.map(i => h(InsightCard, { key: i.id, insight: i, onDismiss: dismissInsight }))
+    // Bento layout (shared .bento / .bento-cell classes in styles.css). The weekly summary that used to open this
+    // tab now lives on the Stitching tab, next to the week-versus-last-week numbers.
+    const label = text => h('div', { className: 'gsd-section-label' }, text);
+    const panel = child => h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14 } }, child);
+    return h('div', { className: 'stats-dashboard', style: { padding: '12px var(--s-4) 40px' } },
+      h('div', { className: 'bento' },
+        // Projects (projected finish dates)
+        projections.length > 0 && h('div', { className: 'bento-cell bento-cell--full' },
+          label('Your projects'),
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 } },
+            projections.map(p => h(ProjectionCard, { key: p.id, p: p }))
           )
-        : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '16px 0' } },
-            dismissedCount > 0
-              ? 'No active insights right now \u2014 you may have dismissed them all.'
-              : 'No insights yet \u2014 keep stitching and check back soon!'
-          ),
-      dismissedCount > 0 && h('button', {
-        onClick: resetDismissed,
-        title: 'Hidden insights reappear after 30 days. Click to show them now.',
-        style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, marginBottom:'var(--s-4)' }
-      }, 'Show all insights (' + dismissedCount + ' hidden)'),
+        ),
 
-      // Colour heatmap
-      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Colour usage'),
-      h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14, margin: '8px 0 16px' } },
-        h(ColourHeatmap, { mostUsed: data.mostUsed, totalColours: data.totalColours, stash: data.stash })
-      ),
+        // Insights list
+        h('div', { className: 'bento-cell bento-cell--lg' },
+          label('Insights'),
+          insights.length > 0
+            ? h('div', null,
+                insights.map(i => h(InsightCard, { key: i.id, insight: i, onDismiss: dismissInsight }))
+              )
+            : h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)', padding: '16px 0' } },
+                dismissedCount > 0
+                  ? 'No active insights right now \u2014 you may have dismissed them all.'
+                  : 'No insights yet \u2014 keep stitching and check back soon!'
+              ),
+          dismissedCount > 0 && h('button', {
+            onClick: resetDismissed,
+            title: 'Hidden insights reappear after 30 days. Click to show them now.',
+            style: { fontSize:'var(--text-xs)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, alignSelf: 'flex-start' }
+          }, 'Show all insights (' + dismissedCount + ' hidden)')
+        ),
 
-      // Rhythm heatmap
-      h('div', { className: 'gsd-section-label', style: { marginTop:'var(--s-4)' } }, 'Stitching rhythm'),
-      h('div', { style: { background: 'var(--surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', padding: 14, margin: '8px 0 16px' } },
-        h(RhythmHeatmap, { allSessions: data.allSessions })
+        // Colour heatmap
+        h('div', { className: 'bento-cell bento-cell--md' },
+          label('Colour usage'),
+          panel(h(ColourHeatmap, { mostUsed: data.mostUsed, totalColours: data.totalColours, stash: data.stash }))
+        ),
+
+        // Rhythm heatmap
+        h('div', { className: 'bento-cell bento-cell--full' },
+          label('Stitching rhythm'),
+          panel(h(RhythmHeatmap, { allSessions: data.allSessions }))
+        )
       )
     );
   }

@@ -4,9 +4,18 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.132';
+window.APP_VERSION = '1.0.133';
 
 window.APP_CHANGELOG = [
+  {
+    version: '1.0.133',
+    date: 'October 2026',
+    notes: [
+      'The Stats page now uses the whole width of your screen. Every tab is a grid of tiles that wrap to fit (one column on a phone), instead of one narrow column down the middle.',
+      'Each figure now lives in one place. The Stitching tab holds your totals, streak, recent pace and the week summary; the Stash tab no longer repeats lifetime stitches, active projects, the weekly streak or the recent pace, and Insights no longer repeats the weekly summary.',
+      'In a project\'s Stats, streaks and milestones sit beside the summary and your goals sit beside the chart. Showcase stays on the all-projects page only.'
+    ]
+  },
   {
     version: '1.0.132',
     date: 'October 2026',

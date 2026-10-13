@@ -1485,11 +1485,9 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
       )
     ),
-    React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, todayStitches:getStatsTodayStitches(statsSessions || [], dayEndHour), weekStitches:getStatsThisWeekStitches(statsSessions || [], dayEndHour)}),
-    React.createElement("div", {className:mot.show ? "stats-two-col" : "", style:{marginTop:16}},
-      mot.show && React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings}),
-      React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour, showStreaks:mot.show, showDaily:mot.daily})
-    ),
+    React.createElement("div", {className:"bento"},
+    React.createElement("div", {className:"bento-cell bento-cell--lg"},
+      React.createElement(OverviewCards, {statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, halfStitchCounts:halfStitchCounts, todayStitches:getStatsTodayStitches(statsSessions || [], dayEndHour), weekStitches:getStatsThisWeekStitches(statsSessions || [], dayEndHour)}),
     React.createElement("div", {className:"stats-export-bar"},
       React.createElement("button", {type:"button",className:"stats-export-btn stats-export-btn--share", onClick:handleShare, style:{display:'flex', alignItems:'center', gap:'6px'}},
         copied ? [Icons.check(), ' Copied!'] : [Icons.clipboard(), ' Copy progress summary']),
@@ -1497,19 +1495,21 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
         Icons.document(), ' Export sessions (CSV)'),
       React.createElement("button", {type:"button",className:"stats-export-btn", onClick:handleExportCard, style:{display:'flex', alignItems:'center', gap:'6px'}},
         Icons.camera(), ' Save as image')
+    )
     ),
-    React.createElement("div", {style:{marginTop:20}},
+    React.createElement("div", {className:"bento-cell bento-cell--md bento-cell--stack"},
+    React.createElement(StreaksPanel, {sessions:statsSessions, dayEndHour:dayEndHour, showStreaks:mot.show, showDaily:mot.daily}),
+    React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
+    ),
+    React.createElement("div", {className:"bento-cell bento-cell--xl"},
       React.createElement(StatsChartSection, {statsSessions:statsSessions, statsSettings:chartSettings, totalStitches:totalStitches, chartView:chartView, setChartView:setChartView, overviewStats:overviewStats, totalCompleted:totalCompleted})
     ),
-    React.createElement("div", {style:{marginTop:20}},
-      React.createElement(MilestoneTracker, {milestones:milestones, achievedMilestones:achievedMilestones})
-    ),
-    React.createElement("div", {style:{marginTop:20}},
-      React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})
-    ),
-    React.createElement("div", {style:{marginTop:20}},
+    mot.show && React.createElement("div", {className:"bento-cell bento-cell--md"}, React.createElement(GoalTracker, {statsSettings:statsSettings, statsSessions:statsSessions, totalCompleted:totalCompleted, totalStitches:totalStitches, overviewStats:overviewStats, onUpdateSettings:onUpdateSettings})),
+    React.createElement("div", {className:"bento-cell bento-cell--lg"},
       React.createElement(SessionTimeline, {sessions:statsSessions, statsSettings:statsSettings, onEditNote:onEditNote, palette:palette, canEdit:canEdit, onEditSession:onEditSession, onDeleteSession:onDeleteSession, onMergeSession:onMergeSession})
     ),
+    React.createElement("div", {className:"bento-cell bento-cell--md bento-cell--stack"},
+    React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions}),
     React.createElement(StatsAccordion, {id:"colour-timeline", title:"Colour timeline"},
       React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts})
     ),
@@ -1539,6 +1539,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
           React.createElement("span", {style:{fontSize:'var(--text-xs)', color:'var(--text-secondary)', marginLeft:'var(--s-2)'}}, "Day ends at, timing and the other tracker settings are there too.")
         )
       )
+    ))
     )
   );
 }
@@ -1825,6 +1826,12 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       React.createElement('p', {style: {color: 'var(--text-tertiary)', fontSize:'var(--text-md)'}}, 'Open a project and start marking stitches \u2014 your stats will appear here automatically.'));
   }
 
+  // Merged from the Stash and Insights tabs: the narrative weekly summary and the recent pace.
+  var weekSummary = (typeof window !== 'undefined' && window.InsightsEngine && window.InsightsEngine.generateWeeklySummary)
+    ? window.InsightsEngine.generateWeeklySummary(weekComparison.thisWeek, weekComparison.lastWeek) : '';
+  var recentPace = (typeof window !== 'undefined' && window.InsightsEngine && window.InsightsEngine.calculateRecentPace)
+    ? window.InsightsEngine.calculateRecentPace(allSessions) : null;
+
   return React.createElement('div', {className: 'stats-dashboard'},
     React.createElement('div', {style: {display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'var(--s-4)', gap:'var(--s-2)', flexWrap: 'wrap'}},
       React.createElement('h2', {style: {fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px'}}, Icons.barChart(), 'All projects'),
@@ -1845,27 +1852,37 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
       )
     ),
 
-    // Section 1: Lifetime totals
-    React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
-    React.createElement('div', {className: 'gsd-metrics'},
-      React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
-      React.createElement(MetricCard, {label: 'Time stitching' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
-      React.createElement(MetricCard, {label: 'Average speed' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: lifetimeTotals.speed, sub: 'stitches / hour'}),
-      React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' finished', sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
+    // Bento grid: every tile below is one cell. Sizes: sm / md / lg / xl / full.
+    React.createElement('div', {className: 'bento'},
+
+    // Lifetime totals (also carries the recent pace, merged in from the Stash tab)
+    React.createElement('div', {className: 'bento-cell bento-cell--xl'},
+      React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
+      React.createElement('div', {className: 'gsd-metrics'},
+        React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
+        React.createElement(MetricCard, {label: 'Time stitching' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
+        React.createElement(MetricCard, {label: 'Average speed' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: lifetimeTotals.speed, sub: 'stitches / hour'}),
+        recentPace && recentPace.activeDays > 0 && React.createElement(MetricCard, {label: 'Recent pace', value: Math.round(recentPace.pacePerDay).toLocaleString('en-GB'), sub: 'stitches / stitching day'}),
+        React.createElement(MetricCard, {label: 'Projects', value: lifetimeTotals.complete + ' finished', sub: (lifetimeTotals.total - lifetimeTotals.complete) + ' in progress'})
+      )
     ),
 
-    // Section 2: Streak
-    mot.show && allSessions.length > 0 && React.createElement('div', {className: 'gsd-streak'},
-      React.createElement('div', {className: 'gsd-streak-flame'}, Icons.fire()),
-      React.createElement('div', {className: 'gsd-streak-body'},
-        React.createElement('div', {className: 'gsd-streak-num'}, weeksText(globalStreak.weekly.current)),
-        React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.weekly.current > 0 ? 'Weeks in a row with some stitching' : 'A new run of weeks begins with your next session'),
-        mot.daily && React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.daily.current + ' day' + (globalStreak.daily.current !== 1 ? 's' : '') + ' in a row (most ' + globalStreak.daily.longest + ')')
-      ),
-      React.createElement('div', {className: 'gsd-streak-best'}, 'Most: ' + weeksText(globalStreak.weekly.longest))
+    // Streak (weekly and daily in one tile; merged from the Stash tab)
+    mot.show && allSessions.length > 0 && React.createElement('div', {className: 'bento-cell bento-cell--md'},
+      React.createElement('h3', {className: 'gsd-section-label'}, 'Streak'),
+      React.createElement('div', {className: 'gsd-streak'},
+        React.createElement('div', {className: 'gsd-streak-flame'}, Icons.fire()),
+        React.createElement('div', {className: 'gsd-streak-body'},
+          React.createElement('div', {className: 'gsd-streak-num'}, weeksText(globalStreak.weekly.current)),
+          React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.weekly.current > 0 ? 'Weeks in a row with some stitching' : 'A new run of weeks begins with your next session'),
+          mot.daily && React.createElement('div', {className: 'gsd-streak-label'}, globalStreak.daily.current + ' day' + (globalStreak.daily.current !== 1 ? 's' : '') + ' in a row (most ' + globalStreak.daily.longest + ')')
+        ),
+        React.createElement('div', {className: 'gsd-streak-best'}, 'Most: ' + weeksText(globalStreak.weekly.longest))
+      )
     ),
 
-    // Section 3: Project cards
+    // Project cards
+    React.createElement('div', {className: 'bento-cell bento-cell--xl'},
     React.createElement('h3', {className: 'gsd-section-label'}, 'Projects'),
     React.createElement('div', {className: 'gsd-projects'},
       projectSummaries.slice().sort(function(a, b) {
@@ -1881,9 +1898,10 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
           React.createElement('div', {className: 'gsd-pc-sub'}, p.isComplete ? 'Complete!' : remaining.toLocaleString('en-GB') + ' left')
         );
       })
-    ),
+    )),
 
-    // Section 4: Week comparison
+    // Week comparison, with the narrative summary merged in from the Insights tab
+    React.createElement('div', {className: 'bento-cell bento-cell--lg'},
     React.createElement('h3', {className: 'gsd-section-label'}, 'This week vs last week'),
     React.createElement('div', {className: 'gsd-week'},
       React.createElement('div', {className: 'gsd-week-grid'},
@@ -1891,11 +1909,12 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         React.createElement(WeekMetric, {label: 'time', value: formatDurationCompact(weekComparison.thisWeek.seconds), delta: weekComparison.timeDelta}),
         React.createElement(WeekMetric, {label: 'st/hour', value: weekComparison.thisWeek.speed, delta: weekComparison.speedDelta}),
         React.createElement(WeekMetric, {label: 'days active', value: weekComparison.thisWeek.activeDays + ' / 7', delta: weekComparison.daysDelta, isDays: true})
-      )
-    ),
+      ),
+      weekSummary && React.createElement('p', {className: 'gsd-week-summary'}, weekSummary)
+    )),
 
     // Section 5: Goals (stored globally in localStorage, not tied to any single project)
-    mot.show && React.createElement('div', {style: {marginBottom: '1.5rem'}},
+    mot.show && React.createElement('div', {className: 'bento-cell bento-cell--md'},
       React.createElement('h3', {className: 'gsd-section-label'}, 'Goals'),
       React.createElement(GoalTracker, {
         statsSettings: effectiveGoalSettings,
@@ -1908,7 +1927,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     ),
 
     // Section 6: Insights
-    insights.length > 0 && React.createElement('div', null,
+    insights.length > 0 && React.createElement('div', {className: 'bento-cell bento-cell--lg'},
       React.createElement('h3', {className: 'gsd-section-label'}, 'Insights'),
       React.createElement('div', {className: 'gsd-insights'},
         insights.map(function(ins, i) {
@@ -1924,9 +1943,9 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     ),
 
     // Section 9: Session timeline
-    React.createElement('div', {className: 'gsd-timeline'},
-      React.createElement('h3', {className: 'gsd-section-label', style: {marginBottom: 10}}, 'Recent sessions'),
-      timeline.grouped.map(function(day) {
+    React.createElement('div', {className: 'bento-cell bento-cell--full gsd-timeline'},
+      React.createElement('h3', {className: 'gsd-section-label'}, 'Recent sessions'),
+      React.createElement('div', {className: 'gsd-tl-cols'}, timeline.grouped.map(function(day) {
         return React.createElement('div', {key: day.date || 'nd', className: 'gsd-tl-day'},
           React.createElement('div', {className: 'gsd-tl-date'}, fmtDayLabel(day.date)),
           day.entries.map(function(entry, i) {
@@ -1951,9 +1970,10 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
             );
           })
         );
-      }),
+      })),
       tlLimit < timeline.total && React.createElement('button', {className: 'timeline-show-all',
         onClick: function() { setTlLimit(function(prev) { return prev + 20; }); }}, 'Show more')
+    )
     )
   );
 }
