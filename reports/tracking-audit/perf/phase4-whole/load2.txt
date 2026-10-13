@@ -1,0 +1,16 @@
+== port 8002 (8002=before, 8000=now) round 1
+"loadMedianMs":5295,"loads":[5813,4982,5274,5755,5295,5001]
+== port 8000 (8002=before, 8000=now) round 1
+"loadMedianMs":5247,"loads":[5524,5897,4473,5096,4976,5247]
+== port 8002 (8002=before, 8000=now) round 2
+"loadMedianMs":5650,"loads":[5496,5708,5492,5292,5691,5650]
+== port 8000 (8002=before, 8000=now) round 2
+"loadMedianMs":5506,"loads":[6108,5581,5332,5376,5506,4721]
+== port 8002 (8002=before, 8000=now) round 3
+"loadMedianMs":5814,"loads":[4989,5409,5856,5987,5814,5227]
+== port 8000 (8002=before, 8000=now) round 3
+"loadMedianMs":5357,"loads":[5337,5898,5200,5771,5164,5357]
+== port 8002 (8002=before, 8000=now) round 4
+"loadMedianMs":5422,"loads":[5485,5194,5167,5106,5422,5425]
+== port 8000 (8002=before, 8000=now) round 4
+"loadMedianMs":5781,"loads":[5791,4892,5697,6130,5094,5781]

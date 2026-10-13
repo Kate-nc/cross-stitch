@@ -156,11 +156,22 @@ describe('the chip and the lifecycle', () => {
     expect(t.sentinels.length).toBe(2);
     expect(t.api().wakeLockActive).toBe(true);
   });
-  test('each mark restarts the idle clock', async () => {
+  test('marks within half a minute leave the idle clock alone (the common case costs nothing)', async () => {
     const t = setup();
     await t.api().keepAwakeOnMark(); await t.tick();
+    await t.api().keepAwakeOnMark(); await t.api().keepAwakeOnMark(); await t.tick();
+    expect(t.timers.length).toBe(1);                           // one timer armed, none churned
+    expect(t.timers[0].cleared).toBe(false);
+  });
+  test('a mark after more than half a minute restarts the idle clock', async () => {
+    const t = setup();
     await t.api().keepAwakeOnMark(); await t.tick();
-    expect(t.timers.filter(x => !x.cleared).length).toBe(1);   // the first was cleared, one is running
+    const realNow = t.w.Date.now.bind(t.w.Date);
+    t.w.Date.now = () => realNow() + 31000;
+    await t.api().keepAwakeOnMark(); await t.tick();
+    expect(t.timers.length).toBe(2);
+    expect(t.timers[0].cleared).toBe(true);
+    expect(t.timers[1].cleared).toBe(false);
   });
 });
 

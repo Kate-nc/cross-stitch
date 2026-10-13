@@ -1,0 +1,36 @@
+== before (port 8002) round 1
+{"label":"bis1","strokes":8,"strokeMedian":79.7,"taps":24,"tapMedian":78.1,"tapP90":117.4,"loadMedianMs":4927,"loads":[4851,4927]}
+== b1 (port 8003) round 1
+{"label":"bis1","strokes":8,"strokeMedian":74,"taps":24,"tapMedian":80.9,"tapP90":97.9,"loadMedianMs":5515,"loads":[5515,5274]}
+== b2 (port 8004) round 1
+{"label":"bis1","strokes":8,"strokeMedian":73.1,"taps":24,"tapMedian":92.7,"tapP90":120.7,"loadMedianMs":5760,"loads":[5609,5760]}
+== b3 (port 8005) round 1
+{"label":"bis1","strokes":8,"strokeMedian":90.2,"taps":24,"tapMedian":85.8,"tapP90":113.3,"loadMedianMs":5788,"loads":[5788,5185]}
+== b4 (port 8006) round 1
+{"label":"bis1","strokes":8,"strokeMedian":85.9,"taps":24,"tapMedian":83.8,"tapP90":106.8,"loadMedianMs":5932,"loads":[5579,5932]}
+== now (port 8000) round 1
+{"label":"bis1","strokes":8,"strokeMedian":84,"taps":24,"tapMedian":77,"tapP90":104.5,"loadMedianMs":5450,"loads":[4883,5450]}
+== before (port 8002) round 2
+{"label":"bis2","strokes":8,"strokeMedian":75.9,"taps":24,"tapMedian":83.7,"tapP90":100.5,"loadMedianMs":5504,"loads":[5504,4749]}
+== b1 (port 8003) round 2
+{"label":"bis2","strokes":8,"strokeMedian":76.4,"taps":24,"tapMedian":81.9,"tapP90":108.1,"loadMedianMs":5677,"loads":[5345,5677]}
+== b2 (port 8004) round 2
+{"label":"bis2","strokes":8,"strokeMedian":75.3,"taps":24,"tapMedian":86.4,"tapP90":104.5,"loadMedianMs":5812,"loads":[5281,5812]}
+== b3 (port 8005) round 2
+{"label":"bis2","strokes":8,"strokeMedian":74.9,"taps":24,"tapMedian":81,"tapP90":106.8,"loadMedianMs":5470,"loads":[5470,5422]}
+== b4 (port 8006) round 2
+{"label":"bis2","strokes":8,"strokeMedian":88.7,"taps":24,"tapMedian":91.2,"tapP90":108.9,"loadMedianMs":5482,"loads":[5161,5482]}
+== now (port 8000) round 2
+{"label":"bis2","strokes":8,"strokeMedian":81.9,"taps":24,"tapMedian":79,"tapP90":124.3,"loadMedianMs":6520,"loads":[5479,6520]}
+== before (port 8002) round 3
+{"label":"bis3","strokes":8,"strokeMedian":77.7,"taps":24,"tapMedian":87,"tapP90":99,"loadMedianMs":5213,"loads":[5213,5101]}
+== b1 (port 8003) round 3
+{"label":"bis3","strokes":8,"strokeMedian":79.9,"taps":24,"tapMedian":78.5,"tapP90":120.3,"loadMedianMs":5915,"loads":[5915,5587]}
+== b2 (port 8004) round 3
+{"label":"bis3","strokes":8,"strokeMedian":72.5,"taps":24,"tapMedian":84.1,"tapP90":117.5,"loadMedianMs":5611,"loads":[5611,4777]}
+== b3 (port 8005) round 3
+{"label":"bis3","strokes":8,"strokeMedian":70.6,"taps":24,"tapMedian":82.2,"tapP90":101.4,"loadMedianMs":5567,"loads":[5567,4755]}
+== b4 (port 8006) round 3
+{"label":"bis3","strokes":8,"strokeMedian":84.9,"taps":24,"tapMedian":86.7,"tapP90":116.2,"loadMedianMs":5627,"loads":[5627,5616]}
+== now (port 8000) round 3
+{"label":"bis3","strokes":8,"strokeMedian":81.1,"taps":24,"tapMedian":88.1,"tapP90":108.9,"loadMedianMs":5364,"loads":[5364,5271]}

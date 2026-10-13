@@ -92,3 +92,29 @@ Five findings, all real, all fixed:
 - **Preference changes were not live:** the hook listens for `cs:prefchange`; Never lets go at once, Always takes the lock now.
 - **Idle test only read the source:** it now runs the captured 15-minute timer and checks the release, the inactive state, and that the next mark takes the lock again; further tests cover shared requests, a lock arriving after Never or after unmount, and the preference events.
 - **Retired term in the confirmation:** the dialog was still "Turn off live tracking?"; now "Stop using up stash thread as you stitch?".
+
+## End-of-phase hunt (all five batches, merged `main`)
+
+Driven by `tests/e2e/phase4-hunt.spec.js` (8 specs, `HUNT` lines in the log) plus a before/after screenshot comparison (`harness/shots.js`, images in `reports/tracking-audit/screens/phase4/`). "Before" is `7395a58`, the commit before Phase 4.
+
+### Found and fixed
+1. **A palm marks stitches.** Three fingers landing together marked three stitches. The second finger correctly cancelled the first finger's gesture, but that left the machine idle, so the third finger started a fresh tap and its release committed it (fingers 1, 3, 5... each marked). The reducer now enters a `multi` mode on the second finger and stays there until every finger has lifted; the hook counts touch pointers (id to landing time, contacts older than 5 s are forgotten so a lost `pointerup` or a palm resting for ages cannot block a later single finger). Pre-existing since the pointer-event drag-mark; Phase 4's one-finger rules made it matter. Six reducer tests and the browser spec.
+2. **Browser zoom 200% on a phone (196x364): More could not be reached.** The controls strip is about 330 px tall, the viewport 364 and the strip starts at 105, so More sat at y=381 below the fold; since batch 2 nothing on the page scrolls, so it was unreachable (before Phase 4 it was just far down the page). The strip now has `max-height: calc(100% - 8px)` and scrolls inside the chart column.
+
+### Checked, no change needed
+- **200% on a tablet (384x512) and desktop (720x450):** no sideways scroll, chart present, Mark / Nav / More reachable. At 720 px the colour panel opens as an overlay with a backdrop that covers the strip until you tap outside it; the build before Phase 4 did the same (its palette tiles sat over the strip), so this is old behaviour and left alone.
+- **Rotation mid-session** (393x727 to 851x393 and back, marks made first): marks survive, no sideways scroll, a tap after the turn lands on the cell under it.
+- **Mouse and trackpad:** wheel and two-finger scroll move the chart and mark nothing; Ctrl+wheel zooms the chart (cell size 13 to 27) and not the page (`visualViewport.scale` stays 1).
+- **Stylus (pen pointer events):** a tap marks one, a quick swipe adds nothing.
+- **On-screen keyboard:** the Tracker offers no rename field below desktop widths in either build (the switcher names the project; probed on the build before Phase 4), so there is no Tracker text field under a phone keyboard. What a keyboard does do, halving the viewport with the More panel open, was driven (393x380): the panel's close button stays on screen and the rest scrolls into view because the chart has a minimum height. Creator and Home rename were not changed by this phase.
+- **Creator, Home, Manager before/after** (393x727 and 1440x900): Creator 0 px and 140 px different; Home desktop 138 px; Home phone differs in the shared header only (the clipped pink save-badge sliver from before is gone, batch 1); Manager desktop 0.13% and phone 3% are the order of two tied entries in the thread-conflicts list (310 and 666), not layout.
+
+### Not verified
+Safari and Firefox (including Safari dynamic viewport units, which batch 2 relies on); real devices, real stylus pressure or hover, a real on-screen keyboard (only a halved viewport was emulated); real palm rejection by the OS; the dark theme on the Phase 4 additions; screen-reader behaviour of the recap strip, Keep screen on and the Highlight tab; the Wake Lock itself (mocked).
+
+### Copilot round 1 (closing PR)
+Four findings, all real or fair:
+- **A finger on a French knot bypassed the palm guard.** The Tracker handles a knot touch itself and returns before the drag-mark hook, so that finger was not counted: with one finger already marking and a second on a knot, the count stayed 1 and the mark could still commit. The hook now has `onExtraTouchDown` / `onExtraTouchEnd`, called from the knot branch; they join the finger count, abandon a mark under way, and treat a second finger on an idle chart as a palm. Reducer tests and a wiring test.
+- **The palm fix and the short-viewport fix had no help or changelog entry** (AGENTS.md asks for both on user-visible changes). Added: help "A hand on the screen", changelog 1.0.131.
+- **Two hunt tests claimed more than they checked.** The rotation test was named for a rectangle selection it never made: renamed to what it checks (marks survive the turn, a tap after it lands on the cell under the finger). The stylus test did not cover the rested drag: it now rests the pen for 250 ms, drags five cells and expects the rested cell and the five (7 stitches in all with the earlier tap).
+

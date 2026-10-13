@@ -1,0 +1,24 @@
+== port 8000 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 1
+{"label":"fix1","strokes":60,"strokeMedian":84.3,"taps":40,"tapMedian":92.6,"tapP90":114.1,"loadMedianMs":5700,"loads":[4992,5700]}
+== port 8002 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 1
+{"label":"fix1","strokes":60,"strokeMedian":76.3,"taps":40,"tapMedian":84.1,"tapP90":106.5,"loadMedianMs":5992,"loads":[5992,5406]}
+== port 8007 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 1
+{"label":"fix1","strokes":60,"strokeMedian":79.7,"taps":40,"tapMedian":84.6,"tapP90":101.6,"loadMedianMs":5643,"loads":[5538,5643]}
+== port 8002 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 2
+{"label":"fix2","strokes":60,"strokeMedian":74.4,"taps":40,"tapMedian":81.3,"tapP90":104.2,"loadMedianMs":5600,"loads":[5600,5239]}
+== port 8007 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 2
+{"label":"fix2","strokes":60,"strokeMedian":76.9,"taps":40,"tapMedian":84.9,"tapP90":105.2,"loadMedianMs":5651,"loads":[4685,5651]}
+== port 8000 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 2
+{"label":"fix2","strokes":60,"strokeMedian":77.2,"taps":40,"tapMedian":82.9,"tapP90":106.2,"loadMedianMs":5769,"loads":[5342,5769]}
+== port 8007 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 3
+{"label":"fix3","strokes":60,"strokeMedian":81.4,"taps":40,"tapMedian":78.4,"tapP90":107,"loadMedianMs":5779,"loads":[5159,5779]}
+== port 8000 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 3
+{"label":"fix3","strokes":60,"strokeMedian":77,"taps":40,"tapMedian":84.4,"tapP90":111.1,"loadMedianMs":5605,"loads":[5605,5185]}
+== port 8002 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 3
+{"label":"fix3","strokes":60,"strokeMedian":78.1,"taps":40,"tapMedian":82.2,"tapP90":100.3,"loadMedianMs":5321,"loads":[4859,5321]}
+== port 8000 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 4
+{"label":"fix4","strokes":60,"strokeMedian":78.5,"taps":40,"tapMedian":81.5,"tapP90":98.9,"loadMedianMs":5310,"loads":[5310,5137]}
+== port 8007 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 4
+{"label":"fix4","strokes":60,"strokeMedian":75,"taps":40,"tapMedian":76.7,"tapP90":92.1,"loadMedianMs":5252,"loads":[4742,5252]}
+== port 8002 (8002=before, 8000=now with cheaper per-mark call, 8007=now without per-mark effects) round 4
+{"label":"fix4","strokes":60,"strokeMedian":72.6,"taps":40,"tapMedian":83.8,"tapP90":104.9,"loadMedianMs":5089,"loads":[5089,4734]}

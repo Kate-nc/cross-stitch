@@ -1,0 +1,44 @@
+[
+ {
+  "page": "home",
+  "viewport": "phone",
+  "differing": 1553,
+  "of": 285711,
+  "pct": 0.544
+ },
+ {
+  "page": "home",
+  "viewport": "desktop",
+  "differing": 138,
+  "of": 1296000,
+  "pct": 0.011
+ },
+ {
+  "page": "creator",
+  "viewport": "phone",
+  "differing": 0,
+  "of": 285711,
+  "pct": 0
+ },
+ {
+  "page": "creator",
+  "viewport": "desktop",
+  "differing": 140,
+  "of": 1296000,
+  "pct": 0.011
+ },
+ {
+  "page": "manager",
+  "viewport": "phone",
+  "differing": 8592,
+  "of": 285711,
+  "pct": 3.007
+ },
+ {
+  "page": "manager",
+  "viewport": "desktop",
+  "differing": 1652,
+  "of": 1296000,
+  "pct": 0.127
+ }
+]

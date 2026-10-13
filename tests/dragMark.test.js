@@ -45,7 +45,7 @@ test('200ms multi-touch guard aborts pending drag', () => {
   // Second pointer arrives 50ms later → guard fires.
   s = step(s, { type: 'POINTER_DOWN', idx: 6, time: 50,
                 pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
-  expect(s.mode).toBe('idle');
+  expect(s.mode).toBe('multi');
   // No commit / toggle should have fired.
   expect(fx.filter(e => e.type === 'TOGGLE_CELL'
                       || e.type === 'COMMIT_DRAG'
@@ -65,7 +65,7 @@ test('a second finger abandons the gesture however late it lands', () => {
   expect(s.mode).toBe('drag');
   s = step(s, { type: 'POINTER_DOWN', idx: 9, time: 600,
                 pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
-  expect(s.mode).toBe('idle');
+  expect(s.mode).toBe('multi');
   s = step(s, { type: 'POINTER_UP', idx: 10, time: 900 }, ctx, fx);
   expect(fx.filter(e => e.type === 'TOGGLE_CELL'
                       || e.type === 'COMMIT_DRAG'
@@ -83,7 +83,7 @@ test('a second finger also clears a long-press rectangle anchor', () => {
   expect(s.mode).toBe('range');
   s = step(s, { type: 'POINTER_DOWN', idx: 10, time: 900,
                 pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
-  expect(s.mode).toBe('idle');
+  expect(s.mode).toBe('multi');
   s = step(s, { type: 'POINTER_UP', idx: 15, time: 1200 }, ctx, fx);
   expect(fx.filter(e => e.type === 'COMMIT_RANGE')).toHaveLength(0);
 });
@@ -788,5 +788,109 @@ describe('touch intent: a swipe scrolls, a rested finger paints', () => {
     expect(s.mode).toBe('scroll');
     s = step(s, { type: 'POINTER_DOWN', idx: 33, time: 900, x: 0, y: 0, pointerId: 2, shiftKey: false, pointerType: 'touch' }, ctx, fx);
     expect(s.mode).toBe('pending');
+  });
+});
+
+// Phase 4 end-of-phase hunt: a palm (three or more contacts) must not mark on the odd finger.
+describe('many fingers (palm)', () => {
+  const w = 6, h = 6;
+  const down = (s, ctx, fx, id, idx, touchCount, time) => step(s, { type: 'POINTER_DOWN', idx, time: time || 0, x: 0, y: 0, pointerId: id, shiftKey: false, pointerType: 'touch', touchCount }, ctx, fx);
+  const up = (s, ctx, fx, idx, touchCount) => step(s, { type: 'POINTER_UP', idx, time: 80, touchCount }, ctx, fx);
+  const marks = fx => fx.filter(e => e.type === 'TOGGLE_CELL' || e.type === 'COMMIT_DRAG' || e.type === 'COMMIT_RANGE');
+
+  test('three fingers down together mark nothing, however they lift', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1);
+    s = down(s, ctx, fx, 2, 15, 2);
+    expect(s.mode).toBe('multi');
+    s = down(s, ctx, fx, 3, 22, 3);                          // used to start a fresh tap that its release committed
+    expect(s.mode).toBe('multi');
+    s = up(s, ctx, fx, 22, 2); s = up(s, ctx, fx, 15, 1);
+    expect(s.mode).toBe('multi');                            // one finger is still down
+    s = up(s, ctx, fx, 8, 0);
+    expect(s.mode).toBe('idle');
+    expect(marks(fx)).toHaveLength(0);
+  });
+
+  test('four fingers: nothing marked either', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    for (let i = 1; i <= 4; i++) s = down(s, ctx, fx, i, 7 + i, i);
+    for (let i = 3; i >= 0; i--) s = up(s, ctx, fx, 8, i);
+    expect(marks(fx)).toHaveLength(0);
+    expect(s.mode).toBe('idle');
+  });
+
+  test('the next single tap marks as usual', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1); s = down(s, ctx, fx, 2, 15, 2); s = down(s, ctx, fx, 3, 22, 3);
+    s = up(s, ctx, fx, 22, 2); s = up(s, ctx, fx, 15, 1); s = up(s, ctx, fx, 8, 0);
+    s = down(s, ctx, fx, 4, 30, 1, 400); s = up(s, ctx, fx, 30, 0);
+    expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
+  });
+
+  test('a contact that never lifted (stale count) does not block a lone finger', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1); s = down(s, ctx, fx, 2, 15, 2);
+    expect(s.mode).toBe('multi');
+    // The hook has forgotten the old contacts (touchCount 1) when a new finger lands: the gesture starts clean.
+    s = down(s, ctx, fx, 9, 30, 1, 9000);
+    expect(s.mode).toBe('pending');
+  });
+
+  test('a cancel while another finger is down keeps the palm guard', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1); s = down(s, ctx, fx, 2, 15, 2);
+    s = step(s, { type: 'POINTER_CANCEL', touchCount: 1 }, ctx, fx);
+    expect(s.mode).toBe('multi');
+    s = step(s, { type: 'POINTER_CANCEL', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+  });
+
+  test('a finger on a French knot (handled by the Tracker, never a POINTER_DOWN) still abandons a mark under way', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = down(s, ctx, fx, 1, 8, 1);
+    expect(s.mode).toBe('pending');
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 2 }, ctx, fx);
+    expect(s.mode).toBe('multi');
+    s = up(s, ctx, fx, 8, 1);                                // the marking finger lifts first
+    expect(s.mode).toBe('multi');                            // the knot finger is still down
+    s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(marks(fx)).toHaveLength(0);
+  });
+
+  test('a knot finger landing on an idle chart with another finger down is part of a palm', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 2 }, ctx, fx);
+    expect(s.mode).toBe('multi');
+    s = down(s, ctx, fx, 5, 8, 3);                           // a third finger on a stitch
+    expect(s.mode).toBe('multi');
+    s = up(s, ctx, fx, 8, 1); s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    expect(marks(fx)).toHaveLength(0);
+  });
+
+  test('a lone knot touch changes nothing', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'EXTRA_TOUCH', touchCount: 1 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+    s = step(s, { type: 'TOUCH_END', touchCount: 0 }, ctx, fx);
+    expect(s.mode).toBe('idle');
+  });
+
+  test('a mouse is unaffected', () => {
+    const ctx = makeCtx(w, h, makePattern(w, h));
+    let s = initialState(); const fx = [];
+    s = step(s, { type: 'POINTER_DOWN', idx: 8, time: 0, x: 0, y: 0, pointerId: 1, shiftKey: false, pointerType: 'mouse' }, ctx, fx);
+    s = step(s, { type: 'POINTER_UP', idx: 8, time: 40 }, ctx, fx);
+    expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
   });
 });
