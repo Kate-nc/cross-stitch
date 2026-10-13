@@ -2,22 +2,22 @@
  {
   "cell": 3,
   "view": "symbol",
-  "done": 118.3,
-  "notDone": 207.8,
-  "gap": 89.4
+  "done": 112.4,
+  "notDone": 207.4,
+  "gap": 95
  },
  {
   "cell": 8,
   "view": "symbol",
-  "done": 114,
-  "notDone": 202.3,
-  "gap": 88.3
+  "done": 108.1,
+  "notDone": 202,
+  "gap": 93.9
  },
  {
   "cell": 19,
   "view": "symbol",
-  "done": 120.4,
+  "done": 114.4,
   "notDone": 235.7,
-  "gap": 115.3
+  "gap": 121.2
  }
 ]

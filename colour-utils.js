@@ -61,15 +61,18 @@ function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 // colour: drawing a chart must not build a colour string per cell.
 var DONE_MAX_LUM = 180;
 var PENDING_FADE = 0.65;
+var MIN_DONE_GAP = 42;   // not-done is at least this much lighter than done, in the luminance the canvas is measured with
 var _stitchLookCache = new Map();
+// Rec. 709 weights: what the greyscale acceptance test and a screen's own conversion use (the legacy 0.299/0.587/0.114 reads greens too dark).
+function lum709(c) { return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
 function doneStitchLook(rgb) {
   var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
   var hit = _stitchLookCache.get(key);
   if (hit) return hit;
-  var L = luminance(rgb), k = L > DONE_MAX_LUM ? DONE_MAX_LUM / L : 1;
+  var L = lum709(rgb), k = L > DONE_MAX_LUM ? DONE_MAX_LUM / L : 1;
   var r = Math.round(rgb[0] * k), g = Math.round(rgb[1] * k), b = Math.round(rgb[2] * k);
   // The symbol on a done cell stays, dimmed: a record of what was stitched, not a thing still to do.
-  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: luminance([r, g, b]), ink: luminance([r, g, b]) > 140 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.5)' };
+  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: lum709([r, g, b]), ink: lum709([r, g, b]) > 140 ? 'rgba(0,0,0,0.32)' : 'rgba(255,255,255,0.5)' };
   if (_stitchLookCache.size > 4000) _stitchLookCache.clear();
   _stitchLookCache.set(key, look);
   return look;
@@ -80,11 +83,14 @@ function pendingStitchLook(rgb, fade) {
   var key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2], ck = (Math.round(f * 100) + 1) * 16777216 + key;
   var hit = _stitchLookCache.get(ck);
   if (hit) return hit;
-  var L = luminance(rgb), keep = 1 - f;
+  var L = lum709(rgb), keep = 1 - f;
   // Desaturate (towards the grey of the same lightness), then lighten towards the fabric.
   function ch(c) { var d = c * 0.45 + L * 0.55; return Math.round(255 - (255 - d) * keep); }
   var r = ch(rgb[0]), g = ch(rgb[1]), b = ch(rgb[2]);
-  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: luminance([r, g, b]), ink: 'rgba(27,24,20,0.9)' };
+  // A saturated light green keeps more of its lightness than the fade takes: lift it until it clears its done look by MIN_DONE_GAP.
+  var pl = lum709([r, g, b]), need = doneStitchLook(rgb).lum + MIN_DONE_GAP;
+  if (pl < need) { var t = (need - pl) / (255 - pl); r = Math.round(r + (255 - r) * t); g = Math.round(g + (255 - g) * t); b = Math.round(b + (255 - b) * t); }
+  var look = { fill: 'rgb(' + r + ',' + g + ',' + b + ')', lum: lum709([r, g, b]), ink: 'rgba(27,24,20,0.9)' };
   if (_stitchLookCache.size > 4000) _stitchLookCache.clear();
   _stitchLookCache.set(ck, look);
   return look;
@@ -2308,4 +2314,4 @@ _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP }; }

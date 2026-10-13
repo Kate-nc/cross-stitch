@@ -20,10 +20,18 @@ describe('doneStitchLook / pendingStitchLook', () => {
     const d = CU.doneStitchLook([255, 250, 240]).fill.match(/\d+/g).map(Number);
     expect(d[0]).toBeGreaterThanOrEqual(d[1]); expect(d[1]).toBeGreaterThanOrEqual(d[2]);
   });
-  test('for every sampled thread, not-done is lighter than done by at least 40 luminance units (clear in greyscale)', () => {
+  // The same weights the canvas acceptance test measures with.
+  const L709 = f => { const c = f.match(/\d+/g).map(Number); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const { DMC } = require('../dmc-data.js');
+  const fine = []; for (let r = 0; r <= 255; r += 15) for (let g = 0; g <= 255; g += 15) for (let b = 0; b <= 255; b += 15) fine.push([r, g, b]);
+  test.each([0.3, 0.5, 0.65, 0.9])('every DMC colour and a fine colour grid: not-done is at least 40 lighter than done in the canvas luminance, at fade %s', fade => {
     let worst = 1e9;
-    for (const rgb of samples) worst = Math.min(worst, CU.pendingStitchLook(rgb).lum - CU.doneStitchLook(rgb).lum);
+    for (const rgb of DMC.map(c => c.rgb).concat(fine)) worst = Math.min(worst, L709(CU.pendingStitchLook(rgb, fade).fill) - L709(CU.doneStitchLook(rgb).fill));
     expect(worst).toBeGreaterThanOrEqual(40);
+  });
+  test('saturated light greens (DMC 704, 703, 907) clear the gap at the symbol-tier fade of 0.5', () => {
+    for (const rgb of [[158, 207, 52], [123, 181, 71], [199, 230, 102], [90, 255, 30]])
+      expect(L709(CU.pendingStitchLook(rgb, 0.5).fill) - L709(CU.doneStitchLook(rgb).fill)).toBeGreaterThanOrEqual(40);
   });
   test('not-done is desaturated: its channels sit closer together than the thread\'s', () => {
     const spread = a => Math.max(...a) - Math.min(...a);
@@ -49,6 +57,11 @@ describe('doneStitchLook / pendingStitchLook', () => {
 });
 
 describe('how the Tracker draws it', () => {
+  test('looks are cached by packed RGB, not by palette id (DMC 310 and Anchor 310 share an id)', () => {
+    expect(tracker).toMatch(/function doneLookOf\(m\)\{const k=\(m\.rgb\[0\]<<16\)\|\(m\.rgb\[1\]<<8\)\|m\.rgb\[2\]/);
+    expect(tracker).toMatch(/function pendLookOf\(m\)\{const k=\(m\.rgb\[0\]<<16\)/);
+    expect(tracker).not.toMatch(/doneLooks\[m\.id\]|pendLooks\[m\.id\]/);
+  });
   const draw = tracker.slice(tracker.indexOf('function drawStitch(ctx,cSz,viewportRect,isDoneAt){'));
   test('the old pale green wash is gone from Symbol view', () => {
     expect(draw.slice(0, 12000)).not.toMatch(/#D5E5C8/);
@@ -65,7 +78,7 @@ describe('how the Tracker draws it', () => {
     expect(tracker).toMatch(/const stitchLookRef=useRef\(\{cmap:null,fade:-1,done:null,pend:null\}\)/);
     expect(tracker).toMatch(/if\(lc\.cmap!==cmap\|\|lc\.fade!==pendFade\)\{lc=stitchLookRef\.current=/);
     expect(tracker).toMatch(/const doneLooks=lc\.done,pendLooks=lc\.pend/);
-    expect(tracker).toMatch(/function doneLookOf\(m\)\{let l=doneLooks\[m\.id\];if\(!l\)l=doneLooks\[m\.id\]=doneStitchLook\(m\.rgb\)/);
+    expect(tracker).toMatch(/l=doneLooks\[k\]=doneStitchLook\(m\.rgb\)/);
     const branch = tracker.slice(tracker.indexOf('const isSymV=stitchView==="symbol",solid=tier<=2;'), tracker.indexOf('}else if(highlightMode==="outline"||highlightMode==="tint"){'));
     expect(branch).not.toMatch(/ctx\.save\(\)|ctx\.restore\(\)/);
     expect(branch).not.toMatch(/rgb\(\$\{|`/);                 // no colour string built per cell

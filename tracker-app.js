@@ -4969,15 +4969,15 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
   }
 
-  // The two looks of a colour for this paint, by palette id: one property read per cell instead of a map lookup, and nothing
+  // The two looks of a colour for this paint, by packed RGB (an id is not unique across brands: DMC 310 and Anchor 310 differ): one property read per cell instead of a map lookup, and nothing
   // built per cell (the shared caches in colour-utils.js sit behind these).
   // They live across paints (a one-stitch repaint reuses them) and are rebuilt when the palette or the fade changes.
   const pendFade=tier<=2?lowZoomFade:0.5;
   let lc=stitchLookRef.current;
   if(lc.cmap!==cmap||lc.fade!==pendFade){lc=stitchLookRef.current={cmap:cmap,fade:pendFade,done:Object.create(null),pend:Object.create(null)};}
   const doneLooks=lc.done,pendLooks=lc.pend;
-  function doneLookOf(m){let l=doneLooks[m.id];if(!l)l=doneLooks[m.id]=doneStitchLook(m.rgb);return l;}
-  function pendLookOf(m){let l=pendLooks[m.id];if(!l)l=pendLooks[m.id]=pendingStitchLook(m.rgb,pendFade);return l;}
+  function doneLookOf(m){const k=(m.rgb[0]<<16)|(m.rgb[1]<<8)|m.rgb[2];let l=doneLooks[k];if(!l)l=doneLooks[k]=doneStitchLook(m.rgb);return l;}
+  function pendLookOf(m){const k=(m.rgb[0]<<16)|(m.rgb[1]<<8)|m.rgb[2];let l=pendLooks[k];if(!l)l=pendLooks[k]=pendingStitchLook(m.rgb,pendFade);return l;}
   // The "tick" done style: a dark corner triangle with a pale edge, readable on a pale or a dark cell.
   function drawDoneTick(px,py){
     const t=Math.max(4,Math.round(cSz*0.42));
