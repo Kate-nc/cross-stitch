@@ -1649,6 +1649,8 @@ const minimapJump=useCallback((cx,cy)=>{
   el.scrollLeft=Math.max(0,cx*scs-(el.clientWidth-G)/2-off.x);
   el.scrollTop=Math.max(0,cy*scs-(el.clientHeight-G)/2-off.y);
 },[scs]);
+// The lowest zoom: one pixel a stitch, which Fit can now reach, so every zoom-out control must be able to stay there.
+const MIN_STITCH_ZOOM=0.05;
 const isSpaceDownRef=useRef(false);
 const spaceDownTimeRef=useRef(0);
 const spacePannedRef=useRef(false);
@@ -6466,7 +6468,7 @@ function handleStitchWheel(e){
   // maxZoom is applied last: on a pattern so large that maxZoom falls under
   // the 0.3 floor, the ceiling still has to win or the ref and the scale
   // factor would disagree.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,oldZoom+delta));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));
   const scale=newZoom/oldZoom;
   scheduleZoomUpdate(newZoom);
   requestAnimationFrame(()=>{
@@ -6574,7 +6576,7 @@ function handleTouchMove(e){
   // Absolute from the gesture start rather than compounded per move, so the
   // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
   // the zoom actually applied; ceiling last, as in handleStitchWheel.
-  const newZoom=Math.min(maxZoom,Math.max(0.3,ts.pinchZoom*dist/ts.pinchDist));
+  const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,ts.pinchZoom*dist/ts.pinchDist));
   const rect=container.getBoundingClientRect();
   const midX=(t0.clientX+t1.clientX)/2-rect.left;
   const midY=(t0.clientY+t1.clientY)/2-rect.top;
@@ -7021,7 +7023,7 @@ const trackerShortcuts=!isActive ? [] : [
     run: () => setStitchZoom(z=>Math.min(4,+(z+0.1).toFixed(2))) },
   { id: "tracker.zoom.out", keys: "-", scope: "tracker",
     description: "Zoom out",
-    run: () => setStitchZoom(z=>Math.max(0.3,+(z-0.1).toFixed(2))) },
+    run: () => setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.1).toFixed(2))) },
   { id: "tracker.zoom.fit", keys: "0", scope: "tracker",
     description: "Zoom to fit",
     run: () => fitChart() },
@@ -8299,7 +8301,7 @@ return(
           <div>
             <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Zoom</div>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <button onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
+              <button onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom out">&#8722;</button>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",minWidth:40,textAlign:"center"}}>{Math.round((stitchZoom||1)*100)}%</span>
               <button onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} style={{padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:16,cursor:"pointer",color:"var(--text-secondary)"}} aria-label="Zoom in">&#43;</button>
               <button onClick={fitChart} style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)"}}>Fit</button>
@@ -9112,7 +9114,7 @@ return(
     return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
   })()}
   <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
-  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(0.3,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
+  <button type="button" onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>
   <button type="button" onClick={()=>setStitchZoom(1)} aria-label="Reset zoom" title="Reset zoom">{Math.round((stitchZoom||1)*100)}%</button>
   <button type="button" onClick={()=>setStitchZoom(z=>Math.min(4,+(z+0.25).toFixed(2)))} aria-label="Zoom in" title="Zoom in">{Icons.plus&&Icons.plus()}</button>
   <button type="button" className="cs-focus-exit" onClick={()=>setFocusMode(false)} aria-label="Exit focus mode" title="Exit focus mode (Esc)">

@@ -431,7 +431,7 @@
             { value: "tick", label: "Corner tick" }
           ]})
         ),
-        h(Row, { label: "Pattern overview", desc: "A small map of the whole pattern in the corner of the chart, with finished areas brighter. It shows only when the pattern is bigger than the chart box. Tap or drag it to jump there." },
+        h(Row, { label: "Pattern overview", desc: "A small map of the whole pattern in the corner of the chart, with finished areas in full thread colour and the rest faded. It shows only when the pattern is bigger than the chart box. Tap or drag it to jump there." },
           h(Segmented, { value: minimapOn[0] === false ? "off" : "on", onChange: function (v) { minimapOn[1](v === "on"); }, options: [
             { value: "on", label: "Show" },
             { value: "off", label: "Hide" }

@@ -1,7 +1,7 @@
 /* tracker-minimap.js — Phase 5 (TRACK-09): an overview of the whole pattern in the Tracker.
    ════════════════════════════════════════════════════════════════════════════
    One small canvas, at most MAX_SIDE pixels on its longer side. A pixel is the average of a block of cells: done cells in
-   their thread colour, not-done cells faded (the same two looks the chart draws, so "brighter is done" reads the same at
+   their thread colour, not-done cells faded (the same two looks the chart draws, so "done is full colour, not done is faded" reads the same at
    every zoom). The viewport is a rectangle moved by direct style writes; tapping or dragging the map scrolls the chart.
 
    Cost rules (the Tracker's drawing speed must not change):
@@ -46,9 +46,11 @@
       for (var x = x0; x < x1; x++) {
         var i = y * sW + x, cell = pat[i];
         if (!cell) continue;
-        var m = cmap[cell.id];
-        if (!m || !m.rgb) continue;
-        var l = looksOf(m.rgb), k = done && done[i] ? 0 : 3;
+        if (cell.id === '__skip__' || cell.id === '__empty__') continue;
+        // The cell's own RGB first, as the chart does: two brands share ids (DMC 310 is black, Anchor 310 is tan).
+        var rgb = cell.rgb || (cmap[cell.id] && cmap[cell.id].rgb);
+        if (!rgb) continue;
+        var l = looksOf(rgb), k = done && done[i] ? 0 : 3;
         r += l[k]; g += l[k + 1]; b += l[k + 2]; n++;
       }
     }
@@ -81,7 +83,9 @@
     var s = st.current;
     var canvasRef = React.useRef(null), boxRef = React.useRef(null), rectRef = React.useRef(null), btnRef = React.useRef(null);
     var shownState = React.useState(false), shown = shownState[0], setShown = shownState[1];
-    s.latestDone = done;
+    // A render that the memo let through brings a new `done` prop; a local render (setShown) re-reads the props it last saw,
+    // which are older than what cellsChanged was told, so it must not overwrite them.
+    if (s.propDone !== done) { s.propDone = done; s.latestDone = done; }
 
     var bs = blockSize(sW, sH), mw = Math.ceil(sW / bs), mh = Math.ceil(sH / bs);
     var narrow = typeof window.innerWidth === 'number' && window.innerWidth < 600;
@@ -206,8 +210,8 @@
     }, [shown, props.collapsed, pat, cmap, sW, sH, build]);
     // `done` replaced without cellsChanged: one rebuild.
     React.useEffect(function () {
-      if (!s.built || s.seenDone === done) return;
-      s.seenDone = done; build();
+      if (!s.built || s.seenDone === s.latestDone) return;
+      s.seenDone = s.latestDone; build();
     }, [done, build]);
 
     // Tap or drag to jump.

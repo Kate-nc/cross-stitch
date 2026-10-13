@@ -1,5 +1,5 @@
 /* The pattern overview and Fit (tracking audit TRACK-09), driven in a real browser.
-   The overview is a small canvas of the whole pattern: done areas brighter, the visible part outlined, tap or drag to jump.
+   The overview is a small canvas of the whole pattern: done areas in full colour and the rest faded, the visible part outlined, tap or drag to jump.
    Fit must hold the whole pattern on both axes for a square, a wide and a tall pattern. */
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
@@ -45,7 +45,7 @@ const info = page => page.evaluate(() => {
 // Mean luminance of one map pixel (block bx, by).
 const px = (page, bx, by) => page.evaluate(([bx, by]) => { const d = document.querySelector('[data-testid="tracker-minimap"] canvas').getContext('2d').getImageData(bx, by, 1, 1).data; return 0.2126 * d[0] + 0.7152 * d[1] + 0.0722 * d[2]; }, [bx, by]);
 
-test('a big pattern shows the overview: bounded canvas, done corner brighter, viewport outlined at the top left', async ({ page }) => {
+test('a big pattern shows the overview: bounded canvas, done corner stronger in colour, viewport outlined at the top left', async ({ page }) => {
   await open(page, { zoom: 0.4 });
   const i = await info(page);
   console.log('MAP ' + JSON.stringify({ cw: i.cw, ch: i.ch, box: [i.box.width, i.box.height], view: [i.view.width, i.view.height] }));
@@ -189,4 +189,16 @@ test('on a phone in Focus the map starts closed behind a button, and the button 
   expect(i.shown).toBe(true);
   expect(Math.max(i.box.width, i.box.height), 'smaller on a phone').toBeLessThanOrEqual(100);
   await phone.close();
+});
+
+test('after Fit, zooming out does not jump in (the zoom-out controls reach the lowest zoom Fit can set)', async ({ page }) => {
+  await open(page, { zoom: 0.95 });
+  await page.locator('.ppal-mode-btn', { hasText: /Fit/i }).first().click(); await page.waitForTimeout(1000);
+  const cell = () => page.evaluate(() => document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width);
+  const fit = await cell();
+  expect(fit, 'Fit on 300x300 in this box is a one-pixel cell').toBeLessThanOrEqual(2);
+  await page.keyboard.press('-'); await page.waitForTimeout(500);
+  expect(await cell(), 'the minus shortcut does not zoom in').toBeLessThanOrEqual(fit + 0.01);
+  await page.mouse.move(700, 400); await page.mouse.wheel(0, 300); await page.waitForTimeout(500);
+  expect(await cell(), 'wheel down does not zoom in').toBeLessThanOrEqual(fit + 0.01);
 });

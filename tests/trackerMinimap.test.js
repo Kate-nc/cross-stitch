@@ -51,6 +51,31 @@ describe('block size and block colour', () => {
   });
 });
 
+describe('review fixes', () => {
+  test('two brands that share an id keep their own colours: the cell\'s RGB wins over the palette lookup', () => {
+    const cm = { '310': { rgb: [0, 0, 0] } };
+    const p = [{ id: '310', rgb: [0, 0, 0] }, { id: '310', rgb: [188, 151, 106] }];
+    const a = new Uint8ClampedArray(4), b = new Uint8ClampedArray(4);
+    core.blockColour(p, cm, null, 2, 1, 1, 0, 0, a, 0); core.blockColour(p, cm, null, 2, 1, 1, 1, 0, b, 0);
+    expect(Array.from(a)).not.toEqual(Array.from(b));
+    const tan = CU.pendingStitchLook([188, 151, 106], 0.5).fill.match(/\d+/g).map(Number);
+    expect(Array.from(b).slice(0, 3)).toEqual(tan);
+  });
+  test('a local render keeps the newer done array that cellsChanged recorded', () => {
+    const src = read('tracker-minimap.js');
+    expect(src).toMatch(/if \(s\.propDone !== done\) \{ s\.propDone = done; s\.latestDone = done; \}/);
+    expect(src).not.toMatch(/\n    s\.latestDone = done;\n/);
+    expect(src).toMatch(/if \(!s\.built \|\| s\.seenDone === s\.latestDone\) return;/);
+  });
+  test('every zoom-out control can reach the lowest zoom Fit can set (no 0.3 floor left)', () => {
+    const t = read('tracker-app.js');
+    expect(t).toMatch(/const MIN_STITCH_ZOOM=0\.05;/);
+    expect(t).not.toMatch(/Math\.max\(0\.3,\+\(z-/);
+    expect(t).not.toMatch(/Math\.min\(maxZoom,Math\.max\(0\.3,/);
+    expect((t.match(/Math\.max\(MIN_STITCH_ZOOM,/g) || []).length).toBeGreaterThanOrEqual(5);
+  });
+});
+
 describe('wiring', () => {
   const tracker = read('tracker-app.js');
   test('the Tracker mounts the overview with the pattern, the scroll box and the two chart calls', () => {
