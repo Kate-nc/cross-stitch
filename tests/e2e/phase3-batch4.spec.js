@@ -41,8 +41,7 @@ async function seed(page, { prefs, withHistory = true, goal } = {}) {
 async function openTracker(page, id) {
   await page.goto('/stitch.html?id=' + id);
   await page.waitForSelector(TRACKER_CANVAS);
-  const cont = page.getByRole('button', { name: 'Continue stitching' });
-  await cont.waitFor({ timeout: 4000 }).then(() => cont.click()).catch(() => {});
+  // The "welcome back" recap is a strip since Phase 4 (nothing to click), and waiting for it would outlast the goal message.
   await page.waitForTimeout(500);
 }
 async function openStats(page, id) {

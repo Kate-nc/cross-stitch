@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.128';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.129',
+    date: 'October 2026',
+    notes: [
+      'The Tracker remembers where you were. Reopen a project and you are back on the colour you were highlighting, in Mark or Navigate, with the same chart view. It is kept with the project, so it follows it to another device.',
+      'The "welcome back" summary is now a thin strip instead of a dialog: the chart is usable straight away, and your first mark (or a few seconds) clears it.',
+      'First run is one short sequence. The welcome tour no longer sits over a chart you have already opened, so your first tap marks a stitch instead of closing the tour.'
+    ]
+  },
+  {
     version: '1.0.128',
     date: 'October 2026',
     notes: [

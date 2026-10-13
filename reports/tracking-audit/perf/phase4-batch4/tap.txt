@@ -1,0 +1,12 @@
+== port 8001 (8001=main, 8000=branch) pair 1
+{"label":"t1","n":120,"median":9.3,"p90":12.7,"mean":9.8}
+== port 8000 (8001=main, 8000=branch) pair 1
+{"label":"t1","n":120,"median":9.4,"p90":11.9,"mean":9.77}
+== port 8001 (8001=main, 8000=branch) pair 2
+{"label":"t2","n":120,"median":9.5,"p90":12.2,"mean":9.9}
+== port 8000 (8001=main, 8000=branch) pair 2
+{"label":"t2","n":120,"median":9.9,"p90":13.2,"mean":10.21}
+== port 8001 (8001=main, 8000=branch) pair 3
+{"label":"t3","n":120,"median":9.9,"p90":12.4,"mean":10.23}
+== port 8000 (8001=main, 8000=branch) pair 3
+{"label":"t3","n":120,"median":9,"p90":12,"mean":9.64}
