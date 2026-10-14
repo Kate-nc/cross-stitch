@@ -136,6 +136,6 @@ describe('keyboard guide', () => {
   });
 
   test('the chart label says how', () => {
-    expect(src).toMatch(/aria-label="Cross stitch pattern grid\. The arrow keys move the guide\. In Mark mode Enter or Space marks the stitch at the guide and Shift\+Enter fills a rectangle from the last one; Menu or Shift\+F10 parks a thread at the guide\."/);
+    expect(src).toMatch(/aria-label="Cross stitch pattern grid\.[^"]* The arrow keys move the guide\. In Mark mode Enter or Space marks the stitch at the guide and Shift\+Enter fills a rectangle from the last one; Menu or Shift\+F10 parks a thread at the guide\."/);
   });
 });

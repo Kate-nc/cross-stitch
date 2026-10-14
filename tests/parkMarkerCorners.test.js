@@ -177,7 +177,7 @@ describe('Parking gestures — colour from the stitch', () => {
   });
 
   test('a touch long-press contextmenu never parks (Mark mode owns it for rectangle select)', () => {
-    expect(src).toMatch(/if\(lastPointerTypeRef\.current!=="mouse"\)\{\s*if\(stitchMode==="navigate"\)e\.preventDefault\(\);\s*return;\s*\}/);
+    expect(src).toMatch(/if\(lastPointerTypeRef\.current!=="mouse"\)\{\s*if\(dragMarkHandlers\.onContextMenu\)dragMarkHandlers\.onContextMenu\(e\);\s*if\(stitchMode==="navigate"\)e\.preventDefault\(\);\s*return;\s*\}/);
   });
 
   test('right mouse button does not fall through to the mousedown handlers', () => {
@@ -254,7 +254,7 @@ describe('Secondary-click parking guards', () => {
   const dragMarkSrc = fs.readFileSync(path.join(__dirname, '..', 'useDragMark.js'), 'utf8');
 
   test('a contextmenu only parks right after a secondary press on the canvas', () => {
-    expect(src).toMatch(/if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)lastSecondaryPressRef\.current=Date\.now\(\);/);
+    expect(src).toMatch(/lastSecondaryPressRef\.current=\(e\.button===2\|\|isMacSecondaryClick\(e\)\)\?Date\.now\(\):0;/);
     expect(src).toMatch(/if\(Date\.now\(\)-lastSecondaryPressRef\.current>1000\)return;\s*const gc=gridCoord/);
   });
 

@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.146';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.147',
+    date: 'October 2026',
+    notes: [
+      'Track: right-click a chart stitch (Ctrl+click on a Mac) to select its colour and enter Highlight view, just like the palette. Shift + right-click parks or unparks a thread instead; keyboard parking and touch press-and-hold keep their controls.',
+      'Fixed: secondary clicks cannot start Space-panning or mark knots, quarters or backstitch on a Mac. Keyboard parking is disabled in Edit mode, and pending touch parking is cancelled when switching modes.'
+    ]
+  },
+  {
     version: '1.0.144',
     date: 'October 2026',
     notes: [
