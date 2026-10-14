@@ -115,6 +115,7 @@ describe('photos and project deletion, backups', () => {
     const isColorOwned = () => false;
     let BackupRestore;
     // eslint-disable-next-line no-eval
+    new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
     eval(backupSrc.replace('const BackupRestore =', 'BackupRestore ='));
     return BackupRestore;
   }

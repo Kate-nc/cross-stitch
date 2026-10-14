@@ -39,6 +39,7 @@ function loadBackupRestore(opts) {
       return full + (fracs[entry.partialStatus] || 0) > 0;
     };
     // Re-bind the IIFE result into a non-const so the outer scope can reach it.
+    new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
     const patched = backupSrc.replace('const BackupRestore =', 'BackupRestore =');
     var BackupRestore;
     eval(patched); // eslint-disable-line no-eval

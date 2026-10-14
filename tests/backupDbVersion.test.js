@@ -19,6 +19,7 @@ function load(idb, options = {}) {
   const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
   const indexedDB = idb;
   const isColorOwned = () => false;
+  new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
   let BackupRestore;
   // eslint-disable-next-line no-eval
   eval(backupSrc.replace('const BackupRestore =', 'BackupRestore ='));
@@ -151,6 +152,7 @@ test('failed pre-export flush refuses stale data and shows the recovery error wi
   const storage = { getItem: () => 'previous-backup', setItem: jest.fn() };
   const Toast = { show: jest.fn() };
   const B = load(idb, { __flushProjectToIDB: async () => { throw failure; }, storage, Toast });
+  storage.setItem.mockClear(); // UserPrefs stamps its local schema when loaded.
   await expect(B.createBackup()).rejects.toMatchObject({ cause: failure });
   await expect(B.downloadBackup()).rejects.toThrow('latest changes could not be included');
   expect(storage.setItem).not.toHaveBeenCalled();
