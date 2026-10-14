@@ -176,7 +176,7 @@
       className: 'gsd-project-card',
       style: {
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)', padding: 14, minWidth: 200
+        borderRadius: 'var(--radius-md)', padding: 14, minWidth: 0
       }
     },
       h('div', { style: { fontSize:'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, p.name),
@@ -407,7 +407,7 @@
         // Projects (projected finish dates)
         projections.length > 0 && h('div', { className: 'bento-cell bento-cell--full' },
           label('Your projects'),
-          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 } },
+          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: 10 } },
             projections.map(p => h(ProjectionCard, { key: p.id, p: p }))
           )
         ),

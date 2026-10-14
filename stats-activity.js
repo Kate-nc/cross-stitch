@@ -245,10 +245,10 @@ function ActivityHeatmap({ grid, byDay, onCellHover, onCellLeave, onCellClick, h
     }
   });
 
-  return h('div', { style: { overflowX: 'auto', WebkitOverflowScrolling: 'touch' } },
+  return h('div', { className:'stats-plot-scroll', tabIndex:0, role:'region', 'aria-label':'Activity heatmap', style: { overflowX: 'auto', WebkitOverflowScrolling: 'touch' } },
     h('svg', {
       viewBox: '0 0 ' + SVG_W + ' ' + (SVG_H + 20),
-      style: { display: 'block', minWidth: SVG_W, height: SVG_H + 20 },
+      style: { display: 'block', width:'100%', minWidth: SVG_W, height:'auto' },
       role: 'img',
       'aria-label': 'Stitching activity heatmap'
     },
@@ -497,10 +497,11 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
     // ── Tooltip (fixed, follows cursor) ──────────────────────────
     tooltip && h('div', {
       style: {
-        position: 'fixed', left: tooltip.x + 14, top: tooltip.y + 14,
+        position: 'fixed', left: Math.max(8, Math.min(tooltip.x + 14, window.innerWidth - 248)), top: Math.max(8, Math.min(tooltip.y + 14, window.innerHeight - 100)),
+        maxWidth:'min(240px, calc(100vw - 16px))', overflowWrap:'anywhere',
         background: 'var(--surface, #fff)', border: '1px solid var(--border)',
         borderRadius:'var(--radius-sm)', padding: '6px 10px', fontSize:'var(--text-sm)', color: 'var(--text-primary)',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.12)', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999
+        boxShadow: '0 2px 8px rgba(0,0,0,0.12)', whiteSpace: 'normal', pointerEvents: 'none', zIndex: 9999
       },
       'aria-hidden': 'true'
     }, buildTooltipText(tooltip.day, tooltip.entry)),
@@ -558,7 +559,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
         );
       })
     )),
-    paceStats && h('div', { className: 'bento-cell bento-cell--md' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 20 } },
+    paceStats && h('div', { className: 'bento-cell bento-cell--md' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: 10, marginBottom: 20 } },
       h('div', { className: 'gsd-metric', style: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius:'var(--radius-lg)', padding: '12px 14px' } },
         h('div', { className: 'gsd-metric-label' }, 'Avg. per Session'),
         h('div', { className: 'gsd-metric-value' }, fmtNum(paceStats.avgPerSession)),
@@ -580,7 +581,7 @@ function StatsActivity({ onNavigateToDashboard, onNavigateToShowcase }) {
         h('div', { className: 'gsd-metric-sub' }, 'of ' + paceStats.totalDays + ' in period')
       )
     )),
-    insights.length > 0 && h('div', { className: 'bento-cell bento-cell--lg' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 20 } },
+    insights.length > 0 && h('div', { className: 'bento-cell bento-cell--lg' }, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10, marginBottom: 20 } },
       insights.map(ins => h('div', {
         key: ins.id,
         onClick: ins.date ? () => {

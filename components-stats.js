@@ -233,6 +233,8 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   var selD = (sel != null && sel < data.length) ? data[sel] : null;
   var selText = selD ? formatShortDate(selD.date) + ': ' + ProgressUnits.formatUnits(selD.total) + ' of ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + pctOf(selD.total) + '%)' : '';
   return React.createElement("div", {className:"chart-container"},
+    React.createElement("div", {className:"stats-plot-scroll", tabIndex:0, role:"region", "aria-label":"Chart plot"},
+    React.createElement("div", {className:"stats-plot"},
     React.createElement("svg", {role:"img","aria-label":"Progress over time: " + pctOf(last.total) + "% done by " + formatShortDate(last.date) + ", from " + pctOf(data[0].total) + "% on " + formatShortDate(data[0].date) + ". Tap the chart or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, xsOf()); if (i != null) setSel(i); }},
       React.createElement("text", {x:pl - 4, y:pt + 10, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches)),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, formatCompact(totalStitches / 2)),
@@ -251,7 +253,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
       React.createElement("span", null, formatShortDate(data[0].date)),
       React.createElement("span", null, formatShortDate(mid.date)),
       React.createElement("span", null, formatShortDate(last.date))
-    ),
+    ))),
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid"}), "Actual"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line dashed"}), paceLabel),
@@ -300,14 +302,16 @@ var DailyBarChart=React.memo(function DailyBarChart({sessions, dailyGoal, daysTo
   }
   svgChildren = svgChildren.concat(barElements);
   return React.createElement("div", {className:"chart-container"},
+    React.createElement("div", {className:"stats-plot-scroll", tabIndex:0, role:"region", "aria-label":"Chart plot"},
+    React.createElement("div", {className:"stats-plot"},
     React.createElement("div", {style:{position:'relative'}},
-      React.createElement("svg", {role:"img","aria-label":"Stitches per day for the last " + data.length + " days: " + ProgressUnits.formatUnits(totalShown) + " in all. Tap a bar or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", preserveAspectRatio:"none", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, barXs); if (i != null) setSel(i); }}, svgChildren)
+      React.createElement("svg", {role:"img","aria-label":"Stitches per day for the last " + data.length + " days: " + ProgressUnits.formatUnits(totalShown) + " in all. Tap a bar or use the slider below to read a day.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, barXs); if (i != null) setSel(i); }}, svgChildren)
     ),
     React.createElement("div", {className:"chart-x-labels"},
       React.createElement("span", null, formatShortDate(data[0].date)),
       React.createElement("span", null, formatShortDate(mid.date)),
       React.createElement("span", null, "Today")
-    ),
+    ))),
     React.createElement(ChartScrubber, {count:data.length, sel:sel, setSel:setSel, text:selBText, label:"Day on the stitches per day chart"}),
     React.createElement(ChartTable, {caption:"Stitches per day", headers:["Date", "Stitches"], count:data.length, rowAt:function(i){ var d = data[i]; return [(d.isToday ? 'Today' : formatShortDate(d.date)), ProgressUnits.formatUnits(d.stitches)]; }})
   );
@@ -345,6 +349,8 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   // Y-axis labels
   var yMid = Math.round(maxY / 2);
   return React.createElement("div", {className:"chart-container"},
+    React.createElement("div", {className:"stats-plot-scroll", tabIndex:0, role:"region", "aria-label":"Chart plot"},
+    React.createElement("div", {className:"stats-plot"},
     React.createElement("svg", {role:"img","aria-label":"Speed trend over " + data.length + " sessions of at least 10 minutes: latest " + last.speed + " stitches an hour, smoothed " + Math.round(last.smoothedSpeed) + ". Tap the chart or use the slider below to read a session.",viewBox:"0 0 " + width + " " + height, width:"100%", style:{display:'block', cursor:'pointer', touchAction:'manipulation'}, onClick:function(e){ var i = chartNearestIndex(e, width, spXs); if (i != null) setSel(i); }},
       React.createElement("text", {x:pl - 4, y:pt + 10, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, maxY + '/hr'),
       React.createElement("text", {x:pl - 4, y:pt + cH / 2 + 3, textAnchor:"end", fontSize:"15", fill:"var(--text-secondary)"}, yMid + '/hr'),
@@ -359,7 +365,7 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
       React.createElement("span", null, formatShortDate(data[0].date)),
       React.createElement("span", null, formatShortDate(mid.date)),
       React.createElement("span", null, formatShortDate(last.date))
-    ),
+    ))),
     React.createElement("div", {className:"chart-legend"},
       React.createElement("span", null, React.createElement("span", {style:{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'var(--accent)', opacity:0.3, verticalAlign:'middle', marginRight:'var(--s-1)'}}), "Per session"),
       React.createElement("span", null, React.createElement("span", {className:"legend-line solid", style:{borderColor:'var(--accent)'}}), "7-session avg")
@@ -736,7 +742,9 @@ var COLOUR_FILTERS = [
 function ColourProgress({palette, colourDoneCounts, sessions}){
     var _sort = React.useState('remaining'); var sortBy = _sort[0], setSortBy = _sort[1];
     var _flt = React.useState('all'); var filterBy = _flt[0], setFilterBy = _flt[1];
-    if (!palette || palette.length === 0) return null;
+    if (!palette || palette.length === 0) return React.createElement('div', {className:'colour-progress'},
+      React.createElement('h3', {className:'stats-section-title'}, 'Colours'),
+      React.createElement('p', {className:'stats-empty'}, 'No colours in this pattern yet.'));
     var timeline = getColourTimeline(sessions);
     var colourStats = [];
     var coloursComplete = 0;
@@ -786,7 +794,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
     });
     var sortOptions = COLOUR_SORTS.filter(function(o){ return hasHistory || (o.id !== 'recent' && o.id !== 'oldest'); });
     var activeSort = sortOptions.some(function(o){ return o.id === sortBy; }) ? sortBy : 'remaining';
-    var selStyle = {fontSize:'var(--text-xs)', padding:'2px 6px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--surface-secondary)', color:'var(--text-secondary)'};
+    var selStyle = {fontSize:'var(--text-sm)', minHeight:36, maxWidth:'100%', padding:'4px 6px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--surface-secondary)', color:'var(--text-secondary)'};
     return React.createElement("div", {className:"colour-progress"},
       React.createElement("h3", {className:"stats-section-title"}, "Colours"),
       React.createElement("div", {className:"stats-colour-summary"},
@@ -806,7 +814,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       ),
       !hasHistory ? React.createElement("p", {className:"stats-empty"}, "Which days you worked each colour is recorded as you stitch. Nothing is recorded for this project yet.") : null,
       shown.length === 0 ? React.createElement("p", {className:"stats-empty"}, "No colours match this filter.") : null,
-      React.createElement("div", {className:"stats-colour-list"},
+      React.createElement("div", {className:"stats-colour-list", tabIndex:0, role:"region", "aria-label":"Colour progress list"},
         shown.map(function(c){
           var nameStr = c.type === 'blend' && c.threads ? c.threads[0].name + '+' + c.threads[1].name : c.name;
           var rgb = c.rgb || [128,128,128];
@@ -892,19 +900,20 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
 
   var selectedLabel=selectedSection?(sectionLabels[selectedKey]||('Section '+selectedSection.label)):null;
 
-  return React.createElement("div",{style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'var(--s-4)'}},
+  return React.createElement("div",{className:"stats-sections",style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'var(--s-4)'}},
     React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
       React.createElement("h4",{style:{fontSize:'var(--text-lg)',fontWeight:600,color:'var(--text-primary)',margin:0}},"Sections"),
       numX>0&&React.createElement("span",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)'}},complete+" / "+(sections?sections.length:0)+" complete")
     ),
     React.createElement("p",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',margin:'0 0 8px',lineHeight:1.4}},canEdit?"Click a section to see its threads · click again to rename":"Click a section to see its threads"),
-    sections&&sections.length>0&&React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', 1fr)',gap:3,marginBottom:'var(--s-3)'}},
+    sections&&sections.length>0&&React.createElement("div",{className:"section-grid-scroll",tabIndex:0,role:"region","aria-label":"Sections grid"},
+    React.createElement("div",{className:"section-grid",style:{display:'grid',gridTemplateColumns:'repeat('+numX+', minmax(3rem, 1fr))',gap:3,marginBottom:'var(--s-3)'}},
       sections.map(function(sec){
         var cellKey=sec.sx+','+sec.sy;
         var customLabel=sectionLabels[cellKey]||null;
         var isEditing=editingKey===cellKey;
         var isSelected=selectedKey===cellKey;
-        var fs=Math.max(8,Math.min(11,Math.floor(60/numX)));
+        var fs=12;
         return React.createElement("div",{
           key:sec.label,
           role:"button",
@@ -936,17 +945,17 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
                 onChange:function(e){setEditVal(e.target.value);},
                 onBlur:function(){commitLabel(cellKey);},
                 onKeyDown:function(e){if(!canEdit)return;if(e.key==='Enter'){e.preventDefault();commitLabel(cellKey);}if(e.key==='Escape'){setEditingKey(null);}},
-                style:{width:'90%',fontSize:Math.max(7,fs-1),padding:'1px 2px',border:'1px solid #fff',borderRadius:2,textAlign:'center',background:'rgba(255,255,255,0.9)',color:'var(--text-primary)'},
+                style:{width:'90%',fontSize:Math.max(7,fs-1),padding:'1px 2px',border:'1px solid var(--border)',borderRadius:2,textAlign:'center',background:'var(--surface)',color:'var(--text-primary)'},
                 onClick:function(e){e.stopPropagation();}
               })
             : [
                 React.createElement("span",{key:'pct'},sec.pct+"%"),
                 customLabel&&React.createElement("span",{key:'lbl',style:{fontSize:Math.max(6,fs-2),overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'100%',textAlign:'center',padding:'0 1px',opacity:0.9}},customLabel),
-                sec.isDone&&!customLabel&&React.createElement("span",{key:'done',style:{fontSize:Math.max(7,Math.min(10,Math.floor(55/numX)))}},"\u2713")
+                sec.isDone&&!customLabel&&React.createElement("span",{key:'done'},window.Icons?window.Icons.check():null)
               ]
         );
       })
-    ),
+    )),
     sectionThreads&&React.createElement("div",{style:{marginBottom:'var(--s-3)',padding:10,background:'var(--surface-secondary)',borderRadius:'var(--radius-md)',border:'1px solid var(--accent-light)'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}},
         React.createElement("span",{style:{fontSize:'var(--text-sm)',fontWeight:600,color:'var(--text-primary)'}},selectedLabel+' — threads'),
@@ -975,7 +984,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
           )
     ),
     sections&&sections.length===0&&React.createElement("p",{style:{fontSize:'var(--text-md)',color:'var(--text-tertiary)',margin:0}},"No pattern loaded"),
-    React.createElement("div",{style:{display:'flex',alignItems:'center',gap:'var(--s-2)',fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginTop:'var(--s-1)'}},
+    React.createElement("div",{style:{display:'flex',alignItems:'center',gap:'var(--s-2)',flexWrap:'wrap',fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginTop:'var(--s-1)'}},
       "Section size:",
       React.createElement("input",{type:"number","aria-label":"Section width in stitches",min:5,max:200,value:secCols,disabled:!canEdit,onChange:function(e){if(!canEdit)return;var v=Math.max(5,Math.min(200,parseInt(e.target.value)||50));onUpdateSettings(Object.assign({},statsSettings,{sectionCols:v}));},style:{width:52,padding:'2px 6px',fontSize:'var(--text-sm)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)'}}),
       " by ",
@@ -1043,12 +1052,12 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH, can
   }
 
   React.useEffect(function(){
-    if(!pat||!done||!rightCanvasRef.current)return;
+    if(!pat||!sW||!sH||!rightCanvasRef.current)return;
     renderComparisonCanvas(rightCanvasRef.current,pat,sW,sH,done);
   },[done,pat,sW,sH]);
 
   React.useEffect(function(){
-    if(!pat)return;
+    if(!pat||!sW||!sH)return;
     [leftCanvasRef.current,diffCanvasRef.current].forEach(function(canvas){
       if(canvas){var ctx=canvas.getContext('2d');if(ctx)ctx.clearRect(0,0,canvas.width,canvas.height);}
     });
@@ -1071,7 +1080,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH, can
     if(!editable||!done||!pat)return;
     var l=labelText.trim()||'Snapshot';
     try{
-      var data=uint8ToBase64(pako.deflate(done));
+      var data=uint8ToBase64(pako.deflate(new Uint8Array(done)));
       var today=new Date().toISOString().slice(0,10);
       var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
       var newSnap={id:'snap_'+Date.now(),date:today,label:l,kind:'manual',doneCount:doneCount,w:sW,h:sH,data:data};
@@ -1094,10 +1103,10 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH, can
   var diff=newCount-oldCount;
   var sizeMismatch=!!(snapDone&&pat&&snapSizeDiffers(snap,snapDone,pat,sW,sH));
 
-  var canvasW=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sW:0;
-  var canvasH=pat?Math.min(3,Math.floor(300/Math.max(sW,sH)))*sH:0;
+  var hasPattern=!!(pat&&pat.length&&sW>0&&sH>0);
+  var canvasStyle={border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:hasPattern?'min(100%, '+(28*sW/sH)+'rem)':'100%',height:'auto',aspectRatio:hasPattern?sW+'/'+sH:'1',display:'block',margin:'0 auto'};
 
-  return React.createElement("div",{style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'var(--s-4)'}},
+  return React.createElement("div",{className:"stats-comparison",style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius-lg)',padding:'var(--s-4)'}},
     React.createElement("h4",{style:{fontSize:'var(--text-lg)',fontWeight:600,color:'var(--text-primary)',margin:'0 0 10px'}},"Before / After Comparison"),
     React.createElement("div",{style:{display:'flex',gap:'var(--s-2)',marginBottom:10,flexWrap:'wrap',alignItems:'center'}},
       React.createElement("select",{value:selectedId||'',"aria-label":"Snapshot to compare with",onChange:function(e){setSelectedId(e.target.value||null);},style:{fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)',flex:'1',minWidth:0}},
@@ -1111,30 +1120,31 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH, can
         "Diff view"
       )
     ),
+    snap&&!snapDone&&React.createElement("p",{role:"status",className:"stats-empty"},"This snapshot could not be read. Choose another snapshot."),
     snap&&sizeMismatch&&React.createElement("div",{role:"status",style:{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-2)'}},
       "This snapshot ("+snap.date+", "+oldCount+" stitches) was taken before the pattern changed size, so it cannot be drawn or compared with the pattern as it is now."
     ),
-    snap&&!sizeMismatch&&React.createElement("div",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginBottom:'var(--s-2)'}},
+    snap&&snapDone&&!sizeMismatch&&React.createElement("div",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',marginBottom:'var(--s-2)'}},
       "Since "+snap.date+": ",
       React.createElement("strong",{style:{color:diff>=0?'var(--success)':'var(--danger)'}},(diff>=0?'+':'')+diff+" stitches")
     ),
-    React.createElement("div",{style:{display:'flex',gap:'var(--s-3)',flexWrap:'wrap',justifyContent:'center'}},
-      React.createElement("div",{style:{textAlign:'center'}},
+    hasPattern?React.createElement("div",{className:"comparison-previews"},
+      React.createElement("div",{className:"comparison-preview"},
         React.createElement("div",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginBottom:'var(--s-1)'}},snap?snapLabel(snap):'Select snapshot'),
-        React.createElement("canvas",{ref:leftCanvasRef,role:"img","aria-label":snap?("Snapshot from "+snap.date):"Snapshot (none selected)",style:{border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:leftCanvasRef,role:"img","aria-label":snap?("Snapshot from "+snap.date):"Snapshot (none selected)",width:sW||1,height:sH||1,style:canvasStyle})
       ),
-      showDiff&&snap&&!sizeMismatch&&React.createElement("div",{style:{textAlign:'center'}},
+      showDiff&&snap&&snapDone&&!sizeMismatch&&React.createElement("div",{className:"comparison-preview"},
         React.createElement("div",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginBottom:'var(--s-1)'}},"New stitches"),
-        React.createElement("canvas",{ref:diffCanvasRef,role:"img","aria-label":"Changes since snapshot",style:{border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:diffCanvasRef,role:"img","aria-label":"Changes since snapshot",width:sW||1,height:sH||1,style:canvasStyle})
       ),
-      React.createElement("div",{style:{textAlign:'center'}},
+      React.createElement("div",{className:"comparison-preview"},
         React.createElement("div",{style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',marginBottom:'var(--s-1)'}},"Now"),
-        React.createElement("canvas",{ref:rightCanvasRef,role:"img","aria-label":"Current progress",style:{border:'1px solid var(--border)',borderRadius:4,background:'var(--surface-secondary)',width:canvasW,height:canvasH,display:'block'}})
+        React.createElement("canvas",{ref:rightCanvasRef,role:"img","aria-label":"Current progress",width:sW||1,height:sH||1,style:canvasStyle})
       )
-    ),
+    ):React.createElement('p',{className:'stats-empty'},'No pattern loaded.'),
     React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
       React.createElement("input",{"aria-label":"Snapshot label",type:'text',disabled:!editable,value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}),
-      React.createElement("button",{type:"button",onClick:saveManualSnapshot,disabled:!editable||!done||!pat,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent-hover)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
+      React.createElement("button",{type:"button",onClick:saveManualSnapshot,disabled:!editable||!hasPattern||!done,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent-hover)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
     ),
     React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap'}},
       React.createElement("button",{type:"button",className:"stats-export-btn",disabled:!editable||!snap,onClick:deleteSnapshot},"Delete snapshot"),

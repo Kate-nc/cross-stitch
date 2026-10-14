@@ -65,7 +65,10 @@ async function renderOtherProject(stored, view = 'visuals') {
   // the error boundary, which replaces it).
   const settled = () => fills.length > 0 || w.document.body.textContent.includes('Stats failed to render');
   for (let i = 0; i < 100 && !settled(); i++) await new Promise((r) => setTimeout(r, 10));
-  return { text: w.document.body.textContent, fills };
+  const result = { text: w.document.body.textContent, fills };
+  w.ReactDOM.flushSync(() => root.unmount());
+  w.close();
+  return result;
 }
 
 describe('StatsContainer — another project loaded from storage', () => {

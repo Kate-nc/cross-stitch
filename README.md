@@ -228,6 +228,7 @@ npm test -- --coverage
 
 npx playwright install chromium webkit   # first time only
 npm run test:e2e                 # touch-tablet Chromium
+npx playwright test stats-sizing --project=touch-tablet-chromium  # Stats sizing and interactions
 npm run test:ipad                # iPad WebKit
 npm run test:mobile-audit        # phone / tablet / desktop layout audit
 npm run perf:baseline            # desktop perf (also perf:mobile)

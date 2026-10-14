@@ -137,7 +137,7 @@ function SableChart({ data }) {
   const usedPts = data.map((d, i) => `${toX(i)},${toY(d.used)}`).join(' ');
   // Y-axis ticks
   const ticks = [0, Math.round(maxVal / 2), Math.round(maxVal)];
-  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: 520, display: 'block' }, 'aria-label': 'SABLE index timeline' },
+  return h('div', {className:'stats-plot-scroll',tabIndex:0,role:'region','aria-label':'Chart plot'}, h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', minWidth:480, height: 'auto', display: 'block' }, 'aria-label': 'SABLE index timeline' },
     // Grid lines
     ticks.map(t => h('line', { key: t, x1: PX, y1: toY(t), x2: W - 10, y2: toY(t), stroke: 'var(--border)', strokeWidth: 1 })),
     ticks.map(t => h('text', { key: 't' + t, x: PX - 6, y: toY(t) + 4, textAnchor: 'end', fontSize: 10, fill: 'var(--text-tertiary)' }, t)),
@@ -151,7 +151,7 @@ function SableChart({ data }) {
     h('text', { x: PX + 20, y: 11, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Added'),
     h('line', { x1: PX + 64, y1: 8, x2: PX + 80, y2: 8, stroke: 'var(--accent)', strokeWidth: 2 }),
     h('text', { x: PX + 84, y: 11, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Used')
-  );
+  ));
 }
 
 function HueWheel({ bins, neutral }) {
@@ -173,7 +173,7 @@ function HueWheel({ bins, neutral }) {
     paths.push(h('path', { key: i, d: `M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${IR},${IR} 0 ${large},0 ${ix1},${iy1}`, fill: hueColors[i], opacity: 0.85 }));
     angle += sweep;
   }
-  return h('svg', { viewBox: '0 0 180 180', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour composition' },
+  return h('svg', { viewBox: '0 0 180 180', style: { width: '100%', maxWidth: 240, height: 'auto', display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour composition' },
     paths,
     neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: 'var(--text-tertiary)', opacity: 0.6 }),
     h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize:'var(--text-xs)', fill: 'var(--text-secondary)', fontWeight: 600 }, fmtNum(total)),
@@ -274,7 +274,7 @@ function ColourFamilyWheel({ counts }) {
     angle += sweep;
   });
   return h('div', null,
-    h('svg', { viewBox: '0 0 192 192', style: { width: 180, height: 180, display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour families' },
+    h('svg', { viewBox: '0 0 192 192', style: { width: '100%', maxWidth: 240, height: 'auto', display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour families' },
       h('defs', null,
         h('linearGradient', { id: 'metallic-grad', x1: '0%', y1: '0%', x2: '100%', y2: '100%' },
           h('stop', { offset: '0%', stopColor: '#d4af37' }), h('stop', { offset: '100%', stopColor: '#a8a29e' })
@@ -323,7 +323,7 @@ function QuarterAreaChart({ data }) {
   const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
   const max = Math.max(1, ...data.map(d => d.started + d.finished));
   const bw = IW / data.length;
-  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Projects per quarter' },
+  return h('div', {className:'stats-plot-scroll',tabIndex:0,role:'region','aria-label':'Chart plot'}, h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', minWidth:480, height: 'auto', display: 'block' }, role: 'img', 'aria-label': 'Projects per quarter' },
     [0.5, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })),
     data.map((d, i) => {
       const x = PAD.left + i * bw + 2;
@@ -343,7 +343,7 @@ function QuarterAreaChart({ data }) {
     h('text', { x: PAD.left + 12, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Started'),
     h('rect', { x: PAD.left + 60, y: 2, width: 8, height: 8, fill: '#34d399' }),
     h('text', { x: PAD.left + 72, y: 9, fontSize: 10, fill: 'var(--text-tertiary)' }, 'Finished')
-  );
+  ));
 }
 
 // Difficulty vs completion scatter. points: [{ difficulty: 1-4, pct: 0-100, name, finished: bool }]
@@ -352,7 +352,7 @@ function DifficultyScatter({ points }) {
   const W = 480, H = 200, PAD = { top: 12, right: 12, bottom: 32, left: 32 };
   const IW = W - PAD.left - PAD.right, IH = H - PAD.top - PAD.bottom;
   const labels = ['Beg', 'Int', 'Adv', 'Exp'];
-  return h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': 'Difficulty vs completion percentage scatter' },
+  return h('div', {className:'stats-plot-scroll',tabIndex:0,role:'region','aria-label':'Chart plot'}, h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', minWidth:480, height: 'auto', display: 'block' }, role: 'img', 'aria-label': 'Difficulty vs completion percentage scatter' },
     [0, 25, 50, 75, 100].map(t => h('g', { key: t },
       h('line', { x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - t / 100), y2: PAD.top + IH * (1 - t / 100), stroke: 'var(--border)', strokeWidth: 0.5 }),
       h('text', { x: PAD.left - 4, y: PAD.top + IH * (1 - t / 100) + 3, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, t + '%')
@@ -366,7 +366,7 @@ function DifficultyScatter({ points }) {
       );
     }),
     h('text', { x: W - PAD.right, y: H - 2, textAnchor: 'end', fontSize: 9, fill: 'var(--text-tertiary)' }, 'difficulty')
-  );
+  ));
 }
 
 // Horizontal divergence bar: top owned vs top used colour overlap.
@@ -508,14 +508,15 @@ function SableLineChart({ data }) {
     return h('text', { key: i, x: sx(i), y: H - 4, textAnchor: 'middle', fontSize: 10, fill: 'var(--text-tertiary)' }, fmtMonthShort(d.month));
   });
   return h('div', { style: { marginTop:'var(--s-4)' } },
-    h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', maxWidth: W, display: 'block' }, role: 'img', 'aria-label': `Thread acquisition and usage over ${data.length} months` },
+    h('div', { className:'stats-plot-scroll', tabIndex:0, role:'region', 'aria-label':'Thread acquisition plot' },
+    h('svg', { viewBox: `0 0 ${W} ${H}`, style: { width: '100%', minWidth:480, height: 'auto', display: 'block' }, role: 'img', 'aria-label': `Thread acquisition and usage over ${data.length} months` },
       [0.25, 0.5, 0.75, 1].map(f => h('line', { key: f, x1: PAD.left, x2: W - PAD.right, y1: PAD.top + IH * (1 - f), y2: PAD.top + IH * (1 - f), stroke: 'var(--border)', strokeWidth: 1 })),
       h('polyline', { points: addedPts, fill: 'none', stroke: 'var(--accent)', strokeWidth: 2.5, strokeLinejoin: 'round', strokeLinecap: 'round' }),
       h('polyline', { points: usedPts, fill: 'none', stroke: '#6ee7b7', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', strokeDasharray: '5 3' }),
       data.map((d, i) => h('circle', { key: 'a' + i, cx: sx(i), cy: sy(d.added), r: 3, fill: 'var(--accent)' })),
       data.map((d, i) => d.used > 0 && h('circle', { key: 'u' + i, cx: sx(i), cy: sy(d.used), r: 2.5, fill: '#6ee7b7' })),
       ...labels
-    ),
+    )),
     h('div', { style: { display: 'flex', gap: 20, marginTop: 6, fontSize:'var(--text-xs)', color: 'var(--text-tertiary)' } },
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2.5, background: 'var(--accent)', borderRadius: 2 } }), 'Added'),
       h('span', { style: { display: 'flex', alignItems: 'center', gap: 5 } }, h('span', { style: { display: 'inline-block', width: 20, height: 2, background: '#6ee7b7', borderRadius: 2 } }), 'Used')
@@ -833,7 +834,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
   const drawFullPage = useCallback(canvas => makeFullPageCanvas(canvas, { stitches: lifetimeStitches, sableData, headline, readyPatterns, ageData, oldestWip }), [lifetimeStitches, sableData, headline, readyPatterns, ageData, oldestWip]);
 
   const lnk = { fontSize:'var(--text-sm)', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, fontFamily: 'inherit' };
-  const wrap = { maxWidth: 680, margin: '0 auto', padding: '0 4px 80px' };
+  const wrap = { maxWidth: 1280, margin: '0 auto', padding: '0 4px 80px' };
 
   if (loading) {
     return h('div', { style: Object.assign({}, wrap, { paddingTop: 40, textAlign: 'center', color: 'var(--text-tertiary)' }) },
@@ -894,7 +895,7 @@ function StatsShowcase({ onNavigateToDashboard, onNavigateToActivity }) {
       h('section', { id: 'showcase-ready', 'aria-labelledby': 'showcase-ready-heading' },
         h(ShowcaseSectionLabel, null, 'Ready to Start'),
         h('h3', { id: 'showcase-ready-heading', style: { fontSize: 18, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary)' } }, `${readyPatterns.length} pattern${readyPatterns.length === 1 ? '' : 's'} you can begin with what you own.`),
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 } },
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))', gap: 10 } },
           readyPatterns.map(p => h(PatternChip, { key: p.id, pattern: p }))
         )
       )
@@ -1838,6 +1839,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
   const hasAnyStitchingData = lifetimeStitches > 0 || activeProjectCount > 0 || finishedThisYear > 0 || projectDetails.length > 0;
   if (!hasAnyStitchingData && window.EmptyState) {
     return h('div', { className: 'gsd', style: { paddingBottom: 40 } },
+      tabBar,
       h('div', { style: { padding: '24px 0' } },
         h(window.EmptyState, {
           icon: window.Icons && window.Icons.barChart ? window.Icons.barChart() : null,
@@ -1876,7 +1878,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     ),
 
     // ── Middle row: SABLE + Hue Wheel ────────────────────────────
-    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+    h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 10, margin: '10px 0' } },
       show('sableIndex') && h(StatCard, { title: h('span', {style:{display:'inline-flex',alignItems:'center',gap:4}}, 'SABLE Index', h(InfoIcon, {text:'SABLE = Stash Accumulated Beyond Life Expectancy — a cherished cross-stitch tradition: tracking the ever-hopeful gap between acquiring thread and stitching it. A ratio above 1 means your stash is growing; below 1 means you’re making good progress through it.', width:220})), id: 'stats-sableIndex', style: { minHeight: 200 } },
         sableData.length >= 3
           ? h('div', null,
@@ -1913,7 +1915,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     ),
 
     // ── Bottom row: Ready to start, Duplicates, Oldest WIP ──────
-    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, margin: '10px 0' } },
+    h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 10, margin: '10px 0' } },
       show('readyToStart') && h(StatCard, { title: 'Ready to Start', id: 'stats-readyToStart' },
         (() => {
           const full = readyToStart.filter(p => p.pct === 100);
@@ -1978,7 +1980,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     ),
 
     // ── Final row: Stash Age, Most Used Colours ──────────────────
-    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+    h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 10, margin: '10px 0' } },
       show('stashAge') && h(StatCard, { title: 'Stash Age', id: 'stats-stashAge' },
         (ageData.bucketUnder1Yr > 0 || ageData.bucket1to3Yr > 0 || ageData.bucket3to5Yr > 0 || ageData.bucketOver5Yr > 0 || ageData.legacy > 0)
           ? h('div', null,
@@ -2071,7 +2073,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     ),
 
     // ── What should I work on next? ─────────────────────────────
-    (show('useWhatYouHave') || show('buyingImpact')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+    (show('useWhatYouHave') || show('buyingImpact')) && h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 10, margin: '10px 0' } },
       show('useWhatYouHave') && useWhatYouHaveRecs.length > 0 && h(StatCard, { title: 'Use What You Have', id: 'stats-useWhatYouHave' },
         h('div', null,
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Wishlist patterns that lean on threads already in your stash'),
@@ -2099,7 +2101,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     show('colourFingerprint') && colourFingerprint && h('div', { style: { margin: '10px 0' } },
       h(StatCard, { title: 'Your Colour Fingerprint', id: 'stats-colourFingerprint' },
         h(FingerprintBar, { jaccardPct: colourFingerprint.jaccardPct }),
-        h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 } },
+        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginTop: 8 } },
           h('div', null,
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Used a lot but not stocked'),
             colourFingerprint.usedNotOwned.length > 0
@@ -2116,7 +2118,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
       )
     ),
 
-    (show('designerLeaderboard') || show('brandAlignment')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10, margin: '10px 0' } },
+    (show('designerLeaderboard') || show('brandAlignment')) && h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 10, margin: '10px 0' } },
       show('designerLeaderboard') && designerLeaderboard.length > 0 && h(StatCard, { title: 'Designer Leaderboard', id: 'stats-designerLeaderboard' },
         h('div', null,
           designerLeaderboard.map((d, i) => h('div', { key: d.name, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '5px 0', borderBottom: i < designerLeaderboard.length - 1 ? '1px solid var(--border-subtle)' : 'none', fontSize:'var(--text-md)' } },
@@ -2155,7 +2157,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     ),
 
     // ── New stats: Finish Rate, Seasonal, Peak Time, ETAs (Work item 6) ──
-    (show('finishRate') || show('completionEta')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, margin: '10px 0' } },
+    (show('finishRate') || show('completionEta')) && h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 10, margin: '10px 0' } },
       show('finishRate') && finishRate && h(StatCard, { title: 'Finish Rate', id: 'stats-finishRate' },
         h('div', null,
           h('div', { className: 'gsd-metric-value', style: { color: finishRate.pct >= 50 ? 'var(--accent)' : 'var(--text-primary)' } }, finishRate.pct + '%'),
@@ -2175,7 +2177,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         )
       )
     ),
-    (show('seasonalPattern') || show('peakTimeSummary')) && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 10, margin: '10px 0' } },
+    (show('seasonalPattern') || show('peakTimeSummary')) && h('div', { style: { display: 'grid', alignItems: 'start', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 10, margin: '10px 0' } },
       show('seasonalPattern') && seasonalPattern && h(StatCard, { title: 'Seasonal Stitching', id: 'stats-seasonalPattern' },
         h('div', null,
           h('div', { className: 'gsd-metric-sub', style: { marginBottom: 8 } }, 'Stitches by month across all your projects'),
