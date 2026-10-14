@@ -2116,7 +2116,7 @@ const handedness=useTrackerPref('trackerHandedness','right')==='left'?'left':'ri
 useFillChartHeight(stitchScrollRef,!!pat);
 // Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
 const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
-const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0;
+const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0||partialDone.size>0||bsDone.length>0;
 // Any marked stitch (full, half or knot) is the signal that the how-to-mark banners have done their job.
 useEffect(()=>{
   if(hintsSeen||!_hasMarks)return;
@@ -2148,12 +2148,15 @@ const halfStitchCounts=useMemo(()=>{
 const knotDoneSet=useMemo(()=>new Set(knotsDone),[knotsDone]);
 const knotCounts=useMemo(()=>window.Knots?window.Knots.progress(knots,knotsDone):{total:0,done:0},[knots,knotsDone]);
 const knotsByThread=useMemo(()=>window.Knots?window.Knots.byThread(knots,knotsDone):{},[knots,knotsDone]);
+// Quarter stitches (fractional.js): {total, done} in quarters, and per thread. Each is worth a quarter of a full stitch.
+const quarterCounts=useMemo(()=>window.Fractional?window.Fractional.progress(partialStitches,partialDone):{total:0,done:0},[partialStitches,partialDone]);
+const quartersByThread=useMemo(()=>window.Fractional?window.Fractional.byThread(partialStitches,partialDone):{},[partialStitches,partialDone]);
 
 // Progress in units, from the one shared definition (progress-units.js: a full stitch is one unit, a half stitch
 // half, a French knot one). Every figure below, and every other page, reads it from there.
-const progAll=useMemo(()=>ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total}}),[doneCount,totalStitchable,halfStitchCounts,knotCounts]);
+const progAll=useMemo(()=>ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total}}),[doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts]);
 // The strip follows the visible-layer filter; everything else counts every type.
-const progShown=useMemo(()=>statsCountMode==='visible'?ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total}},{include:{full:layerVis.full,half:layerVis.half,knot:layerVis.french_knot}}):progAll,[progAll,statsCountMode,layerVis,doneCount,totalStitchable,halfStitchCounts,knotCounts]);
+const progShown=useMemo(()=>statsCountMode==='visible'?ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total}},{include:{full:layerVis.full,half:layerVis.half,knot:layerVis.french_knot,quarter:layerVis.quarter}}):progAll,[progAll,statsCountMode,layerVis,doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts]);
 const combinedTotal=progAll.totalUnits;
 const combinedDone=progAll.doneUnits;
 const effectiveCombinedTotal=progShown.totalUnits;
@@ -2225,13 +2228,24 @@ useEffect(()=>{
   const next=pal&&pal.find(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;});
   setFocusColour(next?next.id:null);
 },[areaColourCounts,focusColour,pal]);
-const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:0,petite:0,french_knot:knots.length,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length]);
+const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:0,french_knot:knots.length,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
 // while marking stitches. `colourDoneCountsRef.current` is mutated in place
 // (see the T-5 counts invariant), so `countsVer` — not `colourDoneCounts`
 // itself — is the correct "did the counts actually change" signal here.
+// A legend row's count line. The whole-stitch figure is left out for a colour with no whole stitches but other kinds
+// (so a colour used only in quarter stitches or knots never reads "0/0").
+function legendCountText(dc,kn,qt){
+  const parts=[];
+  const other=(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0);
+  if(dc.total>0||!other)parts.push(dc.done+"/"+dc.total);
+  if(dc.halfTotal>0)parts.push(dc.halfDone+"/"+dc.halfTotal+" half");
+  if(kn&&kn.total>0)parts.push(kn.done+"/"+kn.total+" knots");
+  if(qt&&qt.total>0)parts.push(qt.done+"/"+qt.total+" fractional");
+  return parts.join(" · ");
+}
 const legendRows=useMemo(()=>{
   if(!pal)return null;
   // In a work area: only the colours it contains, with its counts.
@@ -2241,18 +2255,20 @@ const legendRows=useMemo(()=>{
     const dc=src[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
     // French knots count one each (not in a work area's counts).
     const kn=!areaColourCounts&&knotsByThread[p.id]||{total:0,done:0};
-    const totalWH=dc.total+dc.halfTotal*0.5+kn.total;
-    const doneWH=dc.done+dc.halfDone*0.5+kn.done;
+    // Quarter stitches, a quarter each (not in a work area's counts either).
+    const qt=!areaColourCounts&&quartersByThread[p.id]||{total:0,done:0};
+    const totalWH=dc.total+dc.halfTotal*0.5+kn.total+qt.total*0.25;
+    const doneWH=dc.done+dc.halfDone*0.5+kn.done+qt.done*0.25;
     const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
     const remaining=Math.max(0,totalWH-doneWH);
     const complete=doneWH>=totalWH&&totalWH>0;
-    return {p,dc,kn,pct,remaining,complete};
+    return {p,dc,kn,qt,pct,remaining,complete};
   });
   if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort,areaColourCounts,knotsByThread]);
+},[pal,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -2642,23 +2658,26 @@ useEffect(()=>{
     // count; a missing one is taken as "no change" and set from here on.
     const curKnot=knotCounts.done;
     const prevKnot=typeof prev.knotDone==="number"?prev.knotDone:curKnot;
+    const curQuarter=quarterCounts.done;
+    const prevQuarter=typeof prev.quarterDone==="number"?prev.quarterDone:curQuarter;
     if(prevDone<0||prevHalf<0){
-      prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
+      prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter};
       return;
     }
     const doneDiff=curDone-prevDone;
     const halfDiff=curHalf-prevHalf;
     const knotDiff=curKnot-prevKnot;
-    if(doneDiff!==0||halfDiff!==0||knotDiff!==0){
-      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff)+Math.max(0,knotDiff);
-      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff);
-      const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff)});
-      const undoneUnits=ProgressUnits.sessionUnits({full:Math.max(0,-doneDiff),half:Math.max(0,-halfDiff),knot:Math.max(0,-knotDiff)});
+    const quarterDiff=curQuarter-prevQuarter;
+    if(doneDiff!==0||halfDiff!==0||knotDiff!==0||quarterDiff!==0){
+      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff)+Math.max(0,knotDiff)+Math.max(0,quarterDiff);
+      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff)+Math.max(0,-quarterDiff);
+      const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff),quarter:Math.max(0,quarterDiff)});
+      const undoneUnits=ProgressUnits.sessionUnits({full:Math.max(0,-doneDiff),half:Math.max(0,-halfDiff),knot:Math.max(0,-knotDiff),quarter:Math.max(0,-quarterDiff)});
       if(completed>0||undone>0)recordAutoActivity(completed,undone,completedUnits,undoneUnits,asCatchUp?completedUnits:0);
       // Milestone detection
       if(completedUnits>0&&combinedTotal>0){
-        const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot});
-        const newTotal=ProgressUnits.sessionUnits({full:curDone,half:curHalf,knot:curKnot});
+        const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot,quarter:prevQuarter});
+        const newTotal=ProgressUnits.sessionUnits({full:curDone,half:curHalf,knot:curKnot,quarter:curQuarter});
         try{
           const hits=checkMilestones(prevTotal,newTotal,combinedTotal);
           if(hits&&hits.length>0){
@@ -2714,9 +2733,9 @@ useEffect(()=>{
         }
       }catch(e){console.warn('[stitchx/tracker] daily snapshot check failed:',e);}
     }
-    prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot};
+    prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter};
   }catch(e){}
-},[doneCount,halfStitchCounts.done,knotCounts.done]);
+},[doneCount,halfStitchCounts.done,knotCounts.done,quarterCounts.done]);
 // Goal-completion detection: remembers when a goal is first reached in this session; says so only when goals are shown.
 useEffect(()=>{
   try{
@@ -3045,9 +3064,19 @@ function pushBulkToggleHistory(changes, source){
 function flipKnotDone(key){
   setKnotsDone(prev=>prev.indexOf(key)===-1?prev.concat([key]):prev.filter(x=>x!==key));
 }
+// A quarter stitch marked or unmarked: {type:"QUARTER", idx, pos}. Undo and redo both flip it back.
+function flipQuarterDone(idx,pos){
+  setPartialDone(prev=>window.Fractional?window.Fractional.toggle(prev,idx,pos):prev);
+}
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let lastEntry=trackHistory[trackHistory.length-1];
+  if(lastEntry&&lastEntry.type==="QUARTER"){
+    flipQuarterDone(lastEntry.idx,lastEntry.pos);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="KNOT"){
     flipKnotDone(lastEntry.key);
     setTrackHistory(prev=>prev.slice(0,-1));
@@ -3077,6 +3106,12 @@ function undoTrack(){
 function redoTrack(){
   if(!redoStack.length||!done)return;
   let lastEntry=redoStack[redoStack.length-1];
+  if(lastEntry&&lastEntry.type==="QUARTER"){
+    flipQuarterDone(lastEntry.idx,lastEntry.pos);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="KNOT"){
     flipKnotDone(lastEntry.key);
     setRedoStack(prev=>prev.slice(0,-1));
@@ -4999,21 +5034,36 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   const hsLowZoom=tier===2;   // Tier 2: triangle fill only
   const hsMedZoom=tier===3;   // Tier 3: triangle + diagonal line
   const hsHighZoom=tier>=4;   // Tier 4: full detail (tri + line + symbol)
-  function drawPartial(entry, base, px, py) {
-    if (!entry) return;
+  // Quarter stitches: a done one is drawn as before; one not done yet is faded (lighter, so the two differ in
+  // more than hue). An instruction (a quarter, a half or three quarters) is done when every explicit
+  // quarter it is made of is.
+  function instructionCorners(ins) {
+    if (ins.type === 'quarter') return [ins.corner];
+    if (ins.type === 'three-quarter') return ['TL', 'TR', 'BL', 'BR'].filter(function (q) { return q !== ins.emptyCorner; });
+    return ins.direction === 'fwd' ? ['BL', 'TR'] : ['TL', 'BR'];
+  }
+  function drawPartial(entry, base, px, py, idx) {
+    if (!entry || layerVis.quarter === false) return;
+    const dn = partialDone.get(idx);
     analysePartialStitches(entry, base).forEach(function (instruction) {
+      let q = 0.8, isDnQ = true;
+      const cs = instructionCorners(instruction);
+      for (let ci = 0; ci < cs.length; ci++) if (entry[cs[ci]] && !(dn && dn.has(cs[ci]))) { isDnQ = false; break; }
+      if (!isDnQ) q = 0.4;
+      ctx.save();
       var colour = instruction.colour;
       var paletteEntry = cmap && cmap[colour.id];
       var symbol = paletteEntry && paletteEntry.symbol;
       var view = stitchView === 'symbol' ? 'symbol' : 'both';
       if (instruction.type === 'three-quarter') {
-        drawThreeQuarterStitch(ctx, px, py, cSz, colour, instruction.emptyCorner, 0.8, view, symbol);
+        drawThreeQuarterStitch(ctx, px, py, cSz, colour, instruction.emptyCorner, q, view, symbol);
       } else if (instruction.type === 'quarter') {
-        drawQuarterStitch(ctx, px, py, cSz, colour, instruction.corner, 0.8, view, symbol);
+        drawQuarterStitch(ctx, px, py, cSz, colour, instruction.corner, q, view, symbol);
       } else {
-        drawHalfTriangle(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
-        drawHalfLine(ctx, px, py, cSz, instruction.direction, colour.rgb, 0.8);
+        drawHalfTriangle(ctx, px, py, cSz, instruction.direction, colour.rgb, q);
+        drawHalfLine(ctx, px, py, cSz, instruction.direction, colour.rgb, q);
       }
+      ctx.restore();
     });
   }
 
@@ -5061,7 +5111,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
           _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,false,hsLowZoom,hsMedZoom,hsHighZoom);
           ctx.restore();
         }
-        drawPartial(partialStitches.get(idx),m,px,py);
+        drawPartial(partialStitches.get(idx),m,px,py,idx);
         continue;
       }
       if(layerVis.full){
@@ -5117,7 +5167,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         _drawHalfStitchCell(ctx,px,py,cSz,hs,hd,cmap,stitchView,focusColour,layerVis.full?effectiveDimmed:false,hsLowZoom,hsMedZoom,hsHighZoom);
         ctx.restore();
       }
-      drawPartial(partialStitches.get(idx),m,px,py);
+      drawPartial(partialStitches.get(idx),m,px,py,idx);
       if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
     }
     // R11: dim rows outside the current row — one pass per row covers all tiers.
@@ -5317,7 +5367,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -6195,6 +6245,16 @@ function handleStitchKeyDown(e){
     }
     const idx=g.row*sW+g.col;
     const cell=pat[idx];
+    // A cell of quarter stitches whose whole stitch is done (or absent): Enter marks its quarters one at a time, nearest the
+    // top left first and then on, a second press on the next. A plain Enter on any other cell marks the stitch as before.
+    if(!e.shiftKey&&window.Fractional&&partialStitches.size&&partialStitches.has(idx)&&!halfStitches.has(idx)&&layerVis.quarter!==false){
+      const isFull=cell&&cell.id!=="__skip__"&&cell.id!=="__empty__";
+      if(!isFull||doneRef.current[idx]){
+        const q=window.Fractional.nextToMark(partialStitches.get(idx),partialDone.get(idx),isColourLocked()?focusColour:null);
+        if(q){toggleQuarterDone({idx,pos:q,id:partialStitches.get(idx)[q].id});return;}
+        if(!isFull)return;
+      }
+    }
     if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return;
     const anchor=kbAnchorRef.current;
     if(isEnter&&e.shiftKey&&anchor&&anchor.idx!==idx){
@@ -7448,6 +7508,34 @@ function knotAtPoint(cx,cy){
   if(areaOn&&!window.WorkArea.contains(workArea,Math.min(sW-1,k.x>>1),Math.min(sH-1,k.y>>1)))return null;
   return k;
 }
+// Quarter stitches (fractional.js): in Mark mode a press on a cell that holds quarter stitches marks the nearest one,
+// once the cell's whole stitch (if it has one) is done, the way half stitches are. A colour lock refuses a quarter of
+// another colour. Cells with half stitches keep the half-stitch path.
+function quarterAt(idx,nx,ny){
+  if(!window.Fractional||!partialStitches.size||layerVis.quarter===false||halfStitches.has(idx))return null;
+  const entry=partialStitches.get(idx);
+  if(!entry)return null;
+  const m=pat[idx],isFull=m&&m.id!=="__skip__"&&m.id!=="__empty__";
+  if(isFull&&!(done&&done[idx]))return null;
+  const pos=window.Fractional.pick(entry,nx,ny,isColourLocked()?focusColour:null);
+  return pos?{idx,pos,id:entry[pos].id}:null;
+}
+function quarterAtPoint(cx,cy){
+  if(!_dragMarkActive||!partialStitches.size||!stitchRef.current)return null;
+  const rect=stitchRef.current.getBoundingClientRect();
+  const ct=chartTileRef.current||{x:0,y:0};
+  const fx=(cx-rect.left+ct.x-G)/scs,fy=(cy-rect.top+ct.y-G)/scs;
+  const gx=Math.floor(fx),gy=Math.floor(fy);
+  if(gx<0||gx>=sW||gy<0||gy>=sH)return null;
+  if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return null;
+  return quarterAt(gy*sW+gx,fx-gx,fy-gy);
+}
+function toggleQuarterDone(q){
+  flipQuarterDone(q.idx,q.pos);
+  if(q.id)pendingColoursRef.current.add(q.id);
+  setTrackHistory(prev=>{let n=[...prev,{type:"QUARTER",idx:q.idx,pos:q.pos}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
 function toggleKnotDone(k){
   const key=k.x+","+k.y;
   flipKnotDone(key);
@@ -7457,8 +7545,10 @@ function toggleKnotDone(k){
 }
 const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
-    const k=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey?knotAtPoint(e.clientX,e.clientY):null;
-    if(k){knotPressRef.current={k,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
+    const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
+    const k=plain?knotAtPoint(e.clientX,e.clientY):null;
+    const q=plain&&!k?quarterAtPoint(e.clientX,e.clientY):null;
+    if(k||q){knotPressRef.current={k,q,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
     knotPressRef.current=null;
     if(_dragMarkHandlers.onPointerDown)_dragMarkHandlers.onPointerDown(e);
   },
@@ -7471,7 +7561,7 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     if(p&&p.id===e.pointerId){
       knotPressRef.current=null;
       if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
-      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12)toggleKnotDone(p.k);
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
       return;
     }
     if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
@@ -7970,7 +8060,7 @@ return(
       {pal&&<div className="ppal-tile-list" role="list">
         {(()=>{
           const rows=legendRows||[];
-          return rows.map(({p,dc,kn,pct,complete})=>{
+          return rows.map(({p,dc,kn,qt,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
             return <div key={p.id} role="button" tabIndex={0}
@@ -7992,7 +8082,7 @@ return(
                 </div>
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
-                  <span className="ppal-tile-count">{dc.done}/{dc.total}{dc.halfTotal>0?" · "+dc.halfDone+"/"+dc.halfTotal+" half":""}{kn&&kn.total>0?" · "+kn.done+"/"+kn.total+" knots":""}</span>
+                  <span className="ppal-tile-count">{legendCountText(dc,kn,qt)}</span>
                   <div className="ppal-tile-actions">
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"

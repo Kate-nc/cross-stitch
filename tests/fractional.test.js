@@ -41,3 +41,24 @@ test('remap moves marks with the grid and drops cells that fall off it', () => {
   expect(F.forSave(out)).toEqual([[1 * 6 + 1, ['TL']], [3 * 6 + 4, ['BR']]]);
   expect(F.forSave(F.remap(m, 4, 3, 3, 0, 0))).toEqual([[0, ['TL']]]);
 });
+
+describe('pick and nextToMark', () => {
+  const entry = { TL: { id: '912' }, BR: { id: '912' }, TR: { id: '310' } };
+  test('pick takes the nearest quarter that holds a thread', () => {
+    expect(F.pick(entry, 0.1, 0.1)).toBe('TL');
+    expect(F.pick(entry, 0.9, 0.9)).toBe('BR');
+    expect(F.pick(entry, 0.2, 0.9)).toBe('BR');   // BL has no thread: BR is the nearer of the rest
+    expect(F.pick({ TL: { id: '1' } }, 0.9, 0.9)).toBe('TL');
+    expect(F.pick(null, 0.5, 0.5)).toBeNull();
+  });
+  test('a colour lock only offers quarters of that thread', () => {
+    expect(F.pick(entry, 0.8, 0.2, '912')).not.toBe('TR');
+    expect(F.pick(entry, 0.8, 0.2, '999')).toBeNull();
+  });
+  test('nextToMark takes the first not done, then unmarks from the end', () => {
+    expect(F.nextToMark(entry, undefined)).toBe('TL');
+    expect(F.nextToMark(entry, new Set(['TL']))).toBe('TR');
+    expect(F.nextToMark(entry, new Set(['TL', 'TR', 'BR']))).toBe('BR');
+    expect(F.nextToMark({}, undefined)).toBeNull();
+  });
+});

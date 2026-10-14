@@ -91,3 +91,28 @@ describe('ProgressUnits.countsFromProject backstitch row', () => {
     expect(PU.countsFromProject({ pattern: [{ id: '1' }], done: [0] }).backstitch).toEqual({ done: 0, total: 0 });
   });
 });
+
+describe('ProgressUnits quarter row (Phase 6 batch 2)', () => {
+  const PU = require('../progress-units.js');
+  const th = { id: '912' };
+  const base = () => ({
+    pattern: [{ id: '__skip__' }, { id: '__skip__' }], done: [0, 0],
+    partialStitches: [[0, { TL: th, BR: th }], [1, { TL: th }]]
+  });
+  test('912 TL+BR plus a neighbour TL: 2 of 3 is half a unit', () => {
+    const p = Object.assign(base(), { partialDone: [[0, ['TL', 'BR']]] });
+    expect(PU.countsFromProject(p).quarter).toEqual({ done: 2, total: 3 });
+    const r = PU.fromProject(p);
+    expect(r.doneUnits).toBe(0.5);
+    expect(r.totalUnits).toBe(0.75);
+  });
+  test('a mark on a position with no thread is not counted', () => {
+    const p = Object.assign(base(), { partialDone: [[1, ['TL', 'BR']], [9, ['TL']]] });
+    expect(PU.countsFromProject(p).quarter).toEqual({ done: 1, total: 3 });
+  });
+  test('whole stitches and quarters add up, in units', () => {
+    const p = { pattern: [{ id: '310' }], done: [1], partialStitches: [[0, { TL: th }]], partialDone: [[0, ['TL']]] };
+    expect(PU.fromProject(p).doneUnits).toBe(1.25);
+    expect(PU.fromProject(p).percent).toBe(100);
+  });
+});

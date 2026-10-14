@@ -56,3 +56,34 @@ Seeded a project with 3 backstitch lines (one marked plus a ghost key), a quarte
 ### Performance
 
 Nothing in the draw or mark path changed in this batch. The additions on the mark path are two reference comparisons in the progress-record effect and two more dependencies on the autosave effects.
+
+## Batch 2: quarter stitches (marking and counts)
+
+### What was built
+- **Marking (mouse, touch, keyboard).** In Mark mode a press on a cell that holds quarter stitches marks the quarter nearest the press (`Fractional.pick`: nearest quadrant centre among the quarters that hold a thread; a single quarter takes a tap anywhere in the cell). Mouse and touch share the pointer path the French knots use, so a tap with a finger works the same. At the keyboard, Enter at the guide marks the first quarter not yet done and Enter again the next; with every quarter done it unmarks the last (Undo covers the rest). Only quarters with a thread count: a cell's whole stitch, if it has one, is marked first, as for half stitches. Cells with half stitches keep the half-stitch path. A colour lock refuses a quarter of another colour.
+- **Undo and redo.** A `QUARTER` history entry per mark, flipped by Undo and Redo exactly like a knot; a cross-tab merge clears the history as it does for every other mark.
+- **Look.** A done quarter, half or three-quarter group is drawn as before; one not yet done is faded (alpha 0.4 against 0.8). It follows the existing Quarter layer switch.
+- **Counts.** `quarter` is in `progAll`, `progShown` (visible-layers mode honours the Quarter layer), the live-session units, milestone detection, the layer counts, the colour legend (percent and remaining now include quarters at 0.25) and `ProgressUnits.countsFromProject`, so Home, Stats, the library and share text agree. The legend row reads, for example, `2/3 fractional`; a colour with no whole stitches never shows `0/0` (this also fixes knot-only colours).
+- **Weights shift percentages (accepted by you).** A chart with quarter stitches now has more units than before (each quarter is 0.25). Said in the changelog and the help ("How progress is counted").
+
+### Worked example from the prompt (browser, `harness/p6b2.js`, `p6b2touch.js`)
+912 TL+BR in one cell plus a TL in the next, on a skip background: legend `0/3 fractional`; mark TL, BR: `2/3`; third: `3/3` (the project reaches 100% and the stash prompt shows). Undo gives `2/3`, Redo `3/3`. A cell with a whole stitch: first tap marks the whole stitch (`1/1`), the second tap marks its quarter (`1/1 fractional`). After an autosave the project holds `partialDone` for all three cells and a reload shows the same legend. Touch taps (hasTouch, 820x1100) marked the same cells.
+
+### Decisions and limits
+- **"Petite" has no data model.** The project stores quarters (`partialStitches`) only; the Quarter layer covers them and the Petite layer stays at 0. The weight for `petite` stays in the table.
+- Quarter counts are not in a work area's counts (like knots); the area figures count whole and half stitches only.
+- If the pattern changes size outside the Creator, the existing reconciliation remaps `done` and `halfDone` only; quarters (the stitches themselves and their marks) are not remapped there. The Creator's resize does remap both.
+- A mark on the chart for a quarter repaints the whole tile (as a half-stitch mark does), not a clipped cell.
+
+### Performance (batch 2)
+300x300 fixture, 20% done, no quarter cells (the draw loop's per-cell work is unchanged there: `drawPartial` runs only for cells with quarters). Interleaved against `main` (3 rounds of 2 fresh browsers each, 1x CPU, medians):
+
+| | main | branch | delta |
+|---|---|---|---|
+| zoom step (ms task time) | 90.7 | 94.4 | +4.1% |
+| pan step (ms) | 22.2 | 23.5 | +5.7% |
+| drag of 60 cells (ms) | 732.9 | 685.7 | -6.4% |
+| single mark (ms) | 28.2 | 26.7 | -5.4% |
+| heap after GC (MB) | 19.39 | 19.39 | 0.0% |
+
+The sign changes across rows and the sandbox's own run-to-run noise is up to 8% (A/A runs in Phase 5), so this reads as "not distinguishable", not as a regression or a gain. The pan figure is the one nominally above 5%; rounds ranged 21.8 to 26.7 on `main` alone.

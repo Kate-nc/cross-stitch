@@ -56,7 +56,7 @@ describe('processLoadedProject null guard', () => {
       expect(src).toMatch(/project\.partialStitches/);
       expect(src).toMatch(/setPartialStitches\(partialMap\)/);
       expect(src).toMatch(/partialStitches: psArr/);
-      expect(src).toMatch(/drawPartial\(partialStitches\.get\(idx\),m,px,py\)/);
+      expect(src).toMatch(/drawPartial\(partialStitches\.get\(idx\),m,px,py,idx\)/);
     });
   });
 
