@@ -158,7 +158,9 @@
     }
     // completedUnits / undoneUnits: the same marks in the unit progress uses (half stitch = half, see
     // progress-units.js). Callers that only mark full stitches may leave them out.
-    function recordAutoActivity(completed,undone,completedUnits,undoneUnits,catchUpUnits){
+    // eventKind (optional): 'frog' for an unpicked area, so the log (and the journal) can tell it from stitching; the
+    // default is 'stitch'. Either way the stitches taken out go to the session's unpicked figure, never as a negative day.
+    function recordAutoActivity(completed,undone,completedUnits,undoneUnits,catchUpUnits,eventKind){
       try{
         const cu=completedUnits==null?completed:completedUnits,uu=undoneUnits==null?undone:undoneUnits;
         const now=Date.now();
@@ -174,7 +176,7 @@
           setManuallyPaused(false);
         }
         // Record the stitch event (net delta for the activity burst).
-        currentAutoSessionRef.current.eventLog.push({kind:'stitch',t:now,delta:completed-undone});
+        currentAutoSessionRef.current.eventLog.push(eventKind==='frog'?{kind:'frog',t:now,delta:completed-undone,n:undone,units:uu}:{kind:'stitch',t:now,delta:completed-undone});
         currentAutoSessionRef.current.lastMarkT=now;
         currentAutoSessionRef.current.forgotAsked=false;currentAutoSessionRef.current.snoozeUntil=null;setForgotStop(null);
         currentAutoSessionRef.current.stitchesCompleted+=completed;
@@ -226,6 +228,22 @@
           autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
         }
       }catch(e){}
+    }
+    // An unpicked area was put back (Undo): take it off the session's unpicked figure again, if that session is still
+    // open, so that undoing it does not leave "Unpicked 80" behind or count the 80 as added. A session already closed
+    // keeps what it recorded.
+    function unrecordUnpick(stitches,units){
+      try{
+        const cs=currentAutoSessionRef.current;
+        if(!cs)return false;
+        cs.stitchesUndone=Math.max(0,cs.stitchesUndone-stitches);
+        cs.unitsUndone=Math.max(0,cs.unitsUndone-units);
+        const bd=cs.byDay&&cs.byDay[cs.curDate];
+        if(bd){bd.su=Math.max(0,bd.su-stitches);bd.uu=Math.max(0,bd.uu-units);}
+        cs.eventLog.push({kind:'frogUndo',t:Date.now(),n:stitches,units:units});
+        setLiveAutoStitches(ProgressUnits.liveSessionAdded(cs));
+        return true;
+      }catch(e){return false;}
     }
     // opts (all optional): endMs, finish the session at that time (trim to the last mark); durationSeconds, the
     // minutes the person confirmed or edited when stopping the timer.
@@ -446,6 +464,7 @@
       sessionOnboardingShown, setSessionOnboardingShown,
       sessionSavedToast, setSessionSavedToast,
       recordAutoActivity,
+      unrecordUnpick,
       editSessionNote,
     };
   };

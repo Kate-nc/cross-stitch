@@ -7742,6 +7742,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .range-anchor-bar__icon{display:inline-flex;}
 .range-anchor-bar__icon svg{width:14px;height:14px;}
 .range-anchor-bar__btn{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:0;border-radius:var(--radius-sm);background:var(--surface);color:var(--accent-ink);font:inherit;cursor:pointer;}
+.range-anchor-bar__btn--on{background:var(--accent);color:var(--surface);}
 @media (pointer:coarse){.range-anchor-bar__btn{min-height:40px;padding:6px 12px;}}
 /* Status bar under the chart: "Clear guide" sits at its right edge. */
 .tracker-hover-bar__clear{margin-left:auto;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid currentColor;border-radius:var(--radius-sm);background:transparent;color:inherit;font:inherit;font-size:var(--text-xs);cursor:pointer;opacity:0.9;}

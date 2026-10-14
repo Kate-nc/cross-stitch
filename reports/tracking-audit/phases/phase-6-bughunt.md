@@ -22,3 +22,12 @@ Not done or left alone:
 - The loupe is shown for presses that land on a line, not for any finger down; a finger that misses by more than the snap distance marks the stitch beneath without it.
 - Diagonal lines pass through the centre of a cell, so within the snap distance of one the line wins over the stitch beneath; zoom in or press near the stitch's corner to mark the stitch.
 - No screen-reader announcements for the line chosen with `B` (screen-reader work is deferred).
+
+## Batch 4 (Unpick area)
+Found and fixed while building:
+- The first mouse attempt did nothing: the shift-range gesture works from the last clicked stitch (Shift+click), not from where a Shift+drag starts, and ignores a background cell as its end. The mouse route is therefore click, Shift+click, Alt at release; the help says so.
+- Alt held at the press is the spotlight's, so Alt cannot start the gesture; checking it at release avoids the clash.
+- State declared after the effect that reads it (a temporal-dead-zone crash on load) in my first build; moved up with the other refs.
+- The rectangle a rectangle gesture hands over leaves out background cells; Unpick widens it to the bounding box so half stitches, quarters, knots and backstitch standing on background are taken too.
+
+Checked and fine: undo/redo exactness for all five kinds; the colour lock; the work area (cells outside it are skipped); the progress and session figures through unpick, undo and redo.

@@ -860,7 +860,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
 // ─── Event-log timing engine ─────────────────────────────────────────────────
 // computeActiveMs: pure function — active stitching duration from an event log.
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
-//   start, stitch, hidden, visible, manualPause, manualResume
+//   start, stitch, frog (an unpicked area), hidden, visible, manualPause, manualResume
 // Intervals inside a hidden or manualPause span are excluded entirely.
 // Classic mode credits all eligible gaps at most capMs each.
 // Batch-aware mode keeps the same rules except that an interval ending in a
@@ -1427,6 +1427,12 @@ const beadsRef=useRef(undefined);
 // The backstitch line the keyboard has selected (an index into bsLines, -1 for none), and the cell it was chosen at.
 const[bsSelect,setBsSelect]=useState(-1);
 const bsSelectRef=useRef(-1);
+// Unpick area (unpick.js): chosen on the rectangle bar, waiting for the second corner; and the current unpickArea for callers
+// that outlive a render.
+const unpickPendingRef=useRef(false);
+const[unpickPending,setUnpickPending]=useState(false);
+const unpickAreaRef=useRef(function(){return false;});
+function setUnpickIntent(on){unpickPendingRef.current=on;setUnpickPending(on);}
 bsSelectRef.current=bsSelect;
 // Progress record (ProjectStorage.saveProgress): the marks, written about every 400 ms.
 // owner is the (project id, state) pair as of the last committed render, so a write can
@@ -1682,14 +1688,16 @@ const[isShiftDown,setIsShiftDown]=useState(false);
 // instant Shift is released, rather than persisting across unrelated clicks.
 const dragMarkNotifyShiftUpRef=useRef(null);
 useEffect(()=>{
-  const onKeyDown=e=>{if(e.key==="Shift")setIsShiftDown(true);};
+  const onKeyDown=e=>{if(e.key==="Shift")setIsShiftDown(true);if(e.key==="Alt")altDownRef.current=true;};
   const onKeyUp=e=>{
+    if(e.key==="Alt")altDownRef.current=false;
     if(e.key==="Shift"){
       setIsShiftDown(false);
       if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
     }
   };
   const onBlur=()=>{
+    altDownRef.current=false;
     setIsShiftDown(false);
     if(dragMarkNotifyShiftUpRef.current)dragMarkNotifyShiftUpRef.current();
   };
@@ -2087,7 +2095,7 @@ const flushedGenRef=useRef(-1);
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{unrecordUnpick,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 useEffect(()=>{if(!motivation.show)setCelebration(null);},[motivation.show,setCelebration]);
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
@@ -3105,6 +3113,14 @@ function flipQuarterDone(idx,pos){
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let lastEntry=trackHistory[trackHistory.length-1];
+  if(lastEntry&&lastEntry.type==="UNPICK"){
+    // Putting an unpicked area back is not stitching: it comes off the session's unpicked figure, and adds nothing.
+    applyUnpickPlan(lastEntry.plan,true);
+    unrecordUnpick(lastEntry.plan.stitches,lastEntry.plan.units);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="BS"){
     setBsKeysDone(lastEntry.keys,!lastEntry.on);
     setTrackHistory(prev=>prev.slice(0,-1));
@@ -3146,6 +3162,13 @@ function undoTrack(){
 function redoTrack(){
   if(!redoStack.length||!done)return;
   let lastEntry=redoStack[redoStack.length-1];
+  if(lastEntry&&lastEntry.type==="UNPICK"){
+    applyUnpickPlan(lastEntry.plan,false);
+    if(lastEntry.plan.stitches>0)recordAutoActivity(0,lastEntry.plan.stitches,0,lastEntry.plan.units,0,'frog');
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="BS"){
     setBsKeysDone(lastEntry.keys,lastEntry.on);
     setRedoStack(prev=>prev.slice(0,-1));
@@ -6312,6 +6335,23 @@ function handleStitchKeyDown(e){
     moveGuideBy(GUIDE_KEYS[e.key][0]*(e.shiftKey?10:1),GUIDE_KEYS[e.key][1]*(e.shiftKey?10:1));
     return;
   }
+  // Ctrl or Cmd + Shift + Enter: unpick the rectangle from the last stitch marked with the keyboard to the guide
+  // (the Shift+Enter variant that takes marks out of every kind of stitch there).
+  if(inMark&&e.key==="Enter"&&e.shiftKey&&(e.ctrlKey||e.metaKey)&&!e.altKey){
+    e.preventDefault();
+    if(e.repeat)return;
+    const g=guideRef.current;
+    const onChart=kbGuideRef.current&&g&&g.row>=0&&g.col>=0&&g.row<sH&&g.col<sW;
+    const anchor=kbAnchorRef.current;
+    if(!onChart||!anchor){
+      if(window.Toast&&window.Toast.show)window.Toast.show({message:"Mark a stitch with Enter first, move the guide to the opposite corner, then press Ctrl+Shift+Enter to unpick the rectangle.",type:'info',duration:5000});
+      return;
+    }
+    const ax=anchor.idx%sW,ay=(anchor.idx-ax)/sW,set=new Set();
+    for(let y=Math.min(ay,g.row);y<=Math.max(ay,g.row);y++)for(let x=Math.min(ax,g.col);x<=Math.max(ax,g.col);x++)set.add(y*sW+x);
+    if(unpickAreaRef.current(set))kbAnchorRef.current={idx:g.row*sW+g.col,intent:'unmark'};
+    return;
+  }
   const isEnter=e.key==="Enter"&&!e.altKey&&!e.ctrlKey&&!e.metaKey;
   const isSpace=(e.key===" "||e.code==="Space")&&plain&&!e.shiftKey;
   if(inMark&&(isEnter||(isSpace&&kbGuideRef.current))){
@@ -7542,7 +7582,16 @@ const _dragMarkOnCommitDrag=useCallback(function(set,intent){
   _commitBulk(set,intent,'drag');
 },[_commitBulk]);
 
+const altDownRef=useRef(false);
 const _dragMarkOnCommitRange=useCallback(function(set,intent){
+  // "Unpick area" chosen on the rectangle bar (touch), or Alt held on release of a Shift+drag (mouse): the rectangle
+  // is taken out of every kind of stitch instead of marked.
+  if(unpickPendingRef.current||altDownRef.current){
+    const wasPending=unpickPendingRef.current;
+    if(wasPending)setUnpickIntent(false);
+    unpickAreaRef.current(set);
+    return;
+  }
   _commitBulk(set,intent,'range');
 },[_commitBulk]);
 
@@ -7573,6 +7622,8 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
 const _dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
 const dragMarkReset=_dragMark.reset||(()=>{});
+// "Unpick area" only lasts while the rectangle is waiting for its second corner.
+useEffect(()=>{if(unpickPending&&!(dragMarkState&&dragMarkState.mode==='range'))setUnpickIntent(false);},[dragMarkState&&dragMarkState.mode,unpickPending]);
 // Keep the keyup/blur listener (registered once, on mount, above) calling
 // into the CURRENT hook instance's notifyShiftUp — see useDragMark.js (7).
 dragMarkNotifyShiftUpRef.current=_dragMark.notifyShiftUp||null;
@@ -7723,6 +7774,64 @@ function selectBsAtGuide(){
   const next=at===-1?list[0]:(at+1<list.length?list[at+1]:-1);
   setBsSelect(next);
 }
+// ── Unpick area (unpick.js, TRACK-13) ──
+// Takes the marks of every kind of stitch out of a rectangle of cells (the whole rectangle, background cells too, since
+// half stitches, quarters, knots and backstitch can sit there) as one undo step. The session records it as an
+// unpicked area ("Unpicked 80" in the journal), never as a negative day. A colour lock limits it to that thread.
+function applyUnpickPlan(p,undo){
+  if(p.full.length){
+    const nd=new Uint8Array(doneRef.current);
+    const changes=p.full.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
+    p.full.forEach(c=>{nd[c.idx]=undo?c.oldVal:0;});
+    applyDoneCountsDelta(changes,pat,nd);
+    doneRef.current=nd;
+    paintDoneChangesRef.current(p.full.map(c=>({idx:c.idx})),nd);
+    skipNextFullRedrawRef.current=true;
+    setDone(nd);
+  }
+  if(p.half.length)setHalfDone(m=>window.Unpick.nextHalfDone(m,p,undo));
+  if(p.quarter.length)setPartialDone(m=>window.Unpick.nextPartialDone(m,p,undo));
+  if(p.knots.length)setKnotsDone(l=>window.Unpick.nextKnotsDone(l,p,undo));
+  if(p.bs.length)setBsKeysDone(p.bs,undo);
+  // The counts changed by hand here: the session's diff-based detector must not read them as stitching or unmarking.
+  const sign=undo?1:-1;
+  prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts.done||0)+sign*p.counts.half,knotDone:knotCounts.done+sign*p.counts.knot,quarterDone:quarterCounts.done+sign*p.counts.quarter};
+}
+function unpickArea(cells){
+  if(!window.Unpick||!pat||!doneRef.current||!cells||!cells.size)return false;
+  // The rectangle is the cells' bounding box.
+  let x0=1e9,y0=1e9,x1=-1,y1=-1;
+  cells.forEach(i=>{const x=i%sW,y=(i-x)/sW;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;});
+  const set=new Set();
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    if(areaOn&&!window.WorkArea.contains(workArea,x,y))continue;
+    set.add(y*sW+x);
+  }
+  const p=window.Unpick.plan({sW,sH,pat,done:doneRef.current,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone:Array.from(bsDoneSetRef.current),set,lockId:isColourLocked()?focusColour:null});
+  if(p.empty){
+    if(window.Toast&&window.Toast.show)window.Toast.show({message:isColourLocked()?"Nothing of the locked colour is marked in that area.":"Nothing is marked in that area.",type:'info',duration:3000});
+    return false;
+  }
+  applyUnpickPlan(p,false);
+  if(p.stitches>0)recordAutoActivity(0,p.stitches,0,p.units,0,'frog');
+  const entry={type:"UNPICK",plan:p};
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+  if(window.Toast&&window.Toast.show){
+    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
+    const msg="Unpicked "+p.stitches.toLocaleString('en-GB')+(p.stitches===1?" stitch":" stitches")+(p.counts.backstitch?" and "+p.counts.backstitch+" backstitch line"+(p.counts.backstitch===1?"":"s"):"");
+    bulkUndoToastRef.current=window.Toast.show({
+      message:msg,type:'info',duration:8000,undoLabel:'Undo',
+      undoAction:function(){
+        const h=trackHistoryRef.current;
+        if(h[h.length-1]!==entry){window.Toast.show({message:"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});return false;}
+        if(bulkUndoRef.current)bulkUndoRef.current();
+      }
+    });
+  }
+  return true;
+}
+unpickAreaRef.current=unpickArea;
 function toggleKnotDone(k){
   const key=k.x+","+k.y;
   flipKnotDone(key);
@@ -8350,7 +8459,7 @@ return(
     <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
     {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
-      <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?"Drag to select a rectangle, release to apply":"Shift held — drag from a cell to select a rectangle"}</span>
+      <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?(altDownRef.current?"Release to unpick the rectangle":"Drag to select a rectangle, release to apply (hold Alt to unpick)"):"Shift held — drag from a cell to select a rectangle"}</span>
     </div>}
     {/* Touch long-press in Mark mode anchors a rectangle. Say what happens
         next, and offer the two other things a long-press can mean here:
@@ -8362,10 +8471,13 @@ return(
       const parked=parkMarkers.some(m=>m.x===ax&&m.y===ay);
       return <div className="range-anchor-bar" role="status">
         <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.crop?Icons.crop():null}</span>
-        <span className="range-anchor-bar__text">Tap the opposite corner to fill a rectangle</span>
+        <span className="range-anchor-bar__text">{unpickPending?"Tap the opposite corner to unpick that area":"Tap the opposite corner to fill a rectangle"}</span>
         {!anchorDone&&<button type="button" className="range-anchor-bar__btn" onClick={()=>{dragMarkReset();toggleParkAt(ax,ay);}}>
           <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.parkFlag?Icons.parkFlag():null}</span>{parked?"Remove park marker":"Park thread here"}
         </button>}
+        <button type="button" className={"range-anchor-bar__btn"+(unpickPending?" range-anchor-bar__btn--on":"")} aria-pressed={unpickPending} onClick={()=>setUnpickIntent(!unpickPending)} title="Take the marks out of every kind of stitch in the rectangle">
+          <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.undo?Icons.undo():null}</span>Unpick area
+        </button>
         <button type="button" className="range-anchor-bar__btn" onClick={dragMarkReset}>
           <span aria-hidden="true" className="range-anchor-bar__icon">{Icons.x?Icons.x():null}</span>Cancel
         </button>
