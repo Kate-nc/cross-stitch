@@ -113,6 +113,13 @@ const ProjectStorage = (() => {
 
   // Extract lightweight metadata from a full project object.
   const PROGRESS_PREFIX = "progress:";
+  const RECOVERY_PREFIX = "crossstitch_progress_recovery:";
+  function clearProgressRecovery(id) {
+    try {
+      if (id) localStorage.removeItem(RECOVERY_PREFIX + id);
+      else Object.keys(localStorage).filter(k => k.startsWith(RECOVERY_PREFIX)).forEach(k => localStorage.removeItem(k));
+    } catch (_) {}
+  }
 
   // Overlay a progress record onto a project record if, and only if, it is still
   // current: same project write it was based on, and the same pattern size.
@@ -674,6 +681,7 @@ const ProjectStorage = (() => {
     async get(id) {
       try {
         const db = await getDB();
+        try { await this._recoverProgress(db, id); } catch (err) { console.warn("Progress recovery deferred:", err); }
         const project = await new Promise((resolve, reject) => {
           let tx = db.transaction(STORE_NAME, "readonly");
           let store = tx.objectStore(STORE_NAME);
@@ -733,19 +741,27 @@ const ProjectStorage = (() => {
       if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
       if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return false;
       try {
-        const db = await getDB();
-        if (!db.objectStoreNames.contains("pendingImports")) return false;
+        // Capture the marks and their age before yielding; an older call waiting
+        // for the DB must not appear newer than a navigation journal.
         const rec = {
           id: PROGRESS_PREFIX + id, projectId: id, v: 1,
-          done: data.done instanceof Uint8Array ? data.done : Uint8Array.from(data.done),
+          done: Uint8Array.from(data.done),
           halfDone: data.halfDone || [], knotsDone: data.knotsDone || [],
           bsDone: data.bsDone || [], partialDone: data.partialDone || [],
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
           tabId: data.tabId || null, updatedAt: Date.now()
         };
+        const db = await getDB();
+        if (!db.objectStoreNames.contains("pendingImports")) return false;
         await new Promise((resolve, reject) => {
           const tx = db.transaction("pendingImports", "readwrite");
-          tx.objectStore("pendingImports").put(rec);
+          const store = tx.objectStore("pendingImports");
+          const req = store.get(rec.id);
+          req.onsuccess = () => {
+            const prev = req.result;
+            // A delayed call must not undo a newer navigation recovery (or unpick).
+            if (!prev || prev.baseWriteAt !== rec.baseWriteAt || prev.updatedAt <= rec.updatedAt) store.put(rec);
+          };
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
@@ -755,6 +771,63 @@ const ProjectStorage = (() => {
         console.warn("ProjectStorage.saveProgress failed:", err);
         return false;
       }
+    },
+
+    // Navigation cannot await IndexedDB. Only the small marks snapshot is journalled
+    // synchronously; normal stitching keeps using the throttled IndexedDB writer.
+    saveProgressRecovery(id, data) {
+      if (!id || !data || !data.done || this._deletedIds.has(id)) return false;
+      if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return false;
+      try {
+        localStorage.setItem(RECOVERY_PREFIX + id, JSON.stringify(Object.assign({}, data, {
+          projectId: id, v: 1, done: Array.from(data.done), updatedAt: Date.now()
+        })));
+        return true;
+      } catch (err) {
+        console.warn("ProjectStorage progress recovery unavailable:", err);
+        return false;
+      }
+    },
+
+    async _recoverProgress(db, id) {
+      let raw, rec;
+      const key = RECOVERY_PREFIX + id;
+      try { raw = localStorage.getItem(key); if (!raw) return; rec = JSON.parse(raw); }
+      catch (_) { return; }
+      if (!rec || rec.projectId !== id || rec.v !== 1 || !Array.isArray(rec.done)) return;
+      // Recheck the revision inside the write transaction: a concurrent full save,
+      // import or rename must retire the journal just like an ordinary progress row.
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE, "pendingImports"], "readwrite");
+        const store = tx.objectStore(STORE_NAME), pending = tx.objectStore("pendingImports");
+        const p = store.get(id), r = pending.get(PROGRESS_PREFIX + id);
+        let ready = 0;
+        const recover = () => {
+          if (++ready !== 2) return;
+          const project = p.result;
+          let next = applyProgressRecord(project, rec);
+          if (next === project) return;
+          // A later normal progress write wins, including an unpick.
+          const newer = r.result;
+          if (newer && newer.updatedAt > rec.updatedAt && applyProgressRecord(project, newer) !== project) {
+            next = applyProgressRecord(project, newer);
+          } else {
+            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id }));
+          }
+          // Materialise once on recovery, never on every mark. Keep the full-save
+          // revision/tab stamps: this is the same overlay get() normally presents.
+          store.put(next, id);
+          tx.objectStore(META_STORE).put(buildMeta(next), id);
+          if (id.startsWith("proj_")) tx.objectStore(STATS_STORE).put(buildStatsSummary(next), id);
+          this._allFullCache = null;
+        };
+        p.onsuccess = recover; r.onsuccess = recover;
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error("Progress recovery aborted"));
+      });
+      // Do not erase a newer journal written by another tab while we awaited IDB.
+      try { if (localStorage.getItem(key) === raw) localStorage.removeItem(key); } catch (_) {}
     },
 
     _readProgress(db, id) {
@@ -770,6 +843,7 @@ const ProjectStorage = (() => {
     // carry their own marks, and a record from before the restore must not
     // override them.
     async clearAllProgress() {
+      clearProgressRecovery();
       try {
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return 0;
@@ -887,6 +961,7 @@ const ProjectStorage = (() => {
         // Record the deletion so in-flight auto-saves from Tracker/Creator
         // don't resurrect the project before the page fully reloads.
         this._deletedIds.add(id);
+        clearProgressRecovery(id);
         // Invalidate the bulk-hydration cache (action plan H4 = 2C.1).
         this._allFullCache = null;
         // Clear the active project pointer if it points to this project, so the
@@ -971,6 +1046,7 @@ const ProjectStorage = (() => {
     //
     // Returns the number of project records removed.
     async clearAllProjects(options) {
+      clearProgressRecovery();
       const opts = options || {};
       const includeAutoSave = opts.includeAutoSave !== false;
       const tombstone = opts.tombstone === true;

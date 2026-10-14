@@ -54,6 +54,27 @@ test.describe('Tracker saves', () => {
     expect((await stored(page)).done).toBe(20);
   });
 
+  for (const release of [true, false]) {
+    test(`navigation recovers ${release ? 'released' : 'in-progress drag'} marks when async saves never finish`, async ({ page }) => {
+      await loadTrackerFixture(page);
+      // Model navigation terminating every asynchronous project/progress write.
+      // The synchronous recovery record must be sufficient on its own.
+      await page.evaluate(() => {
+        ProjectStorage.save = () => new Promise(() => {});
+        ProjectStorage.saveProgress = () => new Promise(() => {});
+      });
+      const a = await trackerCellPoint(page, 2, 3), b = await trackerCellPoint(page, 7, 3);
+      await page.mouse.move(a.x - 3, a.y);
+      await page.mouse.move(a.x, a.y);
+      await page.mouse.down();
+      for (let i = 1; i <= 10; i++) await page.mouse.move(a.x + (b.x - a.x) * i / 10, a.y);
+      if (release) await page.mouse.up();
+      await reopen(page);
+      expect(await trackerDoneCount(page)).toBe(6);
+      expect((await stored(page)).done).toBe(6);
+    });
+  }
+
   test('the flush Backup and Sync call saves what is on screen, and keeps the pattern', async ({ page }) => {
     await loadTrackerFixture(page);
     await markRow(page, 3, 2, 11);

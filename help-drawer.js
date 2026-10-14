@@ -434,7 +434,7 @@
         {
           heading: "Save vs. Download vs. Export",
           bullets: [
-            ["Save", "Write to the app's own storage on this device (no file appears). Happens automatically as you work."],
+            ["Save", "Write to the app's own storage on this device (no file appears). Happens automatically as you work. Recent Tracker marks are also kept when you reload or leave the page."],
             ["Download", "Write a file to your device (e.g. a backup or a .json project)."],
             ["Export", "Produce a file to print or share (PDF chart, .oxs, PNG)."],
             ["Open / Import", "Read a file into the app."],
