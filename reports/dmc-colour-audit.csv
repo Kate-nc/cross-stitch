@@ -1,0 +1,526 @@
+id,name,old_hex,new_hex,threadcolors_rgb_hex,threadcolors_displayed_hex,dias_rgb_hex,dias_displayed_hex,adrianj_rgb_hex,adrianj_displayed_hex,camelia_2017_hex,decision
+blanc,White,#fcfbf8,#fcfbf8,#fcfbf8,#fcfbf8,#fcfbf8,#fcfbf8,#fcfbf8,#fcfbf8,#eeeeee,Retained: matches community RGB; legacy differences remain approximations
+ecru,Ecru,#f0eada,#f0eada,#f0eada,#f0eada,#f0eada,#f0eada,#f0eada,#f0eada,#fff7e7,Retained: matches community RGB; legacy differences remain approximations
+B5200,Snow White,#ffffff,#ffffff,#ffffff,#ffffff,#ffffff,#ffffff,#ffffff,#ffffff,#fcfcff,Retained: matches community RGB; legacy differences remain approximations
+01,White Tin,#e3e3e6,#e3e3e6,,,#e3e3e6,#e3e3e6,,,,Retained: matches community RGB; legacy differences remain approximations
+02,Tin,#d7d7d8,#d7d7d8,,,#d7d7d8,#d7d7d8,,,,Retained: matches community RGB; legacy differences remain approximations
+03,Medium Tin,#b8b8bb,#b8b8bb,,,#b8b8bb,#b8b8bb,,,,Retained: matches community RGB; legacy differences remain approximations
+04,Dark Tin,#aeaeb1,#aeaeb1,,,#aeaeb1,#aeaeb1,,,,Retained: matches community RGB; legacy differences remain approximations
+05,Light Driftwood,#e3ccbe,#e3ccbe,,,#e3ccbe,#e3ccbe,,,,Retained: matches community RGB; legacy differences remain approximations
+06,Medium Light Driftwood,#dcc6b8,#dcc6b8,,,#dcc6b8,#dcc6b8,,,,Retained: matches community RGB; legacy differences remain approximations
+07,Driftwood,#8f7b6e,#8f7b6e,,,#8f7b6e,#8f7b6e,,,,Retained: matches community RGB; legacy differences remain approximations
+08,Dark Driftwood,#6a5046,#6a5046,,,#6a5046,#6a5046,,,,Retained: matches community RGB; legacy differences remain approximations
+09,Very Dark Cocoa,#55200e,#55200e,,,#55200e,#552014,,,,Retained: source disagreement or internal typo; see report
+10,Very Light Tender Green,#edfed9,#edfed9,,,#edfed9,#edfed9,,,,Retained: matches community RGB; legacy differences remain approximations
+11,Light Tender Green,#e2edb5,#e2edb5,,,#e2edb5,#e2edb5,,,,Retained: matches community RGB; legacy differences remain approximations
+12,Tender Green,#cdd99a,#cdd99a,,,#cdd99a,#cdd99a,,,,Retained: matches community RGB; legacy differences remain approximations
+13,Medium Light Nile Green,#bff6e0,#bff6e0,,,#bff6e0,#bff6e0,,,,Retained: matches community RGB; legacy differences remain approximations
+14,Pale Apple Green,#d0fbb2,#d0fbb2,,,#d0fbb2,#d0fbb2,,,,Retained: matches community RGB; legacy differences remain approximations
+15,Apple Green,#d1eda4,#d1eda4,,,#d1eda4,#d1eda4,,,,Retained: matches community RGB; legacy differences remain approximations
+16,Light Chartreuse,#c9c258,#c9c258,,,#c9c258,#c9c258,,,,Retained: matches community RGB; legacy differences remain approximations
+17,Light Yellow Plum,#e5e272,#e5e272,,,#e5e272,#e5e272,,,,Retained: matches community RGB; legacy differences remain approximations
+18,Yellow Plum,#d9d56d,#d9d56d,,,#d9d56d,#d9d56d,,,,Retained: matches community RGB; legacy differences remain approximations
+19,Medium Light Autumn Gold,#f7c95f,#f7c95f,,,#f7c95f,#f7c95f,,,,Retained: matches community RGB; legacy differences remain approximations
+20,Shrimp,#f7af93,#f7af93,,,#f7af93,#f7af93,,,,Retained: matches community RGB; legacy differences remain approximations
+21,Light Alizarin,#d79982,#d79982,,,#d79982,#d79982,,,,Retained: matches community RGB; legacy differences remain approximations
+22,Alizarin,#bc604e,#bc604e,,,#bc604e,#bc604e,,,,Retained: matches community RGB; legacy differences remain approximations
+23,Apple Blossom,#ede2ed,#ede2ed,,,#ede2ed,#ede2ed,,,,Retained: matches community RGB; legacy differences remain approximations
+24,White Lavender,#e0d7ee,#e0d7ee,,,#e0d7ee,#e0d7ee,,,,Retained: matches community RGB; legacy differences remain approximations
+25,Ultra Light Lavender,#dad2e9,#dad2e9,,,#dad2e9,#dad2e9,,,,Retained: matches community RGB; legacy differences remain approximations
+26,Pale Lavender,#d7cae6,#d7cae6,,,#d7cae6,#d7cae6,,,,Retained: matches community RGB; legacy differences remain approximations
+27,White Violet,#f0eef9,#f0eef9,,,#f0eef9,#f0eef9,,,,Retained: matches community RGB; legacy differences remain approximations
+28,Medium Light Eggplant,#9086a9,#9086a9,,,#9086a9,#9086a9,,,,Retained: matches community RGB; legacy differences remain approximations
+29,Eggplant,#674076,#674076,,,#674076,#674076,,,,Retained: matches community RGB; legacy differences remain approximations
+30,Medium Light Blueberry,#7d77a5,#7d77a5,,,#7d77a5,#7d77a5,,,,Retained: matches community RGB; legacy differences remain approximations
+31,Blueberry,#50518d,#50518d,,,#50518d,#50518d,,,,Retained: matches community RGB; legacy differences remain approximations
+32,Dark Blueberry,#4d2e8a,#4d2e8a,,,#4d2e8a,#4d2e8a,,,,Retained: matches community RGB; legacy differences remain approximations
+33,Fuchsia,#9c599e,#9c599e,,,#9c599e,#9c599c,,,,Retained: source disagreement or internal typo; see report
+34,Dark Fuchsia,#7d3064,#7d3064,,,#7d3064,#7d3064,,,,Retained: matches community RGB; legacy differences remain approximations
+35,Very Dark Fuchsia,#46052d,#46052d,,,#46052d,#46052d,,,,Retained: matches community RGB; legacy differences remain approximations
+150,Dusty Rose VDk,#ab0249,#ab0249,#ab0249,#ab0249,#ab0249,#ab0249,#ab0249,#ab0249,#cf0053,Retained: matches community RGB; legacy differences remain approximations
+151,Dusty Rose VLt,#f0ced4,#f0ced4,#f0ced4,#f0ced4,#f0ced4,#f0ced4,#f0ced4,#f0ced4,#ffcbd7,Retained: matches community RGB; legacy differences remain approximations
+152,Shell Pink MLt,#e2a099,#e2a099,#e2a099,#e2a099,#e2a099,#e2a099,#e2a099,#e2a099,#e1a1a1,Retained: matches community RGB; legacy differences remain approximations
+153,Violet VLt,#e6ccd9,#e6ccd9,#e6ccd9,#e6ccd9,#e6ccd9,#e6ccd9,#e6ccd9,#e6ccd9,#eac5eb,Retained: matches community RGB; legacy differences remain approximations
+154,Grape VDk,#572433,#572433,#572433,#572433,#572433,#572433,#572433,#572433,#4b233a,Retained: matches community RGB; legacy differences remain approximations
+155,Blue Violet MDk,#9891b6,#9891b6,#9891b6,#9891b6,#9891b6,#9891b6,#9891b6,#9891b6,#9774b6,Retained: matches community RGB; legacy differences remain approximations
+156,Blue Violet MLt,#a3aed1,#a3aed1,#a3aed1,#a3aed1,#a3aed1,#a3aed1,#a3aed1,#a3aed1,#8577b4,Retained: matches community RGB; legacy differences remain approximations
+157,Cornflower VLt,#bbc3d9,#bbc3d9,#bbc3d9,#bbc3d9,#bbc3d9,#bbc3d9,#bbc3d9,#bbc3d9,#b5b8ea,Retained: matches community RGB; legacy differences remain approximations
+158,Cornflower MDk,#4c526e,#4c526e,#4c526e,#4c526e,#4c526e,#4c526e,#4c526e,#4c526e,#393068,Retained: matches community RGB; legacy differences remain approximations
+159,Blue Gray Lt,#c7cad7,#c7cad7,#c7cad7,#c7cad7,#c7cad7,#c7cad7,#c7cad7,#c7cad7,#bcb5de,Retained: matches community RGB; legacy differences remain approximations
+160,Blue Gray Med,#999fb7,#999fb7,#999fb7,#999fb7,#999fb7,#999fb7,#999fb7,#999fb7,#8178a9,Retained: matches community RGB; legacy differences remain approximations
+161,Blue Gray,#7880a4,#7880a4,#7880a4,#7880a4,#7880a4,#7880a4,#7880a4,#7880a4,#60568b,Retained: matches community RGB; legacy differences remain approximations
+162,Blue Ultra VLt,#dbecf5,#dbecf5,#dbecf5,#dbecf5,#dbecf5,#dbecf5,#dbecf5,#dbecf5,#cae7f0,Retained: matches community RGB; legacy differences remain approximations
+163,Celadon Grn Md,#4d8361,#4d8361,#4d8361,#4d8361,#4d8361,#4d8361,#4d8361,#4d8361,#557a60,Retained: matches community RGB; legacy differences remain approximations
+164,Forest Grn Lt,#c8d8b8,#c8d8b8,#c8d8b8,#c8d8b8,#c8d8b8,#c8d8b8,#c8d8b8,#c8d8b8,#bae4b6,Retained: matches community RGB; legacy differences remain approximations
+165,Moss Grn VLt,#eff4a4,#eff4a4,#eff4a4,#eff4a4,#eff4a4,#eff4a4,#eff4a4,#eff4a4,#e1f477,Retained: matches community RGB; legacy differences remain approximations
+166,Moss Grn MLt,#c0c840,#c0c840,#c0c840,#c0c840,#c0c840,#c0c840,#c0c840,#c0c840,#adc238,Retained: matches community RGB; legacy differences remain approximations
+167,Yel Beige VDk,#a77c49,#a77c49,#a77c49,#a77c49,#a77c49,#a77c49,#a77c49,#a77c49,#855d31,Retained: matches community RGB; legacy differences remain approximations
+168,Pewter VLt,#d1d1d1,#d1d1d1,#d1d1d1,#d1d1d1,#d1d1d1,#d1d1d1,#d1d1d1,#d1d1d1,#b1aeb7,Retained: matches community RGB; legacy differences remain approximations
+169,Pewter Lt,#848484,#848484,#848484,#848484,#848484,#848484,#848484,#848484,#827d7d,Retained: matches community RGB; legacy differences remain approximations
+208,Lavender VDk,#835b8b,#835b8b,#835b8b,#835b8b,#835b8b,#835b8b,#835b8b,#835b8b,#9442a7,Retained: matches community RGB; legacy differences remain approximations
+209,Lavender Dk,#a37ba7,#a37ba7,#a37ba7,#a37ba7,#a37ba7,#a37ba7,#a37ba7,#a37ba7,#ba72c6,Retained: matches community RGB; legacy differences remain approximations
+210,Lavender Med,#c39fc3,#c39fc3,#c39fc3,#c39fc3,#c39fc3,#c39fc3,#c39fc3,#d29fc3,#d49fe1,Retained: matches community RGB; legacy differences remain approximations
+211,Lavender Lt,#e3cbe3,#e3cbe3,#e3cbe3,#e3cbe3,#e3cbe3,#e3cbe3,#e3cbe3,#e3cbe3,#e5bded,Retained: matches community RGB; legacy differences remain approximations
+221,Shell Pink VDk,#883e43,#883e43,#883e43,#883e43,#883e43,#883e43,#883e43,#8.83e+45,#792631,Retained: matches community RGB; legacy differences remain approximations
+223,Shell Pink Lt,#cc847c,#cc847c,#cc847c,#cc847c,#cc847c,#cc847c,#cc847c,#cc847c,#bb6864,Retained: matches community RGB; legacy differences remain approximations
+224,Shell Pink VLt,#ebb7b0,#ebb7af,#ebb7af,#ebb7af,#ebb7af,#ebb7af,#ebb7af,#ebb7af,#e2a598,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+225,Shell Pink UVLt,#ffdfd5,#ffdfd5,#ffdfd5,#ffdfd5,#ffdfd5,#ffdfd5,#ffdfd5,#ffdfd7,#f8d9cd,Retained: matches community RGB; legacy differences remain approximations
+300,Mahogany VDk,#6f2f00,#6f2f00,#6f2f00,#6f2f00,#6f2f00,#6f2f00,#6f2f00,#6f2f00,#6c3116,Retained: matches community RGB; legacy differences remain approximations
+301,Mahogany Med,#b35f2b,#b35f2b,#b35f2b,#b35f2b,#b35f2b,#b35f2b,#b35f2b,#b35f2b,#aa5237,Retained: matches community RGB; legacy differences remain approximations
+304,Christmas Red M,#b71f33,#b71f33,#b71f33,#b71f33,#b71f33,#b71f33,#b71f33,#b71f33,#a10c39,Retained: matches community RGB; legacy differences remain approximations
+307,Lemon,#fded54,#fded54,#fded54,#fded54,#fded54,#fded54,#fded54,#fded54,#fde949,Retained: matches community RGB; legacy differences remain approximations
+309,Rose Dk,#d62b5b,#d62b5b,#d62b5b,#d62b5b,#d62b5b,#d62b5b,#564a4a,#ba4a4a,#ba2044,Retained: source disagreement or internal typo; see report
+310,Black,#000000,#000000,#000000,#000000,#000000,#000000,#000000,#0,#000000,Retained: matches community RGB; legacy differences remain approximations
+311,Navy Blue Med,#1c5066,#1c5066,#1c5066,#1c5066,#1c5066,#1c5066,#1c5066,#1c5066,#002a64,Retained: matches community RGB; legacy differences remain approximations
+312,Navy Blue Lt,#35668b,#35668b,#35668b,#35668b,#35668b,#35668b,#35668b,#35668b,#1f3279,Retained: matches community RGB; legacy differences remain approximations
+315,Antq Mauve Md,#814952,#814952,#814952,#814952,#814952,#814952,#814952,#814952,#7d4246,Retained: matches community RGB; legacy differences remain approximations
+316,Antq Mauve Med,#b7737f,#b7737f,#b7737f,#b7737f,#b7737f,#b7737f,#b7737f,#b7737f,#bc757f,Retained: matches community RGB; legacy differences remain approximations
+317,Pewter Gray,#6c6c6c,#6c6c6c,#6c6c6c,#6c6c6c,#6c6c6c,#6c6c6c,#6c6c6c,#6c6c6c,#6d6469,Retained: matches community RGB; legacy differences remain approximations
+318,Steel Gray Lt,#ababab,#ababab,#ababab,#ababab,#ababab,#ababab,#ababab,#ababab,#999b9d,Retained: matches community RGB; legacy differences remain approximations
+319,Pistachio VDk,#205f2e,#205f2e,#205f2e,#205f2e,#205f2e,#205f2e,#205f2e,#205f2e,#3a553b,Retained: matches community RGB; legacy differences remain approximations
+320,Pistachio Med,#69885a,#69885a,#69885a,#69885a,#69885a,#69885a,#69885a,#69885a,#608c59,Retained: matches community RGB; legacy differences remain approximations
+321,Christmas Red,#c72b3b,#c72b3b,#c72b3b,#c72b3b,#c72b3b,#c72b3b,#c72b3b,#c72b3b,#bd1136,Retained: matches community RGB; legacy differences remain approximations
+322,Navy Blue VLt,#5a8fb8,#5a8fb8,#5a8fb8,#5a8fb8,#5a8fb8,#5a8fb8,#5a8fb8,#5a8fb8,#3a609d,Retained: matches community RGB; legacy differences remain approximations
+326,Rose VDk,#b33b4b,#b33b4b,#b33b4b,#b33b4b,#b33b4b,#b33b4b,#b33b4b,#b33b4b,#ac1c37,Retained: matches community RGB; legacy differences remain approximations
+327,Violet Dk,#633666,#633666,#633666,#633666,#633666,#633666,#633666,#633666,#5e0f77,Retained: matches community RGB; legacy differences remain approximations
+333,Blue Violet VDk,#5c5478,#5c5478,#5c5478,#5c5478,#5c5478,#5c5478,#5c5478,#5c5478,#6e2e9b,Retained: matches community RGB; legacy differences remain approximations
+334,Baby Blue Med,#739fc1,#739fc1,#739fc1,#739fc1,#739fc1,#739fc1,#739fc1,#739fc1,#6085b8,Retained: matches community RGB; legacy differences remain approximations
+335,Rose,#ee546e,#ee546e,#ee546e,#ee546e,#ee546e,#ee546e,#ee546e,#ee546e,#d63d57,Retained: matches community RGB; legacy differences remain approximations
+336,Navy Blue,#253b73,#253b73,#253b73,#253b73,#253b73,#253b73,#253b73,#253b73,#0c275e,Retained: matches community RGB; legacy differences remain approximations
+340,Blue Violet Med,#ada7c7,#ada7c7,#ada7c7,#ada7c7,#ada7c7,#ada7c7,#ada7c7,#ada7c7,#996dc3,Retained: matches community RGB; legacy differences remain approximations
+341,Blue Violet Lt,#b7bfdd,#b7bfdd,#b7bfdd,#b7bfdd,#b7bfdd,#b7bfdd,#b7bfdd,#b7bfdd,#a39ad7,Retained: matches community RGB; legacy differences remain approximations
+347,Salmon VDk,#bf2d2d,#bf2d2d,#bf2d2d,#bf2d2d,#bf2d2d,#bf2d2d,#bf2d2d,#bf2d2d,#ab1b33,Retained: matches community RGB; legacy differences remain approximations
+349,Coral Dk,#d21035,#d21035,#d21035,#d21035,#d21035,#d21035,#d21035,#d21035,#c62c38,Retained: matches community RGB; legacy differences remain approximations
+350,Coral Med,#e04848,#e04848,#e04848,#e04848,#e04848,#e04848,#e04848,#e04848,#de3f40,Retained: matches community RGB; legacy differences remain approximations
+351,Coral,#e96a67,#e96a67,#e96a67,#e96a67,#e96a67,#e96a67,#e96a67,#e96a67,#ed625b,Retained: matches community RGB; legacy differences remain approximations
+352,Coral Lt,#fd9c97,#fd9c97,#fd9c97,#fd9c97,#fd9c97,#fd9c97,#fd9c97,#fd9c97,#f78372,Retained: matches community RGB; legacy differences remain approximations
+353,Peach,#fed7cc,#fed7cc,#fed7cc,#fed7cc,#fed7cc,#fed7cc,#fed7cc,#fed7cc,#fdb4a1,Retained: matches community RGB; legacy differences remain approximations
+355,Terra Cotta Dk,#984436,#984436,#984436,#984436,#984436,#984436,#984436,#984436,#97382b,Retained: matches community RGB; legacy differences remain approximations
+356,Terra Cotta Med,#c57963,#c56a5b,#c56a5b,#c56a5b,#c56a5b,#c56a5b,#c56a5b,#c56a5b,#be5c4b,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+367,Pistachio Dk,#617a52,#617a52,#617a52,#617a52,#617a52,#617a52,#617a52,#617a52,#446b45,Retained: matches community RGB; legacy differences remain approximations
+368,Pistachio Lt,#a6c298,#a6c298,#a6c298,#a6c298,#a6c298,#a6c298,#a6c298,#a6c298,#7fc66d,Retained: matches community RGB; legacy differences remain approximations
+369,Pistachio VLt,#d7edcc,#d7edcc,#d7edcc,#d7edcc,#d7edcc,#d7edcc,#d7edcc,#d7edcc,#cdefa6,Retained: matches community RGB; legacy differences remain approximations
+370,Mustard Med,#b89d64,#b89d64,#b89d64,#b89d64,#b89d64,#b89d64,#b89d64,#b89d64,#917245,Retained: matches community RGB; legacy differences remain approximations
+371,Mustard,#bfa671,#bfa671,#bfa671,#bfa671,#bfa671,#bfa671,#bfa671,#bfa671,#9f8352,Retained: matches community RGB; legacy differences remain approximations
+372,Mustard Lt,#ccb784,#ccb784,#ccb784,#ccb784,#ccb784,#ccb784,#ccb784,#ccb784,#ad9564,Retained: matches community RGB; legacy differences remain approximations
+400,Mahogany Dk,#8f430f,#8f430f,#8f430f,#8f430f,#8f430f,#8f430f,#8f430f,#8f430f,#813718,Retained: matches community RGB; legacy differences remain approximations
+402,Mahogany VLt,#f7a777,#f7a777,#f7a777,#f7a777,#f7a777,#f7a777,#f7a777,#f7a777,#ef9e74,Retained: matches community RGB; legacy differences remain approximations
+407,Desert Sand M,#bb8161,#bb8161,#bb8161,#bb8161,#bb8161,#bb8161,#bb8161,#bb8161,#b77159,Retained: matches community RGB; legacy differences remain approximations
+413,Pewter Gray Dk,#565656,#565656,#565656,#565656,#565656,#565656,#565656,#565656,#4a4749,Retained: matches community RGB; legacy differences remain approximations
+414,Steel Gray Dk,#8c8c8c,#8c8c8c,#8c8c8c,#8c8c8c,#8c8c8c,#8c8c8c,#8c8c8c,#8c8c8c,#766e72,Retained: matches community RGB; legacy differences remain approximations
+415,Pearl Gray,#d3d3d6,#d3d3d6,#d3d3d6,#d3d3d6,#d3d3d6,#d3d3d6,#d3d3d6,#d3d3d6,#b8b9bd,Retained: matches community RGB; legacy differences remain approximations
+420,Hazelnut Dk,#a07042,#a07042,#a07042,#a07042,#a07042,#a07042,#a07042,#a07042,#855a30,Retained: matches community RGB; legacy differences remain approximations
+422,Hazelnut Lt,#c69f7b,#c69f7b,#c69f7b,#c69f7b,#c69f7b,#c69f7b,#c69f7b,#c69f7b,#c99a67,Retained: matches community RGB; legacy differences remain approximations
+433,Brown Med,#7a451f,#7a451f,#7a451f,#7a451f,#7a451f,#7a451f,#7a451f,#7a451f,#73421e,Retained: matches community RGB; legacy differences remain approximations
+434,Brown Lt,#985e33,#985e33,#985e33,#985e33,#985e33,#985e33,#985e33,#9.85e+35,#8f5332,Retained: matches community RGB; legacy differences remain approximations
+435,Brown VLt,#b87748,#b87748,#b87748,#b87748,#b87748,#b87748,#b87748,#b87748,#a96538,Retained: matches community RGB; legacy differences remain approximations
+436,Tan,#cb9051,#cb9051,#cb9051,#cb9051,#cb9051,#cb9051,#cb9051,#cb9051,#c78559,Retained: matches community RGB; legacy differences remain approximations
+437,Tan Lt,#e4bb8e,#e4bb8e,#e4bb8e,#e4bb8e,#e4bb8e,#e4bb8e,#e4bb8e,#e4bb8e,#daa26f,Retained: matches community RGB; legacy differences remain approximations
+444,Lemon Dk,#ffd600,#ffd600,#ffd600,#ffd600,#ffd600,#ffd600,#ffd600,#ffd600,#f5bc13,Retained: matches community RGB; legacy differences remain approximations
+445,Lemon Lt,#fffb8b,#fffb8b,#fffb8b,#fffb8b,#fffb8b,#fffb8b,#fffb8b,#fffb8b,#fcf999,Retained: matches community RGB; legacy differences remain approximations
+451,Shell Gray Dk,#917b73,#917b73,#917b73,#917b73,#917b73,#917b73,#917b73,#917b73,#887773,Retained: matches community RGB; legacy differences remain approximations
+452,Shell Gray Med,#c0b3ae,#c0b3ae,#c0b3ae,#c0b3ae,#c0b3ae,#c0b3ae,#c0b3ae,#c0b3ae,#ad9994,Retained: matches community RGB; legacy differences remain approximations
+453,Shell Gray Lt,#d7cecb,#d7cecb,#d7cecb,#d7cecb,#d7cecb,#d7cecb,#d7cecb,#d7cecb,#ccb8aa,Retained: matches community RGB; legacy differences remain approximations
+469,Avocado Grn,#72843c,#72843c,#72843c,#72843c,#72843c,#72843c,#72843c,#72843c,#5b6533,Retained: matches community RGB; legacy differences remain approximations
+470,Avocado Lt,#94ab4f,#94ab4f,#94ab4f,#94ab4f,#94ab4f,#94ab4f,#94ab4f,#94ab4f,#72813e,Retained: matches community RGB; legacy differences remain approximations
+471,Avocado VLt,#aebf79,#aebf79,#aebf79,#aebf79,#aebf79,#aebf79,#aebf79,#aebf79,#9eb357,Retained: matches community RGB; legacy differences remain approximations
+472,Avocado ULt,#d8e498,#d8e498,#d8e498,#d8e498,#d8e498,#d8e498,#d8e498,#d8e498,#d1de75,Retained: matches community RGB; legacy differences remain approximations
+498,Christmas Dk,#a7132b,#a7132b,#a7132b,#a7132b,#a7132b,#a7132b,#a7132b,#a7132b,#970b2c,Retained: matches community RGB; legacy differences remain approximations
+500,Blue Grn VDk,#044d33,#044d33,#044d33,#044d33,#044d33,#044d33,#044d33,#044d33,#1d362a,Retained: matches community RGB; legacy differences remain approximations
+501,Blue Grn Dk,#396f52,#396f52,#396f52,#396f52,#396f52,#396f52,#396f52,#396f52,#2f5446,Retained: matches community RGB; legacy differences remain approximations
+502,Blue Green,#5b9071,#5b9071,#5b9071,#5b9071,#5b9071,#5b9071,#5b9071,#5b9071,#57826e,Retained: matches community RGB; legacy differences remain approximations
+503,Blue Grn Med,#7bac94,#7bac94,#7bac94,#7bac94,#7bac94,#7bac94,#7bac94,#7bac94,#89b89f,Retained: matches community RGB; legacy differences remain approximations
+504,Blue Grn VLt,#c4decc,#c4decc,#c4decc,#c4decc,#c4decc,#c4decc,#c4decc,#c4decc,#acdac1,Retained: matches community RGB; legacy differences remain approximations
+505,Grass Green Dk,#2c5c35,#338362,#338362,#338362,#338362,#338362,#338362,#338362,#ceddc1,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+506,Grass Green,#44774c,#44774c,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+507,Grass Green Med,#609268,#609268,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+508,Grass Green Lt,#80a984,#80a984,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+509,Grass Green VLt,#a2bfa2,#a2bfa2,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+510,Grass Green UVLt,#bed4be,#bed4be,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+511,Avocado Gray Dk,#616e56,#616e56,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+512,Avocado Gray Med,#809379,#809379,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+513,Avocado Gray Lt,#a0b29c,#a0b29c,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+514,Avocado Gray VLt,#bcccc0,#bcccc0,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+515,Avocado Gray UVLt,#d2dfd5,#d2dfd5,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+516,Avocado Gray Pale,#e8efe8,#e8efe8,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+517,Wedgewood Dk,#3b768f,#3b768f,#3b768f,#3b768f,#3b768f,#3b768f,#3b768f,#3b768f,#216285,Retained: matches community RGB; legacy differences remain approximations
+518,Wedgewood Lt,#4f93a7,#4f93a7,#4f93a7,#4f93a7,#4f93a7,#4f93a7,#4f93a7,#4f93a7,#50819c,Retained: matches community RGB; legacy differences remain approximations
+519,Sky Blue,#7eb1c8,#7eb1c8,#7eb1c8,#7eb1c8,#7eb1c8,#7eb1c8,#7eb1c8,#7eb1c8,#94b7cb,Retained: matches community RGB; legacy differences remain approximations
+520,Fern Green Dk,#666d4f,#666d4f,#666d4f,#666d4f,#666d4f,#666d4f,#666d4f,#666d4f,#384526,Retained: matches community RGB; legacy differences remain approximations
+522,Fern Green,#969e7e,#969e7e,#969e7e,#969e7e,#969e7e,#969e7e,#969e7e,#969e7e,#808b6e,Retained: matches community RGB; legacy differences remain approximations
+523,Fern Green Lt,#abb197,#abb197,#abb197,#abb197,#abb197,#abb197,#abb197,#abb197,#959f7a,Retained: matches community RGB; legacy differences remain approximations
+524,Fern Green VLt,#c4cdac,#c4cdac,#c4cdac,#c4cdac,#c4cdac,#c4cdac,#c4cdac,#c4cdac,#aea78e,Retained: matches community RGB; legacy differences remain approximations
+535,Ash Gray VLt,#636458,#636458,#636458,#636458,#636458,#636458,#636458,#636458,#4b4b49,Retained: matches community RGB; legacy differences remain approximations
+543,Beige Brn UVLt,#f2e3ce,#f2e3ce,#f2e3ce,#f2e3ce,#f2e3ce,#f2e3ce,#f2e3ce,#f2e3ce,#ead0b5,Retained: matches community RGB; legacy differences remain approximations
+550,Violet VDk,#5c184e,#5c184e,#5c184e,#5c184e,#5c184e,#5c184e,#5c184e,#5c184e,#580e5c,Retained: matches community RGB; legacy differences remain approximations
+552,Violet Med,#803a6b,#803a6b,#803a6b,#803a6b,#803a6b,#803a6b,#803a6b,#803a6b,#902f99,Retained: matches community RGB; legacy differences remain approximations
+553,Violet,#a3638b,#a3638b,#a3638b,#a3638b,#a3638b,#a3638b,#a3638b,#a3638b,#a449ac,Retained: matches community RGB; legacy differences remain approximations
+554,Violet Lt,#dbb3cb,#dbb3cb,#dbb3cb,#dbb3cb,#dbb3cb,#dbb3cb,#dbb3cb,#dbb3cb,#dc9cde,Retained: matches community RGB; legacy differences remain approximations
+561,Jade VDk,#2c6a45,#2c6a45,#2c6a45,#2c6a45,#2c6a45,#2c6a45,#2c6a45,#2c6a45,#285e48,Retained: matches community RGB; legacy differences remain approximations
+562,Jade Med,#53976a,#53976a,#53976a,#53976a,#53976a,#53976a,#53976a,#53976a,#3b8c5a,Retained: matches community RGB; legacy differences remain approximations
+563,Jade Lt,#8fc098,#8fc098,#8fc098,#8fc098,#8fc098,#8fc098,#8fc098,#8fc098,#6ed39a,Retained: matches community RGB; legacy differences remain approximations
+564,Jade VLt,#a7cdaf,#a7cdaf,#a7cdaf,#a7cdaf,#a7cdaf,#a7cdaf,#a7cdaf,#a7cdaf,#95e4af,Retained: matches community RGB; legacy differences remain approximations
+580,Moss Grn Dk,#888d33,#888d33,#888d33,#888d33,#888d33,#888d33,#888d33,#888d33,#355f0b,Retained: matches community RGB; legacy differences remain approximations
+581,Moss Green,#a7ae38,#a7ae38,#a7ae38,#a7ae38,#a7ae38,#a7ae38,#a7ae38,#a7ae38,#838a29,Retained: matches community RGB; legacy differences remain approximations
+597,Turquoise,#5ba3b3,#5ba3b3,#5ba3b3,#5ba3b3,#5ba3b3,#5ba3b3,#5ba3b3,#5ba3b3,#52adab,Retained: matches community RGB; legacy differences remain approximations
+598,Turquoise Lt,#90c3cc,#90c3cc,#90c3cc,#90c3cc,#90c3cc,#90c3cc,#90c3cc,#90c3cc,#97d8d3,Retained: matches community RGB; legacy differences remain approximations
+600,Cranberry VDk,#cd2f63,#cd2f63,#cd2f63,#cd2f63,#cd2f63,#cd2f63,#cd2f63,#cd2f63,#bf1c48,Retained: matches community RGB; legacy differences remain approximations
+601,Cranberry Dk,#d1286a,#d1286a,#d1286a,#d1286a,#d1286a,#d1286a,#d1286a,#d1286a,#c62a53,Retained: matches community RGB; legacy differences remain approximations
+602,Cranberry Med,#e24874,#e24874,#e24874,#e24874,#e24874,#e24874,#e24874,#e24874,#d63f68,Retained: matches community RGB; legacy differences remain approximations
+603,Cranberry,#ffa4be,#ffa4be,#ffa4be,#ffa4be,#ffa4be,#ffa4be,#ffa4be,#ffa4be,#ed5d84,Retained: matches community RGB; legacy differences remain approximations
+604,Cranberry Lt,#ffb0be,#ffb0be,#ffb0be,#ffb0be,#ffb0be,#ffb0be,#ffb0be,#ffb0be,#f793b2,Retained: matches community RGB; legacy differences remain approximations
+605,Cranberry VLt,#ffc0cd,#ffc0cd,#ffc0cd,#ffc0cd,#ffc0cd,#ffc0cd,#ffc0cd,#ffc0cd,#fbacc4,Retained: matches community RGB; legacy differences remain approximations
+606,Bright Org-Red,#fa3203,#fa3203,#fa3203,#fa3203,#fa3203,#fa3203,#fa3203,#fa3203,#f70f00,Retained: matches community RGB; legacy differences remain approximations
+608,Bright Orange,#fd5d35,#fd5d35,#fd5d35,#fd5d35,#fd5d35,#fd5d35,#fd5d35,#fd5d35,#fd480c,Retained: matches community RGB; legacy differences remain approximations
+610,Drab Brown Dk,#796047,#796047,#796047,#796047,#796047,#796047,#796047,#796047,#6b5039,Retained: matches community RGB; legacy differences remain approximations
+611,Drab Brown,#967656,#967656,#967656,#967656,#967656,#967656,#967656,#967656,#7c5f46,Retained: matches community RGB; legacy differences remain approximations
+612,Drab Brown Lt,#bc9a78,#bc9a78,#bc9a78,#bc9a78,#bc9a78,#bc9a78,#bc9a78,#bc9a78,#a6885e,Retained: matches community RGB; legacy differences remain approximations
+613,Drab Brown VLt,#dcc4aa,#dcc4aa,#dcc4aa,#dcc4aa,#dcc4aa,#dcc4aa,#dcc4aa,#dcc4aa,#b99f72,Retained: matches community RGB; legacy differences remain approximations
+632,Desert Snd UVDk,#875539,#875539,#875539,#875539,#875539,#875539,#875539,#875539,#7f4232,Retained: matches community RGB; legacy differences remain approximations
+633,Desert Snd Dk,#915f43,#915f43,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+640,Beige Gray VDk,#857b61,#857b61,#857b61,#857b61,#857b61,#857b61,#857b61,#857b61,#817868,Retained: matches community RGB; legacy differences remain approximations
+642,Beige Gray Dk,#a49878,#a49878,#a49878,#a49878,#a49878,#a49878,#a49878,#a49878,#958d79,Retained: matches community RGB; legacy differences remain approximations
+644,Beige Gray Med,#ddd8cb,#ddd8cb,#ddd8cb,#ddd8cb,#ddd8cb,#ddd8cb,#ddd8cb,#ddd8cb,#c4bea6,Retained: matches community RGB; legacy differences remain approximations
+645,Beaver Gray VDk,#6e655c,#6e655c,#6e655c,#6e655c,#6e655c,#6e655c,#6e655c,#6e655c,#5d5d54,Retained: matches community RGB; legacy differences remain approximations
+646,Beaver Gray Dk,#877d73,#877d73,#877d73,#877d73,#877d73,#877d73,#877d73,#877d73,#6b6860,Retained: matches community RGB; legacy differences remain approximations
+647,Beaver Gray Med,#b0a69c,#b0a69c,#b0a69c,#b0a69c,#b0a69c,#b0a69c,#b0a69c,#b0a69c,#908e85,Retained: matches community RGB; legacy differences remain approximations
+648,Beaver Gray Lt,#bcb4ac,#bcb4ac,#bcb4ac,#bcb4ac,#bcb4ac,#bcb4ac,#bcb4ac,#bcb4ac,#a7a69f,Retained: matches community RGB; legacy differences remain approximations
+666,Christmas Red Br,#e31d42,#e31d42,#e31d42,#e31d42,#e31d42,#e31d42,#e31d42,#e31d42,#ce1b33,Retained: matches community RGB; legacy differences remain approximations
+676,Old Gold Lt,#e5ce97,#e5ce97,#e5ce97,#e5ce97,#e5ce97,#e5ce97,#e5ce97,#e5ce97,#ecbf7d,Retained: matches community RGB; legacy differences remain approximations
+677,Old Gold VLt,#f5eccb,#f5eccb,#f5eccb,#f5eccb,#f5eccb,#f5eccb,#f5eccb,#f5eccb,#f2dc9f,Retained: matches community RGB; legacy differences remain approximations
+680,Old Gold Dk,#bc8d0e,#bc8d0e,#bc8d0e,#bc8d0e,#bc8d0e,#bc8d0e,#bc8d0e,#bc8d0e,#b07b46,Retained: matches community RGB; legacy differences remain approximations
+699,Christmas Grn,#056517,#056517,#056517,#056517,#056517,#056517,#056517,#56517,#075b26,Retained: matches community RGB; legacy differences remain approximations
+700,Christmas Grn Br,#07731b,#07731b,#07731b,#07731b,#07731b,#07731b,#07731b,#07731b,#076c34,Retained: matches community RGB; legacy differences remain approximations
+701,Christmas Grn Lt,#3f8f29,#3f8f29,#3f8f29,#3f8f29,#3f8f29,#3f8f29,#3f8f29,#3f8f29,#217c36,Retained: matches community RGB; legacy differences remain approximations
+702,Kelly Green,#47a72f,#47a72f,#47a72f,#47a72f,#47a72f,#47a72f,#47a72f,#47a72f,#379130,Retained: matches community RGB; legacy differences remain approximations
+703,Chartreuse,#7bb547,#7bb547,#7bb547,#7bb547,#7bb547,#7bb547,#7bb547,#7bb547,#63b330,Retained: matches community RGB; legacy differences remain approximations
+704,Chartreuse Br,#9ecf34,#9ecf34,#9ecf34,#9ecf34,#9ecf34,#9ecf34,#9ecf34,#9ecf34,#88c53a,Retained: matches community RGB; legacy differences remain approximations
+712,Cream,#fffbef,#fffbef,#fffbef,#fffbef,#fffbef,#fffbef,#fffbef,#fffbef,#f6efda,Retained: matches community RGB; legacy differences remain approximations
+718,Plum,#9c2462,#9c2462,#9c2462,#9c2462,#9c2462,#9c2462,#9c2462,#9c2462,#cb2089,Retained: matches community RGB; legacy differences remain approximations
+720,Orange Spice Dk,#e55c1f,#e55c1f,#e55c1f,#e55c1f,#e55c1f,#e55c1f,#e55c1f,#e55c1f,#c83a24,Retained: matches community RGB; legacy differences remain approximations
+721,Orange Spice M,#f27842,#f27842,#f27842,#f27842,#f27842,#f27842,#f27842,#f27842,#f46440,Retained: matches community RGB; legacy differences remain approximations
+722,Orange Spice Lt,#f7976f,#f7976f,#f7976f,#f7976f,#f7976f,#f7976f,#f7976f,#f7976f,#f98756,Retained: matches community RGB; legacy differences remain approximations
+725,Topaz,#ffc840,#ffc840,#ffc840,#ffc840,#ffc840,#ffc840,#ffc840,#ffc840,#f9c15b,Retained: matches community RGB; legacy differences remain approximations
+726,Topaz Lt,#fdd755,#fdd755,#fdd755,#fdd755,#fdd755,#fdd755,#fdd755,#fdd755,#fddb63,Retained: matches community RGB; legacy differences remain approximations
+727,Topaz VLt,#fff1af,#fff1af,#fff1af,#fff1af,#fff1af,#fff1af,#fff1af,#fff1af,#fde98b,Retained: matches community RGB; legacy differences remain approximations
+728,Topaz Med,#e4b468,#e4b468,#e4b468,#e4b468,#e4b468,#e4b468,#e4b468,#e4b468,#f2ae3f,Retained: matches community RGB; legacy differences remain approximations
+729,Old Gold Med,#d0a53e,#d0a53e,#d0a53e,#d0a53e,#d0a53e,#d0a53e,#d0a53e,#d0a53e,#ce9657,Retained: matches community RGB; legacy differences remain approximations
+730,Olive Green VDk,#827b30,#827b30,#827b30,#827b30,#827b30,#827b30,#827b30,#827b30,#63520b,Retained: matches community RGB; legacy differences remain approximations
+731,Olive Green Dk,#938b37,#938b37,#938b37,#938b37,#938b37,#938b37,#938b37,#938b37,#6b580b,Retained: matches community RGB; legacy differences remain approximations
+732,Olive Green,#948c36,#948c36,#948c36,#948c36,#948c36,#948c36,#948c36,#948c36,#725c0c,Retained: matches community RGB; legacy differences remain approximations
+733,Olive Green Med,#bcb34c,#bcb34c,#bcb34c,#bcb34c,#bcb34c,#bcb34c,#bcb34c,#bcb34c,#a78a44,Retained: matches community RGB; legacy differences remain approximations
+734,Olive Green Lt,#c7c077,#c7c077,#c7c077,#c7c077,#c7c077,#c7c077,#c7c077,#c7c077,#bb9c54,Retained: matches community RGB; legacy differences remain approximations
+738,Tan VLt,#eccc9e,#eccc9e,#eccc9e,#eccc9e,#eccc9e,#eccc9e,#eccc9e,#eccc9e,#e2b783,Retained: matches community RGB; legacy differences remain approximations
+739,Tan UVLt,#f8e4c8,#f8e4c8,#f8e4c8,#f8e4c8,#f8e4c8,#f8e4c8,#f8e4c8,#f8e4c8,#f2deb9,Retained: matches community RGB; legacy differences remain approximations
+740,Tangerine,#ff8b00,#ff8b00,#ff8b00,#ff8b00,#ff8b00,#ff8b00,#ff8b00,#ff8b00,#fd6f1a,Retained: matches community RGB; legacy differences remain approximations
+741,Tangerine Med,#ffa32b,#ffa32b,#ffa32b,#ffa32b,#ffa32b,#ffa32b,#ffa32b,#ffa32b,#fc8b10,Retained: matches community RGB; legacy differences remain approximations
+742,Tangerine Lt,#ffbf57,#ffbf57,#ffbf57,#ffbf57,#ffbf57,#ffbf57,#ffbf57,#ffbf57,#fdae3c,Retained: matches community RGB; legacy differences remain approximations
+743,Yellow Med,#fed376,#fed376,#fed376,#fed376,#fed376,#fed376,#fed376,#fed376,#fdd769,Retained: matches community RGB; legacy differences remain approximations
+744,Yellow Pale,#ffe793,#ffe793,#ffe793,#ffe793,#ffe7ae,#ffe793,#ffe793,#ffe793,#fee88d,Retained: source disagreement or internal typo; see report
+745,Yellow Lt Pale,#ffe9ad,#ffe9ad,#ffe9ad,#ffe9ad,#ffe9ad,#ffe9ad,#ffe9ad,#ffe9ad,#feeba5,Retained: matches community RGB; legacy differences remain approximations
+746,Off White,#fcfcee,#fcfcee,#fcfcee,#fcfcee,#fcfcee,#fcfcee,#fcfcee,#fcfcee,#faf2d5,Retained: matches community RGB; legacy differences remain approximations
+747,Sky Blue VLt,#e5fcfd,#e5fcfd,#e5fcfd,#e5fcfd,#e5fcfd,#e5fcfd,#e5fcfd,#e5fcfd,#cee9ea,Retained: matches community RGB; legacy differences remain approximations
+754,Peach Lt,#f7cbbf,#f7cbbf,#f7cbbf,#f7cbbf,#f7cbbf,#f7cbbf,#f7cbbf,#f7cbbf,#f7c9b0,Retained: matches community RGB; legacy differences remain approximations
+758,Terra Cotta VLt,#eeaa9b,#eeaa9b,#eeaa9b,#eeaa9b,#eeaa9b,#eeaa9b,#eeaa9b,#eeaa9b,#e99f83,Retained: matches community RGB; legacy differences remain approximations
+760,Salmon,#f5adad,#f5adad,#f5adad,#f5adad,#f5adad,#f5adad,#f5adad,#f5adad,#ec8880,Retained: matches community RGB; legacy differences remain approximations
+761,Salmon Lt,#ffc9c9,#ffc9c9,#ffc9c9,#ffc9c9,#ffc9c9,#ffc9c9,#ffc9c9,#ffc9c9,#f8b4ad,Retained: matches community RGB; legacy differences remain approximations
+762,Pearl Gray VLt,#ececec,#ececec,#ececec,#ececec,#ececec,#ececec,#ececec,#ececec,#d1d0d2,Retained: matches community RGB; legacy differences remain approximations
+772,Yel Green VLt,#e4ecd4,#e4ecd4,#e4ecd4,#e4ecd4,#e4ecd4,#e4ecd4,#e4ecd4,#e4ecd4,#d7efa7,Retained: matches community RGB; legacy differences remain approximations
+775,Baby Blue VLt,#d9ebf1,#d9ebf1,#d9ebf1,#d9ebf1,#d9ebf1,#d9ebf1,#d9ebf1,#d9ebf1,#d4e3ef,Retained: matches community RGB; legacy differences remain approximations
+776,Pink Med,#fcb0b9,#fcb0b9,#fcb0b9,#fcb0b9,#fcb0b9,#fcb0b9,#fcb0b9,#fcb0b9,#fca8ad,Retained: matches community RGB; legacy differences remain approximations
+777,Red Deep,#801434,#913546,#913546,#913546,#913546,#913546,#913546,#913546,#9b0042,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+778,Antq Mauve VLt,#dfb3bb,#dfb3bb,#dfb3bb,#dfb3bb,#dfb3bb,#dfb3bb,#dfb3bb,#dfb3bb,#dca6a4,Retained: matches community RGB; legacy differences remain approximations
+779,Brown,#624b45,#624b45,#624b45,#624b45,#624b45,#624b45,#624b45,#624b45,#53332d,Retained: matches community RGB; legacy differences remain approximations
+780,Topaz UVDk,#94631a,#94631a,#94631a,#94631a,#94631a,#94631a,#94631a,#94631a,#945026,Retained: matches community RGB; legacy differences remain approximations
+781,Topaz VDk,#a26d20,#a26d20,#a26d20,#a26d20,#a26d20,#a26d20,#a26d20,#a26d20,#a25f1f,Retained: matches community RGB; legacy differences remain approximations
+782,Topaz Dk,#ae7720,#ae7720,#ae7720,#ae7720,#ae7720,#ae7720,#ae7720,#ae7720,#b26923,Retained: matches community RGB; legacy differences remain approximations
+783,Topaz Med,#ceaf24,#ce9124,#ce9124,#ce9124,#ce9124,#ce9124,#ce9124,#ce9124,#d0883d,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+791,Cornflower VD,#464563,#464563,#464563,#464563,#464563,#464563,#464563,#464563,#2d2068,Retained: matches community RGB; legacy differences remain approximations
+792,Cornflower Dk,#555b7b,#555b7b,#555b7b,#555b7b,#555b7b,#555b7b,#555b7b,#555b7b,#454b8b,Retained: matches community RGB; legacy differences remain approximations
+793,Cornflower Med,#707da2,#707da2,#707da2,#707da2,#707da2,#707da2,#707da2,#707da2,#7c82b5,Retained: matches community RGB; legacy differences remain approximations
+794,Cornflower Lt,#8f9cc1,#8f9cc1,#8f9cc1,#8f9cc1,#8f9cc1,#8f9cc1,#8f9cc1,#8f9cc1,#a0b2d7,Retained: matches community RGB; legacy differences remain approximations
+796,Royal Blue Dk,#11416d,#11416d,#11416d,#11416d,#11416d,#11416d,#11416d,#11416d,#272276,Retained: matches community RGB; legacy differences remain approximations
+797,Royal Blue,#13477d,#13477d,#13477d,#13477d,#13477d,#13477d,#13477d,#13477d,#2b3288,Retained: matches community RGB; legacy differences remain approximations
+798,Delft Blue Dk,#466a8e,#466a8e,#466a8e,#466a8e,#466a8e,#466a8e,#466a8e,#466a8e,#4e5ca7,Retained: matches community RGB; legacy differences remain approximations
+799,Delft Blue Med,#748eb6,#748eb6,#748eb6,#748eb6,#748eb6,#748eb6,#748eb6,#748eb6,#6b7fc0,Retained: matches community RGB; legacy differences remain approximations
+800,Delft Blue Pale,#c0ccde,#c0ccde,#c0ccde,#c0ccde,#c0ccde,#c0ccde,#c0ccde,#c0ccde,#b5c7e9,Retained: matches community RGB; legacy differences remain approximations
+801,Coffee Brn Dk,#653919,#653919,#653919,#653919,#653919,#653919,#653919,#653919,#60391d,Retained: matches community RGB; legacy differences remain approximations
+802,Baby Blue Dk,#4289ab,#4289ab,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+803,Blue Deep,#1c6da2,#2c597c,#2c597c,#2c597c,#2c597c,#2c597c,#2c597c,#2c597c,#202754,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+804,Cornflower VDk,#316395,#316395,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+805,Blue VDk,#1c508b,#1c508b,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+806,Peacock Bl Dk,#3d95a5,#3d95a5,#3d95a5,#3d95a5,#3d95a5,#3d95a5,#3d95a5,#3d95a5,#1d6c87,Retained: matches community RGB; legacy differences remain approximations
+807,Peacock Blue,#64abba,#64abba,#64abba,#64abba,#64abba,#64abba,#64abba,#64abba,#558b9e,Retained: matches community RGB; legacy differences remain approximations
+808,Delft Med,#799db5,#799db5,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+809,Delft Blue,#94a8c6,#94a8c6,#94a8c6,#94a8c6,#94a8c6,#94a8c6,#94a8c6,#94a8c6,#919fd5,Retained: matches community RGB; legacy differences remain approximations
+813,Blue Lt,#a1c2d7,#a1c2d7,#a1c2d7,#a1c2d7,#a1c2d7,#a1c2d7,#a1c2d7,#a1c2d7,#7fa0c6,Retained: matches community RGB; legacy differences remain approximations
+814,Garnet Dk,#7b001b,#7b001b,#7b001b,#7b001b,#7b001b,#7b001b,#7b001b,#7b001b,#711033,Retained: matches community RGB; legacy differences remain approximations
+815,Garnet Med,#87071f,#87071f,#87071f,#87071f,#87071f,#87071f,#87071f,#87071f,#800b34,Retained: matches community RGB; legacy differences remain approximations
+816,Garnet,#970b23,#970b23,#970b23,#970b23,#970b23,#970b23,#970b23,#970b23,#921238,Retained: matches community RGB; legacy differences remain approximations
+817,Coral Red VDk,#bb051f,#bb051f,#bb051f,#bb051f,#bb051f,#bb051f,#bb051f,#bb051f,#bb1630,Retained: matches community RGB; legacy differences remain approximations
+818,Baby Pink,#ffdfd9,#ffdfd9,#ffdfd9,#ffdfd9,#ffdfd9,#ffdfd9,#ffdfd9,#ffdfd9,#fededd,Retained: matches community RGB; legacy differences remain approximations
+819,Baby Pink Lt,#ffeeeb,#ffeeeb,#ffeeeb,#ffeeeb,#ffeeeb,#ffeeeb,#ffeeeb,#ffeeeb,#fcebde,Retained: matches community RGB; legacy differences remain approximations
+820,Royal Blue VDk,#0e365c,#0e365c,#0e365c,#0e365c,#0e365c,#0e365c,#0e365c,#0e365c,#151264,Retained: matches community RGB; legacy differences remain approximations
+822,Beige Gray Lt,#e7e2d3,#e7e2d3,#e7e2d3,#e7e2d3,#e7e2d3,#e7e2d3,#e7e2d3,#e7e2d3,#e8dfc7,Retained: matches community RGB; legacy differences remain approximations
+823,Navy Blue Dk,#213063,#213063,#213063,#213063,#213063,#213063,#213063,#213063,#000b44,Retained: matches community RGB; legacy differences remain approximations
+824,Blue VDk,#396987,#396987,#396987,#396987,#396987,#396987,#396987,#396987,#284779,Retained: matches community RGB; legacy differences remain approximations
+825,Blue Dk,#4781a5,#4781a5,#4781a5,#4781a5,#4781a5,#4781a5,#4781a5,#4781a5,#34588f,Retained: matches community RGB; legacy differences remain approximations
+826,Blue Med,#6b9ebf,#6b9ebf,#6b9ebf,#6b9ebf,#6b9ebf,#6b9ebf,#6b9ebf,#6b9ebf,#5075a7,Retained: matches community RGB; legacy differences remain approximations
+827,Blue VLt,#bddded,#bddded,#bddded,#bddded,#bddded,#bddded,#bddded,#bddded,#a4c1de,Retained: matches community RGB; legacy differences remain approximations
+828,Blue UVLt,#c5e8ed,#c5e8ed,#c5e8ed,#c5e8ed,#c5e8ed,#c5e8ed,#c5e8ed,#c5e8ed,#c3d7e6,Retained: matches community RGB; legacy differences remain approximations
+829,Golden Olive VDk,#7e6b42,#7e6b42,#7e6b42,#7e6b42,#7e6b42,#7e6b42,#7e6b42,#7e6b42,#64480c,Retained: matches community RGB; legacy differences remain approximations
+830,Golden Olive Dk,#8d784b,#8d784b,#8d784b,#8d784b,#8d784b,#8d784b,#8d784b,#8d784b,#6e501d,Retained: matches community RGB; legacy differences remain approximations
+831,Golden Olive Med,#aa8f56,#aa8f56,#aa8f56,#aa8f56,#aa8f56,#aa8f56,#aa8f56,#aa8f56,#7c5f20,Retained: matches community RGB; legacy differences remain approximations
+832,Golden Olive,#bd9b51,#bd9b51,#bd9b51,#bd9b51,#bd9b51,#bd9b51,#bd9b51,#bd9b51,#9c7230,Retained: matches community RGB; legacy differences remain approximations
+833,Golden Olive Lt,#c8ab6c,#c8ab6c,#c8ab6c,#c8ab6c,#c8ab6c,#c8ab6c,#c8ab6c,#c8ab6c,#b99956,Retained: matches community RGB; legacy differences remain approximations
+834,Golden Olive VLt,#dbbe7f,#dbbe7f,#dbbe7f,#dbbe7f,#dbbe7f,#dbbe7f,#dbbe7f,#dbbe7f,#d2b468,Retained: matches community RGB; legacy differences remain approximations
+838,Beige Brn VDk,#594937,#594937,#594937,#594937,#594937,#594937,#594937,#594937,#4a3021,Retained: matches community RGB; legacy differences remain approximations
+839,Beige Brn Dk,#675541,#675541,#675541,#675541,#675541,#675541,#675541,#675541,#5a3c2d,Retained: matches community RGB; legacy differences remain approximations
+840,Beige Brn Med,#9a7c5c,#9a7c5c,#9a7c5c,#9a7c5c,#9a7c5c,#9a7c5c,#9a7c5c,#9a7c5c,#7a5939,Retained: matches community RGB; legacy differences remain approximations
+841,Beige Brn Lt,#b69b7e,#b69b7e,#b69b7e,#b69b7e,#b69b7e,#b69b7e,#b69b7e,#b69b7e,#a37d64,Retained: matches community RGB; legacy differences remain approximations
+842,Beige Brn VLt,#d1baa1,#d1baa1,#d1baa1,#d1baa1,#d1baa1,#d1baa1,#d1baa1,#d1baa1,#cbb094,Retained: matches community RGB; legacy differences remain approximations
+844,Beaver Gray UDk,#484848,#484848,#484848,#484848,#484848,#484848,#484848,#484848,#494842,Retained: matches community RGB; legacy differences remain approximations
+869,Hazelnut VDk,#835e39,#835e39,#835e39,#835e39,#835e39,#835e39,#835e39,#8.35e+41,#784c28,Retained: matches community RGB; legacy differences remain approximations
+890,Pistachio UDk,#174923,#174923,#174923,#174923,#174923,#174923,#174923,#184923,#324233,Retained: matches community RGB; legacy differences remain approximations
+891,Carnation Dk,#ff5773,#ff5773,#ff5773,#ff5773,#ff5773,#ff5773,#ff5773,#ff5773,#ee3246,Retained: matches community RGB; legacy differences remain approximations
+892,Carnation Med,#ff798c,#ff798c,#ff798c,#ff798c,#ff798c,#ff798c,#ff798c,#ff798c,#f44753,Retained: matches community RGB; legacy differences remain approximations
+893,Carnation Lt,#fc90a2,#fc90a2,#fc90a2,#fc90a2,#fc90a2,#fc90a2,#fc90a2,#fc90a2,#f66879,Retained: matches community RGB; legacy differences remain approximations
+894,Carnation VLt,#ffb2bb,#ffb2bb,#ffb2bb,#ffb2bb,#ffb2bb,#ffb2bb,#ffb2bb,#ffb2bb,#fd95a3,Retained: matches community RGB; legacy differences remain approximations
+895,Hunter Grn VDk,#1b5300,#1b5300,#1b5300,#1b5300,#1b5300,#1b5300,#1b5300,#1b5300,#344b2e,Retained: matches community RGB; legacy differences remain approximations
+898,Coffee Brn VDk,#492a13,#492a13,#492a13,#492a13,#492a13,#492a13,#492a13,#492a13,#532f1b,Retained: matches community RGB; legacy differences remain approximations
+899,Rose Med,#f27688,#f27688,#f27688,#f27688,#f27688,#f27688,#f27688,#f27688,#ea6b78,Retained: matches community RGB; legacy differences remain approximations
+900,Burnt Orange Dk,#d15807,#d15807,#d15807,#d15807,#d15807,#d15807,#d15807,#d15807,#c63117,Retained: matches community RGB; legacy differences remain approximations
+902,Garnet VDk,#822637,#822637,#822637,#822637,#822637,#822637,#822637,#822637,#651329,Retained: matches community RGB; legacy differences remain approximations
+904,Parrot Grn VDk,#557822,#557822,#557822,#557822,#557822,#557822,#557822,#557822,#386324,Retained: matches community RGB; legacy differences remain approximations
+905,Parrot Grn Dk,#628a28,#628a28,#628a28,#628a28,#628a28,#628a28,#628a28,#628a28,#467924,Retained: matches community RGB; legacy differences remain approximations
+906,Parrot Grn Med,#7fb335,#7fb335,#7fb335,#7fb335,#7fb335,#7fb335,#7fb335,#7fb335,#6c9e29,Retained: matches community RGB; legacy differences remain approximations
+907,Parrot Grn Lt,#c7e666,#c7e666,#c7e666,#c7e666,#c7e666,#c7e666,#c7e666,#c7e666,#9dc72d,Retained: matches community RGB; legacy differences remain approximations
+909,Emerald VDk,#156f49,#156f49,#156f49,#156f49,#156f49,#156f49,#156f49,#156f49,#106b43,Retained: matches community RGB; legacy differences remain approximations
+910,Emerald Dk,#187e56,#187e56,#187e56,#187e56,#187e56,#187e56,#187e56,#1.87e+58,#10814e,Retained: matches community RGB; legacy differences remain approximations
+911,Emerald Med,#189065,#189065,#189065,#189065,#189065,#189065,#189065,#189065,#109256,Retained: matches community RGB; legacy differences remain approximations
+912,Emerald Lt,#1b9d6b,#1b9d6b,#1b9d6b,#1b9d6b,#1b9d6b,#1b9d6b,#1b9d6b,#1b9d6b,#36b26b,Retained: matches community RGB; legacy differences remain approximations
+913,Nile Green Med,#6dab77,#6dab77,#6dab77,#6dab77,#6dab77,#6dab77,#6dab77,#6dab77,#55ca7d,Retained: matches community RGB; legacy differences remain approximations
+915,Plum Dk,#820043,#820043,#820043,#820043,#820043,#820043,#820043,#820043,#95085a,Retained: matches community RGB; legacy differences remain approximations
+917,Plum Med,#9b1359,#9b1359,#9b1359,#9b1359,#9b1359,#9b1359,#9b1359,#9b1359,#ac1071,Retained: matches community RGB; legacy differences remain approximations
+918,Red Copper Dk,#82340a,#82340a,#82340a,#82340a,#82340a,#82340a,#82340a,#82340a,#883630,Retained: matches community RGB; legacy differences remain approximations
+919,Red Copper,#a64510,#a64510,#a64510,#a64510,#a64510,#a64510,#a64510,#a64510,#9b371b,Retained: matches community RGB; legacy differences remain approximations
+920,Copper Med,#ac5414,#ac5414,#ac5414,#ac5414,#ac5414,#ac5414,#ac5414,#ac5414,#ab4836,Retained: matches community RGB; legacy differences remain approximations
+921,Copper,#c66218,#c66218,#c66218,#c66218,#c66218,#c66218,#c66218,#c66218,#c0573d,Retained: matches community RGB; legacy differences remain approximations
+922,Copper Lt,#e27323,#e27323,#e27323,#e27323,#e27323,#e27323,#e27323,#e27323,#dd6e4c,Retained: matches community RGB; legacy differences remain approximations
+924,Gray Green VDk,#566a6a,#566a6a,#566a6a,#566a6a,#566a6a,#566a6a,#566a6a,#566a6a,#384a4a,Retained: matches community RGB; legacy differences remain approximations
+926,Gray Green Med,#98aeae,#98aeae,#98aeae,#98aeae,#98aeae,#98aeae,#98aeae,#98aeae,#617674,Retained: matches community RGB; legacy differences remain approximations
+927,Gray Green Lt,#bdcbcb,#bdcbcb,#bdcbcb,#bdcbcb,#bdcbcb,#bdcbcb,#bdcbcb,#bdcbcb,#9fa8a5,Retained: matches community RGB; legacy differences remain approximations
+928,Gray Green VLt,#dde3e3,#dde3e3,#dde3e3,#dde3e3,#dde3e3,#dde3e3,#dde3e3,#dde3e3,#c0c6c0,Retained: matches community RGB; legacy differences remain approximations
+930,Antq Blue Dk,#455c71,#455c71,#455c71,#455c71,#455c71,#455c71,#455c71,#455c71,#495c6b,Retained: matches community RGB; legacy differences remain approximations
+931,Antq Blue Med,#6a859e,#6a859e,#6a859e,#6a859e,#6a859e,#6a859e,#6a859e,#6a859e,#667684,Retained: matches community RGB; legacy differences remain approximations
+932,Antq Blue Lt,#a2b5c6,#a2b5c6,#a2b5c6,#a2b5c6,#a2b5c6,#a2b5c6,#a2b5c6,#a2b5c6,#93a0af,Retained: matches community RGB; legacy differences remain approximations
+934,Blk Avocado,#313919,#313919,#313919,#313919,#313919,#313919,#313919,#313919,#323324,Retained: matches community RGB; legacy differences remain approximations
+935,Avocado Dk,#424d21,#424d21,#424d21,#424d21,#424d21,#424d21,#424d21,#424d21,#383a2a,Retained: matches community RGB; legacy differences remain approximations
+936,Avocado VDk,#4c5826,#4c5826,#4c5826,#4c5826,#4c5826,#4c5826,#4c5826,#4c5826,#3f4227,Retained: matches community RGB; legacy differences remain approximations
+937,Avocado Med,#627133,#627133,#627133,#627133,#627133,#627133,#627133,#627133,#434f2c,Retained: matches community RGB; legacy differences remain approximations
+938,Coffee UDk,#361f0e,#361f0e,#361f0e,#361f0e,#361f0e,#361f0e,#361f0e,#361f0e,#45271a,Retained: matches community RGB; legacy differences remain approximations
+939,Navy VDk,#1b2853,#1b2853,#1b2853,#1b2853,#1b2853,#1b2853,#1b2853,#1b2853,#09092f,Retained: matches community RGB; legacy differences remain approximations
+943,Aquamarine Med,#3d9384,#3d9384,#3d9384,#3d9384,#3d9384,#3d9384,#3d9384,#3d9384,#009a77,Retained: matches community RGB; legacy differences remain approximations
+945,Tawny,#fbd5bb,#fbd5bb,#fbd5bb,#fbd5bb,#fbd5bb,#fbd5bb,#fbd5bb,#fbd5bb,#f6c19a,Retained: matches community RGB; legacy differences remain approximations
+946,Burnt Org Med,#eb6307,#eb6307,#eb6307,#eb6307,#eb6307,#eb6307,#eb6307,#eb6307,#ed4115,Retained: matches community RGB; legacy differences remain approximations
+947,Burnt Orange,#ff7b4d,#ff7b4d,#ff7b4d,#ff7b4d,#ff7b4d,#ff7b4d,#ff7b4d,#ff7b4d,#fc4f16,Retained: matches community RGB; legacy differences remain approximations
+948,Peach VLt,#fee7da,#fee7da,#fee7da,#fee7da,#fee7da,#fee7da,#fee7da,#fee7da,#fde6d3,Retained: matches community RGB; legacy differences remain approximations
+950,Desert Sand Lt,#eed3c4,#eed3c4,#eed3c4,#eed3c4,#eed3c4,#eed3c4,#eed3c4,#eed3c4,#e5ac8d,Retained: matches community RGB; legacy differences remain approximations
+951,Tawny Lt,#ffe2cf,#ffe2cf,#ffe2cf,#ffe2cf,#ffe2cf,#ffe2cf,#ffe2cf,#ffe2cf,#faddb6,Retained: matches community RGB; legacy differences remain approximations
+954,Nile Green,#88ba91,#88ba91,#88ba91,#88ba91,#88ba91,#88ba91,#88ba91,#88ba91,#6fda8a,Retained: matches community RGB; legacy differences remain approximations
+955,Nile Green Lt,#a2d6ad,#a2d6ad,#a2d6ad,#a2d6ad,#a2d6ad,#a2d6ad,#a2d6ad,#a2d6ad,#a8ebad,Retained: matches community RGB; legacy differences remain approximations
+956,Geranium,#ff9191,#ff9191,#ff9191,#ff9191,#ff9191,#ff9191,#ff9191,#ff9191,#f7566d,Retained: matches community RGB; legacy differences remain approximations
+957,Geranium Pale,#fdb5b5,#fdb5b5,#fdb5b5,#fdb5b5,#fdb5b5,#fdb5b5,#fdb5b5,#fdb5b5,#fd99af,Retained: matches community RGB; legacy differences remain approximations
+958,Sea Green Dk,#3eb6a1,#3eb6a1,#3eb6a1,#3eb6a1,#3eb6a1,#3eb6a1,#3eb6a1,#3eb6a1,#0db294,Retained: matches community RGB; legacy differences remain approximations
+959,Sea Green Med,#59c7b4,#59c7b4,#59c7b4,#59c7b4,#59c7b4,#59c7b4,#59c7b4,#59c7b4,#72d0b7,Retained: matches community RGB; legacy differences remain approximations
+961,Dusty Rose Dk,#cf7373,#cf7373,#cf7373,#cf7373,#cf7373,#cf7373,#cf7373,#cf7373,#de586c,Retained: matches community RGB; legacy differences remain approximations
+962,Dusty Rose Med,#e68a8a,#e68a8a,#e68a8a,#e68a8a,#e68a8a,#e68a8a,#e68a8a,#e68a8a,#eb7183,Retained: matches community RGB; legacy differences remain approximations
+963,Dusty Rose UVLt,#ffd7d7,#ffd7d7,#ffd7d7,#ffd7d7,#ffd7d7,#ffd7d7,#ffd7d7,#ffd7d7,#fdccd1,Retained: matches community RGB; legacy differences remain approximations
+964,Sea Green Lt,#a9e2d8,#a9e2d8,#a9e2d8,#a9e2d8,#a9e2d8,#a9e2d8,#a9e2d8,#a9e2d8,#a5e4d4,Retained: matches community RGB; legacy differences remain approximations
+966,Baby Green Med,#b9d7c0,#b9d7c0,#b9d7c0,#b9d7c0,#b9d7c0,#b9d7c0,#b9d7c0,#b9d7c0,#94d28a,Retained: matches community RGB; legacy differences remain approximations
+967,Peach Lt,#fdd2ca,#ffded5,#ffded5,#ffded5,#ffded5,#ffded5,#ffded5,#ffded5,#ffc2ac,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+968,Peach Med,#fbc3bc,#fbc3bc,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+969,Peach Dk,#f2a594,#f2a594,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+970,Pumpkin Lt,#f78b13,#f78b13,#f78b13,#f78b13,#f78b13,#f78b13,#f78b13,#f78b13,#fb6721,Retained: matches community RGB; legacy differences remain approximations
+971,Pumpkin,#f67f00,#f67f00,#f67f00,#f67f00,#f67f00,#f67f00,#f67f00,#f67f00,#fc670d,Retained: matches community RGB; legacy differences remain approximations
+972,Canary Deep,#ffb515,#ffb515,#ffb515,#ffb515,#ffb515,#ffb515,#ffb515,#ffb515,#fb9f11,Retained: matches community RGB; legacy differences remain approximations
+973,Canary Bright,#ffe300,#ffe300,#ffe300,#ffe300,#ffe300,#ffe300,#ffe300,#ffe300,#fccd2d,Retained: matches community RGB; legacy differences remain approximations
+974,Winnie Pooh Gold,#ffd666,#ffd666,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+975,Golden Brn Dk,#914f12,#914f12,#914f12,#914f12,#914f12,#914f12,#914f12,#914f12,#813c11,Retained: matches community RGB; legacy differences remain approximations
+976,Golden Brn Med,#c28142,#c28142,#c28142,#c28142,#c28142,#c28142,#c28142,#c28142,#cf7532,Retained: matches community RGB; legacy differences remain approximations
+977,Golden Brn Lt,#dc9c56,#dc9c56,#dc9c56,#dc9c56,#dc9c56,#dc9c56,#dc9c56,#dc9c56,#ec8f43,Retained: matches community RGB; legacy differences remain approximations
+986,Forest Grn VDk,#405230,#405230,#405230,#405230,#405230,#405230,#405230,#405230,#2e5230,Retained: matches community RGB; legacy differences remain approximations
+987,Forest Grn Dk,#587141,#587141,#587141,#587141,#587141,#587141,#587141,#587141,#436838,Retained: matches community RGB; legacy differences remain approximations
+988,Forest Grn Med,#738b5b,#738b5b,#738b5b,#738b5b,#738b5b,#738b5b,#738b5b,#738b5b,#66924a,Retained: matches community RGB; legacy differences remain approximations
+989,Forest Green,#8da675,#8da675,#8da675,#8da675,#8da675,#8da675,#8da675,#8da675,#71a74e,Retained: matches community RGB; legacy differences remain approximations
+991,Aquamarine Dk,#477b6e,#477b6e,#477b6e,#477b6e,#477b6e,#477b6e,#477b6e,#477b6e,#135f55,Retained: matches community RGB; legacy differences remain approximations
+992,Aquamarine Lt,#6fae9f,#6fae9f,#6fae9f,#6fae9f,#6fae9f,#6fae9f,#6fae9f,#6fae9f,#42b59e,Retained: matches community RGB; legacy differences remain approximations
+993,Aquamarine VLt,#90c0b4,#90c0b4,#90c0b4,#90c0b4,#90c0b4,#90c0b4,#90c0b4,#90c0b4,#62d8b6,Retained: matches community RGB; legacy differences remain approximations
+995,Elec Blue Dk,#2696b6,#2696b6,#2696b6,#2696b6,#2696b6,#2696b6,#2696b6,#2696b6,#0061b0,Retained: matches community RGB; legacy differences remain approximations
+996,Elec Blue Med,#30c2ec,#30c2ec,#30c2ec,#30c2ec,#30c2ec,#30c2ec,#30c2ec,#30c2ec,#49a8eb,Retained: matches community RGB; legacy differences remain approximations
+3011,Khaki Dk,#898a58,#898a58,#898a58,#898a58,#898a58,#898a58,#898a58,#898a58,#655935,Retained: matches community RGB; legacy differences remain approximations
+3012,Khaki Med,#a6a75d,#a6a75d,#a6a75d,#a6a75d,#a6a75d,#a6a75d,#a6a75d,#a6a75d,#8b7b4e,Retained: matches community RGB; legacy differences remain approximations
+3013,Khaki Lt,#b9b982,#b9b982,#b9b982,#b9b982,#b9b982,#b9b982,#b9b982,#b9b982,#afa97b,Retained: matches community RGB; legacy differences remain approximations
+3021,Brn Gray VDk,#4f4b41,#4f4b41,#4f4b41,#4f4b41,#4f4b41,#4f4b41,#4f4b41,#4f4b41,#50403b,Retained: matches community RGB; legacy differences remain approximations
+3022,Brn Gray Med,#8e9078,#8e9078,#8e9078,#8e9078,#8e9078,#8e9078,#8e9078,#8e9078,#848274,Retained: matches community RGB; legacy differences remain approximations
+3023,Brn Gray Lt,#b1aa97,#b1aa97,#b1aa97,#b1aa97,#b1aa97,#b1aa97,#b1aa97,#b1aa97,#a29b86,Retained: matches community RGB; legacy differences remain approximations
+3024,Brn Gray VLt,#ebeae7,#ebeae7,#ebeae7,#ebeae7,#ebeae7,#ebeae7,#ebeae7,#ebeae7,#beb8ac,Retained: matches community RGB; legacy differences remain approximations
+3031,Mocha VDk,#4b3c2a,#4b3c2a,#4b3c2a,#4b3c2a,#4b3c2a,#4b3c2a,#4b3c2a,#4b3c2a,#423014,Retained: matches community RGB; legacy differences remain approximations
+3032,Mocha Med,#b39f8b,#b39f8b,#b39f8b,#b39f8b,#b39f8b,#b39f8b,#b39f8b,#b39f8b,#9d8868,Retained: matches community RGB; legacy differences remain approximations
+3033,Mocha VLt,#e3d8cc,#e3d8cc,#e3d8cc,#e3d8cc,#e3d8cc,#e3d8cc,#e3d8cc,#e3d8cc,#dbc7ad,Retained: matches community RGB; legacy differences remain approximations
+3041,Antq Violet Med,#956f7c,#956f7c,#956f7c,#956f7c,#956f7c,#956f7c,#956f7c,#956f7c,#866a76,Retained: matches community RGB; legacy differences remain approximations
+3042,Antq Violet Lt,#b79da7,#b79da7,#b79da7,#b79da7,#b79da7,#b79da7,#b79da7,#b79da7,#af98a0,Retained: matches community RGB; legacy differences remain approximations
+3045,Yel Beige Dk,#bc966a,#bc966a,#bc966a,#bc966a,#bc966a,#bc966a,#bc966a,#bc966a,#af8152,Retained: matches community RGB; legacy differences remain approximations
+3046,Yel Beige Med,#d8bc9a,#d8bc9a,#d8bc9a,#d8bc9a,#d8bc9a,#d8bc9a,#d8bc9a,#d8bc9a,#ceb074,Retained: matches community RGB; legacy differences remain approximations
+3047,Yel Beige Lt,#e7d6c1,#e7d6c1,#e7d6c1,#e7d6c1,#e7d6c1,#e7d6c1,#e7d6c1,#e7d6c1,#ead8ab,Retained: matches community RGB; legacy differences remain approximations
+3051,Green Gray Dk,#5f6648,#5f6648,#5f6648,#5f6648,#5f6648,#5f6648,#5f6648,#5f6648,#4c4c1e,Retained: matches community RGB; legacy differences remain approximations
+3052,Green Gray Med,#889268,#889268,#889268,#889268,#889268,#889268,#889268,#889268,#787e5c,Retained: matches community RGB; legacy differences remain approximations
+3053,Green Gray,#9ca482,#9ca482,#9ca482,#9ca482,#9ca482,#9ca482,#9ca482,#9ca482,#999d75,Retained: matches community RGB; legacy differences remain approximations
+3064,Desert Sand,#c48e70,#c48e70,#c48e70,#c48e70,#c48e70,#c48e70,#c48e70,#c48e70,#ba7056,Retained: matches community RGB; legacy differences remain approximations
+3072,Beaver VLt,#e6e6e6,#e6e8e8,#e6e8e8,#e6e8e8,#e6e8e8,#e6e8e8,#e6e8e8,#e6e8e8,#d2d2ca,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+3078,Golden Yel VLt,#fdf9cd,#fdf9cd,#fdf9cd,#fdf9cd,#fdf9cd,#fdf9cd,#fdf9cd,#fdf9cd,#fcf6b6,Retained: matches community RGB; legacy differences remain approximations
+3325,Baby Blue Lt,#b8d2e6,#b8d2e6,#b8d2e6,#b8d2e6,#b8d2e6,#b8d2e6,#b8d2e6,#b8d2e6,#adcde7,Retained: matches community RGB; legacy differences remain approximations
+3326,Rose Lt,#fbadb4,#fbadb4,#fbadb4,#fbadb4,#fbadb4,#fbadb4,#fbadb4,#fbadb4,#f9979c,Retained: matches community RGB; legacy differences remain approximations
+3328,Salmon Dk,#e36d6d,#e36d6d,#e36d6d,#e36d6d,#e36d6d,#e36d6d,#e36d6d,#e36d6d,#be444a,Retained: matches community RGB; legacy differences remain approximations
+3340,Apricot Med,#ff836f,#ff836f,#ff836f,#ff836f,#ff836f,#ff836f,#ff836f,#ff836f,#fd6b4f,Retained: matches community RGB; legacy differences remain approximations
+3341,Apricot,#fcab98,#fcab98,#fcab98,#fcab98,#fcab98,#fcab98,#fcab98,#fcab98,#fd8e78,Retained: matches community RGB; legacy differences remain approximations
+3345,Hunter Grn Dk,#1b5915,#1b5915,#1b5915,#1b5915,#1b5915,#1b5915,#1b5915,#1b5915,#40552e,Retained: matches community RGB; legacy differences remain approximations
+3346,Hunter Green,#406a3a,#406a3a,#406a3a,#406a3a,#406a3a,#406a3a,#406a3a,#406a3a,#56743b,Retained: matches community RGB; legacy differences remain approximations
+3347,Yel Green Med,#71935c,#71935c,#71935c,#71935c,#71935c,#71935c,#71935c,#71935c,#6d9646,Retained: matches community RGB; legacy differences remain approximations
+3348,Yel Green Lt,#ccd9b1,#ccd9b1,#ccd9b1,#ccd9b1,#ccd9b1,#ccd9b1,#ccd9b1,#ccd9b1,#bedf74,Retained: matches community RGB; legacy differences remain approximations
+3350,Dusty Rose UDk,#bc4365,#bc4365,#bc4365,#bc4365,#bc4365,#bc4365,#bc4365,#bc4365,#aa3949,Retained: matches community RGB; legacy differences remain approximations
+3354,Dusty Rose Lt,#e4a6ac,#e4a6ac,#e4a6ac,#e4a6ac,#e4a6ac,#e4a6ac,#e4a6ac,#e4a6ac,#efa5ac,Retained: matches community RGB; legacy differences remain approximations
+3362,Pine Grn Dk,#5e6b47,#5e6b47,#5e6b47,#5e6b47,#5e6b47,#5e6b47,#5e6b47,#5e6b47,#49523c,Retained: matches community RGB; legacy differences remain approximations
+3363,Pine Grn Med,#728256,#728256,#728256,#728256,#728256,#728256,#728256,#728256,#617451,Retained: matches community RGB; legacy differences remain approximations
+3364,Pine Green,#83975f,#83975f,#83975f,#83975f,#83975f,#83975f,#83975f,#83975f,#8e9b6d,Retained: matches community RGB; legacy differences remain approximations
+3371,Black Brown,#1e1108,#1e1108,#1e1108,#1e1108,#1e1108,#1e1108,#1e1108,#1e1108,#36220e,Retained: matches community RGB; legacy differences remain approximations
+3607,Plum Lt,#c54989,#c54989,#c54989,#c54989,#c54989,#c54989,#c54989,#c54989,#d94c9d,Retained: matches community RGB; legacy differences remain approximations
+3608,Plum VLt,#ea9cc4,#ea9cc4,#ea9cc4,#ea9cc4,#ea9cc4,#ea9cc4,#ea9cc4,#ea9cc4,#ec81be,Retained: matches community RGB; legacy differences remain approximations
+3609,Plum ULt,#f4aed5,#f4aed5,#f4aed5,#f4aed5,#f4aed5,#f4aed5,#f4aed5,#f4aed7,#f6b0df,Retained: matches community RGB; legacy differences remain approximations
+3684,Garnet ExDk,#580b21,#580b21,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3685,Mauve VDk,#881531,#881531,#881531,#881531,#881531,#881531,#881531,#881531,#79263b,Retained: matches community RGB; legacy differences remain approximations
+3687,Mauve,#c96b70,#c96b70,#c96b70,#c96b70,#c96b70,#c96b70,#c96b70,#c96b70,#b5455d,Retained: matches community RGB; legacy differences remain approximations
+3688,Mauve Med,#e7a9ac,#e7a9ac,#e7a9ac,#e7a9ac,#e7a9ac,#e7a9ac,#e7a9ac,#e7a9ac,#dc7c86,Retained: matches community RGB; legacy differences remain approximations
+3689,Mauve Lt,#fbbfc2,#fbbfc2,#fbbfc2,#fbbfc2,#fbbfc2,#fbbfc2,#fbbfc2,#fbbfc2,#f8bbc8,Retained: matches community RGB; legacy differences remain approximations
+3705,Melon Dk,#ff7992,#ff7992,#ff7992,#ff7992,#ff7992,#ff7992,#ff7992,#ff7992,#f2494f,Retained: matches community RGB; legacy differences remain approximations
+3706,Melon Med,#ffadbc,#ffadbc,#ffadbc,#ffadbc,#ffadbc,#ffadbc,#ffadbc,#ffadbc,#fd6e70,Retained: matches community RGB; legacy differences remain approximations
+3708,Melon Lt,#ffcbd5,#ffcbd5,#ffcbd5,#ffcbd5,#ffcbd5,#ffcbd5,#ffcbd5,#ffcbd5,#fda0ae,Retained: matches community RGB; legacy differences remain approximations
+3712,Salmon Med,#f18787,#f18787,#f18787,#f18787,#f18787,#f18787,#f18787,#f18787,#d95d5d,Retained: matches community RGB; legacy differences remain approximations
+3713,Salmon VLt,#ffe2e2,#ffe2e2,#ffe2e2,#ffe2e2,#ffe2e2,#ffe2e2,#ffe2e2,#ffe2e2,#fdd5d0,Retained: matches community RGB; legacy differences remain approximations
+3716,Dusty Rose MVLt,#ffbdbd,#ffbdbd,#ffbdbd,#ffbdbd,#ffbdbd,#ffbdbd,#ffbdbd,#ffbdbd,#fcafb9,Retained: matches community RGB; legacy differences remain approximations
+3721,Shell Pink Dk,#a14b51,#a14b51,#a14b51,#a14b51,#a14b51,#a14b51,#a14b51,#a14b51,#933b3d,Retained: matches community RGB; legacy differences remain approximations
+3722,Shell Pink Med,#bc6c64,#bc6c64,#bc6c64,#bc6c64,#bc6c64,#bc6c64,#bc6c64,#bc6c64,#a04b4c,Retained: matches community RGB; legacy differences remain approximations
+3726,Antq Mauve Dk,#9b5b66,#9b5b66,#9b5b66,#9b5b66,#9b5b66,#9b5b66,#9b5b66,#9b5b66,#95565c,Retained: matches community RGB; legacy differences remain approximations
+3727,Antq Mauve Lt,#dba9b2,#dba9b2,#dba9b2,#dba9b2,#dba9b2,#dba9b2,#dba9b2,#dba9b2,#da9ea6,Retained: matches community RGB; legacy differences remain approximations
+3731,Dusty Rose VDk,#da6783,#da6783,#da6783,#da6783,#da6783,#da6783,#da6783,#da6783,#c34c5c,Retained: matches community RGB; legacy differences remain approximations
+3733,Dusty Rose,#e8879b,#e8879b,#e8879b,#e8879b,#e8879b,#e8879b,#e8879b,#e8879b,#ea7e86,Retained: matches community RGB; legacy differences remain approximations
+3740,Antq Violet Dk,#785762,#785762,#785762,#785762,#785762,#785762,#785762,#785762,#71535d,Retained: matches community RGB; legacy differences remain approximations
+3743,Antq Violet VLt,#d7cbd3,#d7cbd3,#d7cbd3,#d7cbd3,#d7cbd3,#d7cbd3,#d7cbd3,#d7cbd3,#cfc2c9,Retained: matches community RGB; legacy differences remain approximations
+3746,Blue Violet Dk,#776b98,#776b98,#776b98,#776b98,#776b98,#776b98,#776b98,#776b98,#844ab5,Retained: matches community RGB; legacy differences remain approximations
+3747,Blue Violet VLt,#d3d7ed,#d3d7ed,#d3d7ed,#d3d7ed,#d3d7ed,#d3d7ed,#d3d7ed,#d3d7ed,#d0c5ec,Retained: matches community RGB; legacy differences remain approximations
+3750,Antq Blue VDk,#384c5e,#384c5e,#384c5e,#384c5e,#384c5e,#384c5e,#384c5e,#384c5e,#1d4552,Retained: matches community RGB; legacy differences remain approximations
+3752,Antq Blue VLt,#c7d1db,#c7d1db,#c7d1db,#c7d1db,#c7d1db,#c7d1db,#c7d1db,#c7d1db,#bac9cc,Retained: matches community RGB; legacy differences remain approximations
+3753,Antq Blue UVLt,#dbe2e9,#dbe2e9,#dbe2e9,#dbe2e9,#dbe2e9,#dbe2e9,#dbe2e9,#dbe2e9,#d9e6ec,Retained: matches community RGB; legacy differences remain approximations
+3755,Baby Blue,#93b4ce,#93b4ce,#93b4ce,#93b4ce,#93b4ce,#93b4ce,#93b4ce,#92b4ce,#81a5d8,Retained: matches community RGB; legacy differences remain approximations
+3756,Baby Blue UVLt,#eefcfc,#eefcfc,#eefcfc,#eefcfc,#eefcfc,#eefcfc,#eefcfc,#eefcfc,#e9f4fa,Retained: matches community RGB; legacy differences remain approximations
+3760,Wedgewood Med,#3e85a2,#3e85a2,#3e85a2,#3e85a2,#3e85a2,#3e85a2,#3e85a2,#3e85a2,#467293,Retained: matches community RGB; legacy differences remain approximations
+3761,Sky Blue Lt,#acd8e2,#acd8e2,#acd8e2,#acd8e2,#acd8e2,#acd8e2,#acd8e2,#acd8e2,#b1d0df,Retained: matches community RGB; legacy differences remain approximations
+3765,Peacock VDk,#347f8c,#347f8c,#347f8c,#347f8c,#347f8c,#347f8c,#347f8c,#347f8c,#175e78,Retained: matches community RGB; legacy differences remain approximations
+3766,Peacock Lt,#99cfd9,#99cfd9,#99cfd9,#99cfd9,#99cfd9,#99cfd9,#99cfd9,#99cfd9,#4b8aa1,Retained: matches community RGB; legacy differences remain approximations
+3768,Gray Green Dk,#657f7f,#657f7f,#657f7f,#657f7f,#657f7f,#657f7f,#657f7f,#657f7f,#4c605f,Retained: matches community RGB; legacy differences remain approximations
+3770,Tawny VLt,#ffeee3,#ffeee3,#ffeee3,#ffeee3,#ffeee3,#ffeee3,#ffeee3,#ffeee3,#fef1d8,Retained: matches community RGB; legacy differences remain approximations
+3771,Peach Dk,#e7ab91,#f4bba9,#f4bba9,#f4bba9,#f4bba9,#f4bba9,#f4bba9,#f4bba9,#e8ac9b,Corrected: TC/Dias/AdrianJ RGB and hex agree; legacy palette differs
+3772,Desert Snd VDk,#a06c50,#a06c50,#a06c50,#a06c50,#a06c50,#a06c50,#a06c50,#a06c50,#995744,Retained: matches community RGB; legacy differences remain approximations
+3773,Desert Snd Med,#b67552,#b67552,#b67552,#b67552,#b67552,#b67552,#b67552,#b67552,#cf866d,Retained: matches community RGB; legacy differences remain approximations
+3774,Desert Snd VLt,#f3e1d7,#f3e1d7,#f3e1d7,#f3e1d7,#f3e1d7,#f3e1d7,#f3e1d7,#f3e1d7,#f3cfb4,Retained: matches community RGB; legacy differences remain approximations
+3776,Mahogany Lt,#cf7939,#cf7939,#cf7939,#cf7939,#cf7939,#cf7939,#cf7939,#cf7939,#c96444,Retained: matches community RGB; legacy differences remain approximations
+3777,Terra Cotta VDk,#863022,#863022,#863022,#863022,#863022,#863022,#863022,#863022,#922f25,Retained: matches community RGB; legacy differences remain approximations
+3778,Terra Cotta Lt,#d98978,#d98978,#d98978,#d98978,#d98978,#d98978,#d98978,#d98978,#d2705c,Retained: matches community RGB; legacy differences remain approximations
+3779,Rosewood UVLt,#f8cac8,#f8cac8,#f8cac8,#f8cac8,#f8cac8,#f8cac8,#f8cac8,#f8cac8,#f2ab95,Retained: matches community RGB; legacy differences remain approximations
+3781,Mocha Dk,#6b5743,#6b5743,#6b5743,#6b5743,#6b5743,#6b5743,#6b5743,#6b5743,#593f2b,Retained: matches community RGB; legacy differences remain approximations
+3782,Mocha Lt,#d2bca6,#d2bca6,#d2bca6,#d2bca6,#d2bca6,#d2bca6,#d2bca6,#d2bca6,#b69d80,Retained: matches community RGB; legacy differences remain approximations
+3787,Brn Gray Dk,#625d50,#625d50,#625d50,#625d50,#625d50,#625d50,#625d50,#625d50,#62524c,Retained: matches community RGB; legacy differences remain approximations
+3790,Beige Gray UDk,#7f6a55,#7f6a55,#7f6a55,#7f6a55,#7f6a55,#7f6a55,#7f6a55,#7f6a55,#6d5a4b,Retained: matches community RGB; legacy differences remain approximations
+3799,Pewter VDk,#424242,#424242,#424242,#424242,#424242,#424242,#424242,#424242,#39393d,Retained: matches community RGB; legacy differences remain approximations
+3801,Christmas Lt,#e74967,#e74967,#e74967,#e74967,#e74967,#e74967,#e74967,#e74967,#e4353d,Retained: matches community RGB; legacy differences remain approximations
+3802,Antq Mauve VDk,#714149,#714149,#714149,#714149,#714149,#714149,#714149,#714149,#672a33,Retained: matches community RGB; legacy differences remain approximations
+3803,Mauve Dk,#ab3357,#ab3357,#ab3357,#ab3357,#ab3357,#ab3357,#ab3357,#ab3357,#872a43,Retained: matches community RGB; legacy differences remain approximations
+3804,Cyclamen Dk,#e02876,#e02876,#e02876,#e02876,#e02876,#e02876,#e02876,#e02876,#ce2b63,Retained: matches community RGB; legacy differences remain approximations
+3805,Cyclamen,#f3478b,#f3478b,#f3478b,#f3478b,#f3478b,#f3478b,#f3478b,#f3478b,#df3c73,Retained: matches community RGB; legacy differences remain approximations
+3806,Cyclamen Lt,#ff8cae,#ff8cae,#ff8cae,#ff8cae,#ff8cae,#ff8cae,#ff8cae,#ff8cae,#f15a91,Retained: matches community RGB; legacy differences remain approximations
+3807,Cornflower Bl,#60678c,#60678c,#60678c,#60678c,#60678c,#60678c,#60678c,#60678c,#4b599e,Retained: matches community RGB; legacy differences remain approximations
+3808,Turquoise UVDk,#366970,#366970,#366970,#366970,#366970,#366970,#366970,#366970,#03535c,Retained: matches community RGB; legacy differences remain approximations
+3809,Turquoise VDk,#3f7c85,#3f7c85,#3f7c85,#3f7c85,#3f7c85,#3f7c85,#3f7c85,#3f7c85,#136a75,Retained: matches community RGB; legacy differences remain approximations
+3810,Turquoise Dk,#488e9a,#488e9a,#488e9a,#488e9a,#488e9a,#488e9a,#488e9a,#488e9a,#2d8d98,Retained: matches community RGB; legacy differences remain approximations
+3811,Turquoise VLt,#bce3e6,#bce3e6,#bce3e6,#bce3e6,#bce3e6,#bce3e6,#bce3e6,#bce3e6,#a8e2e5,Retained: matches community RGB; legacy differences remain approximations
+3812,Sea Green VDk,#2f8c84,#2f8c84,#2f8c84,#2f8c84,#2f8c84,#2f8c84,#2f8c84,#2f8c84,#07a184,Retained: matches community RGB; legacy differences remain approximations
+3813,Blue Green Lt,#b2d4bd,#b2d4bd,#b2d4bd,#b2d4bd,#b2d4bd,#b2d4bd,#b2d4bd,#b2d4bd,#86c3ab,Retained: matches community RGB; legacy differences remain approximations
+3814,Aquamarine,#508b7d,#508b7d,#508b7d,#508b7d,#508b7c,#508b7d,#508b7d,#508b7d,#0b8673,Retained: source disagreement or internal typo; see report
+3815,Celadon Dk,#477759,#477759,#477759,#477759,#477759,#477759,#477759,#477759,#437259,Retained: matches community RGB; legacy differences remain approximations
+3816,Celadon,#65a57d,#65a57d,#65a57d,#65a57d,#65a57d,#65a57d,#65a57d,#65a57d,#60937a,Retained: matches community RGB; legacy differences remain approximations
+3817,Celadon Lt,#99c3aa,#99c3aa,#99c3aa,#99c3aa,#99c3aa,#99c3aa,#99c3aa,#99c3aa,#81c6a4,Retained: matches community RGB; legacy differences remain approximations
+3818,Emerald UVDk,#115a3b,#115a3b,#115a3b,#115a3b,#115a3b,#115a3b,#115a3b,#115a3b,#005d2e,Retained: matches community RGB; legacy differences remain approximations
+3819,Moss Grn Lt,#e0e868,#e0e868,#e0e868,#e0e868,#e0e868,#e0e868,#e0e868,#e0e868,#ccc959,Retained: matches community RGB; legacy differences remain approximations
+3820,Straw Dk,#dfb65f,#dfb65f,#dfb65f,#dfb65f,#dfb65f,#dfb65f,#dfb65f,#dfb65f,#dba53e,Retained: matches community RGB; legacy differences remain approximations
+3821,Straw,#f3ce75,#f3ce75,#f3ce75,#f3ce75,#f3ce75,#f3ce75,#f3ce75,#f3ce75,#ebbb52,Retained: matches community RGB; legacy differences remain approximations
+3822,Straw Lt,#f6dc98,#f6dc98,#f6dc98,#f6dc98,#f6dc98,#f6dc98,#f6dc98,#f6dc98,#f7d169,Retained: matches community RGB; legacy differences remain approximations
+3823,Yellow UPale,#fffde3,#fffde3,#fffde3,#fffde3,#fffde3,#fffde3,#fffde3,#fffde3,#fef5cd,Retained: matches community RGB; legacy differences remain approximations
+3824,Apricot Lt,#fecdc2,#fecdc2,#fecdc2,#fecdc2,#fecdc2,#fecdc2,#fecdc2,#fecdc2,#fcae99,Retained: matches community RGB; legacy differences remain approximations
+3825,Pumpkin Pale,#fdbd96,#fdbd96,#fdbd96,#fdbd96,#fdbd96,#fdbd96,#fdbd96,#fdbd96,#fea370,Retained: matches community RGB; legacy differences remain approximations
+3826,Golden Brown,#ad7239,#ad7239,#ad7239,#ad7239,#ad7239,#ad7239,#ad7239,#ad7239,#b16633,Retained: matches community RGB; legacy differences remain approximations
+3827,Golden Brn Pale,#f7bb77,#f7bb77,#f7bb77,#f7bb77,#f7bb77,#f7bb77,#f7bb77,#f7bb77,#eaa664,Retained: matches community RGB; legacy differences remain approximations
+3828,Hazelnut Brn,#b78b61,#b78b61,#b78b61,#b78b61,#b78b61,#b78b61,#b78b61,#b78b61,#aa7c43,Retained: matches community RGB; legacy differences remain approximations
+3829,Old Gold VDk,#a98204,#a98204,#a98204,#a98204,#a98204,#a98204,#a98204,#a98204,#a7671d,Retained: matches community RGB; legacy differences remain approximations
+3830,Terra Cotta,#b95544,#b95544,#b95544,#b95544,#b95544,#b95544,#b95544,#bc5544,#a94138,Retained: matches community RGB; legacy differences remain approximations
+3831,Raspberry Dk,#b32f48,#b32f48,#b32f48,#b32f48,#b32f48,#b32f48,#b32f48,#b32f48,#c12b52,Retained: matches community RGB; legacy differences remain approximations
+3832,Raspberry Med,#db556e,#db556e,#db556e,#db556e,#db556e,#db556e,#db556e,#db556e,#e36370,Retained: matches community RGB; legacy differences remain approximations
+3833,Raspberry Lt,#ea8699,#ea8699,#ea8699,#ea8699,#ea8699,#ea8699,#ea8699,#ea8699,#ea8b96,Retained: matches community RGB; legacy differences remain approximations
+3834,Grape Dk,#72375d,#72375d,#72375d,#72375d,#72375d,#72375d,#72375d,#72375d,#6a2258,Retained: matches community RGB; legacy differences remain approximations
+3835,Grape Med,#946083,#946083,#946083,#946083,#946083,#946083,#946083,#946083,#924d78,Retained: matches community RGB; legacy differences remain approximations
+3836,Grape Lt,#ba91aa,#ba91aa,#ba91aa,#ba91aa,#ba91aa,#ba91aa,#ba91aa,#ba91aa,#c597b9,Retained: matches community RGB; legacy differences remain approximations
+3837,Lavender UDk,#6c3a6e,#6c3a6e,#6c3a6e,#6c3a6e,#6c3a6e,#6c3a6e,#6c3a6e,#6c3a6e,#8a2a8f,Retained: matches community RGB; legacy differences remain approximations
+3838,Lavender Bl Dk,#5c7294,#5c7294,#5c7294,#5c7294,#5c7294,#5c7294,#5c7294,#5c7294,#606bad,Retained: matches community RGB; legacy differences remain approximations
+3839,Lavender Bl Med,#7b8eab,#7b8eab,#7b8eab,#7b8eab,#7b8eab,#7b8eab,#7b8eab,#7b8eab,#7a7ec5,Retained: matches community RGB; legacy differences remain approximations
+3840,Lavender Bl Lt,#b0c0da,#b0c0da,#b0c0da,#b0c0da,#b0c0da,#b0c0da,#b0c0da,#b0c0da,#b2bdea,Retained: matches community RGB; legacy differences remain approximations
+3841,Baby Blue Pale,#cddfed,#cddfed,#cddfed,#cddfed,#cddfed,#cddfed,#cddfed,#cddfed,#d9eaf2,Retained: matches community RGB; legacy differences remain approximations
+3842,Wedgewood Dk,#32667c,#32667c,#32667c,#32667c,#32667c,#32667c,#32667c,#32667c,#06506a,Retained: matches community RGB; legacy differences remain approximations
+3843,Electric Blue,#14aad0,#14aad0,#14aad0,#14aad0,#14aad0,#14aad0,#14aad0,#14aad0,#28a3de,Retained: matches community RGB; legacy differences remain approximations
+3844,Bright Turq Dk,#12aeba,#12aeba,#12aeba,#12aeba,#12aeba,#12aeba,#12aeba,#12aeba,#1f7fa0,Retained: matches community RGB; legacy differences remain approximations
+3845,Bright Turq Med,#04c4ca,#04c4ca,#04c4ca,#04c4ca,#04c4ca,#04c4ca,#04c4ca,#04c4ca,#2badd1,Retained: matches community RGB; legacy differences remain approximations
+3846,Bright Turq Lt,#06e3e6,#06e3e6,#06e3e6,#06e3e6,#06e3e6,#06e3e6,#06e3e6,#06e3e6,#5eccec,Retained: matches community RGB; legacy differences remain approximations
+3847,Teal Dk,#347d75,#347d75,#347d75,#347d75,#347d75,#347d75,#347d75,#347d75,#186358,Retained: matches community RGB; legacy differences remain approximations
+3848,Teal Med,#559392,#559392,#559392,#559392,#559392,#559392,#559392,#419392,#207e72,Retained: matches community RGB; legacy differences remain approximations
+3849,Teal Lt,#52b3a4,#52b3a4,#52b3a4,#52b3a4,#52b3a4,#52b3a4,#52b3a4,#52b3ae,#35b193,Retained: matches community RGB; legacy differences remain approximations
+3850,Bright Grn Dk,#378477,#378477,#378477,#378477,#378477,#378477,#378477,#378477,#208b46,Retained: matches community RGB; legacy differences remain approximations
+3851,Bright Grn Lt,#49b3a1,#49b3a1,#49b3a1,#49b3a1,#49b3a1,#49b3a1,#49b3a1,#49b3a1,#61bb84,Retained: matches community RGB; legacy differences remain approximations
+3852,Straw VDk,#cd9d37,#cd9d37,#cd9d37,#cd9d37,#cd9d37,#cd9d37,#cd9d37,#cd9d37,#e3a730,Retained: matches community RGB; legacy differences remain approximations
+3853,Autumn Gold Dk,#f29746,#f29746,#f29746,#f29746,#f29646,#f29746,#f29746,#f29746,#ef8125,Retained: source disagreement or internal typo; see report
+3854,Autumn Gold Med,#f2af68,#f2af68,#f2af68,#f2af68,#f2af68,#f2af68,#f2af68,#f2af68,#fbac56,Retained: matches community RGB; legacy differences remain approximations
+3855,Autumn Gold Lt,#fad396,#fad396,#fad396,#fad396,#fad396,#fad396,#fad396,#fad396,#fddfa0,Retained: matches community RGB; legacy differences remain approximations
+3856,Mahogany UVLt,#ffd3b5,#ffd3b5,#ffd3b5,#ffd3b5,#ffd3b5,#ffd3b5,#ffd3b5,#ffd3b5,#fdbe8e,Retained: matches community RGB; legacy differences remain approximations
+3857,Rosewood Dk,#68251a,#68251a,#68251a,#68251a,#68251a,#68251a,#68251a,#68251a,#6a2f26,Retained: matches community RGB; legacy differences remain approximations
+3858,Rosewood Med,#964a3f,#964a3f,#964a3f,#964a3f,#964a3f,#964a3f,#964a3f,#964a3f,#803a32,Retained: matches community RGB; legacy differences remain approximations
+3859,Rosewood Lt,#ba8b7c,#ba8b7c,#ba8b7c,#ba8b7c,#ba8b7c,#ba8b7c,#ba8b7c,#ba8b7c,#ba7a6c,Retained: matches community RGB; legacy differences remain approximations
+3860,Cocoa,#7d5d57,#7d5d57,#7d5d57,#7d5d57,#7d5d57,#7d5d57,#7d5d57,#7d5d57,#896362,Retained: matches community RGB; legacy differences remain approximations
+3861,Cocoa Lt,#a68881,#a68881,#a68881,#a68881,#a68881,#a68881,#a68881,#a68881,#ac8583,Retained: matches community RGB; legacy differences remain approximations
+3862,Mocha Beige Dk,#8a6e4e,#8a6e4e,#8a6e4e,#8a6e4e,#8a6e4e,#8a6e4e,#8a6e4e,#8a6e4e,#6e492a,Retained: matches community RGB; legacy differences remain approximations
+3863,Mocha Beige Med,#a4835c,#a4835c,#a4835c,#a4835c,#a4835c,#a4835c,#a4835c,#a4835c,#94725d,Retained: matches community RGB; legacy differences remain approximations
+3864,Mocha Beige Lt,#cbb69c,#cbb69c,#cbb69c,#cbb69c,#cbb69c,#cbb69c,#cbb69c,#cbb69c,#c9aa92,Retained: matches community RGB; legacy differences remain approximations
+3865,Winter White,#f9f7f1,#f9f7f1,#f9f7f1,#f9f7f1,#f9f7f1,#f9f7f1,#f9f7f1,#f9f7f1,#fffdf9,Retained: matches community RGB; legacy differences remain approximations
+3866,Mocha UVLt,#faf6f0,#faf6f0,#faf6f0,#faf6f0,#faf6f0,#faf6f0,#faf6f0,#faf6f0,#f0e6d7,Retained: matches community RGB; legacy differences remain approximations
+3880,Medium Very Dark Shell Pink,#ba6368,#ba6368,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3881,Pale Avocado Green,#d5dfb0,#d5dfb0,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3882,Medium Light Cocoa,#a98379,#a98379,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3883,Medium Light Copper,#df8c51,#df8c51,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3884,Medium Light Pewter,#b0b0b0,#b0b0b0,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3885,Medium Very Dark Blue,#324e76,#324e76,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3886,Very Dark Plum,#6f1f41,#6f1f41,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3887,Ultra Very Light Lavender,#b898cd,#b898cd,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3888,Medium Dark Antique Violet,#906371,#906371,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3889,Medium Light Lemon,#fff5b3,#fff5b3,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3890,Very Light Bright Turquoise,#80d9db,#80d9db,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3891,Very Dark Bright Turquoise,#0a848c,#0a848c,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3892,Medium Light Orange Spice,#efb38e,#efb38e,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3893,Very Light Mocha Beige,#dfccb7,#dfccb7,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3894,Very Light Parrot Green,#bbdb69,#bbdb69,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved
+3895,Medium Dark Beaver Gray,#8c7f71,#8c7f71,,,,,,,,Unresolved: absent from TC/Dias/AdrianJ; preserved

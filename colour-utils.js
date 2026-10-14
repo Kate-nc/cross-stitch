@@ -745,21 +745,29 @@ function restoreStitch(m,brand){
   var tag=b==="dmc"?null:b;
   if(m.type==="blend"){
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
-    if(t0&&t1){
+    if(ids.length===2&&t0&&t1){
       let out={type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+      // Explicit RGB is retained by the saver for custom/imported colours.
+      // Bare IDs follow catalogue updates; legacy explicit RGB stays intact
+      // because its origin cannot safely be inferred from the thread number.
+      if(m.rgb&&m.rgb.some((v,i)=>v!==out.rgb[i])){out.rgb=m.rgb;out.lab=rgbToLab(...m.rgb);}
+      out.symbol=m.symbol;
       if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
       return out;
     }
-    // Another brand's blend whose catalogue isn't loaded stays a blend, in
-    // the colour it was saved with, so a save can't turn it into a solid.
-    if(tag&&ids.length===2&&m.rgb){
+    // Blends with an unavailable catalogue or custom component keep their
+    // saved colour and type, so a save cannot turn them into solids.
+    if(ids.length===2&&m.rgb){
       let lab=rgbToLab(...m.rgb);
-      return{type:"blend",id:m.id,name:m.id,rgb:m.rgb,lab:lab,dist:0,brand:tag,symbol:m.symbol,
-        threads:ids.map(function(id){return{id:id,name:id,rgb:m.rgb,lab:lab,brand:tag};})};
+      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:m.rgb,lab:lab,dist:0,symbol:m.symbol,
+        threads:ids.map(function(id){let t=findThreadInCatalog(b,id);return t||{id:id,name:id,rgb:m.rgb,lab:lab};})};
+      if(tag){out.brand=tag;out.threads=out.threads.map(t=>Object.assign({},t,{brand:tag}));}
+      return out;
     }
   }
   let t=findThreadInCatalog(b,m.id);
-  let out=t?{type:"solid",id:t.id,name:t.name,rgb:t.rgb,lab:t.lab,dist:0,symbol:m.symbol}
+  let rgb=m.rgb||(t?t.rgb:[128,128,128]);
+  let out=t?{type:"solid",id:t.id,name:t.name,rgb:rgb,lab:m.rgb?rgbToLab(...rgb):t.lab,dist:0,symbol:m.symbol}
     :{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
   if(tag)out.brand=tag;
   return out;

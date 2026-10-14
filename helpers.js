@@ -154,7 +154,9 @@ function getDmcByIdCI(id){
     _DMC_BY_ID_CI=Object.create(null);
     for(var k=0;k<DMC.length;k++)_DMC_BY_ID_CI[String(DMC[k].id).toLowerCase()]=DMC[k];
   }
-  return _DMC_BY_ID_CI[String(id).toLowerCase()]||null;
+  var key=String(id).trim().toLowerCase();
+  if(key==='white')key='blanc';
+  return _DMC_BY_ID_CI[key]||null;
 }
 if(typeof window!=='undefined'){window.getDmcById=getDmcById;window.getDmcByIdCI=getDmcByIdCI;}
 function _getAnchorById(){
@@ -2192,7 +2194,7 @@ if(typeof window!=='undefined')window.classifyMatch=classifyMatch;
 // Returns the thread object or null. Uses the pre-indexed maps from helpers.js.
 function findThreadInCatalog(brand,id){
   if(brand==='anchor'){var aMap=_getAnchorById();return aMap?(aMap[id]||null):null;}
-  var dMap=_getDmcById();return dMap?(dMap[id]||null):null;
+  return getDmcByIdCI(id);
 }
 if(typeof window!=='undefined')window.findThreadInCatalog=findThreadInCatalog;
 

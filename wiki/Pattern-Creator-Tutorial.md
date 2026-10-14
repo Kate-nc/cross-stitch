@@ -65,6 +65,8 @@ A new picture starts with its long side at 100 stitches, never more than the pic
 
 **Threads** — **DMC** or **Anchor**. The pattern's colours are matched to that brand's stranded cotton, and its key, shopping list, Stitch Tracker, PDF and `.oxs` files use that brand's numbers.
 
+Screen colours are approximations; check physical threads when choosing materials. Catalogue corrections update patterns saved by thread number alone. Explicit imported or custom colours keep their saved colour when reopened. The [DMC catalogue audit](../reports/dmc-colour-audit.md) records source disagreements.
+
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
 A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow.
