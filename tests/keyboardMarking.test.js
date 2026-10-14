@@ -36,8 +36,8 @@ describe('chart key handler', () => {
 });
 
 describe('who owns the guide', () => {
-  test('a pointer press, Esc and a change of mode hand it back', () => {
-    expect(tracker).toMatch(/function handleStitchMouseDown\(e\)\{\n  if\(!stitchRef\.current\|\|!pat\)return;\n  kbGuideRef\.current=false;kbAnchorRef\.current=null;/);
+  test('a primary pointer press, Esc and a change of mode hand it back', () => {
+    expect(tracker).toMatch(/function handleStitchMouseDown\(e\)\{\n  if\(!stitchRef\.current\|\|!pat\)return;[\s\S]{0,200}if\(e\.button===2\|\|isMacSecondaryClick\(e\)\)return;\n  kbGuideRef\.current=false;kbAnchorRef\.current=null;/);
     expect(tracker).toMatch(/useEffect\(\(\)=>\{kbGuideRef\.current=false;kbAnchorRef\.current=null;\},\[stitchMode,pat\]\)/);
     expect(tracker).toMatch(/\(stitchMode==="navigate"\|\|kbGuideRef\.current\)&&hlRow>=0&&hlCol>=0\)\{clearGuide\(\);return;\}/);
   });

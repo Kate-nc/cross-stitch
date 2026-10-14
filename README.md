@@ -49,8 +49,8 @@ A digital replacement for a printed chart while you stitch.
 
 - **Marking:** Mark mode — click, tap or drag to mark stitches done; Shift+drag (or press-and-hold then tap on touch) marks a rectangle. On touch, one finger marks and two fingers pan and zoom.
 - **Navigate mode:** a hand tool — drag to move around, click to place a guide crosshair across a row and column.
-- **Parking:** right-click a stitch (or press and hold in Navigate mode) to park a thread there; jump back to parked threads from the palette.
-- **Views:** Symbol, Colour + Symbol, or Highlight (Isolate, Outline, Tint, Spotlight) to focus on one colour.
+- **Parking:** Shift + right-click a stitch (or press and hold in Navigate mode) to park a thread there; jump back to parked threads from the palette.
+- **Views:** Symbol, Colour + Symbol, or Highlight (Isolate, Outline, Tint, Spotlight) to focus on one colour. Right-click a chart stitch (Ctrl+click on a Mac) to select its colour and enter Highlight view in Mark or Navigate mode.
 - **Work areas:** show just one part of a large pattern; counts, Spotlight and "Mark all done" are scoped to it.
 - **Stitch layers:** show or hide full stitches, half stitches, French knots and backstitch.
 - **Row mode** and **Section spotlight:** work one row, or one block, at a time.
@@ -92,7 +92,7 @@ The default landing page and project hub.
 | PNG image | Single image of the pattern grid. |
 | `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. |
 | `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
-| Backup (`.csb`) | Every project, the stash and settings in one compressed file (older backups are `.json`). File > Export Backup / Restore from Backup. |
+| Backup (`.csb`) | Every project, the stash and validated portable global preferences in one compressed file (older backups are `.json`). Device controls, pattern view positions and Sync setup stay on the destination; see [the preference contract](docs/portable-backup-preferences.md). File > Export Backup / Restore from Backup. |
 | `.csync` | Cross-device sync file — see [Cross-device sync](#cross-device-sync). |
 
 ---

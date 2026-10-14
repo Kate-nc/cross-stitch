@@ -90,10 +90,10 @@ Your projects are still there when you come back. **Exceptions:** private / inco
 
 ### Backing up
 
-1. **File > Export Backup** (or **File > Preferences > Sync, backup & data > Download backup**) saves one file with all your projects, your stash and your settings.
+1. **File > Export Backup** (or **File > Preferences > Sync, backup & data > Download backup**) saves one file with all your projects, your stash and portable global preferences (designer branding and logo, PDF export defaults, creation and tracking defaults, accessibility, display, notifications and regional choices).
 2. Keep it somewhere safe — an external drive or your cloud storage.
 
-**To restore:** **File > Restore from Backup…**, or **Preferences > Sync, backup & data > Choose file…**. Restoring replaces what is on this device.
+**To restore:** **File > Restore from Backup…**, or **Preferences > Sync, backup & data > Choose file…**. Restoring replaces the backed-up data and portable preferences on this device. Invalid or missing portable values use defaults. Older backups without preferences keep your current settings, or use defaults on a clean device. Pattern zoom/scroll positions, pane layouts, device controls, wake-lock settings, onboarding flags, experimental switches and Sync setup are not transferred. Credentials, folder permissions, temporary handoffs and migration markers are excluded. Set up Sync separately; its preference-sharing behaviour is unchanged.
 
 ## Using Several Devices
 

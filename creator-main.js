@@ -1070,7 +1070,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           function partialDoneNow(){return tf&&Array.isArray(tf.partialDone)?tf.partialDone:[];}
           // Backstitch marks move with their lines; quarter marks move with their cells and are dropped if the cell is cropped away.
           var resizedBsDone=window.Backstitch?window.Backstitch.offsetDone(bsDoneNow(),spec.offsetX||0,spec.offsetY||0):bsDoneNow();
-          var resizedPartialDone=window.Fractional?(window.Fractional.forSave(window.Fractional.remap(window.Fractional.toMap(partialDoneNow()),state.sW,spec.newW,spec.newH,spec.offsetX||0,spec.offsetY||0))||[]):partialDoneNow();
           function beadsNow(){return tf&&Array.isArray(tf.beads)?tf.beads:[];}
           var resizedBeads=window.Knots?window.Knots.offset(beadsNow(),spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):beadsNow();
           var resizedKnotsDone=window.Knots?window.Knots.offsetDone(knotsDoneNow(),spec.offsetX||0,spec.offsetY||0):knotsDoneNow();
@@ -1079,6 +1078,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             state.parkMarkers,state.sW,state.sH,spec
           );
           if(!result)return;
+          var tracking=window.remapCanvasTracking(tf&&tf.halfStitches,tf&&tf.halfDone,partialDoneNow(),result.newPartialStitches,state.sW,state.sH,spec,state.threadBrand);
+          var resizedPartialDone=tracking.partialDone;
           var prevSnap={
             sW:state.sW, sH:state.sH,
             pat:state.pat.slice(), bsLines:state.bsLines.slice(),
@@ -1089,7 +1090,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             knotsDone:knotsDoneNow(),
             bsDone:bsDoneNow(),
             partialDone:partialDoneNow(),
-            beads:beadsNow()
+            beads:beadsNow(),
+            halfStitches:tf&&tf.halfStitches||[],
+            halfDone:tf&&tf.halfDone||[]
           };
           var nextSnap={
             sW:spec.newW, sH:spec.newH,
@@ -1101,7 +1104,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             knotsDone:resizedKnotsDone,
             bsDone:resizedBsDone,
             partialDone:resizedPartialDone,
-            beads:resizedBeads
+            beads:resizedBeads,
+            halfStitches:tracking.halfStitches,
+            halfDone:tracking.halfDone
           };
           var builtPal=state.buildPaletteWithScratch(result.newPat);
           state.setSW(spec.newW); state.setSH(spec.newH);
@@ -1112,6 +1117,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           if(state.setKnots)state.setKnots(resizedKnots);
           if(tf){
             tf.knotsDone=resizedKnotsDone;
+            tf.halfStitches=tracking.halfStitches;
+            tf.halfDone=tracking.halfDone;
             if(resizedBsDone.length)tf.bsDone=resizedBsDone;else delete tf.bsDone;
             if(resizedPartialDone.length)tf.partialDone=resizedPartialDone;else delete tf.partialDone;
             if(resizedBeads.length)tf.beads=resizedBeads;else delete tf.beads;

@@ -1756,7 +1756,6 @@ function CreatorApp({
       }
       // Backstitch marks move with their lines; quarter marks move with their cells and are dropped if the cell is cropped away.
       var resizedBsDone = window.Backstitch ? window.Backstitch.offsetDone(bsDoneNow(), spec.offsetX || 0, spec.offsetY || 0) : bsDoneNow();
-      var resizedPartialDone = window.Fractional ? window.Fractional.forSave(window.Fractional.remap(window.Fractional.toMap(partialDoneNow()), state.sW, spec.newW, spec.newH, spec.offsetX || 0, spec.offsetY || 0)) || [] : partialDoneNow();
       function beadsNow() {
         return tf && Array.isArray(tf.beads) ? tf.beads : [];
       }
@@ -1764,6 +1763,8 @@ function CreatorApp({
       var resizedKnotsDone = window.Knots ? window.Knots.offsetDone(knotsDoneNow(), spec.offsetX || 0, spec.offsetY || 0) : knotsDoneNow();
       var result = window.applyCanvasResize(state.pat, state.bsLines, state.done, state.partialStitches, state.parkMarkers, state.sW, state.sH, spec);
       if (!result) return;
+      var tracking = window.remapCanvasTracking(tf && tf.halfStitches, tf && tf.halfDone, partialDoneNow(), result.newPartialStitches, state.sW, state.sH, spec, state.threadBrand);
+      var resizedPartialDone = tracking.partialDone;
       var prevSnap = {
         sW: state.sW,
         sH: state.sH,
@@ -1776,7 +1777,9 @@ function CreatorApp({
         knotsDone: knotsDoneNow(),
         bsDone: bsDoneNow(),
         partialDone: partialDoneNow(),
-        beads: beadsNow()
+        beads: beadsNow(),
+        halfStitches: tf && tf.halfStitches || [],
+        halfDone: tf && tf.halfDone || []
       };
       var nextSnap = {
         sW: spec.newW,
@@ -1790,7 +1793,9 @@ function CreatorApp({
         knotsDone: resizedKnotsDone,
         bsDone: resizedBsDone,
         partialDone: resizedPartialDone,
-        beads: resizedBeads
+        beads: resizedBeads,
+        halfStitches: tracking.halfStitches,
+        halfDone: tracking.halfDone
       };
       var builtPal = state.buildPaletteWithScratch(result.newPat);
       state.setSW(spec.newW);
@@ -1803,6 +1808,8 @@ function CreatorApp({
       if (state.setKnots) state.setKnots(resizedKnots);
       if (tf) {
         tf.knotsDone = resizedKnotsDone;
+        tf.halfStitches = tracking.halfStitches;
+        tf.halfDone = tracking.halfDone;
         if (resizedBsDone.length) tf.bsDone = resizedBsDone;else delete tf.bsDone;
         if (resizedPartialDone.length) tf.partialDone = resizedPartialDone;else delete tf.partialDone;
         if (resizedBeads.length) tf.beads = resizedBeads;else delete tf.beads;

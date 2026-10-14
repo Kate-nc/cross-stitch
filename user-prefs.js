@@ -259,7 +259,138 @@
     coverageOverride:     null,
   };
 
+  // Full backup contract v1. Deliberately separate from Sync's preference contract.
+  // Adding a DEFAULTS entry never opts it into backups: add a validator here.
+  // See docs/portable-backup-preferences.md for the allowlist and exclusions.
+  var PORTABLE_VERSION = 1;
+  var PORTABLE_RULES = Object.create(null);
+  function portableKeys(keys, rule) {
+    keys.split(" ").forEach(function(k) { PORTABLE_RULES[k] = rule; });
+  }
+  function portableEnum(key, choices) {
+    PORTABLE_RULES[key] = function(v) { return choices.indexOf(v) !== -1; };
+  }
+  function portableNumber(key, min, max, integer) {
+    PORTABLE_RULES[key] = function(v) {
+      return typeof v === "number" && isFinite(v) && v >= min && v <= max && (!integer || Math.floor(v) === v);
+    };
+  }
+  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
+  portableKeys("showStreaksAndGoals showDailyStreak", function(v) { return v === null || typeof v === "boolean"; });
+  portableKeys("designerName designerCopyright designerContact", function(v) { return typeof v === "string" && v.length <= 10000; });
+  portableKeys("fabricColour preferredMountColour creatorFabricColour trackerFabricColour trackerTintColour appAccentColour", function(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v); });
+  PORTABLE_RULES.designerLogo = function(v) {
+    return v === null || (typeof v === "string" && v.length <= 3000000 && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(v) && v.slice(v.indexOf(",") + 1).length % 4 === 0);
+  };
+  portableEnum("preferredPreviewLevel", ["level1", "level2", "level3", "level4"]);
+  portableEnum("preferredMockupType", ["hoop", "frame"]);
+  portableEnum("preferredHoopStyle", ["light-maple", "dark-walnut", "white"]);
+  portableEnum("preferredFrameStyle", ["slim-black", "wide-gold", "natural-wood"]);
+  portableEnum("designerLogoPosition", ["top-left", "top-right"]);
+  portableEnum("exportPreset", ["patternKeeper", "homePrinting"]);
+  portableEnum("exportPageSize", ["auto", "a4", "letter"]);
+  portableEnum("exportStitchesPerPage", ["small", "medium", "large", "custom"]);
+  portableEnum("creatorDefaultDithering", ["off", "weak", "balanced", "strong"]);
+  portableEnum("creatorStitchCleanupStrength", ["gentle", "balanced", "thorough"]);
+  portableEnum("creatorDefaultViewMode", ["colour", "symbol", "both"]);
+  portableEnum("trackerDefaultView", ["symbol", "colour", "highlight"]);
+  portableEnum("trackerDefaultHighlightMode", ["isolate", "outline", "tint", "spotlight"]);
+  portableEnum("trackerTimingMode", ["classic", "batchAware", "manual"]);
+  portableEnum("trackerStitchingStyle", ["freestyle", "block", "crosscountry", "royal"]);
+  portableEnum("trackerBlockShape", ["5x5", "10x10", "15x15", "20x20"]);
+  portableEnum("trackerStartCorner", ["TL", "TR", "BL", "BR", "C"]);
+  portableEnum("trackerMarkAllAs", ["ask", "catchup", "today"]);
+  portableEnum("trackerLegendSort", ["id", "done", "count"]);
+  portableEnum("trackerDoneStyle", ["fill", "tick"]);
+  portableEnum("stashDefaultBrand", ["DMC", "Anchor", "both"]);
+  portableEnum("patternsDefaultSort", ["date_desc", "date_asc", "title_asc", "designer_asc", "status"]);
+  portableEnum("patternsDefaultFilter", ["all", "wishlist", "owned", "inprogress", "completed"]);
+  portableEnum("a11yFontScale", ["s", "m", "l", "xl"]);
+  portableEnum("a11yColourBlindAid", ["off", "protan", "deutan", "tritan"]);
+  portableEnum("a11yDarkMode", ["system", "light", "dark"]);
+  portableEnum("currency", ["GBP", "USD", "EUR", "CAD", "AUD"]);
+  portableEnum("threadLengthUnit", ["in", "cm"]);
+  portableEnum("units", [null, "metric", "imperial"]);
+  portableNumber("coverageManualValue", 0, 1);
+  portableNumber("preferredMountWidth", 0, 0.5);
+  portableNumber("exportMarginsMm", 0, 50, true);
+  portableNumber("exportCustomCols", 1, 500, true);
+  portableNumber("exportCustomRows", 1, 500, true);
+  portableNumber("exportGridInterval", 2, 50, true);
+  portableNumber("creatorDefaultPaletteSize", 2, 100, true);
+  portableNumber("creatorDefaultFabricCount", 1, 100, true);
+  portableNumber("creatorOrphanRemovalStrength", 0, 3, true);
+  portableNumber("creatorMinStitchesPerColour", 0, 500, true);
+  portableNumber("creatorReferenceOpacity", 0, 100);
+  portableNumber("trackerDimLevel", 0, 1);
+  portableNumber("trackerTintOpacity", 0, 1);
+  portableNumber("trackerSpotDimOpacity", 0, 1);
+  portableNumber("trackerIdleMinutes", 0, 1440, true);
+  portableNumber("trackerActiveGapCapSec", 15, 600, true);
+  portableNumber("stashLowStockThreshold", 0, 20);
+  portableNumber("stitchStrandsUsed", 1, 6, true);
+  portableNumber("stitchWasteFactor", 0, 0.5);
+  portableNumber("skeinPriceDefault", 0, 50);
+  portableNumber("toastMaxVisible", 1, 6, true);
+  PORTABLE_RULES.statsDayEndHour = function(v) { return v === null || (Number.isInteger(v) && v >= 0 && v <= 23); };
+  var PORTABLE_KEYS = Object.freeze(Object.keys(PORTABLE_RULES).sort());
+
+  function validatePortableSnapshot(snapshot) {
+    if (!snapshot || snapshot.version !== PORTABLE_VERSION ||
+        !Number.isInteger(snapshot.stateSchemaVersion) || snapshot.stateSchemaVersion < 1 || snapshot.stateSchemaVersion > STATE_SCHEMA_VERSION ||
+        !snapshot.values || typeof snapshot.values !== "object" || Array.isArray(snapshot.values)) {
+      throw new Error("Unsupported or malformed backup preferences. Update stitchx before restoring this backup.");
+    }
+  }
+  function normalisePortable(values, schemaVersion) {
+    var migrated = Object.assign(Object.create(null), values);
+    // Apply the same schema breaks as local persisted state, to the imported
+    // values only. Never trust/import a destination migration marker.
+    for (var v = schemaVersion + 1; v <= STATE_SCHEMA_VERSION; v++) {
+      var brk = SCHEMA_BREAKS[v];
+      if (!brk || !Array.isArray(brk.wipe)) continue;
+      brk.wipe.forEach(function(pattern) {
+        Object.keys(migrated).forEach(function(k) {
+          var full = PREFIX_GLOBAL + k;
+          if (pattern.endsWith("*") ? full.indexOf(pattern.slice(0, -1)) === 0 : full === pattern) delete migrated[k];
+        });
+      });
+    }
+    var out = {};
+    PORTABLE_KEYS.forEach(function(k) {
+      var value = Object.prototype.hasOwnProperty.call(migrated, k) ? migrated[k] : DEFAULTS[k];
+      out[k] = PORTABLE_RULES[k](value) ? value : DEFAULTS[k];
+    });
+    return out;
+  }
+  function exportPortable() {
+    var values = {};
+    PORTABLE_KEYS.forEach(function(k) {
+      // Include slider changes even before their debounce has fired.
+      if (Object.prototype.hasOwnProperty.call(pendingSaveValues, k)) values[k] = pendingSaveValues[k];
+      else {
+        var raw = localStorage.getItem(PREFIX_GLOBAL + k);
+        try { values[k] = raw === null ? DEFAULTS[k] : JSON.parse(raw); }
+        catch (_) { values[k] = DEFAULTS[k]; }
+      }
+    });
+    return { version: PORTABLE_VERSION, stateSchemaVersion: STATE_SCHEMA_VERSION, values: normalisePortable(values, STATE_SCHEMA_VERSION) };
+  }
+  function restorePortable(snapshot) {
+    validatePortableSnapshot(snapshot);
+    var values = normalisePortable(snapshot.values, snapshot.stateSchemaVersion);
+    PORTABLE_KEYS.forEach(function(k) {
+      // Old slider writes must not overwrite restored preferences later.
+      if (saveTimers[k]) clearTimeout(saveTimers[k]);
+      delete saveTimers[k];
+      delete pendingSaveValues[k];
+      // Unlike normal UI writes, report quota/storage errors to the restorer.
+      localStorage.setItem(PREFIX_GLOBAL + k, JSON.stringify(values[k]));
+    });
+  }
+
   // Debounce timers keyed by localStorage key
+  var pendingSaveValues = {};
   var saveTimers = {};
   var pviewTimers = {};
 
@@ -294,14 +425,19 @@
 
   // Set a global pref immediately
   function set(key, value) {
+    if (saveTimers[key]) clearTimeout(saveTimers[key]);
+    delete saveTimers[key];
+    delete pendingSaveValues[key];
     _write(key, value);
   }
 
   // Set a global pref with debounced write (500ms) — for slider drags
   function setDebounced(key, value) {
     if (saveTimers[key]) clearTimeout(saveTimers[key]);
+    pendingSaveValues[key] = value;
     saveTimers[key] = setTimeout(function() {
       delete saveTimers[key];
+      delete pendingSaveValues[key];
       _write(key, value);
     }, 500);
   }
@@ -376,6 +512,7 @@
       keysToRemove.forEach(function(k) { try { localStorage.removeItem(k); } catch (_) {} });
       Object.keys(saveTimers).forEach(function(k) { clearTimeout(saveTimers[k]); });
       saveTimers = {};
+      pendingSaveValues = {};
       Object.keys(pviewTimers).forEach(function(k) { clearTimeout(pviewTimers[k]); });
       pviewTimers = {};
     } catch (_) {}
@@ -477,6 +614,11 @@
   })();
 
   window.UserPrefs = {
+    PORTABLE_VERSION: PORTABLE_VERSION,
+    PORTABLE_KEYS: PORTABLE_KEYS,
+    exportPortable: exportPortable,
+    restorePortable: restorePortable,
+    validatePortableSnapshot: validatePortableSnapshot,
     DEFAULTS: DEFAULTS,
     PVIEW_DEFAULTS: PVIEW_DEFAULTS,
     STATE_SCHEMA_VERSION: STATE_SCHEMA_VERSION,

@@ -641,8 +641,8 @@
       // Alt+click is reserved for relocating the spotlight focus block (see
       // tracker-app.js handleStitchMouseDown). Don't start a drag-mark on it.
       if (e.altKey) return;
-      // Ctrl+click on a Mac is a secondary click — the tracker parks a thread
-      // on it (contextmenu) — so it must not mark the stitch as well.
+      // Ctrl+click on a Mac is a secondary click — the tracker handles it
+      // via contextmenu — so it must not mark the stitch as well.
       if (e.ctrlKey && e.button === 0 && typeof window !== 'undefined'
           && window.Shortcuts && window.Shortcuts.isMac && window.Shortcuts.isMac()) return;
       var t = (typeof performance !== 'undefined' && performance.now)

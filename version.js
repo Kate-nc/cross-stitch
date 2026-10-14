@@ -4,9 +4,17 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.146';
+window.APP_VERSION = '1.0.150';
 
 window.APP_CHANGELOG = [
+  {
+    version: '1.0.147',
+    date: 'October 2026',
+    notes: [
+      'Track: right-click a chart stitch (Ctrl+click on a Mac) to select its colour and enter Highlight view, just like the palette. Shift + right-click parks or unparks a thread instead; keyboard parking and touch press-and-hold keep their controls.',
+      'Fixed: secondary clicks cannot start Space-panning or mark knots, quarters or backstitch on a Mac. Keyboard parking is disabled in Edit mode, and pending touch parking is cancelled when switching modes.'
+    ]
+  },
   {
     version: '1.0.146',
     date: 'October 2026',
@@ -19,6 +27,8 @@ window.APP_CHANGELOG = [
     version: '1.0.144',
     date: 'October 2026',
     notes: [
+      'Fixed: Resize canvas now moves older half stitches and their completion marks with the grid, including cropping and Undo/Redo. Projects containing both half stitches and equivalent quarters count that work once.',
+      'Fixed: full backups now restore portable global preferences, including designer branding, PDF export defaults, tracking behaviour and accessibility choices. Device controls, pattern view positions and Sync setup stay on the destination device. Older backups remain supported.',
       'Fixed: stitches marked just before reloading or leaving the Tracker are kept, including an unfinished drag.',
       'Fixed: Export Backup stops with a clear error if the latest project changes cannot be saved, instead of downloading older data and recording it as a successful backup.',
       'Stats, Visuals: Colour progress and the Colour timeline are now one Colours panel. Each colour shows how much is left, the dates you worked it and how many sessions, with a filter (all, in progress, not started, complete) and a sort (most remaining, palette order, recently worked, longest untouched). One percentage now counts whole and half stitches together.'

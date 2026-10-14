@@ -145,3 +145,53 @@ window.applyCanvasResize = function applyCanvasResize(
     progressAffected: progressAffected
   };
 };
+
+// Remap Tracker's sparse arrays with the same origin as the pattern. Kept
+// threads are copied intact (including blend, brand and direction metadata).
+window.remapCanvasTracking = function(halfStitches, halfDone, partialDone, partialStitches, oldW, oldH, spec, defaultBrand) {
+  var halves = new Map(), marks = new Map(), quarters = new Map();
+  function move(idx) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= oldW * oldH) return null;
+    var x = idx % oldW + (spec.offsetX || 0), y = Math.floor(idx / oldW) + (spec.offsetY || 0);
+    return x >= 0 && x < spec.newW && y >= 0 && y < spec.newH ? y * spec.newW + x : null;
+  }
+  (halfStitches || []).forEach(function(e) {
+    var idx = move(e[0]);
+    if (idx === null || !e[1]) return;
+    var cell = {};
+    ["fwd", "bck"].forEach(function(side) {
+      if (e[1][side]) cell[side] = Object.assign({}, e[1][side]);
+    });
+    if (cell.fwd || cell.bck) halves.set(idx, cell);
+  });
+  (halfDone || []).forEach(function(e) {
+    var idx = move(e[0]), cell = halves.get(idx);
+    if (!cell || !e[1]) return;
+    var done = {};
+    ["fwd", "bck"].forEach(function(side) { if (cell[side] && e[1][side]) done[side] = true; });
+    if (done.fwd || done.bck) marks.set(idx, done);
+  });
+  (partialDone || []).forEach(function(e) {
+    var idx = move(e[0]), cell = partialStitches.get(idx);
+    if (!cell || !Array.isArray(e[1])) return;
+    var kept = e[1].filter(function(q) { return ["TL", "TR", "BL", "BR"].indexOf(q) !== -1 && cell[q]; });
+    if (kept.length) quarters.set(idx, new Set(kept));
+  });
+  // The legacy mark is authoritative for equivalent quarters. Keep the modern
+  // save consistent even when an older project only carried halfDone.
+  halves.forEach(function(hs, idx) {
+    var cell = partialStitches.get(idx), hd = marks.get(idx) || {};
+    if (!cell) return;
+    var set = quarters.get(idx) || new Set();
+    ["fwd", "bck"].forEach(function(side) {
+      var thread = hs[side], pair = side === "fwd" ? ["BL", "TR"] : ["TL", "BR"];
+      if (!thread || !pair.every(function(q) { return cell[q] && cell[q].id === thread.id && (cell[q].brand || defaultBrand || "dmc") === (thread.brand || defaultBrand || "dmc"); })) return;
+      pair.forEach(function(q) { if (hd[side]) set.add(q); else set.delete(q); });
+    });
+    if (set.size) quarters.set(idx, set); else quarters.delete(idx);
+  });
+  return {
+    halfStitches: Array.from(halves), halfDone: Array.from(marks),
+    partialDone: Array.from(quarters, function(e) { return [e[0], ["TL", "TR", "BL", "BR"].filter(function(q) { return e[1].has(q); })]; })
+  };
+};

@@ -118,6 +118,8 @@ window.useEditHistory = function useEditHistory(state) {
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
         var _tfprev = state.trackerFieldsRef.current;
+        _tfprev.halfStitches = prev.halfStitches || [];
+        _tfprev.halfDone = prev.halfDone || [];
         if (prev.bsDone && prev.bsDone.length) _tfprev.bsDone = prev.bsDone.slice(); else delete _tfprev.bsDone;
         if (prev.partialDone && prev.partialDone.length) _tfprev.partialDone = prev.partialDone; else delete _tfprev.partialDone;
         if (prev.beads && prev.beads.length) _tfprev.beads = prev.beads; else delete _tfprev.beads;
@@ -250,6 +252,8 @@ window.useEditHistory = function useEditHistory(state) {
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
         var _tfnext = state.trackerFieldsRef.current;
+        _tfnext.halfStitches = next.halfStitches || [];
+        _tfnext.halfDone = next.halfDone || [];
         if (next.bsDone && next.bsDone.length) _tfnext.bsDone = next.bsDone.slice(); else delete _tfnext.bsDone;
         if (next.partialDone && next.partialDone.length) _tfnext.partialDone = next.partialDone; else delete _tfnext.partialDone;
         if (next.beads && next.beads.length) _tfnext.beads = next.beads; else delete _tfnext.beads;
