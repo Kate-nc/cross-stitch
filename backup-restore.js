@@ -34,6 +34,68 @@ const BackupRestore = (() => {
     });
   }
 
+  // ── Progress photos (photos.js): "photo:<project>:<n>" and "photothumb:<project>:<n>" in pendingImports ──
+  // Records hold a Blob; in a backup each is a plain object with its picture as base64 so it survives JSON.
+  // Older builds of the app ignore the `photos` list, which is optional.
+  const PHOTO_PREFIXES = ["photo:", "photothumb:"];
+  function blobToBase64(blob) {
+    if (typeof blob.arrayBuffer === "function") {
+      return blob.arrayBuffer().then(buf => {
+        const bytes = new Uint8Array(buf), parts = [], CHUNK = 0x8000;
+        for (let i = 0; i < bytes.length; i += CHUNK) parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+        return btoa(parts.join(""));
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => { const s = String(r.result || ""); resolve(s.slice(s.indexOf(",") + 1)); };
+      r.onerror = () => reject(r.error || new Error("Could not read a photo."));
+      r.readAsDataURL(blob);
+    });
+  }
+  function base64ToBlob(b64, type) {
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: type || "image/jpeg" });
+  }
+  async function readPhotos(db) {
+    if (!db.objectStoreNames.contains("pendingImports") || typeof IDBKeyRange === "undefined") return [];
+    const recs = [];
+    for (const prefix of PHOTO_PREFIXES) {
+      const got = await new Promise((resolve, reject) => {
+        const req = db.transaction("pendingImports", "readonly").objectStore("pendingImports").getAll(IDBKeyRange.bound(prefix, prefix + "\uffff"));
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+      got.forEach(r => { if (r && r.blob) recs.push(r); });
+    }
+    const out = [];
+    for (const r of recs) {
+      out.push({ id: r.id, projectId: r.projectId, type: r.type || "image/jpeg", w: r.w, h: r.h, bytes: r.bytes, createdAt: r.createdAt, data: await blobToBase64(r.blob) });
+    }
+    return out;
+  }
+  async function restorePhotos(db, photos) {
+    if (!db.objectStoreNames.contains("pendingImports") || typeof IDBKeyRange === "undefined") return 0;
+    const recs = [];
+    (photos || []).forEach(p => {
+      if (!p || typeof p.id !== "string" || typeof p.data !== "string" || !PHOTO_PREFIXES.some(x => p.id.indexOf(x) === 0)) return;
+      try { recs.push({ id: p.id, projectId: p.projectId, type: p.type || "image/jpeg", w: p.w, h: p.h, bytes: p.bytes, createdAt: p.createdAt || Date.now(), updatedAt: Date.now(), blob: base64ToBlob(p.data, p.type) }); }
+      catch (e) { console.warn("Restore: skipped an unreadable photo", e); }
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction("pendingImports", "readwrite");
+      const store = tx.objectStore("pendingImports");
+      // The backup replaces the photos: the ones now on the device go, then the backup's come in.
+      PHOTO_PREFIXES.forEach(prefix => store.delete(IDBKeyRange.bound(prefix, prefix + "\uffff")));
+      recs.forEach(r => store.put(r));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Photos could not be restored."));
+    });
+    return recs.length;
+  }
+
   // Open an IndexedDB by name, creating expected stores if needed
   // version === null opens at whatever version already exists (creating the
   // database at 1 if absent) and then repairs any missing stores with a
@@ -183,6 +245,11 @@ const BackupRestore = (() => {
           readIfThere("sync_snapshots")
         ]);
         backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
+        // Progress photos, when there are any (an optional list; older builds ignore it).
+        try {
+          const photos = await readPhotos(db);
+          if (photos.length) backup.photos = photos;
+        } catch (e) { console.warn("Backup: could not read photos:", e); }
         db.close();
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
@@ -424,6 +491,11 @@ const BackupRestore = (() => {
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
           });
+        }
+        // Photos: a backup that has the list replaces the photos on the device; an older one leaves them alone.
+        if (Array.isArray(backup.photos)) {
+          try { await restorePhotos(db, backup.photos); }
+          catch (e) { console.warn("Restore: photos could not be restored:", e); }
         }
         db.close();
       }

@@ -10,9 +10,12 @@
  *   draft:<random>     a Convert draft: the picture and its conversion
  *                      settings, kept until the first pattern is generated.
  *   trace:<projectId>  a tracing picture for a scratch design (P2-4).
+ *   photo:<projectId>:<id>       a progress photo kept with a project (photos.js), compressed JPEG.
+ *   photothumb:<projectId>:<id>  its small thumbnail, in its own record so a list never reads a full picture.
  *
- * Neither backups (backup-restore.js reads only the project stores) nor sync
- * read this store, and the project list, stats and sync only see projects.
+ * Backups carry the photo and photothumb records (backup-restore.js reads them from this store by key range);
+ * the rest (handoffs, drafts, traces, progress records) are not backed up. Sync does not read this store, and
+ * the project list, stats and sync only see projects.
  *
  *   BlobStore.put(id, record)   → Promise (record is stored with its id)
  *   BlobStore.get(id)           → Promise<record | null>
@@ -20,6 +23,8 @@
  *   BlobStore.list(prefix)      → Promise<record[]>, newest first
  *   BlobStore.sweep(prefix, maxAgeMs) → Promise<number deleted>
  *   BlobStore.newId(kind)       → "kind:<random>"
+ *   BlobStore.keys(prefix)      → Promise<string[]>, the ids that start with prefix (no record is read)
+ *   BlobStore.deletePrefix(prefix) → Promise, deletes every record whose id starts with prefix
  *
  * Plain script; uses helpers.js getDB(). Tests can swap the opener with
  * BlobStore._setOpener(fn).
@@ -82,6 +87,19 @@
     });
   }
 
+  // A key range covering every string that starts with `prefix`.
+  function prefixRange(prefix) {
+    return IDBKeyRange.bound(prefix, prefix + '\uffff');
+  }
+
+  function keys(prefix) {
+    return run('readonly', function (s) { return s.getAllKeys(prefixRange(prefix)); }).then(function (k) { return k || []; });
+  }
+
+  function deletePrefix(prefix) {
+    return run('readwrite', function (s) { return s.delete(prefixRange(prefix)); });
+  }
+
   function newId(kind) {
     return kind + ':' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
@@ -91,7 +109,7 @@
   }
 
   var api = {
-    put: put, get: get, delete: del, list: list, sweep: sweep, newId: newId,
+    put: put, get: get, delete: del, list: list, sweep: sweep, newId: newId, keys: keys, deletePrefix: deletePrefix,
     available: available, HANDOFF_TTL_MS: HANDOFF_TTL_MS,
     _setOpener: function (fn) { opener = fn; }
   };

@@ -135,3 +135,37 @@ Fixture: 4 whole stitches, 2 half sides, 2 quarters, a knot and a backstitch lin
 
 ### Performance
 Not a hot path. A 91x91 rectangle on the 300x300 chart with 10,000 backstitch lines (2,786 done) and 400 half stitches: 6,232 stitches unpicked in 387 ms of task time including the repaint and re-render, and 197 ms to undo it. Nothing in the draw, hit-test or mark paths changed in this batch.
+
+## Batch 5: notes and photos (TRACK-14)
+
+### What was built
+- **Notes.** A free-text `notes` field on the project (up to 20,000 characters) in a new Notes and photos section at the end of the Tracker's **Session** tab (More, then Session). It saves with the Tracker's own autosave, is kept by the Creator (`trackerFields`), is in backups with the project, and syncs (it was already in the sync's newest-wins list). It is separate from the project's Description (designer and description, edited in the Creator and Project details).
+- **Photos.** Up to 12 per project, shown as 64 px thumbnails with an Add photo button (the file chooser offers the camera on a phone), a tap opens one full size, and Delete asks once more. Stored in the existing `blob-store.js` (the `pendingImports` store, no schema change) as two records per photo: `photo:<project>:<id>` (a JPEG shrunk in the browser to at most 1,600 px on the long side and about 700 KB, lowering quality and then size until it fits) and `photothumb:<project>:<id>` (a 240 px thumbnail), so a thumbnail never reads the picture. Added to BlobStore: `keys(prefix)` (key range, no record read) and `deletePrefix(prefix)`.
+- **Never on the chart path.** Nothing reads photos until the Session tab is showing: closing the panel revokes the object URLs; opening it lists keys and then loads the few thumbnails; the full picture is read only when one is opened. `blob-store.js` and `photos.js` are small scripts loaded by the Tracker pages; the panel is `tracker-notes.js`.
+- **Backup and restore.** A backup carries the photos in an optional `photos` list (base64, in the same file); a restore of a backup that has the list replaces the photos on the device with the backup's; an older backup without the list leaves them alone. Older builds ignore the list.
+- **Deleting a project deletes its photos** (both delete paths, by key range).
+- Help ("Notes and photos"), changelog, `sw.js` cache v69.
+
+### Checked in the browser (`harness/p6b5.js`)
+A 4000 x 3000 PNG (244 KB) was added: stored as 1600 x 1200 JPEG, 191 KB, plus a 24 KB thumbnail; the thumbnail shows; a tap opens the viewer and Esc closes it. Typed notes saved after the autosave and, with the photo, were there after a reload. With the panel closed or on another tab the page made no photo reads at all; opening the Session tab made one keys-only call. A backup carried both records; deleting the photo removed both; adding it again and deleting the project left no photo records. The Creator kept `notes` through its save. No page errors.
+
+### Limits
+- Photos do not travel with Sync (`.csync`); they stay on the device and in backups. They add to the size of a backup (a JPEG is already compressed, so the file grows by roughly the photos' size plus a third).
+- No captions, reordering or editing: add, view, delete.
+- A format the browser cannot decode (HEIC on most desktops) is refused with a message.
+- Notes are one text box per project, not per session.
+
+### Performance (batch 5)
+Nothing in the draw, hit-test or mark paths changed; the Tracker gains one `useState` and the Session tab's component (only built while that tab shows). Measured interleaved against `main` (which already includes batches 1 to 4), desktop, 300x300 with 20% done:
+
+| Run | zoom step | pan step | drag of 60 | single mark |
+|---|---|---|---|---|
+| `drawbench`, 3 rounds x 2 browsers | +8.3% | -1.6% | +5.1% | +5.4% |
+| `drawbench`, 4 rounds x 2, reversed order | +10.7% | -1.3% | -2.3% | +5.5% |
+| `drawbench`, 3 rounds x 2 | +2.5% | -11.7% | | +5.9% |
+| 150 marks x 2 browsers x 4 rounds (`TAP_ONLY`) | | | | **-1.5%** (main 30.5, branch 29.8 ms) |
+| `p6bsbench`, 5 rounds x 3 (zoom and pan only) | +4.8% | +3.2% | | |
+| same bench, branch against a copy with this batch's Tracker edits removed | +2.8% (copy +0.9%) | +4.8% (copy +3.2%) | | |
+| heap after GC | +0.0 to +0.1% | | | |
+
+The three short-run "single mark" readings (+5.4%, +5.5%, +5.9%) were not repeated by the long run (150 marks, -1.5%), so they were noise. The zoom step is the one to watch: it read +2.5% to +10.7% in five separate runs (median about +4.8%), always with the branch at or above `main`, and the noise floor here is 5 to 8%. I could not find a cause (a copy of the branch with this batch's Tracker edits removed measured +0.9% against the branch's +2.8% in the same run). Read it as "not distinguishable from noise, but not clearly zero"; it is the number to look at if you want a stricter reading of the 5% rule.

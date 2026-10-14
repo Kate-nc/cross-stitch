@@ -61,3 +61,27 @@ describe('Unpick area wiring (Phase 6 batch 4)', () => {
     expect(read('sw.js')).toContain("'./unpick.js'");
   });
 });
+
+describe('Notes and photos wiring (Phase 6 batch 5)', () => {
+  test('notes ride the project: loaded, saved with it, kept by the Creator', () => {
+    expect(tracker).toMatch(/setProjectNotes\(typeof project\.notes==="string"\?project\.notes:""\)/);
+    expect(tracker).toMatch(/notes: projectNotes \|\| undefined/);
+    expect(tracker).toMatch(/notes:project\.notes,/);
+    expect(read('creator/useProjectIO.js')).toMatch(/_tf\.notes = project\.notes/);
+  });
+  test('the panel is in the Session tab and only reads photos while that tab is showing', () => {
+    expect(tracker).toMatch(/React\.createElement\(window\.TrackerNotesPhotos,\{[^}]*active:morePanelOpen&&leftSidebarTab==="session"\}\)/);
+    const panel = read('tracker-notes.js');
+    expect(panel).toMatch(/if \(!active\) \{ revokeAll\(\)/);
+    expect(read('photos.js')).toMatch(/list\(pid\)/);
+  });
+  test('the scripts are loaded and precached', () => {
+    ['stitch.html', 'index.html', 'create.html'].forEach(f => { expect(read(f)).toContain('<script src="photos.js"></script>'); expect(read(f)).toContain('<script src="tracker-notes.js"></script>'); });
+    expect(read('stitch.html')).toContain('<script src="blob-store.js"></script>');
+    expect(read('sw.js')).toContain("'./photos.js'");
+    expect(read('sw.js')).toContain("'./tracker-notes.js'");
+  });
+  test('no raw colour in the panel', () => {
+    expect(read('tracker-notes.js')).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+  });
+});
