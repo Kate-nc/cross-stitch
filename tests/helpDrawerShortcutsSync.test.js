@@ -69,7 +69,7 @@ function isRegistryKey(label) {
   if (label === "Right-click" || label === "Menu" || label === "Shift+F10") return false;
   return true;
 }
-const NON_REGISTRY_IDS = new Set(["t.guide", "t.guideKeys", "t.park", "t.parkGuide", "t.markGuide", "t.markRange"]);
+const NON_REGISTRY_IDS = new Set(["t.guide", "t.guideKeys", "t.park", "t.parkGuide", "t.markGuide", "t.markRange", "t.unpick"]);
 
 const FILES = {
   creator: "creator/useKeyboardShortcuts.js",

@@ -112,3 +112,26 @@ The sign changes across rows and the sandbox's own run-to-run noise is up to 8% 
 | none (plain chart) | -5.5% | +5.0% |
 
 Marking on the branch (3 browsers): a single tap costs 15.0 ms of task time at 5,000 lines and 15.3 ms at 10,000 (a stitch tap on the plain chart is about 27 ms); a 60-step drag along the run costs 277 ms at 5,000 and 275 ms at 10,000 (about 4.6 ms a step, against about 700 ms for a 60-cell stitch drag). Run-to-run noise in this sandbox is up to 8%, so the deltas are "not distinguishable". An earlier first-pass measurement showed the 5,000-line zoom at +7.9%; after the painter was changed to walk the lines once (rather than twice) a second, separate run read -0.2%.
+
+## Batch 4: Unpick area (TRACK-13)
+
+### What was built
+- **`unpick.js`**: a pure `plan()` that works out, from the Tracker's marks, what a rectangle's unpick would change (whole stitches, half-stitch sides, quarters, French knots, and backstitch lines wholly inside the rectangle) plus helpers to apply and take back the plan. Undo and redo use the plan's stored before and after values, so they are exact. A colour lock limits it to that thread (half sides and quarters one by one).
+- **One undo step.** A single `UNPICK` history entry; Undo and Redo move the whole plan. The toast says `Unpicked 80 stitches` (and `and 2 backstitch lines`) with an Undo button that only acts while that is still the newest step.
+- **Three ways in.**
+  - Touch: press and hold a corner stitch, tap `Unpick area` on the rectangle bar (beside Park thread here and Cancel), then tap the opposite corner. The bar's text changes to say what will happen.
+  - Mouse: click a corner, Shift+click the opposite corner and hold **Alt** as you let go (Alt held at release unpicks instead of filling; Alt held at the press is still the spotlight's, as before). The Shift hint says so.
+  - Keyboard: mark a corner with Enter, move the guide to the opposite corner and press **Ctrl+Shift+Enter** (Cmd+Shift+Enter on a Mac). Documented in the help's shortcut table.
+- **Session.** `recordAutoActivity(..., 'frog')` writes an event `{kind: "frog", n, units}` in the session log and adds the stitches to the session's unpicked figure (never to the stitches added), so the journal and Stats read `Unpicked 80` on its own line and an unpick-only day is not a negative day (Phase 2 semantics, unchanged). The diff-based session detector is told the new counts so it cannot also read the change as unmarking. Undoing an unpick takes it off the session's unpicked figure again (while that session is open) and adds nothing to the day's stitches; a session already closed keeps what it recorded.
+- Help ("Unpick area", shortcut row), changelog, `sw.js` cache v68 (`unpick.js` precached and loaded on the Tracker, Creator and Home-to-Tracker pages).
+
+### Checked in the browser (`harness/p6b4.js`, MODE = mouse, keyboard, touch)
+Fixture: 4 whole stitches, 2 half sides, 2 quarters, a knot and a backstitch line done inside a rectangle, with more of each outside it. After the unpick: only the marks outside remain (counts `1 done`, `0 half, 0 quarter, 0 knot, 1/2 backstitch lines`); Undo restores every one exactly and Redo takes them out again. The three entry points give the same result. The session saved after leaving the page records added 0, unpicked 6.5 units (9 stitches, the 9th being the corner click), net not counted as a day.
+
+### Limits
+- The corners of a mouse or touch rectangle must be stitches (the existing rectangle gesture ignores a background cell as an end); the keyboard variant takes any guide position. The rectangle itself includes background cells, so halves, quarters, knots and backstitch there go too.
+- A backstitch line goes only when both its ends are inside the rectangle.
+- A session already closed keeps its "Unpicked" figure when the unpick is undone later.
+
+### Performance
+Not a hot path. A 91x91 rectangle on the 300x300 chart with 10,000 backstitch lines (2,786 done) and 400 half stitches: 6,232 stitches unpicked in 387 ms of task time including the repaint and re-render, and 197 ms to undo it. Nothing in the draw, hit-test or mark paths changed in this batch.

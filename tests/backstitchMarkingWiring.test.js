@@ -37,3 +37,27 @@ describe('backstitch marking in the Tracker', () => {
     expect(read('sw.js')).toContain("./creator/Loupe.js");
   });
 });
+
+describe('Unpick area wiring (Phase 6 batch 4)', () => {
+  test('the rectangle bar offers it, and a pending choice or Alt at release unpicks instead of filling', () => {
+    expect(tracker).toMatch(/Unpick area\s*<\/button>/);
+    expect(tracker).toMatch(/if\(unpickPendingRef\.current\|\|altDownRef\.current\)\{/);
+  });
+  test('Ctrl or Cmd + Shift + Enter is the keyboard variant', () => {
+    expect(tracker).toMatch(/e\.key==="Enter"&&e\.shiftKey&&\(e\.ctrlKey\|\|e\.metaKey\)&&!e\.altKey/);
+  });
+  test('it is one history entry, undone and redone with its plan, recorded as a "frog" session event', () => {
+    expect(tracker).toMatch(/\{type:"UNPICK",plan:p\}/);
+    expect(tracker).toMatch(/applyUnpickPlan\(lastEntry\.plan,true\)/);
+    expect(tracker).toMatch(/applyUnpickPlan\(lastEntry\.plan,false\)/);
+    expect(tracker).toMatch(/recordAutoActivity\(0,p\.stitches,0,p\.units,0,'frog'\)/);
+    expect(read('useAutoSession.js')).toMatch(/\{kind:'frog',t:now/);
+  });
+  test('the diff-based session detector is told about the counts it would otherwise read as marks', () => {
+    expect(tracker).toMatch(/prevAutoCountRef\.current=\{done:doneCountRef\.current,halfDone:\(halfStitchCounts\.done\|\|0\)\+sign\*p\.counts\.half/);
+  });
+  test('the script is loaded and precached', () => {
+    ['stitch.html', 'index.html', 'create.html'].forEach(f => expect(read(f)).toContain('<script src="unpick.js"></script>'));
+    expect(read('sw.js')).toContain("'./unpick.js'");
+  });
+});

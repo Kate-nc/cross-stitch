@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.140';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.141',
+    date: 'October 2026',
+    notes: [
+      'New: Unpick area. To take a whole section back out in one go, choose a rectangle and unpick it: it unmarks every kind of stitch in it (whole, half, quarter, French knots, and backstitch lines inside it) as a single undo step. With a finger, press and hold a corner stitch and tap Unpick area on the bar, then tap the opposite corner. With a mouse, click a corner, Shift+click the opposite corner and hold Alt as you let go. With the keyboard, press Ctrl+Shift+Enter (Cmd+Shift+Enter on a Mac) at the opposite corner.',
+      'An unpicked area is recorded in your session and shown in the journal and Stats as, for example, Unpicked 80. It is never taken off the day\'s stitches and does not make a negative day.'
+    ]
+  },
+  {
     version: '1.0.140',
     date: 'October 2026',
     notes: [
