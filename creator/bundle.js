@@ -13204,6 +13204,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
     if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
     if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = project.beads;
+    if (typeof project.notes === "string" && project.notes) _tf.notes = project.notes;
     // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
     if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
     if (project.startedAt)            _tf.startedAt = project.startedAt;
@@ -13849,6 +13850,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
       if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
       if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = freshProject.beads;
+      if (typeof freshProject.notes === "string" && freshProject.notes) tf.notes = freshProject.notes; else delete tf.notes;
       // Refresh v3 stats fields
       if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;
       if (freshProject.startedAt)            tf.startedAt = freshProject.startedAt;

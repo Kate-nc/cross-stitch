@@ -276,6 +276,8 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 }
 }
 
+.tracker-photo-viewer { background: color-mix(in srgb, var(--text-primary) 86%, transparent); }
+.tracker-photo-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .modal-overlay {
   position: fixed;
   top: 0;

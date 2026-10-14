@@ -104,6 +104,13 @@ const ProjectStorage = (() => {
     };
   }
 
+  // A project's photos (photos.js: "photo:<id>:<n>" and "photothumb:<id>:<n>" in pendingImports) go with it.
+  function deletePhotoRecords(store, id) {
+    if (typeof IDBKeyRange === "undefined") return;
+    store.delete(IDBKeyRange.bound("photo:" + id + ":", "photo:" + id + ":\uffff"));
+    store.delete(IDBKeyRange.bound("photothumb:" + id + ":", "photothumb:" + id + ":\uffff"));
+  }
+
   // Extract lightweight metadata from a full project object.
   const PROGRESS_PREFIX = "progress:";
 
@@ -901,7 +908,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); }
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
@@ -987,7 +994,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); }
           }
           if (includeAutoSave) store.delete("auto_save");
           tx.oncomplete = () => resolve();

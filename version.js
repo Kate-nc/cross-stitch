@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.141';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.142',
+    date: 'October 2026',
+    notes: [
+      'New: notes and photos for each project. Open More, then the Session tab. Write notes (where you stopped, a thread change) in the Notes box, and keep up to 12 pictures of your work with Add photo. Photos are shrunk to fit, shown as thumbnails and opened full size with a tap. Notes travel with the project, its backups and Sync; photos stay on this device and in backups, are removed with the project, and are only read when you open the Session tab, so the chart is not affected.'
+    ]
+  },
+  {
     version: '1.0.141',
     date: 'October 2026',
     notes: [

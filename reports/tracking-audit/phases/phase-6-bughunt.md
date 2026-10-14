@@ -31,3 +31,8 @@ Found and fixed while building:
 - The rectangle a rectangle gesture hands over leaves out background cells; Unpick widens it to the bounding box so half stitches, quarters, knots and backstitch standing on background are taken too.
 
 Checked and fine: undo/redo exactness for all five kinds; the colour lock; the work area (cells outside it are skipped); the progress and session figures through unpick, undo and redo.
+
+## Batch 5 (notes and photos)
+- The first version of the backup test could not see photos because jsdom's Blob does not survive the structured clone used by the fake IndexedDB; the test moved to the node environment. (Real browsers store and clone Blobs natively; the browser check above covers the real path.)
+- The Controls panel keeps all its tabs mounted, so the photo panel is told when it is actually showing and reads nothing otherwise; the browser check counts BlobStore calls to prove it.
+- The viewer's backdrop uses a theme token (`color-mix` of the text colour), not a raw colour.
