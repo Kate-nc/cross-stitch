@@ -154,3 +154,18 @@ A 4000 x 3000 PNG (244 KB) was added: stored as 1600 x 1200 JPEG, 191 KB, plus a
 - No captions, reordering or editing: add, view, delete.
 - A format the browser cannot decode (HEIC on most desktops) is refused with a message.
 - Notes are one text box per project, not per session.
+
+### Performance (batch 5)
+Nothing in the draw, hit-test or mark paths changed; the Tracker gains one `useState` and the Session tab's component (only built while that tab shows). Measured interleaved against `main` (which already includes batches 1 to 4), desktop, 300x300 with 20% done:
+
+| Run | zoom step | pan step | drag of 60 | single mark |
+|---|---|---|---|---|
+| `drawbench`, 3 rounds x 2 browsers | +8.3% | -1.6% | +5.1% | +5.4% |
+| `drawbench`, 4 rounds x 2, reversed order | +10.7% | -1.3% | -2.3% | +5.5% |
+| `drawbench`, 3 rounds x 2 | +2.5% | -11.7% | | +5.9% |
+| 150 marks x 2 browsers x 4 rounds (`TAP_ONLY`) | | | | **-1.5%** (main 30.5, branch 29.8 ms) |
+| `p6bsbench`, 5 rounds x 3 (zoom and pan only) | +4.8% | +3.2% | | |
+| same bench, branch against a copy with this batch's Tracker edits removed | +2.8% (copy +0.9%) | +4.8% (copy +3.2%) | | |
+| heap after GC | +0.0 to +0.1% | | | |
+
+The three short-run "single mark" readings (+5.4%, +5.5%, +5.9%) were not repeated by the long run (150 marks, -1.5%), so they were noise. The zoom step is the one to watch: it read +2.5% to +10.7% in five separate runs (median about +4.8%), always with the branch at or above `main`, and the noise floor here is 5 to 8%. I could not find a cause (a copy of the branch with this batch's Tracker edits removed measured +0.9% against the branch's +2.8% in the same run). Read it as "not distinguishable from noise, but not clearly zero"; it is the number to look at if you want a stricter reading of the 5% rule.
