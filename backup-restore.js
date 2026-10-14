@@ -15,21 +15,21 @@ const _BACKUP_MAGIC = 'CSB1\n';
 
 const BackupRestore = (() => {
   // Read all key-value pairs from an IndexedDB object store
-  function readStore(db, storeName) {
+  function readStore(db, storeName, range) {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, "readonly");
       const store = tx.objectStore(storeName);
       const entries = [];
-      const req = store.openCursor();
+      const req = store.openCursor(range);
       req.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
           entries.push({ key: cursor.key, value: cursor.value });
           cursor.continue();
-        } else {
-          resolve(entries);
         }
       };
+      tx.oncomplete = () => resolve(entries);
+      tx.onabort = () => reject(tx.error || new Error("Backup read aborted."));
       req.onerror = () => reject(req.error);
     });
   }
@@ -221,7 +221,12 @@ const BackupRestore = (() => {
     async createBackup() {
       // Flush any in-flight React state to IndexedDB before reading
       if (window.__flushProjectToIDB) {
-        try { await window.__flushProjectToIDB(); } catch (e) { console.warn("Backup: pre-flush failed:", e); }
+        try {
+          const result = await window.__flushProjectToIDB();
+          if (result && result.ok === false) throw new Error(result.reason || "Project was not saved.");
+        } catch (e) {
+          throw new Error("The latest changes could not be included in the backup. Keep this page open, resolve the save problem and retry Export Backup.", { cause: e });
+        }
       }
       const backup = {
         _format: "cross-stitch-backup",
@@ -232,8 +237,9 @@ const BackupRestore = (() => {
       };
 
       // 1. CrossStitchDB
+      let projectDB;
       try {
-        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
+        const db = projectDB = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
         // A store the app has not created is read as empty; never upgrade the database here.
         const readIfThere = (name) => db.objectStoreNames.contains(name) ? readStore(db, name) : Promise.resolve([]);
         // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
@@ -244,28 +250,56 @@ const BackupRestore = (() => {
           readIfThere("stats_summaries"),
           readIfThere("sync_snapshots")
         ]);
+        // A Tracker may have closed after its small progress write but before
+        // its full save. Fold only valid records into their existing project;
+        // replace the matching summaries rather than adding duplicate projects.
+        const progress = db.objectStoreNames.contains("pendingImports") && typeof IDBKeyRange !== "undefined"
+          ? await readStore(db, "pendingImports", IDBKeyRange.bound("progress:", "progress:\uffff")) : [];
+        for (const project of projects) {
+          if (!project.value || project.key !== project.value.id) continue;
+          const entry = progress.find(e => e.value && e.value.projectId === project.key);
+          const raw = localStorage.getItem("crossstitch_progress_recovery:" + project.key);
+          const recovery = raw ? JSON.parse(raw) : null;
+          if (!entry && !recovery) continue;
+          if (!window.ProjectStorage || !window.ProjectStorage.backupProgressRows) throw new Error("Could not include saved Tracker progress.");
+          const rec = entry && entry.value;
+          const rows = window.ProjectStorage.backupProgressRows(project.value, rec, recovery);
+          if (!rows) continue;
+          project.value = rows.project;
+          const legacy = projects.find(e => e.key === "auto_save" && e.value.id === project.key);
+          if (legacy) {
+            const legacyRows = window.ProjectStorage.backupProgressRows(legacy.value, rec, recovery);
+            if (legacyRows) legacy.value = legacyRows.project;
+          }
+          for (const [list, value] of [[project_meta, rows.meta], [stats_summaries, rows.stats]]) {
+            const existing = list.find(e => e.key === project.key);
+            if (existing) existing.value = value;
+            else list.push({ key: project.key, value });
+          }
+        }
         backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
         // Progress photos, when there are any (an optional list; older builds ignore it).
-        try {
-          const photos = await readPhotos(db);
-          if (photos.length) backup.photos = photos;
-        } catch (e) { console.warn("Backup: could not read photos:", e); }
-        db.close();
+        const photos = await readPhotos(db);
+        if (photos.length) backup.photos = photos;
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
-        backup.databases.CrossStitchDB = null;
+        throw new Error("Could not read all project data for the backup.", { cause: e });
+      } finally {
+        if (projectDB) projectDB.close();
       }
 
       // 2. stitch_manager_db
+      let stashDB;
       try {
-        const db = await openDB("stitch_manager_db", null, ["manager_state"]);
+        const db = stashDB = await openDB("stitch_manager_db", null, ["manager_state"]);
         backup.databases.stitch_manager_db = {
           manager_state: await readStore(db, "manager_state")
         };
-        db.close();
       } catch (e) {
         console.warn("Backup: could not read stitch_manager_db:", e);
-        backup.databases.stitch_manager_db = null;
+        throw new Error("Could not read stash data for the backup.", { cause: e });
+      } finally {
+        if (stashDB) stashDB.close();
       }
 
       // 3. localStorage
@@ -273,7 +307,7 @@ const BackupRestore = (() => {
         try {
           const val = localStorage.getItem(key);
           if (val !== null) backup.localStorage[key] = val;
-        } catch (e) { console.warn("Backup: failed to read localStorage key", key, e); }
+        } catch (e) { throw new Error("Could not read settings for the backup.", { cause: e }); }
       });
 
       return backup;
@@ -281,9 +315,9 @@ const BackupRestore = (() => {
 
     // Downloads the backup as a .json file (or .csb when compression is on)
     async downloadBackup() {
-      const backup = await this.createBackup();
       let url = null;
       try {
+        const backup = await this.createBackup();
         // PERF (deferred-2): emit the compressed format when the flag is on.
         // Falls back to JSON automatically if compression throws.
         const out = serializeBackupFile(backup);

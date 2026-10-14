@@ -118,3 +118,116 @@ test('the full save of the project does not need to know about the record (the s
   await ProjectStorage.saveProgress('proj_p', { done: Uint8Array.from([1, 1, 1, 1, 1, 1]), baseWriteAt: 12345 });  // based on some other write
   expect((await ProjectStorage.get('proj_p')).done).toEqual([0, 0, 0, 0, 0, 0]);
 });
+
+const journalKey = id => 'crossstitch_progress_recovery:' + id;
+const rawProject = async id => {
+  const db = await getDB();
+  return new Promise(resolve => {
+    const req = db.transaction('projects').objectStore('projects').get(id);
+    req.onsuccess = () => resolve(req.result);
+  });
+};
+test('navigation journal alone recovers all mark types into the full record once', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  expect(ProjectStorage.saveProgressRecovery('proj_p', {
+    done: [1, 0, 1, 0, 0, 0], halfDone: [[1, { fwd: true }]], knotsDone: ['1,1'],
+    bsDone: ['line'], partialDone: [[3, ['tl']]], baseWriteAt: b
+  })).toBe(true);
+  expect((await rawProject('proj_p')).done).toEqual([0, 0, 0, 0, 0, 0]);
+  const p = await ProjectStorage.get('proj_p');
+  expect(p).toMatchObject({ done: [1, 0, 1, 0, 0, 0], halfDone: [[1, { fwd: true }]], knotsDone: ['1,1'], bsDone: ['line'], partialDone: [[3, ['tl']]], lastWriteAt: b });
+  expect((await rawProject('proj_p')).done).toEqual(p.done);
+  expect(localStorage.getItem(journalKey('proj_p'))).toBeNull();
+});
+test('stale navigation journal cannot override a full save or another project', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1), baseWriteAt: b - 1 });
+  await ProjectStorage.save(proj({ id: 'proj_q' }));
+  expect((await ProjectStorage.get('proj_p')).done).toEqual(new Array(N).fill(0));
+  expect((await ProjectStorage.get('proj_q')).done).toEqual(new Array(N).fill(0));
+});
+test('newer IndexedDB progress wins over a journal, including unpicks', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1), baseWriteAt: b });
+  const rec = JSON.parse(localStorage.getItem(journalKey('proj_p')));
+  rec.updatedAt -= 1000;
+  localStorage.setItem(journalKey('proj_p'), JSON.stringify(rec));
+  await ProjectStorage.saveProgress('proj_p', { done: new Uint8Array(N), baseWriteAt: b });
+  expect((await ProjectStorage.get('proj_p')).done).toEqual(new Array(N).fill(0));
+  expect((await rawProject('proj_p')).done).toEqual(new Array(N).fill(0));
+});
+test('restore and deletion clear navigation journals', async () => {
+  await ProjectStorage.save(proj());
+  ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1), baseWriteAt: await base('proj_p') });
+  await ProjectStorage.clearAllProgress();
+  expect(localStorage.getItem(journalKey('proj_p'))).toBeNull();
+  ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1), baseWriteAt: await base('proj_p') });
+  await ProjectStorage.delete('proj_p');
+  expect(localStorage.getItem(journalKey('proj_p'))).toBeNull();
+  expect(ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1) })).toBe(false);
+});
+
+test('a delayed older progress write cannot undo recovered marks', async () => {
+  await ProjectStorage.save(proj());
+  const b = await base('proj_p');
+  ProjectStorage.saveProgressRecovery('proj_p', { done: new Array(N).fill(1), baseWriteAt: b });
+  const rec = JSON.parse(localStorage.getItem(journalKey('proj_p')));
+  rec.updatedAt += 1000; // stand in for a snapshot taken after the delayed caller
+  localStorage.setItem(journalKey('proj_p'), JSON.stringify(rec));
+  await ProjectStorage.get('proj_p');
+  await ProjectStorage.saveProgress('proj_p', { done: new Uint8Array(N), baseWriteAt: b });
+  expect((await ProjectStorage.get('proj_p')).done).toEqual(new Array(N).fill(1));
+});
+
+test('backup progress rows use the same validity checks and rebuild both summaries without mutating the source', () => {
+  const p = proj({ lastWriteAt: 10 });
+  const rec = { v: 1, baseWriteAt: 10, done: new Uint8Array([1, 1, 0, 0, 0, 1]) };
+  const rows = ProjectStorage.backupProgressRows(p, rec);
+  expect(rows.project.done).toEqual([1, 1, 0, 0, 0, 1]);
+  expect(rows.meta.completedStitches).toBe(3);
+  expect(rows.stats.completedStitches).toBe(3);
+  expect(p.done).toEqual([0, 0, 0, 0, 0, 0]);
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, baseWriteAt: 9 })).toBeNull();
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, done: new Uint8Array(5) })).toBeNull();
+});
+
+test('strict backup flush propagates a legacy record write failure', async () => {
+  const { IDBObjectStore } = require('fake-indexeddb');
+  const original = IDBObjectStore.prototype.put;
+  const failure = new DOMException('Injected quota failure', 'QuotaExceededError');
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function(value, key) {
+    if (key === 'auto_save') throw failure;
+    return original.apply(this, arguments);
+  });
+  try {
+    await expect(saveProjectToDB(proj(), { strict: true })).rejects.toBe(failure);
+  } finally { spy.mockRestore(); }
+});
+
+test('strict backup flush rejects a transaction aborted after its write request', async () => {
+  const { IDBObjectStore } = require('fake-indexeddb');
+  const original = IDBObjectStore.prototype.put;
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function(value, key) {
+    const req = original.apply(this, arguments);
+    if (key === 'auto_save') this.transaction.abort();
+    return req;
+  });
+  try {
+    await expect(saveProjectToDB(proj(), { strict: true })).rejects.toBeTruthy();
+  } finally { spy.mockRestore(); }
+});
+
+
+test('backup includes navigation recovery without writing IDB, and newer persisted progress still wins', () => {
+  const p = proj({ lastWriteAt: 10 });
+  const rec = { v: 1, baseWriteAt: 10, updatedAt: 20, done: new Uint8Array(N) };
+  const recovery = { projectId: p.id, v: 1, baseWriteAt: 10, updatedAt: 30, done: new Array(N).fill(1) };
+  expect(ProjectStorage.backupProgressRows(p, null, recovery).project.done).toEqual(new Array(N).fill(1));
+  expect(ProjectStorage.backupProgressRows(p, rec, recovery).meta.completedStitches).toBe(N);
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, updatedAt: 40 }, recovery).project.done).toEqual(new Array(N).fill(0));
+  expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, baseWriteAt: 9 })).toBeNull();
+  expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, projectId: 'proj_other' })).toBeNull();
+});

@@ -666,22 +666,30 @@ function __surfaceSaveError(err) {
   } catch (_) { /* never let toast surface throw */ }
 }
 
-async function saveProjectToDB(project) {
+async function saveProjectToDB(project, options) {
   // See ProjectStorage.save: nothing is written while a backup restore is under way.
-  if (typeof window !== 'undefined' && window.__restoringBackup > Date.now()) return;
+  if (typeof window !== 'undefined' && window.__restoringBackup > Date.now()) {
+    if (options && options.strict) throw new Error('Project saving is paused during restore.');
+    return;
+  }
   // Skip saving if the project was deleted during this page session
-  if (project && project.id && typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted(project.id)) return;
+  if (project && project.id && typeof ProjectStorage !== 'undefined' && ProjectStorage.isDeleted(project.id)) {
+    if (options && options.strict) throw new Error('The current project has been deleted.');
+    return;
+  }
   try {
     const db = await getDB();
     return await new Promise((resolve, reject) => {
       let tx = db.transaction(STORE_NAME, "readwrite");
       let store = tx.objectStore(STORE_NAME);
       let request = store.put(project, "auto_save");
-      request.onsuccess = () => resolve();
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error || new Error("Project save aborted"));
       request.onerror = () => reject(request.error);
     });
   } catch (err) {
     __surfaceSaveError(err);
+    if (options && options.strict) throw err;
   }
 }
 

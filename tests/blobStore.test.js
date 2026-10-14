@@ -68,13 +68,13 @@ describe('BlobStore', () => {
 });
 
 describe('drafts stay out of projects, stats, backups and sync', () => {
-  test('they live in pendingImports, which backups do not export', () => {
+  test('drafts in pendingImports are excluded from backups', () => {
     const backup = loadSource('backup-restore.js');
     expect(backup).toMatch(/openDB\("CrossStitchDB", null, \["projects", "project_meta", "stats_summaries", "sync_snapshots"\], false\)/);
-    // Nothing is exported from pendingImports. restore() touches it only to delete the
-    // Tracker's "progress:" records, which describe projects as they were before the restore.
+    // Only the bounded progress range is folded into projects; drafts stay out.
     const exportPart = backup.slice(backup.indexOf('async createBackup()'), backup.indexOf('async downloadBackup()'));
-    expect(exportPart).not.toMatch(/pendingImports/);
+    expect(exportPart).toContain('IDBKeyRange.bound("progress:", "progress:\\uffff")');
+    expect(exportPart).not.toMatch(/readIfThere\("pendingImports"\)/);
     const restorePart = backup.slice(backup.indexOf('async restore('));
     expect(restorePart).toMatch(/pendingImports[\s\S]*progress:/);
     expect(restorePart).not.toMatch(/store\.clear\(\)[^;]*pendingImports/);
