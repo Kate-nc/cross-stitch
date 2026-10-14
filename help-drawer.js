@@ -344,10 +344,11 @@
         },
         {
           heading: "Full backup",
-          body: "File > Export Backup downloads every project, your stash and your settings as one file (.csb, or .json on older backups). Restore it with File > Restore from Backup…, or from Preferences > Sync, backup & data. Restoring replaces what is on this device.",
+          body: "File > Export Backup downloads every project, your stash and portable global preferences as one file (.csb, or .json). These preferences include designer branding and logo, PDF export defaults, creation and tracking defaults, accessibility, display, notification and regional choices. Restore it with File > Restore from Backup…, or from Preferences > Sync, backup & data. Restoring replaces the backed-up data and portable preferences on this device. Missing or invalid portable preferences use defaults. Older backups without preferences keep your current choices, or use defaults on a new device.",
           bullets: [
             ["When to back up", "Before clearing your browser data, switching browser, or deleting projects you might want back."],
-            ["Not encrypted", "Backup files are not encrypted. Keep them somewhere private."]
+            ["Device settings stay here", "Per-pattern zoom and scroll positions, pane layouts, touch and keyboard controls, wake-lock settings, onboarding dismissals and experimental switches are not transferred. Sync configuration, folder permissions, credentials, temporary handoffs and migration markers are not transferred either. Set up Sync separately on each device; its preference-sharing option is unchanged."],
+            ["Not encrypted", "Backup files are not encrypted and can contain your designer contact details and logo. Keep them somewhere private."]
           ]
         },
         {

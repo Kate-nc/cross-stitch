@@ -215,7 +215,7 @@
     }
 
     return h("div", null,
-      h(PageHeader, { title: "Your profile", subtitle: "These details are used on PDF exports and stay on this device." }),
+      h(PageHeader, { title: "Your profile", subtitle: "These details are used on PDF exports and included in full backups." }),
 
       h(Section, { title: "Designer details" },
         h(Row, { label: "Your name or studio name", desc: "Appears on PDF cover pages." },

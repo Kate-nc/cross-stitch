@@ -14,6 +14,11 @@ if (typeof window !== 'undefined') {
 const _BACKUP_MAGIC = 'CSB1\n';
 
 const BackupRestore = (() => {
+  function preferenceAPI() {
+    if (!window.UserPrefs || !window.UserPrefs.exportPortable) throw new Error("Preferences could not be loaded. Reload stitchx and retry the backup.");
+    return window.UserPrefs;
+  }
+
   // Read all key-value pairs from an IndexedDB object store
   function readStore(db, storeName, range) {
     return new Promise((resolve, reject) => {
@@ -236,6 +241,9 @@ const BackupRestore = (() => {
         localStorage: {}
       };
 
+      // A complete, validated preference snapshot; no prefix scans or Sync settings.
+      backup.preferences = preferenceAPI().exportPortable();
+
       // 1. CrossStitchDB
       let projectDB;
       try {
@@ -389,6 +397,10 @@ const BackupRestore = (() => {
             return { valid: false, error: "Backup field databases." + dbKey + "." + stores[s] + " must be an array of records." };
           }
         }
+      }
+      if (Object.prototype.hasOwnProperty.call(backup, "preferences")) {
+        try { preferenceAPI().validatePortableSnapshot(backup.preferences); }
+        catch (e) { return { valid: false, error: e.message }; }
       }
       const summary = {
         createdAt: backup._createdAt || "unknown",
@@ -560,6 +572,13 @@ const BackupRestore = (() => {
             try { localStorage.setItem(key, val); } catch (e) { console.warn("Restore: failed to write localStorage key", key, e); }
           }
         }
+      }
+
+      // Old backups have no preferences section: retain the destination's
+      // globals (or defaults on a clean profile). Never read cs_pref_* from
+      // the legacy localStorage map, which has no preference schema contract.
+      if (Object.prototype.hasOwnProperty.call(backup, "preferences")) {
+        preferenceAPI().restorePortable(backup.preferences);
       }
 
       // M12: Imported data may be from an older schema. Clear the
