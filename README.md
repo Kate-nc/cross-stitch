@@ -64,6 +64,7 @@ A digital replacement for a printed chart while you stitch.
 Thread inventory and pattern library.
 
 - **Thread Stash:** DMC and Anchor threads with skein counts, part-used status (Mostly full / About half / Remnant / Used up), per-thread minimum stock and low-stock alerts. Stash status shows in the Creator and Tracker in real time.
+- **Alert panels:** Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
 - **Bulk Add:** paste a list of thread numbers, or add a preset starter kit.
 - **Pattern Library:** every project saved in the Creator or Tracker appears automatically, plus patterns you add by hand. Shows how many of each pattern's threads you own. Projects are deleted from here (with a short Undo).
 - **Shopping and cost:** shopping lists and stash value at your skein price.

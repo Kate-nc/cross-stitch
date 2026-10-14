@@ -16,6 +16,14 @@ window.APP_CHANGELOG = [
     ]
   },
   {
+    version: '1.0.146',
+    date: 'October 2026',
+    notes: [
+      'Fixed: opening the Stash Manager no longer clears per-thread minimum stock levels from current inventory data.',
+      'Stash: tuck away Thread Conflicts, Low Stock — Needed and Low stash — not currently needed independently using their heading buttons. The current count stays visible, and each choice is remembered on this device even when alerts disappear and return. Hiding a panel does not dismiss alerts or change inventory.'
+    ]
+  },
+  {
     version: '1.0.144',
     date: 'October 2026',
     notes: [

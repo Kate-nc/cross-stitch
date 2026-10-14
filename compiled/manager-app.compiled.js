@@ -74,6 +74,59 @@ function PartialGauge({
     }
   }, current.text));
 }
+
+// Presentation only: stable preference keys survive empty alert sets and tab visits.
+function StashAlertPanel({
+  id,
+  title,
+  count,
+  icon,
+  tone = "",
+  preferenceKey,
+  children
+}) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return window.UserPrefs && window.UserPrefs.get(preferenceKey) === true;
+    } catch (_) {
+      return false;
+    }
+  });
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      if (window.UserPrefs) window.UserPrefs.set(preferenceKey, next);
+    } catch (_) {}
+  };
+  return /*#__PURE__*/React.createElement("section", {
+    className: "alert-card stash-alert " + tone + (collapsed ? " is-collapsed" : ""),
+    "aria-labelledby": id + "-heading"
+  }, /*#__PURE__*/React.createElement("h3", {
+    id: id + "-heading",
+    className: "stash-alert-heading"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "stash-alert-toggle",
+    "aria-expanded": !collapsed,
+    "aria-controls": id + "-body",
+    onClick: toggle
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-icon",
+    "aria-hidden": "true"
+  }, icon), /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-title"
+  }, title, " ", /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-count"
+  }, "(", count, ")")), /*#__PURE__*/React.createElement("span", {
+    className: "stash-alert-chevron",
+    "aria-hidden": "true"
+  }, collapsed ? Icons.chevronRight() : Icons.chevronDown()))), /*#__PURE__*/React.createElement("div", {
+    id: id + "-body",
+    className: "stash-alert-body",
+    hidden: collapsed
+  }, children));
+}
 function ManagerApp() {
   const [tab, setTab] = useState(() => {
     // Allow deep-linking from /home and the Creator's Open-Stash button
@@ -391,7 +444,9 @@ function ManagerApp() {
           setUserProfile(profileData);
         }
         let finalThreads = threadsData;
-        if (threadsData && versionData !== 2 && versionData !== 3) {
+
+        // Version 4 already has composite keys and per-thread minima; do not re-migrate it.
+        if (threadsData && versionData !== 2 && versionData !== 3 && versionData !== 4) {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
@@ -1438,11 +1493,14 @@ function ManagerApp() {
     className: "mgr-main"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mgr-content"
-  }, conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "alert-card danger"
+  }, conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+    id: "stash-conflicts",
+    title: "Thread Conflicts",
+    count: conflicts.length,
+    icon: Icons.warning(),
+    tone: "danger",
+    preferenceKey: "stashConflictsCollapsed"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "at"
-  }, Icons.warning(), " Thread Conflicts (", conflicts.length, ")"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "var(--text-secondary)",
@@ -1508,14 +1566,14 @@ function ManagerApp() {
       fontSize: 10,
       color: "var(--text-tertiary)"
     }
-  }, c.patterns.map(p => p.title).join(", ")))))), lowStockNeeded && lowStockNeeded.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "alert-card warn",
-    style: {
-      marginBottom: 16
-    }
+  }, c.patterns.map(p => p.title).join(", ")))))), lowStockNeeded && lowStockNeeded.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+    id: "stash-low-needed",
+    title: "Low Stock \u2014 Needed",
+    count: lowStockNeeded.length,
+    icon: Icons.box(),
+    tone: "warn",
+    preferenceKey: "stashLowStockNeededCollapsed"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "at"
-  }, Icons.box(), " Low Stock \u2014 Needed (", lowStockNeeded.length, ")"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "var(--text-secondary)",
@@ -1576,19 +1634,14 @@ function ManagerApp() {
       color: "var(--accent-ink)",
       fontWeight: 600
     }
-  }, "have ", a.owned, ", min ", a.min_stock))))), lowStockNotNeeded && lowStockNotNeeded.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "alert-card",
-    style: {
-      marginBottom: 16,
-      background: "#f8fafc",
-      border: "1px solid var(--border)"
-    }
+  }, "have ", a.owned, ", min ", a.min_stock))))), lowStockNotNeeded && lowStockNotNeeded.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+    id: "stash-low-unused",
+    title: "Low stash \u2014 not currently needed",
+    count: lowStockNotNeeded.length,
+    icon: Icons.box(),
+    tone: "quiet",
+    preferenceKey: "stashLowStockNotNeededCollapsed"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "at",
-    style: {
-      color: "var(--text-tertiary)"
-    }
-  }, Icons.box(), " Low stash \u2014 not currently needed (", lowStockNotNeeded.length, ")"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 12,
       color: "var(--text-tertiary)",

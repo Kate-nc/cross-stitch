@@ -300,6 +300,7 @@
           bullets: [
             ["Skeins owned", "Select a thread to set how many skeins you have. Composite keys (for example anchor:403) keep DMC and Anchor numbers that look the same apart."],
             ["Part-used skeins", "Mark a thread as Mostly full, About half, Remnant or Used up. Used up sets the skein count to zero."],
+            ["Alert panels", "Thread Conflicts, Low Stock — Needed and Low stash — not currently needed each have a heading button. Tap it, or focus it and press Enter or Space, to hide or show the description and list. The heading keeps the current count. Each choice is remembered on this device across visits, reloads and periods with no alerts; hiding a panel does not dismiss alerts or change your stash."],
             ["Low stock", "A thread is low when you have fewer skeins than its minimum (1 by default; change it per thread or in Preferences > Stash Manager)."],
             ["Filters", "Show All, Owned, Low Stock, Remnants or Used Up threads, for DMC, Anchor or both, and search by number or name."],
             ["Bulk Add (B)", "Paste a list of thread numbers (for example 310, 550, 3821) to add them all at once."]

@@ -157,6 +157,10 @@
     // ─── Stash Manager defaults ─────────────────────────────────────────
     stashDefaultBrand:        "DMC",            // DMC | Anchor | both
     stashLowStockThreshold:   1,
+    // Independent alert visibility; never reset when alert counts reach zero.
+    stashConflictsCollapsed:          false,
+    stashLowStockNeededCollapsed:     false,
+    stashLowStockNotNeededCollapsed:  false,
     stitchStrandsUsed:        2,
     stitchWasteFactor:        0.20,             // fraction (0..1)
     skeinPriceDefault:        0.95,
