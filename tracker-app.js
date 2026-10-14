@@ -4818,10 +4818,10 @@ useEffect(() => {
 // read IndexedDB. It saves a complete, current snapshot (snapshotNow), so it can
 // never write a record that lacks the pattern or carries a stale `done`; both
 // happened when this built a partial object on top of the last autosave. While
-// the page is unloading the unload handler owns the write, so this stands aside.
+// the page is unloading the unload handler owns the write; refuse export then.
 useEffect(() => {
   window.__flushProjectToIDB = async function() {
-    if (isUnloadingRef.current) return;
+    if (isUnloadingRef.current || window.__restoringBackup > Date.now()) throw new Error("Project saving is paused.");
     const project = snapshotNow();
     if (!project) return;
     lastSnapshotRef.current = project;
@@ -4834,21 +4834,21 @@ useEffect(() => {
     const _flushOk = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
     if (_flushOk) flushedGenRef.current = Math.max(flushedGenRef.current, _gen);
     endSave(_flushOk ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
-    if (!saveResult || (!noWriteReason(saveResult.reason))) {
-      await saveProjectToDB(project).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
-    }
+    if (!_flushOk) throw new Error("The current project was not saved: " + (saveResult && saveResult.reason || "unknown failure"));
+    await saveProjectToDB(project, { strict: true });
+    return saveResult;
   };
   return () => {
     // Replace with a snapshot-based fallback rather than deleting outright.
     // If a backup or sync flush is requested during the mode-switch gap before
     // the Creator registers its own handler, this ensures IDB is still written.
-    var last = lastSnapshotRef.current;
+    var last = snapshotNow();
     window.__flushProjectToIDB = async function() {
       if (last) {
         const saveResult = await persistProjectRecord(last);
-        if (!saveResult || (!noWriteReason(saveResult.reason))) {
-          await saveProjectToDB(last).catch(e => { console.error('Save failed:', e); try { window.Toast && window.Toast.show && window.Toast.show({message: 'Could not save progress \u2014 your changes may not persist. Try downloading a backup.', type: 'error'}); } catch(_){} });
-        }
+        if (!saveResult || saveResult.ok === false || noWriteReason(saveResult.reason)) throw new Error("The current project was not saved.");
+        await saveProjectToDB(last, { strict: true });
+        return saveResult;
       }
     };
   };

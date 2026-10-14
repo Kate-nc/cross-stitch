@@ -23,8 +23,12 @@ describe('__flushProjectToIDB', () => {
     expect(flush).not.toMatch(/\.\.\.\(lastSnapshotRef\.current \|\| \{\}\)/);
   });
 
-  test('stands aside while the page is unloading', () => {
-    expect(flush).toMatch(/if \(isUnloadingRef\.current\) return;/);
+  test('captures current marks for the mode-switch fallback', () => {
+    expect(flush).toContain('var last = snapshotNow();');
+  });
+
+  test('refuses a flush while the page is unloading or restoring', () => {
+    expect(flush).toMatch(/if \(isUnloadingRef\.current \|\| window\.__restoringBackup > Date\.now\(\)\) throw new Error/);
   });
 });
 

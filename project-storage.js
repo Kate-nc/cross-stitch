@@ -371,6 +371,13 @@ const ProjectStorage = (() => {
   }
 
   return {
+    // Backup uses the same validity checks as get(), without suppressing read errors.
+    // Rebuild both summary rows when newer persisted progress is included.
+    backupProgressRows(project, rec) {
+      const current = applyProgressRecord(project, rec);
+      if (current === project) return null;
+      return { project: current, meta: buildMeta(current), stats: buildStatsSummary(current) };
+    },
     // The current version of the summary-row definition: a row with another value is rewritten by
     // refreshProgressRows(). Home asks this instead of hard-coding it.
     PROGRESS_ROW_VERSION: PROGRESS_ROW_VERSION,
@@ -729,7 +736,7 @@ const ProjectStorage = (() => {
     // array as a typed array (90 KB for a 300x300 chart) plus the half-stitch
     // and knot marks. It lives in the pendingImports store as "progress:<id>"
     // (the same store BlobStore uses for trace pictures), so there is no schema
-    // change; backups and sync do not read it, and deleting the project deletes it.
+    // change; backups fold it into the project, and deleting the project deletes it.
     //
     // It is only believed while it is newer than the project record: it carries
     // baseWriteAt, the project's lastWriteAt when it was written. Any later write

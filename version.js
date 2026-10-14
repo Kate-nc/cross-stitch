@@ -12,6 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Fixed: stitches marked just before reloading or leaving the Tracker are kept, including an unfinished drag.',
+      'Fixed: Export Backup stops with a clear error if the latest project changes cannot be saved, instead of downloading older data and recording it as a successful backup.',
       'Stats, Visuals: Colour progress and the Colour timeline are now one Colours panel. Each colour shows how much is left, the dates you worked it and how many sessions, with a filter (all, in progress, not started, complete) and a sort (most remaining, palette order, recently worked, longest untouched). One percentage now counts whole and half stitches together.'
     ]
   },

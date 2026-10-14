@@ -181,3 +181,41 @@ test('a delayed older progress write cannot undo recovered marks', async () => {
   await ProjectStorage.saveProgress('proj_p', { done: new Uint8Array(N), baseWriteAt: b });
   expect((await ProjectStorage.get('proj_p')).done).toEqual(new Array(N).fill(1));
 });
+
+test('backup progress rows use the same validity checks and rebuild both summaries without mutating the source', () => {
+  const p = proj({ lastWriteAt: 10 });
+  const rec = { v: 1, baseWriteAt: 10, done: new Uint8Array([1, 1, 0, 0, 0, 1]) };
+  const rows = ProjectStorage.backupProgressRows(p, rec);
+  expect(rows.project.done).toEqual([1, 1, 0, 0, 0, 1]);
+  expect(rows.meta.completedStitches).toBe(3);
+  expect(rows.stats.completedStitches).toBe(3);
+  expect(p.done).toEqual([0, 0, 0, 0, 0, 0]);
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, baseWriteAt: 9 })).toBeNull();
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, done: new Uint8Array(5) })).toBeNull();
+});
+
+test('strict backup flush propagates a legacy record write failure', async () => {
+  const { IDBObjectStore } = require('fake-indexeddb');
+  const original = IDBObjectStore.prototype.put;
+  const failure = new DOMException('Injected quota failure', 'QuotaExceededError');
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function(value, key) {
+    if (key === 'auto_save') throw failure;
+    return original.apply(this, arguments);
+  });
+  try {
+    await expect(saveProjectToDB(proj(), { strict: true })).rejects.toBe(failure);
+  } finally { spy.mockRestore(); }
+});
+
+test('strict backup flush rejects a transaction aborted after its write request', async () => {
+  const { IDBObjectStore } = require('fake-indexeddb');
+  const original = IDBObjectStore.prototype.put;
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function(value, key) {
+    const req = original.apply(this, arguments);
+    if (key === 'auto_save') this.transaction.abort();
+    return req;
+  });
+  try {
+    await expect(saveProjectToDB(proj(), { strict: true })).rejects.toBeTruthy();
+  } finally { spy.mockRestore(); }
+});

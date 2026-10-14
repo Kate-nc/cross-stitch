@@ -69,7 +69,7 @@ describe('saveProjectToDB deletion guard', () => {
   });
 
   test('returns early when project is deleted', () => {
-    const guardPattern = /if\s*\(project\s*&&\s*project\.id\s*&&\s*typeof\s+ProjectStorage\s*!==\s*['"]undefined['"]\s*&&\s*ProjectStorage\.isDeleted\(project\.id\)\)\s*return/;
+    const guardPattern = /if\s*\(project\s*&&\s*project\.id\s*&&\s*typeof\s+ProjectStorage\s*!==\s*['"]undefined['"]\s*&&\s*ProjectStorage\.isDeleted\(project\.id\)\)\s*\{[^}]*return/;
     expect(guardPattern.test(helpersSrc)).toBe(true);
   });
 });
