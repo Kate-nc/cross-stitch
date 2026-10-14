@@ -9150,6 +9150,8 @@ window.useEditHistory = function useEditHistory(state) {
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
         var _tfprev = state.trackerFieldsRef.current;
+        _tfprev.halfStitches = prev.halfStitches || [];
+        _tfprev.halfDone = prev.halfDone || [];
         if (prev.bsDone && prev.bsDone.length) _tfprev.bsDone = prev.bsDone.slice(); else delete _tfprev.bsDone;
         if (prev.partialDone && prev.partialDone.length) _tfprev.partialDone = prev.partialDone; else delete _tfprev.partialDone;
         if (prev.beads && prev.beads.length) _tfprev.beads = prev.beads; else delete _tfprev.beads;
@@ -9282,6 +9284,8 @@ window.useEditHistory = function useEditHistory(state) {
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
         var _tfnext = state.trackerFieldsRef.current;
+        _tfnext.halfStitches = next.halfStitches || [];
+        _tfnext.halfDone = next.halfDone || [];
         if (next.bsDone && next.bsDone.length) _tfnext.bsDone = next.bsDone.slice(); else delete _tfnext.bsDone;
         if (next.partialDone && next.partialDone.length) _tfnext.partialDone = next.partialDone; else delete _tfnext.partialDone;
         if (next.beads && next.beads.length) _tfnext.beads = next.beads; else delete _tfnext.beads;
@@ -13840,10 +13844,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (freshProject.originalPaletteState) tf.originalPaletteState = freshProject.originalPaletteState;
       if (freshProject.singleStitchEdits && freshProject.singleStitchEdits.length > 0)
         tf.singleStitchEdits = freshProject.singleStitchEdits;
-      if (freshProject.halfStitches && freshProject.halfStitches.length > 0)
-        tf.halfStitches = freshProject.halfStitches;
-      if (freshProject.halfDone && freshProject.halfDone.length > 0)
-        tf.halfDone = freshProject.halfDone;
+      tf.halfStitches = freshProject.halfStitches || [];
+      tf.halfDone = freshProject.halfDone || [];
       if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
         tf.knotsDone = freshProject.knotsDone;
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
@@ -23239,6 +23241,56 @@ window.applyCanvasResize = function applyCanvasResize(
     deletedStitchCount: deletedStitchCount,
     deletedBsCount: deletedBsCount,
     progressAffected: progressAffected
+  };
+};
+
+// Remap Tracker's sparse arrays with the same origin as the pattern. Kept
+// threads are copied intact (including blend, brand and direction metadata).
+window.remapCanvasTracking = function(halfStitches, halfDone, partialDone, partialStitches, oldW, oldH, spec, defaultBrand) {
+  var halves = new Map(), marks = new Map(), quarters = new Map();
+  function move(idx) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= oldW * oldH) return null;
+    var x = idx % oldW + (spec.offsetX || 0), y = Math.floor(idx / oldW) + (spec.offsetY || 0);
+    return x >= 0 && x < spec.newW && y >= 0 && y < spec.newH ? y * spec.newW + x : null;
+  }
+  (halfStitches || []).forEach(function(e) {
+    var idx = move(e[0]);
+    if (idx === null || !e[1]) return;
+    var cell = {};
+    ["fwd", "bck"].forEach(function(side) {
+      if (e[1][side]) cell[side] = Object.assign({}, e[1][side]);
+    });
+    if (cell.fwd || cell.bck) halves.set(idx, cell);
+  });
+  (halfDone || []).forEach(function(e) {
+    var idx = move(e[0]), cell = halves.get(idx);
+    if (!cell || !e[1]) return;
+    var done = {};
+    ["fwd", "bck"].forEach(function(side) { if (cell[side] && e[1][side]) done[side] = true; });
+    if (done.fwd || done.bck) marks.set(idx, done);
+  });
+  (partialDone || []).forEach(function(e) {
+    var idx = move(e[0]), cell = partialStitches.get(idx);
+    if (!cell || !Array.isArray(e[1])) return;
+    var kept = e[1].filter(function(q) { return ["TL", "TR", "BL", "BR"].indexOf(q) !== -1 && cell[q]; });
+    if (kept.length) quarters.set(idx, new Set(kept));
+  });
+  // The legacy mark is authoritative for equivalent quarters. Keep the modern
+  // save consistent even when an older project only carried halfDone.
+  halves.forEach(function(hs, idx) {
+    var cell = partialStitches.get(idx), hd = marks.get(idx) || {};
+    if (!cell) return;
+    var set = quarters.get(idx) || new Set();
+    ["fwd", "bck"].forEach(function(side) {
+      var thread = hs[side], pair = side === "fwd" ? ["BL", "TR"] : ["TL", "BR"];
+      if (!thread || !pair.every(function(q) { return cell[q] && cell[q].id === thread.id && (cell[q].brand || defaultBrand || "dmc") === (thread.brand || defaultBrand || "dmc"); })) return;
+      pair.forEach(function(q) { if (hd[side]) set.add(q); else set.delete(q); });
+    });
+    if (set.size) quarters.set(idx, set); else quarters.delete(idx);
+  });
+  return {
+    halfStitches: Array.from(halves), halfDone: Array.from(marks),
+    partialDone: Array.from(quarters, function(e) { return [e[0], ["TL", "TR", "BL", "BR"].filter(function(q) { return e[1].has(q); })]; })
   };
 };
 

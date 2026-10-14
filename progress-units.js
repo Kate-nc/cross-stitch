@@ -222,11 +222,28 @@
     return { done: done, total: total };
   }
 
-  // Quarter stitches in a record: partialStitches is [[cellIndex, {TL, TR, BL, BR}], ...] (each position that holds a
-  // thread is one quarter) and partialDone [[cellIndex, ["TL", ...]], ...] the ones marked. A mark counts only where
-  // there is a quarter to mark, as fractional.js does.
+  // Equivalent v9 halves and v10 quarters are two encodings of the same work.
+  // Retain unrelated quarters, including other threads at the same cell.
+  function partialWithoutLegacyHalves(partials, halves, defaultBrand) {
+    var ps = partials instanceof Map ? partials : new Map(Array.isArray(partials) ? partials.filter(function(e) { return e && e.length === 2; }) : []);
+    var hs = halves instanceof Map ? halves : new Map(Array.isArray(halves) ? halves.filter(function(e) { return e && e.length === 2; }) : []), out = new Map();
+    if (!hs.size) return ps;
+    ps.forEach(function(cell, idx) {
+      if (!cell) return;
+      var kept = Object.assign({}, cell), half = hs.get(idx);
+      ["fwd", "bck"].forEach(function(side) {
+        var thread = half && half[side], pair = side === "fwd" ? ["BL", "TR"] : ["TL", "BR"];
+        if (!thread || !pair.every(function(q) { return cell[q] && cell[q].id === thread.id && (cell[q].brand || defaultBrand || "dmc") === (thread.brand || defaultBrand || "dmc"); })) return;
+        pair.forEach(function(q) { delete kept[q]; });
+      });
+      if (Object.keys(kept).length) out.set(idx, kept);
+    });
+    return out;
+  }
+
+  // Saved quarter marks count only where a quarter still holds a thread.
   function countQuarters(p) {
-    var ps = Array.isArray(p.partialStitches) ? p.partialStitches : [];
+    var ps = Array.from(partialWithoutLegacyHalves(p.partialStitches, p.halfStitches, p.settings && p.settings.threadBrand));
     if (!ps.length) return { done: 0, total: 0 };
     var marks = new Map();
     (Array.isArray(p.partialDone) ? p.partialDone : []).forEach(function (e) {
@@ -267,6 +284,7 @@
   function fromProject(p, opts) { return progressUnits(countsFromProject(p), opts); }
 
   var api = {
+    partialWithoutLegacyHalves: partialWithoutLegacyHalves,
     WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
     sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionBasis: sessionBasis, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
