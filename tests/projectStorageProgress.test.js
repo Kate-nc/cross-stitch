@@ -219,3 +219,15 @@ test('strict backup flush rejects a transaction aborted after its write request'
     await expect(saveProjectToDB(proj(), { strict: true })).rejects.toBeTruthy();
   } finally { spy.mockRestore(); }
 });
+
+
+test('backup includes navigation recovery without writing IDB, and newer persisted progress still wins', () => {
+  const p = proj({ lastWriteAt: 10 });
+  const rec = { v: 1, baseWriteAt: 10, updatedAt: 20, done: new Uint8Array(N) };
+  const recovery = { projectId: p.id, v: 1, baseWriteAt: 10, updatedAt: 30, done: new Array(N).fill(1) };
+  expect(ProjectStorage.backupProgressRows(p, null, recovery).project.done).toEqual(new Array(N).fill(1));
+  expect(ProjectStorage.backupProgressRows(p, rec, recovery).meta.completedStitches).toBe(N);
+  expect(ProjectStorage.backupProgressRows(p, { ...rec, updatedAt: 40 }, recovery).project.done).toEqual(new Array(N).fill(0));
+  expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, baseWriteAt: 9 })).toBeNull();
+  expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, projectId: 'proj_other' })).toBeNull();
+});

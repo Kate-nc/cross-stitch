@@ -109,15 +109,12 @@ test('Creator propagates a failed flush to Export Backup', async ({ page }) => {
   await loadTrackerFixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/create.html?from=home');
-  await page.getByRole('button', { name: /Rename.*Touch Fixture/ }).waitFor();
+  await page.getByText('Touch Fixture', { exact: true }).first().waitFor();
   await page.waitForFunction(() => typeof window.__flushProjectToIDB === 'function');
   await failWrites(page, ['projects']);
   const downloads = [];
   page.on('download', d => downloads.push(d));
-  const error = await page.evaluate(async () => {
-    try { await (await window.loadBackupRestore()).downloadBackup(); } catch (e) { return e.message; }
-  });
-  expect(error).toContain('latest changes could not be included');
+  await exportBackup(page);
   await expect(page.getByText(/The latest changes could not be included/).first()).toBeVisible();
   expect(downloads).toHaveLength(0);
   expect(await page.evaluate(() => localStorage.getItem('cs_last_backup_at'))).toBeNull();
@@ -139,4 +136,22 @@ test('a failed legacy autosave record also refuses export', async ({ page }) => 
   await expect(page.getByText(/The latest changes could not be included/).first()).toBeVisible();
   expect(downloads).toHaveLength(0);
   expect(await page.evaluate(() => localStorage.getItem('cs_last_backup_at'))).toBeNull();
+});
+
+test('with no mounted project a navigation journal is included even when IDB recovery cannot write', async ({ page, context }) => {
+  await loadTrackerFixture(page);
+  const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));
+  const home = await context.newPage();
+  await home.goto('/home.html');
+  await home.waitForFunction(() => window.ProjectStorage);
+  await failWrites(home, ['projects', 'pendingImports']);
+  await failWrites(page, ['projects', 'pendingImports']);
+  await markFive(page);
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  const journal = await page.evaluate(id => JSON.parse(localStorage.getItem('crossstitch_progress_recovery:' + id)), id);
+  expect(journal.done.filter(v => v === 1)).toHaveLength(5);
+  const backup = await home.evaluate(async () => (await window.loadBackupRestore()).createBackup());
+  const data = backup.databases.CrossStitchDB;
+  expect(data.projects.find(e => e.key === id).value.done.filter(v => v === 1)).toHaveLength(5);
+  expect(data.project_meta.find(e => e.key === id).value.completedStitches).toBe(5);
 });

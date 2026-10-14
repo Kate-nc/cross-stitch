@@ -255,16 +255,20 @@ const BackupRestore = (() => {
         // replace the matching summaries rather than adding duplicate projects.
         const progress = db.objectStoreNames.contains("pendingImports") && typeof IDBKeyRange !== "undefined"
           ? await readStore(db, "pendingImports", IDBKeyRange.bound("progress:", "progress:\uffff")) : [];
-        for (const entry of progress) {
-          const project = projects.find(e => e.key === entry.value.projectId);
-          if (!project) continue;
+        for (const project of projects) {
+          if (!project.value || project.key !== project.value.id) continue;
+          const entry = progress.find(e => e.value && e.value.projectId === project.key);
+          const raw = localStorage.getItem("crossstitch_progress_recovery:" + project.key);
+          const recovery = raw ? JSON.parse(raw) : null;
+          if (!entry && !recovery) continue;
           if (!window.ProjectStorage || !window.ProjectStorage.backupProgressRows) throw new Error("Could not include saved Tracker progress.");
-          const rows = window.ProjectStorage.backupProgressRows(project.value, entry.value);
+          const rec = entry && entry.value;
+          const rows = window.ProjectStorage.backupProgressRows(project.value, rec, recovery);
           if (!rows) continue;
           project.value = rows.project;
           const legacy = projects.find(e => e.key === "auto_save" && e.value.id === project.key);
           if (legacy) {
-            const legacyRows = window.ProjectStorage.backupProgressRows(legacy.value, entry.value);
+            const legacyRows = window.ProjectStorage.backupProgressRows(legacy.value, rec, recovery);
             if (legacyRows) legacy.value = legacyRows.project;
           }
           for (const [list, value] of [[project_meta, rows.meta], [stats_summaries, rows.stats]]) {

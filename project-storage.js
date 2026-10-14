@@ -373,8 +373,14 @@ const ProjectStorage = (() => {
   return {
     // Backup uses the same validity checks as get(), without suppressing read errors.
     // Rebuild both summary rows when newer persisted progress is included.
-    backupProgressRows(project, rec) {
-      const current = applyProgressRecord(project, rec);
+    backupProgressRows(project, rec, recovery) {
+      let current = applyProgressRecord(project, rec);
+      // Navigation journals can be newer than IDB, even if their recovery
+      // write failed. Use the same age and revision rules as _recoverProgress.
+      if (recovery && recovery.projectId === project.id && recovery.v === 1 && Array.isArray(recovery.done)) {
+        const recovered = applyProgressRecord(project, recovery);
+        if (recovered !== project && (current === project || !(rec.updatedAt > recovery.updatedAt))) current = recovered;
+      }
       if (current === project) return null;
       return { project: current, meta: buildMeta(current), stats: buildStatsSummary(current) };
     },
