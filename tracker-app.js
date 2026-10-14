@@ -3493,6 +3493,11 @@ function resolveReconcile(choice){
       if(m.fwd||m.bck)kept2.push([i,m]);
     });
     hd=new Map(kept2);
+    // Quarter marks move the same way, and stay only where a quarter stitch is on the new cell.
+    if(window.Fractional&&rc.partialDone&&rc.partialDone.length){
+      const moved=window.Fractional.remap(window.Fractional.toMap(rc.partialDone),cand.oldW,sW,sH,0,0);
+      setPartialDone(window.Fractional.live(moved,partialStitches));
+    }
   }
   // The earlier marks stay recoverable from Stats > Compare, whichever way this goes.
   try{
@@ -3898,9 +3903,12 @@ function processLoadedProject(project){
     const _oldMarks=project.done?Array.from(project.done).filter(v=>v===1).length:0;
     // Half-stitch marks are keyed by cell index too, so they go stale the same way.
     const _oldHalf=(project.halfDone||[]).filter(e=>e&&e[1]&&(e[1].fwd||e[1].bck)).length;
-    if(_oldMarks>0||_oldHalf>0){
+    // Quarter-stitch marks are keyed by cell index as well. They are held back with the rest until the question is answered.
+    const _oldQuarter=(project.partialDone||[]).reduce((n,e)=>n+(e&&Array.isArray(e[1])?e[1].length:0),0);
+    if(_oldMarks>0||_oldHalf>0||_oldQuarter>0){
+      setPartialDone(new Map());
       const _cand=window.TrackingMerge?window.TrackingMerge.remapCandidates(project.done||[],kW,kH,restored):[];
-      const _rc={oldDone:Array.from(project.done||[]),oldMarks:_oldMarks,oldHalf:_oldHalf,candidates:_cand,halfDone:project.halfDone||[],projectId:project.id||null};
+      const _rc={oldDone:Array.from(project.done||[]),oldMarks:_oldMarks,oldHalf:_oldHalf,candidates:_cand,halfDone:project.halfDone||[],partialDone:project.partialDone||[],oldQuarter:_oldQuarter,projectId:project.id||null};
       reconcileRef.current=_rc;
       savesBlockedRef.current=true;
       _reconcileHeld=true;
