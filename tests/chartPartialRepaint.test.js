@@ -60,7 +60,7 @@ describe('drawStitch', () => {
   });
 
   test('culls backstitch lines outside the painted cells', () => {
-    expect(src).toMatch(/if\(Math\.max\(ln\.x1,ln\.x2\)<startX\|\|Math\.min\(ln\.x1,ln\.x2\)>endX\|\|Math\.max\(ln\.y1,ln\.y2\)<startY\|\|Math\.min\(ln\.y1,ln\.y2\)>endY\)return;/);
+    expect(src).toMatch(/if\(Math\.max\(ln\.x1,ln\.x2\)<startX\|\|Math\.min\(ln\.x1,ln\.x2\)>endX\|\|Math\.max\(ln\.y1,ln\.y2\)<startY\|\|Math\.min\(ln\.y1,ln\.y2\)>endY\)continue;/);
   });
 });
 

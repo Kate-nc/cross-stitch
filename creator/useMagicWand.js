@@ -498,7 +498,14 @@ window.useMagicWand = function useMagicWand(state) {
     state.setRedoHistory([]);
     state.setPat(np);
     if (psRes.psChanges.length) state.setPartialStitches(psRes.map);
-    if (bsRes.count) state.setBsLines(bsRes.lines);
+    if (bsRes.count) {
+      // Backstitch done marks follow their lines to the new colour.
+      var tfb = state.trackerFieldsRef && state.trackerFieldsRef.current;
+      if (tfb && window.Backstitch && Array.isArray(tfb.bsDone) && tfb.bsDone.length) {
+        tfb.bsDone = window.Backstitch.remapDone(tfb.bsDone, state.bsLines, bsRes.lines);
+      }
+      state.setBsLines(bsRes.lines);
+    }
     var r = state.buildPaletteWithScratch(np);
     // The palette is rebuilt from full stitches only. If the new colour is
     // used just by part stitches / backstitch, keep it in the scratch palette

@@ -1424,6 +1424,10 @@ const[knotsDone,setKnotsDone]=useState([]);
 const[bsDone,setBsDone]=useState([]);
 const[partialDone,setPartialDone]=useState(new Map());
 const beadsRef=useRef(undefined);
+// The backstitch line the keyboard has selected (an index into bsLines, -1 for none), and the cell it was chosen at.
+const[bsSelect,setBsSelect]=useState(-1);
+const bsSelectRef=useRef(-1);
+bsSelectRef.current=bsSelect;
 // Progress record (ProjectStorage.saveProgress): the marks, written about every 400 ms.
 // owner is the (project id, state) pair as of the last committed render, so a write can
 // never put one project's marks under another project's id while switching.
@@ -2151,6 +2155,33 @@ const knotsByThread=useMemo(()=>window.Knots?window.Knots.byThread(knots,knotsDo
 // Quarter stitches (fractional.js): {total, done} in quarters, and per thread. Each is worth a quarter of a full stitch.
 const quarterCounts=useMemo(()=>window.Fractional?window.Fractional.progress(partialStitches,partialDone):{total:0,done:0},[partialStitches,partialDone]);
 const quartersByThread=useMemo(()=>window.Fractional?window.Fractional.byThread(partialStitches,partialDone):{},[partialStitches,partialDone]);
+// Backstitch (backstitch.js): each line's key, the done keys as a Set, the spatial index (built once per pattern), and
+// {total, done} lines overall and per colour. The drawing path reads the keys and the Set through refs, so a one-line
+// repaint (which a memoised caller runs from an older render) always sees the current marks.
+const bsKeys=useMemo(()=>window.Backstitch?bsLines.map(window.Backstitch.key):[],[bsLines]);
+const bsDoneSet=useMemo(()=>new Set(bsDone),[bsDone]);
+const bsGrid=useMemo(()=>window.Backstitch&&bsLines.length?window.Backstitch.buildGrid(bsLines):null,[bsLines]);
+// key -> the line indexes that carry it, so a mark's repaint finds its lines without scanning all of them.
+const bsIndex=useMemo(()=>window.Backstitch&&bsLines.length?window.Backstitch.index(bsLines):null,[bsLines]);
+const bsInfo=useMemo(()=>{
+  // Per line: is it well formed, and its colour. Computed once per pattern; the counts below only walk these arrays.
+  const B=window.Backstitch,well=[],col=[];
+  bsLines.forEach(ln=>{const w=!!B&&B.wellFormed(ln);well.push(w);col.push(w?B.colourOf(ln):"");});
+  return{well,col};
+},[bsLines]);
+const bsTally=useMemo(()=>{
+  const by={};let total=0,done=0;
+  for(let i=0;i<bsKeys.length;i++){
+    if(!bsInfo.well[i])continue;
+    total++;const d=bsDoneSet.has(bsKeys[i]);if(d)done++;
+    const e=by[bsInfo.col[i]]||(by[bsInfo.col[i]]={total:0,done:0});e.total++;if(d)e.done++;
+  }
+  return{total,done,by};
+},[bsKeys,bsInfo,bsDoneSet]);
+const bsCounts=bsTally,bsByColour=bsTally.by;
+const bsKeysRef=useRef(bsKeys),bsDoneSetRef=useRef(bsDoneSet),bsGridRef=useRef(bsGrid),bsIndexRef=useRef(bsIndex);
+const bsDragActiveRef=useRef(false);
+bsKeysRef.current=bsKeys;if(!bsDragActiveRef.current)bsDoneSetRef.current=bsDoneSet;bsGridRef.current=bsGrid;bsIndexRef.current=bsIndex;
 
 // Progress in units, from the one shared definition (progress-units.js: a full stitch is one unit, a half stitch
 // half, a French knot one). Every figure below, and every other page, reads it from there.
@@ -2237,13 +2268,14 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // itself — is the correct "did the counts actually change" signal here.
 // A legend row's count line. The whole-stitch figure is left out for a colour with no whole stitches but other kinds
 // (so a colour used only in quarter stitches or knots never reads "0/0").
-function legendCountText(dc,kn,qt){
+function legendCountText(dc,kn,qt,bsc){
   const parts=[];
-  const other=(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0);
+  const other=(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0)||(bsc&&bsc.total>0);
   if(dc.total>0||!other)parts.push(dc.done+"/"+dc.total);
   if(dc.halfTotal>0)parts.push(dc.halfDone+"/"+dc.halfTotal+" half");
   if(kn&&kn.total>0)parts.push(kn.done+"/"+kn.total+" knots");
   if(qt&&qt.total>0)parts.push(qt.done+"/"+qt.total+" fractional");
+  if(bsc&&bsc.total>0)parts.push(bsc.done+"/"+bsc.total+" lines");
   return parts.join(" · ");
 }
 const legendRows=useMemo(()=>{
@@ -2259,16 +2291,18 @@ const legendRows=useMemo(()=>{
     const qt=!areaColourCounts&&quartersByThread[p.id]||{total:0,done:0};
     const totalWH=dc.total+dc.halfTotal*0.5+kn.total+qt.total*0.25;
     const doneWH=dc.done+dc.halfDone*0.5+kn.done+qt.done*0.25;
-    const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
+    // Backstitch lines of this colour are their own row and not in the units; a colour with nothing else is judged by them.
+    const bsc=!areaColourCounts&&bsByColour[String(p.id)]||{total:0,done:0};
+    let pct=totalWH>0?Math.round(doneWH/totalWH*100):(bsc.total>0?Math.round(bsc.done/bsc.total*100):0);
     const remaining=Math.max(0,totalWH-doneWH);
-    const complete=doneWH>=totalWH&&totalWH>0;
-    return {p,dc,kn,qt,pct,remaining,complete};
+    const complete=totalWH>0?(doneWH>=totalWH&&(bsc.total===0||bsc.done>=bsc.total)):(bsc.total>0&&bsc.done>=bsc.total);
+    return {p,dc,kn,qt,bsc,pct,remaining,complete};
   });
   if(legendSort==="done")rows.sort((a,b)=>b.pct-a.pct);
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread]);
+},[pal,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -3071,6 +3105,12 @@ function flipQuarterDone(idx,pos){
 function undoTrack(){
   if(!trackHistory.length||!done)return;
   let lastEntry=trackHistory[trackHistory.length-1];
+  if(lastEntry&&lastEntry.type==="BS"){
+    setBsKeysDone(lastEntry.keys,!lastEntry.on);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="QUARTER"){
     flipQuarterDone(lastEntry.idx,lastEntry.pos);
     setTrackHistory(prev=>prev.slice(0,-1));
@@ -3106,6 +3146,12 @@ function undoTrack(){
 function redoTrack(){
   if(!redoStack.length||!done)return;
   let lastEntry=redoStack[redoStack.length-1];
+  if(lastEntry&&lastEntry.type==="BS"){
+    setBsKeysDone(lastEntry.keys,lastEntry.on);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="QUARTER"){
     flipQuarterDone(lastEntry.idx,lastEntry.pos);
     setRedoStack(prev=>prev.slice(0,-1));
@@ -3753,12 +3799,19 @@ function processLoadedProject(project){
   const knotList=window.Knots?window.Knots.normalise(project.knots,kW,kH,brand):[];
   const knotCells=knotList.map(k=>restoreStitch({id:k.id,type:k.id.includes('+')?'blend':'solid',rgb:k.rgb,brand:k.brand||'dmc'}));
   knotList.forEach((k,i)=>{if(!k.rgb&&knotCells[i].rgb)k.rgb=knotCells[i].rgb;});
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells));
+  // Colours used only by backstitch still belong in the legend (their lines are tracked there).
+  const bsCells=[],bsSeen=new Set();
+  (project.bsLines||project.bs||[]).forEach(ln=>{
+    if(!ln||ln.colorId==null||ln.colorId===""||bsSeen.has(String(ln.colorId)))return;
+    bsSeen.add(String(ln.colorId));
+    try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined,brand:brand}));}catch(_){}
+  });
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   setPartialStitches(partialMap);
   setKnots(knotList);
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
-  setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines):[]);
+  setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines||project.bs):[]);
   setPartialDone(window.Fractional?window.Fractional.live(window.Fractional.toMap(project.partialDone),partialMap):new Map());
   beadsRef.current=Array.isArray(project.beads)&&project.beads.length?project.beads:undefined;
   if (project.originalPaletteState) {
@@ -5230,10 +5283,39 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     // Skip lines wholly outside the cells being painted (backstitch runs
     // along cell edges, in stitch units). A full paint covers the tile so
     // this rarely skips anything; a one-cell repaint skips nearly all.
-    bsLines.forEach(ln=>{
-      if(Math.max(ln.x1,ln.x2)<startX||Math.min(ln.x1,ln.x2)>endX||Math.max(ln.y1,ln.y2)<startY||Math.min(ln.y1,ln.y2)>endY)return;
-      ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();
-    });
+    // Done lines are solid; lines still to stitch are dashed and a little fainter, so the two differ in more than colour
+    // (at the smallest zoom, where a dash is not visible, only the fainter look is left). Two passes keep the canvas
+    // state changes to two. A line in the keyboard's selection is drawn last, with a halo.
+    const bsKeysNow=bsKeysRef.current,bsDoneNow=bsDoneSetRef.current,bsSel=bsSelectRef.current;
+    const dash=tier>=3?[Math.max(3,cSz*0.22),Math.max(2,cSz*0.14)]:[];
+    // One walk over the lines picks out those in the painted cells; the two passes then only touch those.
+    const bsVisPending=[],bsVisDone=[];
+    for(let li=0;li<bsLines.length;li++){
+      const ln=bsLines[li];
+      if(Math.max(ln.x1,ln.x2)<startX||Math.min(ln.x1,ln.x2)>endX||Math.max(ln.y1,ln.y2)<startY||Math.min(ln.y1,ln.y2)>endY)continue;
+      (bsDoneNow.has(bsKeysNow[li])?bsVisDone:bsVisPending).push(li);
+    }
+    for(let pass=0;pass<2;pass++){
+      const doneNow=pass===1,list=doneNow?bsVisDone:bsVisPending;
+      if(!list.length)continue;
+      ctx.setLineDash(doneNow?[]:dash);
+      ctx.globalAlpha=doneNow?bsHsAlpha:bsHsAlpha*0.62;
+      for(let k=0;k<list.length;k++){
+        const ln=bsLines[list[k]];
+        ctx.strokeStyle=ln.color||"#333";ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);ctx.globalAlpha=1;
+    if(bsSel>=0&&bsLines[bsSel]){
+      const ln=bsLines[bsSel];
+      ctx.lineCap="round";
+      ctx.strokeStyle="rgba(255,255,255,0.95)";ctx.lineWidth=(tier===2?1:bsThickness)+5;
+      ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();
+      ctx.strokeStyle="#B85C38";ctx.lineWidth=(tier===2?1:bsThickness)+2;
+      ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();
+      ctx.strokeStyle=ln.color||"#333";ctx.lineWidth=tier===2?1:bsThickness;
+      ctx.beginPath();ctx.moveTo(gut+ln.x1*cSz,gut+ln.y1*cSz);ctx.lineTo(gut+ln.x2*cSz,gut+ln.y2*cSz);ctx.stroke();
+    }
     ctx.restore();
   }
   // French knots: a ring in the thread colour until done, then filled. In
@@ -5367,7 +5449,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -6243,6 +6325,8 @@ function handleStitchKeyDown(e){
       if(!onChart)moveGuideBy(0,0);
       return;
     }
+    // A backstitch line chosen with B: Enter marks or unmarks it (Shift+Enter and the stitch under it are left alone).
+    if(!e.shiftKey&&bsSelectRef.current>=0&&bsLines[bsSelectRef.current]){toggleBsLine(bsSelectRef.current);return;}
     const idx=g.row*sW+g.col;
     const cell=pat[idx];
     // A cell of quarter stitches whose whole stitch is done (or absent): Enter marks its quarters one at a time, nearest the
@@ -6280,7 +6364,7 @@ function handleStitchKeyDown(e){
 }
 
 // Every way of clearing the guide goes through here, so the keyboard's ownership and range anchor go with it.
-function clearGuide(){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;}
+function clearGuide(){setHlRow(-1);setHlCol(-1);kbGuideRef.current=false;kbAnchorRef.current=null;setBsSelect(-1);}
 const GUIDE_KEYS={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
 // Move the guide by (dx,dy) stitches — or, with no guide yet, drop it at the
 // middle of the view — keeping it inside the chart (or the work area's view)
@@ -6298,7 +6382,7 @@ function moveGuideBy(dx,dy){
   if(g.row<0||g.col<0){col=Math.floor((vx0+vx1)/2);row=Math.floor((vy0+vy1)/2);}
   else{col=g.col+dx;row=g.row+dy;}
   col=Math.max(bx0,Math.min(bx1-1,col));row=Math.max(by0,Math.min(by1-1,row));
-  setHlRow(row);setHlCol(col);
+  setHlRow(row);setHlCol(col);setBsSelect(-1);
   if(col<vx0+1||col>vx1-2||row<vy0+1||row>vy1-2)centreOnCell(col,row);
   const live=guideLiveRef.current;
   if(live){const lbl=cellThreadLabel(row*sW+col);live.textContent="Guide at row "+(row+1)+", column "+(col+1)+(lbl?", "+lbl:"");}
@@ -6447,7 +6531,7 @@ function handleStitchMouseDown(e){
   let idx=gy*sW+gx;
 
   // A press on a French knot is the knot's (stitchPointerHandlers).
-  if(knotPressRef.current)return;
+  if(knotPressRef.current||bsPressRef.current)return;
 
   // ═══ Tracker: Marking half stitches as done (track mode) ═══
   // If cell has half stitches and NO full stitch (or full is done), handle half marking
@@ -7132,6 +7216,11 @@ const trackerShortcuts=!isActive ? [] : [
         setLiveAutoIsPaused(true);
       }
     } },
+  // B: choose a backstitch line at the guide. Each press goes on to the next line that touches the guide's cell, and after the
+  // last the selection is cleared; Enter then marks or unmarks it, an arrow key moves the guide and clears it.
+  { id: "tracker.bs.select", keys: "b", scope: "tracker.notedit",
+    description: "Backstitch: choose a line at the guide (again for the next)",
+    run: () => selectBsAtGuide() },
   { id: "tracker.counting", keys: "c", scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v=>!v) },
@@ -7536,6 +7625,104 @@ function toggleQuarterDone(q){
   setTrackHistory(prev=>{let n=[...prev,{type:"QUARTER",idx:q.idx,pos:q.pos}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
+// Backstitch lines (backstitch.js). In Mark mode a press within a short snap distance of a line marks it, and a drag
+// along lines marks each one it passes (one undo step for the whole stroke). The distance is 14 px for a mouse and
+// 20 px for a finger, never more than half a cell, so it scales with the zoom. Where the cell under the press has a
+// stitch of its own, the line must be nearer than the cell's centre, so a tap on a stitch still marks the stitch.
+const bsPressRef=useRef(null);
+// A finger covers the lines it is marking, so for touch (and pen) a magnifier shows the cells around the fingertip while a
+// backstitch press or stroke is on, the same loupe the Creator uses (creator/Loupe.js).
+function showBsLoupe(cx,cy,colour){
+  const loupe=window.creatorLoupe;
+  if(!loupe||!stitchRef.current)return;
+  const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
+  const fx=(cx-rect.left+ct.x-G)/scs,fy=(cy-rect.top+ct.y-G)/scs;
+  // The loupe reads the canvas in chart pixels from (G + gx*cs); the canvas is a tile, so shift by its origin.
+  loupe.show({x:cx,y:cy,cell:{gx:fx-ct.x/scs,gy:fy-ct.y/scs},snap:true,cs:scs,G:G,source:stitchRef.current,magnifier:true,precision:false,colour:colour||null});
+}
+function hideBsLoupe(){if(window.creatorLoupe)window.creatorLoupe.hide();}
+function bsAcceptLine(i,ln){return !isColourLocked()||(ln.colorId!=null&&String(ln.colorId)===String(focusColour));}
+function bsHitAt(cx,cy,pointerType){
+  const grid=bsGridRef.current;
+  if(!_dragMarkActive||!grid||layerVis.backstitch===false||!window.Backstitch||!stitchRef.current||!pat)return null;
+  const rect=stitchRef.current.getBoundingClientRect();
+  const ct=chartTileRef.current||{x:0,y:0};
+  const fx=(cx-rect.left+ct.x-G)/scs,fy=(cy-rect.top+ct.y-G)/scs;
+  const px=(pointerType==="touch"||pointerType==="pen")?20:14;
+  const tol=Math.min(0.5,px/scs);
+  const hit=window.Backstitch.nearest(grid,fx,fy,tol,bsAcceptLine);
+  if(!hit)return null;
+  const gx=Math.floor(fx),gy=Math.floor(fy);
+  if(areaOn&&!window.WorkArea.contains(workArea,Math.max(0,Math.min(sW-1,gx)),Math.max(0,Math.min(sH-1,gy))))return null;
+  if(gx>=0&&gx<sW&&gy>=0&&gy<sH){
+    const m=pat[gy*sW+gx];
+    if(m&&m.id!=="__skip__"&&m.id!=="__empty__"&&!(hit.d<Math.hypot(fx-gx-0.5,fy-gy-0.5)))return null;
+  }
+  return hit;
+}
+// Mark or unmark lines by key. `defer` leaves the React state for the end of a stroke (the Set the painter reads is
+// updated at once), so a drag does not re-render per line.
+function setBsKeysDone(keys,on,defer){
+  const next=new Set(bsDoneSetRef.current);
+  keys.forEach(k=>{if(on)next.add(k);else next.delete(k);});
+  bsDoneSetRef.current=next;
+  paintBsKeys(keys);
+  if(!defer)commitBsDone();
+}
+function commitBsDone(){
+  skipNextFullRedrawRef.current=true;
+  setBsDone(Array.from(bsDoneSetRef.current));
+}
+// Repaint only the cells the lines cover (a line is drawn by the cells it passes through).
+function paintBsKeys(keys){
+  const idx=bsIndexRef.current;
+  if(!idx||!keys.length)return;
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  keys.forEach(k=>{(idx.get(k)||[]).forEach(i=>{const ln=bsLines[i];x0=Math.min(x0,ln.x1,ln.x2);x1=Math.max(x1,ln.x1,ln.x2);y0=Math.min(y0,ln.y1,ln.y2);y1=Math.max(y1,ln.y1,ln.y2);});});
+  if(x0>x1)return;
+  const nd=doneRef.current;
+  repaintChartCells(Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1,i=>!!(nd&&nd[i]));
+}
+function pushBsHistory(keys,on,colourId){
+  if(!keys.length)return;
+  if(colourId!=null)pendingColoursRef.current.add(colourId);
+  setTrackHistory(prev=>{let n=[...prev,{type:"BS",keys,on}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  setRedoStack([]);
+}
+// One line, tapped or chosen at the keyboard: flip it.
+function toggleBsLine(i){
+  const k=bsKeysRef.current[i];if(k===undefined)return;
+  const on=!bsDoneSetRef.current.has(k);
+  setBsKeysDone([k],on);
+  pushBsHistory([k],on,bsLines[i]&&bsLines[i].colorId);
+}
+// Every line of one colour (the legend's "mark all backstitch"): all done if any is not, otherwise all unmarked.
+function markAllBsOfColour(colour){
+  if(!window.Backstitch)return;
+  const keys=[];let anyPending=false;
+  bsLines.forEach((ln,i)=>{
+    if(!window.Backstitch.wellFormed(ln)||window.Backstitch.colourOf(ln)!==colour)return;
+    if(areaOn&&!window.WorkArea.contains(workArea,Math.max(0,Math.min(sW-1,Math.floor(Math.min(ln.x1,ln.x2)))),Math.max(0,Math.min(sH-1,Math.floor(Math.min(ln.y1,ln.y2))))))return;
+    const k=bsKeysRef.current[i];
+    if(keys.indexOf(k)===-1)keys.push(k);
+    if(!bsDoneSetRef.current.has(k))anyPending=true;
+  });
+  const changed=keys.filter(k=>bsDoneSetRef.current.has(k)!==anyPending);
+  if(!changed.length)return;
+  setBsKeysDone(changed,anyPending);
+  pushBsHistory(changed,anyPending,colour);
+}
+// B at the keyboard guide: the lines touching the guide's cell, in drawing order, one per press.
+function selectBsAtGuide(){
+  if(stitchMode!=="track"||!bsGridRef.current||!window.Backstitch||layerVis.backstitch===false)return;
+  if(!kbGuideRef.current||guideRef.current.row<0||guideRef.current.col<0){kbGuideRef.current=true;moveGuideBy(0,0);return;}
+  const g=guideRef.current;
+  const list=window.Backstitch.inCell(bsGridRef.current,g.col,g.row).filter(i=>bsAcceptLine(i,bsLines[i]));
+  if(!list.length){setBsSelect(-1);return;}
+  const at=list.indexOf(bsSelectRef.current);
+  const next=at===-1?list[0]:(at+1<list.length?list[at+1]:-1);
+  setBsSelect(next);
+}
 function toggleKnotDone(k){
   const key=k.x+","+k.y;
   flipKnotDone(key);
@@ -7547,16 +7734,54 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
     const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
     const k=plain?knotAtPoint(e.clientX,e.clientY):null;
+    const b=plain&&!k?bsHitAt(e.clientX,e.clientY,e.pointerType):null;
+    if(b){
+      const key=bsKeysRef.current[b.i];
+      bsPressRef.current={id:e.pointerId,x:e.clientX,y:e.clientY,type:e.pointerType,first:b.i,on:!bsDoneSetRef.current.has(key),dragging:false,seen:new Set([b.i]),keys:[],colour:bsLines[b.i]&&bsLines[b.i].colorId};
+      try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
+      if(e.pointerType==="touch"||e.pointerType==="pen")showBsLoupe(e.clientX,e.clientY,bsLines[b.i]&&bsLines[b.i].color);
+      if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);
+      return;
+    }
+    bsPressRef.current=null;
     const q=plain&&!k?quarterAtPoint(e.clientX,e.clientY):null;
     if(k||q){knotPressRef.current={k,q,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
     knotPressRef.current=null;
     if(_dragMarkHandlers.onPointerDown)_dragMarkHandlers.onPointerDown(e);
   },
   onPointerMove:e=>{
+    const bp=bsPressRef.current;
+    if(bp&&bp.id===e.pointerId){
+      if(bp.type==="touch"||bp.type==="pen")showBsLoupe(e.clientX,e.clientY,null);
+      if(!bp.dragging){
+        if(Math.hypot(e.clientX-bp.x,e.clientY-bp.y)<7)return;
+        bp.dragging=true;bsDragActiveRef.current=true;
+        // The stroke starts with the line that was pressed.
+        const k0=bsKeysRef.current[bp.first];
+        if(bsDoneSetRef.current.has(k0)!==bp.on){bp.keys.push(k0);setBsKeysDone([k0],bp.on,true);}
+      }
+      const h=bsHitAt(e.clientX,e.clientY,bp.type);
+      if(h&&!bp.seen.has(h.i)){
+        bp.seen.add(h.i);
+        const k=bsKeysRef.current[h.i];
+        if(bsDoneSetRef.current.has(k)!==bp.on&&bp.keys.indexOf(k)===-1){bp.keys.push(k);setBsKeysDone([k],bp.on,true);}
+      }
+      return;
+    }
     if(knotPressRef.current&&knotPressRef.current.id===e.pointerId)return;
     if(_dragMarkHandlers.onPointerMove)_dragMarkHandlers.onPointerMove(e);
   },
   onPointerUp:e=>{
+    const bp=bsPressRef.current;
+    if(bp&&bp.id===e.pointerId){
+      bsPressRef.current=null;bsDragActiveRef.current=false;hideBsLoupe();
+      try{e.currentTarget.releasePointerCapture(e.pointerId);}catch(_){}
+      if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
+      if(bp.dragging){
+        if(bp.keys.length){commitBsDone();pushBsHistory(bp.keys,bp.on,bp.colour);}
+      }else toggleBsLine(bp.first);
+      return;
+    }
     const p=knotPressRef.current;
     if(p&&p.id===e.pointerId){
       knotPressRef.current=null;
@@ -7567,6 +7792,11 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
   },
   onPointerCancel:e=>{
+    const bp=bsPressRef.current;
+    if(bp){
+      bsPressRef.current=null;bsDragActiveRef.current=false;hideBsLoupe();
+      if(bp.dragging&&bp.keys.length){commitBsDone();pushBsHistory(bp.keys,bp.on,bp.colour);}
+    }
     knotPressRef.current=null;
     if(_dragMarkHandlers.onPointerCancel)_dragMarkHandlers.onPointerCancel(e);
   }
@@ -7736,7 +7966,7 @@ return(
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))} to go</span>}
-    {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch">{bt}</span>:null;})()}
+    {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
     {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
 </div>
@@ -7766,6 +7996,8 @@ return(
       ['Today', ProgressUnits.formatUnits(todayStitchesForBar)],
       ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
+    // Backstitch is counted on its own, in lines, and is not part of the percentage above.
+    if (bsCounts.total > 0) progressRows.splice(1, 0, ['Backstitch', `${bsCounts.done}/${bsCounts.total} lines`]);
     if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
     const timeEst = sessionsTimeIsEstimated(statsSessions || []);
     const timeRows = [['Time spent' + (timeEst ? ' (estimated)' : ''), fmtL(totalSec)]];
@@ -8060,7 +8292,7 @@ return(
       {pal&&<div className="ppal-tile-list" role="list">
         {(()=>{
           const rows=legendRows||[];
-          return rows.map(({p,dc,kn,qt,pct,complete})=>{
+          return rows.map(({p,dc,kn,qt,bsc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
             return <div key={p.id} role="button" tabIndex={0}
@@ -8082,7 +8314,7 @@ return(
                 </div>
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
-                  <span className="ppal-tile-count">{legendCountText(dc,kn,qt)}</span>
+                  <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
                   <div className="ppal-tile-actions">
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
@@ -8091,12 +8323,19 @@ return(
                       aria-label={"Go to where "+threadLabel(p)+" is parked"}
                       style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
-                    <button
+                    {bsc&&bsc.total>0&&<button
+                      className="ppal-tile-done-btn ppal-tile-bs-btn"
+                      onClick={e=>{e.stopPropagation();markAllBsOfColour(String(p.id));}}
+                      style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
+                      title={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
+                      aria-label={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
+                    >{bsc.done>=bsc.total?<>{Icons.undo?Icons.undo():null}{" Lines"}</>:<>{Icons.check?Icons.check():null}{" Lines"}</>}</button>}
+                    {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
                       className="ppal-tile-done-btn"
                       onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}requestMarkColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
                       title={complete?"Mark as not done":"Mark all as done"}
-                    >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>
+                    >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>}
                   </div>
                 </div>
               </div>
@@ -9253,6 +9492,7 @@ return(
   )}
 
   {/* Half stitch disambiguation popup */}
+  {window.CreatorLoupe&&React.createElement(window.CreatorLoupe,null)}
   {halfDisambig&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:10001}} onClick={()=>setHalfDisambig(null)}>
     <div className="hs-scale-in" style={{
       position:"fixed",left:halfDisambig.x-50,top:halfDisambig.y-60,

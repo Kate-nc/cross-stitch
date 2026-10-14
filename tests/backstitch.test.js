@@ -116,3 +116,77 @@ describe('ProgressUnits quarter row (Phase 6 batch 2)', () => {
     expect(PU.fromProject(p).percent).toBe(100);
   });
 });
+
+describe('spatial index', () => {
+  const lines = [
+    L(0, 0, 3, 0, { colorId: '310' }),     // 0: along the top of row 0, three cells
+    L(0, 0, 0, 1, { colorId: '310' }),     // 1
+    L(5, 5, 6, 6, { colorId: '666' }),     // 2: a diagonal through the centre of cell (5,5)
+    L(5, 5, 6, 6, { colorId: '310' })      // 3: the same place, another colour
+  ];
+  const g = B.buildGrid(lines);
+  test('nearest finds the line under a point within the tolerance, else nothing', () => {
+    expect(B.nearest(g, 1.5, 0.1, 0.3).i).toBe(0);
+    expect(B.nearest(g, 1.5, 0.4, 0.3)).toBeNull();
+    expect(B.nearest(g, 0.05, 0.5, 0.3).i).toBe(1);
+  });
+  test('the nearer of two lines wins, and a rule can rule one out', () => {
+    expect(B.nearest(g, 0.2, 0.1, 0.5).i).toBe(0);                // 0.1 from the top line, 0.2 from the side one
+    expect(B.nearest(g, 5.5, 5.5, 0.1, (i) => i !== 2).i).toBe(3);
+  });
+  test('a long line is found from any cell it crosses', () => {
+    const long = B.buildGrid([L(0, 0, 40, 0)]);
+    [0.5, 13.5, 27.2, 39.9].forEach(x => expect(B.nearest(long, x, 0.05, 0.2).i).toBe(0));
+  });
+  test('inCell lists the lines touching a cell in drawing order', () => {
+    expect(B.inCell(g, 0, 0)).toEqual([0, 1]);
+    expect(B.inCell(g, 2, 0)).toEqual([0]);
+    expect(B.inCell(g, 5, 5)).toEqual([2, 3]);
+    expect(B.inCell(g, 9, 9)).toEqual([]);
+  });
+  test('10,000 lines index quickly and look up quickly', () => {
+    const many = [];
+    for (let i = 0; i < 10000; i++) many.push(L(i % 100, Math.floor(i / 100), (i % 100) + 1, Math.floor(i / 100)));
+    const t0 = Date.now();
+    const big = B.buildGrid(many);
+    const t1 = Date.now();
+    for (let k = 0; k < 2000; k++) B.nearest(big, (k % 100) + 0.5, Math.floor(k / 20) + 0.05, 0.3);
+    const t2 = Date.now();
+    expect(B.nearest(big, 50.5, 20.05, 0.3).i).toBe(2050);
+    expect(t1 - t0).toBeLessThan(500);
+    expect(t2 - t1).toBeLessThan(200);
+  });
+});
+
+test('inCell finds a line that only runs along the cell\'s edge', () => {
+  const g = B.buildGrid([L(6, 5, 7, 5), L(3, 3, 3, 8)]);
+  expect(B.inCell(g, 6, 4)).toEqual([0]);   // the bottom edge of the cell above
+  expect(B.inCell(g, 6, 5)).toEqual([0]);   // and the top edge of the one below
+  expect(B.inCell(g, 2, 5)).toEqual([1]);   // the right edge of (2,5), the left edge of (3,5)
+  expect(B.inCell(g, 4, 5)).toEqual([]);
+});
+
+test('inCell ignores a line that only meets the cell at a corner', () => {
+  const g = B.buildGrid([L(4, 4, 6, 4), L(7, 3, 8, 2)]);
+  expect(B.inCell(g, 6, 4)).toEqual([]);   // the first line ends at (6,4), the corner of cell (6,4)
+  expect(B.inCell(g, 5, 3)).toEqual([0]);
+});
+
+describe('remapDone', () => {
+  test('a mark follows its line when the line is recoloured, and nothing else moves', () => {
+    const oldLines = [L(0, 0, 1, 0, { colorId: '310' }), L(1, 0, 2, 0, { colorId: '310' }), L(2, 0, 3, 0, { colorId: '666' })];
+    const newLines = [Object.assign({}, oldLines[0], { colorId: '312' }), oldLines[1], oldLines[2]];
+    const done = oldLines.map(B.key);
+    const out = B.remapDone(done, oldLines, newLines);
+    expect(out).toEqual([B.key(newLines[0]), done[1], done[2]]);
+    expect(B.live(out, newLines)).toHaveLength(3);
+    expect(B.remapDone(out, newLines, oldLines)).toEqual(done);   // and back, as undo does
+  });
+  test('no change, no done keys, or no lines hands the list back untouched', () => {
+    const lines = [L(0, 0, 1, 0, { colorId: '310' })];
+    const d = [B.key(lines[0])];
+    expect(B.remapDone(d, lines, lines)).toBe(d);
+    expect(B.remapDone([], lines, lines)).toEqual([]);
+    expect(B.remapDone(undefined, lines, lines)).toBeUndefined();
+  });
+});

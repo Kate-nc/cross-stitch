@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.139';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.140',
+    date: 'October 2026',
+    notes: [
+      'Backstitch lines can be marked as done. In Mark mode, tap or click a line, or press and drag along a run of lines (one undo step), and it turns from dashed and faint to solid. With a finger, a magnifier shows the cells around your fingertip. With the keyboard, press B at the guide to choose a line and Enter to mark it. Where the stitch under your finger is nearer than the line, the press still marks the stitch.',
+      'The colours drawer counts backstitch per colour (for example 3/8 lines) and gives each colour a Lines button that marks or unmarks all of its lines. Progress info and the strip show Backstitch as its own row, in lines; it is not part of the percentage. A colour used only for backstitch now appears in the drawer.'
+    ]
+  },
+  {
     version: '1.0.139',
     date: 'October 2026',
     notes: [

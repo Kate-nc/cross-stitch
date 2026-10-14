@@ -153,6 +153,9 @@ window.useEditHistory = function useEditHistory(state) {
     var redoBsLines = null;
     if (last.bsLines) {
       redoBsLines = bsLines.slice();
+      // The Tracker's backstitch marks follow the lines' colours through this undo / redo.
+      var _tfb = state.trackerFieldsRef && state.trackerFieldsRef.current;
+      if (_tfb && window.Backstitch && Array.isArray(_tfb.bsDone) && _tfb.bsDone.length) _tfb.bsDone = window.Backstitch.remapDone(_tfb.bsDone, bsLines, last.bsLines);
       state.setBsLines(last.bsLines);
     }
 
@@ -282,6 +285,9 @@ window.useEditHistory = function useEditHistory(state) {
     var undoBsLines = null;
     if (last.bsLines) {
       undoBsLines = bsLines.slice();
+      // The Tracker's backstitch marks follow the lines' colours through this undo / redo.
+      var _tfb = state.trackerFieldsRef && state.trackerFieldsRef.current;
+      if (_tfb && window.Backstitch && Array.isArray(_tfb.bsDone) && _tfb.bsDone.length) _tfb.bsDone = window.Backstitch.remapDone(_tfb.bsDone, bsLines, last.bsLines);
       state.setBsLines(last.bsLines);
     }
 

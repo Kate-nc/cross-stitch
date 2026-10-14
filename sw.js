@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v66';
+var CACHE_NAME = 'cross-stitch-cache-v67';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -36,6 +36,7 @@ var PRECACHE_URLS = [
   './knots.js',
   './backstitch.js',
   './fractional.js',
+  './creator/Loupe.js',
   './tracking-merge.js',
   './icons.js',
   './import-formats.js',

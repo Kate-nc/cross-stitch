@@ -87,3 +87,28 @@ Nothing in the draw or mark path changed in this batch. The additions on the mar
 | heap after GC (MB) | 19.39 | 19.39 | 0.0% |
 
 The sign changes across rows and the sandbox's own run-to-run noise is up to 8% (A/A runs in Phase 5), so this reads as "not distinguishable", not as a regression or a gain. The pan figure is the one nominally above 5%; rounds ranged 21.8 to 26.7 on `main` alone.
+
+## Batch 3: backstitch marking
+
+### What was built
+- **Spatial index** (`Backstitch.buildGrid`, one-cell buckets, built once per pattern, in a `useMemo`): each line is put in every bucket it passes through; `nearest()` reads the point's bucket and its eight neighbours; `inCell()` lists the lines that run along a cell. 10,000 lines index in well under 100 ms (unit test bound 500 ms).
+- **Mouse and touch.** A press within 14 px (mouse) or 20 px (finger) of a line, scaled by the zoom and never more than half a cell, marks it. Where the cell under the press has a stitch of its own, the line has to be nearer than the cell's centre, so tapping a stitch still marks the stitch (a diagonal line passes through the centre, so near it the stitch wins). A press and drag marks every line the pointer passes with the intent of the first (mark or unmark), as one undo step. Colour lock only offers lines of that colour; the Backstitch layer switch and work areas are honoured.
+- **Touch loupe.** The Creator's loupe (`creator/Loupe.js`, now loaded by `stitch.html` and precached) shows the cells around the fingertip while a finger is down on a line or dragging along lines. It is shown for backstitch presses only.
+- **Keyboard.** `B` chooses a line that touches the guide's cell (again for the next, once more clears it); `Enter` marks or unmarks it; an arrow key moves the guide and clears the choice. Registered as `tracker.bs.select` and listed in the help's shortcut table.
+- **Done look.** Done lines are solid; lines still to stitch are dashed and fainter (at the smallest zoom only the fainter look is left), so the two differ in more than colour. The keyboard's chosen line gets a halo.
+- **Counts.** The colour legend reads `3/8 lines` per colour; each colour with lines has a `Lines` button that marks or unmarks all of its lines (one undo step; honours the work area); a colour used only for backstitch now has a legend entry (it never reads `0/0` and is judged by its lines). Progress info has a `Backstitch  3/8 lines` row; the strip's breakdown ends `3/8 backstitch lines`. None of it is in the percentage.
+- **Recolouring in the Creator.** A colour replace (and its undo and redo) moves the done marks of its lines to the lines' new keys (`Backstitch.remapDone`), so changing a thread does not lose what was stitched.
+
+### Worked example (browser, `harness/p6b3.js`, `p6b3loupe.js`)
+8 lines of 310: three taps read `3/8 lines` in the legend and `Backstitch 3/8` in the strip; undo `2/8`, redo `3/8`. Tapping the centre of a stitch under the line marks the stitch. A drag along lines 4 to 8 marks 5 lines (`8/8`) and one undo takes exactly those 5 back (`3/8`). The legend button marks all (`8/8`) and unmarks all (`0/8`). Keyboard: guide on the cell, `B` then `Enter` marks one line, Ctrl+Z unmarks it. After an autosave the project holds `bsDone` and a reload shows the same counts. A finger held on a line shows the loupe (its centre crosshair over the line), lifting marks the line and removes the loupe. No page errors.
+
+### Performance (`harness/p6bsbench.js`)
+300x300 with 20% done, N random backstitch lines (one contiguous run of 60 to tap and drag), desktop, medians of interleaved rounds (3 rounds x 2 browsers), `main` against the branch:
+
+| Lines | zoom step | pan step |
+|---|---|---|
+| 5,000 | -0.2% (31.9 to 31.8 ms) | -1.3% |
+| 10,000 | +1.5% | -5.8% |
+| none (plain chart) | -5.5% | +5.0% |
+
+Marking on the branch (3 browsers): a single tap costs 15.0 ms of task time at 5,000 lines and 15.3 ms at 10,000 (a stitch tap on the plain chart is about 27 ms); a 60-step drag along the run costs 277 ms at 5,000 and 275 ms at 10,000 (about 4.6 ms a step, against about 700 ms for a 60-cell stitch drag). Run-to-run noise in this sandbox is up to 8%, so the deltas are "not distinguishable". An earlier first-pass measurement showed the 5,000-line zoom at +7.9%; after the painter was changed to walk the lines once (rather than twice) a second, separate run read -0.2%.
