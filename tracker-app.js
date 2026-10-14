@@ -1718,7 +1718,7 @@ const hasTouchRef=useRef(typeof window!=="undefined"&&"ontouchstart" in window);
 // the compatibility mousedown that follows a fired hold is ignored.
 const lastPointerTypeRef=useRef("mouse");
 // When the latest secondary press (right button, or Ctrl+click on a Mac)
-// hit the canvas. Only a contextmenu right after one parks: the menu can
+// hit the canvas. Only a contextmenu right after one acts on a stitch: the menu can
 // also come from the keyboard (Menu key, Shift+F10), with no cell meant.
 const lastSecondaryPressRef=useRef(0);
 // Screen-reader announcement of the guide as the arrow keys move it.
@@ -6252,7 +6252,7 @@ function halfStitchMatchesFocus(idx, dir) {
 // The thread parked on a stitch is that stitch's colour, so the marker takes
 // its colour from the stitch and there is nothing to pick first (Pattern
 // Keeper and Markup R-XP work the same way). Parking a stitch that already
-// holds its marker removes it. Reached by right-click (desktop, any mode) or
+// holds its marker removes it. Reached by Shift + right-click (desktop, Mark or Navigate) or
 // press-and-hold in Navigate mode (touch). Returns true if anything changed.
 function toggleParkAt(gx,gy){
   if(!pat||!cmap||gx<0||gx>=sW||gy<0||gy>=sH)return false;
@@ -6317,24 +6317,29 @@ function applyParkEntry(entry,forward){
   setParkMarkers(next);
 }
 
-// Desktop: right-click a stitch to park / unpark it, in Mark or Navigate
-// mode. A touch long-press also raises contextmenu; in Mark mode that
-// gesture belongs to useDragMark's rectangle select, and in Navigate mode
-// the press-and-hold recogniser below does the parking, so for touch we
-// only keep the browser's own menu out of the way.
+// Desktop secondary clicks select a colour; Shift parks / unparks instead.
+// Touch context menus still belong to the long-press recognisers.
+function selectTrackerColour(id){
+  setStitchView("highlight");setFocusColour(id);
+  if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);
+}
 function handleStitchContextMenu(e){
-  if(dragMarkHandlers.onContextMenu)dragMarkHandlers.onContextMenu(e);
-  if(e.defaultPrevented||isEditMode||!pat)return;
+  if(isEditMode||!pat)return;
   if(lastPointerTypeRef.current!=="mouse"){
+    if(dragMarkHandlers.onContextMenu)dragMarkHandlers.onContextMenu(e);
     if(stitchMode==="navigate")e.preventDefault();
     return;
   }
+  if(e.defaultPrevented)return;
   if(Date.now()-lastSecondaryPressRef.current>1000)return;
   const gc=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);
   // Off the chart (the gutter): leave the browser menu alone.
   if(!gc||gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return;
   e.preventDefault();
-  toggleParkAt(gc.gx,gc.gy);
+  const cell=pat[gc.gy*sW+gc.gx];
+  if(!cell||cell.id==="__skip__"||cell.id==="__empty__"||!cmap||!cmap[cell.id])return;
+  if(e.shiftKey)toggleParkAt(gc.gx,gc.gy);
+  else selectTrackerColour(cell.id);
 }
 
 function handleStitchKeyDown(e){
@@ -6414,6 +6419,7 @@ function handleStitchKeyDown(e){
     if(now!==was)kbAnchorRef.current={idx:idx,intent:now?'mark':'unmark'};   // a colour lock can refuse the mark
     return;
   }
+  if(isEditMode||!pat)return;
   if(e.key!=="ContextMenu"&&!(e.shiftKey&&e.key==="F10"))return;
   const guide=guideRef.current;
   if(!guide||guide.row<0||guide.row>=sH||guide.col<0||guide.col>=sW)return;
@@ -6460,14 +6466,14 @@ function clearNavHold(){
   const h=navHoldRef.current;
   if(h){clearTimeout(h.timer);navHoldRef.current=null;}
 }
-// Ctrl+click is the Mac secondary click: it parks (via contextmenu) and must
+// Ctrl+click is the Mac secondary click: it selects (via contextmenu) and must
 // not also mark the stitch or move the guide.
 function isMacSecondaryClick(e){
   return e.button===0&&e.ctrlKey&&!!(window.Shortcuts&&window.Shortcuts.isMac&&window.Shortcuts.isMac());
 }
 function handleCanvasPointerDownCapture(e){
   lastPointerTypeRef.current=e.pointerType||"mouse";
-  if(e.button===2||isMacSecondaryClick(e))lastSecondaryPressRef.current=Date.now();
+  lastSecondaryPressRef.current=(e.button===2||isMacSecondaryClick(e))?Date.now():0;
   clearNavHold();
   if(stitchMode!=="navigate"||isEditMode||!pat)return;
   if(!e.pointerType||e.pointerType==="mouse"||e.isPrimary===false)return;
@@ -6490,7 +6496,7 @@ function handleCanvasPointerMoveCapture(e){
   const slop=(window.TouchConstants&&window.TouchConstants.TAP_SLOP_PX)||10;
   if(Math.abs(e.clientX-h.x)>slop||Math.abs(e.clientY-h.y)>slop)clearNavHold();
 }
-useEffect(()=>clearNavHold,[]);
+useEffect(()=>clearNavHold,[stitchMode,isEditMode,pat]);
 
 // Navigate-mode press (mouse, or the compatibility mousedown after a touch
 // tap). Tracked on window so a drag keeps panning when the pointer leaves
@@ -6536,12 +6542,11 @@ function toggleGuideAt(gx,gy){
 // A pointer press hands the guide back from the keyboard (kbGuideRef): Space pans again and Enter does not mark under a stale guide.
 function handleStitchMouseDown(e){
   if(!stitchRef.current||!pat)return;
+  // Secondary clicks must not mark, move the guide or start a Space-pan.
+  if(e.button===2||isMacSecondaryClick(e))return;
   kbGuideRef.current=false;kbAnchorRef.current=null;
   stopPanMomentum();
   if(e.button===1||isSpaceDownRef.current){e.preventDefault();startPan(e);return;}
-  // Right-click parks (handleStitchContextMenu). Without this a right-click
-  // also moved the guide in Navigate mode and toggled half stitches in Mark.
-  if(e.button===2||isMacSecondaryClick(e))return;
   // Alt+click: relocate the spotlight focus block to the clicked cell's block.
   // Works in both Mark and Navigate modes; bypasses edit-mode cell editor too.
   // No-op when spotlight is off or the stitching style has no spatial blocks.
@@ -6577,7 +6582,7 @@ function handleStitchMouseDown(e){
   if(stitchMode==="navigate"){
     // Navigate mode is a hand tool: press and drag pans the chart; a press
     // released without moving places the guide crosshair, or clears it if
-    // it is already on that cell. Parking is right-click or press-and-hold
+    // it is already on that cell. Parking is Shift + right-click or press-and-hold
     // (toggleParkAt).
     if(Date.now()<suppressNavClickUntilRef.current)return;
     e.preventDefault();
@@ -7859,6 +7864,7 @@ function toggleKnotDone(k){
 }
 const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
+    if(e.button===2||isMacSecondaryClick(e))return;
     const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
     const k=plain?knotAtPoint(e.clientX,e.clientY):null;
     const b=plain&&!k?bsHitAt(e.clientX,e.clientY,e.pointerType):null;
@@ -8424,8 +8430,8 @@ return(
             const swRgb="rgb("+p.rgb+")";
             return <div key={p.id} role="button" tabIndex={0}
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
-              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}
-              onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();if(isEditMode){setEditModalColor(p);return;}setStitchView("highlight");setFocusColour(p.id);if(typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:899px)").matches)setLeftSidebarOpen(false);}}}
+              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}
+              onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}}
               aria-label={"Select "+threadLabel(p)}
               title={threadLabel(p)+(complete?" (done)":"")}>
               <div className="ppal-tile-swatch" style={{background:swRgb}}
@@ -8519,7 +8525,8 @@ return(
           stitchView==="highlight"?["Cycle colours",isTouch?"Open the Highlight tab in the sidebar":"[ or ] keys"]:null,
           stitchView==="highlight"?["Clear focus","Tap the colour pill to show all colours"]:null,
           stitchMode==="navigate"?["Place a guide",isTouch?"Tap a cell to drop a crosshair. Tap it again to clear it":"Click a cell to drop a crosshair. Click it again, or press Esc, to clear it"]:null,
-          ["Park a thread",isTouch?"Press and hold a stitch: Nav mode parks at once; in Mark mode tap Park thread here":"Right-click a stitch. Right-click again to remove the marker"],
+          ["Select a colour",isTouch?"Tap a colour in the palette":"Right-click a stitch to select its colour and enter Highlight view (Ctrl+click on a Mac)"],
+          ["Park a thread",isTouch?"Press and hold a stitch: Nav mode parks at once; in Mark mode tap Park thread here":"Shift + right-click a stitch. Repeat to remove the marker (Shift+Ctrl+click on a Mac)"],
           ["Find a parked thread","Tap the P on its colour in the palette"],
         ].filter(Boolean).map(([label,tip],i)=>(
           <div key={i} style={{display:"contents"}}>
@@ -8547,8 +8554,8 @@ return(
           <button onClick={()=>{setBlockAdvanceToast(null);setFocusBlock(null);}} style={{fontSize:'var(--text-xs)',padding:"2px 8px",borderRadius:4,border:"none",background:"none",cursor:"pointer",color:"var(--text-tertiary)"}}>Stay</button>
         </div>
       </div>;
-      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent-ink)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
-      if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to park its thread · T for track mode"}</div>;
+      if(stitchMode==="track"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--accent-ink)",background:"var(--accent-light)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--accent-border)"}}>{hasTouchRef.current?"Tap to mark · Rest a finger, then drag, to paint · Swipe to scroll · Long-press for a rectangle · Two fingers to zoom":"Click or drag to mark/unmark cross stitches · Shift+click or long-press for rectangle fill · Right-click to highlight a colour · Shift + right-click to park · Space+drag to pan · Ctrl+scroll to zoom · Ctrl+Z undo"}{trackHistory.length>0?` · ${trackHistory.length} undo step${trackHistory.length>1?"s":""} available`:""}</div>;
+      if(stitchMode==="navigate"&&!hintsSeen) return <div className="tracker-hint" style={{fontSize:'var(--text-sm)',color:"var(--text-primary)",background:"var(--surface-tertiary)",padding:"6px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)"}}>{hasTouchRef.current?"Drag to pan · Tap to place or clear the guide · Press and hold a stitch to park its thread":"Drag to pan · Click to place or clear the guide · Right-click a stitch to highlight its colour · Shift + right-click to park its thread · T for track mode"}</div>;
       if(!shortcutsHintDismissed&&pat&&trackerLoadCount>=3&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())) return <div style={{fontSize:'var(--text-sm)',color:"var(--text-tertiary)",background:"var(--surface-secondary)",padding:"5px 14px",borderRadius:'var(--radius-md)',marginBottom:6,border:"0.5px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)'}}><span>{Icons.lightbulb()} Press <kbd>?</kbd> for keyboard shortcuts</span><button onClick={()=>{localStorage.setItem("shortcuts_hint_dismissed","1");setShortcutsHintDismissed(true);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--text-tertiary)",lineHeight:1,padding:0,display:"inline-flex",alignItems:"center"}}>{Icons.x?Icons.x():null}</button></div>;
       return null;
     })()}
@@ -8629,7 +8636,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(

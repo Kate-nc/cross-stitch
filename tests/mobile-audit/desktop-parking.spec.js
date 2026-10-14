@@ -1,7 +1,7 @@
 /* Parking and the guide crosshair on desktop.
 
    Pins down the behaviour from the parking / Navigate-mode work:
-     - right-click parks the stitch in its own colour; again removes; a done
+     - Shift + right-click parks the stitch in its own colour; again removes; a done
        stitch is refused; Ctrl+Z / Ctrl+Y undo and redo it
      - marking a parked stitch hides its marker; undo brings it back
      - the palette's P badge goes to where a thread is parked, cycling
@@ -14,6 +14,8 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
+const { installLocalCdn } = require('../e2e/local-cdn');
+test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
 
 const G = 28;
 const CANVAS = 'canvas[aria-label^="Cross stitch pattern grid"]';
@@ -23,6 +25,9 @@ function fixture() {
   const sW = 60, sH = 60, total = sW * sH;
   if (!fs.existsSync(TMP)) fs.mkdirSync(TMP, { recursive: true });
   const pattern = Array.from({ length: total }, () => ({ id: '310', type: 'solid', rgb: [0, 0, 0], symbol: 'A' }));
+  pattern[6 * sW + 6] = { id: '606', type: 'solid', rgb: [250, 50, 3], symbol: 'B' };
+  pattern[6 * sW + 7] = { id: '__skip__' };
+  pattern[6 * sW + 8] = { id: '__empty__' };
   const done = Array(total).fill(0);
   done[3 * sW + 20] = 1; // (20,3) already stitched
   const file = path.join(TMP, 'desktop-parking.json');
@@ -75,14 +80,16 @@ const setScroll = (page, left, top) => page.evaluate(({ left, top }) => {
 }, { left, top });
 async function click(page, gx, gy, opts) {
   const p = await cellPoint(page, gx, gy);
+  if (opts && opts.modifiers) for (const key of opts.modifiers) await page.keyboard.down(key);
   await page.mouse.click(p.x, p.y, opts);
+  if (opts && opts.modifiers) for (const key of opts.modifiers) await page.keyboard.up(key);
   await page.waitForTimeout(250);
 }
 const navMode = async page => { await page.locator('button[title="Navigate (N)"]').click(); await page.waitForTimeout(300); };
 
-test('right-click parks, removes and undoes; a done stitch is refused', async ({ page }) => {
+test('Shift + right-click parks, removes and undoes; a done stitch is refused', async ({ page }) => {
   await openTracker(page);
-  await click(page, 5, 5, { button: 'right' });
+  await click(page, 5, 5, { button: 'right', modifiers: ['Shift'] });
   expect(await hasMarker(page, 5, 5)).toBe(true);
   expect(await doneCount(page), 'right-click must not mark').toBe(1);
 
@@ -92,20 +99,22 @@ test('right-click parks, removes and undoes; a done stitch is refused', async ({
   await page.keyboard.press('Control+y'); await page.waitForTimeout(300);
   expect(await hasMarker(page, 5, 5), 'redo puts it back').toBe(true);
 
-  await click(page, 5, 5, { button: 'right' });
-  expect(await hasMarker(page, 5, 5), 'right-click again removes it').toBe(false);
+  await click(page, 5, 5, { button: 'right', modifiers: ['Shift'] });
+  expect(await hasMarker(page, 5, 5), 'Shift + right-click again removes it').toBe(false);
 
-  await click(page, 20, 3, { button: 'right' });
+  await click(page, 20, 3, { button: 'right', modifiers: ['Shift'] });
   await expect(page.getByText('That stitch is already done')).toBeVisible();
-  expect(await hasMarker(page, 20, 3)).toBe(false);
+  await expect(page.locator('.ppal-tile-park-btn')).toHaveCount(0);
 });
 
 test('marking a parked stitch hides its marker; undo brings it back', async ({ page }) => {
   await openTracker(page);
-  await click(page, 7, 7, { button: 'right' });
+  await click(page, 7, 7, { button: 'right', modifiers: ['Shift'] });
   expect(await hasMarker(page, 7, 7)).toBe(true);
   await click(page, 7, 7);
-  expect(await hasMarker(page, 7, 7), 'a marker on a done stitch is spent').toBe(false);
+  expect(await doneCount(page)).toBe(2);
+  // A done stitch is black too: use the live parking badge rather than a dark pixel.
+  await expect(page.locator('.ppal-tile-park-btn')).toHaveCount(0);
   await page.mouse.move(2, 2);
   await page.keyboard.press('Control+z'); await page.waitForTimeout(300);
   expect(await hasMarker(page, 7, 7), 'undoing the mark shows it again').toBe(true);
@@ -113,9 +122,9 @@ test('marking a parked stitch hides its marker; undo brings it back', async ({ p
 
 test('the palette P badge goes to where the thread is parked, cycling', async ({ page }) => {
   await openTracker(page);
-  await click(page, 4, 4, { button: 'right' });
+  await click(page, 4, 4, { button: 'right', modifiers: ['Shift'] });
   await setScroll(page, 0, 900); await page.waitForTimeout(600);
-  await click(page, 12, 50, { button: 'right' });
+  await click(page, 12, 50, { button: 'right', modifiers: ['Shift'] });
   await setScroll(page, 0, 0); await page.waitForTimeout(600);
 
   const badge = page.locator('.ppal-tile-park-btn').first();
@@ -189,7 +198,7 @@ test('partial repaints draw what a full repaint would', async ({ page }) => {
   await click(page, 14, 10);                    // guide through the marked cells below
   await page.locator('button[title="Mark stitches (T)"]').click(); await page.waitForTimeout(300);
   for (const [x, y] of [[14, 4], [13, 10], [14, 10], [20, 10], [5, 9], [30, 10]]) await click(page, x, y);
-  await click(page, 22, 6, { button: 'right' });
+  await click(page, 22, 6, { button: 'right', modifiers: ['Shift'] });
   await page.mouse.move(2, 2);
 
   await page.evaluate(CANVAS => {
@@ -232,4 +241,64 @@ test('Esc closes the colour palette on a narrow window', async ({ page }) => {
   await page.mouse.move(2, 2);
   await page.keyboard.press('Escape');
   await expect(backdrop).toHaveCount(0);
+});
+
+
+test('right-click selects colour in Mark and Navigate; zoom, pan and background clicks', async ({ page }) => {
+  await openTracker(page);
+  await click(page, 6, 6, { button: 'right' });
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /606/);
+  expect(await doneCount(page)).toBe(1);
+  await click(page, 7, 6, { button: 'right' });
+  await click(page, 8, 6, { button: 'right' });
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /606/);
+  await navMode(page);
+  await click(page, 20, 3, { button: 'right' }); // done stitches can still select
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /310/);
+  await page.keyboard.press('+'); await page.waitForTimeout(400);
+  await setScroll(page, 70, 80); await page.waitForTimeout(600);
+  await click(page, 6, 6, { button: 'right' });
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /606/);
+  await expect(page.locator('.ppal-tile-park-btn')).toHaveCount(0);
+  expect(await doneCount(page)).toBe(1);
+});
+
+test('secondary clicks with Space held do not pan or mark; Mac Ctrl-click selects', async ({ page }) => {
+  await openTracker(page);
+  const p = await cellPoint(page, 6, 6), before = await scroll(page);
+  await page.keyboard.down('Space');
+  await page.mouse.move(p.x, p.y); await page.mouse.down({ button: 'right' });
+  await page.mouse.move(p.x - 40, p.y - 30, { steps: 4 });
+  await page.mouse.up({ button: 'right' }); await page.keyboard.up('Space');
+  expect(await scroll(page)).toEqual(before);
+  expect(await doneCount(page)).toBe(1);
+  await page.evaluate(() => { window.Shortcuts.isMac = () => true; });
+  await click(page, 6, 6, { modifiers: ['Control'] });
+  // Chromium on Linux does not emit the OS contextmenu for Mac Ctrl-click,
+  // so dispatch it after the real pointer/mouse press has exercised the guards.
+  await page.locator(CANVAS).dispatchEvent('contextmenu', {clientX:p.x,clientY:p.y,button:0,ctrlKey:true});
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /606/);
+  expect(await doneCount(page)).toBe(1);
+});
+
+
+test('colour selection leaves primary drag marking and mode switching usable', async ({ page }) => {
+  await openTracker(page);
+  await click(page, 6, 6, { button: 'right' });
+  const a = await cellPoint(page, 4, 8), b = await cellPoint(page, 8, 8);
+  await page.mouse.move(a.x,a.y); await page.mouse.down();
+  await page.mouse.move(b.x,b.y,{steps:12}); await page.mouse.up();
+  expect(await doneCount(page), 'Highlight only marks the selected colour').toBe(1);
+  await click(page, 5, 5, {button:'right'});
+  await page.mouse.move(a.x,a.y); await page.mouse.down();
+  await page.mouse.move(b.x,b.y,{steps:12}); await page.mouse.up();
+  await expect.poll(() => doneCount(page)).toBeGreaterThan(1);
+  const done = await doneCount(page);
+  await navMode(page);
+  await click(page, 5, 5, {button:'right'});
+  await expect(page.locator('.ppal-tile--on')).toHaveAttribute('aria-label', /310/);
+  expect(await doneCount(page)).toBe(done);
+  await page.locator('button[title="Mark stitches (T)"]').click();
+  await click(page, 10, 8);
+  await expect.poll(() => doneCount(page)).toBe(done + 1);
 });

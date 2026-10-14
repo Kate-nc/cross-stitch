@@ -63,7 +63,7 @@ Press **V** to cycle between **Symbol**, **Colour + Symbol** and **Highlight**, 
 
 ### Highlight view
 
-Focuses on one colour at a time. Step through colours with `[` and `]` (or the left and right arrow keys), or tap a colour in the palette, then choose how it's shown with `1`–`4` or **More controls > Highlight**:
+Focuses on one colour at a time. Step through colours with `[` and `]` (or the left and right arrow keys), or tap a colour in the palette. In Mark or Navigate mode, right-click a chart stitch (Ctrl+click on a Mac) to select its colour and enter Highlight view, even if already done. Empty/background cells are ignored. Then choose how it's shown with `1`–`4` or **More controls > Highlight**:
 
 | Mode | Effect |
 |----------|--------|
@@ -104,7 +104,9 @@ If you stitch one section at a time, Section spotlight focuses on one block (10�
 
 Mark where a thread is parked so you can pick it up again.
 
-**Park a thread:** right-click the stitch (in Mark or Navigate mode; Ctrl+click on a Mac). On a touch screen, press and hold the stitch: in **Navigate mode** that parks straight away; in **Mark mode** it starts a rectangle, and the bar that appears has a **Park thread here** button. A small triangle in the stitch's colour, outlined so it shows on any background, appears in its corner. It stays visible through Spotlight and work-area dimming, since threads are usually parked ahead of where you're stitching.
+**Park a thread:** Shift + right-click the stitch (in Mark or Navigate mode; Shift+Ctrl+click on a Mac). On a touch screen, press and hold the stitch: in **Navigate mode** that parks straight away; in **Mark mode** it starts a rectangle, and the bar that appears has a **Park thread here** button. A small triangle in the stitch's colour, outlined so it shows on any background, appears in its corner. It stays visible through Spotlight and work-area dimming, since threads are usually parked ahead of where you're stitching.
+
+**Keyboard parking:** with the chart focused, move the guide with the arrow keys and press **Menu** or **Shift+F10**.
 
 **Remove a marker:** do the same again. You rarely need to: marking the parked stitch done clears its marker (undo brings it back).
 
