@@ -987,7 +987,8 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
 }
 
 // ═══ Visual Progress: Before/After comparison ═══
-function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
+function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH, canEdit}){
+  var editable=canEdit!==false&&typeof setDoneSnapshots==='function';
   var selSt=React.useState(null);var selectedId=selSt[0],setSelectedId=selSt[1];
   var diffSt=React.useState(false);var showDiff=diffSt[0],setShowDiff=diffSt[1];
   var labelSt=React.useState('');var labelText=labelSt[0],setLabelText=labelSt[1];
@@ -996,6 +997,24 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   var diffCanvasRef=React.useRef(null);
 
   var snap=selectedId?(doneSnapshots||[]).find(function(s){return s.id===selectedId;}):null;
+
+  React.useEffect(function(){
+    if(selectedId&&!snap)setSelectedId(null);
+  },[selectedId,snap]);
+
+  function deleteSnapshot(){
+    if(!editable||!snap)return;
+    if(!window.confirm('Delete this snapshot? This cannot be undone.'))return;
+    var id=snap.id;
+    setDoneSnapshots(function(prev){return prev.filter(function(s){return s.id!==id;});});
+    setSelectedId(null);
+  }
+  function deleteAutomaticSnapshots(){
+    if(!editable||!(doneSnapshots||[]).some(function(s){return s.label==='auto'&&s.kind!=='manual';}))return;
+    if(!window.confirm('Delete all automatic snapshots? Manual and Before pattern change snapshots will be kept. This cannot be undone.'))return;
+    setDoneSnapshots(function(prev){return prev.filter(function(s){return s.label!=='auto'||s.kind==='manual';});});
+    if(snap&&snap.label==='auto'&&snap.kind!=='manual')setSelectedId(null);
+  }
 
   function uint8ToBase64(bytes){
     var CHUNK=0x8000,out='';
@@ -1012,7 +1031,7 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   }
 
   function snapLabel(s){
-    if(s.label!=='auto')return s.label;
+    if(s.label!=='auto'||s.kind==='manual')return s.label;
     var today=new Date().toISOString().slice(0,10);
     var days=Math.round((new Date(today)-new Date(s.date))/86400000);
     if(days===0)return'Today ('+s.date+')';
@@ -1030,6 +1049,9 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
 
   React.useEffect(function(){
     if(!pat)return;
+    [leftCanvasRef.current,diffCanvasRef.current].forEach(function(canvas){
+      if(canvas){var ctx=canvas.getContext('2d');if(ctx)ctx.clearRect(0,0,canvas.width,canvas.height);}
+    });
     var snapDone=snap?decompressSnap(snap.data):null;
     // A snapshot from before the pattern changed size cannot be drawn on today's grid.
     if(snapDone&&snapSizeDiffers(snap,snapDone,pat,sW,sH))return;
@@ -1046,17 +1068,17 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
   }
 
   function saveManualSnapshot(){
-    if(!done||!pat)return;
+    if(!editable||!done||!pat)return;
     var l=labelText.trim()||'Snapshot';
     try{
       var data=uint8ToBase64(pako.deflate(done));
       var today=new Date().toISOString().slice(0,10);
       var doneCount=0;for(var i=0;i<done.length;i++)if(done[i])doneCount++;
-      var newSnap={id:'snap_'+Date.now(),date:today,label:l,doneCount:doneCount,w:sW,h:sH,data:data};
+      var newSnap={id:'snap_'+Date.now(),date:today,label:l,kind:'manual',doneCount:doneCount,w:sW,h:sH,data:data};
       setDoneSnapshots(function(prev){
         var updated=[...prev,newSnap];
-        var labelled=updated.filter(function(s){return s.label!=='auto';});
-        var autos=updated.filter(function(s){return s.label==='auto';}).slice(-60);
+        var labelled=updated.filter(function(s){return s.label!=='auto'||s.kind==='manual';});
+        var autos=updated.filter(function(s){return s.label==='auto'&&s.kind!=='manual';}).slice(-60);
         return[...labelled,...autos];
       });
       setLabelText('');
@@ -1111,10 +1133,15 @@ function ComparisonView({doneSnapshots, setDoneSnapshots, done, pat, sW, sH}){
       )
     ),
     React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap',alignItems:'center'}},
-      React.createElement("input",{"aria-label":"Snapshot label",type:'text',value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}),
-      React.createElement("button",{type:"button",onClick:saveManualSnapshot,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent-hover)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
+      React.createElement("input",{"aria-label":"Snapshot label",type:'text',disabled:!editable,value:labelText,onChange:function(e){setLabelText(e.target.value);},placeholder:'Snapshot label (optional)',style:{flex:1,minWidth:120,fontSize:'var(--text-sm)',padding:'4px 8px',borderRadius:'var(--radius-sm)',border:'1px solid var(--border)'}}),
+      React.createElement("button",{type:"button",onClick:saveManualSnapshot,disabled:!editable||!done||!pat,style:{fontSize:'var(--text-sm)',padding:'4px 12px',borderRadius:'var(--radius-sm)',border:'1px solid var(--accent-border)',background:'var(--surface-secondary)',cursor:'pointer',color:'var(--accent-hover)',fontWeight:600,flexShrink:0,display:'flex',alignItems:'center',gap:'6px'}}, Icons.camera(), "Save snapshot")
     ),
-    (doneSnapshots&&doneSnapshots.length===0)&&React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',margin:'8px 0 0'}},"No snapshots yet. Snapshots are saved automatically each stitching day, or tap \u201cSave snapshot\u201d to create one now.")
+    React.createElement("div",{style:{marginTop:'var(--s-3)',display:'flex',gap:6,flexWrap:'wrap'}},
+      React.createElement("button",{type:"button",className:"stats-export-btn",disabled:!editable||!snap,onClick:deleteSnapshot},"Delete snapshot"),
+      React.createElement("button",{type:"button",className:"stats-export-btn",disabled:!editable||!(doneSnapshots||[]).some(function(s){return s.label==='auto'&&s.kind!=='manual';}),onClick:deleteAutomaticSnapshots},"Delete all automatic snapshots")
+    ),
+    React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)'}},"Automatic daily Compare snapshots are off by default. Enable them in Preferences > Stitch Tracker. Manual and Before pattern change snapshots are kept when deleting all automatic snapshots."),
+    (!(doneSnapshots||[]).length)&&React.createElement("p",{style:{fontSize:'var(--text-sm)',color:'var(--text-tertiary)',margin:'8px 0 0'}},editable?"No snapshots yet. Save a snapshot to compare your progress later, or enable automatic daily Compare snapshots in Preferences > Stitch Tracker.":"No snapshots yet. Open this project in the Tracker to save snapshots or manage its history.")
   );
 }
 
@@ -1522,7 +1549,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {className:"bento-cell bento-cell--xl"},
       React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit})),
     React.createElement("div", {className:"bento-cell bento-cell--md"}, React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})),
-    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH}))
+    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH, canEdit:canEdit}))
     ) :
     React.createElement("div", {className:"bento"},
     React.createElement("div", {className:"bento-cell bento-cell--lg"},

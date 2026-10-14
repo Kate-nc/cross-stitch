@@ -110,6 +110,12 @@ See [wiki/Cross-Device-Sync.md](wiki/Cross-Device-Sync.md).
 
 ---
 
+## Compare snapshot controls
+
+In a project's Stats > Compare, use **Save snapshot** to keep progress for a later comparison. **Automatic daily Compare snapshots** is a persistent global setting in File > Preferences > Stitch Tracker, off by default for both new and existing users. Enabling starts from the current stitching day without filling missed days; the first mark of a later stitching day saves a snapshot, keeping up to 60 automatic snapshots. Disabling also prevents queued automatic work from saving snapshots.
+
+Select a snapshot and choose **Delete snapshot**, or choose **Delete all automatic snapshots** to remove only automatic history. Both ask for confirmation. Bulk deletion keeps manual snapshots and **Before pattern change** recovery snapshots. Read-only project views disable saving and deletion. Deletions persist with project saves, reloads, backups and Sync. Autosave and session recording continue independently.
+
 ## Stats & Insights
 
 A Stats page (Stats in the top bar) aggregates data across all projects and the stash, in Stitching, Stash, Showcase, Activity and Insights tabs.

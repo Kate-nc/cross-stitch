@@ -54,7 +54,7 @@ describe('Stats > Compare with a snapshot from before a size change', () => {
 
 describe('review round 1', () => {
   test('the deferred snapshot is dropped if another project was opened while it waited', () => {
-    expect(TRACKER).toMatch(/forProject=projectIdRef\.current;[\s\S]{0,200}if\(projectIdRef\.current!==forProject\)return;/);
+    expect(TRACKER).toMatch(/forProject=projectIdRef\.current;[\s\S]{0,300}if\(projectIdRef\.current!==forProject\)return;/);
   });
   test('the last stitching day is restored on load from the newest session, then lastTouchedAt, then updatedAt, not reset to nothing', () => {
     expect(TRACKER).toMatch(/if\(s&&s\.date&&\(!lastDay\|\|s\.date>lastDay\)\)lastDay=s\.date;/);
