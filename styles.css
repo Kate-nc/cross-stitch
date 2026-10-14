@@ -2893,6 +2893,17 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .alert-card.warn{background:var(--warning-soft);border:1px solid var(--warning);color:var(--accent-ink);}
 .alert-card.danger{background:var(--danger-soft);border:1px solid var(--danger-soft);color:var(--danger);}
 .alert-card.success{background:var(--success-soft);border:1px solid var(--success);color:var(--success);}
+/* Stash alert headings remain available when their details are tucked away. */
+.stash-alert{margin-bottom:16px;}
+.stash-alert.quiet{background:var(--surface-secondary);border:1px solid var(--border);color:var(--text-secondary);}
+.stash-alert-heading{margin:0;font-size:inherit;}
+.stash-alert-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:0;border:0;border-radius:var(--radius-sm);background:transparent;color:inherit;font:inherit;font-weight:700;text-align:left;cursor:pointer;}
+.stash-alert-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+.stash-alert-title{flex:1;min-width:0;overflow-wrap:anywhere;}
+.stash-alert-count{white-space:nowrap;}
+.stash-alert-icon,.stash-alert-chevron{display:flex;flex-shrink:0;}
+.stash-alert-body{padding-top:4px;}
+.stash-alert-body[hidden]{display:none;}
 .alert-card .at{font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:4px;}
 
 /* Manager rpanel sections (short aliases) */

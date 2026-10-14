@@ -31,6 +31,31 @@ function PartialGauge({ status }) {
   );
 }
 
+// Presentation only: stable preference keys survive empty alert sets and tab visits.
+function StashAlertPanel({ id, title, count, icon, tone = "", preferenceKey, children }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return window.UserPrefs && window.UserPrefs.get(preferenceKey) === true; }
+    catch (_) { return false; }
+  });
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try { if (window.UserPrefs) window.UserPrefs.set(preferenceKey, next); } catch (_) {}
+  };
+  return (
+    <section className={"alert-card stash-alert " + tone + (collapsed ? " is-collapsed" : "")} aria-labelledby={id + "-heading"}>
+      <h3 id={id + "-heading"} className="stash-alert-heading">
+        <button type="button" className="stash-alert-toggle" aria-expanded={!collapsed} aria-controls={id + "-body"} onClick={toggle}>
+          <span className="stash-alert-icon" aria-hidden="true">{icon}</span>
+          <span className="stash-alert-title">{title} <span className="stash-alert-count">({count})</span></span>
+          <span className="stash-alert-chevron" aria-hidden="true">{collapsed ? Icons.chevronRight() : Icons.chevronDown()}</span>
+        </button>
+      </h3>
+      <div id={id + "-body"} className="stash-alert-body" hidden={collapsed}>{children}</div>
+    </section>
+  );
+}
+
 function ManagerApp() {
   const [tab, setTab] = useState(() => {
     // Allow deep-linking from /home and the Creator's Open-Stash button
@@ -303,7 +328,8 @@ function ManagerApp() {
 
         let finalThreads = threadsData;
 
-        if (threadsData && versionData !== 2 && versionData !== 3) {
+        // Version 4 already has composite keys and per-thread minima; do not re-migrate it.
+        if (threadsData && versionData !== 2 && versionData !== 3 && versionData !== 4) {
           // Backup
           store.put(threadsData, "threads_backup_v1");
 
@@ -1115,8 +1141,7 @@ function ManagerApp() {
 
             {/* Smart Hub: Conflicts */}
             {conflicts && conflicts.length > 0 && (
-              <div className="alert-card danger">
-                <div className="at">{Icons.warning()} Thread Conflicts ({conflicts.length})</div>
+              <StashAlertPanel id="stash-conflicts" title="Thread Conflicts" count={conflicts.length} icon={Icons.warning()} tone="danger" preferenceKey="stashConflictsCollapsed">
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
@@ -1131,13 +1156,12 @@ function ManagerApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </StashAlertPanel>
             )}
 
             {/* Smart Hub: Low-Stock Alerts — needed by active projects */}
             {lowStockNeeded && lowStockNeeded.length > 0 && (
-              <div className="alert-card warn" style={{ marginBottom: 16 }}>
-                <div className="at">{Icons.box()} Low Stock — Needed ({lowStockNeeded.length})</div>
+              <StashAlertPanel id="stash-low-needed" title="Low Stock — Needed" count={lowStockNeeded.length} icon={Icons.box()} tone="warn" preferenceKey="stashLowStockNeededCollapsed">
                 <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Threads below your minimum stock level that are used by active projects.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNeeded.map(a => (
@@ -1151,13 +1175,12 @@ function ManagerApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </StashAlertPanel>
             )}
 
             {/* Smart Hub: Low-Stock — not currently needed */}
             {lowStockNotNeeded && lowStockNotNeeded.length > 0 && (
-              <div className="alert-card" style={{ marginBottom: 16, background: "#f8fafc", border: "1px solid var(--border)" }}>
-                <div className="at" style={{ color: "var(--text-tertiary)" }}>{Icons.box()} Low stash — not currently needed ({lowStockNotNeeded.length})</div>
+              <StashAlertPanel id="stash-low-unused" title="Low stash — not currently needed" count={lowStockNotNeeded.length} icon={Icons.box()} tone="quiet" preferenceKey="stashLowStockNotNeededCollapsed">
                 <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 10 }}>These threads are below minimum stock but aren't used by any active project.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflow: "auto" }}>
                   {lowStockNotNeeded.map(a => (
@@ -1169,7 +1192,7 @@ function ManagerApp() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </StashAlertPanel>
             )}
 
             <div className="thread-grid">
