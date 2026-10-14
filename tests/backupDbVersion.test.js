@@ -13,9 +13,9 @@ const pako = require('pako');
 global.structuredClone = global.structuredClone || (v => JSON.parse(JSON.stringify(v)));
 const backupSrc = fs.readFileSync('./backup-restore.js', 'utf8');
 
-function load(idb) {
-  const window = { PERF_FLAGS: {}, pako };
-  const localStorage = { getItem: () => null, setItem: () => {} };
+function load(idb, options = {}) {
+  const window = { PERF_FLAGS: {}, pako, ...options };
+  const localStorage = options.storage || { getItem: () => null, setItem: () => {} };
   const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
   const indexedDB = idb;
   const isColorOwned = () => false;
@@ -139,4 +139,30 @@ test('restore removes progress records so old marks cannot override the restored
   expect(await get(after, 'pendingImports', 'progress:proj_a')).toBeUndefined();
   expect((await get(after, 'pendingImports', 'trace:proj_a')).blob).toBe('keep me');
   expect((await get(after, 'projects', 'proj_a')).done).toEqual([1]);
+});
+
+
+test('failed pre-export flush refuses stale data and shows the recovery error without recording a backup', async () => {
+  const idb = new IDBFactory();
+  const db = await openAppDb(idb);
+  await put(db, 'projects', 'proj_a', { id: 'proj_a', pattern: [{ id: '310' }], done: [0] });
+  db.close();
+  const failure = new DOMException('quota exceeded', 'QuotaExceededError');
+  const storage = { getItem: () => 'previous-backup', setItem: jest.fn() };
+  const Toast = { show: jest.fn() };
+  const B = load(idb, { __flushProjectToIDB: async () => { throw failure; }, storage, Toast });
+  await expect(B.createBackup()).rejects.toMatchObject({ cause: failure });
+  await expect(B.downloadBackup()).rejects.toThrow('latest changes could not be included');
+  expect(storage.setItem).not.toHaveBeenCalled();
+  expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', message: expect.stringContaining('Keep this page open') }));
+});
+
+test('a flush reporting no write refuses export too', async () => {
+  const B = load(new IDBFactory(), { __flushProjectToIDB: async () => ({ ok: false, reason: 'held' }) });
+  await expect(B.createBackup()).rejects.toThrow('latest changes could not be included');
+});
+
+test('an IndexedDB read failure refuses a partial backup', async () => {
+  const B = load({ open() { throw new Error('read failed'); } });
+  await expect(B.createBackup()).rejects.toThrow('Could not read all project data');
 });

@@ -1268,9 +1268,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var p = creatorSnapshotRef.current;
       if (p) {
         return persistProjectRecord(p).then(function (saveResult) {
-          if (saveResult && saveResult.reason === 'reloaded') return null;
-          return saveProjectToDB(p);
-        }).catch(function() {});
+          if (!saveResult || saveResult.ok === false || saveResult.reason === 'reloaded') throw new Error('The current project was not saved.');
+          return saveProjectToDB(p, { strict: true });
+        });
       }
       return Promise.resolve();
     };
@@ -1281,9 +1281,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       var last = creatorSnapshotRef.current;
       window.__flushProjectToIDB = function() {
         if (last) return persistProjectRecord(last).then(function (saveResult) {
-          if (saveResult && saveResult.reason === 'reloaded') return null;
-          return saveProjectToDB(last);
-        }).catch(function() {});
+          if (!saveResult || saveResult.ok === false || saveResult.reason === 'reloaded') throw new Error('The current project was not saved.');
+          return saveProjectToDB(last, { strict: true });
+        });
         return Promise.resolve();
       };
     };
