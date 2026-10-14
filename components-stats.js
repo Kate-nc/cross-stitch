@@ -369,52 +369,6 @@ var SpeedTrendChart=React.memo(function SpeedTrendChart({sessions}){
   );
 });
 
-// ═══ Phase E: Colour Timeline ═══
-
-var ColourTimeline=React.memo(function ColourTimeline({sessions, palette, colourDoneCounts}){
-  var timeline = getColourTimeline(sessions);
-  if (!palette || palette.length === 0) return null;
-  var hasAnyData = false;
-  for (var k in timeline) { hasAnyData = true; break; }
-  var rows = [];
-  for (var i = 0; i < palette.length; i++) {
-    var p = palette[i];
-    if (p.id === '__skip__' || p.id === '__empty__') continue;
-    var tl = timeline[p.id];
-    var counts = (colourDoneCounts && colourDoneCounts[p.id]) || {total:0, done:0, halfTotal:0, halfDone:0};
-    var totalForColour = counts.total + counts.halfTotal;
-    var doneForColour = counts.done + counts.halfDone;
-    var isComplete = totalForColour > 0 && doneForColour >= totalForColour;
-    var pctDone = totalForColour > 0 ? Math.round((doneForColour / totalForColour) * 100) : 0;
-    var rgb = p.rgb || [128, 128, 128];
-    var swatchStyle = {width:14, height:14, borderRadius:3, border:'1px solid #CFC4AC', flexShrink:0,
-      background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'};
-    var nameLabel = p.name || p.id;
-    var dateInfo = tl
-      ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' – ' + formatShortDate(tl.lastDate) : '') + ' · ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
-      : '';
-    rows.push(React.createElement("div", {key:p.id, className:"colour-tl-row" + (isComplete ? ' complete' : '')},
-      React.createElement("div", {className:"colour-tl-swatch", style:swatchStyle}),
-      React.createElement("div", {className:"colour-tl-info"},
-        React.createElement("span", {className:"colour-tl-name"}, nameLabel),
-        React.createElement("span", {className:"colour-tl-dates"}, dateInfo)
-      ),
-      React.createElement("div", {className:"colour-tl-progress"},
-        React.createElement("div", {className:"colour-tl-bar"},
-          React.createElement("div", {className:"colour-tl-bar-fill", style:{width:pctDone + '%', background:'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'}})
-        ),
-        React.createElement("span", {className:"colour-tl-pct"}, isComplete ? (window.Icons ? window.Icons.check() : null) : pctDone + '%')
-      )
-    ));
-  }
-  return React.createElement("div", {className:"colour-timeline"},
-    React.createElement("h3", {className:"stats-section-title"}, "Colour Timeline"),
-    !hasAnyData
-      ? React.createElement("p", {className:"stats-empty", style:{marginTop:'var(--s-2)'}}, "Which colours you worked on is recorded as you stitch. Nothing is recorded for this project yet.")
-      : React.createElement("div", {className:"colour-tl-list"}, rows)
-  );
-});
-
 // ═══ Phase E: Monthly Calendar view ═══
 
 var MonthCalendar = React.memo(function MonthCalendar({sessions}) {
@@ -765,20 +719,42 @@ function MilestoneCelebration({milestone, onDismiss}){
   );
 }
 
+// One panel for every colour: how much is left (from the pattern) and when it was worked (from the sessions).
+var COLOUR_SORTS = [
+  {id:'remaining', label:'Most remaining'},
+  {id:'palette', label:'Palette order'},
+  {id:'recent', label:'Recently worked'},
+  {id:'oldest', label:'Longest untouched'}
+];
+var COLOUR_FILTERS = [
+  {id:'all', label:'All'},
+  {id:'progress', label:'In progress'},
+  {id:'todo', label:'Not started'},
+  {id:'done', label:'Complete'}
+];
+
 function ColourProgress({palette, colourDoneCounts, sessions}){
+    var _sort = React.useState('remaining'); var sortBy = _sort[0], setSortBy = _sort[1];
+    var _flt = React.useState('all'); var filterBy = _flt[0], setFilterBy = _flt[1];
     if (!palette || palette.length === 0) return null;
+    var timeline = getColourTimeline(sessions);
     var colourStats = [];
     var coloursComplete = 0;
     for (var i = 0; i < palette.length; i++) {
       var p = palette[i];
       if (p.id === '__skip__' || p.id === '__empty__') continue;
       var dc = (colourDoneCounts && colourDoneCounts[p.id]) || {total:0, done:0};
+      var halfTotal = dc.halfTotal || 0, halfDone = dc.halfDone || 0;
       var remaining = Math.max(0, dc.total - dc.done);
-      var pct = dc.total > 0 ? Math.round(dc.done / dc.total * 100) : 0;
-      if (remaining === 0 && dc.total > 0) coloursComplete++;
-      colourStats.push({id:p.id, brand:p.brand, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, remaining:remaining, pct:pct, total:dc.total, halfTotal:dc.halfTotal||0, halfDone:dc.halfDone||0});
+      var allTotal = dc.total + halfTotal, allDone = dc.done + halfDone;
+      // One percentage everywhere: whole and half stitches together.
+      var pct = allTotal > 0 ? Math.round(Math.min(allDone, allTotal) / allTotal * 100) : 0;
+      var complete = allTotal > 0 && allDone >= allTotal;
+      if (complete) coloursComplete++;
+      colourStats.push({id:p.id, brand:p.brand, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, order:i,
+        remaining:remaining, pct:pct, total:dc.total, halfTotal:halfTotal, halfDone:halfDone,
+        complete:complete, started:allDone > 0, tl:timeline[p.id] || null});
     }
-    colourStats.sort(function(a,b){ return b.remaining - a.remaining; });
     var avgSessionStitches = 0;
     if (sessions && sessions.length > 0) {
       var recentSess = sessions.slice(-10);
@@ -786,11 +762,33 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       avgSessionStitches = totalSt / recentSess.length;
     }
     var totalColours = colourStats.length;
-    var inProgress = colourStats.filter(function(c){ return c.remaining > 0; });
-    var mostRemaining = inProgress[0];
-    var leastRemaining = inProgress[inProgress.length - 1];
+    var unfinished = colourStats.filter(function(c){ return !c.complete && c.remaining > 0; }).sort(function(a,b){ return b.remaining - a.remaining; });
+    var mostRemaining = unfinished[0];
+    var leastRemaining = unfinished[unfinished.length - 1];
+    var hasHistory = false;
+    for (var k in timeline) { hasHistory = true; break; }
+    var shown = colourStats.filter(function(c){
+      if (filterBy === 'progress') return c.started && !c.complete;
+      if (filterBy === 'todo') return !c.started;
+      if (filterBy === 'done') return c.complete;
+      return true;
+    });
+    // Colours with no recorded sessions always sort last, whichever way the dates run.
+    var byLastDate = function(dir){ return function(a, b){
+      if (!a.tl || !b.tl) return (a.tl ? -1 : 0) - (b.tl ? -1 : 0) || a.order - b.order;
+      return dir * (a.tl.lastDate < b.tl.lastDate ? -1 : a.tl.lastDate > b.tl.lastDate ? 1 : 0) || a.order - b.order;
+    }; };
+    shown.sort(function(a, b){
+      if (sortBy === 'palette') return a.order - b.order;
+      if (sortBy === 'recent') return byLastDate(-1)(a, b);
+      if (sortBy === 'oldest') return byLastDate(1)(a, b);
+      return b.remaining - a.remaining || a.order - b.order;
+    });
+    var sortOptions = COLOUR_SORTS.filter(function(o){ return hasHistory || (o.id !== 'recent' && o.id !== 'oldest'); });
+    var activeSort = sortOptions.some(function(o){ return o.id === sortBy; }) ? sortBy : 'remaining';
+    var selStyle = {fontSize:'var(--text-xs)', padding:'2px 6px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--surface-secondary)', color:'var(--text-secondary)'};
     return React.createElement("div", {className:"colour-progress"},
-      React.createElement("h3", {className:"stats-section-title"}, "Colour Progress"),
+      React.createElement("h3", {className:"stats-section-title"}, "Colours"),
       React.createElement("div", {className:"stats-colour-summary"},
         React.createElement("span", null, coloursComplete + " / " + totalColours + " colour" + (totalColours !== 1 ? "s" : "") + " complete"),
         mostRemaining && React.createElement("span", null,
@@ -798,19 +796,43 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
         leastRemaining && leastRemaining !== mostRemaining && React.createElement("span", null,
           "Least remaining: " + threadLabel(leastRemaining) + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
       ),
+      React.createElement("div", {className:"stats-colour-controls"},
+        React.createElement("label", null, "Show ",
+          React.createElement("select", {value:filterBy, style:selStyle, "aria-label":"Show colours", onChange:function(e){ setFilterBy(e.target.value); }},
+            COLOUR_FILTERS.map(function(o){ return React.createElement("option", {key:o.id, value:o.id}, o.label); }))),
+        React.createElement("label", null, "Sort ",
+          React.createElement("select", {value:activeSort, style:selStyle, "aria-label":"Sort colours", onChange:function(e){ setSortBy(e.target.value); }},
+            sortOptions.map(function(o){ return React.createElement("option", {key:o.id, value:o.id}, o.label); })))
+      ),
+      !hasHistory ? React.createElement("p", {className:"stats-empty"}, "Which days you worked each colour is recorded as you stitch. Nothing is recorded for this project yet.") : null,
+      shown.length === 0 ? React.createElement("p", {className:"stats-empty"}, "No colours match this filter.") : null,
       React.createElement("div", {className:"stats-colour-list"},
-        colourStats.map(function(c){
+        shown.map(function(c){
           var nameStr = c.type === 'blend' && c.threads ? c.threads[0].name + '+' + c.threads[1].name : c.name;
           var rgb = c.rgb || [128,128,128];
-          return React.createElement("div", {key:c.id, className:"stats-colour-row"},
+          var halfLeft = c.halfTotal - c.halfDone;
+          var tl = c.tl;
+          var when = tl
+            ? formatShortDate(tl.firstDate) + (tl.lastDate !== tl.firstDate ? ' \u2013 ' + formatShortDate(tl.lastDate) : '') + ' \u00B7 ' + tl.sessionCount + ' session' + (tl.sessionCount !== 1 ? 's' : '')
+            : null;
+          var est = avgSessionStitches > 0 && c.remaining > 0
+            ? (function (n) { return "~" + n + (n === 1 ? " session" : " sessions") + " to go"; })(Math.ceil(c.remaining / avgSessionStitches))
+            : null;
+          var detail = [when, est].filter(Boolean).join(' \u00B7 ');
+          return React.createElement("div", {key:c.id, className:"stats-colour-row" + (c.complete ? " complete" : "")},
             React.createElement("span", {className:"colour-swatch", style:{background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'}}),
-            React.createElement("span", {className:"colour-id"}, threadLabel(c)),
-            React.createElement("span", {className:"colour-name"}, nameStr),
-            React.createElement("div", {className:"colour-bar"},
+            React.createElement("div", {className:"colour-info"},
+              React.createElement("div", {className:"colour-info-main"},
+                React.createElement("span", {className:"colour-id"}, threadLabel(c)),
+                React.createElement("span", {className:"colour-name"}, nameStr)),
+              detail ? React.createElement("span", {className:"colour-detail"}, detail) : null),
+            React.createElement("div", {className:"colour-bar", role:"img", "aria-label":c.pct + "% done"},
               React.createElement("div", {className:"colour-bar-fill", style:{width:c.pct+'%'}})
             ),
-            React.createElement("span", {className:"colour-remaining"}, c.remaining === 0 ? (c.halfTotal > 0 && c.halfDone < c.halfTotal ? c.halfTotal - c.halfDone + " half left" : "\u2713") : c.remaining.toLocaleString('en-GB') + " left" + (c.halfTotal > 0 && c.halfDone < c.halfTotal ? " + " + (c.halfTotal - c.halfDone) + " half" : "")),
-            avgSessionStitches > 0 && c.remaining > 0 ? React.createElement("span", {style:{fontSize:'var(--text-xs)',color:'var(--text-tertiary)',whiteSpace:'nowrap'}}, (function (n) { return "~" + n + (n === 1 ? " session" : " sessions"); })(Math.ceil(c.remaining / avgSessionStitches))) : null
+            React.createElement("span", {className:"colour-remaining"},
+              c.remaining === 0
+                ? (halfLeft > 0 ? halfLeft + " half left" : (window.Icons ? window.Icons.check() : null))
+                : c.remaining.toLocaleString('en-GB') + " left" + (halfLeft > 0 ? " + " + halfLeft + " half" : ""))
           );
         })
       )
@@ -1500,8 +1522,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
     React.createElement("div", {className:"bento-cell bento-cell--xl"},
       React.createElement(SectionGrid, {sections:sections||[], statsSettings:statsSettings, onUpdateSettings:onUpdateSettings, pat:pat, done:done, sW:sW, palette:palette, canEdit:canEdit})),
     React.createElement("div", {className:"bento-cell bento-cell--md"}, React.createElement(ColourProgress, {palette:palette, colourDoneCounts:colourDoneCounts, sessions:statsSessions})),
-    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH})),
-    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ColourTimeline, {sessions:statsSessions, palette:palette, colourDoneCounts:colourDoneCounts}))
+    React.createElement("div", {className:"bento-cell bento-cell--lg"}, React.createElement(ComparisonView, {doneSnapshots:doneSnapshots||[], setDoneSnapshots:setDoneSnapshots, done:done, pat:pat, sW:sW, sH:sH}))
     ) :
     React.createElement("div", {className:"bento"},
     React.createElement("div", {className:"bento-cell bento-cell--lg"},

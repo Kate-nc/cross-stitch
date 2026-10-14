@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.143';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.144',
+    date: 'October 2026',
+    notes: [
+      'Stats, Visuals: Colour progress and the Colour timeline are now one Colours panel. Each colour shows how much is left, the dates you worked it and how many sessions, with a filter (all, in progress, not started, complete) and a sort (most remaining, palette order, recently worked, longest untouched). One percentage now counts whole and half stitches together.'
+    ]
+  },
+  {
     version: '1.0.142',
     date: 'October 2026',
     notes: [

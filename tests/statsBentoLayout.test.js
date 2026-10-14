@@ -60,12 +60,19 @@ describe('project Stats: Overview and Visuals views', () => {
   test('the picture-based stats are on their own Visuals view, not folded into accordions', () => {
     expect(COMPONENTS).toContain('"Visuals"');
     expect(COMPONENTS).toContain("cs_stats_view");
-    ['colour-timeline', 'sections', 'comparison'].forEach(id => {
+    ['sections', 'comparison'].forEach(id => {
       expect(COMPONENTS).not.toContain('StatsAccordion, {id:"' + id + '"');
     });
-    ['SectionGrid', 'ComparisonView', 'ColourTimeline', 'ColourProgress'].forEach(c => {
+    ['SectionGrid', 'ComparisonView', 'ColourProgress'].forEach(c => {
       expect(COMPONENTS).toContain('React.createElement(' + c + ',');
     });
+  });
+  test('colour progress and the colour timeline are one Colours panel', () => {
+    expect(COMPONENTS).not.toContain('function ColourTimeline');
+    expect(COMPONENTS).toContain('"Colours"');
+    expect(COMPONENTS).toContain('Most remaining');
+    expect(COMPONENTS).toContain('Longest untouched');
+    expect(CSS).not.toContain('.colour-tl-');
   });
   test('the view switch is styled', () => {
     expect(CSS).toContain('.stats-viewtabs');

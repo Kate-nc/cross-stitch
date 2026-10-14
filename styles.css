@@ -1879,56 +1879,6 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
   outline-offset: 1px;
 }
 
-.colour-timeline {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-}
-
-.colour-tl-list {
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.colour-tl-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.colour-tl-row:last-child {
-  border-bottom: none;
-}
-
-.colour-tl-row.complete {
-  opacity: 0.55;
-}
-
-.colour-tl-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.colour-tl-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.colour-tl-dates {
-  font-size: 10px;
-  color: var(--text-tertiary);
-}
-
 /* ═════════════════════════════════════════════════════════
    EMBROIDERY PATTERN PLANNER
    ═════════════════════════════════════════════════════════ */
@@ -2664,35 +2614,6 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   background: var(--warning);
 }
 
-.colour-tl-progress {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  width: 100px;
-}
-
-.colour-tl-bar {
-  flex: 1;
-  height: 6px;
-  background: var(--surface-tertiary);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.colour-tl-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s;
-}
-
-.colour-tl-pct {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  min-width: 28px;
-  text-align: right;
-}
 
 /* ═══ Stats: Colour Progress ═══ */
 .colour-progress {
@@ -2723,6 +2644,18 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   padding: 4px 0;
   font-size: 12px;
 }
+.stats-colour-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.stats-colour-row.complete { opacity: 0.6; }
+.colour-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.colour-info-main { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.colour-detail { font-size: 10px; color: var(--text-tertiary); }
 .colour-swatch {
   width: 14px;
   height: 14px;
@@ -2766,13 +2699,13 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .colour-name {
   font-size: 11px;
   color: var(--text-secondary, #5C5448);
-  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .colour-bar {
-  flex: 1;
+  flex: 0 0 90px;
   height: 4px;
   background: var(--border);
   border-radius: 2px;

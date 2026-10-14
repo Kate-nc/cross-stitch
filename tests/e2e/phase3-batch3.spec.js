@@ -78,7 +78,7 @@ test('the groups that are seldom needed start closed, open from the keyboard, an
   await page.setViewportSize({ width: 393, height: 800 });
   const id = await seed(page);
   await openStats(page, id);
-  for (const t of ['Colour timeline', 'Sections', 'Comparison', 'Settings']) {
+  for (const t of ['Sections', 'Comparison', 'Settings']) {
     const d = page.locator('details.stats-accordion', { hasText: t }).first();
     await expect(d).not.toHaveAttribute('open', '');
   }
@@ -164,8 +164,7 @@ test('a project with no colour data says so once, not on every colour', async ({
     await ProjectStorage.save(p);
   });
   await openStats(page, id);
-  await page.locator('details.stats-accordion summary', { hasText: 'Colour timeline' }).click();
-  const acc = page.locator('details.stats-accordion', { hasText: 'Colour timeline' });
-  await expect(acc).toContainText('Which colours you worked on is recorded as you stitch');
+  await page.getByRole('tab', { name: 'Visuals' }).click();
+  await expect(page.locator('.colour-progress')).toContainText('Which days you worked each colour is recorded as you stitch');
   expect(await page.locator('.stats-dashboard').innerText()).not.toContain('No session data');
 });
