@@ -2163,8 +2163,9 @@ const knotDoneSet=useMemo(()=>new Set(knotsDone),[knotsDone]);
 const knotCounts=useMemo(()=>window.Knots?window.Knots.progress(knots,knotsDone):{total:0,done:0},[knots,knotsDone]);
 const knotsByThread=useMemo(()=>window.Knots?window.Knots.byThread(knots,knotsDone):{},[knots,knotsDone]);
 // Quarter stitches (fractional.js): {total, done} in quarters, and per thread. Each is worth a quarter of a full stitch.
-const quarterCounts=useMemo(()=>window.Fractional?window.Fractional.progress(partialStitches,partialDone):{total:0,done:0},[partialStitches,partialDone]);
-const quartersByThread=useMemo(()=>window.Fractional?window.Fractional.byThread(partialStitches,partialDone):{},[partialStitches,partialDone]);
+const countedPartials=useMemo(()=>ProgressUnits.partialWithoutLegacyHalves(partialStitches,halfStitches),[partialStitches,halfStitches]);
+const quarterCounts=useMemo(()=>window.Fractional?window.Fractional.progress(countedPartials,partialDone):{total:0,done:0},[countedPartials,partialDone]);
+const quartersByThread=useMemo(()=>window.Fractional?window.Fractional.byThread(countedPartials,partialDone):{},[countedPartials,partialDone]);
 // Backstitch (backstitch.js): each line's key, the done keys as a Set, the spatial index (built once per pattern), and
 // {total, done} lines overall and per colour. The drawing path reads the keys and the Set through refs, so a one-line
 // repaint (which a memoised caller runs from an older render) always sees the current marks.

@@ -1043,12 +1043,12 @@ function hitTestQuadrant(localX, localY, cSz) {
 function migrateHalfStitch(entry) {
   var result = {};
   if (entry.fwd) {
-    result.BL = { id: entry.fwd.id, rgb: entry.fwd.rgb };
-    result.TR = { id: entry.fwd.id, rgb: entry.fwd.rgb };
+    result.BL = Object.assign({}, entry.fwd);
+    result.TR = Object.assign({}, entry.fwd);
   }
   if (entry.bck) {
-    result.TL = { id: entry.bck.id, rgb: entry.bck.rgb };
-    result.BR = { id: entry.bck.id, rgb: entry.bck.rgb };
+    result.TL = Object.assign({}, entry.bck);
+    result.BR = Object.assign({}, entry.bck);
   }
   return result;
 }

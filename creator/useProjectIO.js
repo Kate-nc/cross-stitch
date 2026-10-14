@@ -1093,10 +1093,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       if (freshProject.originalPaletteState) tf.originalPaletteState = freshProject.originalPaletteState;
       if (freshProject.singleStitchEdits && freshProject.singleStitchEdits.length > 0)
         tf.singleStitchEdits = freshProject.singleStitchEdits;
-      if (freshProject.halfStitches && freshProject.halfStitches.length > 0)
-        tf.halfStitches = freshProject.halfStitches;
-      if (freshProject.halfDone && freshProject.halfDone.length > 0)
-        tf.halfDone = freshProject.halfDone;
+      tf.halfStitches = freshProject.halfStitches || [];
+      tf.halfDone = freshProject.halfDone || [];
       if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
         tf.knotsDone = freshProject.knotsDone;
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
