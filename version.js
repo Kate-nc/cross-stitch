@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.151';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.151',
+    date: 'October 2026',
+    notes: [
+      'Corrected nine DMC screen colour approximations after a complete catalogue audit. All 525 thread IDs and names are retained; reference disagreements are documented.',
+      'Fixed: explicit imported and custom colours survive reopening a pattern, including blends with a known thread number. White/Blanc aliases resolve consistently, and fractional RGB colours no longer reuse another colour\'s cached Lab values.'
+    ]
+  },
+  {
     version: '1.0.147',
     date: 'October 2026',
     notes: [

@@ -126,10 +126,12 @@ A Stats page (Stats in the top bar) aggregates data across all projects and the 
 
 ## Thread Data
 
-- **DMC:** full stranded-cotton catalogue — 525 colours with pre-computed CIE L\*a\*b\* values for fast CIEDE2000 matching.
+- **DMC:** retained stranded-cotton catalogue — 525 entries with derived CIE L\*a\*b\* and OKLab values for colour matching. Screen colours are approximations; some retained legacy entries lack traceable references. See the [complete colour audit](reports/dmc-colour-audit.md).
 - **Anchor:** full Anchor Stranded Cotton catalogue with reconciled RGB values from the official colour card, Stitchtastic, Cross-Stitched.com and sibalman/thread-converter. Contested colours are flagged.
 - **DMC ↔ Anchor conversions:** bidirectional table with confidence labels (`official`, `reconciled`, `single-source`). Both directions are stored independently so asymmetric mappings are preserved.
 - **Fabrics:** 11–22 count Aida, 25 count evenweave, and 28 / 32 count linen (worked over two).
+
+To check DMC catalogue integrity without changing files, run `node scripts/update-dmc-colours.js`. This historical correction runner is now read-only; source disagreements require review, not automatic replacement.
 
 ---
 
@@ -396,7 +398,7 @@ Projects are stored and downloaded as JSON (`version: 11`):
 ```
 
 - `settings.sW` × `settings.sH` are the dimensions; `pattern` is a flat array of that length.
-- Each cell is `{ id, type }` for a solid DMC thread (the RGB is rebuilt from the catalogue on load), `{ id, type, rgb }` where it cannot be rebuilt, `{ id: "310+550", type: "blend" }` for a two-thread blend, or `{ id: "__skip__" }` / `{ id: "__empty__" }` for background and empty cells. See `stripCellForSave` in [`helpers.js`](helpers.js) and `restoreStitch` in [`colour-utils.js`](colour-utils.js).
+- Each cell is `{ id, type }` for a solid DMC thread (the RGB is rebuilt from the catalogue on load), `{ id, type, rgb }` when the saved colour differs from the catalogue (explicit imported/custom RGB is preserved on load, including blends), `{ id: "310+550", type: "blend" }` for a two-thread blend, or `{ id: "__skip__" }` / `{ id: "__empty__" }` for background and empty cells. See `stripCellForSave` in [`helpers.js`](helpers.js) and `restoreStitch` in [`colour-utils.js`](colour-utils.js).
 - `done` is `null` (not started) or an array the same length as `pattern` with `1` for done stitches.
 - The Tracker adds its own fields (`statsSessions`, `doneSnapshots`, `breadcrumbs`, `stitchingStyle`, `focusBlock`, `workArea`, …).
 - Older files (`v: 8` and earlier, `.oxs`, compact `.p` grids) are still read.

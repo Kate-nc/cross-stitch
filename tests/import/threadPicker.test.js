@@ -16,6 +16,7 @@ describe('findDmc', () => {
     expect(P.findDmc('310', cat).name).toBe('Black');
     expect(P.findDmc(' b5200 ', cat).id).toBe('B5200');
     expect(P.findDmc('Blanc', cat).id).toBe('blanc');
+    expect(P.findDmc(' WHITE ', cat).id).toBe('blanc');
   });
   it('says nothing for a number DMC does not make', () => {
     expect(P.findDmc('99999', cat)).toBeNull();

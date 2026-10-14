@@ -40,8 +40,9 @@ const mockGlobals = `
 const helperFns = mockGlobals
   // Module-level caches the extracted functions close over in helpers.js.
   // _serialisedPatterns memoises serializePattern on the pattern's identity.
-  + 'var _DMC_BY_ID=null,_ANCHOR_BY_ID=null,_serialisedPatterns=new WeakMap();\n'
+  + 'var _DMC_BY_ID=null,_DMC_BY_ID_CI=null,_ANCHOR_BY_ID=null,_serialisedPatterns=new WeakMap();\n'
   + extractFn(helpersSource, '_getDmcById') + '\n'
+  + extractFn(helpersSource, 'getDmcByIdCI') + '\n'
   + extractFn(helpersSource, '_getAnchorById') + '\n'
   + extractFn(helpersSource, 'findThreadInCatalog') + '\n'
   + extractFn(helpersSource, 'isBlendId') + '\n'

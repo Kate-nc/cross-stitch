@@ -582,3 +582,19 @@ describe('ColourReplaceModal selection after searching', () => {
   });
 });
 
+
+it('renders every reviewed catalogue swatch using the corrected RGB', () => {
+  const { VERIFIED } = require('../scripts/update-dmc-colours');
+  const previous = global.DMC;
+  try {
+    global.DMC = dmcData.DMC.filter(t => t.id === '310' || VERIFIED[t.id]);
+    render();
+    for (const [id, rgb] of Object.entries(VERIFIED)) {
+      const options = container.querySelectorAll('[data-thread-id="' + id + '"]');
+      expect(options.length).toBeGreaterThan(0);
+      for (const option of options) expect(option.firstElementChild.style.background).toBe('rgb(' + rgb.join(', ') + ')');
+    }
+  } finally {
+    global.DMC = previous;
+  }
+});

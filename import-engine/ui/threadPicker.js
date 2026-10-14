@@ -60,6 +60,7 @@
   /* A DMC thread by its number, ignoring case and leading spaces. */
   function findDmc(code, cat) {
     var c = String(code == null ? '' : code).trim().toLowerCase();
+    if (c === 'white') c = 'blanc';
     if (!c) return null;
     var dmc = tables(cat).dmc;
     for (var i = 0; i < dmc.length; i++) if (String(dmc[i].id).toLowerCase() === c) return dmc[i];
