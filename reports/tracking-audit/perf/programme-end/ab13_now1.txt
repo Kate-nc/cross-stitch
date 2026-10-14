@@ -1,0 +1,3 @@
+{"heap0":21.54,"zoom":88.79,"zoomSteps":12,"panP95":99.9,"panMed":16.7,"pan":21.85,"drag60":865.03,"tap":29.9,"heap1":19.45}
+{"heap0":20.95,"zoom":77.4,"zoomSteps":12,"panP95":100,"panMed":16.7,"pan":21.52,"drag60":661.14,"tap":32.24,"heap1":19.48}
+RESULT {"label":"now1","throttle":1,"sessions":2,"zoom":88.79,"pan":21.85,"panP95":100,"drag60":865.03,"tap":32.24,"heap0":21.54,"heap1":19.48}
