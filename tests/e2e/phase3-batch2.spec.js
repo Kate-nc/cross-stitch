@@ -200,9 +200,18 @@ test('leaving the page with a timer left idle ends it at the last stitch, not 30
   await advance(page, 30);
   await page.goto('/home.html');
   await page.waitForFunction(() => window.ProjectStorage);
-  await page.waitForFunction(() => localStorage.getItem('cs_pending_session_proj_p3b2'), null, { timeout: 10000 }).catch(() => {});
-  const pending = await page.evaluate(() => JSON.parse(localStorage.getItem('cs_pending_session_proj_p3b2') || 'null'));
-  const rec = Array.isArray(pending) ? pending[0] : pending;
+  // A successful unload save can already have retired the navigation backup.
+  // Verify the saved session, with the recovery copies as fallback if async writes were stopped.
+  const read = () => page.evaluate(async id => {
+    const project = await ProjectStorage.get(id);
+    const pending = JSON.parse(localStorage.getItem('cs_pending_session_' + id) || 'null');
+    const records = (project && project.statsSessions || []).concat(
+      project && (project.sessionCheckpoints || []).flatMap(c => c.records) || [],
+      pending ? (Array.isArray(pending) ? pending : [pending]) : []);
+    return records[0] || null;
+  }, id);
+  await expect.poll(read).not.toBeNull();
+  const rec = await read();
   expect(rec).not.toBeNull();
   expect(rec.timingBasis).toBe('timer');
   expect(rec.durationSeconds).toBeLessThan(60);

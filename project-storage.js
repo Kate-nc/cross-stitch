@@ -104,6 +104,29 @@ const ProjectStorage = (() => {
     };
   }
 
+  const SESSION_PREFIX = 'session:';
+  function sessionKey(projectId, sessionId) { return SESSION_PREFIX + projectId + ':' + sessionId; }
+  function sessionRange(id) { return IDBKeyRange.bound(SESSION_PREFIX + id + ':', SESSION_PREFIX + id + ':\uffff'); }
+  function sessionEnded(project, id) {
+    return (project.deletedSessionIds || []).includes(id) || (project.statsSessions || []).some(s => s && (s.id === id || s.groupId === id));
+  }
+  function validCheckpoint(cp, id) {
+    return cp && cp.v === 1 && cp.projectId === id && typeof cp.sessionId === 'string' &&
+      Number.isFinite(cp.checkpointAt) && Array.isArray(cp.records) && cp.records.length &&
+      cp.records.every(r => r && (r.id === cp.sessionId || r.groupId === cp.sessionId) && Number.isFinite(r.durationSeconds) && r.durationSeconds >= 0);
+  }
+  // The closed marker is a fence: a delayed checkpoint cannot resurrect a finalised/deleted run.
+  function putCheckpoint(pending, project, cp) {
+    if (!validCheckpoint(cp, project.id)) return;
+    const key = sessionKey(project.id, cp.sessionId), req = pending.get(key);
+    req.onsuccess = () => {
+      const prev = req.result;
+      if (prev && prev.closed) return;
+      if (sessionEnded(project, cp.sessionId)) { pending.put({id:key,projectId:project.id,sessionId:cp.sessionId,closed:true}); return; }
+      if (!prev || (prev.revision||prev.checkpointAt) <= (cp.revision||cp.checkpointAt)) pending.put(Object.assign({}, cp, {id:key}));
+    };
+  }
+
   // A project's photos (photos.js: "photo:<id>:<n>" and "photothumb:<id>:<n>" in pendingImports) go with it.
   function deletePhotoRecords(store, id) {
     if (typeof IDBKeyRange === "undefined") return;
@@ -487,12 +510,24 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE].concat(db.objectStoreNames.contains("pendingImports") ? ["pendingImports"] : []), "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE, "pendingImports"], "readwrite");
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
           let refusedPatternless = false;
           const putAll = () => {
+            const pending = tx.objectStore('pendingImports');
+            putCheckpoint(pending, project, project.activeSessionCheckpoint);
+            const cursor = pending.openCursor(sessionRange(project.id));
+            cursor.onsuccess = () => {
+              const c = cursor.result;
+              if (!c) return;
+              if (!c.value.closed && sessionEnded(project, c.value.sessionId)) c.update({id:c.key,projectId:project.id,sessionId:c.value.sessionId,closed:true});
+              c.continue();
+            };
+            // Checkpoints live in the journal; never leave a stale embedded copy in the full record.
+            delete project.activeSessionCheckpoint;
+            delete project.sessionCheckpoints;
             store.put(project, project.id);
             metaStore.put(buildMeta(project), project.id);
             if (project.id && project.id.startsWith("proj_")) {
@@ -539,6 +574,15 @@ const ProjectStorage = (() => {
             }
           };
           tx.oncomplete = () => {
+            // Only retire backup records actually present in this committed snapshot (or tombstoned).
+            // A finalisation arriving while the save awaited IDB keeps its own recovery copy.
+            try {
+              const key='cs_pending_session_'+project.id,raw=localStorage.getItem(key);
+              if(raw){const parsed=JSON.parse(raw),rows=Array.isArray(parsed)?parsed:[parsed];
+                const left=rows.filter(r=>r&&!sessionEnded(project,r.groupId||r.id));
+                if(left.length)localStorage.setItem(key,JSON.stringify(left));else localStorage.removeItem(key);
+              }
+            }catch(_){}
             // Trigger auto-export to sync folder if enabled
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
               try { SyncEngine.triggerAutoExport(); } catch (e) {}
@@ -710,13 +754,18 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         try { await this._recoverProgress(db, id); } catch (err) { console.warn("Progress recovery deferred:", err); }
-        const project = await new Promise((resolve, reject) => {
-          let tx = db.transaction(STORE_NAME, "readonly");
-          let store = tx.objectStore(STORE_NAME);
-          let request = store.get(id);
-          request.onsuccess = () => resolve(request.result || null);
-          request.onerror = () => reject(request.error);
+        // Read history and its retirement fences together. Separate reads could see old
+        // history followed by a newly closed checkpoint and briefly hide the recovered run.
+        const loaded = await new Promise((resolve, reject) => {
+          const tx = db.transaction([STORE_NAME, 'pendingImports'], 'readonly');
+          const p = tx.objectStore(STORE_NAME).get(id);
+          const rows = tx.objectStore('pendingImports').getAll(sessionRange(id));
+          tx.oncomplete = () => resolve({project:p.result || null,rows:rows.result || []});
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error || new Error('Project read aborted'));
         });
+        const project = loaded.project;
+        if (project) project.sessionCheckpoints = await this.readSessionCheckpoints(id, project, loaded.rows);
         // Normalise threadOwned keys to bare DMC IDs ("310" not "dmc:310").
         // Creator and Tracker both key threadOwned by palette entry id, which is
         // always a bare id like "310". Any composite keys written by an older
@@ -748,6 +797,46 @@ const ProjectStorage = (() => {
         console.error("ProjectStorage.get failed:", err);
         return null;
       }
+    },
+
+    // Small, asynchronous session journal. No pattern clone and no synchronous mark-path I/O.
+    async saveSessionCheckpoint(id, checkpoint) {
+      if (!validCheckpoint(checkpoint, id)) throw new Error('Invalid session checkpoint');
+      if (this._deletedIds.has(id) || (typeof window !== 'undefined' && window.__restoringBackup > Date.now())) throw new Error('Session checkpoint saving is paused');
+      const cp = structuredClone(checkpoint);
+      const db = await getDB();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_NAME, 'pendingImports'], 'readwrite');
+        const req = tx.objectStore(STORE_NAME).get(id);
+        req.onsuccess = () => { if (req.result) putCheckpoint(tx.objectStore('pendingImports'), req.result, cp); else tx.abort(); };
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Session checkpoint aborted'));
+      });
+      return true;
+    },
+
+    async retireSessionCheckpoint(id, sessionId) {
+      const db=await getDB();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('pendingImports','readwrite');
+        tx.objectStore('pendingImports').put({id:sessionKey(id,sessionId),projectId:id,sessionId:sessionId,closed:true});
+        tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Session retirement aborted'));
+      });
+    },
+
+    async readSessionCheckpoints(id, project, cachedRows) {
+      const db = await getDB();
+      const rows = cachedRows || await new Promise((resolve, reject) => {
+        const q = db.transaction('pendingImports', 'readonly').objectStore('pendingImports').getAll(sessionRange(id));
+        q.onsuccess = () => resolve(q.result || []); q.onerror = () => reject(q.error);
+      });
+      // A live renderer holds a lock for its run. Other tabs must not finalise it while it is still recording.
+      // Renderer termination releases the lock without needing any page lifecycle event.
+      let held = [];
+      if (typeof navigator !== 'undefined' && navigator.locks && navigator.locks.query) held = (await navigator.locks.query()).held || [];
+      return rows.filter(cp => !cp.closed && validCheckpoint(cp,id) && !sessionEnded(project,cp.sessionId) &&
+        !held.some(lock => lock.name === 'cs-session:' + cp.sessionId));
     },
 
     // ── Progress record ─────────────────────────────────────────────────
@@ -899,7 +988,7 @@ const ProjectStorage = (() => {
           let n = 0;
           req.onsuccess = () => {
             (req.result || []).forEach(k => {
-              if (typeof k === "string" && k.startsWith(PROGRESS_PREFIX)) { store.delete(k); n++; }
+              if (typeof k === "string" && (k.startsWith(PROGRESS_PREFIX) || k.startsWith(SESSION_PREFIX))) { store.delete(k); n++; }
             });
           };
           tx.oncomplete = () => resolve(n);
@@ -1028,7 +1117,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
             if (autoSave && autoSave.id === id) store.delete("auto_save");
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
@@ -1115,7 +1204,7 @@ const ProjectStorage = (() => {
             store.delete(id);
             metaStore.delete(id);
             statsStore.delete(id);
-            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); }
+            if (hasPending) { tx.objectStore("pendingImports").delete("trace:" + id); tx.objectStore("pendingImports").delete(PROGRESS_PREFIX + id); deletePhotoRecords(tx.objectStore("pendingImports"), id); tx.objectStore("pendingImports").delete(sessionRange(id)); }
           }
           if (includeAutoSave) store.delete("auto_save");
           tx.oncomplete = () => resolve();

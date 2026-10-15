@@ -19,7 +19,7 @@
 
   var R = (typeof window !== 'undefined' && window.React) || null;
 
-  window.useAutoSession = function useAutoSession({ projectIdRef, v3FieldsRef, autoSaveDirtyRef, statsSettings }) {
+  window.useAutoSession = function useAutoSession({ projectIdRef, v3FieldsRef, autoSaveDirtyRef, statsSettings, savesBlockedRef }) {
     var useState    = R.useState;
     var useRef      = R.useRef;
     var useEffect   = R.useEffect;
@@ -39,6 +39,22 @@
     const justLoadedSettlePassRef=useRef(0);
     const autoStatsRef=useRef({doneUnits:0,totalUnits:0});
     const finaliseAutoSessionRef=useRef(null);
+    const releaseSessionLockRef=useRef(null);
+    const checkpointErrorRef=useRef(false);
+    const checkpointWriterRef=useRef(null);
+    function releaseSessionLock(){if(releaseSessionLockRef.current){releaseSessionLockRef.current();releaseSessionLockRef.current=null;}}
+    function reportCheckpointFailure(err){
+      console.error('Session checkpoint failed:',err);
+      if(!checkpointErrorRef.current&&window.Toast&&window.Toast.show)window.Toast.show({message:'Session recovery could not be saved. Recent session time may be lost if this tab crashes. Retry by saving the project.',type:'error',duration:10000});
+      checkpointErrorRef.current=true;
+    }
+    function getSessionCheckpoint(){if(currentAutoSessionRef.current&&!currentAutoSessionRef.current.projectId)currentAutoSessionRef.current.projectId=projectIdRef.current;return finaliseAutoSessionRef.current?finaliseAutoSessionRef.current({preview:true,trimIfIdle:true}):null;}
+    function writeSessionCheckpoint(){
+      const cp=getSessionCheckpoint();
+      if(!cp||!cp.projectId||isUnloadingRef.current||(savesBlockedRef&&savesBlockedRef.current))return Promise.resolve();
+      return ProjectStorage.saveSessionCheckpoint(cp.projectId,cp).then(()=>{checkpointErrorRef.current=false;}).catch(reportCheckpointFailure);
+    }
+    checkpointWriterRef.current=writeSessionCheckpoint;
     // Idle threshold (trackerIdleMinutes): read fresh on each timer arm so a
     // settings change applies on the next stroke without restarting the session.
     // 0 = never auto-finalise the session.
@@ -116,7 +132,9 @@
     // Start timer) starts now and counts the whole time it is running, minus pauses and time the tab was hidden.
     function openAutoSession(now,timer){
       currentAutoSessionRef.current={
-        id:'sess_'+now,
+        id:'sess_'+now+'_'+(window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():Math.random().toString(36).slice(2)),
+        projectId:projectIdRef.current,
+        dayEndHour:getDayEndHour(statsSettings),
         date:getStitchingDateLocal(now),
         startTime:new Date(now).toISOString(),
         startMs:now,
@@ -137,6 +155,12 @@
       if(document.hidden){
         currentAutoSessionRef.current.eventLog.push({kind:'hidden',t:now});
       }
+      // A per-run Web Lock distinguishes a live owner from a crashed renderer across tabs.
+      const lockSession=currentAutoSessionRef.current;
+      if(navigator.locks&&navigator.locks.request)navigator.locks.request('cs-session:'+lockSession.id,()=>new Promise(resolve=>{
+        if(currentAutoSessionRef.current!==lockSession){resolve();return;}
+        releaseSessionLockRef.current=resolve;
+      })).catch(reportCheckpointFailure);
       setLiveAutoStitches(0);
       setLiveAutoElapsed(0);
       setLiveAutoIsPaused(document.hidden);
@@ -251,7 +275,10 @@
       try{
         opts=opts&&typeof opts==='object'&&!opts.nativeEvent&&!opts.target?opts:{};
         const session=currentAutoSessionRef.current;
-        if(!session||session.stitchesCompleted+session.stitchesUndone===0){
+        if(opts.discard&&session&&session.projectId&&typeof ProjectStorage!=='undefined')ProjectStorage.retireSessionCheckpoint(session.projectId,session.id).catch(reportCheckpointFailure);
+        if(opts.discard||!session||(!session.timer&&session.stitchesCompleted+session.stitchesUndone===0)){
+          if(opts.preview)return null;
+          releaseSessionLock();
           currentAutoSessionRef.current=null;
           clearTimeout(autoIdleTimerRef.current);
           manuallyPausedRef.current=false;setManuallyPaused(false);
@@ -269,9 +296,10 @@
         // last stitch) and excludes any interval longer than capMs.
         // Leaving the page or the project with a timer that has sat idle past the threshold: the person walked away
         // without stopping it, so it ends at the last mark rather than counting the time since.
-        if(opts.trimIfIdle&&session.timer&&typeof opts.endMs!=='number'&&session.lastMarkT){
+        if(opts.trimIfIdle&&session.timer&&typeof opts.endMs!=='number'){
           const thr=getIdleThresholdMs(),limit=isFinite(thr)?thr:30*60*1000;
-          if(Date.now()-session.lastMarkT>=limit)opts=Object.assign({},opts,{endMs:session.lastMarkT});
+          const since=session.lastMarkT||session.startMs;
+          if(Date.now()-since>=limit)opts=Object.assign({},opts,{endMs:session.lastMarkT||session.startMs+limit});
         }
         const endTimeMs=typeof opts.endMs==='number'?Math.min(Date.now(),Math.max(session.startMs||0,opts.endMs)):Date.now();
         const capMs=getActiveGapCapMs();
@@ -281,6 +309,11 @@
         let timingBasis=session.timer?'timer':'auto';
         if(typeof opts.durationSeconds==='number'&&opts.durationSeconds>=0&&Math.abs(opts.durationSeconds*1000-activeDurationMs)>30000){
           activeDurationMs=opts.durationSeconds*1000;timingBasis='edited';
+        }
+        // A click immediately stopped is not meaningful recorded time. Explicit timers with elapsed time are.
+        if(session.stitchesCompleted+session.stitchesUndone===0&&activeDurationMs<1000){
+          if(!opts.preview)resetAutoSessionForProjectLoad();
+          return null;
         }
         // Progress at the end of the session, in units (the Tracker keeps these two numbers current).
         const ref=autoStatsRef.current||{doneUnits:0,totalUnits:0};
@@ -310,25 +343,35 @@
         };
         if(pendingMilestonesRef.current.length>0){
           finalised.milestones=pendingMilestonesRef.current.slice();
-          pendingMilestonesRef.current=[];
+          if(!opts.preview)pendingMilestonesRef.current=[];
         }
         // One record per stitching day when the session ran across the day end; the usual case is one record.
         let records=[finalised];
-        const days=session.byDay?Object.keys(session.byDay).sort():[];
+        // Include days with time but no marks, including explicitly started empty timers.
+        const byDay=Object.assign({},session.byDay||{});
+        const deh=session.dayEndHour==null?getDayEndHour(statsSettings):session.dayEndHour;
+        for(let t=session.startMs;t<endTimeMs;){
+          const date=getStitchingDate(t,deh);
+          if(!byDay[date])byDay[date]={t0:t,sc:0,su:0,uc:0,uu:0,cu:0,cl:new Set()};
+          const next=nextStitchingDayBoundary(t,deh);
+          if(next<=t)break;t=next;
+        }
+        const days=Object.keys(byDay).sort();
         if(days.length>1){
           try{
-            const deh=getDayEndHour(statsSettings);
-            const bounds=days.slice(0,-1).map(d=>nextStitchingDayBoundary(session.byDay[d].t0,deh));
+            const bounds=days.slice(0,-1).map(d=>nextStitchingDayBoundary(byDay[d].t0,deh));
             const prefix=bounds.map(b=>Math.max(0,computeActiveMs(session.eventLog.filter(e=>e.t<b),b,capMs,timingMode)));
             const ms=days.map((d,i)=>i===0?prefix[0]:(i<days.length-1?prefix[i]-prefix[i-1]:activeDurationMs-prefix[i-1]));
-            records=splitSessionByDays(finalised,session.byDay,ms,ts,deh);
+            records=splitSessionByDays(finalised,byDay,ms,ts,deh);
           }catch(e){records=[finalised];}
         }else if(days.length===1){finalised.date=days[0];}
+        if(opts.preview)return {v:1,projectId:session.projectId,sessionId:session.id,checkpointAt:endTimeMs,revision:session.checkpointRevision=(session.checkpointRevision||0)+1,records:records};
         setStatsSessions(prev=>[...(prev||[]),...records]);
+        if(session.projectId&&typeof ProjectStorage!=='undefined')ProjectStorage.saveSessionCheckpoint(session.projectId,{v:1,projectId:session.projectId,sessionId:session.id,checkpointAt:endTimeMs,revision:session.checkpointRevision=(session.checkpointRevision||0)+1,records:records}).catch(reportCheckpointFailure);
         // Synchronous localStorage backup so the session survives if the tab is closed
         // before the 5-second auto-save timer fires (beforeunload IDB writes are async
         // and may not complete in time). Cleared once the auto-save timer succeeds.
-        try{if(projectIdRef.current)localStorage.setItem('cs_pending_session_'+projectIdRef.current,JSON.stringify(records.length>1?records:finalised));}catch(_){}
+        try{if(session.projectId){const key='cs_pending_session_'+session.projectId;let old=[];try{const p=JSON.parse(localStorage.getItem(key)||'[]');old=Array.isArray(p)?p:[p];}catch(_){}localStorage.setItem(key,JSON.stringify(old.filter(r=>r&&!records.some(n=>n.id===r.id)).concat(records)));}}catch(e){reportCheckpointFailure(e);}
         // Update lastTouchedAt and finishStatus in v3FieldsRef.
         // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
         if(projectIdRef.current){
@@ -340,6 +383,7 @@
           autoSaveDirtyRef.current=true;
           if(typeof invalidateStatsCache==='function')invalidateStatsCache();
         }
+        releaseSessionLock();
         currentAutoSessionRef.current=null;
         clearTimeout(autoIdleTimerRef.current);
         // Clear pause state synchronously so the display timer doesn't see stale state.
@@ -357,11 +401,13 @@
         // result into their own snapshot (the unload save). Not enumerable, so it is never written out itself.
         try{Object.defineProperty(finalised,'records',{value:records,enumerable:false});}catch(_){}
         return finalised;
-      }catch(e){currentAutoSessionRef.current=null;setLiveSessionOpen(false);setLiveIsTimer(false);return null;}
+      }catch(e){if(!opts||!opts.preview){releaseSessionLock();
+          currentAutoSessionRef.current=null;setLiveSessionOpen(false);setLiveIsTimer(false);}console.error('Session recording failed:',e);return null;}
     }
     finaliseAutoSessionRef.current=finaliseAutoSession;
 
     function resetAutoSessionForProjectLoad(){
+      releaseSessionLock();
       currentAutoSessionRef.current=null;
       clearTimeout(autoIdleTimerRef.current);
       pendingColoursRef.current.clear();
@@ -413,6 +459,11 @@
       return () => clearInterval(autoSessionDisplayTimerRef.current);
     }, []);
 
+    useEffect(()=>{
+      const t=setInterval(()=>checkpointWriterRef.current&&checkpointWriterRef.current(),5000);
+      return()=>{clearInterval(t);releaseSessionLock();};
+    },[]);
+
     // Session onboarding toast: auto-dismiss after 8s (only for very first session ever)
     useEffect(()=>{
       if(!sessionOnboardingShown&&liveAutoStitches>0&&statsSessions.length===0){
@@ -463,6 +514,7 @@
       achievedMilestones, setAchievedMilestones,
       sessionOnboardingShown, setSessionOnboardingShown,
       sessionSavedToast, setSessionSavedToast,
+      getSessionCheckpoint, writeSessionCheckpoint,
       recordAutoActivity,
       unrecordUnpick,
       editSessionNote,

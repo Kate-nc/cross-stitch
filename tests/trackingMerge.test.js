@@ -240,7 +240,7 @@ describe('tracker: a mismatched load never zeroes silently', () => {
   });
   test('Edit in Creator, the pending-session recovery, half-stitch gate and the shared overlay', () => {
     expect(TRACKER_SRC).toMatch(/function handleEditInCreator\(\)\{\s*if\(!pat\|\|!pal\)return;\s*if\(savesBlockedRef\.current\)return;/);
-    expect(TRACKER_SRC).toMatch(/if\(!_reconcileHeld\)localStorage\.removeItem\(_pk\)/);
+    expect(TRACKER_SRC).not.toMatch(/localStorage\.removeItem\(_pk\)/); // retained until successful persistence
     expect(TRACKER_SRC).toMatch(/if\(_oldMarks>0\|\|_oldHalf>0\|\|_oldQuarter>0\)\{/);
     expect(TRACKER_SRC).toMatch(/dismissOnScrim=\{false\}/);
   });

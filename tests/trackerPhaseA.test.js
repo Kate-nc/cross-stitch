@@ -779,7 +779,7 @@ describe('Session migration (processLoadedProject)', () => {
       const result = runSessionMigration(project, restoredPattern, mockLocalStorage);
       expect(result).toHaveLength(2);
       expect(result.some(s => s.id === 'sess_pending')).toBe(true);
-      expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('cs_pending_session_proj_123');
+      expect(mockLocalStorage.removeItem).not.toHaveBeenCalled(); // retire only after a committed full save
     });
 
     it('while saves are held the recovered session is added but its backup is kept', () => {
