@@ -1769,30 +1769,13 @@ const[wastePrefs,setWastePrefs]=useState(()=>{
   try{const p=window.UserPrefs&&window.UserPrefs.get('rtWastePrefs');if(p&&typeof p==='object')return Object.assign({},RT_WASTE_DEFAULTS,p);}catch(_){}
   return Object.assign({},RT_WASTE_DEFAULTS);
 });
-// Snapshot of global stash taken at project-load (or when RT is first enabled).
-// Used so the "skeins remaining" display reflects the stash BEFORE this project
-// consumed any thread, not the live (already-decremented) stash.
-const rtStashSnapshotRef=useRef({});
-// Debounce timer for writing consumption to stash.
+// Durable accounting belongs to manager_state alongside live stock, not project JSON.
+// Each asynchronous operation captures its project context before awaiting.
+const rtContextRef=useRef(null);
+const rtWriteSnapshotRef=useRef(null);
+const[rtAccountingVersion,setRtAccountingVersion]=useState(0);
 const rtDebounceRef=useRef(null);
-// Ref to latest rtConsumption so beforeunload handler can flush without stale closures.
-const rtConsumptionRef=useRef({});
-// Tracks which thread ids have already triggered a low-thread toast this session.
 const rtLowToastedRef=useRef(new Set());
-// Expose the snapshot setters on window for the "Use up stash thread as I stitch" toggle in
-// the palette More panel, which renders in a different component scope.
-// __setRtStashSnapshot replaces the snapshot unconditionally (used by project-load).
-// __ensureRtStashSnapshot sets the snapshot ONLY IF the current ref is empty — used by
-// the Live toggle so re-enabling Live within the same project session doesn't move the
-// baseline forward and silently lose the ability to restore earlier deductions (DEFECT-001).
-useEffect(function(){
-  window.__setRtStashSnapshot=function(snap){rtStashSnapshotRef.current=snap||{};};
-  window.__ensureRtStashSnapshot=function(snap){
-    var cur=rtStashSnapshotRef.current||{};
-    if(Object.keys(cur).length===0)rtStashSnapshotRef.current=snap||{};
-  };
-  return function(){delete window.__setRtStashSnapshot;delete window.__ensureRtStashSnapshot;};
-},[]);
 // Listen for the disable request dispatched by that same stash toggle.
 useEffect(function(){
   function onDisable(){setModal('rt_disable_confirm');}
@@ -2508,125 +2491,63 @@ const difficultyMetrics=useMemo(()=>{
 
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
-// RT consumption: derived, never stored. Recalculates from done counts + prefs.
-// SKEIN_TOTAL_IN: 6 strands × 315 in/strand = 1890 total single-strand inches per skein.
-const SKEIN_TOTAL_IN=1890;
+// Consumption is derived from full-cross marks; stock and applied checkpoints
+// are persisted. Do not use bare palette ids: different brands can share ids.
+const rtAmounts=useMemo(()=>rtThreadUsage(pat,done,fabricCt,wastePrefs),[pat,done,fabricCt,wastePrefs,countsVer]);
 const rtConsumption=useMemo(()=>{
-  if(!wastePrefs.enabled||!skeinData||!skeinData.length)return{};
-  const strands=typeof wastePrefs.strandCountOverride==='number'?wastePrefs.strandCountOverride:2;
-  // Effective count: 28-count over 2 uses thread like 14-count Aida.
-  const base=(4.8*strands)/(fabricCt/(typeof stitchOverFor==="function"?stitchOverFor(fabricCt):1));
-  const tail=(wastePrefs.tailAllowanceIn*2)/Math.max(1,wastePrefs.threadRunLength);
-  const effectiveCostIn=(base+tail)*wastePrefs.generalWasteMultiplier;
-  const snap=rtStashSnapshotRef.current||{};
-  // Build done-stitch count keyed by bare thread id, aggregating across solids AND blends.
-  // colourDoneCounts is keyed by palette-entry id ("310" for solids, "310+550" for blends).
-  // For blends, each constituent thread contributes equally, so we accumulate blend done
-  // counts onto each thread id the same way skeinData does.
-  const threadDone={};
-  if(pal){
-    pal.forEach(function(p){
-      const dc=colourDoneCounts[p.id];
-      const dn=dc?dc.done:0;
-      if(p.type==='solid'){threadDone[p.id]=(threadDone[p.id]||0)+dn;}
-      else if(p.type==='blend'&&p.threads){
-        p.threads.forEach(function(t){threadDone[t.id]=(threadDone[t.id]||0)+dn;});
-      }
-    });
-  }
+  const ctx=rtContextRef.current;
+  const accounting=ctx&&ctx.accounting;
   const out={};
-  skeinData.forEach(d=>{
-    const dn=threadDone[d.id]||0;
-    const skeinsConsumed=dn*effectiveCostIn/SKEIN_TOTAL_IN;
-    const snapEntry=stashEntryFor(snap,d)||null;
-    const ownedSkeins=snapEntry&&typeof snapEntry.owned==='number'?snapEntry.owned:null;
-    const skeinsRemaining=ownedSkeins!=null?ownedSkeins-skeinsConsumed:null;
-    out[d.id]={skeinsConsumed,skeinsRemaining,ownedSkeins,effectiveCostIn,key:d.key};
+  Object.keys(rtAmounts).forEach(key=>{
+    const consumed=rtAmounts[key];
+    const prior=accounting&&accounting.threads[key];
+    const observed=prior?prior.observed:((ctx&&ctx.initial[key])||0);
+    const entry=globalStash[key];
+    const owned=entry?StashBridge.stashEffectiveQty(entry):null;
+    out[key]={key,skeinsConsumed:consumed,ownedSkeins:owned,
+      skeinsRemaining:owned==null?null:owned-Math.max(0,consumed-observed)};
   });
   return out;
-  // countsVer in dep array ensures re-run whenever done counts change.
-},[wastePrefs,skeinData,fabricCt,countsVer,pal]);
-// Keep a stable ref for beforeunload and async flush callbacks.
-useEffect(()=>{rtConsumptionRef.current=rtConsumption;},[rtConsumption]);
+},[rtAmounts,globalStash,rtAccountingVersion]);
+rtWriteSnapshotRef.current={ctx:rtContextRef.current,amounts:rtAmounts,enabled:wastePrefs.enabled};
 
-// ── RT stash write helpers ─────────────────────────────────────────────
-// Writes current consumption to the global stash. Idempotent: re-applying
-// the same consumption after reload produces the same stash level (since we
-// always write ownedAtStart − consumedNow, not a delta).
-// We set rtSelfWritingRef around the loop so the cs:stashChanged listener
-// below can ignore events triggered by our own writes (DEFECT-009).
-const rtSelfWritingRef=useRef(false);
+// IDB commits stock and per-project checkpoints in one readwrite transaction.
+// Retrying an interrupted/ambiguous commit is safe. No stale stock snapshots.
 const flushRtStashWrite=useCallback(async()=>{
-  if(!wastePrefs.enabled||typeof StashBridge==='undefined')return;
-  const consumption=rtConsumptionRef.current;
-  const ids=Object.keys(consumption);
-  if(!ids.length)return;
-  let wrote=false;
-  rtSelfWritingRef.current=true;
+  const write=rtWriteSnapshotRef.current;
+  if(!write||!write.enabled||!write.ctx||typeof StashBridge==='undefined')return;
+  const ctx=write.ctx;
+  if(!ctx.projectId||ctx.suspended||savesBlockedRef.current)return;
   try{
-    for(const id of ids){
-      const c=consumption[id];
-      if(!c||c.skeinsConsumed<=0||c.ownedSkeins==null)continue;
-      const newOwned=Math.max(0,c.ownedSkeins-c.skeinsConsumed);
-      try{await StashBridge.updateThreadOwned(c.key||id,newOwned);wrote=true;}
-      catch(e){console.warn('RT stash write failed for '+id+':',e);}
+    if(ctx.ready)await ctx.ready.catch(()=>{});
+    if(ctx.suspended)return;
+    const result=await StashBridge.applyProjectConsumption(ctx.projectId,write.amounts,ctx.initial);
+    if(rtContextRef.current!==ctx)return;
+    ctx.accounting=result.accounting;
+    setGlobalStash(result.threads);
+    setRtAccountingVersion(v=>v+1);
+  }catch(e){
+    console.warn('RT stash write failed; checkpoint unchanged, retry is safe:',e);
+    if(window.Toast)window.Toast.show({message:'Could not update stash. Your deductions will be retried.',type:'warning'});
+    if(rtContextRef.current===ctx&&!ctx.suspended){
+      if(rtDebounceRef.current)clearTimeout(rtDebounceRef.current);
+      rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWriteRef.current().catch(()=>{});},30000);
     }
-  }finally{
-    rtSelfWritingRef.current=false;
+    throw e;
   }
-  if(wrote){
-    setWastePrefs(prev=>({...prev,lastWrittenAt:new Date().toISOString()}));
-    try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
-  }
-},[wastePrefs.enabled]);
-// Stable ref so the beforeunload handler can call it without stale closure.
+},[]);
 const flushRtStashWriteRef=useRef(flushRtStashWrite);
-useEffect(()=>{flushRtStashWriteRef.current=flushRtStashWrite;},[flushRtStashWrite]);
-
-// External-change listener (DEFECT-009): when the Manager (or any other
-// surface) edits a thread quantity while RT is enabled, re-baseline our
-// snapshot so the next debounced flush doesn't overwrite that edit.
-// Self-triggered events (from flushRtStashWrite above) are filtered out via
-// rtSelfWritingRef, which is set for the duration of the write loop.
-// Re-baseline rule: newSnapshot[id] = liveOwned[id] + currentConsumed[id].
-// This way the next flush computes newOwned = newSnapshot − newConsumed,
-// which preserves any external delta and continues to deduct only this
-// session's incremental consumption.
+flushRtStashWriteRef.current=flushRtStashWrite;
 useEffect(()=>{
-  function onExternalChange(){
-    if(rtSelfWritingRef.current)return;
-    if(!wastePrefs.enabled)return;
-    if(typeof StashBridge==='undefined')return;
-    var snap=rtStashSnapshotRef.current||{};
-    if(Object.keys(snap).length===0)return; // no baseline yet
-    StashBridge.getGlobalStash().then(function(live){
-      if(!live)return;
-      var consumption=rtConsumptionRef.current||{};
-      var next=Object.assign({},snap);
-      // The stash is keyed by composite key (e.g. 'dmc:310'); rtConsumption is
-      // keyed by bare thread id (e.g. '310'). Strip the brand prefix to look up.
-      Object.keys(live).forEach(function(key){
-        var entry=live[key];
-        if(!entry||typeof entry.owned!=='number')return;
-        var bareId=key.indexOf(':')>=0?key.split(':').slice(1).join(':'):key;
-        var c=consumption[bareId];
-        var consumed=(c&&typeof c.skeinsConsumed==='number')?c.skeinsConsumed:0;
-        next[key]=Object.assign({},entry,{owned:entry.owned+consumed});
-      });
-      rtStashSnapshotRef.current=next;
-    }).catch(function(){});
-  }
-  window.addEventListener('cs:stashChanged',onExternalChange);
-  return function(){window.removeEventListener('cs:stashChanged',onExternalChange);};
+  if(rtContextRef.current)rtContextRef.current.suspended=!wastePrefs.enabled;
+  function onHidden(){if(document.hidden)flushRtStashWriteRef.current().catch(()=>{});}
+  document.addEventListener('visibilitychange',onHidden);
+  return()=>document.removeEventListener('visibilitychange',onHidden);
 },[wastePrefs.enabled]);
 
-// Multi-tab guard (DEFECT-008): two tracker tabs both writing the live stash
-// race — each writes `snapshot - consumed` from its own snapshot, so the
-// later write overwrites the earlier (net deduction = max, not sum). A full
-// fix needs atomic read-modify-write inside StashBridge; here we at least
-// warn the user when a second tab joins. Uses BroadcastChannel where
-// available (all evergreen browsers); falls back to localStorage storage
-// events for Safari <15.4 which lacks BroadcastChannel support.
+
+// Presence is advisory; IDB transactions provide the accounting exclusion.
+// A join can solicit one active response. Active/heartbeat messages never reply.
 useEffect(()=>{
   if(!wastePrefs.enabled)return;
   var useBroadcast=!(typeof BroadcastChannel==='undefined');
@@ -2638,35 +2559,38 @@ useEffect(()=>{
     if(!warned&&window.Toast){
       warned=true;
       window.Toast.show({
-        message:'Using up stash thread as you stitch is on in another tab — stash deductions may collide. Turn it off in one tab to avoid lost edits.',
+        message:'Live stash tracking is also enabled in another tab. Sync project marks before continuing in both tabs.',
         type:'warning',duration:8000
       });
     }
   }
-  function announce(){
-    if(useBroadcast){try{chan.postMessage({type:'rt-active',id:myId,t:Date.now()});}catch(_){}}
-    else{try{localStorage.setItem(LS_KEY,JSON.stringify({id:myId,t:Date.now()}));}catch(_){}}
+  function announce(type){
+    var msg={type:typeof type==='string'?type:'rt-active',id:myId,t:Date.now()};
+    if(useBroadcast){try{chan.postMessage(msg);}catch(_){}}
+    else{try{localStorage.setItem(LS_KEY,JSON.stringify(msg));}catch(_){}}
   }
-  function onMsg(ev){
-    var msg=ev&&ev.data;
-    if(!msg||msg.id===myId)return;
-    if(msg.type==='rt-active'){announce();showWarning();}
+  function receive(msg){
+    if(!msg||msg.id===myId||typeof msg.id!=='string'||!Number.isFinite(msg.t)||Date.now()-msg.t>90000||msg.t>Date.now()+5000)return;
+    if(msg.type!=='rt-active'&&msg.type!=='rt-join')return;
+    if(msg.type==='rt-join')announce('rt-active');
+    showWarning();
   }
+  function onMsg(ev){receive(ev&&ev.data);}
   function onStorage(ev){
     if(ev.key!==LS_KEY)return;
-    try{var msg=JSON.parse(ev.newValue);if(!msg||msg.id===myId)return;announce();showWarning();}catch(_){}
+    try{receive(JSON.parse(ev.newValue));}catch(_){}
   }
   if(useBroadcast){
     try{chan=new BroadcastChannel('cs-rt-tracker');}catch(_){useBroadcast=false;}
   }
   if(useBroadcast){chan.addEventListener('message',onMsg);}
   else{window.addEventListener('storage',onStorage);}
-  announce();
+  announce('rt-join');
   var hb=setInterval(announce,30000);
   return function(){
     clearInterval(hb);
     if(useBroadcast&&chan){try{chan.removeEventListener('message',onMsg);chan.close();}catch(_){}}
-    else{window.removeEventListener('storage',onStorage);try{localStorage.removeItem(LS_KEY);}catch(_){}}
+    else{window.removeEventListener('storage',onStorage);try{var last=JSON.parse(localStorage.getItem(LS_KEY));if(last&&last.id===myId)localStorage.removeItem(LS_KEY);}catch(_){}}
   };
 },[wastePrefs.enabled]);
 
@@ -2674,9 +2598,9 @@ useEffect(()=>{
 useEffect(()=>{
   if(!wastePrefs.enabled)return;
   if(rtDebounceRef.current)clearTimeout(rtDebounceRef.current);
-  rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWrite();},30000);
+  rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWrite().catch(()=>{});},30000);
   return()=>{if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}};
-},[countsVer,wastePrefs.enabled]);
+},[rtAmounts,wastePrefs.enabled]);
 
 // Low-thread toast: fires once per thread per session when skeinsRemaining first drops below 0.25.
 const prevRtConsumptionRef=useRef({});
@@ -2684,14 +2608,14 @@ useEffect(()=>{
   if(!wastePrefs.enabled||!skeinData)return;
   const LOW=0.25;
   skeinData.forEach(d=>{
-    const curr=rtConsumption[d.id];
-    const prev=prevRtConsumptionRef.current[d.id];
+    const curr=rtConsumption[d.key];
+    const prev=prevRtConsumptionRef.current[d.key];
     if(!curr||curr.skeinsRemaining==null)return;
     const wasOk=!prev||prev.skeinsRemaining==null||prev.skeinsRemaining>=LOW;
     const isLow=curr.skeinsRemaining>=0&&curr.skeinsRemaining<LOW;
-    const notAlerted=!rtLowToastedRef.current.has(d.id);
+    const notAlerted=!rtLowToastedRef.current.has(d.key);
     if(wasOk&&isLow&&notAlerted){
-      rtLowToastedRef.current.add(d.id);
+      rtLowToastedRef.current.add(d.key);
       if(typeof window.Toast!=='undefined'&&window.Toast.show){
         window.Toast.show({
           message:'Low thread: '+threadLabel(d)+(d.name?' \u2014 '+d.name:'')+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
@@ -2700,7 +2624,7 @@ useEffect(()=>{
       }
     }
     // Reset toast gate if the user adds more thread (skeinsRemaining recovers above LOW+0.25)
-    if(curr.skeinsRemaining>=LOW+0.25)rtLowToastedRef.current.delete(d.id);
+    if(curr.skeinsRemaining>=LOW+0.25)rtLowToastedRef.current.delete(d.key);
   });
   prevRtConsumptionRef.current=rtConsumption;
 },[rtConsumption,wastePrefs.enabled]);
@@ -3799,23 +3723,13 @@ function processLoadedProject(project){
   setProjectFabricColour(typeof s.fabricColour==="string"&&/^#[0-9a-fA-F]{6}$/.test(s.fabricColour)?s.fabricColour:null);
   if(s.skeinPrice!=null)setSkeinPrice(s.skeinPrice);
   if(s.stitchSpeed)setStitchSpeed(s.stitchSpeed);
-  // Restore RT waste preferences; snapshot stash if feature is enabled.
-  if(s.wastePrefs&&typeof s.wastePrefs==='object'){
-    const loaded=Object.assign({},RT_WASTE_DEFAULTS,s.wastePrefs);
-    setWastePrefs(loaded);
-    if(loaded.enabled){
-      // Snapshot the current live stash so "skeins remaining" computes correctly
-      // relative to what the user owned at project start.
-      if(typeof StashBridge!=='undefined'){
-        StashBridge.getGlobalStash().then(snap=>{rtStashSnapshotRef.current=snap;}).catch(()=>{});
-      }
-    }else{
-      rtStashSnapshotRef.current={};
-    }
-  }else{
-    setWastePrefs(Object.assign({},RT_WASTE_DEFAULTS));
-    rtStashSnapshotRef.current={};
+  // Flush the departing context before replacing it; the callback captures its id.
+  if(rtWriteSnapshotRef.current&&rtWriteSnapshotRef.current.ctx&&rtWriteSnapshotRef.current.ctx.projectId!==project.id){
+    flushRtStashWriteRef.current().catch(()=>{});
   }
+  rtWriteSnapshotRef.current=null;
+  const loadedWaste=s.wastePrefs&&typeof s.wastePrefs==='object'?Object.assign({},RT_WASTE_DEFAULTS,s.wastePrefs):Object.assign({},RT_WASTE_DEFAULTS);
+  setWastePrefs(loadedWaste);
   // Clear per-session RT state on project switch.
   rtLowToastedRef.current.clear();
   setStashDeducted(false);
@@ -3882,6 +3796,18 @@ function processLoadedProject(project){
   });
   let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
+  const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
+  const rtContext={projectId:project.id||null,initial:rtInitial,accounting:null,ready:null};
+  rtContextRef.current=rtContext;
+  if(rtContext.projectId&&typeof StashBridge!=='undefined'){
+    rtContext.ready=StashBridge.applyProjectConsumption(rtContext.projectId,rtInitial,rtInitial,{initialise:true}).then(result=>{
+      rtContext.accounting=result.accounting;
+      if(rtContextRef.current===rtContext){setGlobalStash(result.threads);setRtAccountingVersion(v=>v+1);}
+    });
+    // Keep failure observable to flush callers, while handling idle-load rejection.
+    rtContext.ready.catch(e=>console.warn('Could not initialise stash accounting:',e));
+  }
+
   setPartialStitches(partialMap);
   setKnots(knotList);
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
@@ -4587,6 +4513,9 @@ const buildSnapshot = () => {
   if (!pat || !pal) return null;
   if (!projectIdRef.current) {
     projectIdRef.current = ProjectStorage.newId();
+    // Legacy/imported unsaved projects acquire their durable accounting identity
+    // with the first project save, keeping the load-time historical checkpoint.
+    if(rtContextRef.current&&!rtContextRef.current.projectId)rtContextRef.current.projectId=projectIdRef.current;
     console.warn('[stitchx/tracker] buildSnapshot: projectIdRef was null — assigning new id', projectIdRef.current, new Error().stack);
   }
   if (!createdAtRef.current) createdAtRef.current = new Date().toISOString();
@@ -4844,7 +4773,7 @@ useEffect(() => {
     // Flush any pending RT stash deduction before the page closes.
     // Fire-and-forget (async; browser may not wait, but IndexedDB writes are usually fast).
     if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
-    flushRtStashWriteRef.current();
+    flushRtStashWriteRef.current().catch(()=>{});
     } catch(e) {}
   };
   // pagehide covers iOS Safari and bfcache navigation where beforeunload may not fire.
@@ -9089,16 +9018,6 @@ return(
                 // so the disable modal (which needs StashBridge) can be shown.
                 window.dispatchEvent(new CustomEvent('cs:rtDisableRequest'));
               }else if(e.target.checked&&typeof setWastePrefs==='function'){
-                // Turning on: snapshot stash if (and only if) we don't already
-                // have a snapshot for this project session. Capturing on every
-                // toggle-on would move the baseline forward across keep-then-
-                // re-enable cycles and silently break Restore (DEFECT-001).
-                if(typeof StashBridge!=='undefined'){
-                  StashBridge.getGlobalStash().then(function(snap){
-                    if(window.__ensureRtStashSnapshot)window.__ensureRtStashSnapshot(snap);
-                    else if(window.__setRtStashSnapshot)window.__setRtStashSnapshot(snap);
-                  }).catch(function(){});
-                }
                 setWastePrefs(function(prev){return Object.assign({},prev,{enabled:true});});
               }
             }} className="ppal-check"/>
@@ -9474,39 +9393,33 @@ return(
     <div className="modal-content" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():null}</button>
       <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Stop using up stash thread as you stitch?</h3>
-      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Choose what to do with the thread already taken from your stash.</p>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Keep recorded usage, or correct a tracking mistake. Physical unpicking does not return usable thread. Corrections reverse only deductions recorded on this device; older usage is not refunded.</p>
       <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
         <button onClick={()=>{
-          setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
-          setModal(null);
+          const ctx=rtContextRef.current;
+          flushRtStashWriteRef.current().then(()=>{if(rtContextRef.current!==ctx)return;setWastePrefs(prev=>({...prev,enabled:false}));setModal(null);}).catch(()=>{});
         }} style={{padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'none',background:'var(--accent)',color:'var(--surface)',cursor:'pointer',fontWeight:600}}>
           Keep deductions so far
         </button>
         <button onClick={()=>{
-          // Restore stash to pre-project snapshot values, then disable.
+          // Explicit correction only: credit this project's recorded debits,
+          // preserving purchases and deductions by other projects.
+          const write=rtWriteSnapshotRef.current;
+          if(!write||!write.ctx)return;
+          const ctx=write.ctx;
+          ctx.suspended=true;
+          if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
           (async()=>{
-            const consumption=rtConsumptionRef.current||{};
-            for(const id of Object.keys(consumption)){
-              const c=consumption[id];
-              if(!c||c.ownedSkeins==null)continue;
-              try{await StashBridge.updateThreadOwned(c.key||id,c.ownedSkeins);}
-              catch(e){console.warn('RT restore failed for '+id+':',e);}
-            }
-            try{const fresh=await StashBridge.getGlobalStash();setGlobalStash(fresh);}catch(_){}
-          })().then(()=>{
-            // Snapshot represented "pre-project" state; we just rolled back to
-            // it, so it's stale. Clearing forces the next enable to re-snapshot
-            // from the (now restored) live stash. (DEFECT-001)
-            rtStashSnapshotRef.current={};
-            setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
+            if(ctx.ready)await ctx.ready.catch(()=>{});
+            const result=await StashBridge.applyProjectConsumption(ctx.projectId,write.amounts,ctx.initial,{restore:true});
+            if(rtContextRef.current!==ctx)return;
+            ctx.accounting=result.accounting;
+            setGlobalStash(result.threads);
+            setWastePrefs(prev=>({...prev,enabled:false}));
             setModal(null);
-          }).catch(()=>{
-            rtStashSnapshotRef.current={};
-            setWastePrefs(function(prev){return Object.assign({},prev,{enabled:false});});
-            setModal(null);
-          });
+          })().catch(e=>{ctx.suspended=false;console.warn('RT correction failed:',e);if(window.Toast)window.Toast.show({message:'Could not reverse deductions. Please try again.',type:'warning'});});
         }} style={{padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:'var(--surface-secondary)',color:'var(--text-primary)',cursor:'pointer',fontWeight:500}}>
-          Restore stash to before this project
+          Correct deductions recorded for this project
         </button>
         <button onClick={()=>setModal(null)} style={{padding:'8px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-secondary)',cursor:'pointer'}}>
           Cancel (keep tracking)
@@ -9530,7 +9443,7 @@ return(
           </tr></thead>
           <tbody>
             {(skeinData||[]).map(function(d){
-              const c=rtConsumption&&rtConsumption[d.id];
+              const c=rtConsumption&&rtConsumption[d.key];
               if(!c)return null;
               const remText=c.skeinsRemaining!=null
                 ?(c.skeinsRemaining<0?React.createElement('span',{style:{color:'var(--danger)'}},c.skeinsRemaining.toFixed(2)):c.skeinsRemaining.toFixed(2))
@@ -9548,19 +9461,21 @@ return(
         </table>
       </div>
       <button onClick={()=>{
+        const finishingCtx=rtContextRef.current;
+        const finishingId=projectIdRef.current;
         (async()=>{
           // Flush any remaining RT write before closing.
           if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
           await flushRtStashWriteRef.current();
-          if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&projectIdRef.current){
-            await ProjectStorage.markProjectFinished(projectIdRef.current);
+          if(rtContextRef.current!==finishingCtx)return false;
+          if(typeof ProjectStorage!=='undefined'&&ProjectStorage.markProjectFinished&&finishingId){
+            await ProjectStorage.markProjectFinished(finishingId);
+            if(rtContextRef.current!==finishingCtx)return false;
             v3FieldsRef.current=Object.assign(v3FieldsRef.current||{},{finishStatus:'completed',completedAt:new Date().toISOString()});
           }
-          // Project finished — the snapshot is no longer meaningful for any
-          // future re-open of this project. Clear so any further enable starts
-          // fresh from the live stash (DEFECT-001).
-          rtStashSnapshotRef.current={};
-        })().then(()=>{setStashDeducted(true);setModal(null);}).catch(()=>{setStashDeducted(true);setModal(null);});
+          // Keep accounting after completion so reopening remains idempotent.
+          return true;
+        })().then(ok=>{if(ok){setStashDeducted(true);setModal(null);}}).catch(e=>console.warn('Completion stash write failed:',e));
       }} style={{width:'100%',padding:'10px 20px',fontSize:'var(--text-sm)',borderRadius:'var(--radius-md)',border:'none',background:'var(--accent)',color:'var(--surface)',cursor:'pointer',fontWeight:600}}>
         Confirm and finish
       </button>

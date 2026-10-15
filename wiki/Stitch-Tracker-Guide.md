@@ -227,3 +227,14 @@ Manual snapshots, existing snapshots, pattern-change recovery, project autosave 
 ## Timer and crash recovery
 
 Start timer records elapsed time even without marked stitches. Pauses and hidden-tab time are excluded. Active sessions are checkpointed locally about every five seconds and alongside progress writes. Reopening after a crash saves only through the last successful checkpoint and starts any further stitching as a new session; downtime is never counted. Writes can fail or be delayed, so recent time may be lost. An unattended timer is trimmed to its last mark, or capped at the idle threshold when nothing was marked (30 minutes if idle finalisation is disabled). Finish a session before exporting a portable backup to include its time. Use one tab per project on browsers without Web Locks.
+
+
+## Live stash deductions
+
+In More > Tools, enable **Use up stash thread as I stitch**. New full-cross consumption is deducted after 30 seconds of inactivity, when hiding the page, and on completion or navigation where the browser allows the write to finish. Reopening or retrying uses saved per-project checkpoints, so unchanged consumption does not deduct again. Stash additions and other projects' deductions are retained on this device.
+
+The first checkpoint treats existing marks as historical: older projects may already have deducted that thread, so the app never silently charges it again. Turning Live off keeps recorded deductions; re-enabling catches up marks above the saved checkpoint, including marks added while off. Blends divide usage between constituent strands. Half stitches, quarters, knots and backstitch are outside the current live consumption model.
+
+Unmarking, Undo and Reset do not return thread to inventory. Physical unpicking usually discards thread. For an erroneous tracking deduction, turn Live off and choose **Correct deductions recorded for this project**. This credits only recorded actual debits, once, and preserves later purchases and other projects. It cannot recover deductions made before accounting metadata existed. Physical restitching below the previous consumption peak is not automatically counted again; adjust stash manually until a separate restitch accounting workflow is defined.
+
+Accounting is local to this browser's stash database. Cross-device stash synchronisation, restoring older backups and reconciling inventory on separate devices do not provide a distributed transaction guarantee. See [the engineering notes](../reports/thread-deduction-accounting.md).

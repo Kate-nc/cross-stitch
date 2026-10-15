@@ -224,35 +224,6 @@ const StashBridge = (() => {
     return migrated;
   }
 
-  function _readManagerStateSnapshot(db) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction("manager_state", "readonly");
-      const store = tx.objectStore("manager_state");
-      let threads = {};
-      let schemaVersion = 0;
-      let settled = 0;
-      function check() {
-        settled++;
-        if (settled === 2) resolve({ threads: threads, schemaVersion: schemaVersion });
-      }
-      const threadsReq = store.get("threads");
-      threadsReq.onsuccess = () => {
-        threads = threadsReq.result || {};
-        check();
-      };
-      threadsReq.onerror = () => reject(threadsReq.error);
-      const versionReq = store.get("schema_version");
-      versionReq.onsuccess = () => {
-        schemaVersion = Number(versionReq.result) || 0;
-        check();
-      };
-      versionReq.onerror = () => {
-        schemaVersion = 0;
-        check();
-      };
-    });
-  }
-
   async function migrateToLatest(targetVersion) {
     const desiredVersion = targetVersion == null ? 3 : (targetVersion >= 3 ? 3 : 2);
     if (desiredVersion <= 2 && _migrationDone) return;
@@ -261,43 +232,30 @@ const StashBridge = (() => {
       await _withManagerWriteLock('migrate-stash-schema', async function () {
         const db = await openManagerDB();
         try {
-          const snapshot = await _readManagerStateSnapshot(db);
-          const storedVersion = snapshot.schemaVersion;
-          const v2 = _migrateThreadsToV2(snapshot.threads || {});
-          const needV2 = v2.changed;
-          const needV3 = desiredVersion >= 3 && storedVersion < 3;
-          const nextThreads = needV3 ? _migrateThreadsToV3(v2.threads) : v2.threads;
-
-          if (!needV2 && !needV3) {
-            _migrationDone = true;
-            _schemaVersion = storedVersion;
-            _noteSeenThreadVersions(snapshot.threads || {});
-            return;
-          }
-
-          // Queue all IDB requests synchronously inside one tx so Safari does not
-          // auto-commit the transaction on an `await`/microtask yield.
           await new Promise((resolve, reject) => {
-            const tx = db.transaction("manager_state", "readwrite");
-            const store = tx.objectStore("manager_state");
-            store.put(nextThreads, "threads");
-            if (needV3) store.put(3, "schema_version");
-            tx.oncomplete = resolve;
-            tx.onerror = () => reject(tx.error);
-            tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+            const tx = db.transaction('manager_state', 'readwrite');
+            const store = tx.objectStore('manager_state');
+            let storedVersion=0, nextThreads={}, changed=false, notify=false;
+            const vr=store.get('schema_version');
+            vr.onsuccess=()=>{storedVersion=Number(vr.result)||0;};
+            const tr=store.get('threads');
+            tr.onsuccess=()=>{
+              const v2=_migrateThreadsToV2(tr.result||{});
+              const needV3=desiredVersion>=3&&storedVersion<3;
+              nextThreads=needV3?_migrateThreadsToV3(v2.threads):v2.threads;
+              changed=v2.changed||needV3;notify=needV3;
+              if(changed)store.put(nextThreads,'threads');
+              if(needV3){storedVersion=3;store.put(3,'schema_version');}
+            };
+            tx.oncomplete=()=>{
+              _migrationDone=true;_schemaVersion=storedVersion;
+              _noteSeenThreadVersions(nextThreads);
+              if(notify)_dispatchStashChanged();
+              resolve();
+            };
+            tx.onerror=()=>reject(tx.error);
+            tx.onabort=()=>reject(tx.error||new Error('Migration aborted'));
           });
-
-          _migrationDone = true;
-          _schemaVersion = needV3 ? 3 : storedVersion;
-          _noteSeenThreadVersions(nextThreads);
-          if (needV3) {
-            console.log('Schema migrated to v3');
-            // Notify any open page (e.g. the Manager) that the stash data has been
-            // updated so it reloads from IDB. Without this, a race condition can
-            // cause the Manager's auto-save to overwrite the V3 fields with the
-            // bare pre-migration React state it already loaded.
-            _dispatchStashChanged();
-          }
         } finally {
           try { db.close(); } catch (_) { /* swallow */ }
         }
@@ -487,21 +445,35 @@ const StashBridge = (() => {
           function rejectOnce(err) { if (!settled) { settled = true; reject(err); } }
           tx.onerror = () => rejectOnce(tx.error || new Error('Transaction failed'));
           tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
+          // Both reads and both writes belong to the same IDB transaction.
+          let record;
+          if (opts.recordKey) {
+            const recordReq = store.get(opts.recordKey);
+            recordReq.onsuccess = () => { record = recordReq.result; };
+          }
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3 };
+            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3, record: record };
             let outcome;
             try {
               outcome = mutate(threads, ctx) || {};
               completionValue = Object.prototype.hasOwnProperty.call(outcome, 'value') ? outcome.value : outcome;
               changedKeys = Array.isArray(outcome.changedKeys) ? outcome.changedKeys.slice() : [];
             } catch (err) {
+              tx.abort();
               rejectOnce(err);
               return;
             }
-            const putReq = store.put(threads, "threads");
-            putReq.onerror = () => rejectOnce(putReq.error);
+            try {
+              if (opts.recordKey && outcome.record) store.put(outcome.record, opts.recordKey);
+              const putReq = store.put(threads, "threads");
+              putReq.onerror = () => rejectOnce(putReq.error);
+            } catch (err) {
+              try { tx.abort(); } catch (_) {}
+              rejectOnce(err);
+              return;
+            }
             tx.oncomplete = () => {
               if (opts.invalidateStats && typeof invalidateStatsCache === 'function') invalidateStatsCache();
               _noteSeenThreadKeys(threads, changedKeys);
@@ -603,6 +575,85 @@ const StashBridge = (() => {
       } catch (e) {
         console.error("StashBridge.updateThreadOwned failed:", e);
       }
+    },
+
+    // Merge only edits made since the Manager's last displayed baseline.
+    // Quantity edits are deltas, so stale autosave/unload cannot erase RT usage.
+    async saveThreadEdits(next, baseline) {
+      return _withThreadsWrite('saveThreadEdits', function(threads, ctx) {
+        const changedKeys=[];
+        for(const key of Object.keys(next||{})) {
+          const before=(baseline||{})[key]||{};
+          const after=next[key]||{};
+          const fields=Object.keys(after).filter(f=>!['_v','history','lastAdjustedAt'].includes(f)&&JSON.stringify(after[f])!==JSON.stringify(before[f]));
+          if(!fields.length)continue;
+          const entry=_ensureThreadEntry(threads,_normaliseKey(key),ctx).entry;
+          fields.forEach(f=>{
+            if(f==='owned') {
+              const oldOwned=Number(entry.owned)||0;
+              const delta=(Number(after.owned)||0)-(Number(before.owned)||0);
+              entry.owned=after.owned===0?0:Math.max(0,oldOwned+delta);
+              entry.lastAdjustedAt=ctx.now;
+              _appendHistory(entry,entry.owned-oldOwned,ctx.now);
+            } else { entry[f]=after[f]; }
+          });
+          if(fields.includes('partialStatus')&&after.partialStatus==='used-up'&&entry.owned) {
+            _appendHistory(entry,-entry.owned,ctx.now);entry.owned=0;entry.lastAdjustedAt=ctx.now;
+          }
+          _bumpEntryVersion(key,entry);changedKeys.push(key);
+        }
+        return { changedKeys: changedKeys, value: threads };
+      }, { invalidateStats: true });
+    },
+
+    // Absolute cumulative consumption, keyed by brand:id. The checkpoint and
+    // inventory delta commit together; IDB serialises writers even without a
+    // Web Lock. initial is the loaded project's consumption, NEVER live stock.
+    // Unknown history is checkpointed without charging it a second time.
+    async applyProjectConsumption(projectId, consumption, initial, options) {
+      if (!projectId) throw new Error('A saved project id is required for stash deductions');
+      function validate(amounts) {
+        for (const key of Object.keys(amounts || {})) {
+          if (!/^[a-z]+:.+/.test(key) || !Number.isFinite(amounts[key]) || amounts[key] < 0) {
+            throw new Error('Invalid project consumption: ' + key);
+          }
+        }
+      }
+      validate(consumption); validate(initial);
+      const restore = !!(options && options.restore);
+      return _withThreadsWrite('applyProjectConsumption', function(threads, ctx) {
+        const record = ctx.record || { version: 1, threads: {}, migration: 'checkpoint-existing-consumption' };
+        if (record.version !== 1) throw new Error('Unsupported deduction accounting version');
+        const keys = new Set([...Object.keys(initial || {}), ...Object.keys(consumption || {}), ...Object.keys(record.threads)]);
+        const changedKeys = [];
+        for (const key of keys) {
+          const prior = record.threads[key] || { observed: (initial && initial[key]) || 0, deducted: 0 };
+          const now = (consumption && consumption[key]) || 0;
+          const initialise = !!(options && options.initialise);
+          const delta = restore || initialise ? 0 : Math.max(0, now - prior.observed);
+          const entry = threads[key];
+          // Missing/empty stock is not a debt to collect from future purchases.
+          const available = stashEffectiveQty(entry);
+          const debit = Math.min(available, delta);
+          const credit = restore ? prior.deducted : 0;
+          if (debit || credit) {
+            const next = _ensureThreadEntry(threads, key, ctx).entry;
+            next.owned = Math.max(0, available - debit + credit);
+            // Fold a qualitative partial skein into exact fractional owned once.
+            next.partialStatus = null;
+            next.lastAdjustedAt = ctx.now;
+            _appendHistory(next, credit - debit, ctx.now);
+            _bumpEntryVersion(key, next);
+            changedKeys.push(key);
+          }
+          record.threads[key] = {
+            observed: initialise ? prior.observed : Math.max(prior.observed, now),
+            deducted: restore ? 0 : prior.deducted + debit
+          };
+        }
+        record.updatedAt = ctx.now;
+        return { record: record, value: { accounting: record, threads: threads }, changedKeys: changedKeys };
+      }, { recordKey: 'rt_deduction:' + projectId, invalidateStats: true });
     },
 
     // Returns array of projects that use a given DMC thread ID
