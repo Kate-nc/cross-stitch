@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: '1.0.156',
     date: 'October 2026',
     notes: [
+      'Fixed: half-stitch marks now undo and redo in order. Undo and Redo restore original session totals and catch-up classification without inflating additions or pace, including after End session and across stitching days. Physical unpick restoration keeps its separate accounting.',
       'Fixed: fractional progress stays consistent across Track, Stats, colour figures and project summaries. Half marks refresh colour counters immediately. Incomplete charts stay below 100%, and hidden layers cannot trigger project completion or stash deduction.',
       'Fixed: live stash deductions persist per-project checkpoints, so reopening and retrying do not deduct the same thread twice. Atomic updates preserve other projects and stash edits on this device. Existing marks in older projects are checkpointed without another historical deduction.',
       'Fixed: blended crosses split thread usage by constituent strands, brands stay separate, and tracker tabs exchange bounded announcements without heartbeat reply loops.',

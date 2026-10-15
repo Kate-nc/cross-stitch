@@ -238,3 +238,9 @@ The first checkpoint treats existing marks as historical: older projects may alr
 Unmarking, Undo and Reset do not return thread to inventory. Physical unpicking usually discards thread. For an erroneous tracking deduction, turn Live off and choose **Correct deductions recorded for this project**. This credits only recorded actual debits, once, and preserves later purchases and other projects. It cannot recover deductions made before accounting metadata existed. Physical restitching below the previous consumption peak is not automatically counted again; adjust stash manually until a separate restitch accounting workflow is defined.
 
 Accounting is local to this browser's stash database. Cross-device stash synchronisation, restoring older backups and reconciling inventory on separate devices do not provide a distributed transaction guarantee. See [the engineering notes](../reports/thread-deduction-accounting.md).
+
+### Undo, Redo and session totals
+
+Undo corrects the last mark, including either half-stitch direction, without counting physical unpicking. Redo restores that action's original contribution. Repeating them does not add stitching, pace or streak activity, and catch-up remains catch-up. Drag and rectangle fills remain one step. History keeps 50 steps for the open project and clears when a project is loaded.
+
+Corrections belong to the action's original session and stitching day, even after End session or a day boundary. A finished session keeps its measured time and notes. An explicitly edited, merged or deleted journal record takes precedence: subsequent chart Undo/Redo leaves that journal change intact. A session ended with every mark undone keeps a zero-addition record so Redo can restore the original attribution. Undoing Unpick area cancels its original unpicked contribution; it does not count restored marks as new stitching.

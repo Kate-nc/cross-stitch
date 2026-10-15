@@ -112,3 +112,14 @@ test('overlapping older full save and newer checkpoint keep the newer session sn
   ]);
   expect((await ProjectStorage.get('proj_p')).sessionCheckpoints[0].checkpointAt).toBe(2000);
 });
+
+test('a full save of an older row cannot retire a pending history correction with the same ID',async()=>{
+  const original={id:'sess_one',date:'2026-10-15',durationSeconds:60,unitsCompleted:1,unitsUndone:0,units:1};
+  await ProjectStorage.save(proj({statsSessions:[original]}));
+  const corrected={...original,unitsCompleted:0,units:0,historyCorrectedAt:Date.now(),historyCorrectionRevision:1};
+  localStorage.setItem('cs_pending_session_proj_p',JSON.stringify([corrected]));
+  await ProjectStorage.save(proj({statsSessions:[original]}));
+  expect(JSON.parse(localStorage.getItem('cs_pending_session_proj_p'))).toEqual([corrected]);
+  await ProjectStorage.save(proj({statsSessions:[corrected]}));
+  expect(localStorage.getItem('cs_pending_session_proj_p')).toBeNull();
+});
