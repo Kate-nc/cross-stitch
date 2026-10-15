@@ -722,10 +722,10 @@ function TouchLockPill({onUnlock}){
     <span className="touch-lock-pill__fill" aria-hidden="true"/>
   </button>;
 }
-function StopTimerDialog({seconds,stitches,onSave,onKeep,onClose}){
+function StopTimerDialog({seconds,stitches,hasActivity,onSave,onKeep,onClose}){
   const startMin=Math.max(1,Math.round(seconds/60));
   const[minutes,setMinutes]=useState(String(startMin));
-  const nothing=!(stitches>0);
+  const nothing=seconds<1&&!hasActivity;
   const O=window.Overlay;
   const m=Number(minutes);
   const valid=minutes!==''&&Number.isFinite(m)&&m>=1&&m<=1440;
@@ -733,7 +733,7 @@ function StopTimerDialog({seconds,stitches,onSave,onKeep,onClose}){
     <h3 id="stoptimer-title" style={{marginTop:0,fontSize:20,color:'var(--text-primary)'}}>{nothing?"Nothing marked yet":"You stitched for "+startMin+" min"}</h3>
     <div id="stoptimer-body" style={{fontSize:'var(--text-lg)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>
       {nothing
-        ?<p style={{marginTop:0,marginBottom:0}}>No stitches were marked while the timer ran, so no session will be saved.</p>
+        ?<p style={{marginTop:0,marginBottom:0}}>The timer has not recorded a second yet, so no session will be saved.</p>
         :<>
           <p style={{marginTop:0}}>{Math.round(stitches).toLocaleString('en-GB')} stitches in that time. Change the minutes if the timer ran when you were not stitching.</p>
           <label style={{display:'flex',flexDirection:'column',gap:4,fontSize:'var(--text-sm)'}}>Minutes
@@ -2118,8 +2118,8 @@ const flushedGenRef=useRef(-1);
 // The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
-const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings});
-const{unrecordUnpick,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings,savesBlockedRef});
+const{getSessionCheckpoint,writeSessionCheckpoint,unrecordUnpick,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 useEffect(()=>{if(!motivation.show)setCelebration(null);},[motivation.show,setCelebration]);
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
 const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
@@ -3770,7 +3770,14 @@ function processLoadedProject(project){
   // later render-time failure can't cause the next auto-save to mint a copy.
   // A session still running belongs to the project being left: finish it now, while the project id is still that
   // one, so it is kept (its backup is written under that id and is recovered when that project is opened again).
-  try{if(currentAutoSessionRef.current&&finaliseAutoSessionRef.current&&projectIdRef.current&&project.id&&project.id!==projectIdRef.current)finaliseAutoSessionRef.current({trimIfIdle:true});}catch(_){}
+  try{if(currentAutoSessionRef.current&&finaliseAutoSessionRef.current){
+    const oldId=projectIdRef.current;
+    const ended=finaliseAutoSessionRef.current({trimIfIdle:true});
+    if(ended&&oldId===project.id){
+      const records=ended.records||[ended],existing=project.statsSessions||[];
+      project={...project,statsSessions:existing.concat(records.filter(r=>!existing.some(s=>s.id===r.id)))};
+    }
+  }}catch(_){}
   const _sameProjectReload=!!project.id&&project.id===projectIdRef.current; // a reload of what is on screen keeps the person's current mode and view
   projectIdRef.current = project.id || null;
   let s=project.settings||{};
@@ -4090,10 +4097,17 @@ function processLoadedProject(project){
   try{
     var _pk='cs_pending_session_'+(project.id||'');
     var _pj=localStorage.getItem(_pk);
-    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}});if(!_reconcileHeld)localStorage.removeItem(_pk);}   // kept while a question holds saves; the first save after it clears it
+    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}});/* Retained until a successful full save includes these ids. */}   // kept while a question holds saves; the first save after it clears it
   }catch(_){}
   // Sessions the person deleted stay deleted, even if a stale copy comes back (a recovered unsaved session, a restore).
   deletedSessionIdsRef.current=Array.isArray(project.deletedSessionIds)?project.deletedSessionIds.slice():[];
+  rawStatsSessions=withoutDeletedSessions(rawStatsSessions,deletedSessionIdsRef.current);
+  // The checkpoint already contains day-split records calculated at the last write.
+  // Never resume its wall clock: time while the renderer was gone is unknown.
+  (project.sessionCheckpoints||[]).forEach(cp=>{
+    if(cp.projectId!==project.id)return;
+    (cp.records||[]).forEach(r=>{if(!rawStatsSessions.some(s=>s.id===r.id))rawStatsSessions.push(r);});
+  });
   rawStatsSessions=withoutDeletedSessions(rawStatsSessions,deletedSessionIdsRef.current);
   setStatsSessions(rawStatsSessions);
   // A3: fire the resume recap modal once per project load when there is at
@@ -4609,6 +4623,7 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.slice(),
     bsDone: window.Backstitch ? (window.Backstitch.forSave(bsDone)||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDone)||[]) : [], beads: beadsRef.current,
+    activeSessionCheckpoint:getSessionCheckpoint(),
     statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
@@ -4685,6 +4700,7 @@ function writeProgressNow() {
   const live = doneRef.current;
   const done = (live && projectIdRef.current === o.id && live.length === o.done.length) ? live : o.done;
   const seen = window.CrossTabCoord && window.CrossTabCoord.getSeen ? window.CrossTabCoord.getSeen(o.id) : null;
+  if(projectIdRef.current===o.id)writeSessionCheckpoint();
   const recoverySnapshot = isUnloadingRef.current ? snapshotNow() : null;
   try {
     const recovery = recoverySnapshot && recoverySnapshot.id === o.id ? recoverySnapshot : null;
@@ -4741,7 +4757,7 @@ useEffect(() => {
         if(autoSaveGenRef.current!==_gen)scheduleProgressWriteRef.current();}
       endOnce(_ok ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), saveResult && saveResult.reason);
       if(saveResult&&noWriteReason(saveResult.reason))return null;
-      try{if(projectIdRef.current)localStorage.removeItem('cs_pending_session_'+projectIdRef.current);}catch(_){}
+      if(!_ok)return null;
       return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
         // Keep the Creator's tracker-field preservation container in sync so that if
         // the user switches to Creator mode, the next Creator auto-save won't overwrite
@@ -8965,7 +8981,7 @@ return(
               <button
                 onClick={()=>{
                   const cs=currentAutoSessionRef.current;
-                  if(cs&&cs.timer){const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}
+                  if(cs&&cs.timer){const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches,hasActivity:cs.stitchesCompleted+cs.stitchesUndone>0});}
                   else if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();
                   setMorePanelOpen(false);
                 }}
@@ -9301,13 +9317,13 @@ return(
     const firstSessionBreadcrumb=sessionBreadcrumbs.length>0?sessionBreadcrumbs[0]:null;
     return <SessionSummaryModal data={sessionSummaryData} prevAvgSpeed={statsSessions&&statsSessions.length>1?Math.round(statsSessions.slice(0,-1).reduce((s,sess)=>s+(ProgressUnits.sessionAdded(sess)),0)/Math.max(1,statsSessions.slice(0,-1).reduce((s,sess)=>s+(sess.durationSeconds||0),0))*3600):0} hasBreadcrumbs={sessionBreadcrumbs.length>0} onViewBreadcrumbs={()=>{setBreadcrumbVisible(true);setSessionSummaryData(null);if(firstSessionBreadcrumb&&stitchScrollRef.current){const b=firstSessionBreadcrumb;const off=chartScrollOffset();const cx=G+b.bx*blockW*scs+blockW*scs/2-off.x;const cy=G+b.by*blockH*scs+blockH*scs/2-off.y;const el=stitchScrollRef.current;el.scrollLeft=Math.max(0,cx-el.clientWidth/2);el.scrollTop=Math.max(0,cy-el.clientHeight/2);}}} onClose={()=>setSessionSummaryData(null)}/>;
   })()}
-  {stopTimerAsk&&<StopTimerDialog seconds={stopTimerAsk.seconds} stitches={stopTimerAsk.stitches}
+  {stopTimerAsk&&<StopTimerDialog seconds={stopTimerAsk.seconds} stitches={stopTimerAsk.stitches} hasActivity={stopTimerAsk.hasActivity}
     onKeep={()=>setStopTimerAsk(null)} onClose={()=>setStopTimerAsk(null)}
-    onSave={sec=>{const endMs=stopTimerAsk.endMs;setStopTimerAsk(null);if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(sec==null?undefined:{endMs:endMs,durationSeconds:sec});}}/>}
+    onSave={sec=>{const endMs=stopTimerAsk.endMs;setStopTimerAsk(null);if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(sec==null?{discard:true}:{endMs:endMs,durationSeconds:sec});}}/>}
   {forgotStop&&!stopTimerAsk&&<ForgotStopDialog info={forgotStop}
     onKeep={()=>snoozeForgotStop()}
-    onTrim={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(forgotStop.lastMarkT?{endMs:forgotStop.lastMarkT}:undefined);}}
-    onStop={()=>{const cs=currentAutoSessionRef.current;if(!cs)return;const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches});}}/>}
+    onTrim={()=>{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current(forgotStop.lastMarkT?{endMs:forgotStop.lastMarkT}:{discard:true});}}
+    onStop={()=>{const cs=currentAutoSessionRef.current;if(!cs)return;const endMs=Date.now();setStopTimerAsk({endMs:endMs,seconds:Math.floor(computeActiveMs(cs.eventLog,endMs,90000,'manual')/1000),stitches:liveAutoStitches,hasActivity:cs.stitchesCompleted+cs.stitchesUndone>0});}}/>}
   {markAllAsk&&(()=>{
     const O=window.Overlay;
     const body=<>

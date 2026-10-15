@@ -430,3 +430,5 @@ Pull requests are welcome. Before submitting:
 ## Licence
 
 ISC
+
+Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.

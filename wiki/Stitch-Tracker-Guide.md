@@ -223,3 +223,7 @@ In a project's Stats > Compare, save a manual snapshot to compare your marked st
 Select a snapshot and choose **Delete snapshot**, or choose **Delete all automatic snapshots**. Confirm the deletion to proceed; cancelling keeps your history. Bulk deletion preserves manual snapshots (even one labelled “auto”) and **Before pattern change** recovery snapshots. A deleted selection clears safely. Read-only views disable saving and deletion. Deletions persist through project saves, reloads, backups and Sync.
 
 Manual snapshots, existing snapshots, pattern-change recovery, project autosave and session recording are independent of the automatic-snapshot preference.
+
+## Timer and crash recovery
+
+Start timer records elapsed time even without marked stitches. Pauses and hidden-tab time are excluded. Active sessions are checkpointed locally about every five seconds and alongside progress writes. Reopening after a crash saves only through the last successful checkpoint and starts any further stitching as a new session; downtime is never counted. Writes can fail or be delayed, so recent time may be lost. An unattended timer is trimmed to its last mark, or capped at the idle threshold when nothing was marked (30 minutes if idle finalisation is disabled). Finish a session before exporting a portable backup to include its time. Use one tab per project on browsers without Web Locks.
