@@ -10,19 +10,19 @@ const ProjectStorage = (() => {
   const STATS_STORE = "stats_summaries";
   // Rows written before progress was counted in units (progress-units.js) have no unitsV; refreshProgressRows()
   // rewrites them once. Bump this if the definition ever changes again.
-  const PROGRESS_ROW_VERSION = 2;
+  const PROGRESS_ROW_VERSION = 3;
   const ACTIVE_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project";
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
 
   // Progress for a stored record, from the one shared definition (progress-units.js): full stitches, half
-  // stitches and French knots in units. `done` and `total` are whole units for display, `complete` is decided on
+  // stitches and French knots in units. `done` and `total` retain exact fractional units, `complete` is decided on
   // the exact values, and `percent` has one decimal. The counting is cached per array reference there, so a save
   // does not rescan a chart that has not changed.
   function progressOf(p) {
     const r = ProgressUnits.fromProject(p);
-    return { total: Math.round(r.totalUnits), done: Math.round(r.doneUnits), complete: r.complete, percent: r.percent };
+    return { total: r.totalUnits, done: r.doneUnits, complete: r.complete, percent: r.percent };
   }
 
   // Build a lightweight stats summary for the global dashboard.
@@ -1313,6 +1313,8 @@ const ProjectStorage = (() => {
     // Return all stats summaries for the global dashboard.
     async getAllStatsSummaries() {
       try {
+        // Stats can be opened directly, without visiting Home's idle migration first.
+        await this.refreshProgressRows();
         const db = await getDB();
         const data = await new Promise((resolve, reject) => {
           let tx = db.transaction([STATS_STORE, META_STORE], "readonly");
@@ -1560,7 +1562,7 @@ const ProjectStorage = (() => {
               id: proj.id, name: proj.name || 'Untitled',
               lastTouchedAt: projAge,
               totalStitches: totalSt, completedStitches: completedSt,
-              pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
+              pct: totalSt > 0 ? ProgressUnits.percent(completedSt,totalSt) : 0
             };
           }
         }
@@ -1729,7 +1731,7 @@ const ProjectStorage = (() => {
             id: proj.id, name: proj.name || 'Untitled',
             lastTouchedAt: proj.lastTouchedAt || proj.updatedAt || LEGACY_EPOCH,
             totalStitches: totalSt, completedStitches: completedSt,
-            pct: totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0
+            pct: totalSt > 0 ? ProgressUnits.percent(completedSt,totalSt) : 0
           });
         }
         wips.sort((a, b) => (a.lastTouchedAt || '').localeCompare(b.lastTouchedAt || ''));

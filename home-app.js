@@ -64,7 +64,7 @@
     if (!p || !(p.pattern || p.p)) return null;
     var r = ProgressUnits.fromProject(p);
     if (r.totalUnits <= 0) return null;
-    return Math.round(r.percent);
+    return r.percent;
   }
 
   function activateAndGo(id, href) {

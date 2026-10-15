@@ -43,7 +43,7 @@
     for (var i = 0; i < ORDER.length; i++) {
       var t = ORDER[i], c = counts[t];
       if (!c) continue;
-      var d = num(c.done), tot = num(c.total), w = WEIGHTS[t];
+      var tot = num(c.total), d = Math.min(num(c.done), tot), w = WEIGHTS[t];
       if (!included(t, include)) continue;
       breakdown[t] = { done: d, total: tot, weight: w, doneUnits: d * w, totalUnits: tot * w };
       doneUnits += d * w;
@@ -51,8 +51,8 @@
     }
     var out = { doneUnits: doneUnits, totalUnits: totalUnits, breakdown: breakdown };
     out.remainingUnits = Math.max(0, totalUnits - doneUnits);
-    // One decimal place, never above 100, the way every display has shown it.
-    out.percent = totalUnits > 0 ? Math.min(100, Math.round(doneUnits / totalUnits * 1000) / 10) : 0;
+    // Presentation only: reserve 100 for exact completion.
+    out.percent = percent(doneUnits, totalUnits);
     out.complete = totalUnits > 0 && doneUnits >= totalUnits;
     var sep = {};
     for (var j = 0; j < SEPARATE.length; j++) { var s = counts[SEPARATE[j]]; if (s) sep[SEPARATE[j]] = { done: num(s.done), total: num(s.total) }; }
@@ -60,13 +60,24 @@
     return out;
   }
 
-  // Units shown to the person: whole numbers (a half stitch is half a unit, so the total can be fractional).
+  function percent(done, total) {
+    if (!(total > 0)) return 0;
+    if (done >= total) return 100;
+    return Math.min(99.9, Math.round(Math.max(0, done) / total * 1000) / 10);
+  }
+  function colourProgress(c) {
+    c = c || {};
+    return progressUnits({ full: {done:c.done, total:c.total}, half: {done:c.halfDone, total:c.halfTotal},
+      quarter: {done:c.quarterDone, total:c.quarterTotal}, knot: {done:c.knotDone, total:c.knotTotal} });
+  }
+
+  // Legacy whole-unit helpers remain for callers requesting whole numbers. Unit text retains fractions.
   function roundUnits(n) { return Math.round(n); }
   // One formatter, built once: toLocaleString builds a new one on every call, which showed up on the tap path.
   var NF = null;
   try { NF = new Intl.NumberFormat("en-GB"); } catch (e) { NF = null; }
   function fmt(n) { return NF ? NF.format(n) : n.toLocaleString("en-GB"); }
-  function formatUnits(n) { return fmt(roundUnits(n)); }
+  function formatUnits(n) { return fmt(n); }
   // "To go" as a whole number that adds up with the whole "done" and "total" shown beside it (rounding each of
   // the three on its own can leave them one apart).
   function remainingWhole(result) { return Math.max(0, roundUnits(result.totalUnits) - roundUnits(result.doneUnits)); }
@@ -176,25 +187,23 @@
     return n;
   }
 
-  function countMarked(done) {
+  // Cache by both references: a saved mark on a cell removed from the chart is not counted.
+  function countMarked(done, pat) {
     if (!done || typeof done !== "object") return 0;
-    var cached = _doneCache && _doneCache.get(done);
+    var byPattern = _doneCache && _doneCache.get(done);
+    var cached = byPattern && pat && byPattern.get(pat);
     if (cached !== undefined) return cached;
     var n = 0;
-    if ((typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView(done)) || Array.isArray(done)) {
-      for (var i = 0; i < done.length; i++) if (done[i] === 1) n++;
+    for (var i = 0; i < done.length; i++) {
+      var c = pat && pat[i];
+      var stitchable = !pat || (c && (Array.isArray(c)
+        ? c[1] !== "k" && c[0] !== "__skip__" && c[0] !== "__empty__"
+        : c.id !== "__skip__" && c.id !== "__empty__"));
+      if (done[i] === 1 && stitchable) n++;
     }
-    if (_doneCache) _doneCache.set(done, n);
-    return n;
-  }
-
-  // Half-stitch sides in a record: halfStitches is [[cellIndex, {fwd, bck}], ...], halfDone the same for marks.
-  function countSides(list) {
-    var n = 0;
-    if (!Array.isArray(list)) return 0;
-    for (var i = 0; i < list.length; i++) {
-      var e = list[i], v = e && e[1];
-      if (v) { if (v.fwd) n++; if (v.bck) n++; }
+    if (_doneCache && pat) {
+      if (!byPattern) { byPattern = new WeakMap(); _doneCache.set(done, byPattern); }
+      byPattern.set(pat,n);
     }
     return n;
   }
@@ -263,6 +272,14 @@
     return { done: done, total: total };
   }
 
+  function countHalves(p) {
+    var marks = new Map(p.halfDone || []), total=0, done=0;
+    (p.halfStitches || []).forEach(function(e) {
+      ["fwd","bck"].forEach(function(side) { if(e[1] && e[1][side]) {total++; if((marks.get(e[0]) || {})[side])done++;} });
+    });
+    return {total:total, done:done};
+  }
+
   function countsFromProject(p) {
     if (!p) return {};
     var pat = p.pattern || p.p;
@@ -271,21 +288,42 @@
     var kd = 0;
     for (var i = 0; i < knots.length; i++) if (knots[i] && knotKeys.has(knots[i].x + "," + knots[i].y)) kd++;
     var fullTotal = (pat && pat.length) ? countStitchCells(pat) : (p.totalStitches || 0);
-    var fullDone = p.done ? countMarked(p.done) : (p.completedStitches || 0);
+    var fullDone = p.done ? countMarked(p.done, pat) : (p.completedStitches || 0);
     return {
       full: { done: fullDone, total: fullTotal },
-      half: { done: countSides(p.halfDone), total: countSides(p.halfStitches) },
+      half: countHalves(p),
       knot: { done: kd, total: knots.length },
       quarter: countQuarters(p),
       backstitch: countBackstitch(p)
     };
   }
 
+  // Used when Stats loads a different saved project, including colours absent from the full grid.
+  function coloursFromProject(p) {
+    var out = {}, pat = p.pattern || p.p || [], marks = p.done || [];
+    function entry(c) {
+      var id = c && (Array.isArray(c) ? c[0] : c.id);
+      if (!id || id === "__skip__" || id === "__empty__" || (Array.isArray(c) && c[1] === "k")) return null;
+      if (!out[id]) out[id] = {thread: Array.isArray(c) ? {id:id} : c, total:0, done:0, halfTotal:0, halfDone:0, quarterTotal:0, quarterDone:0, knotTotal:0, knotDone:0};
+      return out[id];
+    }
+    pat.forEach(function(c,i) { var e=entry(c); if(e) { e.total++; if(marks[i] === 1)e.done++; } });
+    var hd = new Map(p.halfDone || []), qd = new Map(p.partialDone || []), kd = new Set(p.knotsDone || []);
+    (p.halfStitches || []).forEach(function(pair) { ["fwd","bck"].forEach(function(side) {
+      var e=entry(pair[1] && pair[1][side]); if(e) { e.halfTotal++; if((hd.get(pair[0]) || {})[side])e.halfDone++; }
+    }); });
+    partialWithoutLegacyHalves(p.partialStitches,p.halfStitches,p.settings && p.settings.threadBrand).forEach(function(cell,i) {
+      ["TL","TR","BL","BR"].forEach(function(pos) { var e=entry(cell[pos]); if(e) { e.quarterTotal++; if((qd.get(i) || []).indexOf(pos)!==-1)e.quarterDone++; } });
+    });
+    (p.knots || []).forEach(function(k) { var e=entry(k); if(e) {e.knotTotal++; if(kd.has(k.x+","+k.y))e.knotDone++;} });
+    return out;
+  }
+
   function fromProject(p, opts) { return progressUnits(countsFromProject(p), opts); }
 
   var api = {
     partialWithoutLegacyHalves: partialWithoutLegacyHalves,
-    WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
+    percent: percent, colourProgress: colourProgress, coloursFromProject: coloursFromProject, WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
     sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionBasis: sessionBasis, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
     breakdownText: breakdownText

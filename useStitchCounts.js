@@ -12,7 +12,7 @@
      pat          — current pattern array (triggers full recompute)
      done         — current done Int8Array (read during recompute)
      halfStitches — current half-stitch Map (triggers full recompute)
-     halfDone     — current half-done Map (read during recompute)
+     halfDone     — current half-done Map (invalidates half counters only)
 
    Returns
    ───────
@@ -37,7 +37,7 @@
     //      regenerate, palette swap, halfStitches mutation, etc.).
     //   2. Incremental — `applyDoneCountsDelta(changes, pat, newDone)` after a
     //      stitch flip where you know exactly which indices changed. Halves
-    //      always go through path 1.
+    //      use the half-only effect below when their marks change.
     // If you mutate `done` and forget both, the counter (`Stitches done` chip,
     // rail progress bars, milestone celebrations, autosave snapshot) silently
     // drifts. Add a recomputeAllCounts call when in doubt — it's O(w·h) but
@@ -73,6 +73,18 @@
     }
     // Full recompute only on structural changes (pattern load, half-stitch structure edits)
     useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
+
+    // Half marks must invalidate colour counts, without scanning the full grid on each tap.
+    useEffect(()=>{
+      const cdc=colourDoneCountsRef.current;
+      Object.keys(cdc).forEach(id=>{cdc[id]={...cdc[id],halfDone:0};});
+      if(halfStitches)halfStitches.forEach((hs,idx)=>{
+        const hd=halfDone&&halfDone.get(idx);
+        if(!hd)return;
+        ['fwd','bck'].forEach(side=>{if(hs[side]&&hd[side]&&cdc[hs[side].id])cdc[hs[side].id].halfDone++;});
+      });
+      setCountsVer(v=>v+1);
+    },[halfStitches,halfDone]);
 
     return { doneCountRef, colourDoneCountsRef, countsVer, recomputeAllCounts, applyDoneCountsDelta };
   };

@@ -209,7 +209,7 @@
     return projects.map(function (p) {
       var total = p.totalStitches || 0;
       var done = p.completedStitches || 0;
-      var pct = total > 0 ? Math.round(done / total * 100) : 0;
+      var pct = total > 0 ? ProgressUnits.percent(done,total) : 0;
       var remaining = Math.max(0, total - done);
       var sessions = Array.isArray(p.statsSessions) ? p.statsSessions : [];
 

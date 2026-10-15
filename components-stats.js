@@ -228,7 +228,7 @@ var CumulativeChart=React.memo(function CumulativeChart({sessions, totalStitches
   if (wiDays > 0 && wiEndDate) {
     wiLine = React.createElement("line", {x1:lastX, y1:yS(last.total), x2:xDate(wiEndDate), y2:yS(totalStitches), stroke:"var(--warning)", strokeWidth:"2", strokeLinecap:"round", strokeDasharray:"0.1 4"});   // dotted: not the same dash as the pace line
   }
-  var pctOf = function(v){ return totalStitches > 0 ? Math.round(v / totalStitches * 1000) / 10 : 0; };
+  var pctOf = function(v){ return ProgressUnits.percent(v,totalStitches); };
   var xsOf = function(){ var a = []; for (var xi = 0; xi < data.length; xi++) a.push(xDate(new Date(data[xi].date + 'T12:00:00'))); return a; };
   var selD = (sel != null && sel < data.length) ? data[sel] : null;
   var selText = selD ? formatShortDate(selD.date) + ': ' + ProgressUnits.formatUnits(selD.total) + ' of ' + totalStitches.toLocaleString('en-GB') + ' stitches (' + pctOf(selD.total) + '%)' : '';
@@ -753,11 +753,9 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       if (p.id === '__skip__' || p.id === '__empty__') continue;
       var dc = (colourDoneCounts && colourDoneCounts[p.id]) || {total:0, done:0};
       var halfTotal = dc.halfTotal || 0, halfDone = dc.halfDone || 0;
-      var remaining = Math.max(0, dc.total - dc.done);
-      var allTotal = dc.total + halfTotal, allDone = dc.done + halfDone;
-      // One percentage everywhere: whole and half stitches together.
-      var pct = allTotal > 0 ? Math.round(Math.min(allDone, allTotal) / allTotal * 100) : 0;
-      var complete = allTotal > 0 && allDone >= allTotal;
+      var cp = ProgressUnits.colourProgress(dc);
+      var remaining = cp.remainingUnits, allDone = cp.doneUnits;
+      var pct = cp.percent, complete = cp.complete;
       if (complete) coloursComplete++;
       colourStats.push({id:p.id, brand:p.brand, name:p.name, type:p.type, threads:p.threads, rgb:p.rgb, order:i,
         remaining:remaining, pct:pct, total:dc.total, halfTotal:halfTotal, halfDone:halfDone,
@@ -840,7 +838,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
             React.createElement("span", {className:"colour-remaining"},
               c.remaining === 0
                 ? (halfLeft > 0 ? halfLeft + " half left" : (window.Icons ? window.Icons.check() : null))
-                : c.remaining.toLocaleString('en-GB') + " left" + (halfLeft > 0 ? " + " + halfLeft + " half" : ""))
+                : ProgressUnits.formatUnits(c.remaining) + " units left")
           );
         })
       )
@@ -969,7 +967,7 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
               var rgb=(cm&&cm.rgb)||[128,128,128];
               var name=cm?cm.name:threadLabel(t);
               var remaining=t.total-t.doneCount;
-              var pct=t.total>0?Math.round(t.doneCount/t.total*100):100;
+              var pct=ProgressUnits.percent(t.doneCount,t.total);
               return React.createElement("div",{key:t.id,style:{display:'flex',alignItems:'center',gap:6}},
                 React.createElement("span",{style:{width:12,height:12,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0,display:'inline-block'}}),
                 React.createElement("span",{style:{fontSize:'var(--text-xs)',color:'var(--text-secondary)',minWidth:32,flexShrink:0}},"#"+t.id),
@@ -1255,7 +1253,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
 
     React.createElement('div', {className:'comparison-bars'},
       barProjects.map(function(p) {
-        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
+        var pct = p.pct != null ? p.pct : (p.totalStitches > 0 ? ProgressUnits.percent(p.completedStitches,p.totalStitches) : 0);
         var isComplete = pct >= 100;
         var isCurrent = p.id === currentProjectId;
         return React.createElement('div', {
@@ -1291,7 +1289,7 @@ function ProjectComparison({currentProjectId, onClose, onOpenProject}) {
         ),
         React.createElement('tbody', null,
           sorted.map(function(p) {
-            var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
+            var pct = p.pct != null ? p.pct : (p.totalStitches > 0 ? ProgressUnits.percent(p.completedStitches,p.totalStitches) : 0);
             var isComplete = pct >= 100;
             var isCurrent = p.id === currentProjectId;
             var w = p.dimensions ? p.dimensions.width : 0;
@@ -1955,7 +1953,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         if (a.isComplete !== b.isComplete) return a.isComplete ? 1 : -1;
         return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
       }).map(function(p) {
-        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
+        var pct = p.pct != null ? p.pct : (p.totalStitches > 0 ? ProgressUnits.percent(p.completedStitches,p.totalStitches) : 0);
         var remaining = Math.max(0, p.totalStitches - p.completedStitches);
         var color = p.projectColor || assignProjectColor(p.id);
         return React.createElement('div', {key: p.id, className: 'gsd-project-card', onClick: function() { if (onViewProject) onViewProject(p.id); }},
@@ -2103,11 +2101,14 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
   }, []);
 
   React.useEffect(function() {
-    if (!statsTab || statsTab === 'all' || statsTab === currentProjectId) { setLoadedProject(null); return; }
+    var cancelled = false;
+    setLoadedProject(null);
+    if (!statsTab || statsTab === 'all' || statsTab === currentProjectId) return;
     setLLoading(true);
     if (typeof ProjectStorage !== 'undefined') {
-      ProjectStorage.get(statsTab).then(function(p) { setLoadedProject(p || null); setLLoading(false); }).catch(function() { setLLoading(false); });
+      ProjectStorage.get(statsTab).then(function(p) { if (!cancelled) { setLoadedProject(p || null); setLLoading(false); } }).catch(function() { if (!cancelled) setLLoading(false); });
     }
+    return function() { cancelled = true; };
   }, [statsTab, currentProjectId]);
 
   var tabBar = React.createElement('div', {className: 'gsd-tabs'},
@@ -2128,28 +2129,17 @@ function StatsContainer({statsTab, setStatsTab, onClose, currentProjectId, stats
     content = React.createElement(GlobalStatsDashboard, {onClose: onClose, onViewProject: function(id) { setStatsTab(id); }, currentProjectId: currentProjectId, statsSettings: statsSettings, onUpdateSettings: onUpdateSettings});
   } else if (statsTab === currentProjectId && pat) {
     content = React.createElement(StatsDashboard, {statsSessions: statsSessions, statsSettings: statsSettings, totalCompleted: totalCompleted, totalStitches: totalStitches, halfStitchCounts: halfStitchCounts, onEditNote: onEditNote, onEditSession: onEditSession, onDeleteSession: onDeleteSession, onMergeSession: onMergeSession, onUpdateSettings: onUpdateSettings, onClose: onClose, projectName: projectName, palette: palette, colourDoneCounts: colourDoneCounts, achievedMilestones: achievedMilestones, done: done, pat: pat, sW: sW, sH: sH, doneSnapshots: doneSnapshots, setDoneSnapshots: setDoneSnapshots, sections: sections, currentProjectId: currentProjectId, onOpenProject: onOpenProject, canEdit: true});
-  } else if (loadedProject) {
+  } else if (loadedProject && loadedProject.id === statsTab) {
     var lp = loadedProject;
     var lpS = lp.settings || {};
     var lpSessions = lp.statsSessions || [];
     var lpDone = lp.done || null;
     var lpPat = restoreStoredPattern(lp);
     var lpProg = ProgressUnits.fromProject(lp);
-    var lpTotal = Math.round(lpProg.totalUnits);
-    var lpCompleted = Math.round(lpProg.doneUnits);
-    var lpPal = lpPat ? (function() { var seen = {}, out = []; lpPat.forEach(function(c) { if (c && c.id && c.id !== '__skip__' && c.id !== '__empty__' && !c.id.includes('+') && !seen[c.id]) { seen[c.id] = true; out.push(c); } }); return out; })() : [];
-    var lpCDone = {};
-    if (lpPat && lpDone) {
-      var lpTotals = {};
-      for (var ci = 0; ci < lpPat.length; ci++) {
-        var cid = lpPat[ci] && lpPat[ci].id;
-        if (!cid || cid === '__skip__' || cid === '__empty__') continue;
-        if (!lpTotals[cid]) lpTotals[cid] = {total: 0, done: 0, halfTotal: 0, halfDone: 0};
-        lpTotals[cid].total++;
-        if (lpDone[ci] === 1) lpTotals[cid].done++;
-      }
-      lpCDone = lpTotals;
-    }
+    var lpTotal = lpProg.totalUnits;
+    var lpCompleted = lpProg.doneUnits;
+    var lpCDone = ProgressUnits.coloursFromProject(Object.assign({},lp,{pattern:lpPat}));
+    var lpPal = Object.keys(lpCDone).map(function(id) { return lpCDone[id].thread; });
     content = React.createElement(StatsDashboard, {statsSessions: lpSessions, statsSettings: lp.statsSettings || {dayEndHour: 0, useActiveDays: true}, totalCompleted: lpCompleted, totalStitches: lpTotal, onEditNote: function() {}, onUpdateSettings: function() {}, onClose: onClose, projectName: lp.name || 'Untitled', palette: lpPal, colourDoneCounts: lpCDone, achievedMilestones: lp.achievedMilestones || [], done: lpDone, pat: lpPat, sW: lpS.sW || lp.w || 0, sH: lpS.sH || lp.h || 0, doneSnapshots: lp.doneSnapshots || [], setDoneSnapshots: function() {}, sections: lp.sections || [], currentProjectId: lp.id, onOpenProject: onOpenProject, canEdit: false});
   } else {
     content = React.createElement('div', {style: {padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize:'var(--text-lg)'}},

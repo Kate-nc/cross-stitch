@@ -1166,7 +1166,7 @@ function splitSessionByDays(whole, byDay, activeMs, totalUnits, dayEndHour) {
       unitsCompleted: d.uc || 0,
       unitsUndone: d.uu || 0,
       totalAtEnd: totalAt,
-      percentAtEnd: totalUnits > 0 ? Math.round(Math.min(totalAt, totalUnits) / totalUnits * 1000) / 10 : 0,
+      percentAtEnd: ProgressUnits.percent(totalAt, totalUnits),
       note: whole.note || '',
       // the colours worked on that day (kept per day while the session ran), else the whole run's
       coloursWorked: d.cl ? Array.from(d.cl) : (whole.coloursWorked ? whole.coloursWorked.slice() : [])
@@ -1205,7 +1205,7 @@ function recomputeSessionHistory(sessions, baseline, totalUnits) {
     run += ProgressUnits.sessionNet(s);
     var at = Math.max(0, run);
     if (totalUnits > 0) at = Math.min(at, totalUnits);
-    var pctAt = totalUnits > 0 ? Math.round(at / totalUnits * 1000) / 10 : 0;
+    var pctAt = ProgressUnits.percent(at, totalUnits);
     if (s.totalAtEnd === at && s.percentAtEnd === pctAt) return s;
     return Object.assign({}, s, { totalAtEnd: at, percentAtEnd: pctAt });
   });
@@ -1496,12 +1496,12 @@ function computeOverviewStats(statsSessions, totalCompleted, totalStitches, useA
   var avgPerActiveDay = uniqueDays > 0 ? Math.round(totalNetStitches / uniqueDays) : 0;
   var avgPerCalendarDay = elapsedDays > 0 ? Math.round(totalNetStitches / elapsedDays) : 0;
   var avgPerDay = avgPerActiveDay;
-  var remaining = totalStitches - totalCompleted;
+  var remaining = Math.max(0, totalStitches - totalCompleted);
   var pct = totalStitches > 0 ? (totalCompleted / totalStitches) * 100 : 0;
   var estimate = estimateCompletion(statsSessions, remaining, { percent: pct });
   var hoursRemaining = (estimate.enough && estimate.hoursRemaining != null) ? estimate.hoursRemaining : null;
   return {
-    percent: totalStitches > 0 ? Math.round((totalCompleted / totalStitches) * 1000) / 10 : 0,
+    percent: ProgressUnits.percent(totalCompleted, totalStitches),
     stitchesPerHour: stitchesPerHour,
     totalTimeFormatted: formatStatsDuration(totalSeconds),
     timeIsEstimated: sessionsTimeIsEstimated(statsSessions),
@@ -1660,7 +1660,7 @@ function getMilestones(sessions, totalCompleted, totalStitches, estimate) {
     ? sessions.slice().sort(function(a, b) { return new Date(a.startTime) - new Date(b.startTime); })
     : [];
   return percentages.map(function(pct) {
-    var threshold = Math.floor(totalStitches * pct / 100);
+    var threshold = (totalStitches * pct / 100);
     var achieved = totalCompleted >= threshold && totalStitches > 0;
     var achievedDate = null;
     if (achieved && sorted.length > 0) {
@@ -1679,7 +1679,7 @@ function getMilestones(sessions, totalCompleted, totalStitches, estimate) {
     var isNext = !achieved;
     if (isNext) {
       for (var k = 0; k < percentages.length; k++) {
-        if (totalCompleted < Math.floor(totalStitches * percentages[k] / 100)) {
+        if (totalCompleted < (totalStitches * percentages[k] / 100)) {
           isNext = (pct === percentages[k]);
           break;
         }
@@ -1821,7 +1821,7 @@ function checkMilestones(prevTotal, newTotal, totalStitches) {
   ];
   for (var i = 0; i < thresholds.length; i++) {
     var t = thresholds[i];
-    var threshold = Math.floor(totalStitches * t.pct / 100);
+    var threshold = (totalStitches * t.pct / 100);
     if (prevTotal < threshold && newTotal >= threshold) {
       milestones.push(t);
     }
@@ -1861,9 +1861,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
   var weekly = computeWeeklyStreaks(sessions, dayEndHour);
   var streaks = opts.showDaily ? computeStreaks(sessions, dayEndHour) : { current: 0, longest: 0 };
   var bestDay = findBestDay(sessions);
-  var percent = totalStitches > 0
-    ? (totalCompleted / totalStitches * 100).toFixed(1)
-    : '0.0';
+  var percent = ProgressUnits.percent(totalCompleted, totalStitches).toFixed(1);
 
   var lines = [
     (projectName || 'Cross Stitch Project') + ' — Progress Update',
