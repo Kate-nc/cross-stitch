@@ -71,6 +71,8 @@ You can also go straight to a tool:
 
 Streaks, an activity heatmap, stash insights (including how many years of stitching your stash holds) and a Showcase of your finished work.
 
+Project Stats has **Overview** and **Visuals** views. Colours uses wrapping names and flexible bars; dense section grids and charts scroll within their tile. Before / After comparisons keep the pattern’s proportions even for large patterns. Tiles adapt when resizing or zooming, and short panels keep their natural height. Use **Customise** on the Stash tab to hide or reopen optional panels.
+
 ## Your Data
 
 | Where | What |

@@ -1270,7 +1270,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             aria-live="polite">
           <div className="creator-boot-spinner" aria-hidden="true"/>
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
-          {state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!window.__pendingProjectBrandLoad&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
+          {isActive&&state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!window.__pendingProjectBrandLoad&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
         </div>}
         <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];

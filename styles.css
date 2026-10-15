@@ -2634,11 +2634,13 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 320px;
-  overflow-y: auto;
+  max-height: min(28rem, 60vh);
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 .stats-colour-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(0, auto);
   align-items: center;
   gap: 8px;
   padding: 4px 0;
@@ -2652,10 +2654,10 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   font-size: 11px;
   color: var(--text-tertiary);
 }
-.stats-colour-row.complete { opacity: 0.6; }
-.colour-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.colour-info-main { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-.colour-detail { font-size: 10px; color: var(--text-tertiary); }
+.stats-colour-row.complete .colour-bar-fill { background: var(--success); }
+.colour-info { grid-column: 2 / -1; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.colour-info-main { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-width: 0; }
+.colour-detail { font-size: var(--text-xs); color: var(--text-tertiary); }
 .colour-swatch {
   width: 14px;
   height: 14px;
@@ -2697,16 +2699,15 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   flex-shrink: 0;
 }
 .colour-name {
-  font-size: 11px;
-  color: var(--text-secondary, #5C5448);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .colour-bar {
-  flex: 0 0 90px;
-  height: 4px;
+  grid-column: 2;
+  width: 100%;
+  height: 6px;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
@@ -2718,7 +2719,9 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
   border-radius: 2px;
 }
 .colour-remaining {
-  font-size: 11px;
+  max-width: 14ch;
+  overflow-wrap: anywhere;
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
   min-width: 50px;
   text-align: right;
@@ -8666,13 +8669,16 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .bento {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
+  align-items: flex-start;
   gap: var(--s-3);
   margin-bottom: var(--s-4);
 }
 .bento-cell {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   min-width: 0;
   flex: 1 1 300px;
 }
@@ -8684,7 +8690,9 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .bento-cell > .gsd-section-label,
 .bento-cell > .stats-section-title { margin: 0 0 var(--s-2); }
 .bento-cell > :where(:not(.gsd-section-label):not(.stats-section-title)) {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: 100%;
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -8708,7 +8716,7 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .gsd-tl-cols { column-width: 320px; column-gap: var(--s-5); }
 .gsd-tl-cols .gsd-tl-day { break-inside: avoid; }
 .bento-cell--stack { gap: var(--s-3); }
-.bento-cell--stack > * { flex: 1 1 auto; }
+.bento-cell--stack > * { flex: 0 1 auto; }
 
 .bento-cell > .stats-export-bar { flex: none; margin-top: var(--s-3); }
 .bento-cell .gsd-insights { align-content: start; }
@@ -8751,3 +8759,47 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 /* Keyboard focus on the chart: the guide crosshair is the cursor, and the box shows the chart is where keys go. */
 .tracker-chart-scroll:has(canvas:focus-visible){outline:2px solid var(--accent);outline-offset:-2px;}
 .tracker-chart-scroll canvas:focus-visible{outline:none;}
+
+/* Stats content sizing: scroll dense matrices locally, keep the page fluid. */
+.stats-dashboard, .gsd, .stats-container-body { min-width: 0; width: 100%; }
+.stats-colour-controls label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1); min-width: 0; }
+.colour-progress { container-type: inline-size; }
+@container (min-width: 520px) {
+  .stats-colour-row { grid-template-columns: 14px minmax(0, 2fr) minmax(80px, 1fr) minmax(0, auto); }
+  .colour-info { grid-column: 2; }
+  .colour-bar { grid-column: 3; }
+}
+.section-grid-scroll { max-width: 100%; max-height: 28rem; overflow: auto; padding: 3px; margin-bottom: var(--s-3); }
+.stats-sections > div { min-width: 0; }
+.stats-sections > div:not(.section-grid-scroll) { flex-wrap: wrap; gap: var(--s-2); }
+.comparison-previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--s-3); }
+.comparison-preview { min-width: 0; text-align: center; }
+.comparison-preview canvas { max-width: 100%; }
+.stats-comparison input[type="text"] { max-width: 100%; }
+.stats-dashboard .session-editor label { flex: 1 1 9rem; min-width: 0; }
+.stats-dashboard .session-editor input { width: 100%; min-width: 0; }
+.stats-dashboard select, .gsd select { max-width: 100%; }
+.gsd-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr)); }
+.gsd-metric, .gsd-tl-body, .timeline-content { min-width: 0; overflow-wrap: anywhere; }
+.gsd-streak { flex-wrap: wrap; }
+.comparison-header { flex-wrap: wrap; gap: var(--s-2); }
+.comparison-name { white-space: normal; overflow-wrap: anywhere; }
+.chart-container { min-width: 0; }
+.chart-container svg { height: auto; }
+
+.stats-plot-scroll { max-width: 100%; overflow-x: auto; }
+.stats-plot { min-width: 480px; }
+.stats-plot svg { width: 100%; height: auto; }
+
+.colour-progress .stats-empty { text-align: left; padding: var(--s-2) 0; }
+.gsd { overflow-wrap: anywhere; }
+.gsd .gsd-metric { min-width: 0; }
+.gsd-projects { grid-template-columns: repeat(auto-fill, minmax(min(100%, 130px), 1fr)); }
+
+.colour-progress .colour-id { max-width: 100%; min-width: 0; }
+
+.project-comparison { min-width: 0; width: 100%; overflow-wrap: anywhere; }
+.comparison-insight-card > span:last-child { min-width: 0; }
+
+.stats-container :is(button, input, select, summary) { scroll-margin-top: calc(var(--app-header-height, 48px) + 80px); }
+.stats-container > .gsd-tabs { top: var(--app-header-height, 48px); }

@@ -9347,7 +9347,7 @@ return(
       ?<O variant="dialog" maxWidth={480} labelledBy="reconcile-title" describedBy="reconcile-body" dismissOnScrim={false} className="reconcile-modal" panelProps={{role:'alertdialog','data-reconcile':'1'}}><div style={{padding:'var(--s-4)'}}>{body}</div></O>
       :<div className="modal-overlay reconcile-overlay" role="alertdialog" aria-modal="true" aria-labelledby="reconcile-title" aria-describedby="reconcile-body"><div className="modal-content reconcile-modal" style={{maxWidth:480}}>{body}</div></div>;
   })()}
-  {resumeRecap&&(()=>{
+  {!statsView&&resumeRecap&&(()=>{
     // A3: resume recap — a banner (not a dialog, so the chart stays usable) once per project load when prior sessions exist.
     const r=resumeRecap;
     const sm=r.summary||{};

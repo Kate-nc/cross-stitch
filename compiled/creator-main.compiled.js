@@ -2004,7 +2004,7 @@ function CreatorApp({
       fontSize: 14,
       fontWeight: 600
     }
-  }, "Preparing your pattern\u2026"), state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !window.__pendingProjectBrandLoad && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
+  }, "Preparing your pattern\u2026"), isActive && state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !window.__pendingProjectBrandLoad && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
     accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",
