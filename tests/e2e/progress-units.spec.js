@@ -63,11 +63,11 @@ test('a project with only half stitches done reads the same on every page', asyn
     await ProjectStorage.save(p);
   });
   const row = await page.evaluate(async () => { const r = (await ProjectStorage.listProjects()).find(p => p.id === 'proj_units'); return { done: r.completedStitches, total: r.totalStitches, any: r.anyProgress }; });
-  expect(row).toEqual({ done: 2, total: 1759, any: true });                      // 1.5 rounds to 2 for display
+  expect(row).toEqual({ done: 1.5, total: 1759, any: true });                      // exact units survive summary storage
   await page.goto('/stitch.html?id=proj_units');
   await page.waitForSelector(TRACKER_CANVAS);
   await page.waitForTimeout(800);
-  await expect(page.locator('.info-strip-counts')).toHaveText('2 done · 1,757 to go');
+  await expect(page.locator('.info-strip-counts')).toHaveText('1.5 done · 1,757.5 to go');
 });
 
 test('a session records its marks in units and the day total adds units', async ({ page }) => {

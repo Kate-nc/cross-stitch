@@ -203,7 +203,7 @@
         return bt - at;
       }).slice(0, 5);
       return list.map(function (p) {
-        var pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round((p.completedStitches || 0) / p.totalStitches * 100) : 0);
+        var pct = p.pct != null ? p.pct : (p.totalStitches > 0 ? ProgressUnits.percent(p.completedStitches || 0,p.totalStitches) : 0);
         return {
           id: 'recent_' + p.id,
           label: p.name || 'Untitled',

@@ -146,7 +146,7 @@ var ProgressRing=React.memo(function ProgressRing({percent, size}){
         strokeDasharray:circumference, strokeDashoffset:offset,
         transform:"rotate(-90 "+size/2+" "+size/2+")", strokeLinecap:"round"})
     ),
-    React.createElement("span", {className:"progress-ring-label"}, Math.round(percent || 0) + "%")
+    React.createElement("span", {className:"progress-ring-label"}, (percent || 0) + "%")
   );
 });
 

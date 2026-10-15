@@ -822,7 +822,7 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
             const isActive=p.id===currentId;
             const total=p.totalStitches||0;
             const done=p.completedStitches||0;
-            const pct=total>0?Math.round(done/total*100):0;
+            const pct=ProgressUnits.percent(done,total);
             return(
               <button key={p.id} onClick={()=>!isActive&&onPick(p)} disabled={isActive} style={{
                 display:"flex",alignItems:"center",gap:'var(--s-3)',padding:"10px 12px",borderRadius:'var(--radius-md)',
@@ -2155,12 +2155,9 @@ const totalStitchable=useMemo(()=>{if(!pat)return 0;let c=0;for(let i=0;i<pat.le
 const halfStitchCounts=useMemo(()=>{
   let total=0,dn=0;
   halfStitches.forEach((hs,idx)=>{
-    if(hs.fwd)total++;
-    if(hs.bck)total++;
-  });
-  halfDone.forEach((hd)=>{
-    if(hd.fwd)dn++;
-    if(hd.bck)dn++;
+    const hd=halfDone.get(idx);
+    if(hs.fwd){total++;if(hd&&hd.fwd)dn++;}
+    if(hs.bck){total++;if(hd&&hd.bck)dn++;}
   });
   return{total,done:dn};
 },[halfStitches,halfDone]);
@@ -2266,7 +2263,12 @@ const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 const [progressInfoOpen,setProgressInfoOpen]=useState(false);
 const progressChipRef=useRef(null);
 
-const colourDoneCounts=countsVer>=0?colourDoneCountsRef.current:{};
+const colourDoneCounts=useMemo(()=>{
+  const out={};
+  const ids=new Set([...Object.keys(colourDoneCountsRef.current),...Object.keys(knotsByThread),...Object.keys(quartersByThread)]);
+  ids.forEach(id=>{const kn=knotsByThread[id]||{},qt=quartersByThread[id]||{};out[id]={...(colourDoneCountsRef.current[id]||{total:0,done:0,halfTotal:0,halfDone:0}),knotTotal:kn.total,knotDone:kn.done,quarterTotal:qt.total,quarterDone:qt.done};});
+  return out;
+},[countsVer,knotsByThread,quartersByThread]);
 // The counts that "which colours are left" questions should use: the work
 // area's while one is active, the whole pattern's otherwise.
 const scopedColourCounts=areaColourCounts||colourDoneCounts;
@@ -2307,11 +2309,11 @@ const legendRows=useMemo(()=>{
     const kn=!areaColourCounts&&knotsByThread[p.id]||{total:0,done:0};
     // Quarter stitches, a quarter each (not in a work area's counts either).
     const qt=!areaColourCounts&&quartersByThread[p.id]||{total:0,done:0};
-    const totalWH=dc.total+dc.halfTotal*0.5+kn.total+qt.total*0.25;
-    const doneWH=dc.done+dc.halfDone*0.5+kn.done+qt.done*0.25;
+    const cp=ProgressUnits.colourProgress({...dc,knotTotal:kn.total,knotDone:kn.done,quarterTotal:qt.total,quarterDone:qt.done});
+    const totalWH=cp.totalUnits,doneWH=cp.doneUnits;
     // Backstitch lines of this colour are their own row and not in the units; a colour with nothing else is judged by them.
     const bsc=!areaColourCounts&&bsByColour[String(p.id)]||{total:0,done:0};
-    let pct=totalWH>0?Math.round(doneWH/totalWH*100):(bsc.total>0?Math.round(bsc.done/bsc.total*100):0);
+    let pct=totalWH>0?cp.percent:ProgressUnits.percent(bsc.done,bsc.total);
     const remaining=Math.max(0,totalWH-doneWH);
     const complete=totalWH>0?(doneWH>=totalWH&&(bsc.total===0||bsc.done>=bsc.total)):(bsc.total>0&&bsc.done>=bsc.total);
     return {p,dc,kn,qt,bsc,pct,remaining,complete};
@@ -2372,7 +2374,7 @@ const sections=useMemo(()=>{
     const x1=Math.min(x0+secCols,sW),y1=Math.min(y0+secRows,sH);
     let total=0,completed=0;
     for(let y=y0;y<y1;y++){for(let x=x0;x<x1;x++){const idx=y*sW+x;const m=pat[idx];if(m&&m.id!=='__skip__'&&m.id!=='__empty__'){total++;if(done[idx])completed++;}}}
-    result.push({label:String(sy*numX+sx+1),sx,sy,x0,y0,x1,y1,total,completed,pct:total>0?Math.round(completed/total*100):100,isDone:total>0&&completed>=total});
+    result.push({label:String(sy*numX+sx+1),sx,sy,x0,y0,x1,y1,total,completed,pct:ProgressUnits.percent(completed,total),isDone:total>0&&completed>=total});
   }}
   return result;
 },[statsView,pat,done,sW,sH,statsSettings.sectionCols,statsSettings.sectionRows]);
@@ -2461,10 +2463,10 @@ useEffect(()=>{
 
 // Detect project completion and offer stash deduction
 useEffect(()=>{
-  if(progressPct>=100 && !stashDeducted && combinedTotal>0 && typeof StashBridge!=="undefined"){
+  if(progAll.complete && !stashDeducted && combinedTotal>0 && typeof StashBridge!=="undefined"){
     setModal(wastePrefs.enabled?"rt_complete_summary":"deduct_prompt");
   }
-},[progressPct]);
+},[progAll.complete,stashDeducted,wastePrefs.enabled]);
 
 const totalSkeins=useMemo(()=>skeinData.reduce((s,d)=>s+d.skeins,0),[skeinData]);
 const blendCount=useMemo(()=>pal?pal.filter(p=>p.type==="blend").length:0,[pal]);
@@ -8011,7 +8013,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?Math.round(progAll.percent):undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -8083,7 +8085,7 @@ return(
   </div>
   <div className="info-strip-row">
     <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
-    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))} to go</span>}
+    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(progShown.remainingUnits)} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
     {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
@@ -8258,7 +8260,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={Math.round(combinedDone)} totalStitches={Math.round(combinedTotal)} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={combinedDone} totalStitches={combinedTotal} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
@@ -8386,10 +8388,10 @@ return(
       {focusColour&&cmap&&cmap[focusColour]&&(!areaColourCounts||((scopedColourCounts[focusColour]||{}).total+(scopedColourCounts[focusColour]||{}).halfTotal>0))?(()=>{
         const fc=cmap[focusColour];
         const dc=scopedColourCounts[focusColour]||{total:0,done:0,halfTotal:0,halfDone:0};
-        const totalWH=dc.total+dc.halfTotal*0.5;
-        const doneWH=dc.done+dc.halfDone*0.5;
-        const pct=totalWH>0?Math.round(doneWH/totalWH*100):0;
-        const complete=doneWH>=totalWH&&totalWH>0;
+        const row=legendRows&&legendRows.find(r=>r.p.id===focusColour);
+        const cp=ProgressUnits.colourProgress(dc);
+        const pct=row?row.pct:cp.percent;
+        const complete=row?row.complete:cp.complete;
         const swRgb="rgb("+fc.rgb+")";
         return <div className={"ppal-active-tile"+(complete?" ppal-active-tile--done":"")}>
           <div className="ppal-active-swatch-wrap">
@@ -9307,7 +9309,7 @@ return(
         }
       }catch(_){}
     }
-    const pct=r.totalSt>0?Math.round(r.doneSt/r.totalSt*100):0;
+    const pct=ProgressUnits.percent(r.doneSt,r.totalSt);
     const minutes=Math.max(0,Math.round((sm.ms||0)/60000));
     let speedNote=null;
     if(sm.perHour!=null&&sm.perHourAvg!=null){
@@ -9628,9 +9630,9 @@ return(
 {celebration&&motivation.show&&<MilestoneCelebration milestone={celebration} onDismiss={()=>setCelebration(null)}/>}
 {/* Touch-1 H-2: Focus mini-bar. Renders only when focus mode is on.
     The Exit button never fades — it's the user's only way out. */}
-{focusMode&&<div className="cs-focus-progress" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
+{focusMode&&<div className="cs-focus-progress" role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPct}>
   <span className="cs-focus-progress__fill" style={{width:Math.min(100,Math.max(0,progressPct))+"%"}}/>
-  <span className="cs-focus-progress__text">{progressPct>=100?"Complete":progressPct.toFixed(1)+"%"+(effectiveCombinedTotal>0?" \u00b7 "+ProgressUnits.formatUnits(ProgressUnits.remainingWhole(progShown))+" to go":"")}</span>
+  <span className="cs-focus-progress__text">{progressPct>=100?"Complete":progressPct.toFixed(1)+"%"+(effectiveCombinedTotal>0?" \u00b7 "+ProgressUnits.formatUnits(progShown.remainingUnits)+" to go":"")}</span>
 </div>}
 {focusMode&&<div
   ref={focusBarRef}

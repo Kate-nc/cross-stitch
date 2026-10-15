@@ -245,7 +245,7 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRenam
   function pctOf(p) {
     if (!p || !(p.pattern || p.p) || typeof ProgressUnits === 'undefined') return null;
     var r = ProgressUnits.fromProject(p);
-    return r.totalUnits > 0 ? Math.round(r.percent) : null;
+    return r.totalUnits > 0 ? r.percent : null;
   }
 
   var label = projectName || (activeProject && activeProject.name) || 'No project';
@@ -718,7 +718,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     if (!projSummary || !projSummary.settings) return null;
     if (typeof ProgressUnits === 'undefined') return 0;
     const r = ProgressUnits.fromProject(projSummary);   // the one shared definition (progress-units.js)
-    return r.totalUnits > 0 ? Math.round(r.percent) : 0;
+    return r.totalUnits > 0 ? r.percent : 0;
   }, [projSummary]);
   const projName = projSummary
     ? (projSummary.name || (projSummary.settings

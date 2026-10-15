@@ -172,7 +172,7 @@ function getSuggestion(activeProjects, stashMap) {
     // Stash readiness
     if (stashMap && stashMap[proj.id]) score += 10;
 
-    return { proj: proj, score: score, days: days, pct: Math.round(pct * 100) };
+    return { proj: proj, score: score, days: days, pct: ProgressUnits.percent(cs,ts) };
   });
 
   scored.sort(function(a, b) { return b.score - a.score; });
@@ -199,7 +199,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var h = React.createElement;
   var cs = proj.completedStitches || 0;
   var ts = proj.totalStitches || 0;
-  var pct = ts > 0 ? Math.round(cs / ts * 100) : 0;
+  var pct = ts > 0 ? ProgressUnits.percent(cs, ts) : 0;
   var days = daysBetween(proj.lastSessionDate || proj.updatedAt);
   var isNeglected = days != null && days >= 13;
   var remHours = estimateRemainingHours(proj);
@@ -436,7 +436,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
   var h = React.createElement;
   var cs = proj.completedStitches || 0;
   var ts = proj.totalStitches || 0;
-  var pct = ts > 0 ? Math.round(cs / ts * 100) : 0;
+  var pct = ts > 0 ? ProgressUnits.percent(cs, ts) : 0;
   var dim = proj.dimensions ? proj.dimensions.width + '\u00D7' + proj.dimensions.height : '';
   var since = proj.lastSessionDate || proj.updatedAt;
   var daysAgo = daysBetween(since);
@@ -938,7 +938,7 @@ function MultiProjectDashboard({ projects, stash, onOpenProject, onOpenGlobalSta
     || _continueCandidate(categorised.queued || [])
     || _continueCandidate(categorised.design || []);
   var continuePct = continueProj && continueProj.totalStitches > 0
-    ? Math.round((continueProj.completedStitches || 0) / continueProj.totalStitches * 100)
+    ? ProgressUnits.percent(continueProj.completedStitches || 0,continueProj.totalStitches)
     : 0;
 
   return h('div', { className: 'mpd' + (selectionMode ? ' mpd--selection-mode' : '') },
@@ -1688,7 +1688,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
       totalSt += (p.totalStitches || 0);
       completedSt += (p.completedStitches || 0);
     });
-    return totalSt > 0 ? Math.round(completedSt / totalSt * 100) : 0;
+    return totalSt > 0 ? ProgressUnits.percent(completedSt, totalSt) : 0;
   }, [projects]);
 
   // Total stitch time (estimated from completed stitches at ~200/hr)
@@ -1819,7 +1819,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
   var heroPct = 0;
   if (heroProject) {
     heroPct = heroProject.totalStitches > 0
-      ? Math.round(heroProject.completedStitches / heroProject.totalStitches * 100)
+      ? ProgressUnits.percent(heroProject.completedStitches, heroProject.totalStitches)
       : 0;
   }
   var heroIsPrimaryTracker = heroProject && (heroProject.source === 'tracker' || heroProject.source === 'unknown');
@@ -2037,7 +2037,7 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
               )
             : recentProjects.map(function(proj) {
                 var pct = proj.totalStitches > 0
-                  ? Math.round(proj.completedStitches / proj.totalStitches * 100)
+                  ? ProgressUnits.percent(proj.completedStitches, proj.totalStitches)
                   : 0;
                 var isDone = pct >= 100;
                 var mode = proj.source === 'creator' ? 'creator' : 'tracker';

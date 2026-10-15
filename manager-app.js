@@ -1467,7 +1467,7 @@ function ManagerApp() {
                       : null;
                     const total = (meta && meta.totalStitches) || pat.totalStitches || 0;
                     const completed = (meta && meta.completedStitches) || pat.completedStitches || 0;
-                    const pct = total > 0 ? Math.round(completed / total * 100) : null;
+                    const pct = total > 0 ? ProgressUnits.percent(completed,total) : null;
                     const pctBg = pct === null ? null : (pct >= 100 ? "var(--success-soft)" : pct > 0 ? "#dbeafe" : "#EFE7D6");
                     const pctFg = pct === null ? null : (pct >= 100 ? "var(--success)" : pct > 0 ? "var(--accent)" : "var(--text-tertiary)");
                     // 7-day sparkline (oldest ? newest, ending today). Only
@@ -1563,7 +1563,7 @@ function ManagerApp() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {storedProjects.map(p => {
-                    const pct = p.pct != null ? Math.round(p.pct) : (p.totalStitches > 0 ? Math.round(p.completedStitches / p.totalStitches * 100) : 0);
+                    const pct = p.pct != null ? p.pct : (p.totalStitches > 0 ? ProgressUnits.percent(p.completedStitches,p.totalStitches) : 0);
                     const isActive = ProjectStorage.getActiveProjectId() === p.id;
                     return (
                       <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: isActive ? "var(--success-soft)" : "var(--surface)", border: `1px solid ${isActive ? "#C4DCB6" : "var(--border)"}`, borderRadius: 8, padding: "10px 14px" }}>

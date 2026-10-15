@@ -1100,7 +1100,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           // Progress from the shared definition (units); `total` stays the count of full-stitch cells, which is
           // what difficulty is judged on.
           const prog = ProgressUnits.fromProject(p);
-          const pct = Math.round(prog.percent);
+          const pct = prog.percent;
           rich.push({
             id: p.id, name: p.name || 'Untitled',
             finishStatus: p.finishStatus || 'active',

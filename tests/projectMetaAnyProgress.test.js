@@ -27,14 +27,14 @@ beforeEach(async () => { await ProjectStorage.clearAllProjects(); ProjectStorage
 
 test('anyProgress is true for full stitches, for half stitches alone, and false for an untouched project', async () => {
   await ProjectStorage.save(proj('proj_full', { done: [1, 0, 0, 0, 0, 0] }));
-  await ProjectStorage.save(proj('proj_half', { halfDone: [[2, { fwd: true }]] }));
+  await ProjectStorage.save(proj('proj_half', { halfStitches: [[2, { fwd: {id:'310'} }]], halfDone: [[2, { fwd: true }]] }));
   await ProjectStorage.save(proj('proj_none'));
   await ProjectStorage.save(proj('proj_emptyhalf', { halfDone: [[2, {}]] }));
   const rows = Object.fromEntries((await ProjectStorage.listProjects()).map(r => [r.id, r]));
   expect(rows.proj_full.anyProgress).toBe(true);
   expect(rows.proj_half.anyProgress).toBe(true);
-  expect(rows.proj_half.completedStitches).toBe(1);      // a half stitch is half a unit; whole units are shown
-  expect(rows.proj_half.totalStitches).toBe(6);           // only the 6 cells, no half-stitch definitions in this fixture
+  expect(rows.proj_half.completedStitches).toBe(0.5);    // exact fractional units in metadata
+  expect(rows.proj_half.totalStitches).toBe(6.5);       // six full cells plus one half
   expect(rows.proj_none.anyProgress).toBe(false);
   expect(rows.proj_emptyhalf.anyProgress).toBe(false);
 });
@@ -48,15 +48,25 @@ test('refreshProgressRows rewrites rows from before units once, leaves the proje
   await ProjectStorage.save(withHalves);
   // Make the row look as it did before: full stitches only, no unitsV.
   const db = await getDB();
-  await new Promise(r => { const tx = db.transaction(['project_meta', 'stats_summaries'], 'readwrite'); ['project_meta', 'stats_summaries'].forEach(n => { const st = tx.objectStore(n); const q = st.get('proj_old'); q.onsuccess = () => { const v = q.result; delete v.unitsV; v.completedStitches = 2; v.totalStitches = 6; st.put(v, 'proj_old'); }; }); tx.oncomplete = r; });
+  await new Promise(r => { const tx = db.transaction(['project_meta', 'stats_summaries'], 'readwrite'); ['project_meta', 'stats_summaries'].forEach(n => { const st = tx.objectStore(n); const q = st.get('proj_old'); q.onsuccess = () => { const v = q.result; v.unitsV = 2; v.completedStitches = 3; v.totalStitches = 8; st.put(v, 'proj_old'); }; }); tx.oncomplete = r; });
   const before = (await ProjectStorage.get('proj_old')).lastWriteAt;
   expect(await ProjectStorage.refreshProgressRows({ idle: cb => cb() })).toBe(1);
   const row = (await ProjectStorage.listProjects()).find(r => r.id === 'proj_old');
-  expect(row.unitsV).toBe(2);
+  expect(row.unitsV).toBe(3);
   expect(row.paceDaily).toEqual({});          // the rows now carry what the finish estimate needs (no sessions here)
   expect(row.activeDaysTotal).toBe(0);
-  expect(row.totalStitches).toBe(8);          // 6 cells + 3 half sides (1.5 units), 7.5 rounded
+  expect(row.totalStitches).toBe(7.5);        // 6 cells + 3 half sides, without rounding
   expect(row.completedStitches).toBe(3);      // 2 full + 2 half sides (1 unit)
   expect((await ProjectStorage.get('proj_old')).lastWriteAt).toBe(before);    // the project itself was not written
   expect(await ProjectStorage.refreshProgressRows({ idle: cb => cb() })).toBe(0);
+});
+
+test('opening global Stats directly migrates rounded v2 summaries without rewriting the project',async()=>{
+  await ProjectStorage.save(proj('proj_stats',{done:[1,0,0,0,0,0],halfStitches:[[2,{fwd:{id:'310'}}]]}));
+  const before=(await ProjectStorage.get('proj_stats')).lastWriteAt;
+  const db=await getDB();
+  await new Promise(resolve=>{const tx=db.transaction(['project_meta','stats_summaries'],'readwrite');for(const name of ['project_meta','stats_summaries']){const store=tx.objectStore(name),req=store.get('proj_stats');req.onsuccess=()=>store.put({...req.result,unitsV:2,totalStitches:7},'proj_stats');}tx.oncomplete=resolve;});
+  const summary=(await ProjectStorage.getAllStatsSummaries()).find(p=>p.id==='proj_stats');
+  expect(summary.totalStitches).toBe(6.5);expect(summary.unitsV).toBe(3);
+  expect((await ProjectStorage.get('proj_stats')).lastWriteAt).toBe(before);
 });
