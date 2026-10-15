@@ -21,7 +21,7 @@ remain, and a clean profile uses defaults. The legacy localStorage map cannot
 bypass the preference allowlist. Migration markers are generated locally rather
 than copied from the source.
 
-## Portable allowlist (98 keys)
+## Portable allowlist (99 keys)
 
 Branding (including a bounded PNG/JPEG data URL), export and generation defaults,
 tracking behaviour, global preview/display choices, accessibility, notifications,
@@ -106,6 +106,7 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_toastMaxVisible`
 - `cs_pref_toastsEnabled`
 - `cs_pref_trackerActiveGapCapSec`
+- `cs_pref_trackerAutomaticSnapshots`
 - `cs_pref_trackerBlockShape`
 - `cs_pref_trackerCanvasTexture`
 - `cs_pref_trackerCelebrate`
@@ -189,3 +190,5 @@ cache entries and migration markers are excluded from preference transfer.
 The pre-existing non-preference localStorage allowlist (active project, custom
 palettes, shortcut hint and global goals/compatibility goals) is unchanged, as
 are the existing project/stash/photo backup sections.
+
+Automatic Compare snapshot opt-in is portable. Restore establishes a fresh stitching-day baseline on the destination and invalidates queued automatic work; the operational `trackerSnapshotsEnabledAt` timestamp stays device-local and is never imported. Missing values in older preference sections default to off.

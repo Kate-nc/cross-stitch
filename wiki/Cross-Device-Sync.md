@@ -135,3 +135,8 @@ Choose the new folder on every device. The old folder's files can be deleted.
 
 **Last Updated:** October 2026
 **See also:** [Getting Started Guide](Getting-Started-Guide.md), [Stitch Tracker Guide](Stitch-Tracker-Guide.md)
+
+
+### Compare history
+
+Compare snapshots travel with each project. Sync merges snapshots by ID and keeps snapshot-deletion records, so a stale device cannot restore deleted history during a tracking merge. Delete all automatic snapshots preserves manual and Before pattern change recovery snapshots. The automatic daily Compare snapshot preference is a global device preference; it is off by default and must be enabled in Preferences > Stitch Tracker.

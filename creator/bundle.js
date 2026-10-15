@@ -13185,6 +13185,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (project.deletedSessionIds)   _tf.deletedSessionIds   = project.deletedSessionIds;
     if (project.statsSettings)       _tf.statsSettings        = project.statsSettings;
     if (project.achievedMilestones)  _tf.achievedMilestones   = project.achievedMilestones;
+    if (project.deletedSnapshotIds) _tf.deletedSnapshotIds = project.deletedSnapshotIds;
     if (project.doneSnapshots)       _tf.doneSnapshots        = project.doneSnapshots;
     if (project.breadcrumbs)         _tf.breadcrumbs          = project.breadcrumbs;
     if (project.stitchingStyle)      _tf.stitchingStyle       = project.stitchingStyle;
@@ -13830,6 +13831,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       else delete tf.deletedSessionIds;      // an Undo can leave a project with none
       if (freshProject.statsSettings) tf.statsSettings = freshProject.statsSettings;
       if (freshProject.achievedMilestones) tf.achievedMilestones = freshProject.achievedMilestones;
+      if (freshProject.deletedSnapshotIds) tf.deletedSnapshotIds = freshProject.deletedSnapshotIds;
+      else delete tf.deletedSnapshotIds;
       if (freshProject.doneSnapshots) tf.doneSnapshots = freshProject.doneSnapshots;
       if (freshProject.breadcrumbs) tf.breadcrumbs = freshProject.breadcrumbs;
       if (freshProject.stitchingStyle) tf.stitchingStyle = freshProject.stitchingStyle;

@@ -1200,6 +1200,30 @@ const doneRef=useRef(null);
 doneRef.current=done;
 const[doneSnapshots,setDoneSnapshots]=useState([]);
 const lastSnapshotDateRef=useRef(null);
+const snapshotGenerationRef=useRef(0);
+const deletedSnapshotIdsRef=useRef([]);
+// Invalidate synchronously on preference events, even off/on before React renders.
+useEffect(()=>{
+  const on=e=>{
+    const key=e&&e.detail&&e.detail.key;
+    if(key&&key!=='trackerAutomaticSnapshots'&&key!=='statsDayEndHour')return;
+    snapshotGenerationRef.current++;
+    lastSnapshotDateRef.current=getStitchingDate(new Date(),getDayEndHour());
+  };
+  window.addEventListener('cs:prefchange',on);
+  const storage=e=>{if(!e.key||e.key==='cs_pref_trackerAutomaticSnapshots'||e.key==='cs_pref_statsDayEndHour')on();};
+  window.addEventListener('storage',storage);
+  return()=>{snapshotGenerationRef.current++;window.removeEventListener('cs:prefchange',on);window.removeEventListener('storage',storage);};
+},[]);
+function updateCompareSnapshots(update){
+  setDoneSnapshots(prev=>{
+    const next=typeof update==='function'?update(prev):update;
+    const retained=new Set(next.map(s=>s.id));
+    const deleted=prev.filter(s=>!retained.has(s.id)).map(s=>s.id);
+    deletedSnapshotIdsRef.current=Array.from(new Set([...deletedSnapshotIdsRef.current,...deleted]));
+    return next;
+  });
+}
 const[trackHistory,setTrackHistory]=useState([]);
 const[redoStack,setRedoStack]=useState([]);
 const TRACK_HISTORY_MAX=50;
@@ -2751,24 +2775,27 @@ useEffect(()=>{
     // the same helper the statistics use (it used to call a function that only exists inside useAutoSession,
     // so it threw into this catch and no snapshot was ever saved). Compressing 90,000 cells is a few
     // milliseconds, so it runs when the browser is idle rather than inside the mark.
-    if(done){
+    if(done&&window.UserPrefs&&window.UserPrefs.get('trackerAutomaticSnapshots')===true){
       try{
         const today=getStitchingDate(new Date(),getDayEndHour(statsSettings));
         if(!lastSnapshotDateRef.current){
           lastSnapshotDateRef.current=today;
         } else if(lastSnapshotDateRef.current!==today){
           const copy=done.slice(),dayOf=lastSnapshotDateRef.current,marks=curDone,w=sW,hgt=sH,forProject=projectIdRef.current;
+          const generation=snapshotGenerationRef.current;
           const make=()=>{
             // The user may have opened another project while this waited for an idle moment.
             if(projectIdRef.current!==forProject)return;
+            if(generation!==snapshotGenerationRef.current||!window.UserPrefs||window.UserPrefs.get('trackerAutomaticSnapshots')!==true)return;
             try{
               const b=pako.deflate(copy);
               const C=0x8000;let o='';for(let i=0;i<b.length;i+=C)o+=String.fromCharCode.apply(null,b.subarray(i,i+C));
               const snapshot={id:'snap_'+Date.now(),date:dayOf,label:'auto',doneCount:marks,w:w,h:hgt,data:btoa(o)};
               setDoneSnapshots(prev=>{
+                if(generation!==snapshotGenerationRef.current||projectIdRef.current!==forProject||window.UserPrefs.get('trackerAutomaticSnapshots')!==true)return prev;
                 const updated=[...prev,snapshot];
-                const labelled=updated.filter(s=>s.label!=='auto');
-                const autos=updated.filter(s=>s.label==='auto').slice(-60);
+                const labelled=updated.filter(s=>(s.label!=='auto'||s.kind==='manual'));
+                const autos=updated.filter(s=>(s.label==='auto'&&s.kind!=='manual')).slice(-60);
                 return[...labelled,...autos];
               });
             }catch(e){console.warn('[stitchx/tracker] could not save the daily snapshot:',e);}
@@ -3421,6 +3448,7 @@ function doSaveProject(finalName){
     statsSettings,
     achievedMilestones,
     doneSnapshots,
+    deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     breadcrumbs,
     stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     workingContext: workingContextForSave(focusColour, stitchMode, stitchView, highlightMode),
@@ -3507,7 +3535,7 @@ function resolveReconcile(choice){
     const snap={id:'snap_'+Date.now(),date:new Date().toLocaleDateString('en-CA'),label:'Before pattern change',doneCount:rc.oldMarks,w:cand?cand.oldW:undefined,h:cand?cand.oldH:undefined,data:btoa(o)};
     setDoneSnapshots(prev=>{
       const updated=[...prev,snap];
-      return[...updated.filter(s=>s.label!=='auto'),...updated.filter(s=>s.label==='auto').slice(-60)];
+      return[...updated.filter(s=>(s.label!=='auto'||s.kind==='manual')),...updated.filter(s=>(s.label==='auto'&&s.kind!=='manual')).slice(-60)];
     });
   }catch(e){console.warn('[stitchx/tracker] could not keep a snapshot of the earlier marks:',e);}
   justLoadedRef.current=true;
@@ -3603,7 +3631,7 @@ function handleEditInCreator(){
           var _v3h=v3FieldsRef.current||{};
           window.__updateCreatorTrackerFields({
             statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
-            achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+            achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots, deletedSnapshotIds:project.deletedSnapshotIds,
             breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
             blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea, workingContext:project.workingContext,
             startCorner:project.startCorner, colourSequence:project.colourSequence,
@@ -4097,7 +4125,9 @@ function processLoadedProject(project){
   setAchievedMilestones(persistedMilestones);
   persistedMilestones.forEach(function(m){var key=m.pct!=null?('pct_'+m.pct):m.label;celebratedRef.current.add(key);});
   // Restore done-state snapshots and reset the day-tracking ref
-  setDoneSnapshots(project.doneSnapshots||[]);
+  snapshotGenerationRef.current++;
+  deletedSnapshotIdsRef.current=project.deletedSnapshotIds||[];
+  setDoneSnapshots((project.doneSnapshots||[]).filter(s=>!deletedSnapshotIdsRef.current.includes(s.id)));
   // The last stitching day seen, so opening the Tracker on a later day still notices the change of day
   // (it used to start from nothing on every load, and the snapshot only fired if the page stayed open
   // across midnight). The newest session's date is that day (sessions are saved when the Tracker closes);
@@ -4117,6 +4147,9 @@ function processLoadedProject(project){
       if(!isNaN(d.getTime()))lastDay=getStitchingDate(d,deh);
     });
     if(lastDay&&hasMarks)lastSnapshotDateRef.current=lastDay;
+    const enabledAt=window.UserPrefs&&window.UserPrefs.get('trackerSnapshotsEnabledAt');
+    if(enabledAt){const baseline=getStitchingDate(new Date(enabledAt),deh);if(!lastSnapshotDateRef.current||baseline>lastSnapshotDateRef.current)lastSnapshotDateRef.current=baseline;}
+    if(!window.UserPrefs||window.UserPrefs.get('trackerAutomaticSnapshots')!==true)lastSnapshotDateRef.current=getStitchingDate(new Date(),deh);
   }catch(_){}
   // Reset auto-session count refs so loading doesn't trigger a spurious session
   // justLoadedRef stays true until the stitch-delta effect has run at least once,
@@ -4569,7 +4602,7 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
     bsDone: window.Backstitch ? window.Backstitch.forSave(bsDone) : undefined, partialDone: window.Fractional ? window.Fractional.forSave(partialDone) : undefined, beads: beadsRef.current,
-    statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots,
+    statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
@@ -4711,7 +4744,7 @@ useEffect(() => {
             var _v3=v3FieldsRef.current||{};
             window.__updateCreatorTrackerFields({
               statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
-              achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots,
+              achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots, deletedSnapshotIds:project.deletedSnapshotIds,
               breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
               blockW:project.blockW, blockH:project.blockH, focusBlock:project.focusBlock, workArea:project.workArea, workingContext:project.workingContext,
               startCorner:project.startCorner, colourSequence:project.colourSequence,
@@ -8273,7 +8306,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={Math.round(combinedDone)} totalStitches={Math.round(combinedTotal)} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={setDoneSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={Math.round(combinedDone)} totalStitches={Math.round(combinedTotal)} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 

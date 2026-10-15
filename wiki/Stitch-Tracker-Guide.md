@@ -214,3 +214,12 @@ Open the project in the Pattern Creator — **Edit** in the top bar, or **Edit**
 
 **Last Updated:** October 2026
 **Questions?** Press `?` in the app for in-app help.
+
+
+## Compare snapshots
+
+In a project's Stats > Compare, save a manual snapshot to compare your marked stitches later. Automatic daily Compare snapshots are **off by default**, including for existing users. Enable the global toggle in File > Preferences > Stitch Tracker to start from the current stitching day, without filling missed days. The first mark of a later stitching day saves a snapshot; up to 60 automatic snapshots are kept. The stitching day follows your configured day-end hour. Disabling also stops any automatic snapshot waiting for the browser to be idle.
+
+Select a snapshot and choose **Delete snapshot**, or choose **Delete all automatic snapshots**. Confirm the deletion to proceed; cancelling keeps your history. Bulk deletion preserves manual snapshots (even one labelled “auto”) and **Before pattern change** recovery snapshots. A deleted selection clears safely. Read-only views disable saving and deletion. Deletions persist through project saves, reloads, backups and Sync.
+
+Manual snapshots, existing snapshots, pattern-change recovery, project autosave and session recording are independent of the automatic-snapshot preference.

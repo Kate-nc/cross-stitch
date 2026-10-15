@@ -122,6 +122,8 @@
     trackerCelebrate:      true,
     statsDayEndHour:       null,     // hour the stitching day ends (0 = midnight); null = not set, projects may still supply one
     trackerMarkAllAs:      "ask",   // ask | catchup | today: what marking a whole colour, or a rectangle of over 50 stitches, done counts as
+    trackerAutomaticSnapshots: false, // Opt-in, including users with existing stitching history.
+    trackerSnapshotsEnabledAt: null,   // No backfill before the most recent opt-in.
     // C3 — the unified pointer pipeline (useDragMark) is now the default.
     // Set this preference to false to fall back to plain tap-to-mark only
     // (no drag-mark, no long-press range). The legacy global override
@@ -275,7 +277,7 @@
       return typeof v === "number" && isFinite(v) && v >= min && v <= max && (!integer || Math.floor(v) === v);
     };
   }
-  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
+  portableKeys("gridOverlayEnabled coverageAutoSync exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportMiniLegend exportCentreMarks creator.pdfWorkshopTheme creatorGuessPictureType creatorAllowBlends creatorStashOnlyDefault creatorSmoothDithering creatorProtectDetails creatorStitchCleanup creatorCanvasTexture trackerCanvasTexture trackerHighlightSkipDone trackerOnlyStarted trackerShowParking trackerCelebrate trackerMinimap trackerAutomaticSnapshots managerDetailGrid a11yHighContrast a11yReducedMotion a11ySymbolOnly toastsEnabled notifSound notifHaptic notifMilestones notifLowStock autoLibraryLink homeShowCompleted", function(v) { return typeof v === "boolean"; });
   portableKeys("showStreaksAndGoals showDailyStreak", function(v) { return v === null || typeof v === "boolean"; });
   portableKeys("designerName designerCopyright designerContact", function(v) { return typeof v === "string" && v.length <= 10000; });
   portableKeys("fabricColour preferredMountColour creatorFabricColour trackerFabricColour trackerTintColour appAccentColour", function(v) { return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v); });
@@ -387,6 +389,9 @@
       // Unlike normal UI writes, report quota/storage errors to the restorer.
       localStorage.setItem(PREFIX_GLOBAL + k, JSON.stringify(values[k]));
     });
+    // Restoring an opt-in starts here, never at the source device's old baseline.
+    if (values.trackerAutomaticSnapshots === true) localStorage.setItem(PREFIX_GLOBAL + "trackerSnapshotsEnabledAt", JSON.stringify(new Date().toISOString()));
+    try { window.dispatchEvent(new CustomEvent("cs:prefchange", { detail: { key: "trackerAutomaticSnapshots" } })); } catch (_) {}
   }
 
   // Debounce timers keyed by localStorage key
@@ -428,6 +433,9 @@
     if (saveTimers[key]) clearTimeout(saveTimers[key]);
     delete saveTimers[key];
     delete pendingSaveValues[key];
+    if (key === "trackerAutomaticSnapshots" && value === true && get(key) !== true) {
+      _write("trackerSnapshotsEnabledAt", new Date().toISOString());
+    }
     _write(key, value);
   }
 
@@ -516,6 +524,7 @@
       Object.keys(pviewTimers).forEach(function(k) { clearTimeout(pviewTimers[k]); });
       pviewTimers = {};
     } catch (_) {}
+    try { window.dispatchEvent(new CustomEvent("cs:prefchange", { detail: { key: null } })); } catch (_) {}
   }
 
   // Read per-pattern state for a project ID

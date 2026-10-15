@@ -411,6 +411,7 @@
     var focusPhone = usePref("trackerFocusOnPhone", true);
     var handed = usePref("trackerHandedness", "right");
     var wakeLock = usePref("trackerWakeLock", "auto");
+    var autoSnapshots = usePref("trackerAutomaticSnapshots", false);
     var dayEnd = usePref("statsDayEndHour", 0);
 
     return h("div", null,
@@ -541,6 +542,12 @@
             { value: "C", label: "Centre" },
             { value: "BL", label: "Bottom-left" }, { value: "BR", label: "Bottom-right" }
           ]})
+        )
+      ),
+
+      h(Section, { title: "Compare snapshots" },
+        h(Row, { last: true, label: "Automatic daily Compare snapshots", desc: "Off by default. Applies to every project on this device. When enabled, the first mark of a new stitching day saves a Compare snapshot (up to 60 automatic snapshots). Starts from today without filling missed days. Manual and Before pattern change snapshots, autosave and session recording continue independently." },
+          h(Switch, { checked: autoSnapshots[0] === true, onChange: autoSnapshots[1], "aria-label": "Automatic daily Compare snapshots" })
         )
       ),
 

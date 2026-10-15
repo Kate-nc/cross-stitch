@@ -63,6 +63,7 @@ test('a new stitching day saves a daily snapshot of the marks, with the pattern 
   });
   await loadTrackerFixture(page);
   const mark = async (gx, gy) => { const p = await trackerCellPoint(page, gx, gy); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
+  await page.evaluate(() => UserPrefs.set('trackerAutomaticSnapshots', true));
   await mark(3, 3);                                         // day one: the snapshot date is noted
   await page.evaluate(() => { window.__off = 36 * 3600 * 1000; });   // the next stitching day
   await mark(4, 3);                                         // first mark of day two: yesterday is snapshotted
@@ -112,6 +113,7 @@ test('the daily snapshot also works when the Tracker is closed and reopened betw
   });
   await loadTrackerFixture(page);
   const mark = async (gx, gy) => { const p = await trackerCellPoint(page, gx, gy); await page.mouse.click(p.x, p.y); await page.waitForTimeout(250); };
+  await page.evaluate(() => UserPrefs.set('trackerAutomaticSnapshots', true));
   await mark(3, 3);                                          // day one
   await page.evaluate(() => window.__flushProjectToIDB());
   const id = await page.evaluate(() => localStorage.getItem('crossstitch_active_project'));

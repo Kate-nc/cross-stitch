@@ -1437,6 +1437,17 @@ const SyncEngine = (() => {
       }
     }
 
+    // Compare history is a union by id; deletion records prevent stale peers restoring removed snapshots.
+    var deletedSnapshotIds = mergeDeletedIds(local.deletedSnapshotIds, remote.deletedSnapshotIds);
+    if (deletedSnapshotIds.length) merged.deletedSnapshotIds = deletedSnapshotIds;
+    var snapshots = new Map();
+    (local.doneSnapshots || []).concat(remote.doneSnapshots || []).forEach(function (s) {
+      if (s && s.id && deletedSnapshotIds.indexOf(s.id) < 0 && !snapshots.has(s.id)) snapshots.set(s.id, s);
+    });
+    var history = Array.from(snapshots.values()).sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || a.id.localeCompare(b.id); });
+    merged.doneSnapshots = history.filter(function (s) { return (s.label !== 'auto' || s.kind === 'manual'); })
+      .concat(history.filter(function (s) { return (s.label === 'auto' && s.kind !== 'manual'); }).slice(-60));
+
     // Merge sessions (deduplicate by timestamp)
     var deletedSessionIds = mergeDeletedIds(local.deletedSessionIds, remote.deletedSessionIds);
     if (deletedSessionIds.length) merged.deletedSessionIds = deletedSessionIds;

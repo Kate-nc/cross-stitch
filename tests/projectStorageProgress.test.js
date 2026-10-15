@@ -231,3 +231,17 @@ test('backup includes navigation recovery without writing IDB, and newer persist
   expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, baseWriteAt: 9 })).toBeNull();
   expect(ProjectStorage.backupProgressRows(p, null, { ...recovery, projectId: 'proj_other' })).toBeNull();
 });
+
+test('Compare deletion records and remaining manual/recovery history survive full saves and progress writes', async () => {
+  const snapshots=[{id:'m',label:'Manual'},{id:'r',label:'Before pattern change'}];
+  await ProjectStorage.save(proj({doneSnapshots:snapshots,deletedSnapshotIds:['auto_1']}));
+  const b=await base('proj_p');
+  await ProjectStorage.saveProgress('proj_p',{done:Uint8Array.from([1,1,0,0,0,0]),baseWriteAt:b});
+  const reloaded=await ProjectStorage.get('proj_p');
+  expect(reloaded.doneSnapshots).toEqual(snapshots);
+  expect(reloaded.deletedSnapshotIds).toEqual(['auto_1']);
+  await ProjectStorage.save({...reloaded,doneSnapshots:[],deletedSnapshotIds:['auto_1','m','r']});
+  const again=await ProjectStorage.get('proj_p');
+  expect(again.doneSnapshots).toEqual([]);
+  expect(again.deletedSnapshotIds).toEqual(['auto_1','m','r']);
+});

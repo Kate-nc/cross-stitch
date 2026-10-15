@@ -8,6 +8,14 @@ window.APP_VERSION = '1.0.152';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.153',
+    date: 'October 2026',
+    notes: [
+      'Automatic daily Compare snapshots are now optional and off by default, including for existing users. Enable them in Preferences > Stitch Tracker to start from today without filling missed days. Turning them off also cancels queued automatic snapshots; manual snapshots, pattern-change recovery, autosave and session recording continue.',
+      'Stats > Compare can delete a selected snapshot or all automatic snapshots, with confirmation. Bulk deletion keeps manual and Before pattern change snapshots. Deleted snapshots stay deleted after reload and Sync; read-only views disable these controls.'
+    ]
+  },
+  {
     version: '1.0.151',
     date: 'October 2026',
     notes: [
