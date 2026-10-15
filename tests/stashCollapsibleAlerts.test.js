@@ -75,9 +75,9 @@ test('a preference write failure still permits toggling without touching invento
 
 test('loading current version 4 inventory preserves per-thread minima and does not write a legacy migration', () => {
   const block = source.slice(source.indexOf('let finalThreads = threadsData;'), source.indexOf('setThreads(finalThreads);'));
-  const load = new Function('threadsData', 'versionData', 'store', 'DMC', 'ANCHOR', 'normaliseStashKey', 'threadKey', block + '\nreturn finalThreads;');
+  const load = new Function('threadsData', 'versionData', 'store', 'DMC', 'ANCHOR', 'normaliseStashKey', 'threadKey', 'threadsBaselineRef', block + '\nreturn finalThreads;');
   const data = { 'dmc:310': { owned: 1, min_stock: 2, partialStatus: 'about-half' }, 'anchor:403': { owned: 3, min_stock: 4 } };
   const store = { put: jest.fn() };
-  expect(load(data, 4, store, [], [], k => k, (b, id) => b + ':' + id)).toBe(data);
+  expect(load(data, 4, store, [], [], k => k, (b, id) => b + ':' + id, {current:{}})).toBe(data);
   expect(store.put).not.toHaveBeenCalled();
 });

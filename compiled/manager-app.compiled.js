@@ -140,6 +140,22 @@ function ManagerApp() {
   }); // 'inventory' | 'patterns'
   const [modal, setModal] = useState(null); // 'help', 'about', 'add_pattern'
   const [threads, setThreads] = useState({}); // { [id]: { owned: number, tobuy: boolean } }
+  const threadsBaselineRef = useRef({});
+  const threadsSaveQueueRef = useRef(Promise.resolve());
+  const threadsSavingRef = useRef(false);
+  function persistThreadEdits(next) {
+    const work = threadsSaveQueueRef.current.catch(() => {}).then(async () => {
+      threadsSavingRef.current = true;
+      try {
+        await StashBridge.saveThreadEdits(next, threadsBaselineRef.current);
+        threadsBaselineRef.current = next;
+      } finally {
+        threadsSavingRef.current = false;
+      }
+    });
+    threadsSaveQueueRef.current = work;
+    return work;
+  }
   const [patterns, setPatterns] = useState([]); // Array of pattern objects
   const [activeProject, setActiveProject] = useState(null); // From Stitch Tracker IndexedDB
   const [storedProjects, setStoredProjects] = useState([]); // Cross-stitch projects from ProjectStorage
@@ -517,6 +533,7 @@ function ManagerApp() {
           store.put(finalThreads, "threads");
           store.put(4, "stashDataVersion");
         }
+        threadsBaselineRef.current = finalThreads;
         setThreads(finalThreads);
 
         // Reconcile pattern library against CrossStitchDB.
@@ -630,6 +647,8 @@ function ManagerApp() {
     // otherwise the next debounced auto-save will write the stale React state
     // back over IDB and silently wipe the bridge's mutation.
     const handleStashChanged = async () => {
+      if (threadsSavingRef.current) return;
+      const baselineAtRead = threadsBaselineRef.current;
       try {
         const db = await openManagerDB();
         const fresh = await new Promise((resolve, reject) => {
@@ -638,11 +657,27 @@ function ManagerApp() {
           req.onsuccess = () => resolve(req.result || {});
           req.onerror = () => reject(req.error);
         });
-        // Suppress the auto-save that this setThreads would otherwise trigger;
-        // the IDB is already up-to-date so writing the same value back is just
-        // wasteful (and would re-fire cs:stashChanged in a loop).
-        initialLoadDoneRef.current.threads = false;
-        setThreads(fresh);
+        // Discard a refresh whose baseline advanced during the IDB read.
+        if (threadsSavingRef.current || threadsBaselineRef.current !== baselineAtRead) return;
+        threadsBaselineRef.current = fresh;
+        setThreads(current => {
+          const merged = {
+            ...fresh
+          };
+          for (const key of Object.keys(current)) {
+            const before = baselineAtRead[key] || {},
+              after = current[key] || {};
+            const edits = Object.keys(after).filter(f => JSON.stringify(after[f]) !== JSON.stringify(before[f]));
+            if (!edits.length) continue;
+            merged[key] = {
+              ...(fresh[key] || {})
+            };
+            edits.forEach(f => {
+              merged[key][f] = f === 'owned' ? Math.max(0, (Number(fresh[key] && fresh[key].owned) || 0) + (Number(after.owned) || 0) - (Number(before.owned) || 0)) : after[f];
+            });
+          }
+          return merged;
+        });
       } catch (e) {
         console.warn('cs:stashChanged reload failed:', e);
       }
@@ -673,14 +708,7 @@ function ManagerApp() {
     }
     const saveTimer = setTimeout(async () => {
       try {
-        const db = await openManagerDB();
-        const tx = db.transaction(["manager_state"], "readwrite");
-        tx.objectStore("manager_state").put(threads, "threads");
-        tx.oncomplete = () => {
-          try {
-            window.dispatchEvent(new CustomEvent('cs:stashChanged'));
-          } catch (_) {}
-        };
+        await persistThreadEdits(threads);
       } catch (err) {
         console.error("Threads auto-save failed:", err);
       }
@@ -776,7 +804,7 @@ function ManagerApp() {
         window.openManagerDB().then(db => {
           const tx = db.transaction(["manager_state"], "readwrite");
           const store = tx.objectStore("manager_state");
-          store.put(threadsRef.current, "threads");
+          persistThreadEdits(threadsRef.current).catch(err => console.warn("Threads unload save failed:", err));
           store.put(patternsRef.current, "patterns");
           store.put(profileRef.current, "userProfile");
         }).catch(() => {});

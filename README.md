@@ -47,6 +47,8 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 A digital replacement for a printed chart while you stitch.
 
+Live stash deductions use persistent per-project checkpoints on this device; reopening and retrying do not charge the same consumption twice. Existing marks are checkpointed without charging historical use. See [thread deduction accounting](reports/thread-deduction-accounting.md) for formulas, migration and unpick limitations.
+
 - **Marking:** Mark mode — click, tap or drag to mark stitches done; Shift+drag (or press-and-hold then tap on touch) marks a rectangle. On touch, one finger marks and two fingers pan and zoom.
 - **Navigate mode:** a hand tool — drag to move around, click to place a guide crosshair across a row and column.
 - **Parking:** Shift + right-click a stitch (or press and hold in Navigate mode) to park a thread there; jump back to parked threads from the palette.

@@ -1,42 +1,45 @@
-// tests/rtSnapshotPersistence.test.js
-// Regression for DEFECT-001: the RT stash snapshot must persist across
-// enable/disable/re-enable cycles within a single project session.
-// Re-snapshotting on every toggle-on silently moves the baseline forward and
-// breaks the "Restore stash" safety net.
-const fs = require('fs');
-const path = require('path');
+const fs=require('fs'),path=require('path');
+const src=fs.readFileSync(path.join(__dirname,'../tracker-app.js'),'utf8');
+const start=src.indexOf('const flushRtStashWrite=useCallback');
+const body=src.slice(start,src.indexOf('const flushRtStashWriteRef=',start));
+function flushHarness(){
+ const ctx={projectId:'p',initial:{'dmc:310':0},ready:Promise.resolve()};
+ const refs={write:{current:{ctx,amounts:{'dmc:310':.2},enabled:true}},context:{current:ctx}};
+ const bridge={applyProjectConsumption:jest.fn().mockResolvedValue({accounting:{threads:{}},threads:{'dmc:310':{owned:.8}}})};
+ const stock=jest.fn(),version=jest.fn(),debounce={current:null},flushRef={current:null};
+ const flush=new Function('useCallback','rtWriteSnapshotRef','rtContextRef','StashBridge','savesBlockedRef','setGlobalStash','setRtAccountingVersion','window','rtDebounceRef','flushRtStashWriteRef',body+'return flushRtStashWrite;')(fn=>fn,refs.write,refs.context,bridge,{current:false},stock,version,{Toast:{show:jest.fn()}},debounce,flushRef);
+ flushRef.current=flush;
+ return {ctx,refs,bridge,stock,flush};
+}
+test('switching projects during an awaited write keeps the captured project id and does not publish stale results',async()=>{
+ const h=flushHarness();let release;h.ctx.ready=new Promise(resolve=>{release=resolve;});
+ const pending=h.flush();h.refs.context.current={projectId:'q'};release();await pending;
+ expect(h.bridge.applyProjectConsumption).toHaveBeenCalledWith('p',{'dmc:310':.2},{'dmc:310':0});expect(h.stock).not.toHaveBeenCalled();
+});
+test('disabled writes do not debit; re-enable retains the same project accounting',async()=>{
+ const h=flushHarness();h.refs.write.current.enabled=false;await h.flush();expect(h.bridge.applyProjectConsumption).not.toHaveBeenCalled();
+ h.refs.write.current.enabled=true;await h.flush();expect(h.bridge.applyProjectConsumption).toHaveBeenCalledTimes(1);expect(h.ctx.accounting).toEqual({threads:{}});
+});
+test('initialisation failure can retry rather than permanently poisoning the write context',async()=>{
+ const h=flushHarness();h.ctx.ready=Promise.reject(Error('interrupted init'));await h.flush();expect(h.stock).toHaveBeenCalledTimes(1);
+});
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'tracker-app.js'), 'utf8');
-
-describe('tracker-app.js — RT snapshot lifecycle (DEFECT-001)', () => {
-  test('exposes both __setRtStashSnapshot (replace) and __ensureRtStashSnapshot (only-if-empty)', () => {
-    expect(SRC).toMatch(/window\.__setRtStashSnapshot\s*=/);
-    expect(SRC).toMatch(/window\.__ensureRtStashSnapshot\s*=/);
-  });
-
-  test('__ensureRtStashSnapshot guards on empty current snapshot', () => {
-    const re = /window\.__ensureRtStashSnapshot\s*=\s*function\s*\([^)]*\)\s*\{[\s\S]*?Object\.keys\(cur\)\.length\s*===\s*0/;
-    expect(SRC).toMatch(re);
-  });
-
-  test('the Live toggle uses __ensureRtStashSnapshot, not __setRtStashSnapshot', () => {
-    // The "Turning on" branch must not call the unconditional setter, otherwise
-    // the snapshot moves forward on every re-enable.
-    const toggleBlock = SRC.match(/Turning on:[\s\S]{0,800}__ensureRtStashSnapshot/);
-    expect(toggleBlock).not.toBeNull();
-  });
-
-  test('Restore-stash button clears the snapshot ref after rolling back', () => {
-    // Both the success and catch branches need to clear, so we expect at least
-    // two `rtStashSnapshotRef.current={}` lines associated with restore.
-    const restoreSection = SRC.match(/\/\/ Restore stash to pre-project[\s\S]{0,1500}cursor:'pointer',fontWeight:500/);
-    expect(restoreSection).not.toBeNull();
-    const clears = (restoreSection[0].match(/rtStashSnapshotRef\.current\s*=\s*\{\s*\}/g) || []).length;
-    expect(clears).toBeGreaterThanOrEqual(2);
-  });
-
-  test('Complete-summary confirm clears the snapshot ref', () => {
-    const completeSection = SRC.match(/Flush any remaining RT write[\s\S]{0,1200}finishStatus:'completed'[\s\S]{0,400}rtStashSnapshotRef\.current\s*=\s*\{\s*\}/);
-    expect(completeSection).not.toBeNull();
-  });
+test('a failed write schedules one retry and a successful retry publishes the committed result',async()=>{
+ jest.useFakeTimers();
+ const warning=jest.spyOn(console,'warn').mockImplementation(()=>{});
+ try {
+  const h=flushHarness();h.bridge.applyProjectConsumption.mockRejectedValueOnce(Error('interrupted write'));
+  await expect(h.flush()).rejects.toThrow('interrupted write');expect(jest.getTimerCount()).toBe(1);
+  await jest.advanceTimersByTimeAsync(30000);
+  expect(h.bridge.applyProjectConsumption).toHaveBeenCalledTimes(2);expect(h.stock).toHaveBeenCalledTimes(1);
+ } finally {warning.mockRestore();jest.useRealTimers();}
+});
+test('switching projects during completion does not finish or disable the new project',async()=>{
+ const start=src.indexOf('const finishingCtx=rtContextRef.current;');
+ const code=src.slice(start,src.indexOf("}} style={{width:'100%'",start));
+ let release;const wait=new Promise(resolve=>{release=resolve;});
+ const ctx={current:{projectId:'p'}},project={current:'p'},finish=jest.fn(),deducted=jest.fn(),modal=jest.fn();
+ new Function('rtContextRef','projectIdRef','rtDebounceRef','flushRtStashWriteRef','ProjectStorage','v3FieldsRef','setStashDeducted','setModal',code)(ctx,project,{current:null},{current:()=>wait},{markProjectFinished:finish},{current:{}},deducted,modal);
+ ctx.current={projectId:'q'};project.current='q';release();await wait;await Promise.resolve();
+ expect(finish).not.toHaveBeenCalled();expect(deducted).not.toHaveBeenCalled();expect(modal).not.toHaveBeenCalled();
 });

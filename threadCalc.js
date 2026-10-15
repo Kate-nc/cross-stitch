@@ -168,6 +168,41 @@ function threadCostPerStitch(fabricCount, strandCount, wastePrefs) {
   return (baseCostIn + tailWastePerStitch) * genWaste;
 }
 
+// Real-time model (kept separate from the rounded shopping estimate above).
+// 4.8 inches of stitch geometry per effective fabric count, per used strand.
+// Capacity is 6 strands * 315 inches. Tails are the existing combined working
+// thread allowance in inches per run; waste is a multiplier, not a percentage.
+const RT_GEOMETRY_IN_PER_COUNT = 4.8;
+const RT_SKEIN_SINGLE_STRAND_IN = 6 * 315;
+function rtThreadUsage(pattern, done, fabricCount, prefs) {
+  const wp = prefs || {};
+  const fc = Number.isFinite(fabricCount) && fabricCount > 0 ? fabricCount : 14;
+  const strands = Number.isFinite(wp.strandCountOverride) && wp.strandCountOverride > 0 ? wp.strandCountOverride : 2;
+  const tail = Number.isFinite(wp.tailAllowanceIn) && wp.tailAllowanceIn >= 0 ? wp.tailAllowanceIn : 1.5;
+  const run = Number.isFinite(wp.threadRunLength) && wp.threadRunLength > 0 ? wp.threadRunLength : 30;
+  const waste = Number.isFinite(wp.generalWasteMultiplier) && wp.generalWasteMultiplier >= 0 ? wp.generalWasteMultiplier : 1.10;
+  const cost = (RT_GEOMETRY_IN_PER_COUNT * strands / (fc / defaultStitchOver(fc)) + 2 * tail / run) * waste / RT_SKEIN_SINGLE_STRAND_IN;
+  const out = {};
+  (pattern || []).forEach(function(p, i) {
+    if (!p || !p.id || p.id.startsWith('__')) return;
+    const parts = p.type === 'blend' ? (p.threads || String(p.id).split('+').map(id => ({ id: id }))) : [p];
+    // Constituent weights describe relative strands; an override scales the
+    // total working strand count while retaining these proportions.
+    const weights = parts.map((t, j) => {
+      const n = (p.blendRatio && p.blendRatio[j]) != null ? p.blendRatio[j] : (t.strands != null ? t.strands : 1);
+      return Number.isFinite(n) && n >= 0 ? n : 1;
+    });
+    const totalWeight = weights.reduce((sum, n) => sum + n, 0) || parts.length;
+    parts.forEach(function(t, j) {
+      const share = p.type === 'blend' ? (weights.some(n => n > 0) ? weights[j] : 1) / totalWeight : 1;
+      const key = (t.brand || p.brand || 'dmc').toLowerCase() + ':' + t.id;
+      if (!(key in out)) out[key] = 0;
+      if (done && done[i] === 1) out[key] += cost * share;
+    });
+  });
+  return out;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BASE_THREAD_PER_STITCH_IN,
@@ -179,6 +214,7 @@ if (typeof module !== 'undefined' && module.exports) {
         BRAND_SKEIN_LENGTH,
         stitchesToSkeins,
         skeinsToStitches,
-        threadCostPerStitch
+        threadCostPerStitch,
+        rtThreadUsage
     };
 }

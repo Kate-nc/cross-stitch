@@ -8,6 +8,15 @@ window.APP_VERSION = '1.0.156';
 
 window.APP_CHANGELOG = [
   {
+    version: '1.0.156',
+    date: 'October 2026',
+    notes: [
+      'Fixed: live stash deductions persist per-project checkpoints, so reopening and retrying do not deduct the same thread twice. Atomic updates preserve other projects and stash edits on this device. Existing marks in older projects are checkpointed without another historical deduction.',
+      'Fixed: blended crosses split thread usage by constituent strands, brands stay separate, and tracker tabs exchange bounded announcements without heartbeat reply loops.',
+      'Live stash corrections now reverse only recorded deductions and preserve purchases. Unmarking and resetting progress do not return usable thread to stock.'
+    ]
+  },
+  {
     version: '1.0.154',
     date: 'October 2026',
     notes: [
