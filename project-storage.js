@@ -579,7 +579,14 @@ const ProjectStorage = (() => {
             try {
               const key='cs_pending_session_'+project.id,raw=localStorage.getItem(key);
               if(raw){const parsed=JSON.parse(raw),rows=Array.isArray(parsed)?parsed:[parsed];
-                const left=rows.filter(r=>r&&!sessionEnded(project,r.groupId||r.id));
+                const left=rows.filter(r=>{
+                  if(!r)return false;
+                  if((project.deletedSessionIds||[]).includes(r.groupId||r.id))return false;
+                  if(!sessionEnded(project,r.groupId||r.id))return true;
+                  // A save started before Undo must not retire a newer correction to the same session ID.
+                  const saved=(project.statsSessions||[]).find(s=>s&&s.id===r.id);
+                  return (r.historyCorrectionRevision||0)>((saved&&saved.historyCorrectionRevision)||0)&&!(saved&&saved.editedAt&&Date.parse(saved.editedAt)>=r.historyCorrectedAt);
+                });
                 if(left.length)localStorage.setItem(key,JSON.stringify(left));else localStorage.removeItem(key);
               }
             }catch(_){}

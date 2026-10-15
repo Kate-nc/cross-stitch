@@ -71,6 +71,13 @@
       }
       doneCountRef.current=dc;colourDoneCountsRef.current=cdc;setCountsVer(function(v){return v+1;});
     }
+    // Known half-side edits update the live colour counter before React renders; the effect below reconciles maps.
+    function applyHalfDoneDelta(idx,dir,oldVal,newVal,hs){
+      const side=hs&&hs.get(idx)&&hs.get(idx)[dir];
+      if(!side||!!oldVal===!!newVal)return;
+      const cdc=colourDoneCountsRef.current,c=cdc[side.id];
+      if(c){cdc[side.id]={...c,halfDone:c.halfDone+(newVal?1:-1)};setCountsVer(v=>v+1);}
+    }
     // Full recompute only on structural changes (pattern load, half-stitch structure edits)
     useEffect(()=>{recomputeAllCounts(pat,done,halfStitches,halfDone);},[pat,halfStitches]);
 
@@ -86,6 +93,6 @@
       setCountsVer(v=>v+1);
     },[halfStitches,halfDone]);
 
-    return { doneCountRef, colourDoneCountsRef, countsVer, recomputeAllCounts, applyDoneCountsDelta };
+    return { doneCountRef, colourDoneCountsRef, countsVer, recomputeAllCounts, applyDoneCountsDelta, applyHalfDoneDelta };
   };
 })();

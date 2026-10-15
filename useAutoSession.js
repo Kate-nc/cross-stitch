@@ -25,7 +25,12 @@
     var useEffect   = R.useEffect;
     var useMemo     = R.useMemo;
 
-    const[statsSessions,setStatsSessions]=useState([]);
+    const[statsSessions,_setStatsSessions]=useState([]);
+    const statsSessionsRef=useRef(statsSessions);
+    function setStatsSessions(update){
+      const next=typeof update==='function'?update(statsSessionsRef.current):update;
+      statsSessionsRef.current=next;_setStatsSessions(next);
+    }
     const totalTime=useMemo(()=>{if(!statsSessions||statsSessions.length===0)return 0;return statsSessions.reduce(function(sum,s){return sum+getSessionSeconds(s);},0);},[statsSessions]);
     const[celebration,setCelebration]=useState(null);
     const celebratedRef=useRef(new Set());
@@ -147,6 +152,7 @@
         unitsUndone:0,
         catchUp:0,
         byDay:{},
+        historyReceipts:[],
         coloursWorked:new Set(),
         // Event log: timestamped events drive all duration computation.
         eventLog:[{kind:'start',t:now}]
@@ -200,13 +206,15 @@
           setManuallyPaused(false);
         }
         // Record the stitch event (net delta for the activity burst).
-        currentAutoSessionRef.current.eventLog.push(eventKind==='frog'?{kind:'frog',t:now,delta:completed-undone,n:undone,units:uu}:{kind:'stitch',t:now,delta:completed-undone});
+        const event=eventKind==='frog'?{kind:'frog',t:now,delta:completed-undone,n:undone,units:uu}:{kind:'stitch',t:now,delta:completed-undone};
+        currentAutoSessionRef.current.eventLog.push(event);
         currentAutoSessionRef.current.lastMarkT=now;
         currentAutoSessionRef.current.forgotAsked=false;currentAutoSessionRef.current.snoozeUntil=null;setForgotStop(null);
         currentAutoSessionRef.current.stitchesCompleted+=completed;
         currentAutoSessionRef.current.stitchesUndone+=undone;
         currentAutoSessionRef.current.unitsCompleted+=cu;
         currentAutoSessionRef.current.unitsUndone+=uu;
+        autoStatsRef.current.doneUnits+=cu-uu;
         // What was added on which stitching day. The day only needs working out when the previous one has ended
         // (a comparison per mark, not a date calculation).
         {
@@ -251,23 +259,72 @@
         if(isFinite(idleMs)&&!currentAutoSessionRef.current.timer){
           autoIdleTimerRef.current=setTimeout(()=>{try{if(finaliseAutoSessionRef.current)finaliseAutoSessionRef.current();}catch(e){}},idleMs);
         }
+        const cs=currentAutoSessionRef.current;
+        const receipt={session:cs,date:cs.curDate,completed,undone,cu,uu,catchUp:catchUpUnits||0,event,applied:true};
+        if(completed||undone||cu||uu)cs.historyReceipts.push(receipt);
+        return receipt;
       }catch(e){}
     }
-    // An unpicked area was put back (Undo): take it off the session's unpicked figure again, if that session is still
-    // open, so that undoing it does not leave "Unpicked 80" behind or count the 80 as added. A session already closed
-    // keeps what it recorded.
-    function unrecordUnpick(stitches,units){
+    function backupSessionRecords(projectId,records){
+      if(!projectId)return;
       try{
-        const cs=currentAutoSessionRef.current;
-        if(!cs)return false;
-        cs.stitchesUndone=Math.max(0,cs.stitchesUndone-stitches);
-        cs.unitsUndone=Math.max(0,cs.unitsUndone-units);
-        const bd=cs.byDay&&cs.byDay[cs.curDate];
-        if(bd){bd.su=Math.max(0,bd.su-stitches);bd.uu=Math.max(0,bd.uu-units);}
-        cs.eventLog.push({kind:'frogUndo',t:Date.now(),n:stitches,units:units});
+        const key='cs_pending_session_'+projectId;
+        let old=[];try{const p=JSON.parse(localStorage.getItem(key)||'[]');old=Array.isArray(p)?p:[p];}catch(_){}
+        localStorage.setItem(key,JSON.stringify(old.filter(r=>r&&!records.some(n=>n.id===r.id)).concat(records)));
+      }catch(e){reportCheckpointFailure(e);}
+    }
+    // A history correction changes the original contribution, never the session/day at the time of Undo.
+    // Closed sessions keep their measured time and notes; only their original day's counts are corrected.
+    function correctHistoryActivity(receipt,applied){
+      if(!receipt||receipt.applied===applied)return false;
+      const cs=receipt.session;
+      if(cs.projectId!==projectIdRef.current)return false;
+      const sign=applied?1:-1;
+      const sc=sign*receipt.completed,su=sign*receipt.undone,uc=sign*receipt.cu,uu=sign*receipt.uu,cu=sign*receipt.catchUp;
+      receipt.applied=applied;
+      autoStatsRef.current.doneUnits+=uc-uu;
+      receipt.event.historyUndone=!applied;
+      cs.stitchesCompleted+=sc;cs.stitchesUndone+=su;cs.unitsCompleted+=uc;cs.unitsUndone+=uu;cs.catchUp+=cu;
+      const bd=cs.byDay[receipt.date];
+      if(bd){bd.sc+=sc;bd.su+=su;bd.uc+=uc;bd.uu+=uu;bd.cu+=cu;}
+      if(currentAutoSessionRef.current===cs){
         setLiveAutoStitches(ProgressUnits.liveSessionAdded(cs));
-        return true;
-      }catch(e){return false;}
+      }else if(cs.finalisedRecords){
+        // A deleted/edited journal row is authoritative: never resurrect it or charge another session.
+        const target=cs.finalisedRecords.find(r=>r.date===receipt.date);
+        if(target&&!(cs.detachedHistoryDays&&cs.detachedHistoryDays.has(receipt.date))&&statsSessionsRef.current.includes(target)){
+          const originalRows=cs.finalisedRecords,at=originalRows.indexOf(target);
+          let changed=false;
+          setStatsSessions(prev=>prev.map(r=>{
+            const row=originalRows.indexOf(r);
+            // Later day fragments of this run retain their contributions, but their cumulative progress follows it.
+            if(row<at)return r;
+            changed=true;
+            const next=Object.assign({},r,{
+              historyCorrectedAt:Date.now(),historyCorrectionRevision:(r.historyCorrectionRevision||0)+1,
+              totalAtEnd:r.totalAtEnd+uc-uu
+            });
+            if(r===target)Object.assign(next,{
+              stitchesCompleted:r.stitchesCompleted+sc,stitchesUndone:r.stitchesUndone+su,
+              netStitches:r.netStitches+sc-su,unitsCompleted:r.unitsCompleted+uc,unitsUndone:r.unitsUndone+uu,
+              units:r.units+uc-uu,catchUp:(r.catchUp||0)+cu
+            });
+            next.percentAtEnd=ProgressUnits.percent(next.totalAtEnd,autoStatsRef.current.totalUnits);
+            cs.finalisedRecords=cs.finalisedRecords.map(x=>x===r?next:x);
+            return next;
+          }));
+          if(changed){
+            // Same synchronous recovery path as finalisation, including corrections immediately before unload.
+            backupSessionRecords(cs.projectId,cs.finalisedRecords);
+            autoSaveDirtyRef.current=true;
+            if(typeof invalidateStatsCache==='function')invalidateStatsCache();
+          }
+        }else{
+          // Once a correction has skipped an explicitly replaced row, journal Undo cannot reattach its old object.
+          (cs.detachedHistoryDays||(cs.detachedHistoryDays=new Set())).add(receipt.date);
+        }
+      }
+      return true;
     }
     // opts (all optional): endMs, finish the session at that time (trim to the last mark); durationSeconds, the
     // minutes the person confirmed or edited when stopping the timer.
@@ -276,7 +333,7 @@
         opts=opts&&typeof opts==='object'&&!opts.nativeEvent&&!opts.target?opts:{};
         const session=currentAutoSessionRef.current;
         if(opts.discard&&session&&session.projectId&&typeof ProjectStorage!=='undefined')ProjectStorage.retireSessionCheckpoint(session.projectId,session.id).catch(reportCheckpointFailure);
-        if(opts.discard||!session||(!session.timer&&session.stitchesCompleted+session.stitchesUndone===0)){
+        if(opts.discard||!session||(!session.timer&&session.stitchesCompleted+session.stitchesUndone===0&&!session.historyReceipts.length)){
           if(opts.preview)return null;
           releaseSessionLock();
           currentAutoSessionRef.current=null;
@@ -304,14 +361,14 @@
         const endTimeMs=typeof opts.endMs==='number'?Math.min(Date.now(),Math.max(session.startMs||0,opts.endMs)):Date.now();
         const capMs=getActiveGapCapMs();
         const timingMode=session.timingMode||getTimingMode();
-        let activeDurationMs=Math.max(0,computeActiveMs(session.eventLog,endTimeMs,capMs,timingMode));
+        let activeDurationMs=Math.max(0,computeActiveMs(session.eventLog.filter(e=>!e.historyUndone),endTimeMs,capMs,timingMode));
         // How the time was measured: the timer, or worked out from the marks; the person's own figure is "edited".
         let timingBasis=session.timer?'timer':'auto';
         if(typeof opts.durationSeconds==='number'&&opts.durationSeconds>=0&&Math.abs(opts.durationSeconds*1000-activeDurationMs)>30000){
           activeDurationMs=opts.durationSeconds*1000;timingBasis='edited';
         }
         // A click immediately stopped is not meaningful recorded time. Explicit timers with elapsed time are.
-        if(session.stitchesCompleted+session.stitchesUndone===0&&activeDurationMs<1000){
+        if(session.stitchesCompleted+session.stitchesUndone===0&&activeDurationMs<1000&&!session.historyReceipts.length){
           if(!opts.preview)resetAutoSessionForProjectLoad();
           return null;
         }
@@ -360,18 +417,19 @@
         if(days.length>1){
           try{
             const bounds=days.slice(0,-1).map(d=>nextStitchingDayBoundary(byDay[d].t0,deh));
-            const prefix=bounds.map(b=>Math.max(0,computeActiveMs(session.eventLog.filter(e=>e.t<b),b,capMs,timingMode)));
+            const prefix=bounds.map(b=>Math.max(0,computeActiveMs(session.eventLog.filter(e=>!e.historyUndone&&e.t<b),b,capMs,timingMode)));
             const ms=days.map((d,i)=>i===0?prefix[0]:(i<days.length-1?prefix[i]-prefix[i-1]:activeDurationMs-prefix[i-1]));
             records=splitSessionByDays(finalised,byDay,ms,ts,deh);
           }catch(e){records=[finalised];}
         }else if(days.length===1){finalised.date=days[0];}
         if(opts.preview)return {v:1,projectId:session.projectId,sessionId:session.id,checkpointAt:endTimeMs,revision:session.checkpointRevision=(session.checkpointRevision||0)+1,records:records};
+        session.finalisedRecords=records;
         setStatsSessions(prev=>[...(prev||[]),...records]);
         if(session.projectId&&typeof ProjectStorage!=='undefined')ProjectStorage.saveSessionCheckpoint(session.projectId,{v:1,projectId:session.projectId,sessionId:session.id,checkpointAt:endTimeMs,revision:session.checkpointRevision=(session.checkpointRevision||0)+1,records:records}).catch(reportCheckpointFailure);
         // Synchronous localStorage backup so the session survives if the tab is closed
         // before the 5-second auto-save timer fires (beforeunload IDB writes are async
         // and may not complete in time). Cleared once the auto-save timer succeeds.
-        try{if(session.projectId){const key='cs_pending_session_'+session.projectId;let old=[];try{const p=JSON.parse(localStorage.getItem(key)||'[]');old=Array.isArray(p)?p:[p];}catch(_){}localStorage.setItem(key,JSON.stringify(old.filter(r=>r&&!records.some(n=>n.id===r.id)).concat(records)));}}catch(e){reportCheckpointFailure(e);}
+        backupSessionRecords(session.projectId,records);
         // Update lastTouchedAt and finishStatus in v3FieldsRef.
         // stitchLog is now derived from statsSessions in buildSnapshot() — no direct mutation needed.
         if(projectIdRef.current){
@@ -442,7 +500,7 @@
         // computeActiveMs uses the same algorithm as finaliseAutoSession — the live
         // display and the saved value agree by construction (±1 s from rounding).
         const elapsedMs = computeActiveMs(
-          currentAutoSessionRef.current.eventLog,
+          currentAutoSessionRef.current.eventLog.filter(e=>!e.historyUndone),
           Date.now(),
           getActiveGapCapMs(),
           currentAutoSessionRef.current.timingMode || getTimingMode()
@@ -516,7 +574,7 @@
       sessionSavedToast, setSessionSavedToast,
       getSessionCheckpoint, writeSessionCheckpoint,
       recordAutoActivity,
-      unrecordUnpick,
+      correctHistoryActivity, statsSessionsRef,
       editSessionNote,
     };
   };

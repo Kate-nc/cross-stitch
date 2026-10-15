@@ -1224,8 +1224,12 @@ function updateCompareSnapshots(update){
     return next;
   });
 }
-const[trackHistory,setTrackHistory]=useState([]);
-const[redoStack,setRedoStack]=useState([]);
+const[trackHistory,_setTrackHistory]=useState([]);
+const trackHistoryRef=useRef(trackHistory);
+function setTrackHistory(update){const next=typeof update==='function'?update(trackHistoryRef.current):update;trackHistoryRef.current=next;_setTrackHistory(next);}
+const[redoStack,_setRedoStack]=useState([]);
+const redoStackRef=useRef(redoStack);
+function setRedoStack(update){const next=typeof update==='function'?update(redoStackRef.current):update;redoStackRef.current=next;_setRedoStack(next);}
 const TRACK_HISTORY_MAX=50;
 
 const[statsView,setStatsView]=useState(false);
@@ -1369,7 +1373,7 @@ useEffect(()=>{
 const[reconcile,setReconcile]=useState(null);
 // Marking a whole colour done: asked once whether it counts as today's stitching or as catch-up (remembered).
 const[markAllAsk,setMarkAllAsk]=useState(null);
-const catchUpFlagRef=useRef(false);
+
 const savesBlockedRef=useRef(false);
 const dragStateRef=useRef({isDragging:false, dragVal:1});
 const dragChangesRef=useRef([]);
@@ -1437,16 +1441,22 @@ const lastClickedRef=useRef(null); // { idx, row, col, val } for shift+click ran
 // Sparse map: cellIdx → { fwd?: {id,rgb,lab,name,type,symbol}, bck?: {id,rgb,lab,name,type,symbol} }
 const[halfStitches,setHalfStitches]=useState(new Map());
 // Sparse map: cellIdx → { fwd?: 0|1, bck?: 0|1 }
-const[halfDone,setHalfDone]=useState(new Map());
+const[halfDone,_setHalfDone]=useState(new Map());
+const halfDoneRef=useRef(halfDone);
+function setHalfDone(update){const next=typeof update==='function'?update(halfDoneRef.current):update;halfDoneRef.current=next;_setHalfDone(next);}
 const[partialStitches,setPartialStitches]=useState(new Map());
 // French knots (knots.js): [{x, y, id, rgb}] in half-stitch units, and the
 // keys ("x,y") of those marked done.
 const[knots,setKnots]=useState([]);
-const[knotsDone,setKnotsDone]=useState([]);
+const[knotsDone,_setKnotsDone]=useState([]);
+const knotsDoneRef=useRef(knotsDone);
+function setKnotsDone(update){const next=typeof update==='function'?update(knotsDoneRef.current):update;knotsDoneRef.current=next;_setKnotsDone(next);}
 // Backstitch lines marked done (backstitch.js keys) and quarter stitches marked done (fractional.js: Map of
 // cellIndex -> Set of positions). Beads from an imported chart are carried untouched (they are not tracked).
 const[bsDone,setBsDone]=useState([]);
-const[partialDone,setPartialDone]=useState(new Map());
+const[partialDone,_setPartialDone]=useState(new Map());
+const partialDoneRef=useRef(partialDone);
+function setPartialDone(update){const next=typeof update==='function'?update(partialDoneRef.current):update;partialDoneRef.current=next;_setPartialDone(next);}
 const beadsRef=useRef(undefined);
 // The backstitch line the keyboard has selected (an index into bsLines, -1 for none), and the cell it was chosen at.
 const[bsSelect,setBsSelect]=useState(-1);
@@ -2102,10 +2112,10 @@ const flushedGenRef=useRef(-1);
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
 const session=window.useAutoSession({projectIdRef,v3FieldsRef,autoSaveDirtyRef,statsSettings,savesBlockedRef});
-const{getSessionCheckpoint,writeSessionCheckpoint,unrecordUnpick,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
+const{getSessionCheckpoint,writeSessionCheckpoint,correctHistoryActivity,statsSessionsRef,statsSessions,setStatsSessions,totalTime,elapsedStore,liveAutoStitches,liveAutoIsPaused,liveSessionOpen,liveIsTimer,forgotStop,startTimer,snoozeForgotStop,currentTimingMode,manuallyPaused,setManuallyPaused,manuallyPausedRef,celebration,setCelebration,celebratedRef,goalCelebrationRef,currentAutoSessionRef,finaliseAutoSessionRef,resetAutoSessionForProjectLoad,pendingColoursRef,pendingMilestonesRef,prevAutoCountRef,justLoadedRef,justLoadedSettlePassRef,autoStatsRef,isUnloadingRef,achievedMilestones,setAchievedMilestones,sessionOnboardingShown,setSessionOnboardingShown,sessionSavedToast,setSessionSavedToast,recordAutoActivity,editSessionNote}=session;
 useEffect(()=>{if(!motivation.show)setCelebration(null);},[motivation.show,setCelebration]);
 const counts=window.useStitchCounts({pat,done,halfStitches,halfDone});
-const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta}=counts;
+const{doneCountRef,colourDoneCountsRef,countsVer,recomputeAllCounts,applyDoneCountsDelta,applyHalfDoneDelta}=counts;
 const[projectName,setProjectName]=useState("");
 const[projectDesigner,setProjectDesigner]=useState("");
 const[projectDescription,setProjectDescription]=useState("");
@@ -2633,14 +2643,12 @@ useEffect(()=>{
 
 // Keep autoStatsRef fresh
 useEffect(()=>{autoStatsRef.current={doneUnits:combinedDone,totalUnits:combinedTotal};},[combinedDone,combinedTotal]);
-// Auto-detect stitch activity from doneCount & halfDone changes
+// Observe progress for milestones and optional daily snapshots; actions own session accounting.
 useEffect(()=>{
   try{
     if(!pat||!done)return;
     const curDone=doneCount;
     const curHalf=(halfStitchCounts&&halfStitchCounts.done)||0;
-    // A whole-colour Done the person called catch-up: this pass's additions are catch-up, then the flag is spent.
-    const asCatchUp=catchUpFlagRef.current;catchUpFlagRef.current=false;
     const prev=prevAutoCountRef.current||{done:0,halfDone:0};
     const prevDone=prev.done;
     const prevHalf=prev.halfDone;
@@ -2664,11 +2672,8 @@ useEffect(()=>{
     const knotDiff=curKnot-prevKnot;
     const quarterDiff=curQuarter-prevQuarter;
     if(doneDiff!==0||halfDiff!==0||knotDiff!==0||quarterDiff!==0){
-      const completed=Math.max(0,doneDiff)+Math.max(0,halfDiff)+Math.max(0,knotDiff)+Math.max(0,quarterDiff);
-      const undone=Math.max(0,-doneDiff)+Math.max(0,-halfDiff)+Math.max(0,-knotDiff)+Math.max(0,-quarterDiff);
       const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff),quarter:Math.max(0,quarterDiff)});
-      const undoneUnits=ProgressUnits.sessionUnits({full:Math.max(0,-doneDiff),half:Math.max(0,-halfDiff),knot:Math.max(0,-knotDiff),quarter:Math.max(0,-quarterDiff)});
-      if(completed>0||undone>0)recordAutoActivity(completed,undone,completedUnits,undoneUnits,asCatchUp?completedUnits:0);
+      // Accounting is synchronous at the action; this effect only observes milestones and snapshots.
       // Milestone detection
       if(completedUnits>0&&combinedTotal>0){
         const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot,quarter:prevQuarter});
@@ -2992,7 +2997,7 @@ const threadUsageSummary=useMemo(()=>{
   return{isolated,small,medium,large,total,estChanges,mostScattered,mostClustered};
 },[analysisResult,pat]);
 
-statsSessionsLiveRef.current=statsSessions;
+statsSessionsLiveRef.current=statsSessionsRef.current;
 // Session journal: edit, delete, merge. The pure work is in helpers.js; here the result is applied once (one state
 // change, one save) with Undo restoring the previous list and tombstones.
 function applySessionHistoryChange(result,message){
@@ -3019,7 +3024,7 @@ function mergeSessionWithNext(id){return applySessionHistoryChange(mergeSessionR
 function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
   // In a work area "all" means all of this colour inside the area.
   const _a=areaOn?workArea:null;
-  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){if(md&&asCatchUp)catchUpFlagRef.current=true;pushTrackHistory(changes);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
 // Whole-colour Done: unmarking goes straight through; marking uses the remembered choice, or asks once.
 function requestMarkColourDone(cid,md){
   if(!md){markColourDone(cid,false);return;}
@@ -3041,18 +3046,25 @@ function answerMarkAllAsk(asCatchUp){
 function _historyChanges(entry){
   return (entry && entry.type === "BULK_TOGGLE") ? entry.changes : entry;
 }
-function pushTrackHistory(changes){
+function recordFullHistoryActivity(entry,changes,asCatchUp){
+  let completed=0,undone=0;
+  for(const c of changes){if(c.oldVal)undone++;else completed++;}
+  entry.activity=recordAutoActivity(completed,undone,completed,undone,asCatchUp?completed:0);
+}
+function pushTrackHistory(changes,asCatchUp){
   if(!changes||!changes.length)return;
   // Track colours for auto-session
   if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
+  recordFullHistoryActivity(changes,changes,asCatchUp);
   setTrackHistory(prev=>{let n=[...prev,changes];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
 // B2: push a single tagged BULK_TOGGLE entry from useDragMark commits.
-function pushBulkToggleHistory(changes, source){
+function pushBulkToggleHistory(changes, source, asCatchUp){
   if(!changes||!changes.length)return;
   if(pat){for(let i=0;i<changes.length;i++){const id=pat[changes[i].idx]&&pat[changes[i].idx].id;if(id&&id!=='__skip__'&&id!=='__empty__')pendingColoursRef.current.add(id);}}
   const entry={type:"BULK_TOGGLE",source:source||"drag",changes:changes};
+  recordFullHistoryActivity(entry,changes,asCatchUp);
   lastBulkEntryRef.current=entry;   // the Undo N stitches message is bound to exactly this step
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
@@ -3067,12 +3079,12 @@ function flipQuarterDone(idx,pos){
   setPartialDone(prev=>window.Fractional?window.Fractional.toggle(prev,idx,pos):prev);
 }
 function undoTrack(){
-  if(!trackHistory.length||!done)return;
-  let lastEntry=trackHistory[trackHistory.length-1];
+  if(!trackHistoryRef.current.length||!doneRef.current)return;
+  let lastEntry=trackHistoryRef.current[trackHistoryRef.current.length-1];
+  correctHistoryActivity(lastEntry.activity,false);
   if(lastEntry&&lastEntry.type==="UNPICK"){
     // Putting an unpicked area back is not stitching: it comes off the session's unpicked figure, and adds nothing.
     applyUnpickPlan(lastEntry.plan,true);
-    unrecordUnpick(lastEntry.plan.stitches,lastEntry.plan.units);
     setTrackHistory(prev=>prev.slice(0,-1));
     setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
@@ -3081,6 +3093,12 @@ function undoTrack(){
     setBsKeysDone(lastEntry.keys,!lastEntry.on);
     setTrackHistory(prev=>prev.slice(0,-1));
     setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
+  if(lastEntry&&lastEntry.type==="HALF"){
+    setHalfHistoryState(lastEntry.idx,lastEntry.dir,lastEntry.oldVal);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>[...prev,{...lastEntry,oldVal:lastEntry.oldVal?0:1}].slice(-TRACK_HISTORY_MAX));
     return;
   }
   if(lastEntry&&lastEntry.type==="QUARTER"){
@@ -3102,25 +3120,26 @@ function undoTrack(){
     return;
   }
   let last=_historyChanges(lastEntry);
-  let nd=new Uint8Array(done);
+  let nd=new Uint8Array(doneRef.current);
   let redoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(redoChanges,pat,nd);
   paintDoneChanges(last,nd);
   skipNextFullRedrawRef.current=true;
-  setDone(nd);
+  doneRef.current=nd;setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
   let redoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
     ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:redoChanges}
     :redoChanges;
+  redoEntry.activity=lastEntry.activity;
   setRedoStack(prev=>{let n=[...prev,redoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 function redoTrack(){
-  if(!redoStack.length||!done)return;
-  let lastEntry=redoStack[redoStack.length-1];
+  if(!redoStackRef.current.length||!doneRef.current)return;
+  let lastEntry=redoStackRef.current[redoStackRef.current.length-1];
+  correctHistoryActivity(lastEntry.activity,true);
   if(lastEntry&&lastEntry.type==="UNPICK"){
     applyUnpickPlan(lastEntry.plan,false);
-    if(lastEntry.plan.stitches>0)recordAutoActivity(0,lastEntry.plan.stitches,0,lastEntry.plan.units,0,'frog');
     setRedoStack(prev=>prev.slice(0,-1));
     setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
@@ -3129,6 +3148,12 @@ function redoTrack(){
     setBsKeysDone(lastEntry.keys,lastEntry.on);
     setRedoStack(prev=>prev.slice(0,-1));
     setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
+  if(lastEntry&&lastEntry.type==="HALF"){
+    setHalfHistoryState(lastEntry.idx,lastEntry.dir,lastEntry.oldVal);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>[...prev,{...lastEntry,oldVal:lastEntry.oldVal?0:1}].slice(-TRACK_HISTORY_MAX));
     return;
   }
   if(lastEntry&&lastEntry.type==="QUARTER"){
@@ -3150,17 +3175,18 @@ function redoTrack(){
     return;
   }
   let last=_historyChanges(lastEntry);
-  let nd=new Uint8Array(done);
+  let nd=new Uint8Array(doneRef.current);
   let undoChanges=last.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(undoChanges,pat,nd);
   paintDoneChanges(last,nd);
   skipNextFullRedrawRef.current=true;
-  setDone(nd);
+  doneRef.current=nd;setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
   let undoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
     ?{type:"BULK_TOGGLE",source:lastEntry.source,changes:undoChanges}
     :undoChanges;
+  undoEntry.activity=lastEntry.activity;
   setTrackHistory(prev=>{let n=[...prev,undoEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
 }
 
@@ -3337,7 +3363,7 @@ async function doSaveProject(finalName){
     fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
   }]);
-  const hdArr = [...halfDone.entries()];
+  const hdArr = [...halfDoneRef.current.entries()];
   const psArr = partialsForSave(partialStitches, threadBrand);
   let project={
     version:11,
@@ -3353,7 +3379,7 @@ async function doSaveProject(finalName){
     // PERF (deferred-1): rgb-stripping serializer; see helpers.js / serializePattern.
     pattern:(window.PatternIO?window.PatternIO.serializePattern(pat,threadBrand):pat.map(m=>(m.id==="__skip__"||m.id==="__empty__")?{id:m.id}:{id:m.id,type:m.type,rgb:m.rgb})),
     bsLines,
-    done:done?Array.from(done):null,
+    done:doneRef.current?Array.from(doneRef.current):null,
     parkMarkers,
     hlRow,
     hlCol,
@@ -3364,12 +3390,12 @@ async function doSaveProject(finalName){
     halfDone: hdArr,
     partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand),
-    knotsDone: knotsDone.slice(),
-    bsDone: window.Backstitch?(window.Backstitch.forSave(bsDone)||[]):[],
-    partialDone: window.Fractional?(window.Fractional.forSave(partialDone)||[]):[],
+    knotsDone: knotsDoneRef.current.slice(),
+    bsDone: window.Backstitch?(window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]):[],
+    partialDone: window.Fractional?(window.Fractional.forSave(partialDoneRef.current)||[]):[],
     beads: beadsRef.current,
     notes: projectNotes||undefined,
-    statsSessions,
+    statsSessions:statsSessionsRef.current,
     deletedSessionIds:deletedSessionIdsRef.current.length?deletedSessionIdsRef.current.slice():undefined,
     statsSettings,
     achievedMilestones,
@@ -4025,7 +4051,7 @@ function processLoadedProject(project){
   try{
     var _pk='cs_pending_session_'+(project.id||'');
     var _pj=localStorage.getItem(_pk);
-    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(_ps&&_ps.id&&!rawStatsSessions.some(function(s){return s.id===_ps.id;})){rawStatsSessions.push(_ps);}});/* Retained until a successful full save includes these ids. */}   // kept while a question holds saves; the first save after it clears it
+    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(!_ps||!_ps.id)return;const at=rawStatsSessions.findIndex(s=>s.id===_ps.id);if(at<0)rawStatsSessions.push(_ps);else if((_ps.historyCorrectionRevision||0)>(rawStatsSessions[at].historyCorrectionRevision||0)&&(!rawStatsSessions[at].editedAt||_ps.historyCorrectedAt>Date.parse(rawStatsSessions[at].editedAt)))rawStatsSessions[at]=_ps;});/* Retained until a successful full save includes these ids. */}   // kept while a question holds saves; the first save after it clears it
   }catch(_){}
   // Sessions the person deleted stay deleted, even if a stale copy comes back (a recovered unsaved session, a restore).
   deletedSessionIdsRef.current=Array.isArray(project.deletedSessionIds)?project.deletedSessionIds.slice():[];
@@ -4512,6 +4538,7 @@ useEffect(() => {
 // lastSnapshotRef is rebuilt lazily by buildSnapshot() for beforeunload.
 const buildSnapshotRef = useRef(null);
 const buildSnapshot = () => {
+  const statsSessions=statsSessionsRef.current;
   if (!pat || !pal) return null;
   if (!projectIdRef.current) {
     projectIdRef.current = ProjectStorage.newId();
@@ -4526,7 +4553,7 @@ const buildSnapshot = () => {
     fwd: hs.fwd ? { id: hs.fwd.id, rgb: hs.fwd.rgb, brand: cellBrandForSave(hs.fwd, threadBrand) } : undefined,
     bck: hs.bck ? { id: hs.bck.id, rgb: hs.bck.rgb, brand: cellBrandForSave(hs.bck, threadBrand) } : undefined
   }]);
-  const hdArr = [...halfDone.entries()];
+  const hdArr = [...halfDoneRef.current.entries()];
   const psArr = partialsForSave(partialStitches, threadBrand);
   // Derive stitchLog from statsSessions (single source of truth).
   // Groups netStitches by date so stitchLog always matches what statsSessions says.
@@ -4549,13 +4576,13 @@ const buildSnapshot = () => {
     createdAt: createdAtRef.current, updatedAt: new Date().toISOString(),
     settings: { sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, fabricColour: projectFabricColour || undefined, threadBrand: threadBrandForSave(threadBrand) },
     pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, threadBrand) : pat.map(m => (m.id === "__skip__" || m.id === "__empty__") ? { id: m.id } : { id: m.id, type: m.type, rgb: m.rgb })),
-    bsLines, done: done ? Array.from(done) : null, parkMarkers,
+    bsLines, done: doneRef.current ? Array.from(doneRef.current) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
-    knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.slice(),
-    bsDone: window.Backstitch ? (window.Backstitch.forSave(bsDone)||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDone)||[]) : [], beads: beadsRef.current,
+    knots: knotsForSave(knots, threadBrand), knotsDone: knotsDoneRef.current.slice(),
+    bsDone: window.Backstitch ? (window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDoneRef.current)||[]) : [], beads: beadsRef.current,
     activeSessionCheckpoint:getSessionCheckpoint(),
-    statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
+    statsSessions:statsSessionsRef.current, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
@@ -4637,10 +4664,10 @@ function writeProgressNow() {
     const recovery = recoverySnapshot && recoverySnapshot.id === o.id ? recoverySnapshot : null;
     const data = {
       done: recovery ? recovery.done : done,
-      halfDone: recovery ? recovery.halfDone : (o.halfDone.size ? [...o.halfDone.entries()] : []),
-      knotsDone: recovery ? recovery.knotsDone || [] : o.knotsDone,
-      bsDone: recovery ? recovery.bsDone || [] : o.bsDone,
-      partialDone: recovery ? recovery.partialDone || [] : (window.Fractional && window.Fractional.forSave(o.partialDone)) || [],
+      halfDone: recovery ? recovery.halfDone : (projectIdRef.current===o.id ? [...halfDoneRef.current.entries()] : [...o.halfDone.entries()]),
+      knotsDone: recovery ? recovery.knotsDone || [] : (projectIdRef.current===o.id?knotsDoneRef.current:o.knotsDone),
+      bsDone: recovery ? recovery.bsDone || [] : (projectIdRef.current===o.id?Array.from(bsDoneSetRef.current):o.bsDone),
+      partialDone: recovery ? recovery.partialDone || [] : (window.Fractional && window.Fractional.forSave(projectIdRef.current===o.id?partialDoneRef.current:o.partialDone)) || [],
       baseWriteAt: seen && typeof seen.lastWriteAt === 'number' ? seen.lastWriteAt : null,
       tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
     };
@@ -6200,17 +6227,25 @@ function hitTestHalfStitch(localX, localY, cellSize, margin) {
   return fwdDist < bckDist ? "fwd" : "bck";
 }
 
-function _toggleHalfDone(idx, dir) {
-  const newHd = new Map(halfDone);
+function setHalfHistoryState(idx,dir,on){
+  const newHd = new Map(halfDoneRef.current);
   const hd = { ...(newHd.get(idx) || {}) };
-  hd[dir] = hd[dir] ? 0 : 1;
+  hd[dir] = on ? 1 : 0;
   if (!hd.fwd && !hd.bck) newHd.delete(idx);
   else newHd.set(idx, hd);
-  // Track colour for auto-session
-  const hs=halfStitches.get(idx);
-  if(hs&&hs[dir]&&hs[dir].id)pendingColoursRef.current.add(hs[dir].id);
+  applyHalfDoneDelta(idx,dir,(halfDoneRef.current.get(idx)||{})[dir],on,halfStitches);
   setHalfDone(newHd);
   renderStitch();
+}
+function _toggleHalfDone(idx, dir) {
+  const oldVal=(halfDoneRef.current.get(idx)||{})[dir]?1:0;
+  const hs=halfStitches.get(idx);
+  if(hs&&hs[dir]&&hs[dir].id)pendingColoursRef.current.add(hs[dir].id);
+  const entry={type:"HALF",idx,dir,oldVal};
+  entry.activity=recordAutoActivity(oldVal?0:1,oldVal?1:0,oldVal?0:0.5,oldVal?0.5:0);
+  setTrackHistory(prev=>[...prev,entry].slice(-TRACK_HISTORY_MAX));
+  setRedoStack([]);
+  setHalfHistoryState(idx,dir,!oldVal);
 }
 
 function _markHalfDoneFromDisambig(idx, dir) {
@@ -7464,8 +7499,7 @@ const bulkUndoToastRef=useRef(null);
 const bulkUndoRef=useRef(null);
 const lastBulkEntryRef=useRef(null);
 const bulkToastEntryRef=useRef(null);
-const trackHistoryRef=useRef([]);
-trackHistoryRef.current=trackHistory;
+
 // The message goes as soon as the stroke it offers to undo is no longer the newest step (a mark, a park, an Undo, a
 // project switch).
 useEffect(()=>{
@@ -7503,7 +7537,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
     if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return false;}
     asCatchUp=pref==='catchup';
   }
-  pushBulkToggleHistory(changes,source);
+  pushBulkToggleHistory(changes,source,asCatchUp&&want===1);
   applyDoneCountsDelta(changes,pat,nd);
   doneRef.current=nd;
   // PERF: paint just the changed cells directly instead of a full-viewport
@@ -7513,19 +7547,6 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   skipNextFullRedrawRef.current=true;
   setDone(nd);
   _pulseCells(changes.map(function(c){return c.idx;}));
-  // BUGFIX (#2): explicitly start/extend the auto-session for drag-mark commits.
-  // The diff-based useEffect at line ~1419 sometimes misses bulk commits when
-  // setCountsVer + setDone batch into the same render but prevAutoCountRef has
-  // already been updated by an interleaving render. Calling recordAutoActivity
-  // here guarantees the session timer starts the moment a drag finishes, no
-  // matter how many cells were marked. We also pre-update prevAutoCountRef to
-  // the new value so the diff-based useEffect won't double-count.
-  let _bulkCompleted=0,_bulkUndone=0;
-  for(let _i=0;_i<changes.length;_i++){if(changes[_i].oldVal===0)_bulkCompleted++;else _bulkUndone++;}
-  if(_bulkCompleted>0||_bulkUndone>0){
-    recordAutoActivity(_bulkCompleted,_bulkUndone,_bulkCompleted,_bulkUndone,asCatchUp&&want===1?_bulkCompleted:0);
-    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
-  }
   if(source==='range')_setRectSelectUsed(true);
   // A stroke or rectangle that marked (or unmarked) a good many stitches at once offers a way back, because a stray
   // swipe is easy to make and hard to untangle later. Undo is the ordinary one (this was one history step).
@@ -7579,13 +7600,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
   paintDoneChangesRef.current([{idx:idx}],nd);
   skipNextFullRedrawRef.current=true;
   setDone(nd);
-  // BUGFIX (#2): mirror _commitBulk — explicitly record the single-tap so the
-  // session timer starts immediately rather than depending on the doneCount
-  // diff useEffect.
-  if(oldVal!==nv){
-    if(nv)recordAutoActivity(1,0);else recordAutoActivity(0,1);
-    prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||(prevAutoCountRef.current&&prevAutoCountRef.current.halfDone)||0};
-  }
+
 },[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
@@ -7681,9 +7696,12 @@ function quarterAtPoint(cx,cy){
   return quarterAt(gy*sW+gx,fx-gx,fy-gy);
 }
 function toggleQuarterDone(q){
+  const oldVal=(partialDoneRef.current.get(q.idx)||new Set()).has(q.pos);
   flipQuarterDone(q.idx,q.pos);
   if(q.id)pendingColoursRef.current.add(q.id);
-  setTrackHistory(prev=>{let n=[...prev,{type:"QUARTER",idx:q.idx,pos:q.pos}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry={type:"QUARTER",idx:q.idx,pos:q.pos};
+  entry.activity=recordAutoActivity(oldVal?0:1,oldVal?1:0,oldVal?0:0.25,oldVal?0.25:0);
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
 // Backstitch lines (backstitch.js). In Mark mode a press within a short snap distance of a line marks it, and a drag
@@ -7799,7 +7817,11 @@ function applyUnpickPlan(p,undo){
     skipNextFullRedrawRef.current=true;
     setDone(nd);
   }
-  if(p.half.length)setHalfDone(m=>window.Unpick.nextHalfDone(m,p,undo));
+  if(p.half.length){
+    const next=window.Unpick.nextHalfDone(halfDoneRef.current,p,undo);
+    for(const c of p.half)for(const dir of ["fwd","bck"])applyHalfDoneDelta(c.idx,dir,(halfDoneRef.current.get(c.idx)||{})[dir],(next.get(c.idx)||{})[dir],halfStitches);
+    setHalfDone(next);
+  }
   if(p.quarter.length)setPartialDone(m=>window.Unpick.nextPartialDone(m,p,undo));
   if(p.knots.length)setKnotsDone(l=>window.Unpick.nextKnotsDone(l,p,undo));
   if(p.bs.length)setBsKeysDone(p.bs,undo);
@@ -7817,14 +7839,14 @@ function unpickArea(cells){
     if(areaOn&&!window.WorkArea.contains(workArea,x,y))continue;
     set.add(y*sW+x);
   }
-  const p=window.Unpick.plan({sW,sH,pat,done:doneRef.current,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone:Array.from(bsDoneSetRef.current),set,lockId:isColourLocked()?focusColour:null});
+  const p=window.Unpick.plan({sW,sH,pat,done:doneRef.current,halfStitches,halfDone:halfDoneRef.current,partialStitches,partialDone:partialDoneRef.current,knots,knotsDone:knotsDoneRef.current,bsLines,bsDone:Array.from(bsDoneSetRef.current),set,lockId:isColourLocked()?focusColour:null});
   if(p.empty){
     if(window.Toast&&window.Toast.show)window.Toast.show({message:isColourLocked()?"Nothing of the locked colour is marked in that area.":"Nothing is marked in that area.",type:'info',duration:3000});
     return false;
   }
   applyUnpickPlan(p,false);
-  if(p.stitches>0)recordAutoActivity(0,p.stitches,0,p.units,0,'frog');
   const entry={type:"UNPICK",plan:p};
+  if(p.stitches>0)entry.activity=recordAutoActivity(0,p.stitches,0,p.units,0,'frog');
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
   if(window.Toast&&window.Toast.show){
@@ -7844,9 +7866,12 @@ function unpickArea(cells){
 unpickAreaRef.current=unpickArea;
 function toggleKnotDone(k){
   const key=k.x+","+k.y;
+  const oldVal=knotsDoneRef.current.includes(key);
   flipKnotDone(key);
   if(k.id)pendingColoursRef.current.add(k.id);
-  setTrackHistory(prev=>{let n=[...prev,{type:"KNOT",key}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry={type:"KNOT",key};
+  entry.activity=recordAutoActivity(oldVal?0:1,oldVal?1:0);
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
 }
 const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
