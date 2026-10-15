@@ -371,7 +371,10 @@
             ["Step 3", "While the app is open and visible, it checks the folder every 10 seconds and brings in newer changes from your other devices."],
             ["Pairing code", "Show pairing code… on one device and Enter pairing code… on the other gives both devices matching names and settings. The code contains no data or passwords."],
             ["Encryption (optional)", "Turn on encryption in the same panel to protect sync files with a passphrase. Every device needs the passphrase to read them."],
-            ["Conflicts", "If both devices changed the same project, a review screen lets you choose which version to keep."],
+            ["Stitch progress", "Full, half and quarter stitches, knots and backstitch merge independently, including unpicking. If devices mark and unpick the same stitch without seeing each other’s changes, unpicked wins. Sync first, then mark it again to restore it."],
+            ["Older sync files", "Old files still open. Without removal history, empty or missing marks do not mean unpicked. Update every device for reliable unpicking; older apps cannot preserve the new removal history."],
+            ["Parking", "Markers keep their position, colour and corner. Different markers in the same cell are preserved and repeated imports do not duplicate them."],
+            ["Conflicts", "Different chart structures still need review. Progress with removal history merges automatically; legacy disagreements can still appear for review."],
             ["iPad and iPhone", "These browsers cannot watch a folder. Use Share sync file and Import file in the cloud popover to move changes by hand."]
           ]
         },

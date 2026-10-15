@@ -11,3 +11,6 @@ try {
   const path = require('path');
   (0, eval)(fs.readFileSync(path.join(__dirname, '..', '..', 'helpers.js'), 'utf8'));
 } catch (e) { /* a test that needs them will say so */ }
+
+// Pages load the causal mark helper before storage and sync.
+global.TrackingSync = require('../../tracking-sync.js');

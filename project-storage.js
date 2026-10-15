@@ -124,21 +124,27 @@ const ProjectStorage = (() => {
   // Overlay a progress record onto a project record if, and only if, it is still
   // current: same project write it was based on, and the same pattern size.
   // Returns the project unchanged otherwise. Never mutates its arguments.
-  function applyProgressRecord(project, rec) {
+  function applyProgressRecord(project, rec, previous) {
     if (!project || !rec || rec.v !== 1 || !rec.done) return project;
     const cells = project.pattern ? project.pattern.length : (project.p ? project.p.length : -1);
     if (rec.done.length !== cells) return project;
     const base = rec.baseWriteAt == null ? null : rec.baseWriteAt;
     const current = typeof project.lastWriteAt === "number" ? project.lastWriteAt : null;
     if (base !== current) return project;
-    const out = Object.assign({}, project, { done: Array.from(rec.done) });
+    const out = Object.assign({}, previous || project, { done: Array.from(rec.done) });
     if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
-    out.knotsDone = Array.isArray(rec.knotsDone) && rec.knotsDone.length ? rec.knotsDone : undefined;
+    if (Array.isArray(rec.knotsDone)) out.knotsDone = rec.knotsDone.length ? rec.knotsDone : undefined;
     // Backstitch and quarter-stitch marks (Phase 6): a record from a build that did not know them has no such field,
     // and then the project's own marks stand; a record that has the field (even empty) is the newer truth.
     if (Array.isArray(rec.bsDone)) out.bsDone = rec.bsDone.length ? rec.bsDone : undefined;
     if (Array.isArray(rec.partialDone)) out.partialDone = rec.partialDone.length ? rec.partialDone : undefined;
-    return out;
+    // A current progress record can carry removals before the next full save.
+    // Legacy records are diffed only for the fields they actually supplied.
+    const next = Object.assign({}, out);
+    ["halfDone", "knotsDone", "bsDone", "partialDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
+    if (rec.trackingSync) return Object.assign(out, { trackingSync: rec.trackingSync });
+    const tracked = TrackingSync.record(previous || project, next, "progress-" + (rec.tabId || rec.updatedAt || "legacy"));
+    return Object.assign(out, { trackingSync: tracked.trackingSync });
   }
 
   function buildMeta(p) {
@@ -378,7 +384,7 @@ const ProjectStorage = (() => {
       // Navigation journals can be newer than IDB, even if their recovery
       // write failed. Use the same age and revision rules as _recoverProgress.
       if (recovery && recovery.projectId === project.id && recovery.v === 1 && Array.isArray(recovery.done)) {
-        const recovered = applyProgressRecord(project, recovery);
+        const recovered = applyProgressRecord(project, recovery, current);
         if (recovered !== project && (current === project || !(rec.updatedAt > recovery.updatedAt))) current = recovered;
       }
       if (current === project) return null;
@@ -481,7 +487,7 @@ const ProjectStorage = (() => {
       try {
         const db = await getDB();
         return new Promise((resolve, reject) => {
-          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
+          let tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE].concat(db.objectStoreNames.contains("pendingImports") ? ["pendingImports"] : []), "readwrite");
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
@@ -493,23 +499,32 @@ const ProjectStorage = (() => {
               statsStore.put(buildStatsSummary(project), project.id);
             }
           };
-          if (!project.pattern && !project.p) {
-            // A record with no pattern must never replace one that has a pattern:
-            // that would erase the chart and all progress (tracking audit TRACK-01).
-            // The check runs inside the write transaction so it cannot race.
-            const getReq = store.get(project.id);
-            getReq.onsuccess = () => {
-              const existing = getReq.result;
-              if (existing && (existing.pattern || existing.p)) {
-                refusedPatternless = true;
-                try { tx.abort(); } catch (_) {}
-              } else {
-                putAll();
-              }
-            };
-          } else {
+          // Read the old record and its current small progress overlay in the same
+          // transaction as the write. Import/restore already carries peer metadata:
+          // never reinterpret a remote absence as a newly authored local removal.
+          const getReq = store.get(project.id);
+          const progressReq = tx.objectStoreNames.contains("pendingImports")
+            ? tx.objectStore("pendingImports").get(PROGRESS_PREFIX + project.id) : null;
+          let ready = 0;
+          const finish = () => {
+            if (++ready !== (progressReq ? 2 : 1)) return;
+            const existing = getReq.result;
+            // Distinct writes must retire the prior progress overlay even in the
+            // same millisecond (imports can otherwise reload stale completion).
+            if (existing && typeof existing.lastWriteAt === "number") project.lastWriteAt = Math.max(project.lastWriteAt, existing.lastWriteAt + 1);
+            if (!project.pattern && !project.p && existing && (existing.pattern || existing.p)) {
+              refusedPatternless = true;
+              try { tx.abort(); } catch (_) {}
+              return;
+            }
+            if (!opts.preserveUpdatedAt) {
+              const previous = applyProgressRecord(existing, progressReq && progressReq.result);
+              Object.assign(project, TrackingSync.record(previous, project));
+            }
             putAll();
-          }
+          };
+          getReq.onsuccess = finish;
+          if (progressReq) progressReq.onsuccess = finish;
           tx.onabort = () => {
             if (refusedPatternless) {
               console.error("ProjectStorage.save refused: a record without a pattern would overwrite one that has it", project.id);
@@ -759,22 +774,39 @@ const ProjectStorage = (() => {
         const rec = {
           id: PROGRESS_PREFIX + id, projectId: id, v: 1,
           done: Uint8Array.from(data.done),
-          halfDone: data.halfDone || [], knotsDone: data.knotsDone || [],
-          bsDone: data.bsDone || [], partialDone: data.partialDone || [],
+          halfDone: data.halfDone, knotsDone: data.knotsDone,
+          bsDone: data.bsDone, partialDone: data.partialDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
           tabId: data.tabId || null, updatedAt: Date.now()
         };
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
         await new Promise((resolve, reject) => {
-          const tx = db.transaction("pendingImports", "readwrite");
+          const tx = db.transaction(["pendingImports", STORE_NAME], "readwrite");
           const store = tx.objectStore("pendingImports");
           const req = store.get(rec.id);
-          req.onsuccess = () => {
+          const projectReq = tx.objectStore(STORE_NAME).get(id);
+          let ready = 0;
+          const finish = () => {
+            if (++ready !== 2) return;
             const prev = req.result;
+            const project = projectReq.result;
+            const previous = applyProgressRecord(project, prev);
+            // Missing fields from an older writer preserve the latest overlay,
+            // including a prior unpick represented by an empty/missing list.
+            ["halfDone", "knotsDone", "bsDone", "partialDone"].forEach(f => {
+              if (!Array.isArray(rec[f]) && previous) rec[f] = Array.isArray(previous[f]) ? previous[f] : [];
+            });
+            const current = applyProgressRecord(project, rec);
+            if (current !== project) {
+              const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, bsDone: rec.bsDone, partialDone: rec.partialDone });
+              rec.trackingSync = TrackingSync.record(previous, next).trackingSync;
+            }
             // A delayed call must not undo a newer navigation recovery (or unpick).
             if (!prev || prev.baseWriteAt !== rec.baseWriteAt || prev.updatedAt <= rec.updatedAt) store.put(rec);
           };
+          req.onsuccess = finish;
+          projectReq.onsuccess = finish;
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
@@ -818,14 +850,14 @@ const ProjectStorage = (() => {
         const recover = () => {
           if (++ready !== 2) return;
           const project = p.result;
-          let next = applyProgressRecord(project, rec);
+          let next = applyProgressRecord(project, rec, applyProgressRecord(project, r.result));
           if (next === project) return;
           // A later normal progress write wins, including an unpick.
           const newer = r.result;
           if (newer && newer.updatedAt > rec.updatedAt && applyProgressRecord(project, newer) !== project) {
             next = applyProgressRecord(project, newer);
           } else {
-            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id }));
+            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, trackingSync: next.trackingSync }));
           }
           // Materialise once on recovery, never on every mark. Keep the full-save
           // revision/tab stamps: this is the same overlay get() normally presents.

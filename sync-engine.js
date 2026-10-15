@@ -214,12 +214,33 @@ const SyncEngine = (() => {
         knotHash = "_kn" + simpleHash(JSON.stringify(project.knots.map(function (k) { return [k.x, k.y, k.id]; })
           .sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; })));
       }
+      // Fractional chart structure must be reviewed before merging its marks.
+      // Canonical cell/side order avoids false conflicts after Map serialisation.
+      var fractional = [];
+      [["halfStitches", ["fwd", "bck"]], ["partialStitches", ["TL", "TR", "BL", "BR"]]].forEach(function (spec) {
+        var cells = new Map();
+        (Array.isArray(project[spec[0]]) ? project[spec[0]] : []).forEach(function (e) {
+          if (!e || e.length !== 2 || !e[1]) return;
+          var n = Number(e[0]);
+          if (!Number.isSafeInteger(n) || n < 0) return;
+          var cell = cells.get(n) || {};
+          spec[1].forEach(function (side) {
+            var c = e[1][side];
+            if (c) cell[side] = [c.id, c.brand || (project.settings && project.settings.threadBrand) || 'dmc'];
+          });
+          if (Object.keys(cell).length) cells.set(n, cell);
+        });
+        Array.from(cells).sort(function (a, b) { return a[0] - b[0]; }).forEach(function (e) {
+          spec[1].forEach(function (side) { if (e[1][side]) fractional.push([spec[0], e[0], side, e[1][side]]); });
+        });
+      });
+      var fractionHash = fractional.length ? '_fr' + simpleHash(JSON.stringify(fractional)) : '';
       const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
       if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
-        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash;
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash + fractionHash;
       }
-      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash;
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash + fractionHash;
     } catch (e) {
       return "fp_error";
     }
@@ -1066,6 +1087,14 @@ const SyncEngine = (() => {
     return (idA < idB) ? idA : idB;
   }
 
+  function _sameTrackingState(local, remote) {
+    if (!remote) return false;
+    // Compare canonical marks/history, not write stamps or derived/default fields
+    // introduced by a merge. Equal timestamps alone cannot prove equal progress.
+    return JSON.stringify(TrackingSync.merge(local, {}).trackingSync) === JSON.stringify(TrackingSync.merge(remote, {}).trackingSync)
+      && JSON.stringify(mergeParkingMarkers(local.parkMarkers, [])) === JSON.stringify(mergeParkingMarkers(remote.parkMarkers, []));
+  }
+
   function classifyProjects(remoteProjects, localProjectsMap) {
     // Collect tombstones from both local and remote so we can skip projects
     // that were intentionally deleted on either device.
@@ -1139,12 +1168,12 @@ const SyncEngine = (() => {
         claimed[local.id] = true;
         var localUpdated = local.updatedAt || "";
         var remoteUpdated = remote.updatedAt || "";
-        if (localUpdated === remoteUpdated) {
+        var localFP = computeFingerprint(local);
+        var remoteFP = remote.data ? computeFingerprint(remote.data) : remote.fingerprint;
+        if (localUpdated === remoteUpdated && localFP === remoteFP && _sameTrackingState(local, remote.data)) {
           entry.classification = "identical";
         } else {
           // Both exist and differ — check if the chart structure changed
-          var localFP = computeFingerprint(local);
-          var remoteFP = remote.fingerprint || computeFingerprint(remote.data);
           if (localFP === remoteFP) {
             entry.classification = "merge-tracking";
           } else {
@@ -1153,7 +1182,7 @@ const SyncEngine = (() => {
         }
       } else {
         // No id match — try fingerprint match. This is the duplication-bug fix.
-        var remoteFP2 = remote.fingerprint || (remote.data ? computeFingerprint(remote.data) : null);
+        var remoteFP2 = remote.data ? computeFingerprint(remote.data) : remote.fingerprint;
         if (remoteFP2 && byFp[remoteFP2]) {
           var candidates = byFp[remoteFP2];
           var matched = null;
@@ -1186,6 +1215,7 @@ const SyncEngine = (() => {
 
   // ── Merge helpers (core logic, called by import in session 2) ────────────
 
+  // Legacy, unversioned union only. Project imports use TrackingSync registers.
   function mergeDoneArrays(localDone, remoteDone, length) {
     if (!localDone && !remoteDone) return null;
     if (!localDone) return remoteDone;
@@ -1396,6 +1426,23 @@ const SyncEngine = (() => {
     return rt > lt ? remote : local;
   }
 
+  function mergeParkingMarkers(local, remote) {
+    var parked = new Map();
+    (Array.isArray(local) ? local : []).concat(Array.isArray(remote) ? remote : []).forEach(function (marker) {
+      if (!marker || typeof marker !== "object") return;
+      var positioned = marker.x != null && marker.y != null && isFinite(Number(marker.x)) && isFinite(Number(marker.y));
+      if (positioned) marker = Object.assign({}, marker, { x: Number(marker.x), y: Number(marker.y), colorId: String(marker.colorId), corner: marker.corner || "BL" });
+      var key = positioned ? JSON.stringify([marker.x, marker.y, marker.colorId, marker.corner])
+        : marker.idx != null || marker.cellIdx != null
+          ? JSON.stringify(["legacy", Number(marker.idx != null ? marker.idx : marker.cellIdx), marker.colorId, marker.corner || "BL"])
+          : JSON.stringify(marker);
+      // Deterministic payload for duplicate identities (e.g. stale cached RGB).
+      var prev = parked.get(key);
+      if (!prev || JSON.stringify(marker) < JSON.stringify(prev)) parked.set(key, marker);
+    });
+    return Array.from(parked.keys()).sort().map(function (key) { return _clone(parked.get(key)); });
+  }
+
   function mergeTrackingProgress(local, remote, metaOverrides) {
     // Merge a project where the chart structure is identical but tracking differs.
     // Take the LOCAL project as base, deep-clone mutable sub-objects to avoid
@@ -1406,36 +1453,10 @@ const SyncEngine = (() => {
     var merged = Object.assign({}, local);
     // PERF (perf-6 #5): structuredClone is ~2-5x faster than JSON parse/stringify
     // for these merge buffers and avoids round-tripping through string form.
-    merged.halfDone = local.halfDone ? _clone(local.halfDone) : {};
     merged.threadOwned = local.threadOwned ? _clone(local.threadOwned) : {};
-    merged.parkMarkers = local.parkMarkers ? _clone(local.parkMarkers) : [];
     merged.achievedMilestones = local.achievedMilestones ? _clone(local.achievedMilestones) : [];
 
-    // Merge done arrays (union — stitches completed on either device stay done)
-    var patLen = (merged.pattern && merged.pattern.length) || 0;
-    merged.done = mergeDoneArrays(local.done, remote.done, patLen);
-
-    // Merge halfDone (per-cell quarter-stitch tracking)
-    if (remote.halfDone && typeof remote.halfDone === "object") {
-      if (!merged.halfDone) merged.halfDone = {};
-      var keys = Object.keys(remote.halfDone);
-      for (var i = 0; i < keys.length; i++) {
-        var k = keys[i];
-        if (!merged.halfDone[k]) {
-          merged.halfDone[k] = remote.halfDone[k];
-        } else {
-          // Merge individual quarter positions
-          var lh = merged.halfDone[k];
-          var rh = remote.halfDone[k];
-          if (typeof lh === "object" && typeof rh === "object") {
-            var positions = ["TL", "TR", "BL", "BR"];
-            for (var p = 0; p < positions.length; p++) {
-              if (rh[positions[p]] && !lh[positions[p]]) lh[positions[p]] = rh[positions[p]];
-            }
-          }
-        }
-      }
-    }
+    Object.assign(merged, TrackingSync.merge(local, remote));
 
     // Compare history is a union by id; deletion records prevent stale peers restoring removed snapshots.
     var deletedSnapshotIds = mergeDeletedIds(local.deletedSnapshotIds, remote.deletedSnapshotIds);
@@ -1495,21 +1516,8 @@ const SyncEngine = (() => {
       }
     }
 
-    // Merge park markers (union by position)
-    if (remote.parkMarkers && remote.parkMarkers.length) {
-      if (!merged.parkMarkers) merged.parkMarkers = [];
-      var existingPositions = {};
-      for (var pm = 0; pm < merged.parkMarkers.length; pm++) {
-        var marker = merged.parkMarkers[pm];
-        existingPositions[marker.idx || marker.cellIdx || pm] = true;
-      }
-      for (var rm = 0; rm < remote.parkMarkers.length; rm++) {
-        var rMarker = remote.parkMarkers[rm];
-        if (!existingPositions[rMarker.idx || rMarker.cellIdx || rm]) {
-          merged.parkMarkers.push(rMarker);
-        }
-      }
-    }
+    // Saved marker identity includes colour and corner, not its position in the list.
+    merged.parkMarkers = mergeParkingMarkers(local.parkMarkers, remote.parkMarkers);
 
     // Merge achieved milestones
     if (remote.achievedMilestones && remote.achievedMilestones.length) {
@@ -1535,42 +1543,9 @@ const SyncEngine = (() => {
     merged.halfStitches = mergeIndexedPairs(local.halfStitches, remote.halfStitches);
     merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
 
-    // French knots: the fingerprints match, so both sides have the same knots;
-    // keep whichever side has the field. Done marks are a union of keys, so a
-    // knot finished on either device stays finished.
+    // These are chart structure; the classifier has already checked their fingerprint.
     merged.knots = Array.isArray(local.knots) ? local.knots : remote.knots;
     if (merged.knots === undefined) delete merged.knots;
-    if (Array.isArray(local.knotsDone) || Array.isArray(remote.knotsDone)) {
-      var kdSeen = Object.create(null), kd = [];
-      (local.knotsDone || []).concat(remote.knotsDone || []).forEach(function (kk) {
-        if (typeof kk !== "string" || kdSeen[kk]) return;
-        kdSeen[kk] = true; kd.push(kk);
-      });
-      merged.knotsDone = kd;
-    }
-
-    // Backstitch and quarter-stitch done marks (Phase 6): a union, so work marked on either device stays marked.
-    // Beads (untracked ornaments from an OXS import) travel with the pattern: keep whichever side has them.
-    if (Array.isArray(local.bsDone) || Array.isArray(remote.bsDone)) {
-      var bdSeen = Object.create(null), bd = [];
-      (local.bsDone || []).concat(remote.bsDone || []).forEach(function (kk) {
-        if (typeof kk !== "string" || bdSeen[kk]) return;
-        bdSeen[kk] = true; bd.push(kk);
-      });
-      merged.bsDone = bd;
-    }
-    if (Array.isArray(local.partialDone) || Array.isArray(remote.partialDone)) {
-      var pdPos = Object.create(null), pdOrder = [];
-      (local.partialDone || []).concat(remote.partialDone || []).forEach(function (e) {
-        if (!e || e.length !== 2 || !Array.isArray(e[1])) return;
-        var set = pdPos[e[0]];
-        if (!set) { set = pdPos[e[0]] = Object.create(null); pdOrder.push(e[0]); }
-        e[1].forEach(function (pp) { set[pp] = true; });
-      });
-      merged.partialDone = pdOrder.sort(function (a, b) { return a - b; }).map(function (idx) {
-        return [idx, ["TL", "TR", "BL", "BR"].filter(function (pp) { return pdPos[idx][pp]; })];
-      }).filter(function (e) { return e[1].length; });
-    }
     merged.beads = Array.isArray(local.beads) ? local.beads : remote.beads;
     if (merged.beads === undefined) delete merged.beads;
 
@@ -1983,8 +1958,8 @@ const SyncEngine = (() => {
     var remoteModeCreatedAt = (plan.summary && plan.summary.createdAt) || null;
 
     // 1. Stitch conflicts from merge-tracking projects
-    //    local.done[i]=1 AND remote.done[i]=0 → conflict card (per project)
-    //    local.done[i]=0 AND remote.done[i]=1 → silent additive (counted in stitchSummary)
+    //    Versioned edits resolve automatically; only legacy disagreements need
+    //    a card. Count additions after resolution so stale marks are not reported as added.
     var mergeCandidates = (plan.mergeTracking || []).concat(plan.newRemote || []);
     for (var mi = 0; mi < mergeCandidates.length; mi++) {
       var entry = mergeCandidates[mi];
@@ -1994,6 +1969,7 @@ const SyncEngine = (() => {
       var localDone = (local && local.done) || null;
       var remoteDone = remoteData.done || null;
       if (!remoteDone) continue;
+      var resolvedMarks = TrackingSync.merge(local || {}, remoteData);
       var patLen = (remoteData.pattern && remoteData.pattern.length) || (localDone && localDone.length) || 0;
       // Single pass over the cells: additive count, disagreement count, and
       // both totals together (this used to be three separate loops).
@@ -2003,8 +1979,12 @@ const SyncEngine = (() => {
         var rv = remoteDone[ci] === 1 ? 1 : 0;
         if (lv === 1) localTotal++;
         if (rv === 1) remoteTotal++;
-        if (lv === 0 && rv === 1) cellsAdded++;
-        if (lv === 1 && rv === 0) disagreeCount++;
+        if (lv === 0 && resolvedMarks.done && resolvedMarks.done[ci] === 1) cellsAdded++;
+        // Only legacy ambiguity needs a stitch card. Causal edits follow the
+        // deterministic mark policy, including local unpicks vs stale remote marks.
+        var history = resolvedMarks.trackingSync.marks['d:' + ci] || [];
+        var versioned = history.some(function (e) { return Object.keys(e.clock).length > 0; });
+        if (lv === 1 && rv === 0 && !versioned) disagreeCount++;
       }
       if (cellsAdded > 0) { stitchAdded += cellsAdded; stitchProjects++; }
       if (disagreeCount > 0) {
@@ -2372,9 +2352,8 @@ const SyncEngine = (() => {
         || (mEntry.local && mEntry.local.id)
         || mEntry.id;
       var freshLocal = await ProjectStorage.get(localId);
-      // Honour keep-remote stitch gate resolution: zero out only the disputed cells
-      // (local=1, remote=0) in freshLocal.done before the union merge so those cells
-      // end up as 0 (remote's value). Additive cells (remote=1, local=0) are preserved.
+      // A legacy review choice supplies the missing intent: record an explicit
+      // removal for disputed cells (local=1, remote=0). Other additions still merge.
       // The stitch conflict id in gateResolutions is the project id (= mEntry.id = remote.id).
       // For idRewrite entries localId differs from mEntry.id, so check both.
       var srRes = gateResolutions[localId] || gateResolutions[mEntry.id] || 'keep-local';
@@ -2386,7 +2365,7 @@ const SyncEngine = (() => {
         for (var srdi = 0; srdi < srAdjDone.length; srdi++) {
           if (srAdjDone[srdi] === 1 && !srRemDone[srdi]) srAdjDone[srdi] = 0;
         }
-        freshLocal = Object.assign({}, freshLocal, { done: srAdjDone });
+        freshLocal = TrackingSync.record(freshLocal, Object.assign({}, freshLocal, { done: srAdjDone }));
       }
       // Build per-field meta overrides for this project from gateResolutions.
       var projectMetaOverrides = null;
@@ -3374,18 +3353,9 @@ const SyncEngine = (() => {
         applicable++;
       }
     }
-    // merge-tracking is auto-applicable. mergeTrackingProgress unions the
-    // done arrays and dedups sessions, so applying it is non-destructive by
-    // construction — it produces exactly what the review gate's default
-    // "merge" action produces. Gating it here was why updates to an
-    // already-shared pattern never propagated: after the first sync every
-    // shared project lands in merge-tracking, so the gate blocked every
-    // subsequent change and the receiving device stayed frozen.
-    //
-    // Known limitation: a deliberate un-stitch on the peer is re-added by
-    // the union. Distinguishing that from "this device simply stitched more"
-    // needs three-way snapshot diffing (see analyseConflicts) and is tracked
-    // separately; the union was already the gate's default outcome.
+    // Completion registers preserve independent edits and resolve concurrent
+    // mark/unpick to unpicked. Legacy fields contribute additions only.
+    // Chart structure still always goes through review above.
     if (plan.mergeTracking) {
       for (i = 0; i < plan.mergeTracking.length; i++) {
         if (!_isProjectShapeValid(_entryData(plan.mergeTracking[i]))) return false;

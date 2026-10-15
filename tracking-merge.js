@@ -27,7 +27,7 @@
   // restore its stale value, so the caller asks instead.
   var NOT_COMPARED = {
     id: 1, page: 1, version: 1, pattern: 1, createdAt: 1, updatedAt: 1, lastWriteAt: 1, lastWriteTabId: 1,
-    done: 1, halfDone: 1, knotsDone: 1, bsDone: 1, partialDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
+    trackingSync: 1, done: 1, halfDone: 1, knotsDone: 1, bsDone: 1, partialDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
     savedZoom: 1, savedScroll: 1, hlRow: 1, hlCol: 1, focusBlock: 1, workingContext: 1, breadcrumbs: 1,
     doneSnapshots: 1, stitchLog: 1, totalTime: 1, lastTouchedAt: 1, startedAt: 1, completedAt: 1, finishStatus: 1
   };
@@ -95,7 +95,10 @@
 
   function entriesToMap(list) {
     var m = new Map();
-    (Array.isArray(list) ? list : []).forEach(function (e) { if (e && e.length === 2) m.set(e[0], e[1]); });
+    (Array.isArray(list) ? list : []).forEach(function (e) { if (e && e.length === 2 && e[0] != null && typeof e[0] !== "boolean" && String(e[0]).trim() !== "") {
+      var idx = Number(e[0]);
+      if (Number.isSafeInteger(idx) && idx >= 0) m.set(idx, Object.assign({}, m.get(idx), e[1]));
+    } });
     return m;
   }
 
@@ -105,7 +108,7 @@
     var keys = new Set();
     [b, l, r].forEach(function (m) { m.forEach(function (_, k) { keys.add(k); }); });
     var out = [];
-    keys.forEach(function (k) {
+    Array.from(keys).sort(function (a, b) { return a - b; }).forEach(function (k) {
       var bv = b.get(k) || {}, lv = l.get(k) || {}, rv = r.get(k) || {}, merged = {};
       ["fwd", "bck"].forEach(function (side) {
         var v = !!rv[side] !== !!bv[side] ? rv[side] : lv[side];
@@ -123,7 +126,10 @@
     function toM(list) {
       var m = new Map();
       (Array.isArray(list) ? list : []).forEach(function (e) {
-        if (e && e.length === 2 && Array.isArray(e[1])) m.set(e[0], new Set(e[1]));
+        if (e && e.length === 2 && e[0] != null && typeof e[0] !== "boolean" && String(e[0]).trim() !== "" && Array.isArray(e[1])) {
+          var idx = Number(e[0]);
+          if (Number.isSafeInteger(idx) && idx >= 0) m.set(idx, new Set(Array.from(m.get(idx) || []).concat(e[1])));
+        }
       });
       return m;
     }
