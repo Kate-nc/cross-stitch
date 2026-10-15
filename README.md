@@ -102,7 +102,8 @@ The default landing page and project hub.
 Optional, account-free sync through a folder your cloud drive already syncs (Dropbox, OneDrive, Google Drive, iCloud Drive…).
 
 - Set it up in Preferences > Sync, backup & data: choose the folder on each device and turn on auto-sync. The app writes `.csync` files after saves and checks the folder every 10 seconds while visible.
-- Conflicting edits open a review screen; a cloud icon in the top bar shows sync status.
+- Stitch marks and unpicking merge per full stitch, half direction, quarter position, knot and backstitch line. Concurrent mark/unpick edits resolve to unpicked; sync before marking again to restore. Distinct parking colours and corners survive repeated imports.
+- Chart structure conflicts open a review screen; a cloud icon in the top bar shows sync status. Legacy sync files remain readable, but only updated devices record removal history; missing legacy marks never imply deletion.
 - Optional AES-GCM passphrase encryption of sync files, and pairing codes to name devices consistently.
 - iPhone and iPad browsers cannot watch folders, so they sync by sharing and importing `.csync` files by hand.
 

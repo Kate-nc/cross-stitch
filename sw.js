@@ -41,6 +41,7 @@ var PRECACHE_URLS = [
   './tracker-notes.js',
   './creator/Loupe.js',
   './tracking-merge.js',
+  './tracking-sync.js',
   './icons.js',
   './import-formats.js',
   './components.js',

@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: '1.0.154',
     date: 'October 2026',
     notes: [
+      'Fixed: Sync preserves half-stitch directions and distinct parking markers. Full, half and quarter stitches, knots and backstitch now sync unpicking with per-mark removal history. Concurrent mark/unpick edits resolve to unpicked; sync, then mark again to restore. Older files remain readable but cannot supply missing removal history. Chart changes still require review.',
       'Fixed: Stats tiles fit their content and screen width, with wrapping colour labels, flexible progress bars and readable controls and counts. Dense section grids and charts scroll within their panel.',
       'Fixed: Before / After comparison pictures stay visible for large patterns and keep their proportions when resized. Choosing no snapshot clears the old picture; unreadable snapshots show a message. Snapshot saving also works with loaded completion arrays.',
       'Fixed: narrow Stats and stash views, session editing and chart layouts at enlarged zoom; global charts use the available tile width. The Tracker recap no longer covers Stats controls. Empty Stats keeps its tabs and no longer redirects to Home from the hidden Creator.'

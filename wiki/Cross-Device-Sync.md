@@ -28,7 +28,7 @@ Keep your projects in step across devices — design on a laptop, stitch on a ta
 
 - **Sending:** a couple of seconds after you save, the app writes this device's `.csync` file to the folder — at most once every 30 seconds. Each device has one file, named after the device, which it overwrites each time; files don't pile up.
 - **Receiving:** while the app is open and its tab is visible, it checks the folder every 10 seconds (and straight away when you come back to the tab). New projects and progress from other devices are brought in automatically.
-- **Conflicts:** if the same pattern was changed differently on both devices, the cloud icon shows a red dot and a review screen lets you choose **Keep mine** or **Use synced** for each project.
+- **Conflicts:** different chart structures still require review. Completion edits with removal history merge automatically using the policy below; older files may show progress disagreements for review.
 
 The **cloud icon** in the top bar shows the status at a glance; click it for details and actions such as **Review sync**.
 
@@ -45,6 +45,14 @@ Set in **Preferences > Sync, backup & data > What to sync**:
 | **Preferences** | Not synced — theme, units and so on stay on each device |
 
 Which project is open, zoom and view settings also stay on each device.
+
+### Stitch marks and unpicking
+
+Full stitches, each half-stitch direction, each quarter-stitch position, knots and backstitch lines merge independently. Unpicking on one device is preserved while another device adds work elsewhere. Importing the same file repeatedly does not duplicate marks or parking markers. Parking identity includes position, colour and corner, so several markers in one cell survive.
+
+Each completion mark now carries removal history. An edit that has seen an earlier edit supersedes it. If devices mark and unpick the **same** mark without seeing each other's edits, **unpicked wins**, regardless of device order or clock settings. To mark it again, sync the devices first, then mark it. This policy applies to completion marks; parking remains an additive union, so clearing parking on one device does not remove a peer's markers.
+
+Older files still open. A missing field or an empty legacy list has no removal history and never counts as an intentional unpick. Existing positive marks are retained unless there is a recorded removal. Update every device: older app versions do not honour this history, and unpicks performed before migration cannot be reconstructed. To recover an unpick made in an old app, import/sync the older work first, then unpick it in the updated app. Older files cannot re-mark a versioned removal; sync and re-mark in the updated app instead.
 
 ### Encryption
 

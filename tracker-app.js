@@ -3402,7 +3402,7 @@ function handleRevertToOriginal(){
   setPat(revertedPat);setPal(previousPal);setCmap(newCmap);setThreadOwned(newThreadOwned);setSingleStitchEdits(new Map());setUndoSnapshot(null);
 }
 
-function doSaveProject(finalName){
+async function doSaveProject(finalName){
   if(!pat||!pal)return;
   // Serialise singleStitchEdits Map as array of [cellIdx, {originalId, currentId}] pairs
   const sseArr = [...singleStitchEdits.entries()];
@@ -3438,9 +3438,9 @@ function doSaveProject(finalName){
     halfDone: hdArr,
     partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand),
-    knotsDone: knotsDone.length?knotsDone.slice():undefined,
-    bsDone: window.Backstitch?window.Backstitch.forSave(bsDone):undefined,
-    partialDone: window.Fractional?window.Fractional.forSave(partialDone):undefined,
+    knotsDone: knotsDone.slice(),
+    bsDone: window.Backstitch?(window.Backstitch.forSave(bsDone)||[]):[],
+    partialDone: window.Fractional?(window.Fractional.forSave(partialDone)||[]):[],
     beads: beadsRef.current,
     notes: projectNotes||undefined,
     statsSessions,
@@ -3455,6 +3455,10 @@ function doSaveProject(finalName){
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null
   };
+  // Include removal history from the small progress overlay as well as full saves.
+  if(window.__flushProjectToIDB)await window.__flushProjectToIDB();
+  const savedBase=project.id?await ProjectStorage.get(project.id):null;
+  project=TrackingSync.record(savedBase||mergeBaseRef.current,project);
   let blob=new Blob([JSON.stringify(project)],{type:"application/json"});
   let url=URL.createObjectURL(blob);
   let a=document.createElement("a");
@@ -3752,6 +3756,9 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+  // Canonical numeric indices also cover legacy string-keyed half marks.
+  project={...project,halfDone:TrackingSync.merge(project,{}).halfDone};
+  mergeBaseRef.current=project;
   // P4-5: a project in another brand's numbering loads that brand's
   // catalogue first, then comes back here (helpers.js).
   if(window.whenProjectBrandReady&&!window.whenProjectBrandReady(project,processLoadedProject,err=>{
@@ -4600,8 +4607,8 @@ const buildSnapshot = () => {
     bsLines, done: done ? Array.from(done) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
-    knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.length ? knotsDone.slice() : undefined,
-    bsDone: window.Backstitch ? window.Backstitch.forSave(bsDone) : undefined, partialDone: window.Fractional ? window.Fractional.forSave(partialDone) : undefined, beads: beadsRef.current,
+    knots: knotsForSave(knots, threadBrand), knotsDone: knotsDone.slice(),
+    bsDone: window.Backstitch ? (window.Backstitch.forSave(bsDone)||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDone)||[]) : [], beads: beadsRef.current,
     statsSessions, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,

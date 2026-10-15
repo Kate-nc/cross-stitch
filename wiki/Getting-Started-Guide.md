@@ -105,7 +105,7 @@ Uses a folder that your cloud drive already syncs (Dropbox, Google Drive, OneDri
 2. Turn on **auto-sync**.
 3. A couple of seconds after you save, the app writes a `.csync` file to the folder (at most every 30 seconds). While the app is open and visible on another device, it checks the folder every 10 seconds and brings the changes in.
 
-The cloud icon in the top bar shows the sync status. If both devices changed the same project, a review screen lets you choose what to keep.
+The cloud icon in the top bar shows the sync status. Stitch progress and unpicking merge independently. Concurrent mark/unpick changes to the same stitch resolve to unpicked; sync first, then mark again to restore it. Use the updated app on every device for removal history. Older files remain readable and missing legacy marks never imply deletion. Different chart structures still open a review screen.
 
 ### Sync by file (any browser, including iPhone and iPad)
 
