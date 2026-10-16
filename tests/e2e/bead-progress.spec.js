@@ -13,7 +13,7 @@ test.beforeEach(async({context,page})=>{
 async function open(page,beads=true){
   await page.goto('/home.html');
   await page.evaluate(async(has)=>{
-    const p={id:'proj_beads_e2e',name:'Bead overlap',version:11,settings:{sW:10,sH:10,fabricCt:14},pattern:Array.from({length:100},()=>({id:'310',type:'solid',rgb:[0,0,0]})),done:Array(100).fill(0),knots:[{x:3,y:3,id:'310',rgb:[0,0,0]}],knotsDone:[],beads:has?[{x:3,y:3,label:'Gold',id:'MH-1',brand:'millhill',rgb:[200,180,40]},{x:3,y:3,label:'Blue',rgb:[0,0,200]}]:[],beadsDone:[]};
+    const p={id:'proj_beads_e2e',name:'Bead overlap',version:11,savedZoom:1,settings:{sW:10,sH:10,fabricCt:14},pattern:Array.from({length:100},()=>({id:'310',type:'solid',rgb:[0,0,0]})),done:Array(100).fill(0),knots:[{x:3,y:3,id:'310',rgb:[0,0,0]}],knotsDone:[],beads:has?[{x:3,y:3,label:'Gold',id:'MH-1',brand:'millhill',rgb:[200,180,40]},{x:3,y:3,label:'Blue',rgb:[0,0,200]}]:[],beadsDone:[]};
     await ProjectStorage.save(p,{resurrect:true});ProjectStorage.setActiveProject(p.id);
   },beads);
   await page.goto('/stitch.html');
@@ -39,11 +39,12 @@ test('overlap selection, completion, undo/redo, zoom, reload and Creator round t
   await expect(region.getByRole('button',{name:'Beads 1/2',exact:true})).toBeVisible();
   await page.keyboard.press('Control+Shift+z');
   await expect(region.getByRole('button',{name:'Beads 2/2',exact:true})).toBeVisible();
-  for(const [steps,percent] of [[-5,'50%'],[0,'100%'],[10,'200%']]){
-    await page.getByRole('button',{name:'Reset zoom',exact:true}).click();
+  const cellSize=()=>page.evaluate(()=>document.querySelector('.tracker-chart-scroll > div').children[1].getBoundingClientRect().width);
+  const baseline=await cellSize();
+  for(const [steps,ratio] of [[-5,0.5],[5,1],[10,2]]){
     await page.locator('canvas[aria-label^="Cross stitch pattern grid"]').focus();
     for(let i=0;i<Math.abs(steps);i++)await page.keyboard.press(steps<0?'-':'=');
-    await expect(page.getByRole('button',{name:'Reset zoom',exact:true})).toHaveText(percent);
+    await expect.poll(async()=>Math.round((await cellSize())/baseline*100)).toBe(ratio*100);
     await expect(region.getByRole('button',{name:'Beads 2/2',exact:true})).toBeVisible();
     await expect(page.locator('.info-strip-pct')).toHaveText('0.0%');
   }
