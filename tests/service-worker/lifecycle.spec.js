@@ -32,7 +32,7 @@ function build(label) {
   for (const [url, entry] of Object.entries(assets)) {
     if (!url.startsWith('./')) continue;
     let body = fs.readFileSync(path.join(root, url));
-    if (url === './version.js') body = Buffer.from(body.toString().replace(/1\.0\.159/g, label));
+    if (url === './version.js') body = Buffer.from(body.toString().replace(/window\.APP_VERSION = '[^']+';/, "window.APP_VERSION = '" + label + "';"));
     files.set(url.slice(2), body);
     entry.sha256 = hash(body);
   }

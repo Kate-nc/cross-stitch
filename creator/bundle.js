@@ -200,11 +200,11 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
 /* ─── symbolFontSpec.js ─── */
 /* creator/symbolFontSpec.js — Glyph spec for the embedded chart symbol font.
  *
- * Produces a deterministic list of 96 visually-distinct symbol glyphs assigned
- * to Private Use Area code points U+E000..U+E05F. The same spec is consumed by:
+ * Produces a deterministic list of 112 visually-distinct symbol glyphs assigned
+ * to Private Use Area code points U+E000..U+E06F. The same spec is consumed by:
  *   • build-symbol-font.js   — converts the spec into assets/fonts/CrossStitchSymbols.ttf
  *   • pdf-export-worker.js   — picks a glyph for each palette entry
- *   • creator/pdfExport.js   — passes the codepoint map to the worker
+ *   • creator/pdfChartLayout.js — assigns the same map to all PDF sections
  *
  * Each glyph is described by a list of drawing primitives executed in a 1000×1000
  * em square (with origin at the bottom-left). The unit interval [100..900] is the
@@ -223,17 +223,18 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
  * generator. Keeping the spec declarative means it can be unit-tested without
  * a font runtime.
  *
- * Glyph families (16 each, 6 families = 96):
+ * Glyph families (16 each, 7 families = 112):
  *   00..0F  Filled solid shapes (square, triangle, diamond, …)
  *   10..1F  Outline shapes (matching family 1 but stroked)
  *   20..2F  Dotted / pip patterns
  *   30..3F  Cross / plus / x marks
  *   40..4F  Bars and chevrons (directional)
  *   50..5F  Compound / quartered shapes
+ *   60..6F  Block letters (no screen/system font dependency)
  *
- * The character at U+E000 is assigned to the most-used palette entry in a
- * pattern, U+E001 to the second-most, and so on. This is deterministic and
- * means Pattern Keeper can build a thread→symbol map by scanning the legend.
+ * Codepoints follow numeric solid-thread order, then lexical blend order.
+ * Existing codepoints remain stable; ambiguous legacy shapes are repaired
+ * in place so every assignment remains readable in monochrome.
  */
 (function (root) {
   "use strict";
@@ -711,9 +712,55 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
     rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
   ] });
 
-  // Validation: 96 glyphs, every glyph has at least one primitive
-  if (glyphs.length !== 96) {
-    throw new Error("symbolFontSpec: expected 96 glyphs, got " + glyphs.length);
+  // Repair legacy lookalikes in place. Thickness-only variants and identical
+  // bars shifted sideways are unreliable at the smallest chart print size.
+  // All other legacy outlines, names and codepoints remain unchanged.
+  glyphs[0x07].prims = [tri([500,500],[120,500],[310,880]), tri([500,500],[310,880],[690,880]), tri([500,500],[690,880],[880,500]), tri([500,500],[880,500],[690,120]), tri([500,500],[690,120],[310,120]), tri([500,500],[310,120],[120,500])]; // angular hexagon
+  glyphs[0x1E].prims[glyphs[0x1E].prims.length - 1] = disc(CTR, CTR, 120);
+  glyphs[0x1F].prims[glyphs[0x1F].prims.length - 1] = disc(CTR, CTR, 120);
+  glyphs[0x5C].prims[glyphs[0x5C].prims.length - 1] = disc(CTR, CTR, 140);
+  glyphs[0x5D].prims[glyphs[0x5D].prims.length - 1] = disc(CTR, SAFE_LO + 240, 140);
+  glyphs[0x08].prims = [rect(120, 120, 760, 380), rect(120, 500, 260, 380), rect(620, 500, 260, 380)]; // notched square
+  glyphs[0x18].prims.push(rect(700, 80, 180, 220)); // square with tail
+  glyphs[0x19].prims.push(line(700, 240, 880, 120, SW_FAT)); // ring with tail
+  glyphs[0x1D].prims = [ring(CTR, CTR, 320, SW_MED), line(360, 500, 640, 500, SW_FAT)]; // ring with dash
+  glyphs[0x31].prims = [rect(435, 650, 130, 230), rect(435, 120, 130, 230), rect(120, 435, 230, 130), rect(650, 435, 230, 130)]; // separated plus arms
+  glyphs[0x33].prims = [line(180, 180, 350, 350, SW_FAT), line(650, 650, 820, 820, SW_FAT), line(180, 820, 350, 650, SW_FAT), line(650, 350, 820, 180, SW_FAT)]; // separated diagonal arms
+  glyphs[0x39].prims = [line(500, 120, 500, 880), line(180, 260, 820, 740), line(180, 740, 820, 260)]; // six spokes
+  glyphs[0x2C].prims = [ring(CTR, CTR, 340, SW_MED), disc(350, 500, 80), disc(650, 500, 80)]; // horizontal pips in ring
+  glyphs[0x3A].prims = [line(120, 500, 880, 500), line(500, 120, 500, 880), disc(760, 760, 100)];
+  glyphs[0x3B].prims = [line(150, 150, 850, 850), line(150, 850, 850, 150), disc(500, 840, 100)];
+  glyphs[0x42].prims = [rect(160, 120, 120, 760), rect(160, 120, 420, 120), rect(160, 760, 420, 120)];
+  glyphs[0x43].prims = [rect(720, 120, 120, 760), rect(420, 120, 420, 120), rect(420, 760, 420, 120)];
+
+  // Append sturdy block letters built only from strokes. Avoid letters that
+  // duplicate existing chart marks (H, I, T, X) or simple geometric shapes.
+  var letters = {
+    A: [[160,120,500,880],[500,880,840,120],[300,420,700,420]],
+    B: [[180,120,180,880],[180,880,680,880],[680,880,820,700],[820,700,680,520],[180,520,680,520],[680,520,820,320],[820,320,680,120],[180,120,680,120]],
+    C: [[820,820,650,880],[650,880,180,880],[180,880,180,120],[180,120,650,120],[650,120,820,180]],
+    D: [[180,120,180,880],[180,880,600,880],[600,880,820,660],[820,660,820,340],[820,340,600,120],[600,120,180,120]],
+    E: [[180,120,180,880],[180,880,820,880],[180,500,700,500],[180,120,820,120]],
+    F: [[180,120,180,880],[180,880,820,880],[180,500,700,500]],
+    G: [[820,820,650,880],[650,880,180,880],[180,880,180,120],[180,120,820,120],[820,120,820,500],[820,500,500,500]],
+    J: [[180,880,820,880],[660,880,660,120],[660,120,180,120],[180,120,180,360]],
+    K: [[180,120,180,880],[180,500,820,880],[180,500,820,120]],
+    L: [[180,880,180,120],[180,120,820,120]],
+    M: [[160,120,160,880],[160,880,500,440],[500,440,840,880],[840,880,840,120]],
+    N: [[180,120,180,880],[180,880,820,120],[820,120,820,880]],
+    P: [[180,120,180,880],[180,880,820,880],[820,880,820,500],[820,500,180,500]],
+    R: [[180,120,180,880],[180,880,820,880],[820,880,820,500],[820,500,180,500],[500,500,820,120]],
+    S: [[820,880,180,880],[180,880,180,500],[180,500,820,500],[820,500,820,120],[820,120,180,120]],
+    U: [[180,880,180,120],[180,120,820,120],[820,120,820,880]],
+  };
+  Object.keys(letters).forEach(function (letter) {
+    glyphs.push({ name: "letter." + letter, prims: letters[letter].map(function (s) {
+      return line(s[0], s[1], s[2], s[3], 110);
+    }) });
+  });
+
+  if (glyphs.length !== 112) {
+    throw new Error("symbolFontSpec: expected 112 glyphs, got " + glyphs.length);
   }
 
   var BASE_CODEPOINT = 0xE000; // PUA start
@@ -860,10 +907,10 @@ var ORPHAN_MAX_ITERATIONS = 8;
 var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
- * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
+ * Shared coverage mask → quantize → map/dither → confetti → orphan-removal pipeline.
  * Called by both generatePreview and runGenerationPipeline so the two stay in sync.
  *
- * @param {Uint8ClampedArray} raw    RGBA pixel data (smoothing already applied)
+ * @param {Uint8ClampedArray} raw    RGBA pixel data at target grid size
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
@@ -871,17 +918,25 @@ var ORPHAN_CONTRAST_GUARD_DE = 30;
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
-  var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
   var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
+  // Work on a private copy: preview runs multiple passes over cached RGBA.
+  raw = new Uint8ClampedArray(raw);
+  var coverageMask = prepareConversionPixels(raw, width, height, opts);
   if (opts.preSmooth) applyBilateralFilter(raw, width, height);
+  if (opts.smooth > 0) {
+    if (opts.smoothType === "gaussian") applyGaussianBlur(raw, width, height, opts.smooth);
+    else if (opts.smoothType === "bilateral") applyBilateralFilter(raw, width, height);
+    else applyMedianFilter(raw, width, height, opts.smooth);
+  }
 
   var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
-  if (!p.length) return null;
+  // An all-transparent image is a valid empty pattern, not a quantiser error.
+  if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
   var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
@@ -894,15 +949,6 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
   } else {
     mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
-  }
-
-  if (skipBg) {
-    var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-    for (var i = 0; i < mapped.length; i++) {
-      if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-        mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
-      }
-    }
   }
 
   // ── Min-stitches rebucket (C5) ───────────────────────────────────────────
@@ -971,14 +1017,15 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   }
 
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
-  // Thin anti-aliasing shades between two main colours (or a main colour and
-  // the skipped background) are folded into them. Part of Stitch Cleanup.
+  // Thin anti-aliasing shades between two main stitched colours are folded
+  // into them. The coverage mask alone determines empty cells. Part of Stitch Cleanup.
   // Without dithering a thin in-between shade is anti-aliasing, so the fold
   // allows more (EDGE_BLEND_MAX_DE_NO_DITHER, colour-utils.js). Mirrored in
   // generate-worker.js.
   if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
-      bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null,
+      // Coverage is already decided. Colour cleanup must not create new holes.
+      bgLab: null,
       maxDeltaE: (!dith || dithAlgo === "off") && typeof EDGE_BLEND_MAX_DE_NO_DITHER === "number" ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
     });
   }
@@ -1110,13 +1157,9 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
   cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
-  var raw = cx.getImageData(0, 0, sW, sH).data;
-
-  if (smooth > 0) {
-    if (smoothType === "gaussian") applyGaussianBlur(raw, sW, sH, smooth);
-    else if (smoothType === "bilateral") applyBilateralFilter(raw, sW, sH);
-    else applyMedianFilter(raw, sW, sH, smooth);
-  }
+  var generationImageData = cx.getImageData(0, 0, sW, sH);
+  if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(generationImageData, bri, con, sat);
+  var raw = generationImageData.data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
@@ -1124,7 +1167,8 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
-    minSt: minSt, seed: opts.seed,
+    minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
+    preSmooth: opts.preSmooth, disambig: opts.disambig, disambigLevel: opts.disambigLevel,
   });
   if (!pipelineResult) return null;
 
@@ -8364,7 +8408,7 @@ window.useCreatorState = function useCreatorState() {
           try {
             var result = runGenerationPipeline(img, {
               sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
-              dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+              dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
@@ -8502,8 +8546,9 @@ window.useCreatorState = function useCreatorState() {
         }
         if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
-        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+
         var res = runCleanupPipeline(rawPx, gw, gh, {
+          smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
@@ -13485,7 +13530,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
-            scaledImg.src = c.toDataURL("image/jpeg", 0.85);
+            // PNG retains the coverage mask when large uploads are resized.
+            scaledImg.src = c.toDataURL("image/png");
             return;
           }
           state.userActedRef.current = true;
@@ -14160,7 +14206,7 @@ window.usePreview = function usePreview(state) {
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
     if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
-    if (pw < 10) pw = 10;
+    if (pw < 1) pw = 1;
     if (ph < 1) ph = 1;
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
@@ -14176,12 +14222,9 @@ window.usePreview = function usePreview(state) {
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
       cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-      raw = cx.getImageData(0, 0, pw, ph).data;
-      if (smooth > 0) {
-        if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
-        else if (smoothType === "bilateral" && typeof applyBilateralFilter === 'function') applyBilateralFilter(raw, pw, ph);
-        else applyMedianFilter(raw, pw, ph, smooth);
-      }
+      var previewImageData = cx.getImageData(0, 0, pw, ph);
+      if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+      raw = previewImageData.data;
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
 
@@ -14196,6 +14239,8 @@ window.usePreview = function usePreview(state) {
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
         minSt: settings.minSt, seed: settings.seed,
+        smooth: smooth, smoothType: smoothType,
+        disambig: settings.disambig, disambigLevel: settings.disambigLevel,
       };
       if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
       return o;

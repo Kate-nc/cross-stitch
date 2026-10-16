@@ -1,6 +1,8 @@
 // tests/c6ZipBundleManifest.test.js — manifest builder + OXS writer + button render assertion
 const fs = require('fs');
 const path = require('path');
+global.DMC = [{id:'310',rgb:[0,0,0]}, {id:'550',rgb:[128,0,128]}];
+global.generateOXS = new Function(fs.readFileSync('./import-formats.js', 'utf8') + '\nreturn generateOXS;')();
 const ZipBundle = require('../creator/zipBundle.js');
 
 describe('C6 ZipBundle._buildManifest', () => {
@@ -45,7 +47,7 @@ describe('C6 ZipBundle._buildManifest', () => {
   });
 });
 
-describe('C6 ZipBundle._serializeOxs (minimal writer)', () => {
+describe('C6 ZipBundle._serializeOxs (shared writer)', () => {
   function makeProject() {
     var W = 3, H = 2;
     var pat = new Array(W * H).fill(null).map(function () { return { id: '__skip__' }; });
@@ -57,14 +59,14 @@ describe('C6 ZipBundle._serializeOxs (minimal writer)', () => {
   it('returns a non-empty XML string with chart dimensions', () => {
     var s = ZipBundle._serializeOxs(makeProject());
     expect(typeof s).toBe('string');
-    expect(s).toMatch(/<chart width="3" height="2">/);
+    expect(s).toMatch(/chartwidth="3" chartheight="2"/);
     expect(s).toMatch(/<\/chart>/);
   });
   it('emits one <color> per unique DMC id', () => {
     var s = ZipBundle._serializeOxs(makeProject());
     var palBlock = s.match(/<palette>([\s\S]*?)<\/palette>/)[1];
     var colors = palBlock.match(/<color /g) || [];
-    expect(colors.length).toBe(2);
+    expect(colors.length).toBe(3); // includes cloth at index 0
     expect(palBlock).toMatch(/number="310"/);
     expect(palBlock).toMatch(/number="550"/);
   });
@@ -74,14 +76,14 @@ describe('C6 ZipBundle._serializeOxs (minimal writer)', () => {
     var stitches = stitchBlock.match(/<stitch /g) || [];
     expect(stitches.length).toBe(3);
   });
-  it('flattens blend cells to their first DMC component', () => {
+  it('keeps blend components', () => {
     var pat = [
       { id: '310+550', type: 'blend', rgb: [64, 0, 64] },
       { id: '__skip__' }
     ];
     var s = ZipBundle._serializeOxs({ width: 2, height: 1, pattern: pat });
-    expect(s).toMatch(/number="310"/);
-    expect(s).not.toMatch(/number="310\+550"/);
+    expect(s).toMatch(/<blend number="DMC 310"/);
+    expect(s).toMatch(/number="310\+550"/);
   });
   it('throws on invalid dimensions', () => {
     expect(function () { ZipBundle._serializeOxs({ width: 0, height: 0, pattern: [] }); }).toThrow();

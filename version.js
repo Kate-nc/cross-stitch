@@ -4,18 +4,23 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.159';
+window.APP_VERSION = '1.0.162';
 
 window.APP_CHANGELOG = [
   {
-    version: 'Next release',
+    version: 'Unreleased',
     date: 'October 2026',
-    notes: ['Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.']
+    notes: [
+      'Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.',
+      'Fixed: transparent image areas stay unstitched through resizing, smoothing, dithering, cleanup and saving. Alpha below 128 is empty; alpha 128 or above keeps its uncomposited colour. Transparent pixels do not consume threads. Skip background preserves opaque details in transparent pictures, and enclosed matching details in opaque pictures. Fully transparent pictures create empty patterns.',
+      'Fixed: PDF charts now give every used thread or blend a distinct embedded symbol, with the same assignment in the key and page summaries. The font supports 112 symbols and clearer shapes; larger exports stop with an error instead of reusing symbols. Unused palette colours and empty cells do not count towards the limit.'
+    ]
   },
   {
     version: '1.0.156',
     date: 'October 2026',
     notes: [
+      'Fixed: OXS imports and exports retain backstitch thread references over empty cells, accept charts without full crosses, and preserve supported fractional stitches and two-thread blends. Import and export report unsupported or malformed objects with counts; bundle exports use the same writer.',
       'Fixed: half-stitch marks now undo and redo in order. Undo and Redo restore original session totals and catch-up classification without inflating additions or pace, including after End session and across stitching days. Physical unpick restoration keeps its separate accounting.',
       'Fixed: fractional progress stays consistent across Track, Stats, colour figures and project summaries. Half marks refresh colour counters immediately. Incomplete charts stay below 100%, and hidden layers cannot trigger project completion or stash deduction.',
       'Fixed: live stash deductions persist per-project checkpoints, so reopening and retrying do not deduct the same thread twice. Atomic updates preserve other projects and stash edits on this device. Existing marks in older projects are checkpointed without another historical deduction.',

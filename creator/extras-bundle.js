@@ -906,18 +906,24 @@
    *   1. solid threads first (sorted numerically by id where possible, else lexically),
    *   2. then blends (sorted lexically by id).
    *
-   * Codepoints are assigned starting at spec.baseCodepoint (U+E000).
-   * Blends past the end of the spec wrap around (worst case: very rare patterns
-   * with > 96 colours fall back to repeated symbols — visually distinguished by
-   * the colour swatch in the legend).
+   * Only used IDs consume capacity when supplied by the export worker.
+   * Editor symbol overrides belong to the screen font; PDFs deliberately use
+   * this embedded font's deterministic assignment instead (see in-app help).
+   * Never wrap: a monochrome chart must identify every thread unambiguously.
    */
-  function buildCodepointMap(palette, spec) {
-    var base = spec.baseCodepoint;
+  function buildCodepointMap(palette, spec, usedIds) {
+    if (!spec || !spec.glyphs || !spec.glyphs.length) {
+      throw new Error("PDF symbol font specification is missing or empty.");
+    }
     var capacity = spec.glyphs.length;
+    var seen = Object.create(null);
     var solids = [], blends = [];
     palette.forEach(function (e) {
       if (!e || !e.id) return;
       if (e.id === "__skip__" || e.id === "__empty__") return;
+      if (usedIds && !Object.prototype.hasOwnProperty.call(usedIds, e.id)) return;
+      if (seen[e.id]) return;
+      seen[e.id] = true;
       if (e.type === "blend") blends.push(e); else solids.push(e);
     });
     function numericKey(id) {
@@ -931,10 +937,16 @@
     });
     blends.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
 
-    var map = {};
+    var map = Object.create(null);
     var ordered = solids.concat(blends);
+    if (usedIds) Object.keys(usedIds).forEach(function (id) {
+      if (!seen[id]) throw new Error("PDF export: used thread " + id + " is missing from the palette.");
+    });
+    if (ordered.length > capacity) {
+      throw new Error("PDF export needs " + ordered.length + " distinct symbols; the verified capacity is " + capacity + ". Reduce the used threads or blends before exporting.");
+    }
     for (var i = 0; i < ordered.length; i++) {
-      map[ordered[i].id] = base + (i % capacity);
+      map[ordered[i].id] = spec.glyphs[i].codepoint;
     }
     return { map: map, order: ordered.map(function (e) { return e.id; }) };
   }
@@ -1432,123 +1444,16 @@
     };
   }
 
-  // ─────────────────────────────────────────── OXS writer ───────────────
-  // Minimal XML writer that round-trips through parseOXS in import-formats.js.
-  // Emits palette entries (with DMC number + RGB) and fullstitch positions,
-  // plus backstitch lines if present. Blend cells are flattened to their first
-  // DMC component (parseOXS doesn't model blends as a single cell).
-  function _xmlEscape(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function _serializeOxs(project) {
-    project = project || {};
-    var w = project.width | 0, h = project.height | 0;
-    var pattern = project.pattern || [];
-    var bsLines = project.bsLines || [];
-    if (w <= 0 || h <= 0) throw new Error('OXS: invalid dimensions');
-
-    // Build palette index from cell ids (skip __skip__ / __empty__).
-    var palette = [];           // [{id, rgb}]
-    var idToIndex = {};         // id → 1-based palette index
-    function ensureEntry(id, rgb) {
-      if (!id || id === '__skip__' || id === '__empty__') return 0;
-      if (idToIndex[id]) return idToIndex[id];
-      palette.push({ id: id, rgb: rgb || [0, 0, 0] });
-      idToIndex[id] = palette.length;
-      return palette.length;
+  // Use the same writer as standalone export so bundles keep thread assignments
+  // and fractional stitches. Callers must surface every returned warning.
+  function _serializeOxs(project, onWarnings) {
+    if (typeof generateOXS !== 'function') throw new Error('OXS export is not available');
+    var result = generateOXS(project);
+    if (result.warnings.length) {
+      if (typeof onWarnings !== 'function') throw new Error(result.warnings.join(' '));
+      onWarnings(result.warnings);
     }
-    // Pre-seed with project.palette if supplied (preserves ordering).
-    if (project.palette && project.palette.length) {
-      for (var p = 0; p < project.palette.length; p++) {
-        var pe = project.palette[p];
-        if (pe && pe.id) ensureEntry(pe.id, pe.rgb);
-      }
-    }
-
-    var lines = [];
-    lines.push('<?xml version="1.0" encoding="UTF-8"?>');
-    lines.push('<chart width="' + w + '" height="' + h + '">');
-    lines.push('  <format><chartwidth>' + w + '</chartwidth><chartheight>' + h + '</chartheight></format>');
-
-    // First pass — record stitch entries and grow the palette.
-    var stitches = [];
-    for (var y = 0; y < h; y++) {
-      for (var x = 0; x < w; x++) {
-        var cell = pattern[y * w + x];
-        if (!cell) continue;
-        var id = cell.id;
-        if (!id || id === '__skip__' || id === '__empty__') continue;
-        // Flatten blend → first DMC id.
-        var primaryId = id, primaryRgb = cell.rgb;
-        if (cell.type === 'blend' && id.indexOf('+') >= 0) {
-          primaryId = id.split('+')[0];
-        }
-        var idx = ensureEntry(primaryId, primaryRgb);
-        if (idx) stitches.push({ x: x, y: y, palindex: idx });
-      }
-    }
-
-    // French knots (knots.js) join the palette too; blends by their first
-    // thread, as for stitches.
-    var knots = project.knots || [];
-    var knotEntries = [];
-    for (var k = 0; k < knots.length; k++) {
-      var kn = knots[k];
-      if (!kn || !kn.id) continue;
-      var kidx = ensureEntry(String(kn.id).split('+')[0], kn.rgb);
-      if (kidx) knotEntries.push({ x: kn.x / 2, y: kn.y / 2, palindex: kidx });
-    }
-
-    // Palette block.
-    lines.push('  <palette>');
-    for (var i = 0; i < palette.length; i++) {
-      var entry = palette[i];
-      var rgb = entry.rgb || [0, 0, 0];
-      lines.push('    <color index="' + (i + 1) + '"'
-        + ' number="' + _xmlEscape(entry.id) + '"'
-        + ' name="' + _xmlEscape(entry.id) + '"'
-        + ' red="' + (rgb[0] | 0) + '"'
-        + ' green="' + (rgb[1] | 0) + '"'
-        + ' blue="' + (rgb[2] | 0) + '"/>');
-    }
-    lines.push('  </palette>');
-
-    // Stitches.
-    lines.push('  <fullstitches>');
-    for (var s = 0; s < stitches.length; s++) {
-      var st = stitches[s];
-      lines.push('    <stitch x="' + st.x + '" y="' + st.y + '" palindex="' + st.palindex + '"/>');
-    }
-    lines.push('  </fullstitches>');
-
-    // Backstitches (optional).
-    if (bsLines.length) {
-      lines.push('  <backstitches>');
-      for (var b = 0; b < bsLines.length; b++) {
-        var bl = bsLines[b];
-        lines.push('    <backstitch x1="' + bl.x1 + '" y1="' + bl.y1 + '"'
-          + ' x2="' + bl.x2 + '" y2="' + bl.y2 + '" palindex="1"/>');
-      }
-      lines.push('  </backstitches>');
-    }
-
-    // French knots, as ornaments (x1, y1 in stitches; see generateOXS).
-    if (knotEntries.length) {
-      lines.push('  <ornaments_inc_knots_and_beads>');
-      for (var ke = 0; ke < knotEntries.length; ke++) {
-        var o = knotEntries[ke];
-        lines.push('    <object x1="' + o.x + '" y1="' + o.y + '" palindex="' + o.palindex + '" objecttype="knot"/>');
-      }
-      lines.push('  </ornaments_inc_knots_and_beads>');
-    }
-
-    lines.push('</chart>');
-    return lines.join('\n');
+    return result.xml;
   }
 
   // ─────────────────────────────────────── JSZip lazy loader ────────────
@@ -3886,10 +3791,14 @@ window.CreatorExportTab = function CreatorExportTab() {
     var oxsString = null;
     try {
       oxsString = window.ZipBundle._serializeOxs({
-        width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
-        bsLines: ctx.bsLines || [], palette: ctx.pal, knots: ctx.knots || []
+        width: ctx.sW, height: ctx.sH, threadBrand: ctx.threadBrand, pattern: ctx.pat,
+        bsLines: ctx.bsLines || [], partialStitches: ctx.partialStitches, knots: ctx.knots || [],
+        beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
+      }, function (warnings) {
+        if (typeof Toast !== 'undefined' && Toast.show) Toast.show({ message: warnings.join(' '), type: 'warning', duration: 10000 });
       });
     } catch (e) {
+      setError('Bundle OXS: ' + (e.message || e));
       console.warn("Bundle: OXS serialise failed:", e);
     }
     var jsonObj = null;
@@ -4112,17 +4021,18 @@ window.CreatorExportTab = function CreatorExportTab() {
         onClick: function () {
           if (typeof generateOXS !== 'function') { return; }
           var project = {
-            w: ctx.sW, h: ctx.sH,
+            w: ctx.sW, h: ctx.sH, threadBrand: ctx.threadBrand,
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
+            partialStitches: ctx.partialStitches,
             knots: ctx.knots || [],
             beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {
             if (typeof Toast !== 'undefined' && Toast.show) {
-              Toast.show({ message: result.warnings[0], type: 'warning', duration: 6000 });
+              Toast.show({ message: result.warnings.join(' '), type: 'warning', duration: 6000 });
             }
           }
           var blob = new Blob([result.xml], { type: 'application/xml' });

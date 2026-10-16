@@ -1,10 +1,10 @@
 /* creator/symbolFontSpec.js — Glyph spec for the embedded chart symbol font.
  *
- * Produces a deterministic list of 96 visually-distinct symbol glyphs assigned
- * to Private Use Area code points U+E000..U+E05F. The same spec is consumed by:
+ * Produces a deterministic list of 112 visually-distinct symbol glyphs assigned
+ * to Private Use Area code points U+E000..U+E06F. The same spec is consumed by:
  *   • build-symbol-font.js   — converts the spec into assets/fonts/CrossStitchSymbols.ttf
  *   • pdf-export-worker.js   — picks a glyph for each palette entry
- *   • creator/pdfExport.js   — passes the codepoint map to the worker
+ *   • creator/pdfChartLayout.js — assigns the same map to all PDF sections
  *
  * Each glyph is described by a list of drawing primitives executed in a 1000×1000
  * em square (with origin at the bottom-left). The unit interval [100..900] is the
@@ -23,17 +23,18 @@
  * generator. Keeping the spec declarative means it can be unit-tested without
  * a font runtime.
  *
- * Glyph families (16 each, 6 families = 96):
+ * Glyph families (16 each, 7 families = 112):
  *   00..0F  Filled solid shapes (square, triangle, diamond, …)
  *   10..1F  Outline shapes (matching family 1 but stroked)
  *   20..2F  Dotted / pip patterns
  *   30..3F  Cross / plus / x marks
  *   40..4F  Bars and chevrons (directional)
  *   50..5F  Compound / quartered shapes
+ *   60..6F  Block letters (no screen/system font dependency)
  *
- * The character at U+E000 is assigned to the most-used palette entry in a
- * pattern, U+E001 to the second-most, and so on. This is deterministic and
- * means Pattern Keeper can build a thread→symbol map by scanning the legend.
+ * Codepoints follow numeric solid-thread order, then lexical blend order.
+ * Existing codepoints remain stable; ambiguous legacy shapes are repaired
+ * in place so every assignment remains readable in monochrome.
  */
 (function (root) {
   "use strict";
@@ -511,9 +512,55 @@
     rect(SAFE_HI - SW_THIN, SAFE_LO, SW_THIN, SAFE_HI - SAFE_LO),
   ] });
 
-  // Validation: 96 glyphs, every glyph has at least one primitive
-  if (glyphs.length !== 96) {
-    throw new Error("symbolFontSpec: expected 96 glyphs, got " + glyphs.length);
+  // Repair legacy lookalikes in place. Thickness-only variants and identical
+  // bars shifted sideways are unreliable at the smallest chart print size.
+  // All other legacy outlines, names and codepoints remain unchanged.
+  glyphs[0x07].prims = [tri([500,500],[120,500],[310,880]), tri([500,500],[310,880],[690,880]), tri([500,500],[690,880],[880,500]), tri([500,500],[880,500],[690,120]), tri([500,500],[690,120],[310,120]), tri([500,500],[310,120],[120,500])]; // angular hexagon
+  glyphs[0x1E].prims[glyphs[0x1E].prims.length - 1] = disc(CTR, CTR, 120);
+  glyphs[0x1F].prims[glyphs[0x1F].prims.length - 1] = disc(CTR, CTR, 120);
+  glyphs[0x5C].prims[glyphs[0x5C].prims.length - 1] = disc(CTR, CTR, 140);
+  glyphs[0x5D].prims[glyphs[0x5D].prims.length - 1] = disc(CTR, SAFE_LO + 240, 140);
+  glyphs[0x08].prims = [rect(120, 120, 760, 380), rect(120, 500, 260, 380), rect(620, 500, 260, 380)]; // notched square
+  glyphs[0x18].prims.push(rect(700, 80, 180, 220)); // square with tail
+  glyphs[0x19].prims.push(line(700, 240, 880, 120, SW_FAT)); // ring with tail
+  glyphs[0x1D].prims = [ring(CTR, CTR, 320, SW_MED), line(360, 500, 640, 500, SW_FAT)]; // ring with dash
+  glyphs[0x31].prims = [rect(435, 650, 130, 230), rect(435, 120, 130, 230), rect(120, 435, 230, 130), rect(650, 435, 230, 130)]; // separated plus arms
+  glyphs[0x33].prims = [line(180, 180, 350, 350, SW_FAT), line(650, 650, 820, 820, SW_FAT), line(180, 820, 350, 650, SW_FAT), line(650, 350, 820, 180, SW_FAT)]; // separated diagonal arms
+  glyphs[0x39].prims = [line(500, 120, 500, 880), line(180, 260, 820, 740), line(180, 740, 820, 260)]; // six spokes
+  glyphs[0x2C].prims = [ring(CTR, CTR, 340, SW_MED), disc(350, 500, 80), disc(650, 500, 80)]; // horizontal pips in ring
+  glyphs[0x3A].prims = [line(120, 500, 880, 500), line(500, 120, 500, 880), disc(760, 760, 100)];
+  glyphs[0x3B].prims = [line(150, 150, 850, 850), line(150, 850, 850, 150), disc(500, 840, 100)];
+  glyphs[0x42].prims = [rect(160, 120, 120, 760), rect(160, 120, 420, 120), rect(160, 760, 420, 120)];
+  glyphs[0x43].prims = [rect(720, 120, 120, 760), rect(420, 120, 420, 120), rect(420, 760, 420, 120)];
+
+  // Append sturdy block letters built only from strokes. Avoid letters that
+  // duplicate existing chart marks (H, I, T, X) or simple geometric shapes.
+  var letters = {
+    A: [[160,120,500,880],[500,880,840,120],[300,420,700,420]],
+    B: [[180,120,180,880],[180,880,680,880],[680,880,820,700],[820,700,680,520],[180,520,680,520],[680,520,820,320],[820,320,680,120],[180,120,680,120]],
+    C: [[820,820,650,880],[650,880,180,880],[180,880,180,120],[180,120,650,120],[650,120,820,180]],
+    D: [[180,120,180,880],[180,880,600,880],[600,880,820,660],[820,660,820,340],[820,340,600,120],[600,120,180,120]],
+    E: [[180,120,180,880],[180,880,820,880],[180,500,700,500],[180,120,820,120]],
+    F: [[180,120,180,880],[180,880,820,880],[180,500,700,500]],
+    G: [[820,820,650,880],[650,880,180,880],[180,880,180,120],[180,120,820,120],[820,120,820,500],[820,500,500,500]],
+    J: [[180,880,820,880],[660,880,660,120],[660,120,180,120],[180,120,180,360]],
+    K: [[180,120,180,880],[180,500,820,880],[180,500,820,120]],
+    L: [[180,880,180,120],[180,120,820,120]],
+    M: [[160,120,160,880],[160,880,500,440],[500,440,840,880],[840,880,840,120]],
+    N: [[180,120,180,880],[180,880,820,120],[820,120,820,880]],
+    P: [[180,120,180,880],[180,880,820,880],[820,880,820,500],[820,500,180,500]],
+    R: [[180,120,180,880],[180,880,820,880],[820,880,820,500],[820,500,180,500],[500,500,820,120]],
+    S: [[820,880,180,880],[180,880,180,500],[180,500,820,500],[820,500,820,120],[820,120,180,120]],
+    U: [[180,880,180,120],[180,120,820,120],[820,120,820,880]],
+  };
+  Object.keys(letters).forEach(function (letter) {
+    glyphs.push({ name: "letter." + letter, prims: letters[letter].map(function (s) {
+      return line(s[0], s[1], s[2], s[3], 110);
+    }) });
+  });
+
+  if (glyphs.length !== 112) {
+    throw new Error("symbolFontSpec: expected 112 glyphs, got " + glyphs.length);
   }
 
   var BASE_CODEPOINT = 0xE000; // PUA start

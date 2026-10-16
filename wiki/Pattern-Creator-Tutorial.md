@@ -49,7 +49,7 @@ The Creator guesses the type when you add the picture; choose another at any tim
 - **Brightness / Contrast / Saturation** — tune the image before conversion.
 - **Soften grainy photos** — smooths away noise before the threads are chosen. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — tick **Skip background**, press **Pick**, click the background colour in the image, then adjust **Tolerance** to treat it as empty fabric.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Skip background** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Skip background**, press **Pick**, click the background colour, then adjust **Tolerance**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
 - **Crop** — crop the image to the part you want.
 
 ### Dimensions
@@ -233,8 +233,10 @@ Which threads you own, are low on, or need to buy, from your Stash Manager inven
 - **Open in Stitch Tracker** — opens the pattern in the Tracker, no file needed.
 - **Quick presets** — *For Pattern Keeper* or *For printing (home)*.
 - **Format & settings** — PDF or PNG, page size (Auto / A4 / US Letter), margins, stitches per page, chart modes (symbols on white, colour blocks with symbols), overlap zone, cover / info / index / mini-legend pages, Workshop print theme.
-- **Export PDF** / **Export .oxs**.
+- **Export PDF** / **Export .oxs**. OXS retains explicit backstitch threads over empty cells, supported fractional stitches and equal blends of two known threads of the same brand. Review every warning: unsupported blend proportions, miniature crosses and other unsupported objects are reported with affected types and counts. Diagonal quarters use the XSPro `petit="false"` extension; other programs may display them differently.
 - **Download bundle** — one `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest.
+
+PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. PDF symbols are assigned independently of symbols chosen in the editor.
 
 Designer branding (name, copyright, contact, logo) is set once in **File > Preferences > Profile & branding**. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md) for a walk-through.
 

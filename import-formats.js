@@ -26,7 +26,7 @@ function parseHexColor(hex) {
   if (hex.length === 3) {
     hex = hex.split('').map(c => c + c).join('');
   }
-  if (hex.length === 6) {
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
@@ -46,9 +46,10 @@ function importResultToProject(result, fabricCt = 14, name = "") {
     settings: { sW: result.width, sH: result.height, fabricCt: fabricCt },
     pattern: result.pattern.map(m => {
       if (m.id === "__skip__") return { id: "__skip__" };
-      return { id: m.id, type: m.type || "solid", rgb: m.rgb };
+      return Object.assign({}, m, { type: m.type || "solid" });
     }),
     bsLines: result.bsLines || [],
+    partialStitches: result.partialStitches || [],
     // French knots (knots.js), when the chart has any.
     knots: result.knots && result.knots.length ? result.knots : undefined,
     // Beads from an OXS chart: kept, drawn, not tracked.
@@ -97,8 +98,8 @@ function _oxsExtractDimension(doc, chart, sizeEls, attrPair) {
       if (value) break;
     }
   }
-  const parsed = parseInt(value, 10);
-  if (isNaN(parsed) || parsed <= 0) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
   if (parsed > 5000) return { tooLarge: true, value: parsed };
   return { value: parsed };
 }
@@ -157,17 +158,34 @@ function parseOXS(xmlString) {
   let width = wResult.value;
   let height = hResult.value;
 
+  // Count every rejected or changed object by type and reason.
+  const losses = Object.create(null);
+  function loss(type, reason) {
+    const key = type + ': ' + reason;
+    losses[key] = (losses[key] || 0) + 1;
+  }
+  function attr(el, names) {
+    for (const n of names) {
+      const v = el.getAttribute(n);
+      if (v != null && v.trim() !== '') return v.trim();
+    }
+    return null;
+  }
+  function num(el, names) {
+    const v = attr(el, names);
+    return v == null ? NaN : Number(v);
+  }
   // Parse palette
-  const paletteMap = {};
+  const paletteMap = Object.create(null);
   // What the file calls each palette entry (label and colour), before it is matched to a DMC thread: a bead is not a
   // thread, so a bead's own name and colour are what the project keeps.
-  const rawPalette = {};
+  const rawPalette = Object.create(null);
   const palContainer = chart.querySelector("palette") || chart.querySelector("Palette") || chart.querySelector("colors") || chart.querySelector("Colors");
   if (palContainer) {
-    const colorSelectors = ['color', 'Color', 'thread', 'Thread', 'entry', 'Entry'];
+    const colorSelectors = ['palette_item', 'color', 'Color', 'thread', 'Thread', 'entry', 'Entry'];
     let colorEls = [];
     for (const sel of colorSelectors) {
-      const els = palContainer.querySelectorAll(sel);
+      const els = Array.from(palContainer.children).filter(el => el.tagName === sel);
       if (els.length > 0) {
         colorEls = Array.from(els);
         break;
@@ -177,6 +195,40 @@ function parseOXS(xmlString) {
     colorEls.forEach((el, indexPos) => {
       let index = el.getAttribute("index") || el.getAttribute("idx") || el.getAttribute("id");
       if (index == null) index = indexPos;
+      if (!/^\d+$/.test(String(index).trim())) throw new Error('Invalid OXS palette index: ' + index);
+      index = String(Number(index));
+      if (Object.prototype.hasOwnProperty.call(rawPalette, index)) {
+        throw new Error('Invalid OXS palette: duplicate index ' + index);
+      }
+      // Keep legacy colour index 0 valid; only an explicitly labelled cloth is empty.
+      if (/^cloth$/i.test(el.getAttribute('number') || el.getAttribute('name') || '')) {
+        rawPalette[index] = { cloth: true };
+        return;
+      }
+      const blends = Array.from(el.children).filter(c => c.tagName === 'blend');
+      if (blends.length) {
+        const refs = blends.map(c => _oxsParseThreadRef(c.getAttribute('number')));
+        const strands = blends.map(c => c.getAttribute('strands') || '1');
+        const blendBrand = refs[0] && (refs[0].brand || 'dmc');
+        const threads = refs.map(r => r && (r.brand || 'dmc') === blendBrand &&
+          (blendBrand === 'dmc' ? _importDmcById(r.id) : blendBrand === 'anchor' && typeof findThreadInCatalog === 'function' ? findThreadInCatalog(blendBrand, r.id) : null));
+        if (threads.length === 2 && threads.every(Boolean) && strands[0] === strands[1] &&
+            strands.every(n => Number.isInteger(Number(n)) && Number(n) > 0)) {
+          const rgb = threads[0].rgb.map((v, i) => Math.round((v + threads[1].rgb[i]) / 2));
+          const t = { type: 'blend', id: threads.map(t => t.id).join('+'), rgb: rgb,
+            name: el.getAttribute('name') || threads.map(t => t.id).join('+'), threads: threads };
+          if (blendBrand !== 'dmc') t.brand = blendBrand;
+          paletteMap[index] = { dmcThread: t, rgb: rgb, matchedBy: 'id' };
+          rawPalette[index] = { label: t.name, rgb: rgb };
+        } else {
+          rawPalette[index] = { unsupported: 'blend (requires two known threads of the same brand with equal strands)' };
+        }
+        return;
+      }
+      if (el.getAttribute('blendcolor') && el.getAttribute('blendcolor') !== 'nil') {
+        rawPalette[index] = { unsupported: 'blendcolor without component thread references' };
+        return;
+      }
 
       let dmcThread = null;
       let rgb = null;
@@ -239,12 +291,13 @@ function parseOXS(xmlString) {
       }
 
       // Try extraction RGB
-      let r = el.getAttribute("red") || el.getAttribute("r");
-      let g = el.getAttribute("green") || el.getAttribute("g");
-      let b = el.getAttribute("blue") || el.getAttribute("b");
+      let r = attr(el, ["red", "r"]);
+      let g = attr(el, ["green", "g"]);
+      let b = attr(el, ["blue", "b"]);
 
       if (r != null && g != null && b != null) {
-        rgb = [parseInt(r), parseInt(g), parseInt(b)];
+        rgb = [Number(r), Number(g), Number(b)];
+        if (!rgb.every(v => Number.isInteger(v) && v >= 0 && v <= 255)) rgb = null;
       } else {
         const hex = el.getAttribute("color") || el.getAttribute("hex") || el.getAttribute("rgb");
         if (hex) rgb = parseHexColor(hex);
@@ -303,17 +356,17 @@ function parseOXS(xmlString) {
   // Dedupe palette entries by DMC id (first-wins). Multiple palette indexes
   // pointing at the same DMC colour can otherwise inflate the reported
   // palette size and hide legitimate colour collisions.
-  const _seenPaletteId = {};
-  const _paletteIndexRedirect = {};
+  const _seenPaletteId = Object.create(null);
+  const _paletteIndexRedirect = Object.create(null);
   // Every entry that didn't match a DMC id exactly, reported once the
   // stitches show which ones the chart actually uses.
-  const _substitutions = {};
+  const _substitutions = Object.create(null);
   for (const _idx in paletteMap) {
     const _e = paletteMap[_idx];
     if (_e.matchedBy && _e.matchedBy !== 'id') _substitutions[_idx] = _e;
   }
   for (const _idx in paletteMap) {
-    const _id = paletteMap[_idx].dmcThread.id;
+    const _id = (paletteMap[_idx].dmcThread.brand || 'dmc') + ':' + paletteMap[_idx].dmcThread.id;
     if (_seenPaletteId[_id] == null) {
       _seenPaletteId[_id] = _idx;
     } else {
@@ -328,6 +381,35 @@ function parseOXS(xmlString) {
   }));
   let stitchCount = 0;
   const _usedSubstitutions = {};
+  function threadAt(index, type) {
+    if (index != null && /^\d+$/.test(String(index))) index = String(Number(index));
+    if (rawPalette[index] && rawPalette[index].cloth) return null;
+    if (_substitutions[index]) {
+      _usedSubstitutions[index] = true;
+      loss(type, 'thread reference ' + _substitutions[index].sourceLabel + ' matched to DMC ' + _substitutions[index].dmcThread.id);
+    }
+    const target = _paletteIndexRedirect[index] != null ? _paletteIndexRedirect[index] : index;
+    const entry = paletteMap[target];
+    if (!entry) {
+      loss(type, rawPalette[index] && rawPalette[index].unsupported || 'missing or unresolved palette reference ' + String(index));
+      return null;
+    }
+    return Object.assign({ type: 'solid' }, entry.dmcThread);
+  }
+  function validCell(x, y) {
+    return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < width && y < height;
+  }
+  const partialMap = new Map();
+  function addPartial(x, y, quarters, type) {
+    if (!validCell(x, y)) { loss(type, 'invalid or out-of-bounds coordinates'); return; }
+    const idx = y * width + x, old = partialMap.get(idx) || {};
+    if (Object.keys(quarters).some(q => old[q] && old[q].id !== quarters[q].id)) {
+      loss(type, 'overlapping fractional threads cannot share a quadrant'); return;
+    }
+    if (Object.keys(quarters).some(q => old[q])) loss(type, 'overlapping duplicate quadrants merged');
+    partialMap.set(idx, Object.assign({}, old, quarters));
+  }
+
 
   const stitchContainer = chart.querySelector("fullstitches") || chart.querySelector("Fullstitches") ||
                           chart.querySelector("FullStitches") || chart.querySelector("stitches") ||
@@ -336,33 +418,42 @@ function parseOXS(xmlString) {
 
   const stitchEls = stitchContainer.querySelectorAll("stitch, Stitch, cross, Cross, cell, Cell, point, Point");
   stitchEls.forEach(el => {
-    let x = parseInt(el.getAttribute("x") || el.getAttribute("col") || el.getAttribute("column"));
-    let y = parseInt(el.getAttribute("y") || el.getAttribute("row"));
+    let x = num(el, ["x", "col", "column"]);
+    let y = num(el, ["y", "row"]);
     let palIdx = el.getAttribute("palindex") || el.getAttribute("palette") || el.getAttribute("color") ||
                  el.getAttribute("colorindex") || el.getAttribute("col_index") || el.getAttribute("index") || el.textContent.trim();
 
-    if (isNaN(x) || isNaN(y) || x < 0 || x >= width || y < 0 || y >= height) return;
-
-    if (_substitutions[palIdx]) _usedSubstitutions[palIdx] = true;
-    if (_paletteIndexRedirect[palIdx] != null) palIdx = _paletteIndexRedirect[palIdx];
-    const palEntry = paletteMap[palIdx];
-    if (palEntry && palEntry.dmcThread) {
-      const t = palEntry.dmcThread;
-      pattern[y * width + x] = {
-        type: "solid",
-        id: t.id,
-        name: t.name,
-        rgb: t.rgb,
-        lab: t.lab,
-        dist: 0
-      };
-      stitchCount++;
+    if (!validCell(x, y)) { loss('full stitch', 'invalid or out-of-bounds coordinates'); return; }
+    const t = threadAt(palIdx, 'full stitch');
+    if (t) {
+      if (pattern[y * width + x].id !== '__skip__') loss('full stitch', 'duplicate cell replaced');
+      else stitchCount++;
+      pattern[y * width + x] = t;
     }
   });
 
-  if (stitchCount === 0) {
-    throw new Error("No valid stitches found in pattern");
-  }
+  // Ursa partstitches: 3=/, 4=\\; 1/2 are three-quarter stitches.
+  chart.querySelectorAll('partstitches > partstitch').forEach(el => {
+    const x = num(el, ['x']), y = num(el, ['y']), d = num(el, ['direction']);
+    const major = num(el, ['major']);
+    const a = attr(el, ['palindex1']), b = attr(el, ['palindex2']);
+    const t1 = a != null && (a !== '0' || rawPalette[0]) ? threadAt(a, 'partstitch') : null;
+    const t2 = b != null && (b !== '0' || rawPalette[0]) && d < 3 ? threadAt(b, 'partstitch') : null;
+    let qs = {};
+    if (d === 3 || d === 4) {
+      if (a == null) loss('partstitch', 'missing primary thread reference');
+      if (t1) (d === 3 ? ['BL','TR'] : ['TL','BR']).forEach(q => { qs[q] = t1; });
+    } else if (d === 1 || d === 2) {
+      if (a == null && b == null) loss('partstitch', 'missing thread references');
+      if (t1 && t2 && major !== 1 && major !== 2) {
+        loss('partstitch', 'two overlapping three-quarter colours require an explicit major side'); return;
+      }
+      const left = d === 1 ? 'BL' : 'TL', right = d === 1 ? 'TR' : 'BR';
+      if (t1) (t2 && major === 2 ? [left] : ['TL','TR','BL','BR'].filter(q => q !== right)).forEach(q => { qs[q] = t1; });
+      if (t2) (t1 && major === 1 ? [right] : ['TL','TR','BL','BR'].filter(q => q !== left)).forEach(q => { qs[q] = t2; });
+    } else { loss('partstitch', 'unsupported direction ' + d); return; }
+    if (Object.keys(qs).length) addPartial(x, y, qs, 'partstitch');
+  });
 
   // Parse backstitch lines
   const bsLines = [];
@@ -371,17 +462,25 @@ function parseOXS(xmlString) {
   if (bsContainer) {
     const lineEls = bsContainer.querySelectorAll("backstitch, Backstitch, line, Line");
     lineEls.forEach(el => {
-      let x1 = parseFloat(el.getAttribute("x1") || el.getAttribute("startx"));
-      let y1 = parseFloat(el.getAttribute("y1") || el.getAttribute("starty"));
-      let x2 = parseFloat(el.getAttribute("x2") || el.getAttribute("endx"));
-      let y2 = parseFloat(el.getAttribute("y2") || el.getAttribute("endy"));
-      if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) return;
+      let x1 = num(el, ["x1", "startx"]);
+      let y1 = num(el, ["y1", "starty"]);
+      let x2 = num(el, ["x2", "endx"]);
+      let y2 = num(el, ["y2", "endy"]);
+      const kind = attr(el, ['objecttype', 'type']) || 'backstitch';
+      if (kind !== 'backstitch' && kind !== 'straightstitch') { loss(kind, 'unsupported line type'); return; }
+      if (![x1,y1,x2,y2].every(Number.isFinite)) { loss('backstitch', 'invalid coordinates'); return; }
       // Reject zero-length lines (x1===x2 && y1===y2) and any line whose
       // endpoints fall outside the chart grid.
-      if (x1 === x2 && y1 === y2) return;
-      if (x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0) return;
-      if (x1 > width || x2 > width || y1 > height || y2 > height) return;
-      bsLines.push({x1, y1, x2, y2});
+      if (x1 === x2 && y1 === y2) { loss('backstitch', 'zero-length line'); return; }
+      if (x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0) { loss('backstitch', 'out-of-bounds coordinates'); return; }
+      if (x1 > width || x2 > width || y1 > height || y2 > height) { loss('backstitch', 'out-of-bounds coordinates'); return; }
+      const t = threadAt(attr(el, ['palindex', 'palette', 'color', 'index']), 'backstitch');
+      if (t) {
+        const line = {x1, y1, x2, y2, colorId: t.id, rgb: t.rgb,
+          color: '#' + t.rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase()};
+        if (t.brand) line.brand = t.brand;
+        bsLines.push(line);
+      }
     });
   }
 
@@ -392,58 +491,86 @@ function parseOXS(xmlString) {
   // kept the same way, as untracked ornaments (they are not threads and are not
   // counted in the progress); other ornaments have nowhere to go and are reported.
   const knots = [];
-  const _knotAt = {};
+  const _knotAt = Object.create(null);
   const beads = [];
-  const _beadAt = {};
+  const _beadAt = Object.create(null);
   let otherOrnaments = 0;
   const ornContainer = chart.querySelector("ornaments_inc_knots_and_beads") || chart.querySelector("ornaments") ||
                        chart.querySelector("Ornaments");
   if (ornContainer) {
     ornContainer.querySelectorAll("object, Object, ornament, Ornament").forEach(el => {
       const kind = (el.getAttribute("objecttype") || el.getAttribute("type") || "").toLowerCase();
-      if (kind.indexOf("bead") !== -1 && kind.indexOf("knot") === -1) {
-        const bx = parseFloat(el.getAttribute("x1") || el.getAttribute("x"));
-        const by = parseFloat(el.getAttribute("y1") || el.getAttribute("y"));
-        if (isNaN(bx) || isNaN(by) || bx < 0 || by < 0 || bx > width || by > height) { otherOrnaments++; return; }
+      if (kind === 'tent' || (kind === 'quarter' && el.getAttribute('petit') === 'false')) {
+        const fx = num(el, ['x1','x']), fy = num(el, ['y1','y']);
+        const t = threadAt(attr(el, ['palindex','color','index']), kind);
+        if (!t) return;
+        let qs = {};
+        if (kind === 'tent') {
+          const d = num(el, ['direction']);
+          if (d !== 1 && d !== 2) { loss(kind, 'unsupported direction ' + d); return; }
+          (d === 1 ? ['TL','BR'] : ['BL','TR']).forEach(q => { qs[q] = t; });
+          addPartial(fx, fy, qs, kind);
+        } else {
+          if (!Number.isInteger(fx * 2) || !Number.isInteger(fy * 2)) { loss(kind, 'coordinates must use half-cell units'); return; }
+          const q = (fy % 1 ? 'B' : 'T') + (fx % 1 ? 'R' : 'L');
+          qs[q] = t;
+          addPartial(Math.floor(fx), Math.floor(fy), qs, kind);
+        }
+        return;
+      }
+      if (/^bead(?:[0-9.]+mm)?$/.test(kind)) {
+        const bx = num(el, ["x1", "x"]);
+        const by = num(el, ["y1", "y"]);
+        if (!Number.isFinite(bx) || !Number.isFinite(by) || bx < 0 || by < 0 || bx > width || by > height) { otherOrnaments++; loss('bead', 'invalid or out-of-bounds coordinates'); return; }
         const bIdx = el.getAttribute("palindex") || el.getAttribute("color") || el.getAttribute("index");
-        const raw = rawPalette[bIdx] || {};
+        const raw = rawPalette[bIdx];
+        if (!raw || raw.cloth) { loss('bead', 'missing palette reference ' + bIdx); return; }
         const bcx = Math.round(bx), bcy = Math.round(by);
         const bmx = Math.min(width - 1, Math.floor(bx)), bmy = Math.min(height - 1, Math.floor(by));
         const bCentre = Math.pow(bx - bmx - 0.5, 2) + Math.pow(by - bmy - 0.5, 2) < Math.pow(bx - bcx, 2) + Math.pow(by - bcy, 2);
         const px = bCentre ? 2 * bmx + 1 : 2 * bcx, py = bCentre ? 2 * bmy + 1 : 2 * bcy;
-        const bKey = px + "," + py + "," + (raw.label || "");
-        if (_beadAt[bKey]) return;
+        const bKey = px + "," + py + "," + (raw.label || "") + "," + String(raw.rgb);
+        if (_beadAt[bKey]) { loss('bead', 'duplicate object not imported'); return; }
+        if (px / 2 !== bx || py / 2 !== by) loss('bead', 'position snapped to nearest corner or centre');
         _beadAt[bKey] = true;
+        if (!raw.rgb) loss('bead', 'palette colour unavailable');
+        if (kind !== 'bead') loss(kind, 'bead size is not represented in the project model');
         const bead = { x: px, y: py };
         if (raw.label) bead.label = String(raw.label);
         if (raw.rgb) bead.rgb = raw.rgb;
         beads.push(bead);
         return;
       }
-      if (kind.indexOf("knot") === -1) { otherOrnaments++; return; }
-      const fx = parseFloat(el.getAttribute("x1") || el.getAttribute("x"));
-      const fy = parseFloat(el.getAttribute("y1") || el.getAttribute("y"));
-      if (isNaN(fx) || isNaN(fy) || fx < 0 || fy < 0 || fx > width || fy > height) return;
-      let palIdx = el.getAttribute("palindex") || el.getAttribute("color") || el.getAttribute("index");
-      if (_substitutions[palIdx]) _usedSubstitutions[palIdx] = true;
-      if (_paletteIndexRedirect[palIdx] != null) palIdx = _paletteIndexRedirect[palIdx];
-      const palEntry = paletteMap[palIdx];
-      if (!palEntry || !palEntry.dmcThread) return;
+      if (kind !== "knot") { otherOrnaments++; loss(kind || 'unknown ornament', 'unsupported ornament type'); return; }
+      const fx = num(el, ["x1", "x"]);
+      const fy = num(el, ["y1", "y"]);
+      if (!Number.isFinite(fx) || !Number.isFinite(fy) || fx < 0 || fy < 0 || fx > width || fy > height) {
+        loss('French knot', 'invalid or out-of-bounds coordinates'); return;
+      }
+      const t = threadAt(attr(el, ['palindex','color','index']), 'French knot');
+      if (!t) return;
       const cx = Math.round(fx), cy = Math.round(fy);
       const mx = Math.min(width - 1, Math.floor(fx)), my = Math.min(height - 1, Math.floor(fy));
       const centre = Math.pow(fx - mx - 0.5, 2) + Math.pow(fy - my - 0.5, 2) < Math.pow(fx - cx, 2) + Math.pow(fy - cy, 2);
       const kx = centre ? 2 * mx + 1 : 2 * cx, ky = centre ? 2 * my + 1 : 2 * cy;
       const key = kx + "," + ky;
-      if (_knotAt[key]) return;
+      if (_knotAt[key]) { loss('French knot', 'duplicate position not imported'); return; }
       _knotAt[key] = true;
-      knots.push({ x: kx, y: ky, id: palEntry.dmcThread.id, rgb: palEntry.dmcThread.rgb });
+      if (kx / 2 !== fx || ky / 2 !== fy) loss('French knot', 'position snapped to nearest corner or centre');
+      const knot = { x: kx, y: ky, id: t.id, rgb: t.rgb };
+      if (t.brand) knot.brand = t.brand;
+      knots.push(knot);
     });
   }
 
-  const warnings = [];
+  const partialStitches = Array.from(partialMap.entries());
+  if (!stitchCount && !bsLines.length && !partialStitches.length && !knots.length && !beads.length) {
+    throw new Error('No valid stitches found in pattern' + (Object.keys(losses).length ? ': ' + Object.keys(losses).map(k => losses[k] + ' ' + k).join('; ') : ''));
+  }
+  const warnings = Object.keys(losses).map(k => losses[k] + ' ' + k + '.');
   if (otherOrnaments > 0) {
     warnings.push(otherOrnaments + (otherOrnaments === 1 ? " ornament was" : " ornaments were") +
-      " not imported: only French knots and beads are supported.");
+      " not imported; see type-specific warnings.");
   }
   if (beads.length > 0) {
     warnings.push(beads.length + (beads.length === 1 ? " bead was" : " beads were") +
@@ -461,6 +588,7 @@ function parseOXS(xmlString) {
     height,
     pattern,
     bsLines,
+    partialStitches,
     knots,
     beads,
     stitchCount,
@@ -469,197 +597,184 @@ function parseOXS(xmlString) {
   };
 }
 
-// ── OXS Export ────────────────────────────────────────────────────────────────
-// Converts a stitchx project object into an Open X-Stitch (OXS) XML string.
-//
-// Input:
-//   project — { w, h, pattern[], bsLines[], name? }
-//             pattern cells: { id, type, rgb } | { id: '__skip__' } | { id: '__empty__' }
-//             blend cells (type === 'blend', id like '310+550') are exported as
-//             their primary thread; all downgraded blend ids are collected and
-//             reported in a single aggregated warning string.
-//
-// Returns:
-//   { xml: string, warnings: string[] }
-//   warnings contains at most one entry listing all blend ids that were downgraded.
+// OXS interchange: Ursa palette blends/partstitches and XSPro diagonal
+// quarters (petit=false). See https://www.ursasoftware.com/OXSFormat/ and
+// https://ursasoftware.com/xspro.pdf. Unsupported content is counted explicitly.
 function generateOXS(project) {
-  const w = project.w || 0;
-  const h = project.h || 0;
+  project = project || {};
+  const w = project.w || project.width || (project.settings && project.settings.sW);
+  const h = project.h || project.height || (project.settings && project.settings.sH);
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0 || w > 5000 || h > 5000) {
+    throw new Error('OXS: invalid chart dimensions (expected integers from 1 to 5000)');
+  }
   const pattern = Array.isArray(project.pattern) ? project.pattern : [];
-  const bsLines = Array.isArray(project.bsLines) ? project.bsLines : [];
-  const knots = Array.isArray(project.knots) ? project.knots : [];
-  const beads = Array.isArray(project.beads) ? project.beads : [];
-  const name = (project.name || '').replace(/[<>&"']/g, c => ({
-    '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
-  }[c]));
-
-  // Thread brands (P4-5): each stitch's own brand (absent: DMC). A DMC
-  // thread's number is its bare id, as before; another brand's carries its
-  // name ("Anchor 403"), which parseOXS reads back as that brand. The
-  // palette is keyed "brand:id", so Anchor 403 and DMC 403 stay apart.
-  function brandOf(m) { return m && m.brand ? String(m.brand).toLowerCase() : 'dmc'; }
-  function keyOf(b, id) { return b + ':' + id; }
-  function threadInfo(id, b) {
-    if (b === 'dmc') return _importDmcById(id);
-    return typeof findThreadInCatalog === 'function' ? findThreadInCatalog(b, id) : null;
+  const warnings = [], losses = Object.create(null);
+  function warn(type, reason) {
+    const k = type + ': ' + reason;
+    losses[k] = (losses[k] || 0) + 1;
   }
-  // The brand of each id in the pattern, for backstitches that name only an id.
-  const brandOfId = {};
-  for (let i = 0; i < pattern.length; i++) {
-    const c = pattern[i];
-    if (c && c.id && !(c.id in brandOfId)) brandOfId[c.id] = brandOf(c);
-  }
-
-  // ── Pass 1: build palette ─────────────────────────────────────────────────
-  // palMap: "brand:id" → { index, name, number, r, g, b }
-  const palMap = {};
-  const blendWarnings = [];   // blend ids that were downgraded
-  let palIndex = 0;
-
-  function registerThread(id, b, rgb, threadName) {
-    const k = keyOf(b, id);
-    if (palMap[k]) return;
-    palMap[k] = { index: palIndex++, name: threadName || id, number: b === 'dmc' ? id : _oxsBrandLabel(b) + ' ' + id, r: rgb[0], g: rgb[1], b: rgb[2] };
-  }
-
-  for (let i = 0; i < pattern.length; i++) {
-    const cell = pattern[i];
-    if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-    const b = brandOf(cell);
-
-    if (cell.type === 'blend') {
-      // Export as primary thread only; record warning once per blend id.
-      const primaryId = cell.id.split('+')[0];
-      if (blendWarnings.indexOf(cell.id) === -1) blendWarnings.push(cell.id);
-      if (!palMap[keyOf(b, primaryId)]) {
-        // Look up the primary thread for accurate colour values.
-        const dmc = threadInfo(primaryId, b);
-        const rgb = dmc ? dmc.rgb : (cell.rgb || [0, 0, 0]);
-        registerThread(primaryId, b, rgb, dmc ? dmc.name : primaryId);
-      }
-      continue;
-    }
-
-    registerThread(cell.id, b, cell.rgb || [0, 0, 0], cell.name || cell.id);
-  }
-
-  // Also register threads used by backstitch lines.
-  // Lines may carry an explicit colorId; otherwise we infer colour from the nearest
-  // non-skip cell at floor(x1), floor(y1). Returns the palette key.
-  function bsThreadKey(line) {
-    if (line.colorId) return keyOf(brandOfId[line.colorId] || 'dmc', line.colorId);
-    const cx = Math.max(0, Math.min(w - 1, Math.floor(line.x1)));
-    const cy = Math.max(0, Math.min(h - 1, Math.floor(line.y1)));
-    const cell = pattern[cy * w + cx];
-    if (!cell || cell.id === '__skip__' || cell.id === '__empty__') return null;
-    if (cell.type === 'blend') return keyOf(brandOf(cell), cell.id.split('+')[0]);
-    return keyOf(brandOf(cell), cell.id);
-  }
-
-  for (const line of bsLines) {
-    const k = bsThreadKey(line);
-    if (k && !palMap[k]) {
-      const c = k.indexOf(':');
-      const b = k.slice(0, c), tid = k.slice(c + 1);
-      const dmc = threadInfo(tid, b);
-      if (dmc) registerThread(dmc.id, b, dmc.rgb, dmc.name);
-    }
-  }
-
-  // And by French knots (blends, as for stitches, by their first thread).
-  function knotThreadKey(k) { return keyOf(brandOf(k), String(k.id).split('+')[0]); }
-  for (const k of knots) {
-    const tid = String(k.id).split('+')[0];
-    if (tid !== k.id && blendWarnings.indexOf(k.id) === -1) blendWarnings.push(k.id);
-    if (!palMap[knotThreadKey(k)]) {
-      const dmc = threadInfo(tid, brandOf(k));
-      registerThread(tid, brandOf(k), dmc ? dmc.rgb : (k.rgb || [0, 0, 0]), dmc ? dmc.name : tid);
-    }
-  }
-
-  // Beads (not threads): one palette entry per label and colour, under a key no thread can have.
-  function beadKey(b) { return 'bead:' + (b.label || 'Bead') + '|' + (Array.isArray(b.rgb) ? b.rgb.join(',') : ''); }
-  for (const b of beads) {
-    const k = beadKey(b);
-    if (palMap[k]) continue;
-    const rgb = Array.isArray(b.rgb) && b.rgb.length === 3 ? b.rgb : [128, 128, 128];
-    const label = b.label || 'Bead';
-    palMap[k] = { index: palIndex++, name: label, number: label, r: rgb[0], g: rgb[1], b: rgb[2] };
-  }
-
-  // ── Pass 2: build XML ─────────────────────────────────────────────────────
   function esc(s) {
-    return String(s).replace(/[<>&"']/g, c => ({
+    return String(s == null ? '' : s).replace(/[<>&"']/g, c => ({
       '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'
     }[c]));
   }
-
-  const lines = ['<?xml version="1.0" encoding="UTF-8"?>'];
-  lines.push('<chart>');
-  if (name) lines.push('  <title>' + name + '</title>');
-  lines.push('  <properties chartwidth="' + w + '" chartheight="' + h + '" />');
-
-  // Palette
-  lines.push('  <palette>');
-  const palEntries = Object.values(palMap).sort((a, b) => a.index - b.index);
-  for (const e of palEntries) {
-    lines.push('    <color index="' + e.index + '" name="' + esc(e.name) + '" number="' + esc(e.number) +
-      '" red="' + e.r + '" green="' + e.g + '" blue="' + e.b + '" />');
+  function brandOf(m) { return m.brand || project.threadBrand || (project.settings && project.settings.threadBrand) || 'dmc'; }
+  function rgbOK(rgb) { return Array.isArray(rgb) && rgb.length === 3 && rgb.every(v => Number.isInteger(v) && v >= 0 && v <= 255); }
+  function catalog(id, b) {
+    return b === 'dmc' ? _importDmcById(id) : (typeof findThreadInCatalog === 'function' ? findThreadInCatalog(b, id) : null);
+  }
+  function hex(rgb) { return rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+  const palette = [], palMap = new Map();
+  // Index 0 is cloth in standard OXS. Old stitchx exports used 0 for a thread;
+  // the reader still accepts those files when 0 is not labelled as cloth.
+  function register(m, type) {
+    if (!m || m.id == null) { warn(type, 'missing thread reference'); return null; }
+    if (m.id === '__skip__' || m.id === '__empty__') return null;
+    const id = String(m.id), b = brandOf(m), key = b + ':' + id;
+    const info = catalog(id, b);
+    const components = id.includes('+') || m.type === 'blend' ? id.split('+') : null;
+    let blends = null;
+    if (components) {
+      if ((m.threads != null && (!Array.isArray(m.threads) || m.threads.some(t => !t || typeof t !== 'object'))) ||
+          (m.blendRatio != null && !Array.isArray(m.blendRatio))) {
+        warn(type, 'blend ' + id + ' has malformed component data'); return null;
+      }
+      const weights = m.blendRatio || (m.threads && m.threads.map(t => t.strands == null ? 1 : Number(t.strands)));
+      if ((weights && (weights.length !== 2 || Number(weights[0]) !== Number(weights[1]) || !(Number(weights[0]) > 0))) ||
+          (m.threads && m.threads.some(t => t.brand && t.brand !== b))) {
+        warn(type, 'blend ' + id + ' has unsupported strand proportions or mixed brands'); return null;
+      }
+      if (components.length !== 2 || components.some(id => !id)) { warn(type, 'blend ' + id + ' requires two thread components'); return null; }
+      blends = components.map((id, i) => catalog(id, b) || (m.threads && m.threads[i]));
+      if (blends.some(t => !t || !rgbOK(t.rgb))) { warn(type, 'blend ' + id + ' has unavailable component colours'); return null; }
+    }
+    if (m.rgb != null && !rgbOK(m.rgb)) warn(type, 'invalid colour; using catalogue or component colour where available');
+    const rgb = rgbOK(m.rgb) ? m.rgb : info && info.rgb || (blends && blends[0].rgb.map((v,i) => Math.round((v + blends[1].rgb[i]) / 2)));
+    if (!rgbOK(rgb)) { warn(type, 'thread ' + id + ' has no valid colour'); return null; }
+    if (palMap.has(key)) return palMap.get(key);
+    const e = { index: palette.length + 1, id: id, brand: b, name: m.name || info && info.name || id, rgb: rgb, blends: blends };
+    palette.push(e); palMap.set(key, e);
+    return e;
+  }
+  function cellOK(x,y) { return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < w && y < h; }
+  const full = [], parts = [], back = [], ornaments = [];
+  pattern.forEach((m, idx) => {
+    if (!m || m.id === '__skip__' || m.id === '__empty__') return;
+    if (idx >= w*h) { warn('full stitch', 'outside chart dimensions'); return; }
+    const pe = register(m, 'full stitch');
+    if (pe) full.push('    <stitch x="' + idx % w + '" y="' + Math.floor(idx/w) + '" palindex="' + pe.index + '" />');
+  });
+  function entries(value) {
+    const all = value instanceof Map ? Array.from(value.entries()) : Array.isArray(value) ? value : [];
+    if (value != null && !(value instanceof Map) && !Array.isArray(value)) warn('fractional stitch', 'malformed collection');
+    return all.filter(entry => {
+      if (!Array.isArray(entry) || entry.length !== 2 || !entry[1] || typeof entry[1] !== 'object') {
+        warn('fractional stitch', 'malformed entry not exported'); return false;
+      }
+      return true;
+    });
+  }
+  // Modern quadrants take precedence; add legacy halves only where no modern
+  // definition exists, as saved Tracker projects may carry both representations.
+  const partials = new Map();
+  entries(project.partialStitches).forEach(entry => {
+    if (partials.has(entry[0])) warn('fractional stitch', 'duplicate cell definition replaced');
+    partials.set(entry[0], entry[1]);
+  });
+  entries(project.halfStitches).forEach(entry => {
+    if (!Array.isArray(entry) || partials.has(entry[0])) return;
+    const v = entry[1] || {}, qs = {};
+    if (v.fwd) { qs.BL = v.fwd; qs.TR = v.fwd; }
+    if (v.bck) { qs.TL = v.bck; qs.BR = v.bck; }
+    partials.set(entry[0], qs);
+  });
+  partials.forEach((qs, idx) => {
+    if (!Number.isInteger(idx) || !cellOK(idx % w, Math.floor(idx/w)) || !qs || typeof qs !== 'object') {
+      warn('fractional stitch', 'invalid cell or quadrant definition'); return;
+    }
+    const x = idx % w, y = Math.floor(idx / w);
+    const registered = {};
+    if (Object.keys(qs).some(q => !['TL','TR','BL','BR'].includes(q))) warn('fractional stitch', 'unknown quadrant fields not exported');
+    ['TL','TR','BL','BR'].forEach(q => { if (qs[q]) registered[q] = register(qs[q], 'quarter stitch'); });
+    // Each quadrant is a diagonal segment, not a miniature full cross.
+    // Pair identical opposite segments into standard Ursa half stitches.
+    [['BL','TR',3],['TL','BR',4]].forEach(pair => {
+      const a = registered[pair[0]], b = registered[pair[1]];
+      if (a && a === b) {
+        parts.push('    <partstitch x="' + x + '" y="' + y + '" palindex1="' + a.index + '" palindex2="0" direction="' + pair[2] + '" />');
+        delete registered[pair[0]]; delete registered[pair[1]];
+      }
+    });
+    Object.keys(registered).forEach(q => {
+      const pe = registered[q];
+      if (!pe) return;
+      // XSPro's petit=false distinguishes a diagonal quarter from Ursa's
+      // miniature cross. Consumers without this extension may draw a petit.
+      ornaments.push('    <object x1="' + (x + (q[1] === 'R' ? 0.5 : 0)) + '" y1="' + (y + (q[0] === 'B' ? 0.5 : 0)) + '" palindex="' + pe.index + '" objecttype="quarter" petit="false" />');
+    });
+  });
+  (Array.isArray(project.bsLines) ? project.bsLines : []).forEach(line => {
+    if (!line || !['x1','y1','x2','y2'].every(k => Number.isFinite(line[k])) ||
+        line.x1 < 0 || line.x2 < 0 || line.y1 < 0 || line.y2 < 0 ||
+        line.x1 > w || line.x2 > w || line.y1 > h || line.y2 > h ||
+        (line.x1 === line.x2 && line.y1 === line.y2)) {
+      warn('backstitch', 'invalid, zero-length or out-of-bounds line'); return;
+    }
+    let thread;
+    if (line.colorId != null && line.colorId !== '') {
+      // Explicit references are independent of all full stitches, including brand.
+      thread = { id: line.colorId, brand: brandOf(line), rgb: line.rgb };
+    } else {
+      thread = pattern[Math.min(h-1, Math.floor(line.y1)) * w + Math.min(w-1, Math.floor(line.x1))];
+      if (!thread || thread.id === '__skip__' || thread.id === '__empty__') {
+        warn('backstitch', 'legacy line has no thread reference or underlying stitch; not exported'); return;
+      }
+      warn('backstitch', 'legacy line has no thread reference; inferred from underlying stitch');
+    }
+    const pe = register(thread, 'backstitch');
+    if (pe) back.push('    <backstitch x1="' + line.x1 + '" y1="' + line.y1 + '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pe.index + '" objecttype="backstitch" />');
+  });
+  (Array.isArray(project.knots) ? project.knots : []).forEach(k => {
+    if (!k || !Number.isInteger(k.x) || !Number.isInteger(k.y) || k.x < 0 || k.y < 0 || k.x > 2*w || k.y > 2*h || k.x % 2 !== k.y % 2) {
+      warn('French knot', 'invalid or unsupported position'); return;
+    }
+    const pe = register(k, 'French knot');
+    if (pe) ornaments.push('    <object x1="' + k.x/2 + '" y1="' + k.y/2 + '" palindex="' + pe.index + '" objecttype="knot" />');
+  });
+  (Array.isArray(project.beads) ? project.beads : []).forEach(b => {
+    if (!b || !Number.isInteger(b.x) || !Number.isInteger(b.y) || b.x < 0 || b.y < 0 || b.x > 2*w || b.y > 2*h) { warn('bead', 'invalid position'); return; }
+    if (!rgbOK(b.rgb)) warn('bead', 'missing or invalid colour replaced with grey');
+    const pe = { index: palette.length + 1, id: b.label || 'Bead', name: b.label || 'Bead', rgb: rgbOK(b.rgb) ? b.rgb : [128,128,128], brand: 'bead' };
+    palette.push(pe);
+    ornaments.push('    <object x1="' + b.x/2 + '" y1="' + b.y/2 + '" palindex="' + pe.index + '" objecttype="bead" />');
+  });
+  const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<chart>'];
+  if (project.name) lines.push('  <title>' + esc(project.name) + '</title>');
+  lines.push('  <properties chartwidth="' + w + '" chartheight="' + h + '" />', '  <palette>');
+  lines.push('    <color index="0" number="cloth" name="cloth" color="FFFFFF" />');
+  palette.forEach(e => {
+    const number = e.brand === 'dmc' || e.brand === 'bead' ? e.id : _oxsBrandLabel(e.brand) + ' ' + e.id;
+    const start = '    <color index="' + e.index + '" name="' + esc(e.name) + '" number="' + esc(number) + '" color="' + hex(e.rgb) + '" red="' + e.rgb[0] + '" green="' + e.rgb[1] + '" blue="' + e.rgb[2] + '"';
+    if (!e.blends) lines.push(start + ' />');
+    else {
+      lines.push(start + '>');
+      e.blends.forEach(t => lines.push('      <blend number="' + esc(_oxsBrandLabel(e.brand) + ' ' + t.id) + '" name="' + esc(t.name || t.id) + '" color="' + hex(t.rgb) + '" strands="1" />'));
+      lines.push('    </color>');
+    }
+  });
+  function section(tag, objects) {
+    lines.push('  <' + tag + '>');
+    objects.forEach(line => lines.push(line));
+    lines.push('  </' + tag + '>');
   }
   lines.push('  </palette>');
-
-  // Full stitches
-  lines.push('  <fullstitches>');
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const cell = pattern[y * w + x];
-      if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-      const tid = cell.type === 'blend' ? cell.id.split('+')[0] : cell.id;
-      const pe = palMap[keyOf(brandOf(cell), tid)];
-      if (!pe) continue;
-      lines.push('    <stitch x="' + x + '" y="' + y + '" palindex="' + pe.index + '" />');
-    }
-  }
-  lines.push('  </fullstitches>');
-
-  // Backstitch lines
-  if (bsLines.length > 0) {
-    lines.push('  <backstitches>');
-    for (const line of bsLines) {
-      const k = bsThreadKey(line);
-      const pe = k ? palMap[k] : null;
-      if (!pe) continue;
-      lines.push('    <backstitch x1="' + line.x1 + '" y1="' + line.y1 +
-        '" x2="' + line.x2 + '" y2="' + line.y2 + '" palindex="' + pe.index + '" />');
-    }
-    lines.push('  </backstitches>');
-  }
-
-  // French knots, as ornaments (x1, y1 in stitches: corners whole, centres
-  // at .5), the way parseOXS reads them back.
-  if (knots.length > 0 || beads.length > 0) {
-    lines.push('  <ornaments_inc_knots_and_beads>');
-    for (const k of knots) {
-      const pe = palMap[knotThreadKey(k)];
-      if (!pe) continue;
-      lines.push('    <object x1="' + (k.x / 2) + '" y1="' + (k.y / 2) + '" palindex="' + pe.index + '" objecttype="knot" />');
-    }
-    for (const b of beads) {
-      const pe = palMap[beadKey(b)];
-      if (!pe) continue;
-      lines.push('    <object x1="' + (b.x / 2) + '" y1="' + (b.y / 2) + '" palindex="' + pe.index + '" objecttype="bead" />');
-    }
-    lines.push('  </ornaments_inc_knots_and_beads>');
-  }
-
+  section('fullstitches', full);
+  if (parts.length) section('partstitches', parts);
+  section('backstitches', back);
+  if (ornaments.length) section('ornaments_inc_knots_and_beads', ornaments);
   lines.push('</chart>');
-
-  const warnings = blendWarnings.length > 0
-    ? ['Blend ' + blendWarnings.join(', ') + (blendWarnings.length === 1 ? ' was' : ' were') +
-       ' exported as primary thread — blend colours are not part of the OXS standard.']
-    : [];
-
-  return { xml: lines.join('\n'), warnings };
+  Object.keys(losses).forEach(k => warnings.push(losses[k] + ' ' + k + '.'));
+  return { xml: lines.join('\n'), warnings: warnings };
 }
 
 function parseImagePattern(img, options = {}) {

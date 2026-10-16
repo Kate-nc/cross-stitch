@@ -31,7 +31,7 @@ window.usePreview = function usePreview(state) {
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
     if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
-    if (pw < 10) pw = 10;
+    if (pw < 1) pw = 1;
     if (ph < 1) ph = 1;
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
@@ -47,12 +47,9 @@ window.usePreview = function usePreview(state) {
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
       cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-      raw = cx.getImageData(0, 0, pw, ph).data;
-      if (smooth > 0) {
-        if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
-        else if (smoothType === "bilateral" && typeof applyBilateralFilter === 'function') applyBilateralFilter(raw, pw, ph);
-        else applyMedianFilter(raw, pw, ph, smooth);
-      }
+      var previewImageData = cx.getImageData(0, 0, pw, ph);
+      if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+      raw = previewImageData.data;
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
 
@@ -67,6 +64,8 @@ window.usePreview = function usePreview(state) {
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
         minSt: settings.minSt, seed: settings.seed,
+        smooth: smooth, smoothType: smoothType,
+        disambig: settings.disambig, disambigLevel: settings.disambigLevel,
       };
       if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
       return o;
