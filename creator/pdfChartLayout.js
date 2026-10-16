@@ -183,18 +183,24 @@
    *   1. solid threads first (sorted numerically by id where possible, else lexically),
    *   2. then blends (sorted lexically by id).
    *
-   * Codepoints are assigned starting at spec.baseCodepoint (U+E000).
-   * Blends past the end of the spec wrap around (worst case: very rare patterns
-   * with > 96 colours fall back to repeated symbols — visually distinguished by
-   * the colour swatch in the legend).
+   * Only used IDs consume capacity when supplied by the export worker.
+   * Editor symbol overrides belong to the screen font; PDFs deliberately use
+   * this embedded font's deterministic assignment instead (see in-app help).
+   * Never wrap: a monochrome chart must identify every thread unambiguously.
    */
-  function buildCodepointMap(palette, spec) {
-    var base = spec.baseCodepoint;
+  function buildCodepointMap(palette, spec, usedIds) {
+    if (!spec || !spec.glyphs || !spec.glyphs.length) {
+      throw new Error("PDF symbol font specification is missing or empty.");
+    }
     var capacity = spec.glyphs.length;
+    var seen = Object.create(null);
     var solids = [], blends = [];
     palette.forEach(function (e) {
       if (!e || !e.id) return;
       if (e.id === "__skip__" || e.id === "__empty__") return;
+      if (usedIds && !Object.prototype.hasOwnProperty.call(usedIds, e.id)) return;
+      if (seen[e.id]) return;
+      seen[e.id] = true;
       if (e.type === "blend") blends.push(e); else solids.push(e);
     });
     function numericKey(id) {
@@ -208,10 +214,16 @@
     });
     blends.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
 
-    var map = {};
+    var map = Object.create(null);
     var ordered = solids.concat(blends);
+    if (usedIds) Object.keys(usedIds).forEach(function (id) {
+      if (!seen[id]) throw new Error("PDF export: used thread " + id + " is missing from the palette.");
+    });
+    if (ordered.length > capacity) {
+      throw new Error("PDF export needs " + ordered.length + " distinct symbols; the verified capacity is " + capacity + ". Reduce the used threads or blends before exporting.");
+    }
     for (var i = 0; i < ordered.length; i++) {
-      map[ordered[i].id] = base + (i % capacity);
+      map[ordered[i].id] = spec.glyphs[i].codepoint;
     }
     return { map: map, order: ordered.map(function (e) { return e.id; }) };
   }

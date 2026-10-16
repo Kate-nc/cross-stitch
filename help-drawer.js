@@ -397,6 +397,7 @@
           bullets: [
             ["Quick presets", "For Pattern Keeper: symbols and colour, medium print, 2-row overlap, cover page. For printing (home): large print, no overlap, no cover page."],
             ["Page size", "Auto (A4 or US Letter depending on where you are), A4 or US Letter."],
+            ["Chart symbols", "PDF charts assign their own embedded symbols, independently of symbols chosen in the editor. Each used thread or blend gets a distinct symbol in both chart modes, the key and page summaries. Up to 112 used threads and blends are supported; unused palette colours and empty cells do not count. Exports above this limit stop with an error so stitches cannot share a symbol."],
             ["Stitches per page", "Small, Medium (best for Pattern Keeper), Large or Custom — fewer stitches per page means bigger, easier-to-read cells."],
             ["Chart modes", "Symbols on white (B&W), Colour blocks with symbols, or both."],
             ["Optional pages", "Cover page, Info page, Chart index and a mini-legend strip on each page can each be turned on or off."],

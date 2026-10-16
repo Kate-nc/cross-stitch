@@ -8,6 +8,13 @@ window.APP_VERSION = '1.0.160';
 
 window.APP_CHANGELOG = [
   {
+    version: 'Unreleased',
+    date: 'October 2026',
+    notes: [
+      'Fixed: PDF charts now give every used thread or blend a distinct embedded symbol, with the same assignment in the key and page summaries. The font supports 112 symbols and clearer shapes; larger exports stop with an error instead of reusing symbols. Unused palette colours and empty cells do not count towards the limit.'
+    ]
+  },
+  {
     version: '1.0.156',
     date: 'October 2026',
     notes: [

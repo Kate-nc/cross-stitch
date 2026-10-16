@@ -125,17 +125,38 @@ describe('buildCodepointMap', () => {
     expect(out.map['__skip__']).toBeUndefined();
   });
 
-  test('wraps around when palette exceeds spec capacity', () => {
-    const palette = [];
-    for (let i = 0; i < spec.glyphs.length + 5; i++) {
-      // Use numeric-prefixed ids so the natural sort places them in i-order.
-      palette.push({ id: String(1000 + i), type: 'solid' });
-    }
+  test.each([0, 1, 95, 96, 97, 99, 100, 111, 112])('%i entries have unique symbols', (n) => {
+    const palette = Array.from({ length: n }, (_, i) => ({ id: String(1000 + i), type: 'solid' }));
     const out = layout.buildCodepointMap(palette, spec);
-    expect(out.order.length).toBe(spec.glyphs.length + 5);
-    // First and (capacity)th entries should share a codepoint after wrap.
-    expect(out.map['1000']).toBe(out.map[String(1000 + spec.glyphs.length)]);
+    expect(out.order).toHaveLength(n);
+    expect(new Set(Object.values(out.map)).size).toBe(n);
+    expect(layout.buildCodepointMap(palette.reverse(), spec)).toEqual(out);
   });
+
+  test.each([113, 114, 200])('rejects %i used entries rather than wrapping', (n) => {
+    expect(() => layout.buildCodepointMap(Array.from({ length: n }, (_, i) => ({ id: String(i) })), spec))
+      .toThrow(new RegExp('needs ' + n + ' distinct symbols.*capacity is 112'));
+  });
+
+  test('deduplicates thread references and excludes unused and empty entries', () => {
+    const a = { id: '310', type: 'solid', symbol: 'same editor override' };
+    const b = { id: '310+550', type: 'blend', symbol: 'same editor override' };
+    const unused = Array.from({ length: 200 }, (_, i) => ({ id: String(1000 + i) }));
+    const out = layout.buildCodepointMap([null, {}, a, a, b, {id: '__empty__'}, {id: '__skip__'}, ...unused], spec, {'310': 3, '310+550': 1});
+    expect(out.order).toEqual(['310', '310+550']);
+    expect(Object.values(out.map)).toEqual([0xE000, 0xE001]);
+  });
+
+  test('rejects missing used threads and missing font spec', () => {
+    expect(() => layout.buildCodepointMap([], spec, {310: 1})).toThrow('missing from the palette');
+    expect(() => layout.buildCodepointMap([], null)).toThrow('specification');
+  });
+
+  test('uses verified glyph codepoints and handles object-property thread IDs', () => {
+    expect(layout.buildCodepointMap([{id:'__proto__'}, {id:'constructor'}], spec).order).toHaveLength(2);
+    expect(layout.buildCodepointMap([{id:'310'}], {glyphs:[{codepoint:0xE010}]}).map['310']).toBe(0xE010);
+  });
+
 });
 
 describe('contrastColor', () => {
