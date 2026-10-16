@@ -89,6 +89,8 @@ self.onmessage = function(e) {
       try { self.postMessage({ type: 'progress', reqId: reqId, stage: stage, message: message }); } catch (_) {}
     }
 
+    var coverageMask = prepareConversionPixels(raw, width, height, settings);
+
     // ── 1. Pre-processing: image smoothing ─────────────────────────────────
     if (settings.preSmooth) {
       postProgress('smoothing', 'Pre-smoothing image…');
@@ -112,16 +114,13 @@ self.onmessage = function(e) {
     var dithAlgo     = settings.dithAlgo || (dith ? "atkinson" : "off");
     var dithBayerSize = settings.dithBayerSize || 4;
     var allowBlends  = settings.allowBlends;
-    var skipBg       = settings.skipBg;
-    var bgCol        = settings.bgCol;
-    var bgTh         = settings.bgTh;
     var stitchCleanup = settings.stitchCleanup;
     var orphansOpt = settings.orphans != null ? settings.orphans : null;
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
     var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
-    if (!p.length) {
+    if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
     }
@@ -138,15 +137,6 @@ self.onmessage = function(e) {
       mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
     } else {
       mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
-    }
-
-    if (skipBg) {
-      var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-      for (var i = 0; i < mapped.length; i++) {
-        if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-          mapped[i] = { type: 'skip', id: '__skip__', rgb: [255, 255, 255], lab: [100, 0, 0] };
-        }
-      }
     }
 
     // ── 3. Rarity removal (minSt pass) ───────────────────────────────────────
@@ -220,7 +210,8 @@ self.onmessage = function(e) {
     // Without dithering the fold allows more (EDGE_BLEND_MAX_DE_NO_DITHER).
     if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === 'function') {
       mergeEdgeBlendColours(mapped, width, height, {
-        bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null,
+        // Coverage is already decided. Colour cleanup must not create new holes.
+        bgLab: null,
         maxDeltaE: (!dith || dithAlgo === 'off') && typeof EDGE_BLEND_MAX_DE_NO_DITHER === 'number' ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
       });
     }

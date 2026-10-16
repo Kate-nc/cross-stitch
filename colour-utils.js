@@ -96,14 +96,55 @@ function pendingStitchLook(rgb, fade) {
   return look;
 }
 
+/** Snapshot coverage before filtering. Alpha follows detectUniformBorder's 128
+ * cutoff, after canvas premultiplied-alpha resizing. Never infer holes from RGB.
+ * Alpha-bearing images already define their background; for opaque pictures,
+ * Skip background removes only 4-connected matching regions touching the border.
+ * Mutates this pipeline's private pixel buffer, not the source or preview cache.
+ * Returns a Uint8Array coverage mask (1 = stitchable, 0 = empty).
+ */
+function prepareConversionPixels(data, w, h, opts) {
+  var n = w * h, mask = new Uint8Array(n), hasTransparency = false;
+  for (var i = 0; i < n; i++) {
+    if (data[i * 4 + 3] < 255) hasTransparency = true;
+    mask[i] = data[i * 4 + 3] >= 128 ? 1 : 0;
+  }
+  if (opts.skipBg && !hasTransparency) {
+    var bgLab = rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]);
+    var seen = new Uint8Array(n), queue = [];
+    function visit(i) {
+      if (seen[i]) return;
+      seen[i] = 1;
+      if (dE(rgbToLab(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]), bgLab) < opts.bgTh) {
+        mask[i] = 0; queue.push(i);
+      }
+    }
+    for (var x = 0; x < w; x++) { visit(x); visit((h - 1) * w + x); }
+    for (var y = 0; y < h; y++) { visit(y * w); visit(y * w + w - 1); }
+    for (var head = 0; head < queue.length; head++) {
+      var i = queue[head], x = i % w;
+      if (x > 0) visit(i - 1);
+      if (x < w - 1) visit(i + 1);
+      if (i >= w) visit(i - w);
+      if (i + w < n) visit(i + w);
+    }
+  }
+  for (var i = 0; i < n; i++) {
+    data[i * 4 + 3] = mask[i] ? 255 : 0;
+    if (!mask[i]) data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = 0;
+  }
+  return mask;
+}
+
 function quantize(data,w,h,n,allowedPalette,options){
   var pool=allowedPalette&&allowedPalette.length?allowedPalette:DMC;
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  // PERF (perf-1 #1): pre-allocate px[] (was push in tight per-pixel loop)
-  let len=w*h, px=new Array(len);
-  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);}
+  // Compact visible samples so hidden RGB never affects cluster selection.
+  let len=w*h, px=[];
+  for(let i=0;i<len;i++){let j=i*4;if(data[j+3]>=128)px.push(rgbToLab(data[j],data[j+1],data[j+2]));}
+  if(!px.length)return [];
   let cs=[px[Math.floor(random()*px.length)]];
   let ds=new Float32Array(px.length);
   for(let i=0;i<px.length;i++){ds[i]=1e9;}
@@ -172,8 +213,10 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   var maxN=Math.min(n,pool.length);
   let seed=(options&&options.seed!=null)?options.seed:1337;
   function random(){let t=seed+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
-  let len=w*h, px=new Array(len), pxOk=new Array(len);
-  for(let i=0;i<len;i++){let j=i*4;px[i]=rgbToLab(data[j],data[j+1],data[j+2]);pxOk[i]=rgbToOklab(data[j],data[j+1],data[j+2]);}
+  let len=w*h, px=[], pxOk=[];
+  for(let i=0;i<len;i++){let j=i*4;if(data[j+3]>=128){px.push(rgbToLab(data[j],data[j+1],data[j+2]));pxOk.push(rgbToOklab(data[j],data[j+1],data[j+2]));}}
+  len=px.length;
+  if(!len)return [];
   // Pre-compute OKLab for every pool entry once, computing on-the-fly for any
   // entry that lacks .oklab (e.g. stash entries loaded from IndexedDB that were
   // serialised before this field was added). Without this guard, pool[ti].oklab
@@ -333,6 +376,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = y * w + x;
+      if (data[idx * 4 + 3] < 128) { r[idx] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }; continue; }
 
       const cr = Math.max(0, Math.min(255, d[idx * 3]));
       const cg = Math.max(0, Math.min(255, d[idx * 3 + 1]));
@@ -426,13 +470,13 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
       const eB = (cb - chosen.rgb[2]) * ditherStrength;
 
       // Row 0: right +1, right +2
-      if (x + 1 < w) {
+      if (x + 1 < w && data[(idx + 1) * 4 + 3] >= 128) {
         const ni = (idx + 1) * 3;
         d[ni]     += eR / 8;
         d[ni + 1] += eG / 8;
         d[ni + 2] += eB / 8;
       }
-      if (x + 2 < w) {
+      if (x + 2 < w && data[(idx + 1) * 4 + 3] >= 128 && data[(idx + 2) * 4 + 3] >= 128) {
         const ni2 = (idx + 2) * 3;
         d[ni2]     += eR / 8;
         d[ni2 + 1] += eG / 8;
@@ -440,17 +484,19 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
       }
       // Row 1: below-left, below, below-right
       if (y + 1 < h) {
-        if (x > 0) {
+        if (x > 0 && data[(idx + w - 1) * 4 + 3] >= 128) {
           const ni3 = (idx + w - 1) * 3;
           d[ni3]     += eR / 8;
           d[ni3 + 1] += eG / 8;
           d[ni3 + 2] += eB / 8;
         }
         const ni4 = (idx + w) * 3;
-        d[ni4]     += eR / 8;
-        d[ni4 + 1] += eG / 8;
-        d[ni4 + 2] += eB / 8;
-        if (x + 1 < w) {
+        if (data[(idx + w) * 4 + 3] >= 128) {
+          d[ni4]     += eR / 8;
+          d[ni4 + 1] += eG / 8;
+          d[ni4 + 2] += eB / 8;
+        }
+        if (x + 1 < w && data[(idx + w + 1) * 4 + 3] >= 128) {
           const ni5 = (idx + w + 1) * 3;
           d[ni5]     += eR / 8;
           d[ni5 + 1] += eG / 8;
@@ -458,7 +504,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
         }
       }
       // Row 2: two rows below
-      if (y + 2 < h) {
+      if (y + 2 < h && data[(idx + w) * 4 + 3] >= 128 && data[(idx + w * 2) * 4 + 3] >= 128) {
         const ni6 = (idx + w * 2) * 3;
         d[ni6]     += eR / 8;
         d[ni6 + 1] += eG / 8;
@@ -514,6 +560,7 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
     for (let x = 0; x < w; x++) {
       const idx = y * w + x;
       const base = idx * 4;
+      if (data[base + 3] < 128) { r[idx] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }; continue; }
 
       // Normalised threshold: t ∈ (-0.5, 0.5).
       // Adding 0.5 before dividing centres each quantisation level.
@@ -609,6 +656,11 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
     if (px >= w || py >= h) continue;  // outside image bounds
 
     var idx = py * w + px;
+    if (data[idx * 4 + 3] < 128) {
+      result[idx] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
+      qR.fill(0); qG.fill(0); qB.fill(0); pos = 0;
+      continue;
+    }
 
     // Accumulate weighted error from the queue
     var accR = 0, accG = 0, accB = 0;
@@ -644,6 +696,7 @@ function doMap(data, w, h, pal, allowBlends = true) {
   let r = new Array(w * h);
   let cache = new Map();
   for (let i = 0; i < w * h; i++) {
+    if (data[i * 4 + 3] < 128) { r[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] }; continue; }
     let r_val = data[i * 4];
     let g_val = data[i * 4 + 1];
     let b_val = data[i * 4 + 2];
@@ -785,6 +838,11 @@ function applyMedianFilterCore(data, w, h, radius, buf) {
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
+      let outPixel = (y * w + x) * 4;
+      if (data[outPixel + 3] < 128) {
+        for (let ch = 0; ch < 4; ch++) buf[outPixel + ch] = data[outPixel + ch];
+        continue;
+      }
       let idx = 0;
       for (let dy = -radius; dy <= radius; dy++) {
         let ny = y + dy;
@@ -794,21 +852,22 @@ function applyMedianFilterCore(data, w, h, radius, buf) {
           let nx = x + dx;
           if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
           let pIdx = (rowOff + nx) << 2;
+          if (data[pIdx + 3] < 128) continue;
           rArr[idx] = data[pIdx];
           gArr[idx] = data[pIdx + 1];
           bArr[idx] = data[pIdx + 2];
           idx++;
         }
       }
-      rArr.sort();
-      gArr.sort();
-      bArr.sort();
+      const rs = rArr.subarray(0, idx).sort();
+      const gs = gArr.subarray(0, idx).sort();
+      const bs = bArr.subarray(0, idx).sort();
 
-      let mid = size >> 1;
+      let mid = idx >> 1;
       let outIdx = (y * w + x) << 2;
-      buf[outIdx] = rArr[mid];
-      buf[outIdx + 1] = gArr[mid];
-      buf[outIdx + 2] = bArr[mid];
+      buf[outIdx] = idx ? rs[mid] : data[outIdx];
+      buf[outIdx + 1] = idx ? gs[mid] : data[outIdx + 1];
+      buf[outIdx + 2] = idx ? bs[mid] : data[outIdx + 2];
       buf[outIdx + 3] = data[outIdx + 3];
     }
   }
@@ -862,12 +921,13 @@ function applyGaussianBlur(data, w, h, sigma) {
   // Horizontal pass
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      let r = 0, g = 0, b = 0;
+      let r = 0, g = 0, b = 0, coverage = 0;
       for (let k = -radius; k <= radius; k++) {
         let nx = x + k;
         if (nx < 0) nx = 0; else if (nx >= w) nx = w - 1;
         const idx = (y * w + nx) << 2;
-        const weight = kernel[k + radius];
+        const weight = kernel[k + radius] * buf[idx + 3] / 255;
+        coverage += weight;
         r += buf[idx] * weight;
         g += buf[idx + 1] * weight;
         b += buf[idx + 2] * weight;
@@ -876,28 +936,30 @@ function applyGaussianBlur(data, w, h, sigma) {
       temp[outIdx] = r;
       temp[outIdx + 1] = g;
       temp[outIdx + 2] = b;
-      temp[outIdx + 3] = buf[outIdx + 3];
+      temp[outIdx + 3] = coverage;
     }
   }
 
   // Vertical pass
   for (let x = 0; x < w; x++) {
     for (let y = 0; y < h; y++) {
-      let r = 0, g = 0, b = 0;
+      let r = 0, g = 0, b = 0, coverage = 0;
       for (let k = -radius; k <= radius; k++) {
         let ny = y + k;
         if (ny < 0) ny = 0; else if (ny >= h) ny = h - 1;
         const idx = (ny * w + x) << 2;
         const weight = kernel[k + radius];
+        coverage += temp[idx + 3] * weight;
         r += temp[idx] * weight;
         g += temp[idx + 1] * weight;
         b += temp[idx + 2] * weight;
       }
       const outIdx = (y * w + x) << 2;
-      data[outIdx] = r;
-      data[outIdx + 1] = g;
-      data[outIdx + 2] = b;
-      data[outIdx + 3] = temp[outIdx + 3];
+      if (coverage > 0 && buf[outIdx + 3] > 0) {
+        data[outIdx] = r / coverage;
+        data[outIdx + 1] = g / coverage;
+        data[outIdx + 2] = b / coverage;
+      }
     }
   }
 
@@ -949,6 +1011,10 @@ function applyBilateralFilter(data, w, h, opts) {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const ci = (y * w + x) * 4;
+      if (data[ci + 3] < 128) {
+        out.set(data.subarray(ci, ci + 4), ci);
+        continue;
+      }
       const cr = data[ci], cg = data[ci + 1], cb = data[ci + 2];
       let sr = 0, sg = 0, sb = 0, wSum = 0;
       for (let ky = -R; ky <= R; ky++) {
@@ -956,6 +1022,7 @@ function applyBilateralFilter(data, w, h, opts) {
         for (let kx = -R; kx <= R; kx++) {
           const nx  = Math.max(0, Math.min(w - 1, x + kx));
           const ni  = (ny * w + nx) * 4;
+          if (data[ni + 3] < 128) continue;
           const dr  = data[ni] - cr, dg = data[ni + 1] - cg, db = data[ni + 2] - cb;
           const rid = Math.min(LUT_N - 1, (dr * dr + dg * dg + db * db) / LUT_SC) | 0;
           const wt  = spatialW[(ky + R) * kd + (kx + R)] * rangeLUT[rid];
@@ -963,9 +1030,9 @@ function applyBilateralFilter(data, w, h, opts) {
           wSum += wt;
         }
       }
-      out[ci]     = sr / wSum;
-      out[ci + 1] = sg / wSum;
-      out[ci + 2] = sb / wSum;
+      out[ci]     = wSum ? sr / wSum : cr;
+      out[ci + 1] = wSum ? sg / wSum : cg;
+      out[ci + 2] = wSum ? sb / wSum : cb;
       out[ci + 3] = data[ci + 3];
     }
   }
@@ -1052,11 +1119,19 @@ function applyUnsharpMask(data, w, h, opts) {
 
   // Gaussian-blur the L channel with a separable 1-D kernel.
   // _gaussianBlur1 is defined further down in this file (Stage 1 saliency).
-  var lBlur = new Float32Array(lCh);
+  var lBlur = new Float32Array(n);
+  var coverage = new Float32Array(n);
+  for (var j = 0; j < n; j++) {
+    coverage[j] = data[j * 4 + 3] / 255;
+    lBlur[j] = lCh[j] * coverage[j];
+  }
   _gaussianBlur1(lBlur, w, h, radius);
+  _gaussianBlur1(coverage, w, h, radius);
+  for (var j = 0; j < n; j++) lBlur[j] = coverage[j] ? lBlur[j] / coverage[j] : lCh[j];
 
   // Apply thresholded unsharp mask and convert back to RGB.
   for (var i = 0; i < n; i++) {
+    if (!data[i * 4 + 3]) continue;
     var diff = lCh[i] - lBlur[i];
     if (Math.abs(diff) > threshold) {
       var lNew = lCh[i] + amount * diff;
