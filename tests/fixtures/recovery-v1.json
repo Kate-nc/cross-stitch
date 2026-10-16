@@ -1,0 +1,104 @@
+{
+  "_format": "cross-stitch-backup",
+  "_version": 1,
+  "_createdAt": "2025-01-03T12:00:00.000Z",
+  "databases": {
+    "CrossStitchDB": {
+      "projects": [
+        {
+          "key": "proj_legacy",
+          "value": {
+            "v": 8,
+            "id": "proj_legacy",
+            "name": "Legacy sampler",
+            "settings": {
+              "sW": 2,
+              "sH": 2,
+              "fabricCt": 14
+            },
+            "p": [
+              [
+                "310"
+              ],
+              [
+                "550"
+              ],
+              [
+                "310",
+                "k"
+              ],
+              [
+                "310+550",
+                "b"
+              ]
+            ],
+            "done": [
+              1,
+              0,
+              0,
+              1
+            ],
+            "notes": "Original compact chart"
+          }
+        }
+      ],
+      "project_meta": [],
+      "stats_summaries": []
+    },
+    "stitch_manager_db": {
+      "manager_state": [
+        {
+          "key": "threads",
+          "value": {
+            "310": {
+              "owned": 2
+            }
+          }
+        },
+        {
+          "key": "patterns",
+          "value": [
+            {
+              "id": "legacy_library",
+              "projectId": "proj_legacy",
+              "title": "Legacy sampler"
+            }
+          ]
+        },
+        {
+          "key": "schema_version",
+          "value": 1
+        },
+        {
+          "key": "rt_deduction:proj_legacy",
+          "value": {
+            "version": 1,
+            "threads": {
+              "dmc:310": {
+                "observed": 10,
+                "deducted": 0.1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "localStorage": {},
+  "photos": [
+    {
+      "id": "photo:proj_legacy:one",
+      "projectId": "proj_legacy",
+      "type": "image/jpeg",
+      "bytes": 11,
+      "data": "bGVnYWN5LWZ1bGw="
+    },
+    {
+      "id": "photothumb:proj_legacy:one",
+      "projectId": "proj_legacy",
+      "type": "image/jpeg",
+      "bytes": 12,
+      "data": "bGVnYWN5LXRodW1i"
+    }
+  ]
+}

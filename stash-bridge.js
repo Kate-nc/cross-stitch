@@ -224,6 +224,19 @@ const StashBridge = (() => {
     return migrated;
   }
 
+  // Pure migration for isolated restore staging. No live database is touched.
+  function prepareBackupState(rows) {
+    const version = rows.find(e => e.key === 'schema_version');
+    const legacy = !version || Number(version.value) < 3;
+    const result = rows.filter(e => e.key !== 'schema_version').map(e => {
+      if (e.key !== 'threads') return e;
+      const v2 = _migrateThreadsToV2(e.value).threads;
+      return { key: e.key, value: legacy ? _migrateThreadsToV3(v2) : v2 };
+    });
+    result.push({ key: 'schema_version', value: version && Number(version.value) > 3 ? version.value : 3 });
+    return result;
+  }
+
   async function migrateToLatest(targetVersion) {
     const desiredVersion = targetVersion == null ? 3 : (targetVersion >= 3 ? 3 : 2);
     if (desiredVersion <= 2 && _migrationDone) return;
@@ -1439,6 +1452,7 @@ const StashBridge = (() => {
 
     // Expose migration functions
     migrateSchemaToV3,
+    prepareBackupState,
 
     // Test surface for the Shopping List rebuild (Schema v4). Pure helper —
     // exposes the row-shaping logic without requiring IndexedDB.

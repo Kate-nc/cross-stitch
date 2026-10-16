@@ -74,11 +74,16 @@ for (const stores of [['projects'], ['projects', 'pendingImports']]) {
   });
 }
 
-test('a failed small progress write is recovered by a successful full flush', async ({ page }) => {
+test('failed session checkpoint writes refuse export until storage recovers', async ({ page }) => {
   await loadTrackerFixture(page);
   await failWrites(page, ['pendingImports']);
   await markFive(page);
   await expect.poll(() => page.evaluate(() => window.__failedWrites.includes('pendingImports'))).toBe(true);
+  // The active timer checkpoint is part of the current full save transaction.
+  // A failed pendingImports write cannot be called a complete backup.
+  await expect(page.evaluate(async () => (await window.loadBackupRestore()).downloadBackup())).rejects.toThrow('latest changes could not be included');
+  expect(await page.evaluate(() => localStorage.getItem('cs_last_backup_at'))).toBeNull();
+  await page.evaluate(() => { IDBObjectStore.prototype.put = window.__originalPut; });
   const download = page.waitForEvent('download');
   await exportBackup(page);
   const backup = await readDownload(page, await download);

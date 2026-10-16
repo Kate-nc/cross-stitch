@@ -45,7 +45,8 @@ test('the legacy auto-save is held too', async () => {
 
 test('restore() sets the mark after the cancel checks and clears it if the restore fails', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'backup-restore.js'), 'utf8');
-  expect(src).toMatch(/window\.__restoringBackup = Date\.now\(\) \+ 30000;\s*\n\s*\n\s*\/\/ 1\. CrossStitchDB/);
-  expect(src).toMatch(/catch \(e\) \{\s*\n\s*if \(typeof window !== "undefined"\) window\.__restoringBackup = 0;\s*\n\s*throw e;/);
-  expect(src.indexOf('Restore cancelled')).toBeLessThan(src.indexOf('window.__restoringBackup = Date.now() + 30000'));
+  expect(src).toMatch(/window\.__restoringBackup = Number\.MAX_SAFE_INTEGER;\s*\n\s*\n\s*\/\/ 1\. CrossStitchDB/);
+  expect(src).toContain('if (typeof window !== "undefined") window.__restoringBackup = 0;');
+  expect(src).toContain('catch (_) { window.__restoringBackup = Number.MAX_SAFE_INTEGER; }');
+  expect(src.indexOf('Restore cancelled')).toBeLessThan(src.indexOf('window.__restoringBackup = Number.MAX_SAFE_INTEGER', src.indexOf('async _restoreWithoutGuard')));
 });

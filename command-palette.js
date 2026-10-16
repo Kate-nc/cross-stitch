@@ -130,7 +130,7 @@
         action: function () {
           try {
             window.BackupRestore.downloadBackup().then(function () {
-              if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Backup downloaded successfully', type: 'success' });
+              if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Backup download requested. Check that the file was saved.', type: 'success' });
             }).catch(function (e) {
               if (window.Toast && window.Toast.show) window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' });
             });

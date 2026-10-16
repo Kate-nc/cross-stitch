@@ -1,17 +1,14 @@
-/** @jest-environment jsdom */
+/** @jest-environment node */
 const fs = require('fs');
 const { IDBFactory } = require('fake-indexeddb');
 const prefsSrc = fs.readFileSync('./user-prefs.js', 'utf8');
 const backupSrc = fs.readFileSync('./backup-restore.js', 'utf8');
-function load() {
-  const win = {};
-  new Function('window', 'localStorage', prefsSrc)(win, localStorage);
-  const api = new Function('window', 'localStorage', 'indexedDB', 'LOCAL_STORAGE_KEYS', backupSrc + '; return BackupRestore;')(
-    win, localStorage, new IDBFactory(), { activeProject: 'active', shortcutsHint: 'hint', globalGoals: 'goals', globalGoalsCompat: 'oldGoals' });
-  return { prefs: win.UserPrefs, api };
-}
+const { MemoryStorage, load: harness } = require('./setup/backup-harness');
+global.Storage = MemoryStorage;
+global.localStorage = new MemoryStorage();
+function load() { return harness(new IDBFactory(), { storage: localStorage }); }
 const oldBackup = () => ({ _format: 'cross-stitch-backup', _version: 1, databases: {}, localStorage: {} });
-beforeEach(() => localStorage.clear());
+beforeEach(() => { global.localStorage = new MemoryStorage(); });
 afterEach(() => jest.useRealTimers());
 
 test('branding, timing, export defaults and valid falsy values survive a compressed or JSON backup into an empty profile', async () => {
@@ -129,9 +126,9 @@ test('pending slider writes are exported and cancelled on restore; immediate edi
 });
 
 test('preference write failures reject restore instead of reporting success', async () => {
-  const { prefs, api } = load();
-  const backup = { ...oldBackup(), preferences: prefs.exportPortable() };
-  const spy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+  const { prefs, api, win } = load();
+  const backup = { ...oldBackup(), preferences: { ...prefs.exportPortable(), values: { designerName: 'changed' } } };
+  const spy = jest.spyOn(win.RecoveryStorage, 'stageSetting').mockImplementation(() => { throw new Error('quota'); });
   await expect(api.restore(backup)).rejects.toThrow('quota');
   spy.mockRestore();
 });

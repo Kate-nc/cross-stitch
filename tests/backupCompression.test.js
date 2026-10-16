@@ -21,30 +21,8 @@ const mockGlobals = `
 `;
 
 // Wire pako and the mocks then evaluate the IIFE module.
-function loadBackupRestore(opts) {
-  opts = opts || {};
-  return (function () {
-    const window = { PERF_FLAGS: opts.flags || {}, pako: pako };
-    const localStorage = { getItem: () => null, setItem: () => {} };
-    const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
-    const btoa = (s) => Buffer.from(s, 'binary').toString('base64');
-    const atob = (s) => Buffer.from(s, 'base64').toString('binary');
-    const indexedDB = opts.idb || undefined; // shadowed into eval scope — backup-restore.js reads this as a global
-    // Provide the stash-bridge module-level global that backup-restore.js calls
-    // to count owned threads in the backup summary.
-    const isColorOwned = (entry) => {
-      if (!entry || typeof entry !== 'object') return false;
-      const full = typeof entry.owned === 'number' && !isNaN(entry.owned) && entry.owned > 0 ? entry.owned : 0;
-      const fracs = { 'mostly-full': 0.75, 'about-half': 0.5, 'remnant': 0.25 };
-      return full + (fracs[entry.partialStatus] || 0) > 0;
-    };
-    // Re-bind the IIFE result into a non-const so the outer scope can reach it.
-    new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
-    const patched = backupSrc.replace('const BackupRestore =', 'BackupRestore =');
-    var BackupRestore;
-    eval(patched); // eslint-disable-line no-eval
-    return BackupRestore;
-  })();
+function loadBackupRestore(opts = {}) {
+  return require('./setup/backup-harness').load(opts.idb, opts).api;
 }
 
 function makeSampleBackup(extra) {
@@ -165,7 +143,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
   // Seed a fake IDB instance with data in all four CrossStitchDB stores
   async function seedCrossStitchDB(fakeIDB) {
     await new Promise((resolve, reject) => {
-      const req = fakeIDB.open('CrossStitchDB', 4);
+      const req = fakeIDB.open('CrossStitchDB');
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         ['projects', 'project_meta', 'stats_summaries', 'sync_snapshots'].forEach(s => {
@@ -217,7 +195,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
 
     // Verify the sync_snapshots entry was written
     const snap = await new Promise((resolve, reject) => {
-      const req = fakeIDB.open('CrossStitchDB', 4);
+      const req = fakeIDB.open('CrossStitchDB');
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction('sync_snapshots', 'readonly');
@@ -247,7 +225,7 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
     await BR2.restore(backup);
 
     const restoredSnap = await new Promise((resolve, reject) => {
-      const req = fakeIDB2.open('CrossStitchDB', 4);
+      const req = fakeIDB2.open('CrossStitchDB');
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction('sync_snapshots', 'readonly');

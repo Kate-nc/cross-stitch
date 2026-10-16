@@ -73,10 +73,11 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     expect(backup).toMatch(/openDB\("CrossStitchDB", null, \["projects", "project_meta", "stats_summaries", "sync_snapshots"\], false\)/);
     // Only the bounded progress range is folded into projects; drafts stay out.
     const exportPart = backup.slice(backup.indexOf('async createBackup()'), backup.indexOf('async downloadBackup()'));
-    expect(exportPart).toContain('IDBKeyRange.bound("progress:", "progress:\\uffff")');
+    expect(exportPart).toContain('const snapshot = await readSnapshot(db)');
+    expect(exportPart).toContain('String(e.key).startsWith("progress:")');
     expect(exportPart).not.toMatch(/readIfThere\("pendingImports"\)/);
     const restorePart = backup.slice(backup.indexOf('async restore('));
-    expect(restorePart).toMatch(/pendingImports[\s\S]*progress:/);
+    expect(restorePart).toContain('crossstitch_progress_recovery:');
     expect(restorePart).not.toMatch(/store\.clear\(\)[^;]*pendingImports/);
     // The version is not pinned: the app owns the schema version (5 today) and a pinned 4 made every backup empty.
     expect(backup).not.toMatch(/openDB\("CrossStitchDB", \d/);

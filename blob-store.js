@@ -13,8 +13,8 @@
  *   photo:<projectId>:<id>       a progress photo kept with a project (photos.js), compressed JPEG.
  *   photothumb:<projectId>:<id>  its small thumbnail, in its own record so a list never reads a full picture.
  *
- * Backups carry the photo and photothumb records (backup-restore.js reads them from this store by key range);
- * the rest (handoffs, drafts, traces, progress records) are not backed up. Sync does not read this store, and
+ * Backups carry photo, photothumb, trace and session records owned by saved projects;
+ * progress journals are folded into project records. Handoffs, drafts and orphaned blobs are excluded. Sync does not read this store, and
  * the project list, stats and sync only see projects.
  *
  *   BlobStore.put(id, record)   → Promise (record is stored with its id)
