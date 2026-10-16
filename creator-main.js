@@ -661,6 +661,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     contextMenu: state.contextMenu, setContextMenu: state.setContextMenu,
     selectionModifier: state.selectionModifier, setSelectionModifier: state.setSelectionModifier,
     bsLines: state.bsLines, setBsLines: state.setBsLines,
+    specialtyStitches:state.specialtyStitches, setSpecialtyStitches:state.setSpecialtyStitches, specialtySelected:state.specialtySelected,setSpecialtySelected:state.setSpecialtySelected,
     knots: state.knots, setKnots: state.setKnots,
     bsStart: state.bsStart, setBsStart: state.setBsStart,
     bsContinuous: state.bsContinuous, setBsContinuous: state.setBsContinuous,
@@ -771,7 +772,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
     state.tintColor, state.tintOpacity, state.spotDimOpacity,
     state.antsOffset, state.contextMenu,
-    state.selectionModifier, state.bsLines, state.knots, state.partialStitches, state.bsStart, state.bsContinuous,
+    state.selectionModifier, state.bsLines, state.specialtySelected, state.specialtyStitches, state.knots, state.partialStitches, state.bsStart, state.bsContinuous,
     state.editHistory, state.redoHistory, state.stitchType, state.cs,
     state.paletteSwap,
     state.pat, state.cmap, state.sW, state.sH,
@@ -830,6 +831,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     totalTime: state.totalTime, setTotalTime: state.setTotalTime,
     sessions: state.sessions, setSessions: state.setSessions,
     partialStitches: state.partialStitches, setPartialStitches: state.setPartialStitches,
+    specialtyStitches:state.specialtyStitches, setSpecialtyStitches:state.setSpecialtyStitches, specialtySelected:state.specialtySelected,setSpecialtySelected:state.setSpecialtySelected,
     knots: state.knots, setKnots: state.setKnots,
     partialStitchTool: state.partialStitchTool, setPartialStitchTool: state.setPartialStitchTool,
     partialStitchToolRef: state.partialStitchToolRef,
@@ -866,7 +868,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.dmcSearch, state.colPickerOpen, state.symbolOverrides,
     state.parkMarkers, state.hlRow, state.hlCol,
     state.totalTime, state.sessions,
-    state.partialStitches, state.partialStitchTool, state.knots,
+    state.partialStitches, state.partialStitchTool, state.specialtySelected, state.specialtyStitches, state.knots,
     state.threadOwned, state.globalStash,
     state.kittingResult, state.altOpen,
     state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE,
@@ -935,7 +937,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     sW: state.sW, sH: state.sH, fabricCt: state.fabricCt,
     skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed,
     done: state.done, bsLines: state.bsLines,
-    partialStitches: state.partialStitches, knots: state.knots,
+    partialStitches: state.partialStitches, specialtyStitches:state.specialtyStitches, knots: state.knots,
     threadOwned: state.threadOwned,
     totalStitchable: state.totalStitchable, skeinData: state.skeinData,
     totalSkeins: state.totalSkeins, blendCount: state.blendCount,
@@ -944,7 +946,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }; }, [
     state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH,
     state.fabricCt, state.skeinPrice, state.stitchSpeed,
-    state.done, state.bsLines, state.partialStitches, state.knots,
+    state.done, state.bsLines, state.partialStitches, state.specialtyStitches, state.knots,
     state.threadOwned, state.totalStitchable, state.skeinData,
     state.totalSkeins, state.blendCount, state.difficulty,
     state.doneCount, state.totalTime, state.sessions,
@@ -1086,6 +1088,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             done:state.done?Array.from(state.done):null,
             ps:[...state.partialStitches.entries()],
             parkMarkers:state.parkMarkers.slice(),
+            specialtyStitches:state.specialtyStitches,
             knots:(state.knots||[]).slice(),
             knotsDone:knotsDoneNow(),
             bsDone:bsDoneNow(),
@@ -1100,6 +1103,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             done:result.newDone?Array.from(result.newDone):null,
             ps:[...result.newPartialStitches.entries()],
             parkMarkers:result.newParkMarkers,
+            specialtyStitches:ProgressUnits.specialty.offset(state.specialtyStitches,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH),
             knots:resizedKnots,
             knotsDone:resizedKnotsDone,
             bsDone:resizedBsDone,
@@ -1114,6 +1118,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           state.setDone(result.newDone);
           state.setPartialStitches(result.newPartialStitches);
           state.setParkMarkers(result.newParkMarkers);
+          state.setSpecialtyStitches(nextSnap.specialtyStitches);
           if(state.setKnots)state.setKnots(resizedKnots);
           if(tf){
             tf.knotsDone=resizedKnotsDone;

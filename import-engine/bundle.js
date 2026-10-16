@@ -2231,6 +2231,7 @@
       const idx = c.row * w + c.col;
       if (idx < 0 || idx >= pattern.length) continue;
       if (!c.code) continue;
+      if(c.type==='petite'||c.type==='long_stitch')throw new Error('Petite and long stitches need explicit geometry; this PDF extraction supplies only cell labels. Import an OXS or native project with geometry instead.');
       pattern[idx] = {
         id: c.code,
         type: c.type === 'half' || c.type === 'quarter' || c.type === 'threequarter' || c.type === 'petite'

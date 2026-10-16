@@ -857,6 +857,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    h(window.SpecialtyStitchPanel,{objects:ctx.specialtyStitches||[],w:ctx.sW,h:ctx.sH,threads:ctx.displayPal||ctx.pal||[],brand:ctx.threadBrand,onSelect:cv.setSpecialtySelected,
+      onChange:function(next){cv.setEditHistory(function(prev){return prev.concat([{type:'specialty',changes:[],specialtyStitches:ctx.specialtyStitches||[]}]).slice(-cv.EDIT_HISTORY_MAX);});cv.setRedoHistory([]);ctx.setSpecialtyStitches(next);}}),
     // ── View (phone rail only): zoom moved here from the strip; pinch is
     //    still the main way to zoom. ──
     compact && h("div", {className:"tb-more-panel__section"},

@@ -297,3 +297,7 @@ Set the fabric count before exporting so the finished size and thread estimates 
 
 **Last Updated:** October 2026
 **Questions?** Press `?` in the app for in-app help.
+
+## Petite and long stitches
+
+In Creator, use **More tools > Petite and long stitches** to add objects with a thread and half-cell coordinates, select them, edit their geometry or delete them. Undo and Redo restore edits. These objects use their own panel; general canvas selection tools edit the other stitch types. In Tracker, click the geometry or use **Layers > Petite and long stitches** to mark overlapping objects independently. A petite counts as 0.25 units and a long stitch as 0.5; each is marked as a whole. Native JSON retains their identities and marks. PNG renders both. OXS exports petites and warns about unsupported long stitches. PDF export stops with an explanation. See the [capability matrix](../docs/petite-long-lifecycle.md).

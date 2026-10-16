@@ -50,6 +50,7 @@ function importResultToProject(result, fabricCt = 14, name = "") {
     }),
     bsLines: result.bsLines || [],
     partialStitches: result.partialStitches || [],
+    specialtyVersion:1, specialtyStitches:result.specialtyStitches||[],
     // French knots (knots.js), when the chart has any.
     knots: result.knots && result.knots.length ? result.knots : undefined,
     // Beads from an OXS chart: kept, drawn, not tracked.
@@ -399,6 +400,7 @@ function parseOXS(xmlString) {
   function validCell(x, y) {
     return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < width && y < height;
   }
+  const specialtyStitches=[];
   const partialMap = new Map();
   function addPartial(x, y, quarters, type) {
     if (!validCell(x, y)) { loss(type, 'invalid or out-of-bounds coordinates'); return; }
@@ -467,7 +469,7 @@ function parseOXS(xmlString) {
       let x2 = num(el, ["x2", "endx"]);
       let y2 = num(el, ["y2", "endy"]);
       const kind = attr(el, ['objecttype', 'type']) || 'backstitch';
-      if (kind !== 'backstitch' && kind !== 'straightstitch') { loss(kind, 'unsupported line type'); return; }
+      if (kind !== 'backstitch' && kind !== 'straightstitch' && kind !== 'longstitch') { loss(kind, 'unsupported line type'); return; }
       if (![x1,y1,x2,y2].every(Number.isFinite)) { loss('backstitch', 'invalid coordinates'); return; }
       // Reject zero-length lines (x1===x2 && y1===y2) and any line whose
       // endpoints fall outside the chart grid.
@@ -476,6 +478,10 @@ function parseOXS(xmlString) {
       if (x1 > width || x2 > width || y1 > height || y2 > height) { loss('backstitch', 'out-of-bounds coordinates'); return; }
       const t = threadAt(attr(el, ['palindex', 'palette', 'color', 'index']), 'backstitch');
       if (t) {
+        if(kind==='straightstitch'||kind==='longstitch'){
+          if(![x1,y1,x2,y2].every(v=>Number.isInteger(v*2))){loss('long stitch','coordinates must use half-cell units');return;}
+          specialtyStitches.push({uid:'oxs-long-'+specialtyStitches.length,type:'long_stitch',thread:t,x1,y1,x2,y2});return;
+        }
         const line = {x1, y1, x2, y2, colorId: t.id, rgb: t.rgb,
           color: '#' + t.rgb.map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase()};
         if (t.brand) line.brand = t.brand;
@@ -500,6 +506,13 @@ function parseOXS(xmlString) {
   if (ornContainer) {
     ornContainer.querySelectorAll("object, Object, ornament, Ornament").forEach(el => {
       const kind = (el.getAttribute("objecttype") || el.getAttribute("type") || "").toLowerCase();
+      if(kind==='petite'||(kind==='quarter'&&el.getAttribute('petit')!=='false')){
+        const x=num(el,['x1','x']),y=num(el,['y1','y']);
+        if(!Number.isInteger(x*2)||!Number.isInteger(y*2)||x<0||y<0||x+0.5>width||y+0.5>height){loss('petite','invalid or out-of-bounds half-cell coordinates');return;}
+        const t=threadAt(attr(el,['palindex','color','index']),'petite');
+        if(t)specialtyStitches.push({uid:'oxs-petite-'+specialtyStitches.length,type:'petite',thread:t,x,y});
+        return;
+      }
       if (kind === 'tent' || (kind === 'quarter' && el.getAttribute('petit') === 'false')) {
         const fx = num(el, ['x1','x']), fy = num(el, ['y1','y']);
         const t = threadAt(attr(el, ['palindex','color','index']), kind);
@@ -564,7 +577,7 @@ function parseOXS(xmlString) {
   }
 
   const partialStitches = Array.from(partialMap.entries());
-  if (!stitchCount && !bsLines.length && !partialStitches.length && !knots.length && !beads.length) {
+  if (!stitchCount && !bsLines.length && !partialStitches.length && !knots.length && !beads.length && !specialtyStitches.length) {
     throw new Error('No valid stitches found in pattern' + (Object.keys(losses).length ? ': ' + Object.keys(losses).map(k => losses[k] + ' ' + k).join('; ') : ''));
   }
   const warnings = Object.keys(losses).map(k => losses[k] + ' ' + k + '.');
@@ -589,6 +602,7 @@ function parseOXS(xmlString) {
     pattern,
     bsLines,
     partialStitches,
+    specialtyStitches,
     knots,
     beads,
     stitchCount,
@@ -602,6 +616,7 @@ function parseOXS(xmlString) {
 // https://ursasoftware.com/xspro.pdf. Unsupported content is counted explicitly.
 function generateOXS(project) {
   project = project || {};
+  if(typeof ProgressUnits!=='undefined')project=ProgressUnits.specialty.migrate(project);
   const w = project.w || project.width || (project.settings && project.settings.sW);
   const h = project.h || project.height || (project.settings && project.settings.sH);
   if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0 || w > 5000 || h > 5000) {
@@ -747,6 +762,12 @@ function generateOXS(project) {
     const pe = { index: palette.length + 1, id: b.label || 'Bead', name: b.label || 'Bead', rgb: rgbOK(b.rgb) ? b.rgb : [128,128,128], brand: 'bead' };
     palette.push(pe);
     ornaments.push('    <object x1="' + b.x/2 + '" y1="' + b.y/2 + '" palindex="' + pe.index + '" objecttype="bead" />');
+  });
+  (Array.isArray(project.specialtyStitches)?project.specialtyStitches:[]).forEach(o=>{
+    if(o.type==='long_stitch'){warn('long stitch','external OXS export is unsupported; retain the native JSON project');return;}
+    if(o.type!=='petite'||!Number.isInteger(o.x*2)||!Number.isInteger(o.y*2)||o.x<0||o.y<0||o.x+0.5>w||o.y+0.5>h){warn('specialty stitch','invalid geometry or unsupported type');return;}
+    const pe=register(o.thread,'petite');
+    if(pe)ornaments.push('    <object x1="'+o.x+'" y1="'+o.y+'" palindex="'+pe.index+'" objecttype="quarter" petit="true" />');
   });
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<chart>'];
   if (project.name) lines.push('  <title>' + esc(project.name) + '</title>');

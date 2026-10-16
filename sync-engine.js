@@ -234,6 +234,7 @@ const SyncEngine = (() => {
           spec[1].forEach(function (side) { if (e[1][side]) fractional.push([spec[0], e[0], side, e[1][side]]); });
         });
       });
+      if(project.specialtyStitches&&project.specialtyStitches.length)knotHash+='_sp'+simpleHash(JSON.stringify(project.specialtyStitches));
       var fractionHash = fractional.length ? '_fr' + simpleHash(JSON.stringify(fractional)) : '';
       const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
@@ -1544,6 +1545,8 @@ const SyncEngine = (() => {
     merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
 
     // These are chart structure; the classifier has already checked their fingerprint.
+    merged.specialtyStitches=local.specialtyStitches||remote.specialtyStitches;
+    merged.specialtyVersion=local.specialtyVersion||remote.specialtyVersion;
     merged.knots = Array.isArray(local.knots) ? local.knots : remote.knots;
     if (merged.knots === undefined) delete merged.knots;
     merged.beads = Array.isArray(local.beads) ? local.beads : remote.beads;

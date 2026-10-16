@@ -85,12 +85,24 @@
       out.bs.push(key);
     });
 
+    var sd=new Set(o.specialtyDone||[]),specialty=[];
+    (o.specialtyStitches||[]).forEach(function(st){
+      if(!sd.has(st.uid)||(lock&&st.thread.id!==lock))return;
+      var a=st.type==='petite'?[st.x,st.y,st.x+0.5,st.y+0.5]:[st.x1,st.y1,st.x2,st.y2];
+      if(Math.min(a[0],a[2])>=x0&&Math.max(a[0],a[2])<=x1+1&&Math.min(a[1],a[3])>=y0&&Math.max(a[1],a[3])<=y1+1)specialty.push(st);
+    });
+    if(specialty.length)out.specialty=specialty.map(function(st){return st.uid;});
     var halfSides = 0, quarters = 0;
     out.half.forEach(function (h) { halfSides += h.removed; });
     out.quarter.forEach(function (q) { quarters += q.removed; });
     out.counts = { full: out.full.length, half: halfSides, quarter: quarters, knot: out.knots.length, backstitch: out.bs.length };
     out.units = out.counts.full + out.counts.half * 0.5 + out.counts.quarter * 0.25 + out.counts.knot;
     out.stitches = out.counts.full + out.counts.half + out.counts.quarter + out.counts.knot;
+    specialty.forEach(function(st){
+      out.counts[st.type]=(out.counts[st.type]||0)+1;
+      var pu=root.ProgressUnits||(typeof require==='function'?safeRequire('./progress-units.js'):null);
+      out.units+=pu.sessionUnits({[st.type]:1});out.stitches++;
+    });
     out.empty = !(out.stitches || out.counts.backstitch);
     return out;
   }

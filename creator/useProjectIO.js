@@ -151,6 +151,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !isScratchMode ? img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
@@ -217,6 +218,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !state.isScratchMode ? img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
     });
     if (onSwitchToTrack) {
@@ -308,6 +310,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
+    if(!project)return;
     // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
     // tab has a baseline to compare against for stale-read detection.
     // No-op when CrossTabCoord isn't loaded or the project has no Phase B
@@ -319,6 +322,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
+    if(project.specialtyVersion!=null&&project.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+project.specialtyVersion+'.');
+    project=ProgressUnits.specialty.migrate(project);
     // P4-5: a project in another brand's numbering loads that brand's
     // catalogue first, then comes back here (helpers.js).
     if (window.whenProjectBrandReady && !window.whenProjectBrandReady(project, processLoadedProject, function(err) {
@@ -336,6 +341,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
     state.setBsLines(project.bsLines || []);
+    if(state.setSpecialtyStitches)state.setSpecialtyStitches(ProgressUnits.specialty.read(project,s.sW,s.sH,brand));
     if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
@@ -454,6 +460,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       _tf.halfDone = project.halfDone;
     if (Array.isArray(project.knotsDone) && project.knotsDone.length > 0)
       _tf.knotsDone = project.knotsDone;
+    _tf.specialtyDone=project.specialtyDone||[];
     // Backstitch and quarter-stitch done marks, and beads: carried so a Creator save does not drop them.
     if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
     if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
@@ -1101,6 +1108,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       tf.halfDone = freshProject.halfDone || [];
       if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
         tf.knotsDone = freshProject.knotsDone;
+      tf.specialtyDone=freshProject.specialtyDone||[];
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
       if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
       if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
@@ -1169,6 +1177,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
       imgData: state.img && !state.isScratchMode ? state.img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
@@ -1240,7 +1249,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.partialStitches, state.knots, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.symbolOverrides, state.fabricColour, state.overlayOpacity, state.showOverlay, state.isActive,
   ]);

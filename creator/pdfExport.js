@@ -66,6 +66,7 @@
   }
 
   function runExport(project, options, onProgress) {
+    if(project.specialtyStitches&&project.specialtyStitches.length)return Promise.reject(new Error("PDF export does not support petite or long stitches. Save native JSON or export PNG instead."));
     var w;
     try { w = getWorker(); } catch (e) { return Promise.reject(e); }
     var reqId = nextReqId++;
@@ -174,6 +175,7 @@
       h: ctx.sH || ctx.h,
       pattern: pattern,
       palette: pal,
+      specialtyStitches:ctx.specialtyStitches||[],
       partialStitches: partialEntries,
       bsLines: ctx.bsLines || [],
       // French knots; only the Workshop print theme draws them.
