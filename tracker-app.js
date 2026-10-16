@@ -3660,7 +3660,7 @@ function handleEditInCreator(){
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
             halfStitches:project.halfStitches, halfDone:project.halfDone,
-            specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, beadsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
+            specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
             finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
             lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
             stitchLog:_v3h.stitchLog
@@ -4812,7 +4812,7 @@ useEffect(() => {
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
               halfStitches:project.halfStitches, halfDone:project.halfDone,
-              specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, beadsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
+              specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
               finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
               lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
               stitchLog:_v3.stitchLog
@@ -5479,7 +5479,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   }
   if(beads.length){
     ctx.save();
-    beads.forEach(b=>{
+    beads.slice().sort((a,b)=>Number(a.uid===selectedBead)-Number(b.uid===selectedBead)).forEach(b=>{
       const x=b.x/2,y=b.y/2;
       if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
       const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDone.includes(b.uid);

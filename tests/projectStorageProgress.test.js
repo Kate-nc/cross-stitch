@@ -284,3 +284,14 @@ test('bead identities, references and progress survive full save, overlay reload
   await ProjectStorage.save({...p,beads:[]});
   expect((await ProjectStorage.get(p.id)).beadsDone).toEqual([]);
 });
+
+test('bead and petite/long progress coexist without overwriting either register or full stitches',async()=>{
+  await ProjectStorage.save(proj({beads:[{x:1,y:1,label:'Gold',rgb:[200,180,40]}],specialtyVersion:1,specialtyStitches:[{uid:'petite',type:'petite',x:0,y:0,thread:{id:'310',rgb:[0,0,0]}}],specialtyDone:[]}));
+  const initial=await ProjectStorage.get('proj_p'),uid=initial.beads[0].uid,b=initial.lastWriteAt;
+  await ProjectStorage.saveProgress(initial.id,{done:new Uint8Array(N),beadsDone:[uid],specialtyDone:['petite'],baseWriteAt:b});
+  let p=await ProjectStorage.get(initial.id);
+  expect(p.beadsDone).toEqual([uid]);expect(p.specialtyDone).toEqual(['petite']);
+  await ProjectStorage.saveProgress(initial.id,{done:new Uint8Array(N),beadsDone:[],baseWriteAt:b});
+  p=await ProjectStorage.get(initial.id);
+  expect(p.beadsDone).toEqual([]);expect(p.specialtyDone).toEqual(['petite']);expect(p.done.every(v=>!v)).toBe(true);
+});
