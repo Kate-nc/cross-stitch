@@ -24,7 +24,7 @@ Petites are miniature complete crosses, not diagonal quarters or individually tr
 | PNG export | Absent | Drawn on exported raster | Drawn on exported raster |
 | OXS export | Absent | Miniature-cross ornaments; imported IDs are local to the new project, OXS carries no tracking | Unsupported; writer returns an affected-object count, UI surfaces warning; native JSON retains objects |
 | PDF and PDF-containing ZIP export | Absent / could omit unknown data | Explicit error; use JSON or PNG | Explicit error; use JSON or PNG |
-| Material estimates/live stash usage | No model | No new physical-thread estimate/deduction support; existing full-cross live usage remains | Same |
+| Material estimates/live stash usage | No model | Live consumption uses half the full-cross linear geometry and tail allowance; captured assumptions persist in consumption events. Shopping estimates are unchanged. | Live consumption measures front plus return path by segment length; captured assumptions persist. Shopping estimates are unchanged. |
 
 ## Storage and compatibility
 

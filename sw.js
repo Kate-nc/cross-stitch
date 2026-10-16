@@ -57,6 +57,7 @@ var PRECACHE_URLS = [
   './creator/SpecialtyStitchPanel.js',
   './project-storage.js',
   './blob-store.js',
+  './thread-accounting.js',
   './stash-bridge.js',
 
   // Page-specific local scripts
@@ -129,7 +130,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "0420fa66098267954a73fa0dd50779b6eb6635929d604ec5c526dc540dd5ca73";
+var BUILD_ID = "c67f143726bece554e7fc9d6057344899b46bbb78e54b40b8d7fc5d91257b19b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -178,6 +179,7 @@ var REQUIRED_URLS = [
   "./creator/SpecialtyStitchPanel.js",
   "./project-storage.js",
   "./blob-store.js",
+  "./thread-accounting.js",
   "./stash-bridge.js",
   "./home-screen.js",
   "./home-app.js",
@@ -260,19 +262,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "790f99cb3abfecdd40f9c08b6775995b4eb38161b1cb7abdcb6d7c222d1d35a0"
+    "sha256": "530ed0b9991f112955bb313bedce884efd7b7508b434ca8e1dd8d4e45bc3ea9e"
   },
   "./index.html": {
-    "sha256": "74a22c6d87d2c995c8e89e064a382af8cdda3baa7d6d0df4cc277699ef3f8fff"
+    "sha256": "673fa867903321321a0a4c2ca02d18fcd5d1371fa790008a20d9611dc3ccc9f0"
   },
   "./create.html": {
-    "sha256": "c9e1f941699ec6fc7bd0de5d0c3aaab003cbeb5de97545afe9cdfc3593bb14a7"
+    "sha256": "7108802cc41d66787b674bf3a28dc39b07ee320e4f5462a15d0ecdeaa5257c9b"
   },
   "./stitch.html": {
-    "sha256": "54ee24aa09a7a958c70579e53ca790b865bca68500e11bf1bfae81efceda4249"
+    "sha256": "543987f7ff098c5792678730a681e8e1cfbf46175d677e5347b627975d7a31a1"
   },
   "./manager.html": {
-    "sha256": "b95c5c32d2075d01b66b156f61ea081ff7aa007121a6a79f729b24b15487aad0"
+    "sha256": "0e85bf3b9be06b631d20b9f6cda4560d258129c9ac805982cbd40c2a82dc97fb"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -293,7 +295,7 @@ var BUILD_ASSETS = {
     "sha256": "b9ce76b86bf5f2f78b7d90782efd049250ee400eadaf3d4130cd414a02fca803"
   },
   "./version.js": {
-    "sha256": "37cf887d249aa2990f7b252f0b27bbd9cb5b5cfed5be05d20e8420fcdadf4741"
+    "sha256": "7c352f1a01a63414ddce6e5784d853b90cb0cd3ca03c7970c478aa089bca8d4c"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -400,8 +402,11 @@ var BUILD_ASSETS = {
   "./blob-store.js": {
     "sha256": "00cdd57a4ea73749240a20b5b7c0127d8a582046c33b6f504810ba541d80a4f4"
   },
+  "./thread-accounting.js": {
+    "sha256": "9e85c170e89441a259b1c685f70274a4e7eec93f036608a23368557eead73b2f"
+  },
   "./stash-bridge.js": {
-    "sha256": "dc145d1528aff7d749275feffda8411f92aba42db951b04afddaeed63d7eadbe"
+    "sha256": "041186bd96180c963e83a2cfbd28f7a32add2f4744daca54a1f0e5c972a28fbe"
   },
   "./home-screen.js": {
     "sha256": "4865ccc78f9ae02725d76541abe829364117ddfc45a722f41b4f194825b743f5"
@@ -446,7 +451,7 @@ var BUILD_ASSETS = {
     "sha256": "8cf07d4d72db61afec40195e27847dc8d494b48190b3301d67c7dae13c51d645"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "044407f9b66243c08421d02e55e0970c979cf43c2e40a2acd965260e6f62a6b3"
+    "sha256": "c53f075892f842f1f3cccd89713b027559b737bf59e1613fe8e8f0b77565c85b"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
@@ -518,16 +523,16 @@ var BUILD_ASSETS = {
     "sha256": "c437b4e471e64461850631c12fa32d58e2a9ddc23b0f3a8f6791948bb7bc4c85"
   },
   "./backup-restore.js": {
-    "sha256": "12a714855c9bdcbe5de740a63e5b988997749b1310978f64e0e4579babadaf7d"
+    "sha256": "2fdcf834be0f2af1c90860ccacccb0cb9c81a07cd185a145b58f5c4b675eeaa5"
   },
   "./help-drawer.js": {
-    "sha256": "dd9226b47e8ae0e30fb8d09bbe556aa3a231f0ebe4491e89b536737958ed0ca1"
+    "sha256": "d9554f310353e7656b193f608febcff08b69c2434bf083625ac87ccccc19ac5b"
   },
   "./creator/pdfExport.js": {
     "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
   },
   "./sync-engine.js": {
-    "sha256": "78cac1030f6ee78f06405eb9770558e54b82900cb0be8be5f7fb3205e9f2aa1a"
+    "sha256": "4abb3d83d2220346f64c1860d0cf2b21191f2a0f84013c92364511f90ecc29cf"
   },
   "./assets/fonts/CrossStitchSymbols.base64.js": {
     "sha256": "c6b5293953acb71cf7dd71bd8b293333c9012ab1760ba3f7a19e7977f3b30ca4"

@@ -2526,45 +2526,57 @@ const difficultyMetrics=useMemo(()=>{
 
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
-// Consumption is derived from full-cross marks; stock and applied checkpoints
-// are persisted. Do not use bare palette ids: different brands can share ids.
-const rtAmounts=useMemo(()=>rtThreadUsage(pat,done,fabricCt,wastePrefs),[pat,done,fabricCt,wastePrefs,countsVer]);
+// Capture assumptions with each progress transition. Preferences alone never create usage.
+const rtMarks=useMemo(()=>window.ThreadAccounting.snapshot({pattern:pat,done,fabricCt,
+  halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,
+  settings:{threadBrand}},wastePrefs),[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,countsVer]);
+const rtAmounts=useMemo(()=>{const out={};Object.values(rtMarks).forEach(m=>Object.entries(m.amounts).forEach(([k,v])=>out[k]=(out[k]||0)+v));return out;},[rtMarks]);
 const rtConsumption=useMemo(()=>{
-  const ctx=rtContextRef.current;
-  const accounting=ctx&&ctx.accounting;
-  const out={};
-  Object.keys(rtAmounts).forEach(key=>{
-    const consumed=rtAmounts[key];
-    const prior=accounting&&accounting.threads[key];
-    const observed=prior?prior.observed:((ctx&&ctx.initial[key])||0);
-    const entry=globalStash[key];
-    const owned=entry?StashBridge.stashEffectiveQty(entry):null;
-    out[key]={key,skeinsConsumed:consumed,ownedSkeins:owned,
-      skeinsRemaining:owned==null?null:owned-Math.max(0,consumed-observed)};
-  });
+  const out={},ctx=rtContextRef.current;
+  const used=ctx&&ctx.accounting?window.ThreadAccounting.totals(ctx.accounting,ctx.projectId):{};
+  new Set([...Object.keys(rtAmounts),...Object.keys(used)]).forEach(key=>{const owned=globalStash[key]?StashBridge.stashEffectiveQty(globalStash[key]):null;
+    out[key]={key,skeinsConsumed:used[key]||0,ownedSkeins:owned,skeinsRemaining:owned};});
   return out;
 },[rtAmounts,globalStash,rtAccountingVersion]);
 rtWriteSnapshotRef.current={ctx:rtContextRef.current,amounts:rtAmounts,enabled:wastePrefs.enabled};
 
-// IDB commits stock and per-project checkpoints in one readwrite transaction.
-// Retrying an interrupted/ambiguous commit is safe. No stale stock snapshots.
-const flushRtStashWrite=useCallback(async()=>{
-  const write=rtWriteSnapshotRef.current;
-  if(!write||!write.enabled||!write.ctx||typeof StashBridge==='undefined')return;
+// Retain the exact pending operations on failure; a lost acknowledgement retries the same identities.
+const flushRtStashWrite=useCallback(async(captured)=>{
+  const write=captured?{ctx:captured}:rtWriteSnapshotRef.current;
+  if(!write||!write.ctx||typeof StashBridge==='undefined')return;
   const ctx=write.ctx;
-  if(!ctx.projectId||ctx.suspended||savesBlockedRef.current)return;
-  try{
+  if(!ctx.projectId||savesBlockedRef.current)return;
+  const run=async()=>{
     if(ctx.ready)await ctx.ready.catch(()=>{});
-    if(ctx.suspended)return;
-    const result=await StashBridge.applyProjectConsumption(ctx.projectId,write.amounts,ctx.initial);
-    if(rtContextRef.current!==ctx)return;
-    ctx.accounting=result.accounting;
-    setGlobalStash(result.threads);
-    setRtAccountingVersion(v=>v+1);
-  }catch(e){
-    console.warn('RT stash write failed; checkpoint unchanged, retry is safe:',e);
-    if(window.Toast)window.Toast.show({message:'Could not update stash. Your deductions will be retried.',type:'warning'});
-    if(rtContextRef.current===ctx&&!ctx.suspended){
+    if(!ctx.accounting){const r=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,[]);ctx.accounting=r.accounting;}
+    while(ctx.outbox.length){
+      // Two recovery keys may contain the same operation after a peer copied
+      // an outbox. Deduplicate before allocating sequences, not just at commit.
+      const batch=Array.from(new Map(ctx.outbox.map(c=>[c.token,c])).values()),heads=window.ThreadAccounting.sequences(ctx.accounting,ctx.projectId);
+      batch.forEach(c=>{
+        const receipt=ctx.accounting.receipts&&ctx.accounting.receipts[c.token];
+        if(receipt)c.seq=JSON.parse(receipt)[2];
+        if(!c.seq){c.seq=Math.max(ctx.sequences[c.unit]||0,heads[c.unit]||0)+1;}
+        ctx.sequences[c.unit]=Math.max(ctx.sequences[c.unit]||0,c.seq);c.projectId=ctx.projectId;
+      });
+      // Save identities before attempting the transaction, so a lost acknowledgement
+      // after closing the tab replays exactly the same events.
+      try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}catch(e){console.warn('Consumption recovery storage unavailable',e);}
+      const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,batch);
+      ctx.accounting=result.accounting;
+      ctx.outbox=ctx.outbox.filter(c=>!batch.some(op=>op.token===c.token));
+      try{
+        localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));
+        (ctx.recoveredKeys||[]).forEach(r=>{if(localStorage.getItem(r.key)===r.value)localStorage.removeItem(r.key);});ctx.recoveredKeys=[];
+      }catch(e){console.warn('Could not clear committed consumption recovery',e);}
+      if(rtContextRef.current===ctx){setGlobalStash(result.threads);setRtAccountingVersion(v=>v+1);}
+    }
+  };
+  ctx.queue=(ctx.queue||Promise.resolve()).catch(()=>{}).then(run);
+  try{await ctx.queue;}catch(e){
+    console.warn('Stash event write failed; retained for retry:',e);
+    if(window.Toast)window.Toast.show({message:'Could not update stash. Your consumption history will be retried.',type:'warning'});
+    if(rtContextRef.current===ctx){
       if(rtDebounceRef.current)clearTimeout(rtDebounceRef.current);
       rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWriteRef.current().catch(()=>{});},30000);
     }
@@ -2573,13 +2585,37 @@ const flushRtStashWrite=useCallback(async()=>{
 },[]);
 const flushRtStashWriteRef=useRef(flushRtStashWrite);
 flushRtStashWriteRef.current=flushRtStashWrite;
+const openConsumptionHistory=useCallback(async()=>{
+  const ctx=rtContextRef.current;if(!ctx)return;
+  try{
+    await flushRtStashWriteRef.current(ctx).catch(()=>{});
+    const ledger=await StashBridge.getConsumptionAccounting();
+    if(rtContextRef.current!==ctx)return;
+    ctx.accounting=ledger;setRtAccountingVersion(v=>v+1);setModal('rt_history');
+  }catch(e){if(window.Toast)window.Toast.show({message:'Could not read consumption history. Please try again.',type:'warning'});}
+},[]);
 useEffect(()=>{
-  if(rtContextRef.current)rtContextRef.current.suspended=!wastePrefs.enabled;
+  const ctx=rtContextRef.current;if(!ctx)return;
+  // Initialisation can finish after a mark. Queue changes with their original assumptions.
+  const before=ctx.lastMarks;ctx.lastMarks=rtMarks;
+  const changes=[];
+  new Set([...Object.keys(before),...Object.keys(rtMarks)]).forEach(unit=>{
+    if(!!before[unit]===!!rtMarks[unit])return;
+    const intent=ctx.intents[unit];delete ctx.intents[unit];
+    changes.push({unit,estimate:rtMarks[unit]||before[unit],kind:intent||(rtMarks[unit]?'mark':'correction'),enabled:wastePrefs.enabled,date:new Date().toISOString()});
+  });
+  if(!changes.length)return;
+  changes.forEach(c=>{c.token=crypto.randomUUID();ctx.outbox.push(c);});
+  // Crash recovery records the original assumptions before any asynchronous work.
+  try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}
+  catch(e){if(window.Toast)window.Toast.show({message:'Could not save pending consumption history. Keep this tab open and retry.',type:'warning'});}
+  flushRtStashWriteRef.current(ctx).catch(()=>{});
+},[rtMarks,wastePrefs.enabled]);
+useEffect(()=>{
   function onHidden(){if(document.hidden)flushRtStashWriteRef.current().catch(()=>{});}
   document.addEventListener('visibilitychange',onHidden);
   return()=>document.removeEventListener('visibilitychange',onHidden);
-},[wastePrefs.enabled]);
-
+},[]);
 
 // Presence is advisory; IDB transactions provide the accounting exclusion.
 // A join can solicit one active response. Active/heartbeat messages never reply.
@@ -3598,11 +3634,16 @@ async function mergeRemoteProject(info){
   const mergedKnots=TM.mergeSet(base.knotsDone,local.knotsDone,remote.knotsDone);
   const mergedBs=TM.mergeSet(base.bsDone,local.bsDone,remote.bsDone);
   const mergedQuarters=TM.mergeQuarterDone(base.partialDone,local.partialDone,remote.partialDone);
+  const mergedSpecialty=TM.mergeSet(base.specialtyDone,local.specialtyDone,remote.specialtyDone);
   // A deletion the other tab made is added; one it took back (Undo) is dropped, as for any other set.
   const mergedDeleted=TM.mergeSet(base.deletedSessionIds,local.deletedSessionIds,remote.deletedSessionIds);
   deletedSessionIdsRef.current=mergedDeleted;
   const mergedSessions=withoutDeletedSessions(TM.mergeSessions(base.statsSessions,local.statsSessions,remote.statsSessions),mergedDeleted);
   const mergedMilestones=TM.mergeMilestones(local.achievedMilestones,remote.achievedMilestones);
+  // Imported progress carries no evidence of new stitching in this tab. The
+  // accompanying stash ledger is merged separately; missing usage stays unknown.
+  if(rtContextRef.current)rtContextRef.current.lastMarks=window.ThreadAccounting.snapshot({...local,pattern:pat,done:nd,
+    halfDone:mergedHalf,knotsDone:mergedKnots,bsDone:mergedBs,partialDone:mergedQuarters,specialtyDone:mergedSpecialty},wastePrefs);
   // Counts of what the other tab added must not read as stitches done here just now.
   justLoadedRef.current=true;
   doneRef.current=nd;
@@ -3610,7 +3651,7 @@ async function mergeRemoteProject(info){
   recomputeAllCounts(pat,nd,halfStitches,hdMap);
   setDone(nd);
   setHalfDone(hdMap);
-  setSpecialtyDone(TM.mergeSet(base.specialtyDone,local.specialtyDone,remote.specialtyDone));
+  setSpecialtyDone(mergedSpecialty);
   setKnotsDone(mergedKnots);
   setBeadsDone(window.Beads.live(beadsRef.current,TM.mergeSet(base.beadsDone,local.beadsDone,remote.beadsDone)));
   setBsDone(mergedBs);
@@ -3895,14 +3936,28 @@ function processLoadedProject(project){
   let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
-  const rtContext={projectId:project.id||null,initial:rtInitial,accounting:null,ready:null};
+  const rtInitialMarks=window.ThreadAccounting.snapshot({...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14},loadedWaste);
+  const rtContext={projectId:project.id||ProjectStorage.newId(),initial:rtInitial,initialMarks:rtInitialMarks,lastMarks:rtInitialMarks,
+    accounting:null,ready:null,pending:[],intents:{},sequences:{},outbox:[]};
+  const recoveryId=window.RecoveryStorage?JSON.parse(window.RecoveryStorage.current()||'null'):null;
+  const outboxPrefix='cs_consumption_outbox:'+(recoveryId?recoveryId.id:'original')+':'+rtContext.projectId+':';
+  rtContext.outboxKey=outboxPrefix+crypto.randomUUID();
+  rtContext.recoveredKeys=[];
+  try{for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(key&&key.startsWith(outboxPrefix)){
+      const value=localStorage.getItem(key)||'[]',saved=JSON.parse(value);
+      rtContext.outbox.push(...saved);rtContext.recoveredKeys.push({key,value});
+    }
+  }}catch(e){console.warn('Unreadable pending consumption history',e);}
+  if(!project.id)projectIdRef.current=rtContext.projectId;
   rtContextRef.current=rtContext;
-  if(rtContext.projectId&&typeof StashBridge!=='undefined'){
-    rtContext.ready=StashBridge.applyProjectConsumption(rtContext.projectId,rtInitial,rtInitial,{initialise:true}).then(result=>{
+  if(typeof StashBridge!=='undefined'){
+    rtContext.ready=StashBridge.applyConsumptionEvents(rtContext.projectId,rtInitialMarks,[]).then(result=>{
       rtContext.accounting=result.accounting;
+      if(rtContext.outbox.length)setTimeout(()=>flushRtStashWriteRef.current(rtContext).catch(()=>{}),0);
       if(rtContextRef.current===rtContext){setGlobalStash(result.threads);setRtAccountingVersion(v=>v+1);}
     });
-    // Keep failure observable to flush callers, while handling idle-load rejection.
     rtContext.ready.catch(e=>console.warn('Could not initialise stash accounting:',e));
   }
 
@@ -4917,6 +4972,7 @@ useEffect(() => {
 useEffect(() => {
   window.__flushProjectToIDB = async function() {
     if (isUnloadingRef.current || window.__restoringBackup > Date.now()) throw new Error("Project saving is paused.");
+    await flushRtStashWriteRef.current();
     const project = snapshotNow();
     if (!project) return;
     lastSnapshotRef.current = project;
@@ -7901,6 +7957,13 @@ function selectBsAtGuide(){
 // half stitches, quarters, knots and backstitch can sit there) as one undo step. The session records it as an
 // unpicked area ("Unpicked 80" in the journal), never as a negative day. A colour lock limits it to that thread.
 function applyUnpickPlan(p,undo){
+  const ctx=rtContextRef.current;
+  if(ctx){
+    const units=[...p.full.map(c=>'d:'+c.idx),...p.half.flatMap(c=>['fwd','bck'].filter(d=>c.before&&c.before[d]&&!(c.after&&c.after[d])).map(d=>'h:'+c.idx+':'+d)),
+      ...p.quarter.flatMap(c=>(c.before||[]).filter(pos=>!(c.after||[]).includes(pos)).map(pos=>'q:'+c.idx+':'+pos)),...p.knots.map(k=>'k:'+(typeof k==='string'?k:k.key)),...p.bs.map(k=>'b:'+k),...(p.specialty||[]).map(uid=>'s:'+uid)];
+    units.forEach(u=>ctx.intents[u]=undo?'undo-unpick':'unpick');
+  }
+
   if(p.full.length){
     const nd=new Uint8Array(doneRef.current);
     const changes=p.full.map(c=>({idx:c.idx,oldVal:nd[c.idx]}));
@@ -9164,6 +9227,7 @@ return(
             onClick={()=>window.dispatchEvent(new Event("cs:openShortcuts"))}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
           >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
+          <button onClick={()=>openConsumptionHistory()}>Thread consumption history</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Use up stash thread as I stitch</span>
@@ -9548,7 +9612,8 @@ return(
     <div className="modal-content" style={{maxWidth:440}} onClick={e=>e.stopPropagation()}>
       <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():null}</button>
       <h3 id="rt-disable-title" style={{marginTop:0,fontSize:18,color:'var(--text-primary)'}}>Stop using up stash thread as you stitch?</h3>
-      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Keep recorded usage, or correct a tracking mistake. Physical unpicking does not return usable thread. Corrections reverse only deductions recorded on this device; older usage is not refunded.</p>
+      <p style={{fontSize:'var(--text-sm)',color:'var(--text-secondary)',marginBottom:'var(--s-4)'}}>Keep recorded usage, or correct a tracking mistake. Physical unpicking does not return usable thread. Corrections reverse only recorded event debits; unknown historical usage is not refunded.</p>
+      <button onClick={()=>openConsumptionHistory()}>View consumption history</button>
       <div style={{display:'flex',flexDirection:'column',gap:'var(--s-2)'}}>
         <button onClick={()=>{
           const ctx=rtContextRef.current;
@@ -9566,7 +9631,11 @@ return(
           if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}
           (async()=>{
             if(ctx.ready)await ctx.ready.catch(()=>{});
-            const result=await StashBridge.applyProjectConsumption(ctx.projectId,write.amounts,ctx.initial,{restore:true});
+            await flushRtStashWriteRef.current();
+            const A=window.ThreadAccounting,units=new Set([...Object.keys(ctx.initialMarks),...Object.values(ctx.accounting.events).filter(e=>e.projectId===ctx.projectId).map(e=>e.unit)]);
+            const ops=[];units.forEach(unit=>{const st=A.state(ctx.accounting,ctx.projectId,unit);if(Object.values(st.debits).some(v=>v>0)){
+              const seq=st.seq+1;ctx.sequences[unit]=seq;ops.push({projectId:ctx.projectId,unit,seq,kind:'correct-project',estimate:st.estimate});}});
+            const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,ops);
             if(rtContextRef.current!==ctx)return;
             ctx.accounting=result.accounting;
             setGlobalStash(result.threads);
@@ -9580,6 +9649,19 @@ return(
           Cancel (keep tracking)
         </button>
       </div>
+    </div>
+  </div>}
+
+  {modal==="rt_history"&&<div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Thread consumption history" onClick={()=>setModal(null)}>
+    <div className="modal" onClick={e=>e.stopPropagation()} style={{maxHeight:'80vh',overflowY:'auto'}}>
+      <button className="modal-close" onClick={()=>setModal(null)} aria-label="Close">{Icons.x?Icons.x():null}</button>
+      <h3>Thread consumption history</h3>
+      <p>Consumed quantities are estimates in skeins, separate from owned stock. Existing balances were preserved when event accounting began; earlier usage is unknown.</p>
+      {rtContextRef.current&&rtContextRef.current.accounting&&Object.values(rtContextRef.current.accounting.events).filter(e=>e.projectId===rtContextRef.current.projectId).sort((a,b)=>b.date.localeCompare(a.date)).map(e=><p key={e.id}>
+        <strong>{new Date(e.date).toLocaleString('en-GB')}</strong>: {e.description} ({e.unit}).
+        {e.estimate&&Object.entries(e.estimate.amounts).map(([k,v])=><span key={k}> {k}: {v.toFixed(6)} skeins estimated; {(e.debit[k]||0).toFixed(6)} debited; {(e.credit[k]||0).toFixed(6)} credited.</span>)}
+        {e.estimate&&<small> {e.estimate.assumptions.fabricCount} count, {e.estimate.assumptions.strands} strands, waste ×{e.estimate.assumptions.wasteMultiplier}, tails {e.estimate.assumptions.tailAllowanceIn} in, {e.estimate.assumptions.stitchesPerRun} stitches/run.</small>}
+      </p>)}
     </div>
   </div>}
 

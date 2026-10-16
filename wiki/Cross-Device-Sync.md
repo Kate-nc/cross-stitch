@@ -148,3 +148,7 @@ Choose the new folder on every device. The old folder's files can be deleted.
 ### Compare history
 
 Compare snapshots travel with each project. Sync merges snapshots by ID and keeps snapshot-deletion records, so a stale device cannot restore deleted history during a tracking merge. Delete all automatic snapshots preserves manual and Before pattern change recovery snapshots. The automatic daily Compare snapshot preference is a global device preference; it is off by default and must be enabled in Preferences > Stitch Tracker.
+
+### Thread consumption history
+
+Include the stash to transfer consumption events, estimation assumptions and migration baselines with its inventory. Repeated imports deduplicate events. Inventory and the merged ledger commit together; imported marks alone do not mean fresh stitching on the receiving device. Update every device before using this format. Conflicting immutable histories, incompatible baselines or combined offline usage beyond recorded stock stop the stash import and require inventory reconciliation. Full backup/restore also preserves this history.

@@ -66,14 +66,16 @@ function makeFakeManagerDB(state) {
               const cursor = pair
                 ? { key: pair[0], value: pair[1], continue() { i++; setTimeout(step, 0); } }
                 : null;
+              r.result=cursor;
               if (r.onsuccess) r.onsuccess({ target: { result: cursor } });
+              if(!cursor)setTimeout(()=>{if(tx.oncomplete)tx.oncomplete();},0);
             }
             setTimeout(step, 0);
             return r;
           }
         };
       };
-      setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
+
       return tx;
     }
   };

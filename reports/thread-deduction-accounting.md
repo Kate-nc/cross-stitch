@@ -1,65 +1,64 @@
-# Live thread deduction accounting (QA-06, QA-07, QA-08)
+# Durable thread consumption accounting (v2)
 
-## Data flow and invariants
+## Accounting rules
 
-- Pattern, full-cross completion marks, fabric count and waste preferences persist in project JSON. `skeinData` is a derived shopping estimate with existing rounding/calibration; it is not inventory or an accounting balance.
-- `rtThreadUsage` derives unrounded cumulative single-strand skein consumption from full-cross cells and their actual brands. It does not use bare palette ids or rounded shopping estimates. Half/quarter stitches, knots and backstitch remain outside the supported live model.
-- `manager_state['threads']` persists current usable stock. Qualitative partial-skein stock is included; the first debit folds its fraction into exact `owned` and clears `partialStatus` to prevent counting it twice.
-- `manager_state['rt_deduction:' + projectId]` persists versioned per-composite-thread `{observed, deducted}` checkpoints. `observed` is the consumption high-water mark, including skipped historical/insufficient-stock usage. `deducted` is this project's actual stock debit, available for an explicit erroneous-mark correction.
-- Remaining-stock previews are live usable stock minus positive consumption beyond the checkpoint. They are advisory; writes always read the latest stock inside the transaction.
+`manager_state.thread_consumption_v2` contains versioned project baselines, immutable consumption events and replay receipts. Each event identifies a saved project, a progress-unit key and a monotonically increasing occurrence number; its ID is the JSON encoding of those three values. Token receipts also deduplicate recovered operations. Event identity does not depend on a timestamp. Different projects and brands remain independent.
 
-## Applying usage
+A mark stores its estimated quantities and the assumptions used **when the progress action occurred**: model version, fabric count, over-one/over-two, strands, constituent weights, tail inches, stitches per run, waste multiplier and single-strand skein capacity. Later preferences never revalue it. Event date records the action time, rather than a delayed retry time. Stock deductions are capped at the usable stock in the transaction. The event retains both the full estimate and the actual debit, including a zero debit. Insufficient stock creates no claim against a later addition.
 
-For each `brand:id`, `delta = max(0, currentConsumption - observed)` and `debit = min(availableStock, delta)`. Subtract debit, advance observed to `max(observed, currentConsumption)` and add debit to deducted. All constituent stock changes and that project's ledger commit in one IndexedDB `manager_state` readwrite transaction. Requests are queued from IDB callbacks without awaiting between reads and writes, including schema migration. Errors abort the transaction and propagate.
+Owned inventory is the existing `threads` dictionary. Consumed estimates and applied debits are event data, not an `owned` or `reserved` field. This PR introduces no project reservations or purchasing functionality. Quantities remain unrounded skeins internally; only history presentation rounds to six decimal places.
 
-IndexedDB serialises overlapping transactions across same-origin tabs, including when optional CrossTabLock is unavailable or times out. Different project ledgers retain both deductions from shared stock. Same-project duplicate/stale totals cannot debit the same high-water interval twice. The model assumes cumulative project marks are reconciled; independently editing different copies of the same project still needs the existing tracking merge workflow. This is not a distributed inventory ledger.
+Ordinary unmark, Undo and progress reset correct accidental marks: a correction appends an event, credits only that occurrence's actual remaining debit, and never guesses historical credits. **Unpick area** means physically removing thread: it appends an unpick event without credit. Marking those stitches again consumes new thread even below an earlier completion peak. Undoing an accidental Unpick area restores its accounting state without a new charge; Redo re-establishes the unpick. Whole-project correction credits eligible event debits, not physically discarded thread or legacy stock guesses. Earlier events are never deleted or repriced.
 
-Manager autosave/unload merge changes relative to their displayed baseline inside the same transactional bridge, rather than writing a stale whole-stash snapshot. Owned edits apply their user-entered delta to live owned stock; unchanged fields retain concurrent changes. An explicit zero/used-up edit is treated as stock reconciliation and zeros live owned stock. Other changed fields are explicit user edits. A pending local edit is retained when a same-page stash refresh arrives. The baseline advances only after a successful save, and saves are serialised within the Manager.
+While live deductions are off, newly recorded marks are history observations with zero debit. Re-enabling charges subsequent stitching, not work recorded while off. This is an intentional replacement of v1's preference-dependent catch-up behaviour. Imported or reconciled marks are not evidence of fresh stitching in the receiving tab.
 
-## Initialisation, toggles and failure recovery
+## Estimation rules
 
-On load, snapshot consumption from the restored project's marks and preferences, never from stock. If no ledger exists, checkpoint that historical consumption without taking any stock. This deliberately leaves uncertain historical use alone: the app cannot establish whether the previous implementation already deducted it. No refund or retrospective blend correction is guessed. The first fresh zero-progress project starts at zero; later marks charge normally.
+All lengths are inches. One standard skein is **6 × 315 = 1,890 single-strand inches**, retaining the previous live geometry calibration. The rounded shopping estimator is unchanged and separate.
 
-Initialising an existing ledger does not advance its checkpoint or debit stock. Enabled writes then apply only additional usage. Disabled projects do not write usage. Keep-deductions disable flushes pending usage first; re-enable retains accounting and catches up new totals, including marks made while disabled. Failed initialisation can retry through the atomic apply path. Failed live writes report the error and schedule a retry. Completion keeps accounting and remains open if flushing fails. Explicit correction reports failure and stays enabled if crediting fails.
-
-Project switches capture the departing project's id, amounts and initial baseline before awaiting, and late callbacks do not publish its result into the new project. Page-hide/unload/visibility attempts are best effort: browsers can terminate before an async transaction starts. A committed checkpoint is authoritative even when the caller never receives success; repeating the write is safe. If project marks were saved and the stash transaction did not commit, the next enabled apply catches up from the persisted checkpoint. Unknown legacy history is always checkpointed rather than guessed.
-
-Empty stock does not create debt against later purchases. Observed usage advances even when debit is zero. An explicit correction credits actual recorded debits only, clears the refundable amount, and retains observed consumption so retries/re-enabling cannot recharge it.
-
-## Units and blend formula
-
-The live model retains the existing RT geometry calibration; shopping calculations retain their separate supported 1.4-inch reference calibration and rounding.
-
-For one full cross:
+For a counted stitch with weight `w`:
 
 ```
-effectiveCount = fabricCount / stitchOverFor(fabricCount)
-geometryIn = 4.8 * totalUsedStrands / effectiveCount
-combinedTailIn = 2 * tailAllowanceIn / stitchesPerRun
-singleStrandIn = (geometryIn + combinedTailIn) * generalWasteMultiplier
-skeins = singleStrandIn / (6 * 315)
-constituentSkeins = skeins * constituentWeight / sum(constituentWeights)
+effectiveCount = fabricCount / stitchOver
+geometry = 4.8 * w * totalWorkingStrands / effectiveCount
+tails = 2 * tailAllowanceIn / stitchesPerRun * w
+skeins = (geometry + tails) * wasteMultiplier / 1890
 ```
 
-All lengths here are inches. Capacity is 1,890 single-strand inches per standard skein. Tail allowance retains the existing combined working-thread allowance per tail (not an extra allowance per constituent). Waste is a multiplier (`1.10` adds 10%). Blend weights are `blendRatio` or constituent `strands`, defaulting to equal shares. Strand override changes total working strands, retaining the blend ratio. Existing restored two-thread blends use equal shares; this change does not introduce a ratio editor or change project serialisation.
+Full crosses use `w = 1`; half sides use `0.5`; each diagonal quarter uses `0.25`. Independent petite crosses have half the linear dimensions of a full cross and use `w = 0.5` for geometry and amortised tails, regardless of their separate 0.25 progress weight. Three-quarter stitches use the three occupied quarter positions. Equivalent legacy halves and quarter encodings are deduplicated through ProgressUnits. French knots are explicitly approximated by one full-cross allowance, rather than inferred from progress percentages.
 
-For 100 crosses at 14 count, two total strands, zero tails, multiplier 1: each member of a 1+1 blend uses `100 * (4.8 * 2 / 14) / 1890 / 2 = 0.01814058957` skeins. 28 count over two matches 14 count over one. Doubling total strands doubles geometry. Combined tails and waste are allocated once across the blend.
+For backstitch and independent long stitches, `L = hypot(x2-x1, y2-y1)` in **grid cells**, including fractional endpoints. Use `2 * L * totalWorkingStrands / effectiveCount` geometry (front path plus an estimated return path) and `L` times the amortised tail allowance. Thus diagonal and long lines are measured by length, not by line count. Identical/reversed lines share the existing canonical progress identity and one charge. Beads retain their separate owned/used bead quantities; this PR does not infer a thread allowance for attaching them. These are estimates, not measurements of recovered thread.
 
-## Unmark/reset and product questions
+Blend amounts divide the combined geometry, tails and waste by constituent strand weights. A strand override changes total working strands while preserving proportions. Brands stay in composite keys (`dmc:310`, `anchor:310`). Default invalid preferences fall back to finite model defaults. Invalid event quantities and owned edits are rejected.
 
-Inspected ordinary unmark/Undo, rectangle unpick and project loading/reset. They remove completion marks and can record unpicking in sessions, but do not establish that usable thread returned. The checkpoint never automatically credits a decreasing total. The existing explicit restore action now means correction of erroneous accounting: it credits only recorded actual debits, preserving purchases and other projects. It never restores an old absolute stock snapshot.
+Example: 100 full crosses, 14 count, two strands, zero tails and multiplier 1 use `100 * 4.8 * 2 / 14 / 1890 = 0.03628117914` skeins. A 1+1 blend assigns half to each constituent. 28 count over two has the same geometry. One half uses half that per-cross quantity; a quarter uses one quarter. A 3-4-5 backstitch path uses `2 * 5 * 2 / 14 / 1890 = 0.000755857899` skeins before tails/waste.
 
-Product decisions still needed:
+## Migration evidence
 
-1. Per-stitch physical restitch usage versus erroneous marks/catch-up: the high-water model cannot distinguish these. Restitching below the old peak currently needs a manual stash adjustment, and correcting only one erroneous stroke has no dedicated credit workflow. Do not describe whole-project correction as physical thread recovery.
-2. Whether disabling should exclude intervening stitches permanently; current compatible behaviour catches up the cumulative increase on re-enable.
-3. A distributed inventory protocol, and backup/restore treatment. Ledger records are local manager_state keys, not portable project settings, and current backup/sync formats export threads/patterns rather than these keys. A new browser checkpoints unknown historical usage safely; restoring older stock over an existing local ledger requires deliberate inventory reconciliation. No cross-device atomicity is claimed.
-4. Whether preference changes should revalue prior consumption and how fractional/other stitch geometry should enter a future event-based model. Currently increases in derived cumulative usage are charged; decreases do not refund.
+The first v2 baseline records the loaded marks and explicitly states: “Existing stock preserved; historical consumption unknown”. It performs **no stock debit or credit**. Any existing `rt_deduction:<project>` v1 record is copied as legacy migration evidence, without converting its high-water estimates into invented stitch events. Existing usable balances and partial-skein status are unchanged. Subsequent corrections cannot refund unknown baseline marks; fresh stitching after an unpick or correction is a new event.
 
-## Verification and bug hunts
+Executable migration fixture: existing owned stock 1 skein and a v1 checkpoint `{observed: 0.3, deducted: 0.2}` remain exactly 1 skein after initialisation, with zero consumption events. Correcting a historical baseline mark still leaves 1 skein. Marking a new occurrence then charges only its freshly captured estimate. Old backups without v2 data restore their stock and receive a new explicit baseline when opened.
 
-Between accounting and blend stages, storage probes found and fixed stale Manager autosaves and migration reads outside the transaction. Abort injection verifies both stock and ledger roll back before an idempotent retry. Tests use actual fake-indexeddb transactions with independent bridge instances and no cross-tab locks.
+## Atomicity, retries and portable history
 
-Between blend and presence stages, probes cover zero stock/usage, partial stock, repeated writes, additions, equal numbers in different brands, ratios, fabric count/over-two, tails, waste and strand overrides. Existing thread-calculation tests remain compatible.
+Every event batch reads the live stash, ledger and legacy record, then commits the new events, receipts and inventory in one `manager_state` IndexedDB readwrite transaction. Request callbacks enqueue all writes without awaiting inside the transaction. Transaction serialisation protects concurrent tabs even without CrossTabLock. A committed event cannot debit again after retry, duplicate delivery or lost acknowledgement. Manager delta saves preserve concurrent consumption.
 
-Presence uses a join/active protocol: a join solicits one active response per peer; active messages and periodic heartbeats never reply. Both BroadcastChannel and localStorage handlers run in bounded queue tests, including timer/listener cleanup. Stale, malformed, foreign-type and self messages are ignored. Presence is advisory and never changes stock.
+Tracker queues capture each rendered progress transition rather than subtracting cumulative estimates. A per-context, recovery-generation-scoped localStorage outbox records original assumptions before asynchronous writes and event identities before attempting the transaction. Reopening replays pending identities. Recovery keys are distinct per context; duplicate recovered tokens are removed before allocating occurrence numbers, and cleanup removes a recovered record only if its contents have not changed. If recovery storage fails, the open tab retains its queue and reports the failure. Page termination before browser storage succeeds cannot be guaranteed; keep the tab open when a write error is reported.
+
+Full `.csb`/JSON backups already export every manager_state key; the new ledger therefore travels with its stock through the existing staged recovery protocol. Export flushes pending consumption first. Restore validates the event chain before staging. The existing additive recovery contract rejects conflicting stock or accounting keys and atomically publishes a complete new storage generation; repeated identical restores are no-ops. Outboxes are scoped to their recovery generation and cannot replay over newly published inventory. Older backups without consumption history remain historical baselines; no retrospective usage is inferred. Restore a conflicting older stock/history pair into a fresh profile, as required by the existing recovery contract.
+
+`.csync` exports the ledger and legacy checkpoints. Import unions events and receipts by identity, validates causal sequences and correction credits, reconstructs each side's inventory before its known event debits, reconciles inventory, then subtracts the union exactly once. Import re-reads and merges inside the **write transaction**, so an optional lock timeout cannot clobber an intervening local debit. Snapshots retain net event consumption separately to distinguish inventory edits from event-only balance changes. Gate resolutions apply their inventory adjustment to the fresh merge. Existing no-snapshot inventory policy remains conservative (maximum pre-consumption stock); quantities from independent inventory edits may still need reconciliation.
+
+Conflicting immutable payloads or baselines, incomplete histories and combined independent consumption exceeding recorded stock fail with an inventory-reconciliation message. They do not rewrite history, silently double-charge or create negative inventory. Update every device before syncing this format: old clients cannot enforce these invariants. Independent offline copies are not a distributed inventory transaction. A project-only transfer without its stash is a historical baseline, not authorisation to debit the receiving inventory.
+
+## User-readable history
+
+More > Tools > Thread consumption history shows the project baseline explanation, dated stitch/correction/unpick descriptions, unit identity, per-thread estimates, actual debits/credits and captured count/strand/waste/tail assumptions. The durable ledger is not truncated when ordinary stash adjustment history reaches its legacy display limit.
+
+## Verification and separate bug hunt
+
+`tests/consumptionEvents.test.js` exercises real fake-indexeddb transactions, independent bridge instances, duplicate/retried events, abort rollback, migration with legacy evidence, preference changes, physical restitching, accidental corrections, undo/redo of unpicks, zero/partial stock, blends and brands, fractional/backstitch inch geometry, 1,100-event rounding/history retention, sync union/replay, immutable-history conflicts, and compressed backup/restore followed by replay. Tracker boundary tests exercise the real event queue and stock balances during project switches and lost acknowledgements. Existing v1 tests continue to verify the retained compatibility API.
+
+The separate bug-hunting pass checked negative and non-finite stock/event quantities, inches versus grid-cell backstitch units, over-two fabrics, duplicate legacy fractional encodings, fractional precision, repeated corrections, sync overdraw and irreversible history edits. It added rejection probes for forged credits and incomplete chains. It also fixed recovery cleanup racing a live peer, event-only differences being mistaken for inventory edits, recovery-generation outbox isolation, and history replay work growing quadratically within a batch. No purchasing or reservation changes were made.
+
+Final validation on the rebased upstream: the full Jest run passed **346 suites, 4,687 tests and one snapshot**. The final affected accounting/queue/generated-asset regressions passed after the last recovery/validation edits. The Chromium browser regression exercises real mark/correction/Redo, physical unpick/Undo/Redo, restitching, readable history and reload, asserting stored balances and event history. Runtime compilation, service-worker fingerprints, terminology lint and diff whitespace checks passed. CSS-token lint retains pre-existing non-blocking findings; no CSS was changed.
