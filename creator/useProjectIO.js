@@ -734,7 +734,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
-            scaledImg.src = c.toDataURL("image/jpeg", 0.85);
+            // PNG retains the coverage mask when large uploads are resized.
+            scaledImg.src = c.toDataURL("image/png");
             return;
           }
           state.userActedRef.current = true;

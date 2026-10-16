@@ -907,10 +907,10 @@ var ORPHAN_MAX_ITERATIONS = 8;
 var ORPHAN_CONTRAST_GUARD_DE = 30;
 
 /**
- * Shared quantize → map/dither → bg-removal → confetti → orphan-removal pipeline.
+ * Shared coverage mask → quantize → map/dither → confetti → orphan-removal pipeline.
  * Called by both generatePreview and runGenerationPipeline so the two stay in sync.
  *
- * @param {Uint8ClampedArray} raw    RGBA pixel data (smoothing already applied)
+ * @param {Uint8ClampedArray} raw    RGBA pixel data at target grid size
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
@@ -918,17 +918,25 @@ var ORPHAN_CONTRAST_GUARD_DE = 30;
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
-  var skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
   var dithBayerSize = opts.dithBayerSize || 4;
   var minSt = (typeof opts.minSt === "number" && opts.minSt > 0) ? opts.minSt : 0;
 
+  // Work on a private copy: preview runs multiple passes over cached RGBA.
+  raw = new Uint8ClampedArray(raw);
+  var coverageMask = prepareConversionPixels(raw, width, height, opts);
   if (opts.preSmooth) applyBilateralFilter(raw, width, height);
+  if (opts.smooth > 0) {
+    if (opts.smoothType === "gaussian") applyGaussianBlur(raw, width, height, opts.smooth);
+    else if (opts.smoothType === "bilateral") applyBilateralFilter(raw, width, height);
+    else applyMedianFilter(raw, width, height, opts.smooth);
+  }
 
   var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed});
-  if (!p.length) return null;
+  // An all-transparent image is a valid empty pattern, not a quantiser error.
+  if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
   var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
@@ -941,15 +949,6 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     mapped = doRiemersma(raw, width, height, p, allowBlends, saliencyMap, {});
   } else {
     mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
-  }
-
-  if (skipBg) {
-    var bl = rgbToLab(bgCol[0], bgCol[1], bgCol[2]);
-    for (var i = 0; i < mapped.length; i++) {
-      if (dE(rgbToLab(raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]), bl) < bgTh) {
-        mapped[i] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
-      }
-    }
   }
 
   // ── Min-stitches rebucket (C5) ───────────────────────────────────────────
@@ -1018,14 +1017,15 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   }
 
   // ── Edge-blend fold (audit IMG-01) ───────────────────────────────────────
-  // Thin anti-aliasing shades between two main colours (or a main colour and
-  // the skipped background) are folded into them. Part of Stitch Cleanup.
+  // Thin anti-aliasing shades between two main stitched colours are folded
+  // into them. The coverage mask alone determines empty cells. Part of Stitch Cleanup.
   // Without dithering a thin in-between shade is anti-aliasing, so the fold
   // allows more (EDGE_BLEND_MAX_DE_NO_DITHER, colour-utils.js). Mirrored in
   // generate-worker.js.
   if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
-      bgLab: skipBg ? rgbToLab(bgCol[0], bgCol[1], bgCol[2]) : null,
+      // Coverage is already decided. Colour cleanup must not create new holes.
+      bgLab: null,
       maxDeltaE: (!dith || dithAlgo === "off") && typeof EDGE_BLEND_MAX_DE_NO_DITHER === "number" ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
     });
   }
@@ -1157,13 +1157,9 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
   cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
   cx.filter = "none";
-  var raw = cx.getImageData(0, 0, sW, sH).data;
-
-  if (smooth > 0) {
-    if (smoothType === "gaussian") applyGaussianBlur(raw, sW, sH, smooth);
-    else if (smoothType === "bilateral") applyBilateralFilter(raw, sW, sH);
-    else applyMedianFilter(raw, sW, sH, smooth);
-  }
+  var generationImageData = cx.getImageData(0, 0, sW, sH);
+  if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(generationImageData, bri, con, sat);
+  var raw = generationImageData.data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
@@ -1171,7 +1167,8 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
-    minSt: minSt, seed: opts.seed,
+    minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
+    preSmooth: opts.preSmooth, disambig: opts.disambig, disambigLevel: opts.disambigLevel,
   });
   if (!pipelineResult) return null;
 
@@ -8411,7 +8408,7 @@ window.useCreatorState = function useCreatorState() {
           try {
             var result = runGenerationPipeline(img, {
               sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
-              dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+              dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
@@ -8549,8 +8546,9 @@ window.useCreatorState = function useCreatorState() {
         }
         if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
-        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+
         var res = runCleanupPipeline(rawPx, gw, gh, {
+          smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
@@ -13532,7 +13530,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
                 state.setImg(scaledImg); state.resetAll(); nameFromImage(); examinePicture(scaledImg); state.setIsUploading(false); startDraft(f);
               } catch(err) { console.error("Image load error:", err); state.setIsUploading(false); }
             };
-            scaledImg.src = c.toDataURL("image/jpeg", 0.85);
+            // PNG retains the coverage mask when large uploads are resized.
+            scaledImg.src = c.toDataURL("image/png");
             return;
           }
           state.userActedRef.current = true;
@@ -14207,7 +14206,7 @@ window.usePreview = function usePreview(state) {
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
     if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
-    if (pw < 10) pw = 10;
+    if (pw < 1) pw = 1;
     if (ph < 1) ph = 1;
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
@@ -14223,12 +14222,9 @@ window.usePreview = function usePreview(state) {
       cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
       var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
       cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-      raw = cx.getImageData(0, 0, pw, ph).data;
-      if (smooth > 0) {
-        if (smoothType === "gaussian") applyGaussianBlur(raw, pw, ph, smooth);
-        else if (smoothType === "bilateral" && typeof applyBilateralFilter === 'function') applyBilateralFilter(raw, pw, ph);
-        else applyMedianFilter(raw, pw, ph, smooth);
-      }
+      var previewImageData = cx.getImageData(0, 0, pw, ph);
+      if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+      raw = previewImageData.data;
       rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
     }
 
@@ -14243,6 +14239,8 @@ window.usePreview = function usePreview(state) {
         skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
         stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
         minSt: settings.minSt, seed: settings.seed,
+        smooth: smooth, smoothType: smoothType,
+        disambig: settings.disambig, disambigLevel: settings.disambigLevel,
       };
       if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
       return o;

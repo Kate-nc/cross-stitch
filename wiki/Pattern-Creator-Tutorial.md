@@ -49,7 +49,7 @@ The Creator guesses the type when you add the picture; choose another at any tim
 - **Brightness / Contrast / Saturation** — tune the image before conversion.
 - **Soften grainy photos** — smooths away noise before the threads are chosen. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — tick **Skip background**, press **Pick**, click the background colour in the image, then adjust **Tolerance** to treat it as empty fabric.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Skip background** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Skip background**, press **Pick**, click the background colour, then adjust **Tolerance**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
 - **Crop** — crop the image to the part you want.
 
 ### Dimensions

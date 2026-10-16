@@ -2005,7 +2005,7 @@ window.useCreatorState = function useCreatorState() {
           try {
             var result = runGenerationPipeline(img, {
               sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
-              dith: dith, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+              dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
               allowedPalette: allowedPalette, seed: _seed,
@@ -2143,8 +2143,9 @@ window.useCreatorState = function useCreatorState() {
         }
         if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
-        if (smooth > 0) { if (smoothType === "gaussian") applyGaussianBlur(rawPx, gw, gh, smooth); else applyMedianFilter(rawPx, gw, gh, smooth); }
+
         var res = runCleanupPipeline(rawPx, gw, gh, {
+          smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
           allowedPalette: slotSubset, seed: slotSeed,
