@@ -123,6 +123,7 @@ window.useEditHistory = function useEditHistory(state) {
         _tfprev.halfDone = prev.halfDone || [];
         if (prev.bsDone && prev.bsDone.length) _tfprev.bsDone = prev.bsDone.slice(); else delete _tfprev.bsDone;
         if (prev.partialDone && prev.partialDone.length) _tfprev.partialDone = prev.partialDone; else delete _tfprev.partialDone;
+        if (Array.isArray(prev.beadsDone)) _tfprev.beadsDone = prev.beadsDone.slice(); else delete _tfprev.beadsDone;
         if (prev.beads && prev.beads.length) _tfprev.beads = prev.beads; else delete _tfprev.beads;
       }
       state.setDone(prev.done ? new Uint8Array(prev.done) : null);
@@ -260,6 +261,7 @@ window.useEditHistory = function useEditHistory(state) {
         _tfnext.halfDone = next.halfDone || [];
         if (next.bsDone && next.bsDone.length) _tfnext.bsDone = next.bsDone.slice(); else delete _tfnext.bsDone;
         if (next.partialDone && next.partialDone.length) _tfnext.partialDone = next.partialDone; else delete _tfnext.partialDone;
+        if (Array.isArray(next.beadsDone)) _tfnext.beadsDone = next.beadsDone.slice(); else delete _tfnext.beadsDone;
         if (next.beads && next.beads.length) _tfnext.beads = next.beads; else delete _tfnext.beads;
       }
       state.setDone(next.done ? new Uint8Array(next.done) : null);

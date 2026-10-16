@@ -71,10 +71,13 @@ test('both encodings count once in saved progress and Tracker counters; independ
 });
 
 test('real Resize history restores legacy arrays and quarter marks over repeated Undo/Redo, including empty crops', () => {
-  const prev = { sW: 10, sH: 10, pat: [], bsLines: [], ps: [[22, cell]], parkMarkers: [], halfStitches: halves, halfDone: done, partialDone: [[22, ['BL', 'TR']]] };
+  const beads = require('../beads').normalise([{x:5,y:5,label:'Gold',id:'MH-1',rgb:[200,180,40]}]);
+  const beadsDone = [beads[0].uid];
+  const prev = { beads, beadsDone, sW: 10, sH: 10, pat: [], bsLines: [], ps: [[22, cell]], parkMarkers: [], halfStitches: halves, halfDone: done, partialDone: [[22, ['BL', 'TR']]] };
   for (const spec of [{ newW: 11, newH: 10, offsetX: 1 }, { newW: 2, newH: 10 }]) {
     const r = resize(spec);
-    const next = { ...prev, sW: spec.newW, sH: spec.newH, ps: [...r.grid.newPartialStitches], ...r };
+    const moved = require('../knots').offset(beads,spec.offsetX||0,0,spec.newW,spec.newH);
+    const next = { ...prev, beads:moved, beadsDone:require('../beads').live(moved,beadsDone), sW: spec.newW, sH: spec.newH, ps: [...r.grid.newPartialStitches], ...r };
     const state = { EDIT_HISTORY_MAX: 20, editHistory: [{ type: 'canvasResize', prev, next }], redoHistory: [], trackerFieldsRef: { current: { ...r } }, buildPaletteWithScratch: () => ({ pal: [], cmap: {} }) };
     for (const field of ['SW', 'SH', 'Pat', 'BsLines', 'Knots', 'Done', 'PartialStitches', 'ParkMarkers', 'Pal', 'Cmap', 'EditHistory', 'RedoHistory']) {
       const key = ({ SW: 'sW', SH: 'sH' })[field] || field[0].toLowerCase() + field.slice(1);
@@ -82,10 +85,14 @@ test('real Resize history restores legacy arrays and quarter marks over repeated
     }
     for (let n = 0; n < 3; n++) {
       window.useEditHistory(state).undoEdit();
+      expect(state.trackerFieldsRef.current.beads).toEqual(beads);
+      expect(state.trackerFieldsRef.current.beadsDone).toEqual(beadsDone);
       expect(state.trackerFieldsRef.current.halfStitches).toEqual(halves);
       expect(state.trackerFieldsRef.current.halfDone).toEqual(done);
       expect(state.partialStitches.get(22)).toEqual(cell);
       window.useEditHistory(state).redoEdit();
+      expect(state.trackerFieldsRef.current.beads || []).toEqual(next.beads);
+      expect(state.trackerFieldsRef.current.beadsDone || []).toEqual(next.beadsDone);
       expect(state.trackerFieldsRef.current.halfStitches).toEqual(r.halfStitches);
       expect(state.trackerFieldsRef.current.halfDone).toEqual(r.halfDone);
       expect(state.trackerFieldsRef.current.partialDone || []).toEqual(r.partialDone);

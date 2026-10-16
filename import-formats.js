@@ -599,7 +599,7 @@ function parseOXS(xmlString) {
   }
   if (beads.length > 0) {
     warnings.push(beads.length + (beads.length === 1 ? " bead was" : " beads were") +
-      " kept with the chart. Beads are not threads and are not counted in your progress.");
+      " kept with the chart. Track beads separately from stitches in the Tracker Beads list.");
   }
   for (const _idx in _usedSubstitutions) {
     const _e = _substitutions[_idx];
@@ -637,6 +637,7 @@ function generateOXS(project) {
   }
   const pattern = Array.isArray(project.pattern) ? project.pattern : [];
   const warnings = [], losses = Object.create(null);
+  if (Array.isArray(project.beads) && project.beads.length) warnings.push('OXS preserves bead appearance and position, but omits bead completion and object IDs. Use project saves or backups to retain progress.');
   function warn(type, reason) {
     const k = type + ': ' + reason;
     losses[k] = (losses[k] || 0) + 1;

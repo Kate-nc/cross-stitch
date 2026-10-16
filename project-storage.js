@@ -157,6 +157,7 @@ const ProjectStorage = (() => {
     const out = Object.assign({}, previous || project, { done: Array.from(rec.done) });
     if (Array.isArray(rec.specialtyDone)) out.specialtyDone=rec.specialtyDone;
     if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
+    if (Array.isArray(rec.beadsDone)) out.beadsDone = rec.beadsDone;
     if (Array.isArray(rec.knotsDone)) out.knotsDone = rec.knotsDone.length ? rec.knotsDone : undefined;
     // Backstitch and quarter-stitch marks (Phase 6): a record from a build that did not know them has no such field,
     // and then the project's own marks stand; a record that has the field (even empty) is the newer truth.
@@ -165,7 +166,7 @@ const ProjectStorage = (() => {
     // A current progress record can carry removals before the next full save.
     // Legacy records are diffed only for the fields they actually supplied.
     const next = Object.assign({}, out);
-    ["halfDone", "knotsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
+    ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
     if (rec.trackingSync) return Object.assign(out, { trackingSync: rec.trackingSync });
     const tracked = TrackingSync.record(previous || project, next, "progress-" + (rec.tabId || rec.updatedAt || "legacy"));
     return Object.assign(out, { trackingSync: tracked.trackingSync });
@@ -242,7 +243,7 @@ const ProjectStorage = (() => {
       unitsV: PROGRESS_ROW_VERSION,
       // Any stitching done at all, including half stitches alone (completedStitches counts full stitches and
       // knots only). Used to decide whether a backup reminder is worth showing.
-      anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))) || (Array.isArray(p.bsDone) && p.bsDone.length > 0) || (Array.isArray(p.partialDone) && p.partialDone.length > 0),
+      anyProgress: completedSt > 0 || (Array.isArray(p.halfDone) && p.halfDone.some(e => e && e[1] && (e[1].fwd || e[1].bck))) || (Array.isArray(p.bsDone) && p.bsDone.length > 0) || (Array.isArray(p.partialDone) && p.partialDone.length > 0) || Beads.progress(Beads.normalise(p.beads), p.beadsDone).done > 0,
       source: p.source || p.page || "unknown",
       sessionCount: sessions.length,
       totalMinutes: totalMinutes,
@@ -464,6 +465,10 @@ const ProjectStorage = (() => {
     // merge-tracking and re-synced on every watcher tick.
     async save(project, options) {
       const opts = options || {};
+      if (Array.isArray(project.beads)) {
+        project.beads = Beads.normalise(project.beads);
+        if (Array.isArray(project.beadsDone)) project.beadsDone = Beads.live(project.beads, project.beadsDone);
+      }
       // A backup is being restored and the page is about to reload: a write now would put the
       // open (old) project back over the restored one (set by BackupRestore.restore).
       if (typeof window !== "undefined" && window.__restoringBackup > Date.now()) return project && project.id;
@@ -871,7 +876,7 @@ const ProjectStorage = (() => {
         const rec = {
           id: PROGRESS_PREFIX + id, projectId: id, v: 1,
           done: Uint8Array.from(data.done),
-          halfDone: data.halfDone, knotsDone: data.knotsDone,
+          halfDone: data.halfDone, knotsDone: data.knotsDone, beadsDone: data.beadsDone,
           bsDone: data.bsDone, partialDone: data.partialDone, specialtyDone:data.specialtyDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
           tabId: data.tabId || null, updatedAt: Date.now()
@@ -891,12 +896,12 @@ const ProjectStorage = (() => {
             const previous = applyProgressRecord(project, prev);
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.
-            ["halfDone", "knotsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => {
+            ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => {
               if (!Array.isArray(rec[f]) && previous) rec[f] = Array.isArray(previous[f]) ? previous[f] : [];
             });
             const current = applyProgressRecord(project, rec);
             if (current !== project) {
-              const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
+              const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, beadsDone: rec.beadsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
               rec.trackingSync = TrackingSync.record(previous, next).trackingSync;
             }
             // A delayed call must not undo a newer navigation recovery (or unpick).

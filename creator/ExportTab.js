@@ -433,6 +433,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
+    app.trackerFieldsRef && app.trackerFieldsRef.current && (app.trackerFieldsRef.current.beads || []).length > 0 && h("p", { role: "note" }, "PDF and PNG exports omit beads. OXS preserves bead appearance and position, but omits completion and object IDs. Use project saves or backups to retain bead progress."),
     h("div", null,
       h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
         h("span", null, "Format & settings"),

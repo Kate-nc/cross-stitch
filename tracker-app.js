@@ -551,7 +551,7 @@ function PdfExportModal({onClose,onExport}){
       <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">{Icons.x?Icons.x():null}</button>
         <h3 id="pdf-export-title" style={{marginTop:0,marginBottom:6}}>Export PDF</h3>
-        <p style={{margin:"0 0 var(--s-4)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>A printable, Pattern Keeper-compatible chart. These settings are shared with the Export tab in the Pattern Creator, which has the full set.</p>
+        <p style={{margin:"0 0 var(--s-4)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>A printable, Pattern Keeper-compatible chart. PDF omits beads and bead progress. These settings are shared with the Export tab in the Pattern Creator, which has the full set.</p>
         <div style={{display:"flex",flexDirection:"column",gap:'var(--s-4)'}}>
           <fieldset style={{border:0,padding:0,margin:0,display:"flex",flexDirection:"column",gap:6}}>
             <legend style={Object.assign({},PDF_MODAL_LABEL_STYLE,{marginBottom:6})}>Charts</legend>
@@ -1456,12 +1456,27 @@ const[knotsDone,_setKnotsDone]=useState([]);
 const knotsDoneRef=useRef(knotsDone);
 function setKnotsDone(update){const next=typeof update==='function'?update(knotsDoneRef.current):update;knotsDoneRef.current=next;_setKnotsDone(next);}
 // Backstitch lines marked done (backstitch.js keys) and quarter stitches marked done (fractional.js: Map of
-// cellIndex -> Set of positions). Beads from an imported chart are carried untouched (they are not tracked).
+// cellIndex -> Set of positions). Beads have independent object identities and marks.
 const[bsDone,setBsDone]=useState([]);
 const[partialDone,_setPartialDone]=useState(new Map());
 const partialDoneRef=useRef(partialDone);
 function setPartialDone(update){const next=typeof update==='function'?update(partialDoneRef.current):update;partialDoneRef.current=next;_setPartialDone(next);}
 const beadsRef=useRef(undefined);
+const[beads,setBeads]=useState([]);
+const[beadsDone,_setBeadsDone]=useState([]);
+const beadsDoneRef=useRef([]);
+function setBeadsDone(update){const next=typeof update==='function'?update(beadsDoneRef.current):update;beadsDoneRef.current=next;_setBeadsDone(next);}
+const[selectedBead,setSelectedBead]=useState(null);
+const[beadPanelOpen,setBeadPanelOpen]=useState(false);
+const beadPanelRef=useRef(null);
+const beadCounts=useMemo(()=>window.Beads.progress(beads,beadsDone),[beads,beadsDone]);
+function flipBeadDone(uid){setBeadsDone(prev=>window.Beads.toggle(beadsRef.current,prev,uid));}
+function toggleBeadDone(uid){
+  if(!(beadsRef.current||[]).some(b=>b.uid===uid))return;
+  flipBeadDone(uid);
+  setTrackHistory(prev=>[...prev,{type:"BEAD",key:uid}].slice(-TRACK_HISTORY_MAX));
+  setRedoStack([]);
+}
 // The backstitch line the keyboard has selected (an index into bsLines, -1 for none), and the cell it was chosen at.
 const[bsSelect,setBsSelect]=useState(-1);
 const bsSelectRef=useRef(-1);
@@ -1476,7 +1491,7 @@ bsSelectRef.current=bsSelect;
 // owner is the (project id, state) pair as of the last committed render, so a write can
 // never put one project's marks under another project's id while switching.
 const progressOwnerRef=useRef(null);
-const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,bsDone:null,partialDone:null});
+const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,beadsDone:null,bsDone:null,partialDone:null});
 const progressTimerRef=useRef(null);
 // Save badge (header). One honest status for the whole project, derived from refs so that
 // updating it costs nothing on the mark path: React skips a setState to the same value.
@@ -2151,7 +2166,7 @@ const handedness=useTrackerPref('trackerHandedness','right')==='left'?'left':'ri
 useFillChartHeight(stitchScrollRef,!!pat);
 // Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
 const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
-const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0||partialDone.size>0||bsDone.length>0||specialtyDone.length>0;
+const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0||beadsDone.length>0||partialDone.size>0||bsDone.length>0||specialtyDone.length>0;
 // Any marked stitch (full, half or knot) is the signal that the how-to-mark banners have done their job.
 useEffect(()=>{
   if(hintsSeen||!_hasMarks)return;
@@ -3139,6 +3154,12 @@ function undoTrack(){
     setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
   }
+  if(lastEntry&&lastEntry.type==="BEAD"){
+    flipBeadDone(lastEntry.key);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
   if(lastEntry&&lastEntry.type==="KNOT"){
     flipKnotDone(lastEntry.key);
     setTrackHistory(prev=>prev.slice(0,-1));
@@ -3194,6 +3215,12 @@ function redoTrack(){
   }
   if(lastEntry&&lastEntry.type==="QUARTER"){
     flipQuarterDone(lastEntry.idx,lastEntry.pos);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
+  if(lastEntry&&lastEntry.type==="BEAD"){
+    flipBeadDone(lastEntry.key);
     setRedoStack(prev=>prev.slice(0,-1));
     setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
@@ -3430,7 +3457,7 @@ async function doSaveProject(finalName){
     knotsDone: knotsDoneRef.current.slice(),
     bsDone: window.Backstitch?(window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]):[],
     partialDone: window.Fractional?(window.Fractional.forSave(partialDoneRef.current)||[]):[],
-    beads: beadsRef.current,
+    beads: beadsRef.current, beadsDone: beadsDoneRef.current.slice(),
     notes: projectNotes||undefined,
     statsSessions:statsSessionsRef.current,
     deletedSessionIds:deletedSessionIdsRef.current.length?deletedSessionIdsRef.current.slice():undefined,
@@ -3585,6 +3612,7 @@ async function mergeRemoteProject(info){
   setHalfDone(hdMap);
   setSpecialtyDone(TM.mergeSet(base.specialtyDone,local.specialtyDone,remote.specialtyDone));
   setKnotsDone(mergedKnots);
+  setBeadsDone(window.Beads.live(beadsRef.current,TM.mergeSet(base.beadsDone,local.beadsDone,remote.beadsDone)));
   setBsDone(mergedBs);
   setPartialDone(window.Fractional?window.Fractional.toMap(mergedQuarters):new Map());
   setStatsSessions(mergedSessions);
@@ -3632,7 +3660,7 @@ function handleEditInCreator(){
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
             halfStitches:project.halfStitches, halfDone:project.halfDone,
-            specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, notes:project.notes,
+            specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, beadsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
             finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
             lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
             stitchLog:_v3h.stitchLog
@@ -3883,7 +3911,10 @@ function processLoadedProject(project){
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
   setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines||project.bs):[]);
   setPartialDone(window.Fractional?window.Fractional.live(window.Fractional.toMap(project.partialDone),partialMap):new Map());
-  beadsRef.current=Array.isArray(project.beads)&&project.beads.length?project.beads:undefined;
+  beadsRef.current=window.Beads.normalise(project.beads);
+  setBeads(beadsRef.current);
+  setBeadsDone(window.Beads.live(beadsRef.current,project.beadsDone));
+  setSelectedBead(null);setBeadPanelOpen(false);
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
@@ -4627,7 +4658,7 @@ const buildSnapshot = () => {
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
     specialtyVersion:1,specialtyStitches,specialtyDone:specialtyDoneRef.current,
     knots: knotsForSave(knots, threadBrand), knotsDone: knotsDoneRef.current.slice(),
-    bsDone: window.Backstitch ? (window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDoneRef.current)||[]) : [], beads: beadsRef.current,
+    bsDone: window.Backstitch ? (window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDoneRef.current)||[]) : [], beads: beadsRef.current, beadsDone: beadsDoneRef.current.slice(),
     activeSessionCheckpoint:getSessionCheckpoint(),
     statsSessions:statsSessionsRef.current, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
@@ -4712,6 +4743,7 @@ function writeProgressNow() {
     const data = {
       done: recovery ? recovery.done : done,
       halfDone: recovery ? recovery.halfDone : (projectIdRef.current===o.id ? [...halfDoneRef.current.entries()] : [...o.halfDone.entries()]),
+      beadsDone: recovery ? recovery.beadsDone || [] : (projectIdRef.current===o.id?beadsDoneRef.current:o.beadsDone),
       knotsDone: recovery ? recovery.knotsDone || [] : (projectIdRef.current===o.id?knotsDoneRef.current:o.knotsDone),
       bsDone: recovery ? recovery.bsDone || [] : (projectIdRef.current===o.id?Array.from(bsDoneSetRef.current):o.bsDone),
       specialtyDone:recovery?recovery.specialtyDone||[]:(projectIdRef.current===o.id?specialtyDoneRef.current:o.specialtyDone),
@@ -4780,7 +4812,7 @@ useEffect(() => {
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
               halfStitches:project.halfStitches, halfDone:project.halfDone,
-              specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, notes:project.notes,
+              specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, beadsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
               finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
               lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
               stitchLog:_v3.stitchLog
@@ -4803,7 +4835,7 @@ useEffect(() => {
   }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
+    halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
     // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
@@ -4942,7 +4974,7 @@ useEffect(() => {
   if (!pat) return;
   uiGenRef.current++;
   refreshSaveUi();
-}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
+}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
     statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
     originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs,
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
@@ -4965,10 +4997,10 @@ useEffect(() => {
   // owner changes, or the timer would fire for the new project and drop them.
   const _prev = progressOwnerRef.current;
   if (_prev && _prev.id !== id && progressTimerRef.current) writeProgressNow();
-  progressOwnerRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone, specialtyDone };
+  progressOwnerRef.current = { id, done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone };
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
-    progressBaseRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone, specialtyDone };
+    progressBaseRef.current = { id, done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone };
     uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
     // Another project: its own save state, and writes still running for the old one must not touch it.
     { const u = saveUiRef.current; u.error = null; u.savedOnce = false; u.inFlight = 0; u.conflict = false; u.epoch++; }
@@ -4976,9 +5008,9 @@ useEffect(() => {
     refreshSaveUi();
     return;
   }
-  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone && b.bsDone === bsDone && b.partialDone === partialDone && b.specialtyDone === specialtyDone) return;
+  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone && b.beadsDone === beadsDone && b.bsDone === bsDone && b.partialDone === partialDone && b.specialtyDone === specialtyDone) return;
   scheduleProgressWrite();
-}, [done, halfDone, knotsDone, bsDone, partialDone, specialtyDone]);
+}, [done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone]);
 useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimerRef.current); }, []);
 
 // ── Zoom-adaptive tier helpers ──
@@ -5445,6 +5477,19 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     });
     ctx.restore();
   }
+  if(beads.length){
+    ctx.save();
+    beads.forEach(b=>{
+      const x=b.x/2,y=b.y/2;
+      if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
+      const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDone.includes(b.uid);
+      ctx.beginPath();ctx.ellipse(gut+x*cSz,gut+y*cSz,r,r*0.7,-Math.PI/4,0,Math.PI*2);
+      ctx.fillStyle=marked?'rgb('+rgb.join(',')+')':'white';ctx.fill();
+      ctx.strokeStyle=b.uid===selectedBead?'#B85C38':'rgb('+rgb.join(',')+')';ctx.lineWidth=b.uid===selectedBead?3:2;ctx.stroke();
+      if(marked){ctx.beginPath();ctx.arc(gut+x*cSz,gut+y*cSz,Math.max(1,r*0.22),0,Math.PI*2);ctx.fillStyle='white';ctx.fill();}
+    });
+    ctx.restore();
+  }
   ctx.strokeStyle="rgba(0,0,0,0.4)";ctx.lineWidth=2;ctx.strokeRect(gut,gut,dW*cSz,dH*cSz);ctx.lineWidth=1;
   // Work area: fade the margin (context only — it cannot be marked) and
   // outline the area. The outline sits entirely outside the area, on margin
@@ -5553,7 +5598,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,specialtyStitches,specialtyDone,specialtySelected]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -5583,7 +5628,7 @@ const renderStitchIfScrolledOut=useCallback(()=>{
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
 useEffect(()=>{
-  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;if(!specialtyStitches.length)return;}
+  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;if(!specialtyStitches.length&&!beads.length)return;}
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed
@@ -7931,6 +7976,17 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
     if(e.button===2||isMacSecondaryClick(e))return;
     const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
+    if(plain&&_dragMarkActive&&beads.length&&stitchRef.current){
+      const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
+      const fx=(e.clientX-rect.left+ct.x-G)/scs,fy=(e.clientY-rect.top+ct.y-G)/scs;
+      const hits=window.Beads.hitTest(beads,fx,fy,Math.min(0.45,Math.max(0.3,12/scs)));
+      if(hits.length){
+        const at=hits.findIndex(b=>b.uid===selectedBead),bead=hits[(at+1)%hits.length];
+        knotPressRef.current={bead,id:e.pointerId,x:e.clientX,y:e.clientY};
+        if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);
+        return;
+      }
+    }
     if(plain&&_dragMarkActive&&stitchRef.current){
       const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
       const fx=(e.clientX-rect.left+ct.x-G)/scs,fy=(e.clientY-rect.top+ct.y-G)/scs;
@@ -7990,7 +8046,7 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     if(p&&p.id===e.pointerId){
       knotPressRef.current=null;
       if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
-      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.bead){setSelectedBead(p.bead.uid);setBeadPanelOpen(true);}else if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
       return;
     }
     if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
@@ -8157,6 +8213,17 @@ return(
     }}
   >Exit edit mode</button>
 </div>}
+{!isEditMode&&beads.length>0&&<section aria-label="Bead progress" className="bead-progress">
+  <button type="button" aria-expanded={beadPanelOpen} onClick={()=>setBeadPanelOpen(o=>!o)}>Beads {beadCounts.done}/{beadCounts.total}</button>
+  {beadPanelOpen&&<div ref={beadPanelRef} className="bead-progress-list">
+    <p>Beads are counted separately from stitch progress. Select a bead, then mark or unmark it. Chart taps cycle overlapping beads.</p>
+    <p>PDF and image exports omit beads. OXS keeps bead appearance and position, but does not carry completion or object IDs. Use project saves or backups for progress.</p>
+    {beads.map((b,i)=><div key={b.uid}>
+      <button type="button" aria-pressed={selectedBead===b.uid} onClick={()=>setSelectedBead(b.uid)}>Select bead {i+1}: {b.label||b.id||'Bead'} ({b.x/2}, {b.y/2})</button>
+      <button type="button" aria-pressed={beadsDone.includes(b.uid)} onClick={()=>toggleBeadDone(b.uid)}>{beadsDone.includes(b.uid)?'Unmark':'Complete'} bead {i+1}</button>
+    </div>)}
+  </div>}
+</section>}
 {!isEditMode&&<div className="info-strip-wrap">
 <div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
   setLeftSidebarTab("session");
@@ -8201,6 +8268,7 @@ return(
       ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
     // Backstitch is counted on its own, in lines, and is not part of the percentage above.
+    if (beadCounts.total > 0) progressRows.splice(1, 0, ['Beads', `${beadCounts.done}/${beadCounts.total} beads (separate)`]);
     if (bsCounts.total > 0) progressRows.splice(1, 0, ['Backstitch', `${bsCounts.done}/${bsCounts.total} lines`]);
     if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
     const timeEst = sessionsTimeIsEstimated(statsSessions || []);

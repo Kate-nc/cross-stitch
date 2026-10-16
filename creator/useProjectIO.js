@@ -464,7 +464,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Backstitch and quarter-stitch done marks, and beads: carried so a Creator save does not drop them.
     if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
     if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
-    if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = project.beads;
+    if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = window.Beads.normalise(project.beads);
+    if (Array.isArray(project.beadsDone)) _tf.beadsDone = window.Beads.live(_tf.beads, project.beadsDone);
     if (typeof project.notes === "string" && project.notes) _tf.notes = project.notes;
     // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
     if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
@@ -1112,7 +1113,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
       if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
       if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
-      if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = freshProject.beads;
+      if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = window.Beads.normalise(freshProject.beads); else delete tf.beads;
+      if (Array.isArray(freshProject.beadsDone)) tf.beadsDone = window.Beads.live(tf.beads, freshProject.beadsDone); else delete tf.beadsDone;
       if (typeof freshProject.notes === "string" && freshProject.notes) tf.notes = freshProject.notes; else delete tf.notes;
       // Refresh v3 stats fields
       if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;

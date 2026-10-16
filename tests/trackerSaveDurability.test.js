@@ -125,7 +125,7 @@ describe('progress record writer', () => {
   test('a project that has just loaded or switched is not rewritten', () => {
     const eff = block('// Keep the progress record\'s owner current', '// ── Zoom-adaptive tier helpers');
     expect(eff).toContain('b.id !== id');
-    expect(eff).toMatch(/\[done, halfDone, knotsDone, bsDone, partialDone, specialtyDone\]/);
+    expect(eff).toMatch(/\[done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone\]/);
   });
 
   test('a full save that finishes while marks arrive triggers a fresh progress write', () => {

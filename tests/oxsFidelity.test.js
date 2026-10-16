@@ -62,7 +62,7 @@ test.each(['backstitch','fractional','knot','bead'])('accepts a %s-only chart wi
   const first=parseOXS(wrap(content));
   expect(first.pattern.every(c=>c.id==='__skip__')).toBe(true);
   const out=generateOXS(importResultToProject(first));
-  expect(out.warnings).toEqual([]);
+  expect(out.warnings).toEqual(type === 'bead' ? [expect.stringMatching(/omits bead completion and object IDs/)] : []);
   expect(semantic(parseOXS(out.xml))).toEqual(semantic(first));
 });
 

@@ -24,7 +24,7 @@
   var LABELS = { full: "full", half: "half", quarter: "quarter", petite: "petite", long_stitch: "long stitch", knot: "knot" };
   var ORDER = ["full", "half", "quarter", "petite", "long_stitch", "knot"];
   // Counted on their own, not in the percentage.
-  var SEPARATE = ["backstitch"];
+  var SEPARATE = ["backstitch", "bead"];
 
   function num(v) { return typeof v === "number" && isFinite(v) && v > 0 ? v : 0; }
 
@@ -375,6 +375,7 @@
     var fullDone = p.done ? countMarked(p.done, pat) : (p.completedStitches || 0);
     var special=specialtyCounts(specialtyNormalise(p.specialtyStitches,(p.settings||{}).sW||p.w,(p.settings||{}).sH||p.h),p.specialtyDone);
     return {
+      bead: typeof Beads !== "undefined" ? Beads.progress(Beads.normalise(p.beads),p.beadsDone) : {total:0,done:0},
       full: { done: fullDone, total: fullTotal },
       half: countHalves(p),
       knot: { done: kd, total: knots.length },

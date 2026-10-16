@@ -148,7 +148,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 | Format | Notes |
 |--------|-------|
 | **.json** | stitchx project file |
-| **.oxs** | Open X-Stitch charts from other design programs. Backstitch retains its thread colours over empty cells; charts need not contain full crosses. Supported diagonal halves, three-quarter stitches, XSPro diagonal quarters and equal two-thread blends are preserved. French knots are read; beads are kept but not tracked. Unsupported content is reported by type and count. |
+| **.oxs** | Open X-Stitch charts from other design programs. Backstitch retains its thread colours over empty cells; charts need not contain full crosses. Supported diagonal halves, three-quarter stitches, XSPro diagonal quarters and equal two-thread blends are preserved. French knots are read; beads have a separate tracking list. Unsupported content is reported by type and count. |
 | **Image** | Converted into a pattern |
 | **PDF** | Multi-page, scanned and booklet charts. A review screen shows how many stitches matched the colour key and lets you fix pages and threads before saving. |
 
@@ -248,3 +248,13 @@ Corrections belong to the action's original session and stitching day, even afte
 ## Petite and long stitches
 
 In Creator, use **More tools > Petite and long stitches** to add objects with a thread and half-cell coordinates, select them, edit their geometry or delete them. Undo and Redo restore edits. These objects use their own panel; general canvas selection tools edit the other stitch types. In Tracker, click the geometry or use **Layers > Petite and long stitches** to mark overlapping objects independently. A petite counts as 0.25 units and a long stitch as 0.5; each is marked as a whole. Native JSON retains their identities and marks. PNG renders both. OXS exports petites and warns about unsupported long stitches. PDF export stops with an explanation. See the [capability matrix](../docs/petite-long-lifecycle.md).
+
+### Bead progress
+
+Open **Beads** above the progress strip. Each bead shows its material label and chart position, a Select button and a Complete/Unmark button. These controls work with a keyboard as well as touch or mouse at every chart zoom. Chart taps select beads; repeated taps cycle overlapping objects without marking the cross or knot underneath. The list provides access to every overlap and the stitches beneath remain accessible through normal stitch controls.
+
+Beads are quantities, separate from stitch units, percentages, thread requirements and session stitch totals. Undo and Redo reverse bead marks in the normal tracking history. Zero-bead projects show no bead controls.
+
+Project saves, reloads, full backups/restores and .csync preserve the bead array and `beadsDone` object IDs. Version 11 projects remain readable; optional `uid` on a bead is distinct from material `id`, `brand`, `label` and colour. Legacy beads receive deterministic IDs. Move or edit an object while keeping its `uid` to retain completion. Deleting it removes it from live progress; a replacement or copy must receive a new ID. The Creator currently carries beads through saves but does not provide individual bead editing or copying. Canvas resize moves beads with the canvas, drops cropped beads from progress, and Undo restores both objects and their marks.
+
+PDF and image exports omit beads. OXS exports bead labels, colours and positions, but omits completion and object IDs; repeated identical ornaments at the same position may be deduplicated on OXS import. Use project saves or backups for a complete progress round trip. Bead marks are managed individually in the Beads list; stitch bulk marking, colour locks, layer visibility and Unpick area do not change bead marks.

@@ -235,13 +235,19 @@ const SyncEngine = (() => {
         });
       });
       if(project.specialtyStitches&&project.specialtyStitches.length)knotHash+='_sp'+simpleHash(JSON.stringify(project.specialtyStitches));
+
+      // Bead identity and material/position edits are chart changes, never tracking-only merges.
+      var beadRows = Beads.normalise(project.beads).map(function(b) {
+        return Object.keys(b).sort().map(function(k) { return [k,b[k]]; });
+      }).map(function(b) { return JSON.stringify(b); }).sort();
+      var beadHash = beadRows.length ? '_be' + simpleHash(JSON.stringify(beadRows)) : '';
       var fractionHash = fractional.length ? '_fr' + simpleHash(JSON.stringify(fractional)) : '';
       const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
       if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
-        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash + fractionHash;
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash + fractionHash + beadHash;
       }
-      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash + fractionHash;
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash + fractionHash + beadHash;
     } catch (e) {
       return "fp_error";
     }
