@@ -259,3 +259,39 @@ test('specialty progress journal preserves additions and explicit unmarks across
  await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array(N),baseWriteAt:b});
  expect((await ProjectStorage.get('proj_p')).specialtyDone||[]).toEqual([]);
 });
+
+test('bead identities, references and progress survive full save, overlay reload, old writer and unmark', async () => {
+  await ProjectStorage.save(proj({beads:[{x:1,y:1,id:'MH-1',label:'Gold',brand:'millhill',rgb:[200,180,40]}]}));
+  let p=await ProjectStorage.get('proj_p');
+  const uid=p.beads[0].uid;
+  expect(uid).toEqual(expect.any(String));
+  const b=p.lastWriteAt;
+  await ProjectStorage.saveProgress(p.id,{done:new Uint8Array(N),beadsDone:[uid],baseWriteAt:b});
+  p=await ProjectStorage.get(p.id);
+  expect(p.beadsDone).toEqual([uid]);
+  expect(p.done).toEqual([0,0,0,0,0,0]);
+  await ProjectStorage.saveProgress(p.id,{done:new Uint8Array(N),baseWriteAt:b});
+  expect((await ProjectStorage.get(p.id)).beadsDone).toEqual([uid]);
+  await ProjectStorage.saveProgress(p.id,{done:new Uint8Array(N),beadsDone:[],baseWriteAt:b});
+  p=await ProjectStorage.get(p.id);
+  expect(p.beadsDone).toEqual([]);
+  expect(p.beads[0]).toMatchObject({uid,id:'MH-1',brand:'millhill',x:1,y:1});
+  await ProjectStorage.save({...p,beadsDone:[uid,uid]});
+  p=await ProjectStorage.get(p.id);
+  expect(p.beadsDone).toEqual([uid]);
+  await ProjectStorage.save({...p,beads:[{...p.beads[0],x:4,y:4}]});
+  expect((await ProjectStorage.get(p.id)).beadsDone).toEqual([uid]);
+  await ProjectStorage.save({...p,beads:[]});
+  expect((await ProjectStorage.get(p.id)).beadsDone).toEqual([]);
+});
+
+test('bead and petite/long progress coexist without overwriting either register or full stitches',async()=>{
+  await ProjectStorage.save(proj({beads:[{x:1,y:1,label:'Gold',rgb:[200,180,40]}],specialtyVersion:1,specialtyStitches:[{uid:'petite',type:'petite',x:0,y:0,thread:{id:'310',rgb:[0,0,0]}}],specialtyDone:[]}));
+  const initial=await ProjectStorage.get('proj_p'),uid=initial.beads[0].uid,b=initial.lastWriteAt;
+  await ProjectStorage.saveProgress(initial.id,{done:new Uint8Array(N),beadsDone:[uid],specialtyDone:['petite'],baseWriteAt:b});
+  let p=await ProjectStorage.get(initial.id);
+  expect(p.beadsDone).toEqual([uid]);expect(p.specialtyDone).toEqual(['petite']);
+  await ProjectStorage.saveProgress(initial.id,{done:new Uint8Array(N),beadsDone:[],baseWriteAt:b});
+  p=await ProjectStorage.get(initial.id);
+  expect(p.beadsDone).toEqual([]);expect(p.specialtyDone).toEqual(['petite']);expect(p.done.every(v=>!v)).toBe(true);
+});

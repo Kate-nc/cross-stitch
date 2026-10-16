@@ -1,3 +1,4 @@
+global.Beads = require('../../beads.js');
 // The pages load progress-units.js with a script tag before project-storage.js (tests/progressUnitsLoaded.test.js
 // checks every page). Tests that run project-storage.js on its own get the same global from here.
 const PU = require('../../progress-units.js');

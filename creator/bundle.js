@@ -9208,6 +9208,7 @@ window.useEditHistory = function useEditHistory(state) {
         _tfprev.halfDone = prev.halfDone || [];
         if (prev.bsDone && prev.bsDone.length) _tfprev.bsDone = prev.bsDone.slice(); else delete _tfprev.bsDone;
         if (prev.partialDone && prev.partialDone.length) _tfprev.partialDone = prev.partialDone; else delete _tfprev.partialDone;
+        if (Array.isArray(prev.beadsDone)) _tfprev.beadsDone = prev.beadsDone.slice(); else delete _tfprev.beadsDone;
         if (prev.beads && prev.beads.length) _tfprev.beads = prev.beads; else delete _tfprev.beads;
       }
       state.setDone(prev.done ? new Uint8Array(prev.done) : null);
@@ -9345,6 +9346,7 @@ window.useEditHistory = function useEditHistory(state) {
         _tfnext.halfDone = next.halfDone || [];
         if (next.bsDone && next.bsDone.length) _tfnext.bsDone = next.bsDone.slice(); else delete _tfnext.bsDone;
         if (next.partialDone && next.partialDone.length) _tfnext.partialDone = next.partialDone; else delete _tfnext.partialDone;
+        if (Array.isArray(next.beadsDone)) _tfnext.beadsDone = next.beadsDone.slice(); else delete _tfnext.beadsDone;
         if (next.beads && next.beads.length) _tfnext.beads = next.beads; else delete _tfnext.beads;
       }
       state.setDone(next.done ? new Uint8Array(next.done) : null);
@@ -13274,7 +13276,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Backstitch and quarter-stitch done marks, and beads: carried so a Creator save does not drop them.
     if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
     if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
-    if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = project.beads;
+    if (Array.isArray(project.beads) && project.beads.length > 0) _tf.beads = window.Beads.normalise(project.beads);
+    if (Array.isArray(project.beadsDone)) _tf.beadsDone = window.Beads.live(_tf.beads, project.beadsDone);
     if (typeof project.notes === "string" && project.notes) _tf.notes = project.notes;
     // Preserve v3 stats fields (stitchLog, finishStatus, etc.)
     if (project.finishStatus != null) _tf.finishStatus = project.finishStatus;
@@ -13922,7 +13925,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
       if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
       if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
-      if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = freshProject.beads;
+      if (Array.isArray(freshProject.beads) && freshProject.beads.length > 0) tf.beads = window.Beads.normalise(freshProject.beads); else delete tf.beads;
+      if (Array.isArray(freshProject.beadsDone)) tf.beadsDone = window.Beads.live(tf.beads, freshProject.beadsDone); else delete tf.beadsDone;
       if (typeof freshProject.notes === "string" && freshProject.notes) tf.notes = freshProject.notes; else delete tf.notes;
       // Refresh v3 stats fields
       if (freshProject.finishStatus != null) tf.finishStatus = freshProject.finishStatus;

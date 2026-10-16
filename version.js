@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Added: bead progress with stable object IDs, chart selection, an accessible list, completion and unmarking, Undo/Redo and separate bead quantities. Project saves, backups and sync preserve bead marks. OXS carries bead appearance and position only; PDF and image exports omit beads.',
       'Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.',
       'Improved: import review separates cell recognition, legend matches, stitch preservation, dimensions, unsupported content and declared counts. Unknown coverage stays explicit, limitations include repair guidance, and the original source is retained. PDF key-matching figures keep their existing meaning.',
       'Added: petite crosses and long stitches have independent identities, thread references and geometry, creation/editing controls, chart rendering, weighted progress, marking, undo/redo and native save/reload. OXS preserves petites and reports unsupported long-stitch export; PDF export reports unsupported objects instead of omitting them.',
