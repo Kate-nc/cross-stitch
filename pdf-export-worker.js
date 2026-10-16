@@ -184,8 +184,21 @@ async function buildPdf(project, options, reqId) {
   var pageHpt = Layout.mmToPt(geom.pageHmm);
 
   // Build palette → codepoint mapping (deterministic).
-  var paletteMap = Layout.buildCodepointMap(project.palette || [], FONT_SPEC || { baseCodepoint: 0xE000, glyphs: new Array(96) });
+  var counts = countPalette(project);
+  var paletteMap = Layout.buildCodepointMap(project.palette || [], FONT_SPEC, counts);
   var codepoints = paletteMap.map;
+  var embeddedCodepoints = new Set(symbolFont.getCharacterSet());
+  paletteMap.order.forEach(function (id) {
+    if (!embeddedCodepoints.has(codepoints[id])) {
+      throw new Error("PDF symbol font is missing the glyph for thread " + id + ". Please reload the page and try again.");
+    }
+  });
+
+  // All summaries and legends describe exactly the entries assigned above.
+  // Keep the caller's project untouched (it may contain unused palette rows).
+  project = Object.assign({}, project, { palette: paletteMap.order.map(function (id) {
+    return project.palette.find(function (entry) { return entry && entry.id === id; });
+  }) });
 
   // UX-12 PR #14: optional Workshop print theme. theme === 'workshop' opts
   // into terracotta major-grid + linen page background. Any other value
@@ -193,9 +206,6 @@ async function buildPdf(project, options, reqId) {
   // to the legacy PK-compat output.
   var theme = (options.theme === "workshop") ? "workshop" : "pk";
   var themeCols = Layout.themeColors(theme);
-
-  // Compute per-thread stitch counts.
-  var counts = countPalette(project);
 
   // Pagination plan.
   var pages = Layout.paginate({
@@ -211,7 +221,7 @@ async function buildPdf(project, options, reqId) {
   var totalPages =
     (options.includeCover ? 1 : 0) +
     (options.includeInfo  ? 1 : 0) +
-    legendPageCount(project.palette, codepoints) +
+    legendPageCount(paletteMap.order) +
     pages.length * chartModes.length +
     (options.includeIndex ? 1 : 0);
 
@@ -268,7 +278,7 @@ async function buildPdf(project, options, reqId) {
 }
 
 function countPalette(project) {
-  var counts = {};
+  var counts = Object.create(null);
   if (!project.pattern) return counts;
   for (var i = 0; i < project.pattern.length; i++) {
     var c = project.pattern[i];
@@ -288,8 +298,8 @@ function filterValidPaletteEntries(palette) {
   return out;
 }
 
-function legendPageCount(palette, codepoints) {
-  var n = filterValidPaletteEntries(palette).length;
+function legendPageCount(orderedIds) {
+  var n = orderedIds.length;
   if (!n) return 0;
   return Math.max(1, Math.ceil(n / 32));   // 32 rows per legend page
 }
@@ -556,11 +566,9 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
       var ent = slice[i];
       var rowY = y - i * 18;
       // Symbol (embedded font)
-      try {
-        page.drawText(String.fromCodePoint(ent.codepoint), {
-          x: colSym, y: rowY, size: 12, font: symbolFont, color: rgbColor(0, 0, 0),
-        });
-      } catch (_) {}
+      page.drawText(String.fromCodePoint(ent.codepoint), {
+        x: colSym, y: rowY, size: 12, font: symbolFont, color: rgbColor(0, 0, 0),
+      });
       // Swatch
       var rgb = ent.entry.rgb || [128, 128, 128];
       page.drawRectangle({
@@ -703,26 +711,20 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
         });
       }
       // Symbol
-      if (cp != null) {
-        var symColor;
-        if (mode === "colour") {
-          var c = Layout.contrastColor(rgb);
-          symColor = rgbColor(c[0], c[1], c[2]);
-        } else {
-          symColor = rgbColor(0, 0, 0);
-        }
-        var ch;
-        try { ch = String.fromCodePoint(cp); } catch (_) { ch = ""; }
-        if (ch) {
-          // Centre the glyph in the cell — symbolFont em=1000 with ascent 800,
-          // so visual centre is at (size * 0.4) above baseline.
-          var tx = cx + (cellPt - symSize) / 2 + symSize * 0.10;
-          var ty = cy + (cellPt - symSize) / 2 + symSize * 0.10;
-          try {
-            page.drawText(ch, { x: tx, y: ty, size: symSize, font: symbolFont, color: symColor });
-          } catch (_) { /* skip un-renderable */ }
-        }
+      if (cp == null) throw new Error("PDF symbol assignment missing for thread " + cell.id);
+      var symColor;
+      if (mode === "colour") {
+        var c = Layout.contrastColor(rgb);
+        symColor = rgbColor(c[0], c[1], c[2]);
+      } else {
+        symColor = rgbColor(0, 0, 0);
       }
+      var ch = String.fromCodePoint(cp);
+      // Centre the glyph in the cell — symbolFont em=1000 with ascent 800,
+      // so visual centre is at (size * 0.4) above baseline.
+      var tx = cx + (cellPt - symSize) / 2 + symSize * 0.10;
+      var ty = cy + (cellPt - symSize) / 2 + symSize * 0.10;
+      page.drawText(ch, { x: tx, y: ty, size: symSize, font: symbolFont, color: symColor });
     }
   }
 
@@ -801,7 +803,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
   // ── Mini legend strip in footer ──────────────────────────────────────
   if (miniLegend) {
     var stripY = marginPt + footerPt - 28;
-    var pageCounts = {};
+    var pageCounts = Object.create(null);
     for (var ry2 = seg.y0; ry2 < seg.y1; ry2++) {
       for (var rx2 = seg.x0; rx2 < seg.x1; rx2++) {
         var cc = pat[ry2 * W + rx2];
@@ -823,9 +825,7 @@ function drawChartPage(pdfDoc, project, seg, mode, geom, codepoints, counts,
         borderColor: rgbColor(0.3, 0.3, 0.3), borderWidth: 0.3,
       });
       if (cp2 != null) {
-        try {
-          page.drawText(String.fromCodePoint(cp2), { x: sx + 12, y: stripY, size: 9, font: symbolFont, color: rgbColor(0, 0, 0) });
-        } catch (_) {}
+        page.drawText(String.fromCodePoint(cp2), { x: sx + 12, y: stripY, size: 9, font: symbolFont, color: rgbColor(0, 0, 0) });
       }
       page.drawText(brandLabel(pe).replace(/^(DMC|Anchor)\s+/, ""), { x: sx + 22, y: stripY + 1, size: 8, font: font, color: rgbColor(0.2, 0.2, 0.2) });
       sx += 60;

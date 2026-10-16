@@ -236,6 +236,8 @@ Which threads you own, are low on, or need to buy, from your Stash Manager inven
 - **Export PDF** / **Export .oxs**.
 - **Download bundle** — one `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest.
 
+PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. PDF symbols are assigned independently of symbols chosen in the editor.
+
 Designer branding (name, copyright, contact, logo) is set once in **File > Preferences > Profile & branding**. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md) for a walk-through.
 
 ## Saving Your Work

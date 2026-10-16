@@ -90,7 +90,7 @@ The default landing page and project hub.
 | Format | Description |
 |--------|-------------|
 | `.json` | Full project — pattern, progress, sessions, parking markers, thread ownership. File > Download (.json), or Ctrl+S. Reload at any time in the Creator or Tracker. |
-| PDF chart | Multi-page, Pattern Keeper-compatible chart using the embedded `CrossStitchSymbols.ttf` symbol font. Presets for Pattern Keeper and home printing; Auto / A4 / US Letter; four print sizes; B&W and colour chart modes; optional cover, info, chart index and mini-legend pages; 2-row overlap zone; designer branding. See [EXPORT_QUICKSTART.md](EXPORT_QUICKSTART.md). |
+| PDF chart | Multi-page, Pattern Keeper-compatible chart using the embedded `CrossStitchSymbols.ttf` symbol font. Up to 112 distinct used threads or blends; larger palettes stop with an error. Unused colours and empty cells do not count. Presets for Pattern Keeper and home printing; Auto / A4 / US Letter; four print sizes; B&W and colour chart modes; optional cover, info, chart index and mini-legend pages; 2-row overlap zone; designer branding. See [EXPORT_QUICKSTART.md](EXPORT_QUICKSTART.md). |
 | PNG image | Single image of the pattern grid. |
 | `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. |
 | `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
