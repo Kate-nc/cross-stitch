@@ -901,11 +901,11 @@ function ManagerApp() {
       await (await window.loadBackupRestore()).downloadBackup();
       setBackupStatus({
         type: "success",
-        message: "Backup downloaded!"
+        message: "Backup download requested. Check that the file was saved."
       });
       try {
         window.Toast && window.Toast.show && window.Toast.show({
-          message: "Backup downloaded successfully",
+          message: "Backup download requested. Check that the file was saved.",
           type: "success"
         });
       } catch (_) {}
@@ -926,6 +926,14 @@ function ManagerApp() {
   const handleRestoreFile = e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (file.size > 64 * 1024 * 1024) {
+      setBackupStatus({
+        type: "error",
+        message: "Backup exceeds the 64 MiB file limit."
+      });
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async () => {
       let BackupRestore;
@@ -954,7 +962,7 @@ function ManagerApp() {
         }
         setBackupStatus({
           type: "confirm",
-          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString('en-GB') : "unknown date"}? This will replace all current data.`,
+          message: `Restore backup from ${check.summary.createdAt ? new Date(check.summary.createdAt).toLocaleString('en-GB') : "unknown date"}? ${check.summary.completeness}. Existing projects are retained; identical records are skipped and conflicting IDs stop the import. Portable settings replace your current choices.`,
           summary: check.summary,
           onConfirm: async () => {
             try {
@@ -965,7 +973,7 @@ function ManagerApp() {
               const summary = await BackupRestore.restore(backup);
               setBackupStatus({
                 type: "success",
-                message: "Restored! Reloading..."
+                message: summary.unchanged ? "Backup already present; nothing changed." : "Restored! Reloading..."
               });
               try {
                 const parts = [];
@@ -978,7 +986,7 @@ function ManagerApp() {
                   type: "success"
                 });
               } catch (_) {}
-              setTimeout(() => window.location.reload(), 1000);
+              if (summary.requiresReload) window.location.reload();
             } catch (err) {
               setBackupStatus({
                 type: "error",
@@ -996,10 +1004,14 @@ function ManagerApp() {
       } catch (err) {
         setBackupStatus({
           type: "error",
-          message: "Invalid file: could not parse JSON."
+          message: "Invalid backup: " + err.message
         });
       }
     };
+    reader.onerror = () => setBackupStatus({
+      type: "error",
+      message: "Could not read the backup file."
+    });
     reader.readAsText(file);
     e.target.value = "";
   };

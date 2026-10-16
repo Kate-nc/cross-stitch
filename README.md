@@ -94,7 +94,7 @@ The default landing page and project hub.
 | PNG image | Single image of the pattern grid. |
 | `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. Retains backstitch thread references, supported fractional stitches and equal two-thread blends, including charts without full crosses. Review counted warnings for unsupported content. |
 | `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
-| Backup (`.csb`) | Every project, the stash and validated portable global preferences in one compressed file (older backups are `.json`). Device controls, pattern view positions and Sync setup stay on the destination; see [the preference contract](docs/portable-backup-preferences.md). File > Export Backup / Restore from Backup. |
+| Backup (`.csb`) | Every project, photo, tracing picture, session checkpoint, stash/accounting record and portable global preference in one validated compressed file (older backups are `.json`). Recovery stages an isolated copy before publication, retains existing projects and rejects conflicting identifiers. See [recovery guarantees](docs/backup-recovery.md). Device controls, pattern view positions and Sync setup stay on the destination; see [the preference contract](docs/portable-backup-preferences.md). File > Export Backup / Restore from Backup. |
 | `.csync` | Cross-device sync file — see [Cross-device sync](#cross-device-sync). |
 
 ---

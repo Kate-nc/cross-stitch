@@ -106,21 +106,10 @@ describe('photos and project deletion, backups', () => {
   });
 
   function loadBackup() {
-    const backupSrc = fs.readFileSync('./backup-restore.js', 'utf8');
-    const window = { PERF_FLAGS: {}, pako };
-    const localStorage = { getItem: () => null, setItem: () => {} };
-    const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
-    const indexedDB = idb;
-    const IDBKeyRange = global.IDBKeyRange;
-    const isColorOwned = () => false;
-    let BackupRestore;
-    // eslint-disable-next-line no-eval
-    new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
-    eval(backupSrc.replace('const BackupRestore =', 'BackupRestore ='));
-    return BackupRestore;
+    return require('./setup/backup-harness').load(idb).api;
   }
 
-  test('a backup carries the photos and a restore brings them back (and replaces the ones on the device)', async () => {
+  test('a backup carries the photos and a restore brings them back (and retains additional destination photos)', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     const db = await openAppDb(idb);
     await new Promise((res, rej) => { const tx = db.transaction('projects', 'readwrite'); tx.objectStore('projects').put({ id: 'proj_a', name: 'A', pattern: [{ id: '310' }], done: [0] }, 'proj_a'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
@@ -128,17 +117,18 @@ describe('photos and project deletion, backups', () => {
     await addRaw('proj_a', 'k', 40);
     const BR = loadBackup();
     const backup = await BR.createBackup();
-    expect(backup.photos.map(p => p.id).sort()).toEqual(['photo:proj_a:k', 'photothumb:proj_a:k']);
-    expect(typeof backup.photos[0].data).toBe('string');
+    expect(backup.attachments.map(p => p.id).sort()).toEqual(['photo:proj_a:k', 'photothumb:proj_a:k']);
+    expect(typeof backup.attachments[0].data).toBe('string');
     // The compressed file format round-trips it too.
     const file = BR.serializeBackupFile(backup, { compressed: true });
     const parsed = BR.parseBackupText(file.text);
-    expect(parsed.photos).toHaveLength(2);
+    expect(parsed.attachments).toHaveLength(2);
     // The device changes: another photo is added, the original one deleted.
     await addRaw('proj_a', 'other', 12);
     await Photos.remove('proj_a', 'k');
     await BR.restore(parsed);
-    expect(await Photos.list('proj_a')).toEqual(['k']);
+    BlobStore._setOpener(() => openAppDb(idb)); // the real UI reloads after publication
+    expect((await Photos.list('proj_a')).sort()).toEqual(['k', 'other']);
     const rec = await BlobStore.get('photo:proj_a:k');
     expect(rec.blob.size).toBe(40);
     expect(rec.type).toBe('image/jpeg');

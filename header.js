@@ -637,6 +637,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   function handleInlineRestore(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (file.size > 64 * 1024 * 1024) { window.Toast.show({ message: 'Backup exceeds the 64 MiB file limit.', type: 'error' }); e.target.value = ''; return; }
     var reader = new FileReader();
     reader.onload = function () {
       // backup-restore.js is loaded on demand (lazy-modules.js). parseBackupText
@@ -653,7 +654,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         var when = s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : 'unknown date';
         var msg = 'Restore backup from ' + when + '?\n\n'
           + s.projectCount + ' projects \u00b7 ' + s.threadCount + ' owned threads \u00b7 ' + s.patternCount + ' patterns'
-          + '\n\nThis will replace all current data.';
+          + '\n\n' + s.completeness + '. Existing projects are retained. Identical records are skipped; conflicting IDs stop the import. Portable settings in this file replace your current choices. Reload after restoring.';
         window.ConfirmDialog.show({
           title: 'Restore from backup?',
           message: msg,
@@ -662,16 +663,17 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         }).then(function (ok) {
           if (!ok) return;
           BackupRestore.restore(backup)
-            .then(function () { window.location.reload(); })
+            .then(function (result) { if (result.requiresReload) window.location.reload(); else window.Toast.show({ message: 'Backup already present; nothing changed.', type: 'success' }); })
             .catch(function (err) { (window.Toast ? window.Toast.show({ message: 'Restore failed: ' + err.message, type: 'error' }) : alert('Restore failed: ' + err.message)); });
         });
       } catch (err) {
-        (window.Toast ? window.Toast.show({ message: 'Invalid file: could not parse JSON.', type: 'error' }) : alert('Invalid file: could not parse JSON.'));
+        (window.Toast ? window.Toast.show({ message: 'Invalid backup: ' + err.message, type: 'error' }) : alert('Invalid backup: ' + err.message));
       }
       }).catch(function () {
         (window.Toast ? window.Toast.show({ message: 'Could not load the restore tools. Please check your connection and try again.', type: 'error' }) : alert('Could not load the restore tools.'));
       });
     };
+    reader.onerror = function () { window.Toast.show({ message: 'Could not read the backup file.', type: 'error' }); };
     reader.readAsText(file);
     e.target.value = '';
   }

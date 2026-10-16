@@ -1130,7 +1130,7 @@
       busy[1](true); msg[1](null);
       window.BackupRestore.downloadBackup().then(function () {
         busy[1](false);
-        msg[1]({ kind: "ok", text: "Backup downloaded. Keep the file somewhere safe." });
+        msg[1]({ kind: "ok", text: "Backup download requested. Check that the file was saved and keep it somewhere safe." });
       }).catch(function (e) {
         busy[1](false);
         msg[1]({ kind: "err", text: e && e.message ? e.message : "Could not download the backup." });
@@ -1147,15 +1147,16 @@
       }
       window.ConfirmDialog.show({
         title: "Restore from backup?",
-        message: "Restoring will replace ALL of your current patterns, stash and settings with the contents of the backup file. Continue?",
+        message: "The archive is validated before import. Existing projects are retained; identical records are skipped and conflicting identifiers stop the import. Portable settings in this file replace your current choices. Legacy files may omit attachments. Continue?",
         confirmLabel: "Restore",
         danger: true
       }).then(function (ok) {
         if (!ok) return;
         busy[1](true); msg[1](null);
-        window.BackupRestore.restoreBackup(f).then(function () {
+        window.BackupRestore.restoreBackup(f).then(function (result) {
           busy[1](false);
-          msg[1]({ kind: "ok", text: "Backup restored. Reload any open pages to see the changes." });
+          msg[1]({ kind: "ok", text: result.unchanged ? "Backup already present; nothing changed." : "Backup restored. Reloading…" });
+          if (result.requiresReload) window.location.reload();
         }).catch(function (e) {
           busy[1](false);
           msg[1]({ kind: "err", text: e && e.message ? e.message : "Could not restore the backup." });

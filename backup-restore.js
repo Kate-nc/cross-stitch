@@ -39,10 +39,27 @@ const BackupRestore = (() => {
     });
   }
 
+  function readSnapshot(db) {
+    return new Promise((resolve, reject) => {
+      const names = Array.from(db.objectStoreNames), data = {};
+      const tx = db.transaction(names, "readonly");
+      names.forEach(name => {
+        data[name] = [];
+        const req = tx.objectStore(name).openCursor();
+        req.onsuccess = () => { const c = req.result; if (c) { data[name].push({ key: c.key, value: c.value }); c.continue(); } };
+      });
+      tx.oncomplete = () => resolve(data);
+      tx.onabort = () => reject(tx.error || new Error("Storage snapshot was interrupted."));
+      tx.onerror = () => {};
+    });
+  }
+  function validBase64(value) {
+    return typeof value === "string" && value.length % 4 === 0 && !/[^A-Za-z0-9+/=]/.test(value) && !/=/.test(value.slice(0, -2)) && !/=[^=]/.test(value.slice(-2));
+  }
+
   // ── Progress photos (photos.js): "photo:<project>:<n>" and "photothumb:<project>:<n>" in pendingImports ──
   // Records hold a Blob; in a backup each is a plain object with its picture as base64 so it survives JSON.
-  // Older builds of the app ignore the `photos` list, which is optional.
-  const PHOTO_PREFIXES = ["photo:", "photothumb:"];
+  // Version 1 used `photos`; version 2 carries every project attachment.
   function blobToBase64(blob) {
     if (typeof blob.arrayBuffer === "function") {
       return blob.arrayBuffer().then(buf => {
@@ -63,42 +80,108 @@ const BackupRestore = (() => {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new Blob([bytes], { type: type || "image/jpeg" });
   }
-  async function readPhotos(db) {
-    if (!db.objectStoreNames.contains("pendingImports") || typeof IDBKeyRange === "undefined") return [];
-    const recs = [];
-    for (const prefix of PHOTO_PREFIXES) {
-      const got = await new Promise((resolve, reject) => {
-        const req = db.transaction("pendingImports", "readonly").objectStore("pendingImports").getAll(IDBKeyRange.bound(prefix, prefix + "\uffff"));
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-      got.forEach(r => { if (r && r.blob) recs.push(r); });
+  const MAX_BYTES = 64 * 1024 * 1024;
+  const CS_STORES = ["projects", "project_meta", "stats_summaries", "sync_snapshots"];
+  const ALLOWED = { CrossStitchDB: CS_STORES, stitch_manager_db: ["manager_state"] };
+  function sameData(a, b) {
+    function ordered(value) {
+      if ((ArrayBuffer.isView(value) && typeof value.length === "number") || value instanceof Map || value instanceof Set) return Array.from(value).map(ordered);
+      if (value instanceof Date) return value.toJSON();
+      if (Array.isArray(value)) return value.map(ordered);
+      if (value && typeof value === "object") {
+        const out = {};
+        Object.keys(value).sort().forEach(key => { out[key] = ordered(value[key]); });
+        return out;
+      }
+      return value;
     }
-    const out = [];
-    for (const r of recs) {
-      out.push({ id: r.id, projectId: r.projectId, type: r.type || "image/jpeg", w: r.w, h: r.h, bytes: r.bytes, createdAt: r.createdAt, data: await blobToBase64(r.blob) });
-    }
-    return out;
+    return JSON.stringify(ordered(a)) === JSON.stringify(ordered(b));
   }
-  async function restorePhotos(db, photos) {
-    if (!db.objectStoreNames.contains("pendingImports") || typeof IDBKeyRange === "undefined") return 0;
-    const recs = [];
-    (photos || []).forEach(p => {
-      if (!p || typeof p.id !== "string" || typeof p.data !== "string" || !PHOTO_PREFIXES.some(x => p.id.indexOf(x) === 0)) return;
-      try { recs.push({ id: p.id, projectId: p.projectId, type: p.type || "image/jpeg", w: p.w, h: p.h, bytes: p.bytes, createdAt: p.createdAt || Date.now(), updatedAt: Date.now(), blob: base64ToBlob(p.data, p.type) }); }
-      catch (e) { console.warn("Restore: skipped an unreadable photo", e); }
+  function attachmentPlain(record, projectId) {
+    const plain = Object.assign({}, record, { projectId });
+    delete plain.blob; delete plain.data;
+    if (record.blob) { plain.bytes = record.blob.size; plain.type = record.blob.type || record.type || "application/octet-stream"; }
+    return plain;
+  }
+  function mergeManager(key, before, incoming) {
+    if (key === "threads") {
+      const merged = Object.assign({}, before);
+      for (const id of Object.keys(incoming)) {
+        if (Object.prototype.hasOwnProperty.call(merged, id) && !sameData(merged[id], incoming[id])) throw new Error("Identifier collision in threads: " + id + ". Restore into a fresh browser profile.");
+        merged[id] = incoming[id];
+      }
+      return merged;
+    }
+    if (key === "patterns") {
+      const merged = before.slice();
+      incoming.forEach(pattern => {
+        const old = merged.find(p => p && pattern && p.id === pattern.id);
+        if (old && !sameData(old, pattern)) throw new Error("Identifier collision in the pattern library. Restore into a fresh browser profile.");
+        if (!old) merged.push(pattern);
+      });
+      return merged;
+    }
+    return incoming;
+  }
+  function checksum(text) {
+    let crc = -1;
+    for (let i = 0; i < text.length; i++) {
+      let ch = text.charCodeAt(i);
+      for (let byte = 0; byte < 2; byte++, ch >>>= 8) {
+        crc ^= ch & 255;
+        for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+      }
+    }
+    return ((crc ^ -1) >>> 0).toString(16).padStart(8, "0");
+  }
+  function seal(backup) {
+    const payload = Object.assign({}, backup);
+    delete payload.integrity;
+    return checksum(JSON.stringify(payload));
+  }
+  function owner(id, projects) {
+    return projects.find(p => id === "trace:" + p || id.startsWith("photo:" + p + ":") || id.startsWith("photothumb:" + p + ":") || id.startsWith("session:" + p + ":"));
+  }
+  async function readAttachments(records, projects) {
+    const result = []; let blobBytes = 0;
+    for (const entry of records) {
+      const r = entry.value, pid = owner(String(entry.key), projects);
+      if (!pid) continue; // temporary imports and orphaned attachments are not project recovery data
+      const record = Object.assign({}, r, { projectId: pid });
+      delete record.blob;
+      if (r.blob) {
+        if (!(r.blob instanceof Blob)) throw new Error("Unreadable attachment: " + entry.key);
+        blobBytes += r.blob.size;
+        if (blobBytes > MAX_BYTES * 0.75) throw new Error("Attachments exceed the safe 64 MiB archive limit. Reduce attachments and retry.");
+        record.data = await blobToBase64(r.blob);
+        record.bytes = r.blob.size;
+        record.type = r.blob.type || r.type || "application/octet-stream";
+      } else if (!String(entry.key).startsWith("session:")) throw new Error("Missing attachment: " + entry.key);
+      result.push(record);
+    }
+    return result;
+  }
+  function decodeAttachments(backup) {
+    return (backup.attachments || backup.photos || []).map(p => {
+      const record = Object.assign({}, p);
+      delete record.data;
+      if (typeof p.data === "string") record.blob = base64ToBlob(p.data, p.type);
+      return record;
     });
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction("pendingImports", "readwrite");
-      const store = tx.objectStore("pendingImports");
-      // The backup replaces the photos: the ones now on the device go, then the backup's come in.
-      PHOTO_PREFIXES.forEach(prefix => store.delete(IDBKeyRange.bound(prefix, prefix + "\uffff")));
-      recs.forEach(r => store.put(r));
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error("Photos could not be restored."));
+  }
+  function writeStores(db, data) {
+    return new Promise((resolve, reject) => {
+      const names = Object.keys(data), tx = db.transaction(names, "readwrite", { durability: "strict" });
+      tx.oncomplete = resolve;
+      tx.onabort = () => reject(tx.error || new Error("Restore staging was interrupted."));
+      tx.onerror = () => {}; // onabort is the authoritative failure
+      try {
+        names.forEach(name => data[name].forEach(e => {
+          const store = tx.objectStore(name);
+          if (store.keyPath) store.add(e.value); else store.add(e.value, e.key);
+        }));
+      } catch (e) { tx.abort(); reject(e); }
     });
-    return recs.length;
   }
 
   // Open an IndexedDB by name, creating expected stores if needed
@@ -187,30 +270,46 @@ const BackupRestore = (() => {
   // error toasts fire as before.
   function parseBackupText(text) {
     if (typeof text !== 'string') throw new Error('Backup file is empty.');
+    if (text.length > MAX_BYTES) throw new Error('Backup exceeds the 64 MiB file limit. Use a smaller backup.');
     if (text.startsWith(_BACKUP_MAGIC)) {
       if (typeof pako === 'undefined' || !pako || !pako.inflate) {
         throw new Error('This backup is compressed but pako is not loaded.');
       }
       const body = text.slice(_BACKUP_MAGIC.length).trim();
+      if (!validBase64(body)) throw new Error("Compressed backup is corrupt (invalid base64).");
       let bin;
       try { bin = atob(body); }
       catch (e) { throw new Error('Compressed backup is corrupt (base64 decode failed).'); }
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       let inflated;
-      try { inflated = pako.inflate(bytes, { to: 'string' }); }
-      catch (e) { throw new Error('Compressed backup is corrupt (inflate failed).'); }
+      try {
+        const chunks = [], stream = new pako.Inflate({ chunkSize: 65536 });
+        let size = 0;
+        stream.onData = chunk => {
+          size += chunk.length;
+          if (size > MAX_BYTES) throw new Error('Backup exceeds the 64 MiB expanded limit.');
+          chunks.push(chunk);
+        };
+        stream.push(bytes, true);
+        if (stream.err || !stream.ended) throw new Error('Truncated compressed data.');
+        const all = new Uint8Array(size); let offset = 0;
+        chunks.forEach(chunk => { all.set(chunk, offset); offset += chunk.length; });
+        inflated = new TextDecoder('utf-8', { fatal: true }).decode(all);
+      } catch (e) { throw new Error('Compressed backup is corrupt or oversized: ' + e.message); }
       return JSON.parse(inflated);
     }
     return JSON.parse(text);
   }
 
   return {
+    maxFileBytes: MAX_BYTES,
     serializeBackupFile,
     parseBackupText,
     // Reads a File/Blob, parses (supports both .json and .csb), validates and restores.
     async restoreBackup(file) {
       if (!file) throw new Error("No backup file selected.");
+      if (file.size > MAX_BYTES) throw new Error("Backup exceeds the 64 MiB file limit. Use a smaller backup.");
       const text = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -224,6 +323,7 @@ const BackupRestore = (() => {
     },
     // Creates a full backup JSON object
     async createBackup() {
+      if (window.RecoveryStorage) window.RecoveryStorage.current();
       // Flush any in-flight React state to IndexedDB before reading
       if (window.__flushProjectToIDB) {
         try {
@@ -233,9 +333,9 @@ const BackupRestore = (() => {
           throw new Error("The latest changes could not be included in the backup. Keep this page open, resolve the save problem and retry Export Backup.", { cause: e });
         }
       }
-      const backup = {
+      let backup = {
         _format: "cross-stitch-backup",
-        _version: 1,
+        _version: 2,
         _createdAt: new Date().toISOString(),
         databases: {},
         localStorage: {}
@@ -248,21 +348,9 @@ const BackupRestore = (() => {
       let projectDB;
       try {
         const db = projectDB = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
-        // A store the app has not created is read as empty; never upgrade the database here.
-        const readIfThere = (name) => db.objectStoreNames.contains(name) ? readStore(db, name) : Promise.resolve([]);
-        // PERF (perf-3 #4 / perf-5): read all three stores in parallel rather
-        // than awaiting them sequentially.
-        const [projects, project_meta, stats_summaries, sync_snapshots] = await Promise.all([
-          readIfThere("projects"),
-          readIfThere("project_meta"),
-          readIfThere("stats_summaries"),
-          readIfThere("sync_snapshots")
-        ]);
-        // A Tracker may have closed after its small progress write but before
-        // its full save. Fold only valid records into their existing project;
-        // replace the matching summaries rather than adding duplicate projects.
-        const progress = db.objectStoreNames.contains("pendingImports") && typeof IDBKeyRange !== "undefined"
-          ? await readStore(db, "pendingImports", IDBKeyRange.bound("progress:", "progress:\uffff")) : [];
+        const snapshot = await readSnapshot(db);
+        const [projects, project_meta, stats_summaries, sync_snapshots] = CS_STORES.map(name => snapshot[name] || []);
+        const progress = (snapshot.pendingImports || []).filter(e => String(e.key).startsWith("progress:"));
         for (const project of projects) {
           if (!project.value || project.key !== project.value.id) continue;
           const entry = progress.find(e => e.value && e.value.projectId === project.key);
@@ -287,8 +375,8 @@ const BackupRestore = (() => {
         }
         backup.databases.CrossStitchDB = { projects, project_meta, stats_summaries, sync_snapshots };
         // Progress photos, when there are any (an optional list; older builds ignore it).
-        const photos = await readPhotos(db);
-        if (photos.length) backup.photos = photos;
+        const ids = projects.filter(e => e.value && e.key === e.value.id).map(e => e.key);
+        backup.attachments = await readAttachments(snapshot.pendingImports || [], ids);
       } catch (e) {
         console.warn("Backup: could not read CrossStitchDB:", e);
         throw new Error("Could not read all project data for the backup.", { cause: e });
@@ -318,6 +406,20 @@ const BackupRestore = (() => {
         } catch (e) { throw new Error("Could not read settings for the backup.", { cause: e }); }
       });
 
+      // IndexedDB can hold typed progress arrays and Maps/Sets. Normalise them
+      // before JSON and integrity checks; never silently turn a Blob into {}.
+      backup = JSON.parse(JSON.stringify(backup, (key, value) => {
+        if (ArrayBuffer.isView(value) && typeof value.length === "number") return Array.from(value);
+        if (value instanceof Map || value instanceof Set) return Array.from(value);
+        if (value instanceof Blob || value instanceof ArrayBuffer || value instanceof DataView) throw new Error("Unsupported binary data outside attachment storage: " + key);
+        return value;
+      }));
+      backup.completeness = { scope: "projects-stash-portable-settings", attachments: backup.attachments.map(a => a.id),
+        excluded: ["temporary image handoffs", "unconverted drafts", "device and Sync configuration", "import telemetry"] };
+      backup.integrity = { algorithm: "crc32-utf16", value: seal(backup) };
+      const check = this.validate(backup);
+      if (!check.valid) throw new Error("Backup is incomplete: " + check.error);
+      if (new Blob([JSON.stringify(backup)]).size > MAX_BYTES) throw new Error("Backup is too large for safe recovery (64 MiB expanded limit). Reduce attachments and retry.");
       return backup;
     },
 
@@ -373,7 +475,7 @@ const BackupRestore = (() => {
       if (!backup || backup._format !== "cross-stitch-backup") {
         return { valid: false, error: "Not a valid stitchx backup file." };
       }
-      if (backup._version !== 1) {
+      if (![1, 2].includes(backup._version)) {
         return { valid: false, error: "Unsupported backup version: " + backup._version };
       }
       // S-2: cross-field structural checks. Without these, validate() will
@@ -383,6 +485,76 @@ const BackupRestore = (() => {
       if (!backup.databases || typeof backup.databases !== "object") {
         return { valid: false, error: "Backup is missing the databases section." };
       }
+      try {
+        const stack = [[backup, 0]];
+        while (stack.length) {
+          const [value, depth] = stack.pop();
+          if (depth > 80) throw new Error("Backup nesting is too deep.");
+          if (!value || typeof value !== "object") continue;
+          for (const key of Object.keys(value)) {
+            if (["__proto__", "constructor", "prototype"].includes(key)) throw new Error("Backup contains an unsafe object key.");
+            if (value[key] && typeof value[key] === "object") stack.push([value[key], depth + 1]);
+          }
+        }
+        if (Object.keys(backup.databases).some(k => !ALLOWED[k])) throw new Error("Backup contains an unsupported database.");
+        for (const name of Object.keys(backup.databases)) {
+          const db = backup.databases[name];
+          if (!db || Array.isArray(db)) throw new Error("Malformed database: " + name);
+          for (const store of Object.keys(db)) {
+            if (!ALLOWED[name].includes(store) || !Array.isArray(db[store])) throw new Error("Unsupported or malformed store: " + store);
+            const keys = new Set();
+            db[store].forEach(e => {
+              if (!e || typeof e.key !== "string" || !e.key || e.value === undefined || keys.has(e.key)) throw new Error("Invalid or duplicate record in " + store);
+              keys.add(e.key);
+              if (store === "manager_state" && e.key === "threads" && (!e.value || typeof e.value !== "object" || Array.isArray(e.value))) throw new Error("Malformed thread inventory.");
+              if (store === "manager_state" && e.key === "patterns" && (!Array.isArray(e.value) || e.value.some(p => !p || typeof p.id !== "string"))) throw new Error("Malformed pattern library.");
+              if (store === "projects") {
+                const p = e.value;
+                if (!p || typeof p !== "object" || (e.key !== "auto_save" && p.id !== e.key)) throw new Error("Project identifier mismatch.");
+                if (p.name != null && typeof p.name !== "string") throw new Error("Malformed project name.");
+                if (p.p != null && !Array.isArray(p.p)) throw new Error("Malformed compact chart data.");
+                for (const field of ["halfStitches", "halfDone", "partialStitches", "partialDone", "bsLines", "bsDone", "knots", "knotsDone", "parkMarkers", "statsSessions"]) {
+                  if (p[field] != null && !Array.isArray(p[field])) throw new Error("Malformed project " + field);
+                }
+                for (const field of ["halfStitches", "halfDone", "partialStitches", "partialDone"]) {
+                  if (Array.isArray(p[field]) && p[field].some(row => !Array.isArray(row) || row.length !== 2)) throw new Error("Malformed specialised stitch data: " + field);
+                }
+                if (p.settings != null && (typeof p.settings !== "object" || Array.isArray(p.settings))) throw new Error("Malformed project settings.");
+                if (p.version > 11 || p.v > 11) throw new Error("Unsupported project version. Update stitchx before restoring.");
+                if (p.pattern !== undefined && !Array.isArray(p.pattern)) throw new Error("Malformed chart data.");
+                const w = p.settings && p.settings.sW, h = p.settings && p.settings.sH;
+                if ((w != null && (!Number.isInteger(w) || w < 0)) || (h != null && (!Number.isInteger(h) || h < 0))) throw new Error("Malformed chart dimensions.");
+                if (Array.isArray(p.pattern) && Number.isInteger(w) && Number.isInteger(h) && p.pattern.length !== w * h) throw new Error("Chart dimensions do not match its cells.");
+                if (Array.isArray(p.done) && Array.isArray(p.pattern) && p.done.length !== p.pattern.length) throw new Error("Progress dimensions do not match the chart.");
+              }
+            });
+          }
+        }
+        const projects = ((backup.databases.CrossStitchDB || {}).projects || []).filter(e => e.value && e.value.id === e.key).map(e => e.key);
+        const attachments = backup.attachments || backup.photos || [];
+        if (!Array.isArray(attachments)) throw new Error("Malformed attachments list.");
+        const ids = new Set();
+        attachments.forEach(p => {
+          if (!p || typeof p.id !== "string" || ids.has(p.id) || !owner(p.id, projects)) throw new Error("Duplicate or orphaned attachment.");
+          ids.add(p.id);
+          if (p.id.startsWith("session:")) { if (p.projectId !== owner(p.id, projects)) throw new Error("Session owner mismatch."); return; }
+          if (!validBase64(p.data)) throw new Error("Attachment is corrupt: " + p.id);
+          const blob = base64ToBlob(p.data, p.type);
+          if (!blob.size || (p.bytes != null && p.bytes !== blob.size)) throw new Error("Attachment size mismatch: " + p.id);
+          if (p.projectId && p.projectId !== owner(p.id, projects)) throw new Error("Attachment owner mismatch.");
+          if (p.id.startsWith("photo:") && !attachments.some(a => a.id === p.id.replace(/^photo:/, "photothumb:"))) throw new Error("Missing photo thumbnail: " + p.id);
+          if (p.id.startsWith("photothumb:") && !attachments.some(a => a.id === p.id.replace(/^photothumb:/, "photo:"))) throw new Error("Missing full photo: " + p.id);
+        });
+        ((backup.databases.CrossStitchDB || {}).projects || []).forEach(e => {
+          if (backup._version === 2 && e.value.settings && e.value.settings.traceImage && !ids.has("trace:" + e.value.id)) throw new Error("Missing tracing picture for " + e.value.id);
+        });
+        if (backup._version === 2) {
+          if (!backup.completeness || backup.completeness.scope !== "projects-stash-portable-settings" || !Array.isArray(backup.completeness.attachments) || JSON.stringify(backup.completeness.attachments) !== JSON.stringify(attachments.map(a => a.id))) throw new Error("Attachment manifest does not match the archive.");
+          if (!backup.preferences || !backup.localStorage || Object.keys(ALLOWED).some(n => !backup.databases[n] || ALLOWED[n].some(k => !Array.isArray(backup.databases[n][k])))) throw new Error("Complete backup is missing a required section.");
+          if (!backup.integrity || backup.integrity.algorithm !== "crc32-utf16" || backup.integrity.value !== seal(backup)) throw new Error("Backup integrity check failed. The archive is corrupt or incomplete.");
+        }
+        if (backup.localStorage && (Array.isArray(backup.localStorage) || Object.values(backup.localStorage).some(v => typeof v !== "string"))) throw new Error("Malformed saved settings.");
+      } catch (e) { return { valid: false, error: e.message }; }
       const expectedDbs = ["CrossStitchDB", "stitch_manager_db"];
       for (let i = 0; i < expectedDbs.length; i++) {
         const dbKey = expectedDbs[i];
@@ -406,12 +578,14 @@ const BackupRestore = (() => {
         createdAt: backup._createdAt || "unknown",
         projectCount: 0,
         threadCount: 0,
-        patternCount: 0
+        patternCount: 0,
+        completeness: backup._version === 2 ? "Complete project recovery archive" : "Legacy archive: attachment completeness cannot be verified",
+        warnings: backup._version === 1 ? ["Legacy or partial backup: omitted data and attachments cannot be recovered from this file."] : []
       };
       try {
         const csdb = backup.databases.CrossStitchDB;
-        if (csdb && csdb.project_meta) {
-          summary.projectCount = csdb.project_meta.filter(
+        if (csdb && csdb.projects) {
+          summary.projectCount = csdb.projects.filter(
             e => e.key && typeof e.key === "string" && e.key.startsWith("proj_")
           ).length;
         }
@@ -439,218 +613,139 @@ const BackupRestore = (() => {
       return { valid: true, summary };
     },
 
-    // Restores from a backup object. Overwrites current data.
-    // Restores a backup. While it runs, and for a short time after, ProjectStorage and the
-    // legacy auto-save refuse to write (window.__restoringBackup), because the page reloads
-    // afterwards and its unload save would otherwise put the open project back over the
-    // restored one. The mark expires on its own, so a restore that does not reload cannot
-    // leave saving switched off.
+    // Restore is an additive import into an isolated generation. Publication is
+    // a single localStorage write; neither live database is ever cleared.
     async restore(backup) {
+      if (this._busy) throw new Error("A restore is already in progress.");
+      this._busy = true;
       try {
-        return await this._restoreWithoutGuard(backup);
+        const run = () => this._restoreWithoutGuard(backup);
+        if (!window.navigator || !window.navigator.locks) throw new Error("Safe restore requires Web Locks. Update your browser or restore in a current browser profile.");
+        return await window.navigator.locks.request("stitchx-restore", run);
       } catch (e) {
         if (typeof window !== "undefined") window.__restoringBackup = 0;
+        try { if (window.RecoveryStorage) window.RecoveryStorage.current(); }
+        catch (_) { window.__restoringBackup = Number.MAX_SAFE_INTEGER; }
         throw e;
-      }
+      } finally { this._busy = false; }
     },
-
     async _restoreWithoutGuard(backup) {
+      // Freeze a private, JSON-only copy before the first asynchronous boundary.
+      const text = JSON.stringify(backup);
+      if (new Blob([text]).size > MAX_BYTES) throw new Error("Backup exceeds the 64 MiB expanded limit.");
+      backup = JSON.parse(text);
       const check = this.validate(backup);
       if (!check.valid) throw new Error(check.error);
-
-      // INT-7 Phase C — ask peer tabs if any of them has a project open
-      // before we wipe both databases. A whole-DB restore uses the
-      // wildcard '*' so any active peer objects. On objection we prompt
-      // the user through ConfirmDialog (when available) and abort with a
-      // clear cancellation error on refusal. Missing lock module/channel
-      // falls through to today's behaviour; if peers object and dialog is
-      // unavailable we fail closed (cancel restore).
-      try {
-        if (typeof window !== 'undefined' && window.CrossTabLock &&
-            typeof window.CrossTabLock.requestLock === 'function') {
-          const lockResult = await window.CrossTabLock.requestLock('*', 'restore-backup');
-          if (lockResult && !lockResult.ok && lockResult.denials && lockResult.denials.length > 0) {
-            let proceed = false;
-            if (window.ConfirmDialog && typeof window.ConfirmDialog.show === 'function') {
-              const peerCount = lockResult.denials.length;
-              const peerWord = peerCount === 1 ? 'another tab' : (peerCount + ' other tabs');
-              try {
-                proceed = await window.ConfirmDialog.show({
-                  title: 'Other tabs have projects open',
-                  message: 'Restoring a backup will overwrite all projects, including any that ' + peerWord + ' may be editing. Unsaved work in those tabs will be lost. Continue?',
-                  confirmLabel: 'Restore anyway',
-                  cancelLabel: 'Cancel',
-                  danger: true
-                });
-              } catch (_) { proceed = false; }
-            } else {
-              // No dialog available — fail closed (refuse) rather than
-              // silently destroy peer state; the cancellation throw happens
-              // in the `if (!proceed)` check below.
-              proceed = false;
-            }
-            if (!proceed) {
-              throw new Error('Restore cancelled — another tab has a project open.');
-            }
-          }
-        }
-      } catch (e) {
-        // Re-throw the cancellation; swallow only internal lock failures.
-        if (e && typeof e.message === 'string' && e.message.indexOf('Restore cancelled') === 0) throw e;
-        // Lock check itself errored — proceed (best-effort).
+      const recovery = window.RecoveryStorage;
+      if (!recovery) throw new Error("Reload stitchx to load the safe recovery storage, then retry.");
+      if (window.CrossTabLock && window.CrossTabLock.requestLock) {
+        const lock = await window.CrossTabLock.requestLock('*', 'restore-backup');
+        if (!lock || !lock.ok) throw new Error("Restore cancelled — close other stitchx tabs and retry.");
       }
+      const expected = recovery.current();
+      if (window.__flushProjectToIDB) {
+        const flushed = await window.__flushProjectToIDB();
+        if (flushed && flushed.ok === false) throw new Error("Save the current project before restoring: " + flushed.reason);
+      }
+      if (window.SyncEngine && window.SyncEngine.stopWatching) window.SyncEngine.stopWatching();
+      await recovery.cleanup();
+      const id = "restore_" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "_" + Math.random().toString(36).slice(2));
+      const generation = { id, databases: { CrossStitchDB: "CrossStitchDB_" + id, stitch_manager_db: "stitch_manager_db_" + id }, keys: [], previous: expected ? Object.assign({}, JSON.parse(expected), { previous: null }) : null };
+      const handles = [];
+      let published = false, changed = false, duplicateProjects = 0;
+      if (typeof window !== "undefined") window.__restoringBackup = Number.MAX_SAFE_INTEGER;
 
-      // From here on this page must not write projects (see restore above).
-      if (typeof window !== "undefined") window.__restoringBackup = Date.now() + 30000;
-
-      // 1. CrossStitchDB
-      if (backup.databases.CrossStitchDB) {
-        const db = await openDB("CrossStitchDB", null, ["projects", "project_meta", "stats_summaries", "sync_snapshots"], false);
-        const missingStores = ["projects", "project_meta", "stats_summaries", "sync_snapshots"].filter(n => !db.objectStoreNames.contains(n));
-        if (missingStores.length) {
-          db.close();
-          throw new Error("Restore stopped: the project database is missing " + missingStores.join(", ") + ". Reload the app once so it can repair its storage, then try again.");
-        }
-        const data = backup.databases.CrossStitchDB;
-        for (const storeName of ["projects", "project_meta", "stats_summaries", "sync_snapshots"]) {
-          if (!data[storeName]) continue;
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction(storeName, "readwrite");
-            const store = tx.objectStore(storeName);
-            store.clear();
-            data[storeName].forEach(entry => store.put(entry.value, entry.key));
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-          });
-        }
-        // Tracker progress records ("progress:<id>" in pendingImports) describe the
-        // projects as they were before this restore. They are not part of a backup,
-        // and one that outlived the restore could put old marks over the restored ones.
-        if (db.objectStoreNames.contains("pendingImports")) {
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction("pendingImports", "readwrite");
-            const store = tx.objectStore("pendingImports");
-            const keysReq = store.getAllKeys();
-            keysReq.onsuccess = () => {
-              (keysReq.result || []).forEach(k => { if (typeof k === "string" && k.indexOf("progress:") === 0) store.delete(k); });
+      // 1. CrossStitchDB and stash are copied, collision-checked and staged.
+      try {
+        const decoded = decodeAttachments(backup);
+        for (const name of Object.keys(ALLOWED)) {
+          const db = await openDB(name, null, ALLOWED[name], false);
+          handles.push(db);
+          const missing = ALLOWED[name].filter(n => !db.objectStoreNames.contains(n));
+          if (missing.length) throw new Error("Restore stopped: storage is missing " + missing.join(", ") + ". Reload the app to repair storage.");
+          const data = await readSnapshot(db);
+          let incoming = backup.databases[name] || {};
+          if (name === "stitch_manager_db" && incoming.manager_state && window.StashBridge && window.StashBridge.prepareBackupState) incoming = { manager_state: window.StashBridge.prepareBackupState(incoming.manager_state) };
+          for (const store of Object.keys(incoming)) {
+            const map = new Map(data[store].map(e => [e.key, e]));
+            for (const source of incoming[store]) {
+              let entry = source;
+              if ((entry.key === "auto_save" || store === "sync_snapshots") && map.has(entry.key)) continue; // legacy alias never replaces an open project
+              const old = map.get(entry.key);
+              if (old && store === "manager_state" && ["threads", "patterns"].includes(entry.key)) entry = { key: entry.key, value: mergeManager(entry.key, old.value, entry.value) };
+              if (old && !sameData(old.value, entry.value) && !(store === "manager_state" && ["threads", "patterns"].includes(entry.key))) throw new Error("Identifier collision in " + store + ": " + entry.key + ". Nothing was replaced. Restore into a fresh browser profile to recover this version.");
+              if (!old || !sameData(old.value, entry.value)) changed = true;
+              else if (store === "projects" && entry.key !== "auto_save") duplicateProjects++;
+              map.set(entry.key, entry);
+            }
+            data[store] = Array.from(map.values());
+          }
+          if (name === "CrossStitchDB" && decoded.length) {
+            if (!data.pendingImports) data.pendingImports = [];
+            const map = new Map(data.pendingImports.map(e => [e.key, e]));
+            for (const record of decoded) {
+              const old = map.get(record.id);
+              if (old) {
+                const pid = record.projectId;
+                const oldPlain = attachmentPlain(old.value, pid), newPlain = attachmentPlain(record, pid);
+                if (!sameData(oldPlain, newPlain) || (old.value.blob && await blobToBase64(old.value.blob)) !== (record.blob && await blobToBase64(record.blob))) throw new Error("Attachment identifier collision: " + record.id + ". Restore into a fresh browser profile.");
+              }
+              if (!old) changed = true;
+              map.set(record.id, { key: record.id, value: record });
+            }
+            data.pendingImports = Array.from(map.values());
+          }
+          recovery.markStaging(generation);
+          const stage = await new Promise((resolve, reject) => {
+            const req = recovery.openPhysical(generation.databases[name], name === "CrossStitchDB" ? 5 : 1);
+            req.onupgradeneeded = () => {
+              const target = req.result;
+              const stores = new Set(Object.keys(data).concat(name === "CrossStitchDB" ? CS_STORES.concat(["pendingImports", "importerTelemetry"]) : ["manager_state"]));
+              stores.forEach(store => target.createObjectStore(store, ["pendingImports", "importerTelemetry"].includes(store) ? { keyPath: "id" } : undefined));
             };
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
           });
+          handles.push(stage);
+          await writeStores(stage, data);
         }
-        // Photos: a backup that has the list replaces the photos on the device; an older one leaves them alone.
-        if (Array.isArray(backup.photos)) {
-          try { await restorePhotos(db, backup.photos); }
-          catch (e) { console.warn("Restore: photos could not be restored:", e); }
+        // Stage settings in a private namespace. No live preferences change yet.
+        const values = {};
+        if (expected) JSON.parse(expected).keys.forEach(key => { values[key] = localStorage.getItem(key); });
+        LS_KEYS.forEach(key => { values[key] = localStorage.getItem(key); });
+        Object.entries(backup.localStorage || {}).forEach(([key, value]) => { if (LS_KEYS.includes(key)) values[key] = value; });
+        if (backup.preferences) {
+          const prefs = preferenceAPI().portableStorageValues(backup.preferences);
+          const baselineKey = "cs_pref_trackerSnapshotsEnabledAt";
+          if (prefs.cs_pref_trackerAutomaticSnapshots === "true" && localStorage.getItem("cs_pref_trackerAutomaticSnapshots") === "true" && localStorage.getItem(baselineKey)) prefs[baselineKey] = localStorage.getItem(baselineKey);
+          Object.assign(values, prefs);
         }
-        db.close();
+        values.cs_projects_v3_migrated = null; // the app runs its idempotent migrations on the published generation
+        const imported = ((backup.databases.CrossStitchDB || {}).projects || []).map(e => e.key);
+        imported.forEach(pid => { values["crossstitch_progress_recovery:" + pid] = null; });
+        if (Object.entries(values).some(([key, value]) => key !== "cs_projects_v3_migrated" && !key.startsWith("crossstitch_progress_recovery:") && localStorage.getItem(key) !== value)) changed = true;
+        if (!changed) {
+          window.__restoringBackup = 0;
+          return Object.assign({}, check.summary, { unchanged: true, duplicateProjects, requiresReload: false });
+        }
+        generation.keys = Object.keys(values);
+        recovery.markStaging(generation);
+        for (const key of generation.keys) recovery.stageSetting(id, key, values[key]);
+        // Publication makes complete databases and their settings visible together.
+        recovery.publish(generation, expected);
+        published = true;
+        if (window.UserPrefs && window.UserPrefs.cancelPendingPortableWrites) window.UserPrefs.cancelPendingPortableWrites();
+        window.__restoringBackup = Number.MAX_SAFE_INTEGER; // reload required; cached handles still refer to the previous generation
+        try { window.dispatchEvent(new CustomEvent("cs:backupRestored", { detail: check.summary })); } catch (_) {}
+        return Object.assign({}, check.summary, { requiresReload: true, duplicateProjects });
+      } finally {
+        handles.forEach(db => db.close());
+        if (!published) {
+          // Keep the durable staging manifest until deletion actually completes.
+          // A blocked deletion is retried after the blocking tab closes.
+          try { await recovery.cleanup(); } catch (_) {}
+        } else recovery.unmarkStaging(id);
       }
-
-      // 2. stitch_manager_db
-      if (backup.databases.stitch_manager_db) {
-        const db = await openDB("stitch_manager_db", null, ["manager_state"]);
-        const data = backup.databases.stitch_manager_db;
-        for (const storeName of ["manager_state"]) {
-          if (!data[storeName]) continue;
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction(storeName, "readwrite");
-            const store = tx.objectStore(storeName);
-            store.clear();
-            data[storeName].forEach(entry => store.put(entry.value, entry.key));
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-          });
-        }
-        db.close();
-      }
-
-      // 3. localStorage
-      if (backup.localStorage) {
-        for (const [key, val] of Object.entries(backup.localStorage)) {
-          // Only restore known safe keys
-          if (LS_KEYS.includes(key)) {
-            try { localStorage.setItem(key, val); } catch (e) { console.warn("Restore: failed to write localStorage key", key, e); }
-          }
-        }
-      }
-
-      // Old backups have no preferences section: retain the destination's
-      // globals (or defaults on a clean profile). Never read cs_pref_* from
-      // the legacy localStorage map, which has no preference schema contract.
-      if (Object.prototype.hasOwnProperty.call(backup, "preferences")) {
-        preferenceAPI().restorePortable(backup.preferences);
-      }
-
-      // M12: Imported data may be from an older schema. Clear the
-      // localStorage migration markers so the next page load (or the
-      // explicit calls below) re-runs migrations against the restored
-      // databases. The schema_version inside stitch_manager_db reflects
-      // the imported state, so StashBridge.migrateSchemaToV3 is idempotent.
-      // M5: Skip the re-run when the backup already claims current-schema
-      // data — migrations are idempotent but walking every project is slow
-      // on large libraries.
-      let stashIsV3 = false, projectsAreV3 = false;
-      try {
-        const mdb = backup.databases && backup.databases.stitch_manager_db;
-        if (mdb && mdb.manager_state) {
-          // PERF (perf-4 #7): same single-pass index pattern as in validate().
-          let sv = null;
-          for (let i = 0; i < mdb.manager_state.length; i++) {
-            const e = mdb.manager_state[i];
-            if (e && e.key === 'schema_version') { sv = e; break; }
-          }
-          stashIsV3 = sv && Number(sv.value) >= 3;
-        }
-        const csdb = backup.databases && backup.databases.CrossStitchDB;
-        if (csdb && Array.isArray(csdb.projects) && csdb.projects.length > 0) {
-          // Representative check: any proj_ entry that already has finishStatus
-          // means the export was taken after the v3 project migration.
-          projectsAreV3 = csdb.projects.some(e =>
-            e && typeof e.key === 'string' && e.key.startsWith('proj_') && e.value && e.value.finishStatus
-          );
-        }
-      } catch (_) { /* fall through to force-migrate */ }
-      try { localStorage.removeItem('cs_projects_v3_migrated'); } catch (_) {}
-      if (!stashIsV3) {
-        try {
-          if (typeof StashBridge !== 'undefined' && StashBridge.migrateSchemaToV3) {
-            await StashBridge.migrateSchemaToV3();
-          }
-        } catch (e) {
-          console.warn('Post-restore stash migration failed:', e);
-          try {
-            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
-              window.Toast.show({ message: "Restore: stash migration failed \u2014 some thread data may need a manual refresh.", type: "error" });
-            }
-          } catch (_) {}
-        }
-      }
-      if (!projectsAreV3) {
-        try {
-          if (typeof ProjectStorage !== 'undefined' && ProjectStorage.migrateProjectsToV3) {
-            await ProjectStorage.migrateProjectsToV3();
-          }
-        } catch (e) {
-          console.warn('Post-restore project migration failed:', e);
-          try {
-            if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
-              window.Toast.show({ message: "Restore: project migration failed \u2014 some projects may need a manual refresh.", type: "error" });
-            }
-          } catch (_) {}
-        }
-      } else {
-        // Projects are already v3 — mark the migration flag so subsequent
-        // page loads don't re-run unnecessarily.
-        try { localStorage.setItem('cs_projects_v3_migrated', '1'); } catch (_) {}
-      }
-
-      // Notify other tabs/components (e.g. Stash Manager pattern library) so they
-      // can re-read their state and reconcile after a restore.
-      try {
-        window.dispatchEvent(new CustomEvent("cs:backupRestored", { detail: check.summary }));
-      } catch (_) { /* best-effort */ }
-
-      return check.summary;
     }
   };
 })();

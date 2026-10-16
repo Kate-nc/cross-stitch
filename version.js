@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Backup recovery now validates archives and attachment integrity, includes tracing pictures and session checkpoints, and stages data and portable settings before publishing them together. Existing projects are retained; conflicting identifiers stop the import. Old files remain readable with completeness warnings. Failed or interrupted imports leave the previous storage intact.',
       'Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.',
       'Improved: import review separates cell recognition, legend matches, stitch preservation, dimensions, unsupported content and declared counts. Unknown coverage stays explicit, limitations include repair guidance, and the original source is retained. PDF key-matching figures keep their existing meaning.',
       'Fixed: transparent image areas stay unstitched through resizing, smoothing, dithering, cleanup and saving. Alpha below 128 is empty; alpha 128 or above keeps its uncomposited colour. Transparent pixels do not consume threads. Skip background preserves opaque details in transparent pictures, and enclosed matching details in opaque pictures. Fully transparent pictures create empty patterns.',

@@ -378,6 +378,19 @@
     });
     return { version: PORTABLE_VERSION, stateSchemaVersion: STATE_SCHEMA_VERSION, values: normalisePortable(values, STATE_SCHEMA_VERSION) };
   }
+  function cancelPendingPortableWrites() {
+    PORTABLE_KEYS.forEach(function(k) {
+      if (saveTimers[k]) clearTimeout(saveTimers[k]);
+      delete saveTimers[k]; delete pendingSaveValues[k];
+    });
+  }
+  function portableStorageValues(snapshot) {
+    validatePortableSnapshot(snapshot);
+    var values = normalisePortable(snapshot.values, snapshot.stateSchemaVersion), out = {};
+    PORTABLE_KEYS.forEach(function(k) { out[PREFIX_GLOBAL + k] = JSON.stringify(values[k]); });
+    if (values.trackerAutomaticSnapshots === true) out[PREFIX_GLOBAL + "trackerSnapshotsEnabledAt"] = JSON.stringify(new Date().toISOString());
+    return out;
+  }
   function restorePortable(snapshot) {
     validatePortableSnapshot(snapshot);
     var values = normalisePortable(snapshot.values, snapshot.stateSchemaVersion);
@@ -627,6 +640,8 @@
     PORTABLE_KEYS: PORTABLE_KEYS,
     exportPortable: exportPortable,
     restorePortable: restorePortable,
+    portableStorageValues: portableStorageValues,
+    cancelPendingPortableWrites: cancelPendingPortableWrites,
     validatePortableSnapshot: validatePortableSnapshot,
     DEFAULTS: DEFAULTS,
     PVIEW_DEFAULTS: PVIEW_DEFAULTS,

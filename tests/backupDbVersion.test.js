@@ -10,21 +10,10 @@ const fs = require('fs');
 const { IDBFactory } = require('fake-indexeddb');
 const pako = require('pako');
 
-global.structuredClone = global.structuredClone || (v => JSON.parse(JSON.stringify(v)));
+global.structuredClone = global.structuredClone || (v => require('v8').deserialize(require('v8').serialize(v)));
 const backupSrc = fs.readFileSync('./backup-restore.js', 'utf8');
 
-function load(idb, options = {}) {
-  const window = { PERF_FLAGS: {}, pako, ...options };
-  const localStorage = options.storage || { getItem: () => null, setItem: () => {} };
-  const LOCAL_STORAGE_KEYS = { activeProject: 'a', shortcutsHint: 'b', globalGoals: 'c', globalGoalsCompat: 'd' };
-  const indexedDB = idb;
-  const isColorOwned = () => false;
-  new Function('window', 'localStorage', fs.readFileSync('./user-prefs.js', 'utf8'))(window, localStorage);
-  let BackupRestore;
-  // eslint-disable-next-line no-eval
-  eval(backupSrc.replace('const BackupRestore =', 'BackupRestore ='));
-  return BackupRestore;
-}
+function load(idb, options = {}) { return require('./setup/backup-harness').load(idb, options).api; }
 
 // The database as the app creates it (helpers.js getDB, version 5).
 function openAppDb(idb) {
@@ -125,20 +114,20 @@ test('a version-5 database that lacks a store is never upgraded by backup or res
   expect(reopened.version).toBe(5);
 });
 
-test('restore removes progress records so old marks cannot override the restored ones', async () => {
+test('duplicate import retains destination recovery records without replacing usable data', async () => {
   const idb = new IDBFactory();
   const db = await openAppDb(idb);
   await put(db, 'projects', 'proj_a', { id: 'proj_a', pattern: [{ id: '310' }], done: [1] });
   await put(db, 'pendingImports', undefined, { id: 'progress:proj_a', done: new Uint8Array([0]) });
-  await put(db, 'pendingImports', undefined, { id: 'trace:proj_a', blob: 'keep me' });   // other kinds are left alone
+  await put(db, 'pendingImports', undefined, { id: 'handoff:temporary', name: 'keep me' });   // other kinds are left alone
   db.close();
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   const BackupRestore = load(idb);
   const backup = await BackupRestore.createBackup();
   await BackupRestore.restore(backup);
   const after = await openAppDb(idb);
-  expect(await get(after, 'pendingImports', 'progress:proj_a')).toBeUndefined();
-  expect((await get(after, 'pendingImports', 'trace:proj_a')).blob).toBe('keep me');
+  expect(await get(after, 'pendingImports', 'progress:proj_a')).toBeDefined();
+  expect((await get(after, 'pendingImports', 'handoff:temporary')).name).toBe('keep me');
   expect((await get(after, 'projects', 'proj_a')).done).toEqual([1]);
 });
 
@@ -149,9 +138,10 @@ test('failed pre-export flush refuses stale data and shows the recovery error wi
   await put(db, 'projects', 'proj_a', { id: 'proj_a', pattern: [{ id: '310' }], done: [0] });
   db.close();
   const failure = new DOMException('quota exceeded', 'QuotaExceededError');
-  const storage = { getItem: () => 'previous-backup', setItem: jest.fn() };
+  const storage = { getItem: () => null, setItem: jest.fn() };
   const Toast = { show: jest.fn() };
   const B = load(idb, { __flushProjectToIDB: async () => { throw failure; }, storage, Toast });
+  storage.setItem = jest.fn(storage.setItem);
   storage.setItem.mockClear(); // UserPrefs stamps its local schema when loaded.
   await expect(B.createBackup()).rejects.toMatchObject({ cause: failure });
   await expect(B.downloadBackup()).rejects.toThrow('latest changes could not be included');
@@ -167,4 +157,17 @@ test('a flush reporting no write refuses export too', async () => {
 test('an IndexedDB read failure refuses a partial backup', async () => {
   const B = load({ open() { throw new Error('read failed'); } });
   await expect(B.createBackup()).rejects.toThrow('Could not read all project data');
+});
+
+test('typed IndexedDB completion arrays survive JSON backup as actual arrays', async () => {
+  const idb = new IDBFactory(), db = await openAppDb(idb);
+  await put(db, 'projects', 'proj_typed', { id: 'proj_typed', pattern: [{ id: '310' }, { id: '550' }], done: new Uint8Array([1, 0]) });
+  db.close();
+  const B = load(idb), backup = await B.createBackup();
+  expect(backup.databases.CrossStitchDB.projects[0].value.done).toEqual([1, 0]);
+  const parsed = B.parseBackupText(B.serializeBackupFile(backup).text);
+  expect(B.validate(parsed).valid).toBe(true);
+  expect(parsed.databases.CrossStitchDB.projects[0].value.done).toEqual([1, 0]);
+  await expect(B.restore(parsed)).resolves.toMatchObject({ duplicateProjects: 1 });
+  await expect(B.restore(parsed)).resolves.toMatchObject({ unchanged: true });
 });

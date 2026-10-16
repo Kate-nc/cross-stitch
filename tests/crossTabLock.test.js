@@ -71,18 +71,12 @@ describe('INT-7 Phase C: backup-restore.js integration', () => {
   test('BackupRestore.restore awaits CrossTabLock.requestLock with wildcard', () => {
     expect(BACKUP_SRC).toMatch(/window\.CrossTabLock\.requestLock\('\*',\s*'restore-backup'\)/);
   });
-  test('prompts via ConfirmDialog with a destructive (danger:true) confirm button', () => {
-    expect(BACKUP_SRC).toMatch(/window\.ConfirmDialog\.show\(\{[\s\S]{0,400}danger:\s*true/);
-  });
-  test('throws a Restore cancelled error when the user refuses', () => {
-    expect(BACKUP_SRC).toMatch(/throw new Error\('Restore cancelled[^']*'/);
-  });
-  test('lock check is wrapped so internal errors do not block restore', () => {
-    expect(BACKUP_SRC).toMatch(/Restore cancelled[^]*?throw e/);
+  test('peer objections fail closed before publication', () => {
+    expect(BACKUP_SRC).toMatch(/if \(!lock \|\| !lock.ok\) throw new Error\("Restore cancelled/);
   });
   test('the lock gate fires BEFORE the CrossStitchDB write loop', () => {
     var lockIdx = BACKUP_SRC.indexOf("CrossTabLock.requestLock('*'");
-    var dbIdx = BACKUP_SRC.indexOf("if (backup.databases.CrossStitchDB)");
+    var dbIdx = BACKUP_SRC.indexOf("await writeStores(stage, data)");
     expect(lockIdx).toBeGreaterThan(-1);
     expect(dbIdx).toBeGreaterThan(-1);
     expect(lockIdx).toBeLessThan(dbIdx);

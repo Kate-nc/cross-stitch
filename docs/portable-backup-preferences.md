@@ -1,6 +1,6 @@
 # Portable full-backup preferences, version 1
 
-Full backups retain outer format version 1 (JSON or CSB1 compression). An optional
+Full backups now use outer format version 2 (JSON or CSB1 compression); version 1 archives remain supported. A
 `preferences` section has `version: 1`, `stateSchemaVersion` and `values`.
 Values use UserPrefs names without the storage prefix; restoring writes the
 corresponding `cs_pref_*` keys. The schema in user-prefs.js is the explicit
@@ -14,7 +14,7 @@ and replaces invalid or missing portable values with current defaults. Unknown
 and deprecated keys are ignored. Unsupported section/schema versions are rejected
 before any databases are changed. No destination preference can mask a missing
 portable value. Pending writes for restored keys are cancelled. Storage write
-errors fail the restore; restore is not a transaction across databases/storage.
+errors fail staging before publication. A single recovery-generation pointer publishes the completed databases and portable settings together; see [the recovery contract](backup-recovery.md).
 
 Old backups without this section restore as before: destination global preferences
 remain, and a clean profile uses defaults. The legacy localStorage map cannot
