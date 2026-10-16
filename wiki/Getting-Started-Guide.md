@@ -11,6 +11,10 @@ Welcome to stitchx! This guide walks you through opening the app for the first t
 
 The layout adapts to your screen: full sidebars on a desktop, and touch-sized controls with bottom sheets on phones and tablets.
 
+## Offline use and app updates
+
+Open the app online and allow its offline files to finish downloading, then reopen once before relying on offline access. Updates download in the background and take effect after you close all stitchx browser tabs and installed app windows, then reopen. Finish your work before closing. A failed download keeps the working offline version; application-cache cleanup does not delete your saved projects.
+
 ## The Home Page
 
 Home is your project hub. It has four tabs.

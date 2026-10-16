@@ -56,7 +56,7 @@ describe('sw.js precache (UX-12 Phase 7 PR #13)', () => {
   });
 
   test('PRECACHE_URLS does NOT include the heavy local fontkit blob', () => {
-    expect(SW).not.toMatch(/['"]\.\/assets\/fontkit\.umd\.min\.js['"]/);
+    expect(SW.slice(0, SW.indexOf('// BEGIN GENERATED BUILD MANIFEST'))).not.toMatch(/['"]\.\/assets\/fontkit\.umd\.min\.js['"]/);
   });
 
   test('PRECACHE_URLS includes home.html', () => {

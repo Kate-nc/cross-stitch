@@ -56,6 +56,7 @@ There is **no in-browser Babel**. The large JSX entry files (`tracker-app.js`, `
 | any `creator/*.js` | `node build-creator-bundle.js` | `creator/bundle.js`, `creator/extras-bundle.js`, `creator/import-wizard-bundle.js` |
 | `tracker-app.js`, `creator-main.js`, `manager-app.js`, `embroidery.js` | `node build-runtime-js.js` | `compiled/*.compiled.js` |
 | any `import-engine/**` | `node build-import-bundle.js` | `import-engine/bundle.js` |
+| deployment assets (after other generators) | `node build-sw.js` | fingerprints in `sw.js` |
 
 Never edit the generated files directly. File order for the creator bundles is defined in `build-creator-bundle.js` (`ORDER` and `EXTRAS_ORDER`). `npm test` and the pre-commit hook fail when `compiled/` is stale.
 

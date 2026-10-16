@@ -30,4 +30,9 @@ if echo "$STAGED" | grep -qE '^(tracker-app|creator-main|manager-app|embroidery)
   fi
 fi
 
+# The worker embeds hashes of committed deployment assets.
+if ! node build-sw.js --check; then
+  exit 1
+fi
+
 exit 0
