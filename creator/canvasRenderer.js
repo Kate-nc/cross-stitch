@@ -501,6 +501,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     });
   }
 
+  ProgressUnits.specialty.draw(ctx2d,state.specialtyStitches||[],[],gut-offX*cSz,gut-offY*cSz,cSz,null,state.specialtySelected);
   window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Backstitch start point + preview line
@@ -877,6 +878,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.stroke();
   }
 
+  ProgressUnits.specialty.draw(ctx2d,state.specialtyStitches||[],[],gut-offX*cSz,gut-offY*cSz,cSz,null,state.specialtySelected);
   window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Outer border

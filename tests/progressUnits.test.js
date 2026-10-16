@@ -30,7 +30,7 @@ test('the Tracker counters and a stored record give the same answer', () => {
 });
 
 test('weights live in one table and a type is one row', () => {
-  expect(PU.WEIGHTS).toEqual({ full: 1, half: 0.5, quarter: 0.25, petite: 0.25, knot: 1 });
+  expect(PU.WEIGHTS).toEqual({ full: 1, half: 0.5, quarter: 0.25, petite: 0.25, long_stitch:0.5, knot: 1 });
   const r = PU.progressUnits({ quarter: { done: 2, total: 8 }, petite: { done: 4, total: 4 } });
   expect(r.doneUnits).toBe(0.5 + 1);
   expect(r.totalUnits).toBe(2 + 1);

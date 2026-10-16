@@ -97,7 +97,7 @@ test('all three-quarter directions and major sides retain their quadrant assignm
   expect(semantic(parseOXS(generateOXS(importResultToProject(r)).xml))).toEqual(semantic(r));
 });
 
-test('unsupported blends, miniature crosses and line types are identified with affected counts',()=>{
+test('unsupported blends and line types are reported; miniature crosses are imported',()=>{
   const xml=wrap('<fullstitches><stitch x="0" y="0" palindex="1"/><stitch x="1" y="0" palindex="8"/><stitch x="2" y="0" palindex="8"/></fullstitches>'+
     '<backstitches><backstitch x1="0" y1="0" x2="1" y2="1" palindex="1" objecttype="daisy"/></backstitches>'+
     '<ornaments><object x1="0" y1="0" objecttype="quarter" palindex="1"/></ornaments>',
@@ -105,7 +105,8 @@ test('unsupported blends, miniature crosses and line types are identified with a
   const r=parseOXS(xml);
   expect(r.warnings.join(' ')).toMatch(/2 full stitch: blend/);
   expect(r.warnings.join(' ')).toMatch(/1 daisy: unsupported line type/);
-  expect(r.warnings.join(' ')).toMatch(/1 quarter: unsupported ornament type/);
+  expect(r.specialtyStitches).toHaveLength(1);
+  expect(r.specialtyStitches[0].type).toBe('petite');
   expect(r.stitchCount).toBe(1);
 });
 
@@ -190,4 +191,21 @@ test('palette reuse cannot hide an unsupported blend ratio on a later stitch',()
   expect(out.warnings.join(' ')).toMatch(/1 full stitch: blend 310\+666 has unsupported strand proportions/);
   expect(out.warnings.join(' ')).toMatch(/1 full stitch: blend 310\+666 has malformed component data/);
   expect(parseOXS(out.xml).stitchCount).toBe(1);
+});
+
+test('petites round-trip in OXS on chart boundaries; unsupported long export warns with a count',()=>{
+ const thread={id:'310',type:'solid',rgb:[0,0,0]};
+ const p={w:3,h:2,pattern:Array.from({length:6},()=>({id:'__skip__'})),specialtyStitches:[
+  {uid:'p',type:'petite',x:2.5,y:1.5,thread},
+  {uid:'p2',type:'petite',x:2.5,y:1.5,thread},
+  {uid:'l',type:'long_stitch',x1:0,y1:0,x2:3,y2:2,thread}
+ ]};
+ const exported=generateOXS(p);expect(exported.warnings.join(' ')).toMatch(/1 long stitch: external OXS export is unsupported/);
+ const r=parseOXS(exported.xml);expect(r.stitchCount).toBe(0);expect(r.specialtyStitches).toHaveLength(2);
+ expect(r.specialtyStitches[0]).toMatchObject({type:'petite',x:2.5,y:1.5,thread:{id:'310'}});
+ const twice=parseOXS(generateOXS(importResultToProject(r)).xml);expect(twice.specialtyStitches).toEqual(r.specialtyStitches);
+});
+test('OXS straight stitches import as independently identified long objects with explicit thread',()=>{
+ const r=parseOXS(wrap('<backstitches><backstitch x1="0" y1="0" x2="3" y2="2" palindex="1" objecttype="straightstitch"/></backstitches>', '<color index="1" number="310"/>'));
+ expect(r.bsLines).toEqual([]);expect(r.specialtyStitches[0]).toMatchObject({type:'long_stitch',x1:0,y1:0,x2:3,y2:2,thread:{id:'310'}});
 });

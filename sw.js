@@ -54,6 +54,7 @@ var PRECACHE_URLS = [
   './cross-tab-resolution.js',
   './cross-tab-lock.js',
   './progress-units.js',
+  './creator/SpecialtyStitchPanel.js',
   './project-storage.js',
   './blob-store.js',
   './stash-bridge.js',
@@ -128,7 +129,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "83bd0d4f2c35d61fb797b3d28cf71d421cf9eb337606d6cc45de30896379c670";
+var BUILD_ID = "f696dc2cbac74d376cc2c7b6ea9a55789df2622f6e69ab21718de99243d118b6";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -174,6 +175,7 @@ var REQUIRED_URLS = [
   "./cross-tab-resolution.js",
   "./cross-tab-lock.js",
   "./progress-units.js",
+  "./creator/SpecialtyStitchPanel.js",
   "./project-storage.js",
   "./blob-store.js",
   "./stash-bridge.js",
@@ -265,7 +267,7 @@ var BUILD_ASSETS = {
     "sha256": "7aff4e2a42b308d5ad3c76560f6f2a039b3882d0537a87ff6bc2e831aa9ea54e"
   },
   "./stitch.html": {
-    "sha256": "19558e620c718c3a439833b279ad6b82e963ce071f951d78404fdb876d0a1df8"
+    "sha256": "74aa5d08495e8d891741493b610295d6184975887616c5f67629d409eb434533"
   },
   "./manager.html": {
     "sha256": "9ef6db69e4d874bfa9203ee41c5b200061967da10cd0d5378ccc107212c7a073"
@@ -289,7 +291,7 @@ var BUILD_ASSETS = {
     "sha256": "224127e5a9be009a4646603d9b7735520e1cac710670f66dc7db83ccbffd0fe9"
   },
   "./version.js": {
-    "sha256": "7ce5f5257778cd6020f695c0f88e2a78c1f72ee4bb72989cc333f80e36cc6859"
+    "sha256": "4714158d7e03c11ef4b731d10d3aa32e429fe8f36ea1e569883801677cda96f2"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -331,7 +333,7 @@ var BUILD_ASSETS = {
     "sha256": "90f48e5bd39bc16eb407c6aeec4607af17029e841ad6f628dc23bb8d7e637d61"
   },
   "./unpick.js": {
-    "sha256": "25e1b10dfa9e47d79f9622020f8501540286e91581854c80f3893afec3230283"
+    "sha256": "831e9f7e44665313746cd68c728eaa86e0e4ead76875cfa3fbdead11be7e6fd5"
   },
   "./photos.js": {
     "sha256": "f08775898857f6d3b90590f298218e6689891150f553b1f3caf76fb0138a5128"
@@ -343,16 +345,16 @@ var BUILD_ASSETS = {
     "sha256": "3d7c2c9becaed45212ed4e4c8a4f299637f158f29f2fbec78bfe502a294d6d2d"
   },
   "./tracking-merge.js": {
-    "sha256": "a42d012a1f0485929bb057d987c16d19427e9eb3fb6cea4788816ab94ea0db78"
+    "sha256": "4338e804cf50dd4c9f1295beae3ff40bca1c02a620bec13ec3f444c35835305a"
   },
   "./tracking-sync.js": {
-    "sha256": "5e18b7ce14f945a00a9ce36df5827022e9b6ef2d9b47212d9eb26069a22ccec1"
+    "sha256": "5647cc94a41eae663385bed0357fac71d50c0fb9885885daf2569235f9fdbf11"
   },
   "./icons.js": {
     "sha256": "3a0a2ba9bd9d707ab6fd814504708b5184f6d243626a5106ec8a1d8af6fdc36f"
   },
   "./import-formats.js": {
-    "sha256": "81226a3235209c4fca1ca6cbdbfe16c5c7557998daccbbc281952d02583f3cab"
+    "sha256": "bbc37198c699ebf07acf31907994ce11dd71ceaa78ee8df7693d9886f24ad142"
   },
   "./components.js": {
     "sha256": "6be29e98a07ef9ce61c9885f5d375bb82821d8e493211c9d14904e4f002550bc"
@@ -385,10 +387,13 @@ var BUILD_ASSETS = {
     "sha256": "50b89b4c2607d32dc39d4a13620b86d02d762f71a9d0cb93032ac83a8c00b97c"
   },
   "./progress-units.js": {
-    "sha256": "dc8cdcea6c69e5371003d4d30b5e10f3585e29a5d279ad4f49f98ca4970d83e9"
+    "sha256": "2b5356912d653609376e88254ec2a7093be8293ee319e796fe235dd6b6d12d16"
+  },
+  "./creator/SpecialtyStitchPanel.js": {
+    "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "3d96eb27a58dc304908520f8ca9a84484e8ed2e8509a467ea6f7c61308e4f1bf"
+    "sha256": "886646596d4e5d708c76a3b6f7e2553b1018cf34584ed9054b7f67eccb0daf90"
   },
   "./blob-store.js": {
     "sha256": "af2ba20b5d4298aea36b5d45dd635e9351c8d2675a8964d01e92445eba5a9d0b"
@@ -412,10 +417,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "4a953177f42529aa6356611973f454b69657cdab4e7aef85d377bf358e4a41e4"
+    "sha256": "1467de468f841f2a9aa955e22142d0b74c65296024fbd1b05c2f3bc9844eeb0f"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "07851ac907800ef2561237e2b72e60b3108160f17d9db6c0f6a3c3f25f7643b7"
+    "sha256": "332c34758c48937af9de771eb4d3299b442ecea46c3aadf5c8e4f46b0459c9da"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "d0399142a717ce58705e4d94071a364a34c830d5de4704df90ad8814d023d1a4"
@@ -427,7 +432,7 @@ var BUILD_ASSETS = {
     "sha256": "961930b8928dd85c4895c45c490978566605ccad0b6393e3f0c87f648bac998b"
   },
   "./import-engine/bundle.js": {
-    "sha256": "1aa9dd1105f0657f0190414f76fd29697e176f1d4e1fe1243d726746559f1682"
+    "sha256": "68853bf4f0965d42ee8e9d790b9ebf25e955dcfb343a2823785ed85b9e40e226"
   },
   "./compiled/manager-app.compiled.js": {
     "sha256": "c5eac7e94eb545fc333ba8bc2f4bc9f216be6b76e80f80baf26e14188ad4f6fc"
@@ -436,10 +441,10 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "736c89065eab80a17c9459b4aa381e448bd1e2d2eef423304690bb8edd01419a"
+    "sha256": "0ba52003ef9014ce4191d9dc01f558b80379591678a86741351b2d207fd34d04"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "e12abe6b764d0ff3fc28812481d30859431cc4983a49d5d08e54ad06756e4438"
+    "sha256": "dfa56757537114f6dc45e152168a8e824ddb05eae6cbb424761e5caa3f95cac1"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
@@ -514,13 +519,13 @@ var BUILD_ASSETS = {
     "sha256": "93da9089512e07567f993ac1f67939ed354e340d45818f3a7083c568c7042948"
   },
   "./help-drawer.js": {
-    "sha256": "2883962c99f5ca02e26ab97ef5e4bbd50d30608aa69bc761f4e9e4d0f47fd7e5"
+    "sha256": "73c3b910df0b3b0ebec8c90e09db30d34f8bec8b35b526aaa11f4abaec03f14a"
   },
   "./creator/pdfExport.js": {
-    "sha256": "83562ac16e19c60940fff27548027a2a7de3471134288f623140d5675f27cd95"
+    "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
   },
   "./sync-engine.js": {
-    "sha256": "6b97fe1ea34ea6999d1fa0355c2d1ffbb3bd313ce92ec05712289acfa598dfac"
+    "sha256": "52242764d5f9707853b84934eccb56fa923430e6f92caa95dbd32a6494ecf8fe"
   },
   "./assets/fonts/CrossStitchSymbols.base64.js": {
     "sha256": "c6b5293953acb71cf7dd71bd8b293333c9012ab1760ba3f7a19e7977f3b30ca4"

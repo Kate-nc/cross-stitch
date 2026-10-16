@@ -52,7 +52,7 @@ test('refreshProgressRows rewrites rows from before units once, leaves the proje
   const before = (await ProjectStorage.get('proj_old')).lastWriteAt;
   expect(await ProjectStorage.refreshProgressRows({ idle: cb => cb() })).toBe(1);
   const row = (await ProjectStorage.listProjects()).find(r => r.id === 'proj_old');
-  expect(row.unitsV).toBe(3);
+  expect(row.unitsV).toBe(4);
   expect(row.paceDaily).toEqual({});          // the rows now carry what the finish estimate needs (no sessions here)
   expect(row.activeDaysTotal).toBe(0);
   expect(row.totalStitches).toBe(7.5);        // 6 cells + 3 half sides, without rounding
@@ -67,6 +67,6 @@ test('opening global Stats directly migrates rounded v2 summaries without rewrit
   const db=await getDB();
   await new Promise(resolve=>{const tx=db.transaction(['project_meta','stats_summaries'],'readwrite');for(const name of ['project_meta','stats_summaries']){const store=tx.objectStore(name),req=store.get('proj_stats');req.onsuccess=()=>store.put({...req.result,unitsV:2,totalStitches:7},'proj_stats');}tx.oncomplete=resolve;});
   const summary=(await ProjectStorage.getAllStatsSummaries()).find(p=>p.id==='proj_stats');
-  expect(summary.totalStitches).toBe(6.5);expect(summary.unitsV).toBe(3);
+  expect(summary.totalStitches).toBe(6.5);expect(summary.unitsV).toBe(4);
   expect((await ProjectStorage.get('proj_stats')).lastWriteAt).toBe(before);
 });

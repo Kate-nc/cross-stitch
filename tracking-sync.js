@@ -4,7 +4,7 @@
  * Empty legacy fields carry no removal evidence. Never infer a deletion during import.
  */
 (function (root) {
-  var fields = ['done', 'halfDone', 'partialDone', 'knotsDone', 'bsDone'];
+  var fields = ['done', 'halfDone', 'partialDone', 'knotsDone', 'bsDone', 'specialtyDone'];
   var own = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
   var actor = 'tab-' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
   function index(v) {
@@ -26,12 +26,12 @@
         });
       });
     });
-    [['knotsDone', 'k:'], ['bsDone', 'b:']].forEach(function (spec) {
+    [['knotsDone', 'k:'], ['bsDone', 'b:'], ['specialtyDone', 's:']].forEach(function (spec) {
       (Array.isArray(p[spec[0]]) ? p[spec[0]] : []).forEach(function (k) { if (typeof k === 'string') out[spec[1] + k] = 1; });
     });
     return out;
   }
-  function validKey(k) { return /^(d:\d+|h:\d+:(fwd|bck)|q:\d+:(TL|TR|BL|BR)|[kb]:.+)$/.test(k); }
+  function validKey(k) { return /^(d:\d+|h:\d+:(fwd|bck)|q:\d+:(TL|TR|BL|BR)|[kbs]:.+)$/.test(k); }
   function cleanEvent(e) {
     if (!e || (e.value !== 0 && e.value !== 1) || !e.clock || typeof e.clock !== 'object' || Array.isArray(e.clock)) return null;
     var clock = Object.create(null);
@@ -83,7 +83,7 @@
     base = base || {};
     var out = Object.assign({}, next), before = marks(base), after = marks(next), r = records(base);
     fields.forEach(function (f) { if (next[f] == null && base[f] != null) out[f] = base[f]; });
-    var prefix = { d: 'done', h: 'halfDone', q: 'partialDone', k: 'knotsDone', b: 'bsDone' };
+    var prefix = { d: 'done', h: 'halfDone', q: 'partialDone', k: 'knotsDone', b: 'bsDone', s:'specialtyDone' };
     var keys = new Set(Object.keys(before).concat(Object.keys(after)));
     keys.forEach(function (k) {
       var field = prefix[k[0]];
@@ -126,7 +126,7 @@
       });
     }
     out.halfDone = pairs('h:', ['fwd', 'bck'], false);
-    [['partialDone', 'q:'], ['knotsDone', 'k:'], ['bsDone', 'b:']].forEach(function (spec) {
+    [['partialDone', 'q:'], ['knotsDone', 'k:'], ['bsDone', 'b:'], ['specialtyDone', 's:']].forEach(function (spec) {
       if (Array.isArray(local[spec[0]]) || Array.isArray(remote[spec[0]]) || Object.keys(all).some(function (k) { return k.slice(0, 2) === spec[1]; })) {
         out[spec[0]] = spec[0] === 'partialDone' ? pairs('q:', ['TL', 'TR', 'BL', 'BR'], true)
           : Object.keys(active).filter(function (k) { return k.slice(0, 2) === spec[1]; }).map(function (k) { return k.slice(2); }).sort();

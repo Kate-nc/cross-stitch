@@ -10,7 +10,7 @@ const ProjectStorage = (() => {
   const STATS_STORE = "stats_summaries";
   // Rows written before progress was counted in units (progress-units.js) have no unitsV; refreshProgressRows()
   // rewrites them once. Bump this if the definition ever changes again.
-  const PROGRESS_ROW_VERSION = 3;
+  const PROGRESS_ROW_VERSION = 4;
   const ACTIVE_KEY = (typeof LOCAL_STORAGE_KEYS !== 'undefined') ? LOCAL_STORAGE_KEYS.activeProject : "crossstitch_active_project";
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
@@ -155,6 +155,7 @@ const ProjectStorage = (() => {
     const current = typeof project.lastWriteAt === "number" ? project.lastWriteAt : null;
     if (base !== current) return project;
     const out = Object.assign({}, previous || project, { done: Array.from(rec.done) });
+    if (Array.isArray(rec.specialtyDone)) out.specialtyDone=rec.specialtyDone;
     if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
     if (Array.isArray(rec.knotsDone)) out.knotsDone = rec.knotsDone.length ? rec.knotsDone : undefined;
     // Backstitch and quarter-stitch marks (Phase 6): a record from a build that did not know them has no such field,
@@ -164,7 +165,7 @@ const ProjectStorage = (() => {
     // A current progress record can carry removals before the next full save.
     // Legacy records are diffed only for the fields they actually supplied.
     const next = Object.assign({}, out);
-    ["halfDone", "knotsDone", "bsDone", "partialDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
+    ["halfDone", "knotsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
     if (rec.trackingSync) return Object.assign(out, { trackingSync: rec.trackingSync });
     const tracked = TrackingSync.record(previous || project, next, "progress-" + (rec.tabId || rec.updatedAt || "legacy"));
     return Object.assign(out, { trackingSync: tracked.trackingSync });
@@ -871,7 +872,7 @@ const ProjectStorage = (() => {
           id: PROGRESS_PREFIX + id, projectId: id, v: 1,
           done: Uint8Array.from(data.done),
           halfDone: data.halfDone, knotsDone: data.knotsDone,
-          bsDone: data.bsDone, partialDone: data.partialDone,
+          bsDone: data.bsDone, partialDone: data.partialDone, specialtyDone:data.specialtyDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
           tabId: data.tabId || null, updatedAt: Date.now()
         };
@@ -890,12 +891,12 @@ const ProjectStorage = (() => {
             const previous = applyProgressRecord(project, prev);
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.
-            ["halfDone", "knotsDone", "bsDone", "partialDone"].forEach(f => {
+            ["halfDone", "knotsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => {
               if (!Array.isArray(rec[f]) && previous) rec[f] = Array.isArray(previous[f]) ? previous[f] : [];
             });
             const current = applyProgressRecord(project, rec);
             if (current !== project) {
-              const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, bsDone: rec.bsDone, partialDone: rec.partialDone });
+              const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
               rec.trackingSync = TrackingSync.record(previous, next).trackingSync;
             }
             // A delayed call must not undo a newer navigation recovery (or unpick).

@@ -114,6 +114,7 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(prev.sW); state.setSH(prev.sH);
       state.setPat(prev.pat);
       state.setBsLines(prev.bsLines);
+      if(state.setSpecialtyStitches)state.setSpecialtyStitches(prev.specialtyStitches || []);
       if (state.setKnots) state.setKnots(prev.knots || []);
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
@@ -161,6 +162,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var redoSpecialty = null;
+    if(last.specialtyStitches){redoSpecialty=state.specialtyStitches;state.setSpecialtyStitches(last.specialtyStitches);}
     var redoKnots = null;
     if (last.knots && state.setKnots) {
       redoKnots = knots.slice();
@@ -169,7 +172,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots };
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots, specialtyStitches:redoSpecialty };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -248,6 +251,7 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(next.sW); state.setSH(next.sH);
       state.setPat(next.pat);
       state.setBsLines(next.bsLines);
+      if(state.setSpecialtyStitches)state.setSpecialtyStitches(next.specialtyStitches || []);
       if (state.setKnots) state.setKnots(next.knots || []);
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
@@ -295,6 +299,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var undoSpecialty = null;
+    if(last.specialtyStitches){undoSpecialty=state.specialtyStitches;state.setSpecialtyStitches(last.specialtyStitches);}
     var undoKnots = null;
     if (last.knots && state.setKnots) {
       undoKnots = knots.slice();
@@ -303,7 +309,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots };
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots, specialtyStitches:undoSpecialty };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);

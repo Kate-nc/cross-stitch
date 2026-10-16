@@ -245,3 +245,17 @@ test('Compare deletion records and remaining manual/recovery history survive ful
   expect(again.doneSnapshots).toEqual([]);
   expect(again.deletedSnapshotIds).toEqual(['auto_1','m','r']);
 });
+
+test('specialty progress journal preserves additions and explicit unmarks across native save/reload',async()=>{
+ const objects=[{uid:'p',type:'petite',x:0,y:0,thread:{id:'310',rgb:[0,0,0]}}];
+ await ProjectStorage.save(proj({specialtyVersion:1,specialtyStitches:objects,specialtyDone:[]}));
+ const b=await base('proj_p');
+ await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array(N),specialtyDone:['p'],baseWriteAt:b});
+ expect((await ProjectStorage.get('proj_p')).specialtyDone).toEqual(['p']);
+ await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array(N),specialtyDone:[],baseWriteAt:b});
+ const unmarked=await ProjectStorage.get('proj_p');expect(unmarked.specialtyDone||[]).toEqual([]);
+ expect(unmarked.specialtyStitches).toEqual(objects);
+ // A legacy writer omitting this field must preserve the current truth.
+ await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array(N),baseWriteAt:b});
+ expect((await ProjectStorage.get('proj_p')).specialtyDone||[]).toEqual([]);
+});

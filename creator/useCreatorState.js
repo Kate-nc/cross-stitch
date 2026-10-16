@@ -876,6 +876,8 @@ window.useCreatorState = function useCreatorState() {
   }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
+  var _specialtySelected=useState(null),specialtySelected=_specialtySelected[0],setSpecialtySelected=_specialtySelected[1];
+  var _specialty = useState([]), specialtyStitches=_specialty[0], setSpecialtyStitches=_specialty[1];
   var _knots    = useState([]);      var knots          = _knots[0],    setKnots          = _knots[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -1279,13 +1281,15 @@ window.useCreatorState = function useCreatorState() {
 
   var displayPal = useMemo(function() {
     if (!pal) return pal;
-    if (!scratchPalette.length) return pal;
-    var ids = new Set(pal.map(function(p) { return p.id; }));
+    var base=pal.slice();
+    specialtyStitches.forEach(function(o){if(!base.some(function(t){return t.id===o.thread.id;}))base.push(Object.assign({},o.thread,{count:0}));});
+    if (!scratchPalette.length) return base;
+    var ids = new Set(base.map(function(p) { return p.id; }));
     var extras = scratchPalette.filter(function(p) { return !ids.has(p.id); });
-    return pal.concat(extras);
-  }, [pal, scratchPalette]);
+    return base.concat(extras);
+  }, [pal, scratchPalette,specialtyStitches]);
 
-  var progressPct = totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 1000) / 10 : 0;
+  var progressPct=ProgressUnits.fromProject(Object.assign({},trackerFieldsRef.current,{settings:{sW:sW,sH:sH},pattern:pat,done:done,partialStitches:Array.from(partialStitches),knots:knots,specialtyVersion:1,specialtyStitches:specialtyStitches})).percent;
 
   var colourDoneCounts = useMemo(function() {
     if (!pat || !done) return {};
@@ -1470,7 +1474,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
-    setBsLines([]); setKnots([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
+    setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
@@ -1739,7 +1743,7 @@ window.useCreatorState = function useCreatorState() {
     // back-stitches now reference colour ids that may not exist or
     // would render against the wrong palette entry. Clear them, and the
     // French knots with them.
-    setBsLines([]); setBsStart(null); setKnots([]);
+    setBsLines([]); setBsStart(null); setKnots([]); setSpecialtyStitches([]);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -2363,6 +2367,7 @@ window.useCreatorState = function useCreatorState() {
     if (done && done.length === oldW * oldH) {
       for (var dy = 0; dy < Math.min(oldH, sH); dy++) for (var dx = 0; dx < Math.min(oldW, sW); dx++) newDone[dy * sW + dx] = done[dy * oldW + dx];
     }
+    setSpecialtyStitches(function(list){return ProgressUnits.specialty.offset(list,0,0,sW,sH);});
     setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
@@ -2406,6 +2411,7 @@ window.useCreatorState = function useCreatorState() {
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
+    specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
     knots, setKnots,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,

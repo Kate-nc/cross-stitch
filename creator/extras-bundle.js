@@ -1074,6 +1074,7 @@
   }
 
   function runExport(project, options, onProgress) {
+    if(project.specialtyStitches&&project.specialtyStitches.length)return Promise.reject(new Error("PDF export does not support petite or long stitches. Save native JSON or export PNG instead."));
     var w;
     try { w = getWorker(); } catch (e) { return Promise.reject(e); }
     var reqId = nextReqId++;
@@ -1182,6 +1183,7 @@
       h: ctx.sH || ctx.h,
       pattern: pattern,
       palette: pal,
+      specialtyStitches:ctx.specialtyStitches||[],
       partialStitches: partialEntries,
       bsLines: ctx.bsLines || [],
       // French knots; only the Workshop print theme draws them.
@@ -3580,6 +3582,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     + (ctx && ctx.pal ? Math.max(1, Math.ceil(ctx.pal.length / 32)) : 0);
 
   function doExport() {
+    if((ctx.specialtyStitches||[]).length){setError("PDF export does not support petite or long stitches. Use native JSON or PNG; OXS supports petites and reports omitted long stitches.");return;}
     setError(null);
     if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
     // Merge app-level project metadata (name/designer/description live on AppContext, not PatternData).
@@ -3646,7 +3649,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       c.width = ctx.sW * CELL;
       c.height = ctx.sH * CELL;
       var g = c.getContext("2d");
-      g.fillStyle = "var(--surface)";
+      g.fillStyle = app.fabricColour || "white";
       g.fillRect(0, 0, c.width, c.height);
       for (var y = 0; y < ctx.sH; y++) {
         for (var x = 0; x < ctx.sW; x++) {
@@ -3658,6 +3661,7 @@ window.CreatorExportTab = function CreatorExportTab() {
           g.fillRect(x * CELL, y * CELL, CELL, CELL);
         }
       }
+      ProgressUnits.specialty.draw(g,ctx.specialtyStitches||[],[],0,0,CELL);
       var _toBlobTimer = setTimeout(function () {
         reject(new Error("PNG creation timed out — try a smaller pattern or refresh the page."));
       }, 10000);
@@ -3715,6 +3719,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       settings: { sW: ctx.sW, sH: ctx.sH, fabricCt: ctx.fabricCt, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(ctx.threadBrand) : undefined },
       pattern: pattern,
       bsLines: ctx.bsLines || [],
+      specialtyVersion:1,specialtyStitches:ctx.specialtyStitches||[],specialtyDone:(app.trackerFieldsRef&&app.trackerFieldsRef.current&&app.trackerFieldsRef.current.specialtyDone)||[],
       partialStitches: psArr,
       knots: ctx.knots && ctx.knots.length ? (window.Knots ? window.Knots.forSave(ctx.knots, ctx.threadBrand) : ctx.knots.slice()) : undefined,
     };
@@ -3747,6 +3752,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   }
 
   function doExportBundle() {
+    if((ctx.specialtyStitches||[]).length){setError("PDF export does not support petite or long stitches. Use native JSON or PNG; OXS supports petites and reports omitted long stitches.");return;}
     setError(null);
     if (!window.ZipBundle) { setError("Bundle export unavailable — JSZip failed to load."); return; }
     if (!ctx || !ctx.pat || !ctx.pal || !ctx.sW || !ctx.sH) {
@@ -3792,7 +3798,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     try {
       oxsString = window.ZipBundle._serializeOxs({
         width: ctx.sW, height: ctx.sH, threadBrand: ctx.threadBrand, pattern: ctx.pat,
-        bsLines: ctx.bsLines || [], partialStitches: ctx.partialStitches, knots: ctx.knots || [],
+        bsLines: ctx.bsLines || [], specialtyStitches:ctx.specialtyStitches||[],partialStitches: ctx.partialStitches, knots: ctx.knots || [],
         beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
       }, function (warnings) {
         if (typeof Toast !== 'undefined' && Toast.show) Toast.show({ message: warnings.join(' '), type: 'warning', duration: 10000 });
@@ -4025,7 +4031,7 @@ window.CreatorExportTab = function CreatorExportTab() {
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
-            partialStitches: ctx.partialStitches,
+            specialtyStitches:ctx.specialtyStitches||[],partialStitches: ctx.partialStitches,
             knots: ctx.knots || [],
             beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
           };

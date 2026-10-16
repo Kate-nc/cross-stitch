@@ -1706,6 +1706,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     });
   }
 
+  ProgressUnits.specialty.draw(ctx2d,state.specialtyStitches||[],[],gut-offX*cSz,gut-offY*cSz,cSz,null,state.specialtySelected);
   window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Backstitch start point + preview line
@@ -2082,6 +2083,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
     ctx2d.stroke();
   }
 
+  ProgressUnits.specialty.draw(ctx2d,state.specialtyStitches||[],[],gut-offX*cSz,gut-offY*cSz,cSz,null,state.specialtySelected);
   window.drawKnotsOnCanvas(ctx2d, state.knots, offX, offY, dW, dH, cSz, gut, cmap);
 
   // Outer border
@@ -7279,6 +7281,8 @@ window.useCreatorState = function useCreatorState() {
   }, []);
   var _bsLines  = useState([]);      var bsLines        = _bsLines[0],  setBsLines        = _bsLines[1];
   // French knots [{x, y, id, rgb}] in half-stitch units (knots.js).
+  var _specialtySelected=useState(null),specialtySelected=_specialtySelected[0],setSpecialtySelected=_specialtySelected[1];
+  var _specialty = useState([]), specialtyStitches=_specialty[0], setSpecialtyStitches=_specialty[1];
   var _knots    = useState([]);      var knots          = _knots[0],    setKnots          = _knots[1];
   var _bsStart  = useState(null);    var bsStart        = _bsStart[0],  setBsStart        = _bsStart[1];
   var _bsCont   = useState(false);   var bsContinuous   = _bsCont[0],   setBsContinuous   = _bsCont[1];
@@ -7682,13 +7686,15 @@ window.useCreatorState = function useCreatorState() {
 
   var displayPal = useMemo(function() {
     if (!pal) return pal;
-    if (!scratchPalette.length) return pal;
-    var ids = new Set(pal.map(function(p) { return p.id; }));
+    var base=pal.slice();
+    specialtyStitches.forEach(function(o){if(!base.some(function(t){return t.id===o.thread.id;}))base.push(Object.assign({},o.thread,{count:0}));});
+    if (!scratchPalette.length) return base;
+    var ids = new Set(base.map(function(p) { return p.id; }));
     var extras = scratchPalette.filter(function(p) { return !ids.has(p.id); });
-    return pal.concat(extras);
-  }, [pal, scratchPalette]);
+    return base.concat(extras);
+  }, [pal, scratchPalette,specialtyStitches]);
 
-  var progressPct = totalStitchable > 0 ? Math.round(doneCount / totalStitchable * 1000) / 10 : 0;
+  var progressPct=ProgressUnits.fromProject(Object.assign({},trackerFieldsRef.current,{settings:{sW:sW,sH:sH},pattern:pat,done:done,partialStitches:Array.from(partialStitches),knots:knots,specialtyVersion:1,specialtyStitches:specialtyStitches})).percent;
 
   var colourDoneCounts = useMemo(function() {
     if (!pat || !done) return {};
@@ -7873,7 +7879,7 @@ window.useCreatorState = function useCreatorState() {
 
   function resetAll() {
     setPat(null); setPal(null); setCmap(null); setHiId(null);
-    setBsLines([]); setKnots([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
+    setBsLines([]); setKnots([]); setSpecialtyStitches([]); setBsStart(null); setActiveTool(null); setSelectedColorId(null);
     setEditHistory([]); setRedoHistory([]); setExportPage(0); setDone(null);
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
@@ -8142,7 +8148,7 @@ window.useCreatorState = function useCreatorState() {
     // back-stitches now reference colour ids that may not exist or
     // would render against the wrong palette entry. Clear them, and the
     // French knots with them.
-    setBsLines([]); setBsStart(null); setKnots([]);
+    setBsLines([]); setBsStart(null); setKnots([]); setSpecialtyStitches([]);
     setEditHistory([]); setRedoHistory([]);
     // E-1: clear any leftover wand/lasso selection — its grid indices
     // are about to be meaningless against the new pattern.
@@ -8766,6 +8772,7 @@ window.useCreatorState = function useCreatorState() {
     if (done && done.length === oldW * oldH) {
       for (var dy = 0; dy < Math.min(oldH, sH); dy++) for (var dx = 0; dx < Math.min(oldW, sW); dx++) newDone[dy * sW + dx] = done[dy * oldW + dx];
     }
+    setSpecialtyStitches(function(list){return ProgressUnits.specialty.offset(list,0,0,sW,sH);});
     setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
@@ -8809,6 +8816,7 @@ window.useCreatorState = function useCreatorState() {
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
+    specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
     knots, setKnots,
     bsContinuous, setBsContinuous, selectedColorId, setSelectedColorId,
     hoverCoords, setHoverCoords, editHistory, setEditHistory,
@@ -9191,6 +9199,7 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(prev.sW); state.setSH(prev.sH);
       state.setPat(prev.pat);
       state.setBsLines(prev.bsLines);
+      if(state.setSpecialtyStitches)state.setSpecialtyStitches(prev.specialtyStitches || []);
       if (state.setKnots) state.setKnots(prev.knots || []);
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && prev.knotsDone) state.trackerFieldsRef.current.knotsDone = prev.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
@@ -9238,6 +9247,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var redoSpecialty = null;
+    if(last.specialtyStitches){redoSpecialty=state.specialtyStitches;state.setSpecialtyStitches(last.specialtyStitches);}
     var redoKnots = null;
     if (last.knots && state.setKnots) {
       redoKnots = knots.slice();
@@ -9246,7 +9257,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
-      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots };
+      var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots, specialtyStitches:redoSpecialty };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -9325,6 +9336,7 @@ window.useEditHistory = function useEditHistory(state) {
       state.setSW(next.sW); state.setSH(next.sH);
       state.setPat(next.pat);
       state.setBsLines(next.bsLines);
+      if(state.setSpecialtyStitches)state.setSpecialtyStitches(next.specialtyStitches || []);
       if (state.setKnots) state.setKnots(next.knots || []);
       if (state.trackerFieldsRef && state.trackerFieldsRef.current && next.knotsDone) state.trackerFieldsRef.current.knotsDone = next.knotsDone.slice();
       if (state.trackerFieldsRef && state.trackerFieldsRef.current) {
@@ -9372,6 +9384,8 @@ window.useEditHistory = function useEditHistory(state) {
       state.setBsLines(last.bsLines);
     }
 
+    var undoSpecialty = null;
+    if(last.specialtyStitches){undoSpecialty=state.specialtyStitches;state.setSpecialtyStitches(last.specialtyStitches);}
     var undoKnots = null;
     if (last.knots && state.setKnots) {
       undoKnots = knots.slice();
@@ -9380,7 +9394,7 @@ window.useEditHistory = function useEditHistory(state) {
 
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
-      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots };
+      var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots, specialtyStitches:undoSpecialty };
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -12947,6 +12961,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !isScratchMode ? img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: zoom,
       savedScroll: scrollRef.current ? { left: scrollRef.current.scrollLeft, top: scrollRef.current.scrollTop } : null,
@@ -13013,6 +13028,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: parkMarkers, totalTime: totalTime, sessions: sessions,
       hlRow: hlRow, hlCol: hlCol, threadOwned: threadOwned,
       imgData: img && !state.isScratchMode ? img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
     });
     if (onSwitchToTrack) {
@@ -13104,6 +13120,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
   // ─── processLoadedProject ────────────────────────────────────────────────────
   function processLoadedProject(project) {
+    if(!project)return;
     // INT-7 Phase B-1: seed the last-seen cache so the next save() from this
     // tab has a baseline to compare against for stale-read detection.
     // No-op when CrossTabCoord isn't loaded or the project has no Phase B
@@ -13115,6 +13132,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           project.id, project.lastWriteAt, project.lastWriteTabId);
       }
     } catch (_) {}
+    if(project.specialtyVersion!=null&&project.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+project.specialtyVersion+'.');
+    project=ProgressUnits.specialty.migrate(project);
     // P4-5: a project in another brand's numbering loads that brand's
     // catalogue first, then comes back here (helpers.js).
     if (window.whenProjectBrandReady && !window.whenProjectBrandReady(project, processLoadedProject, function(err) {
@@ -13132,6 +13151,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
     state.setBsLines(project.bsLines || []);
+    if(state.setSpecialtyStitches)state.setSpecialtyStitches(ProgressUnits.specialty.read(project,s.sW,s.sH,brand));
     if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
@@ -13250,6 +13270,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       _tf.halfDone = project.halfDone;
     if (Array.isArray(project.knotsDone) && project.knotsDone.length > 0)
       _tf.knotsDone = project.knotsDone;
+    _tf.specialtyDone=project.specialtyDone||[];
     // Backstitch and quarter-stitch done marks, and beads: carried so a Creator save does not drop them.
     if (Array.isArray(project.bsDone) && project.bsDone.length > 0) _tf.bsDone = project.bsDone;
     if (Array.isArray(project.partialDone) && project.partialDone.length > 0) _tf.partialDone = project.partialDone;
@@ -13897,6 +13918,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       tf.halfDone = freshProject.halfDone || [];
       if (Array.isArray(freshProject.knotsDone) && freshProject.knotsDone.length > 0)
         tf.knotsDone = freshProject.knotsDone;
+      tf.specialtyDone=freshProject.specialtyDone||[];
       // The Tracker's latest backstitch / quarter marks (a mark cleared there must not come back from a stale copy).
       if (Array.isArray(freshProject.bsDone) && freshProject.bsDone.length > 0) tf.bsDone = freshProject.bsDone; else delete tf.bsDone;
       if (Array.isArray(freshProject.partialDone) && freshProject.partialDone.length > 0) tf.partialDone = freshProject.partialDone; else delete tf.partialDone;
@@ -13965,6 +13987,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       parkMarkers: state.parkMarkers, totalTime: state.totalTime, sessions: state.sessions,
       hlRow: state.hlRow, hlCol: state.hlCol, threadOwned: state.threadOwned,
       imgData: state.img && !state.isScratchMode ? state.img.src : null, partialStitches: psArr,
+      specialtyVersion:1, specialtyStitches:state.specialtyStitches,
       knots: creatorKnotsForSave(state.knots, state.threadBrand),
       savedZoom: state.zoom,
       savedScroll: state.scrollRef.current ? { left: state.scrollRef.current.scrollLeft, top: state.scrollRef.current.scrollTop } : null,
@@ -14036,7 +14059,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.partialStitches, state.knots, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.symbolOverrides, state.fabricColour, state.overlayOpacity, state.showOverlay, state.isActive,
   ]);
@@ -15163,7 +15186,7 @@ window.PatternCanvas = function PatternCanvas() {
     // (Not the tool or stitch type: the base doesn't draw them, and Effect 2
     // repaints the overlay when they change. Switching tools used to redraw
     // every stitch.)
-    gen.img, ctx.partialStitches, ctx.knots,
+    gen.img, ctx.partialStitches, cv.specialtySelected, ctx.specialtyStitches, ctx.knots,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
@@ -16354,6 +16377,53 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 })();
 
 
+/* ─── SpecialtyStitchPanel.js ─── */
+/* Independent petite crosses and long stitches. Coordinates use cell units.
+ * Explicit object selection keeps coincident objects independently editable/markable. */
+window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
+  var h=React.createElement, S=ProgressUnits.specialty;
+  var selection=React.useState(''), uid=selection[0], select=selection[1];
+  var empty={type:'petite',x:0,y:0,x1:0,y1:0,x2:1,y2:1};
+  var draft=React.useState(empty), form=draft[0], setForm=draft[1];
+  var error=React.useState(''), setError=error[1];
+  var selected=(p.objects||[]).find(function(o){return o.uid===uid;});
+  var objects=(p.objects||[]).filter(function(o){return (!p.visible || p.visible[o.type]!==false)&&(!p.accept||p.accept(o));});
+  var marks=new Set(p.done||[]), threads=p.threads||[];
+  function choose(id) {
+    select(id); setError('');
+    var o=(p.objects||[]).find(function(v){return v.uid===id;});
+    setForm(o?Object.assign({},empty,o,{threadId:o.thread.id}):empty);
+    if(p.onSelect)p.onSelect(id);
+  }
+  function change(k,v){setForm(function(f){var n=Object.assign({},f);n[k]=v;return n;});}
+  function commit() {
+    var thread=threads.find(function(t){return t.id===form.threadId;}) || (selected && selected.thread);
+    var o=Object.assign({},form,{uid:selected?selected.uid:('specialty-'+(globalThis.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2))),thread:thread});
+    if(!S.valid(o,p.w,p.h)){setError('Choose a thread and valid half-cell coordinates inside the chart. Long stitches need distinct endpoints.');return;}
+    var next=S.normalise([o],p.w,p.h,p.brand)[0];
+    p.onChange(selected?p.objects.map(function(v){return v.uid===selected.uid?next:v;}):p.objects.concat([next]));
+    choose('');
+  }
+  return h('details',null,h('summary',null,'Petite and long stitches ('+objects.length+')'),
+    h('p',null,p.tracking?'Select an object to mark or unmark it. Coincident objects have separate entries.':'Add or select an object to edit its thread and coordinates. Use these controls for petite and long stitches; canvas selection tools edit the other stitch types.'),
+    h('div',{role:'group','aria-label':'Petite and long stitch objects',style:{maxHeight:220,overflowY:'auto'}},objects.map(function(o,i){
+      return h('div',{key:o.uid},h('button',{type:'button','aria-pressed':uid===o.uid,onClick:function(){choose(o.uid);}},(o.type==='petite'?'Petite':'Long stitch')+' '+(i+1)+' · '+o.thread.id+(marks.has(o.uid)?' · done':'')),
+        p.tracking&&h('button',{type:'button',disabled:p.disabled,onClick:function(){p.onToggle(o.uid);}},marks.has(o.uid)?'Unmark':'Mark'));
+    })),
+    !p.tracking&&h('div',null,
+      h('button',{type:'button',onClick:function(){choose('');}},'New object'),
+      h('label',null,'Type ',h('select',{'aria-label':'Type',value:form.type,onChange:function(e){change('type',e.target.value);}},h('option',{value:'petite'},'Petite'),h('option',{value:'long_stitch'},'Long stitch'))),
+      h('label',null,'Thread ',h('select',{'aria-label':'Thread',value:form.threadId||'',onChange:function(e){change('threadId',e.target.value);}},h('option',{value:''},'Choose thread'),threads.map(function(t){return h('option',{key:t.id,value:t.id},t.id+' '+(t.name||''));}))),
+      (form.type==='petite'?['x','y']:['x1','y1','x2','y2']).map(function(k){return h('label',{key:k,style:{display:'inline-block',margin:4}},k+' ',h('input',{type:'number',step:0.5,min:0,max:k[0]==='x'?p.w:p.h,value:Number.isFinite(form[k])?form[k]:'',style:{width:70},onChange:function(e){change(k,e.target.value===''?NaN:Number(e.target.value));}}));}),
+      h('button',{type:'button',onClick:commit},selected?'Apply object edit':'Add object'),
+      selected&&h('button',{type:'button',onClick:function(){p.onChange(p.objects.filter(function(o){return o.uid!==uid;}));choose('');}},'Delete object'),
+      error[0]&&h('p',{role:'alert'},error[0]),
+      h('p',null,'Petite: top-left of a half-cell cross. Long stitch: two endpoints, including chart edges. Coordinates start at zero. Petite = 0.25 progress units; long stitch = 0.5 units per object.')
+    )
+  );
+};
+
+
 /* ─── ToolStrip.js ─── */
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
    Reads from CreatorContext and GenerationContext.
@@ -17214,6 +17284,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     role:"dialog",
     "aria-label":"More tools"
   },
+    h(window.SpecialtyStitchPanel,{objects:ctx.specialtyStitches||[],w:ctx.sW,h:ctx.sH,threads:ctx.displayPal||ctx.pal||[],brand:ctx.threadBrand,onSelect:cv.setSpecialtySelected,
+      onChange:function(next){cv.setEditHistory(function(prev){return prev.concat([{type:'specialty',changes:[],specialtyStitches:ctx.specialtyStitches||[]}]).slice(-cv.EDIT_HISTORY_MAX);});cv.setRedoHistory([]);ctx.setSpecialtyStitches(next);}}),
     // ── View (phone rail only): zoom moved here from the strip; pinch is
     //    still the main way to zoom. ──
     compact && h("div", {className:"tb-more-panel__section"},

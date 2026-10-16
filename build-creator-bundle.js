@@ -79,6 +79,7 @@ const ORDER = [
   'TextToolSheet.js',
   'SplitPane.js',
   'CompactBar.js',
+  'SpecialtyStitchPanel.js',
   'ToolStrip.js',
   'MagicWandPanel.js',
   'BulkAddModal.js',
