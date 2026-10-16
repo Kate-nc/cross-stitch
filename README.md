@@ -185,7 +185,9 @@ File > Preferences opens a 12-category panel (Profile & branding, Regional & uni
 
 ## Progressive Web App
 
-The service worker ([`sw.js`](sw.js)) pre-caches the app shell on first load; the app then works offline.
+The service worker ([`sw.js`](sw.js)) validates and caches the offline application on first load. Reopen the app once installation completes before relying on offline access. Updates wait until all stitchx tabs and installed app windows close; reopen to use the update. Failed or incomplete downloads leave the working version available. Project data lives separately in IndexedDB.
+
+Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Static hosting and deployment rewrites remain unchanged. See [the update lifecycle](reports/service-worker-lifecycle.md) for cache retention, recovery and validation.
 
 - **Desktop (Chrome / Edge):** click the install icon in the address bar.
 - **iOS / iPadOS Safari:** Share > Add to Home Screen. Installing also stops Safari clearing stored patterns after seven days without a visit.
@@ -434,5 +436,7 @@ Pull requests are welcome. Before submitting:
 ISC
 
 Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.
+
+Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.
 
 Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.

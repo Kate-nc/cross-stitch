@@ -206,3 +206,14 @@ describe('import-engine: confidence helpers', () => {
     expect(ENGINE.THRESHOLDS.standard).toBe(0.80);
   });
 });
+
+test('structural errors returned separately by validation make the pipeline fail', async () => {
+  const p = {w:2,h:1,pattern:[{id:'310'}]};
+  const result = await ENGINE.runPipeline(makeProbe(), {}, {}, {
+    classify: async()=>({id:'test'}), extract:async()=>({_legacyProject:p}),
+    validate: ENGINE.validateExtraction,
+  });
+  expect(result.ok).toBe(false);
+  expect(result.warnings.some(w=>w.code==='DIMENSIONS'&&w.severity==='error')).toBe(true);
+  expect(result.verification.status).toBe('invalid');
+});

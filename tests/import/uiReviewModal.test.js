@@ -15,6 +15,7 @@ global.ReactDOM = { render: () => {}, unmountComponentAtNode: () => {} };
 global.document = { createElement: () => ({ appendChild: () => {} }), body: { appendChild: () => {} } };
 global.Icons = {};
 
+Object.assign(window.ImportEngine = window.ImportEngine || {}, require('../../import-engine/pipeline/validate.js'));
 require(path.resolve(__dirname, '..', '..', 'import-engine', 'ui', 'ImportReviewModal.js'));
 
 const { mergeEdits } = window.ImportEngine;
@@ -174,8 +175,8 @@ describe('importSummary — the review header', () => {
     expect(s.detail).toMatch(/2 symbols need a thread/);
   });
 
-  it('keeps the engine figure for formats without an import report', () => {
-    expect(importSummary({ pattern: [] }, 0.87)).toEqual(expect.objectContaining({ label: '87% confidence', level: 'medium' }));
+  it('does not turn engine confidence into source coverage', () => {
+    expect(importSummary({ pattern: [] }, 0.87)).toEqual(expect.objectContaining({ label: 'Source coverage unverified', level: 'low' }));
   });
 });
 
@@ -229,4 +230,13 @@ describe('merging look-alike scanned symbols', () => {
     const p = openLookAlikes(pairs, { S1: '310' }, {})[0];
     expect([p.rootA, p.rootB]).toEqual(['310', 'S2']);
   });
+});
+
+test('page rebuilds and other designs retain the original source attachment', () => {
+  const file = {name:'chart.pdf',bytes:new Uint8Array([1,2,3])};
+  const rebuilt = {pattern:[],meta:{designer:'A'}};
+  const out = window.ImportEngine.preserveSource(rebuilt,{meta:{attachments:{originalFile:file}}});
+  expect(out.meta.attachments.originalFile).toBe(file);
+  expect(out.meta.designer).toBe('A');
+  expect(rebuilt.meta.attachments).toBeUndefined();
 });

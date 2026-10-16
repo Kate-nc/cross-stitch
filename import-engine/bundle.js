@@ -456,10 +456,18 @@
         for (const w of validation.warnings) warnings.push(w);
       }
 
+      for (const e of (validation && validation.errors) || []) warnings.push(Object.assign({}, e, { severity: 'error' }));
+
       // ── Stage 6 — materialise
       abortGuard('materialise'); progress('materialise');
       const built = await stages.materialise(resolved, validation, probe, opts, ctx);
 
+      const attach = typeof window !== 'undefined' && window.ImportEngine && window.ImportEngine.attachOriginalFile;
+      if (built.project && attach && probe.fullBytes) attach(built.project, { originalFile: {
+        name: probe.fileName, type: probe.mimeType, bytes: await probe.fullBytes() } });
+      if (built.project && validation && validation.verification) {
+        built.project._import = Object.assign({}, built.project._import, { verification: validation.verification });
+      }
       const perCell = built.perCellConfidence || [];
       const perPalette = (validation && validation.perPaletteEntry) || [];
       const overall = computeOverall(perCell, perPalette, probe.formatConfidence);
@@ -469,6 +477,7 @@
         ok: errs.length === 0,
         project: built.project,
         publisher: (resolved.meta && resolved.meta.publisher) || (raw.meta && raw.meta.publisher),
+        verification: validation && validation.verification,
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,
         reviewHints: built.reviewHints || [],
@@ -2075,32 +2084,25 @@
 (function () {
   'use strict';
 
-  function validateExtraction(raw) {
+  function validateCells(raw) {
     const warnings = [];
     const errors = [];
     if (!raw) {
       errors.push({ code: 'EMPTY', message: 'No extraction data.' });
-      return { warnings, errors, coverage: 0 };
-    }
-    // A strategy that hands over a finished project (the PDF and OXS importers)
-    // has no cell list here to check — and checking the empty one told every
-    // PDF import that "0% of stitches matched a colour". Such importers report
-    // on themselves (the project's importReport), so there is nothing to add.
-    if (raw._legacyProject) {
-      return { warnings, errors, coverage: 1 };
+      return { warnings, errors, coverage: null };
     }
     const cells = raw.cells || [];
     const legendRows = (raw.legend && raw.legend.rows) || [];
 
     // 1. Empty grid.
-    if (!cells.length) {
+    if (!cells.length && !(raw.bsLines || []).length) {
       errors.push({ code: 'EMPTY_GRID', message: 'No stitches were detected.' });
     }
 
     // 2. Match-confidence coverage.
     const matched = cells.filter(c => c.matchConfidence > 0).length;
-    const coverage = cells.length ? matched / cells.length : 0;
-    if (coverage < 0.5) {
+    const coverage = cells.length ? matched / cells.length : null;
+    if (coverage !== null && coverage < 0.5) {
       warnings.push({ code: 'LOW_PALETTE_COVERAGE',
         message: `Only ${(coverage * 100).toFixed(0)}% of stitches matched a colour.`,
         severity: 'high' });
@@ -2116,7 +2118,7 @@
       if (!r.code || r.expectedCount == null) continue;
       const actual = counts.get(r.code) || 0;
       const diff = Math.abs(actual - r.expectedCount);
-      if (r.expectedCount > 0 && diff > Math.max(5, r.expectedCount * 0.1)) {
+      if (Number.isFinite(r.expectedCount) && r.expectedCount >= 0 && diff > 0) {
         warnings.push({
           code: 'COUNT_MISMATCH',
           message: `Thread ${r.code}: expected ${r.expectedCount} stitches, found ${actual}.`,
@@ -2129,7 +2131,7 @@
     // 4. Threads in legend but absent from chart.
     for (const r of legendRows) {
       if (!r.code) continue;
-      if (!counts.has(r.code)) {
+      if (!counts.has(r.code) && r.expectedCount == null) {
         warnings.push({
           code: 'LEGEND_UNUSED',
           message: `Thread ${r.code} is in the legend but has no stitches.`,
@@ -2142,7 +2144,7 @@
     const legendCodes = new Set(legendRows.map(r => r.code).filter(Boolean));
     const chartCodes = new Set(Array.from(counts.keys()));
     for (const code of chartCodes) {
-      if (!legendCodes.has(code) && legendCodes.size) {
+      if (!legendCodes.has(code)) {
         warnings.push({
           code: 'LEGEND_MISSING_CODE',
           message: `Thread ${code} is used in the chart but has no legend entry.`,
@@ -2168,6 +2170,112 @@
     return { warnings, errors, coverage };
   }
 
+  // Percentages describe a specific population, never overall source fidelity.
+  function measure(status, detail, numerator, denominator) {
+    return { status, detail, numerator: numerator == null ? null : numerator,
+      denominator: denominator == null ? null : denominator,
+      coverage: Number.isFinite(numerator) && Number.isFinite(denominator) &&
+        denominator > 0 && numerator >= 0 && numerator <= denominator ? numerator / denominator : null };
+  }
+
+  // Shared with the review header: preserve the PDF importer's key evidence.
+  function pdfKeyMatch(r) {
+    if (!r || !r.matched || r.scanned || !r.keyEntries) return null;
+    const m = r.matched;
+    const ps = typeof m.partialSwatch === 'number' ? m.partialSwatch : (m.partial || 0);
+    const pn = m.partialNearest || 0;
+    const read = (m.symbol || 0) + (m.swatch || 0) + ps + (r.keyColoursDistinct ? (m.nearest || 0) + pn : 0);
+    const total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) + ps + pn + (m.catalogue || 0) + (m.unresolved || 0);
+    return total > 0 && read >= 0 && read <= total ? { read, total } : null;
+  }
+
+  function validateExtraction(raw) {
+    if (!raw) return validateCells(raw);
+    const p = raw._legacyProject;
+    const out = p ? { warnings: [], errors: [], coverage: null } : validateCells(raw);
+    const r = (p && p.importReport) || {};
+    const audit = raw._legacyResult && raw._legacyResult.fidelity;
+    const pattern = p ? p.pattern : raw.cells;
+    const cellList = Array.isArray(pattern) ? pattern : [];
+    const w = p ? (p.settings && p.settings.sW) ?? p.w : raw.width;
+    const h = p ? (p.settings && p.settings.sH) ?? p.h : raw.height;
+    const validSize = Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0;
+    const occupied = cellList.filter(c => c && c.id !== '__skip__' && c.id !== '__empty__');
+    const checks = {};
+    checks.recognisedCells = measure('unknown', 'Source cell total is unknown; extracted cells do not prove completeness.');
+    checks.legendMatches = measure('unknown', 'No source legend evidence is available.');
+    checks.stitchTypes = measure('unknown', 'Stitch-type preservation has not been verified against the source.');
+    checks.dimensions = measure(validSize ? 'unknown' : 'limited', validSize ? w + ' × ' + h + ' grid; source size unverified.' : 'Invalid grid dimensions.');
+    checks.unsupportedContent = measure('unknown', 'The source has not been checked for all unsupported content.');
+    checks.counts = measure('unknown', 'No comparable declared stitch counts.');
+    if (p && (!Array.isArray(pattern) || !validSize || pattern.length !== w * h ||
+        (p.w != null && p.w !== w) || (p.h != null && p.h !== h))) {
+      checks.dimensions = measure('limited', 'Grid dimensions and stored cell count disagree.');
+      out.errors.push({ code: 'DIMENSIONS', message: 'Grid dimensions and stored cell count disagree. Re-export the chart with the correct size.' });
+    }
+    if (!validSize && !p) out.errors.push({ code: 'DIMENSIONS', message: 'Invalid grid dimensions. Check the source size.' });
+    if (!p && validSize && (raw.cells || []).some(c =>
+        (c.col != null || c.row != null) && (!Number.isInteger(c.col) || !Number.isInteger(c.row) || c.col < 0 || c.row < 0 || c.col >= w || c.row >= h))) {
+      checks.dimensions = measure('limited', 'Some cells lie outside the grid.');
+      out.errors.push({ code: 'CELL_BOUNDS', message: 'Some cells lie outside the grid. Correct the size or page arrangement before importing.' });
+    }
+    if (!p) {
+      const cells = raw.cells || [];
+      const rows = (raw.legend && raw.legend.rows) || [];
+      const codes = new Set(rows.map(x => x.code).filter(Boolean));
+      const matches = cells.filter(c => c.code && codes.has(c.code) && c.matchConfidence > 0).length;
+      checks.legendMatches = measure(codes.size && matches === cells.length && cells.length ? 'verified' : codes.size ? 'limited' : 'unknown',
+        'Cells matched to entries in the extracted legend.', matches, codes.size ? cells.length : null);
+      const unsupported = cells.filter(c => c && c.type && !['solid','full','half','quarter','threequarter','petite','bs'].includes(c.type));
+      if (unsupported.length) {
+        checks.stitchTypes = checks.unsupportedContent = measure('limited', unsupported.length + ' unsupported stitch objects.');
+        out.warnings.push({ code: 'UNSUPPORTED_STITCH', severity: 'high', message: unsupported.length + ' unsupported stitch objects would lose their type. Re-export using supported stitches or keep them in the source program.' });
+      }
+      if (rows.some(x => Number.isFinite(x.expectedCount))) checks.counts = measure(out.warnings.some(x => x.code === 'COUNT_MISMATCH') ? 'limited' : 'verified', 'Compared declared per-thread counts with extracted cells.');
+    }
+    if (audit) {
+      if (checks.dimensions.status !== 'limited') checks.dimensions = measure('verified', 'OXS dimensions and stored grid agree.');
+      checks.recognisedCells = measure(audit.fullCells === audit.sourceFullCells ? 'verified' : 'limited',
+        'Full-cross cells retained from OXS; other stitch types are checked separately.', audit.fullCells, audit.sourceFullCells);
+      checks.counts = measure('not applicable', 'The OXS parser exposes no declared per-thread counts.');
+      checks.stitchTypes = measure(audit.losses.length ? 'limited' : 'verified', audit.losses.length ? 'OXS reports changed or omitted objects; see notes.' : 'Supported OXS stitch objects retained.');
+      checks.unsupportedContent = measure(audit.losses.length ? 'limited' : 'verified', audit.losses.length ? 'OXS reports unsupported, substituted or malformed content.' : 'No unsupported objects reported in recognised OXS sections.');
+      checks.legendMatches = measure(audit.losses.some(x => /thread|palette|blend/.test(x)) ? 'limited' : 'verified', 'OXS palette references checked by the parser.');
+    }
+    const key = pdfKeyMatch(r);
+    if (key) checks.legendMatches = measure(key.read === key.total && !(r.placeholders || []).length ? 'verified' : 'limited', 'Stitches matched to the PDF colour key.', key.read, key.total);
+    if (r.scanned) checks.legendMatches = measure('unknown', 'Read from a scan; compare symbols and colours with the printed key.');
+    const sizeChecks = (r.checks || []).filter(c => c.what === 'size' || c.what === 'physical size');
+    if (sizeChecks.length && checks.dimensions.status !== 'limited') checks.dimensions = measure(sizeChecks.every(c => c.ok) ? 'verified' : 'limited', 'Compared with the size stated in the PDF.');
+    const countChecks = (r.checks || []).filter(c => c.what === 'per-thread counts' || c.what === 'colours');
+    if (countChecks.length) checks.counts = measure(countChecks.every(c => c.ok) ? 'verified' : 'limited', 'Compared with counts stated in the PDF.');
+    const partialThreads = [];
+    if (p) {
+      for (const entry of [].concat(p.partialStitches || [], p.halfStitches || [])) {
+        if (Array.isArray(entry) && entry[1]) partialThreads.push(...Object.values(entry[1]));
+      }
+    }
+    const missing = p && (occupied.concat(partialThreads, p.knots || []).some(c => !c || !c.id) ||
+      (p.bsLines || []).some(l => !l.colorId) || (r.placeholders || []).length);
+    if (missing) {
+      checks.legendMatches.status = 'limited';
+      out.warnings.push({ code: 'THREAD_REFERENCE', severity: 'high', message: 'Some stitch objects have no resolved thread reference. Assign placeholders in Palette; recover missing line references from the original or re-export them.' });
+    }
+    if (p) {
+      const bad = occupied.concat(partialThreads).filter(c => c && c.type && !['solid','blend','half','quarter','threequarter','petite','bs'].includes(c.type));
+      if (bad.length) {
+        checks.stitchTypes = checks.unsupportedContent = measure('limited', bad.length + ' unsupported stored stitch objects.');
+        out.warnings.push({ code: 'UNSUPPORTED_STITCH', severity: 'high', message: bad.length + ' stored stitch objects use unsupported types. Check the original and re-export using supported stitches.' });
+      }
+    }
+    const notes = [].concat((raw.flags && raw.flags.warnings) || [], r.warnings || []);
+    const verified = Object.values(checks).every(c => (c.status === 'verified' || c.status === 'not applicable')) && !out.errors.length && !out.warnings.length && !notes.length;
+    out.verification = { status: out.errors.length ? 'invalid' : verified ? 'verified' : 'limited', checks };
+    // Compatibility alias is only legend coverage, never overall confidence.
+    out.coverage = checks.legendMatches.coverage;
+    return out;
+  }
+
   function countsByCode(cells) {
     const m = new Map();
     for (const c of cells) {
@@ -2177,7 +2285,7 @@
     return m;
   }
 
-  const api = { validateExtraction, countsByCode };
+  const api = { validateExtraction, countsByCode, pdfKeyMatch };
   if (typeof window !== 'undefined') {
     window.ImportEngine = Object.assign(window.ImportEngine || {}, api);
   }
@@ -3048,7 +3156,7 @@
  *   project,            // v8 project (already materialised)
  *   raw,                // original raw extraction (for confidence overlay)
  *   warnings,           // from validateExtraction
- *   coverage,           // 0..1
+ *   verification,       // explicit checks; unknown coverage stays null
  *   reviewMode,         // 'fast'|'standard'|'wizard'
  *   originalFileUrl?,   // ObjectURL for side-by-side view
  * }
@@ -3059,6 +3167,7 @@
   if (typeof window === 'undefined' || !window.React) return;
 
   var h = React.createElement;
+  var ENGINE = window.ImportEngine = window.ImportEngine || {};
   var Icons = window.Icons || {};
 
   function I(name) { return typeof Icons[name] === 'function' ? Icons[name]() : null; }
@@ -3849,7 +3958,7 @@
       if (st.placement && st.placement.manual && !(LM && LM.samePlacement(st.placement, s.placement))) {
         arranged = memoBuild(s, st.placement);
       }
-      return mergeEdits(arranged, st.edits || {});
+      return preserveSource(mergeEdits(arranged, st.edits || {}), props.project);
     }
     function importAll() {
       // The one on screen first: it is the one opened after the import.
@@ -3902,14 +4011,28 @@
     if (session && placement && placement.manual && !(LM && LM.samePlacement(placement, session.placement))) {
       arranged = memoBuild(session, placement);
     }
-    var working = mergeEdits(arranged, edits);
+    var working = preserveSource(mergeEdits(arranged, edits), props.project);
     // The importer's own findings — a page left out, a size that differs from
     // what the PDF states — belong beside the engine's.
     var reportWarnings = ((working && working.importReport && working.importReport.warnings) || [])
       .map(function (m) { return { message: m, severity: 'medium' }; });
-    var allWarnings = (props.warnings || []).concat(reportWarnings);
+    // Refresh validation findings after repairs; extraction notes keep their provenance.
+    var refreshed = working && working.importReport && ENGINE.validateExtraction
+      ? ENGINE.validateExtraction({ _legacyProject: working }) : null;
+    var verification = refreshed ? refreshed.verification : props.verification || (working && working._import && working._import.verification);
+    var seenWarnings = new Set();
+    var sourceWarnings = (props.warnings || []).filter(function (w) {
+      return !refreshed || !['THREAD_REFERENCE', 'UNSUPPORTED_STITCH', 'DIMENSIONS', 'CELL_BOUNDS'].includes(w.code);
+    });
+    var allWarnings = sourceWarnings.concat(refreshed ? refreshed.warnings : [], reportWarnings).filter(function (w) {
+      if (!w || seenWarnings.has(w.message)) return false;
+      seenWarnings.add(w.message); return true;
+    });
+    if (refreshed) working = Object.assign({}, working, { _import: Object.assign({}, working._import, { verification: verification }) });
+    var verificationLabel = verification && verification.status === 'verified' ? 'Fully verified import' :
+      verification && verification.status === 'invalid' ? 'Import needs repair' : 'Usable import with limitations';
 
-    var summary = importSummary(working, props.coverage);
+    var summary = importSummary(working, verification);
     var coverageIcon = summary.level === 'high' ? I('confidenceHigh') : (summary.level === 'medium' ? I('info') : I('confidenceLow'));
 
     var tabs = [].concat(session ? [{ id: 'pages', label: 'Pages', icon: I('layers') }] : [], [
@@ -3923,6 +4046,7 @@
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
+          h('div', { className: 'import-review-status', role: 'status' }, verificationLabel),
           h('div', { className: 'import-review-coverage', title: summary.detail || null }, coverageIcon, h('span', null, summary.label)),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
@@ -3947,6 +4071,16 @@
             }, narrow ? null : t.icon, h('span', null, t.label));
           })
         ),
+        h('section', { className: 'import-review-verification', 'aria-label': 'Import verification' },
+          h('details', { open: true }, h('summary', null, 'Verification and repairs'),
+            verification && h('ul', null, Object.keys(verification.checks).map(function (name) {
+              var c = verification.checks[name];
+              var labels = { recognisedCells: 'Recognised cells', legendMatches: 'Legend matches', stitchTypes: 'Stitch types', dimensions: 'Dimensions', unsupportedContent: 'Unsupported content', counts: 'Declared counts' };
+              return h('li', { key: name }, labels[name] + ': ' + c.status + '. ' +
+                (c.denominator > 0 && c.numerator != null ? c.numerator + ' of ' + c.denominator + '. ' : '') + c.detail);
+            })),
+            h('p', null, 'Use Palette to assign unresolved symbols, Pages to correct PDF page arrangements when available, or Edit first to repair supported stitches. For missing objects or incorrect source dimensions, correct the source and re-import. Compare with the original before stitching.'),
+            props.originalFileUrl && h('a', { href: props.originalFileUrl, download: props.originalFileName || 'original' }, 'Download original source'))),
         h('section', { className: 'import-review-body' },
           tab === 'pages'    && session && h(PageLayoutPanel, { key: 'layout' + designIndex, session: session, placement: placement, project: working,
                                                 onPlacement: setPlacement }),
@@ -3978,16 +4112,13 @@
           h('div', { className: 'import-review-actions' },
             h('button', { type: 'button', className: 'g-btn',
               onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
-            (props.coverage < 0.95) && h('button', { type: 'button', className: 'g-btn',
-              onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
-            }, I('wandFix'), h('span', null, 'Open guided wizard')),
             // Most imported charts are bought to be stitched, so Start
             // stitching leads; from inside the Creator, Edit first does.
             [
-              h('button', { key: 'edit', type: 'button', className: 'g-btn import-review-edit' + (props.preferEdit ? ' primary' : ''),
+              h('button', { key: 'edit', type: 'button', disabled: verification && verification.status === 'invalid', className: 'g-btn import-review-edit' + (props.preferEdit ? ' primary' : ''),
                 onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'edit' }); } },
                 I('pencil'), h('span', null, 'Edit first')),
-              h('button', { key: 'stitch', type: 'button', className: 'g-btn import-review-stitch' + (props.preferEdit ? '' : ' primary'),
+              h('button', { key: 'stitch', type: 'button', disabled: verification && verification.status === 'invalid', className: 'g-btn import-review-stitch' + (props.preferEdit ? '' : ' primary'),
                 onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'stitch' }); } },
                 I('needle'), h('span', null, 'Start stitching'))
             ][props.preferEdit ? 'reverse' : 'slice']()
@@ -4014,6 +4145,14 @@
     return project;
   }
 
+  function preserveSource(project, original) {
+    var attachments = original && original.meta && original.meta.attachments;
+    if (!project || !attachments || !attachments.originalFile) return project;
+    return Object.assign({}, project, { meta: Object.assign({}, project.meta, {
+      attachments: Object.assign({}, project.meta && project.meta.attachments, { originalFile: attachments.originalFile })
+    }) });
+  }
+
   function mergeEdits(project, edits) {
     if (!project) return project;
     if (!edits || !Object.keys(edits).length) return project;
@@ -4033,7 +4172,7 @@
    * since the importer hands over a finished pattern, which said nothing.
    * A scan, and a chart with no key, have nothing to match to and say so. Other
    * formats keep the engine's figure. */
-  function importSummary(project, coverage) {
+  function importSummary(project, verification) {
     var r = project && project.importReport;
     var m = r && r.matched;
     var left = (r && r.placeholders && r.placeholders.length) || 0;
@@ -4047,14 +4186,9 @@
         return { level: 'low', label: 'No colour key found',
           detail: 'Thread colours were estimated from the chart.' + needs };
       }
-      // Nearest key colour counts as a match when the key's colours are too
-      // far apart to mistake (PAT1968_2's seven), not when two are close.
-      var partialSwatch = typeof m.partialSwatch === 'number' ? m.partialSwatch : (m.partial || 0);
-      var partialNearest = typeof m.partialNearest === 'number' ? m.partialNearest : 0;
-      var read = (m.symbol || 0) + (m.swatch || 0) + partialSwatch +
-        (r.keyColoursDistinct ? (m.nearest || 0) + partialNearest : 0);
-      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) +
-        partialSwatch + partialNearest + (m.catalogue || 0) + (m.unresolved || 0);
+      var key = ENGINE.pdfKeyMatch && ENGINE.pdfKeyMatch(r);
+      var read = key ? key.read : 0;
+      var total = key ? key.total : 0;
       if (total) {
         var share = read / total;
         var pct = Math.floor(share * 100);
@@ -4064,8 +4198,8 @@
             (read < total ? '; the rest were matched by colour similarity or not at all.' : '.') + needs };
       }
     }
-    var c = coverage || 0;
-    return { level: c >= 0.95 ? 'high' : c >= 0.8 ? 'medium' : 'low', label: Math.round(c * 100) + '% confidence' };
+    if (verification && verification.status === 'verified') return { level: 'high', label: 'Supported source structure verified' };
+    return { level: 'low', label: 'Source coverage unverified' };
   }
 
   /* Give colours the threads the stitcher chose: `threads` maps a colour's id
@@ -4242,6 +4376,7 @@
     ImportProgress: ImportProgress,
     WarningList: WarningList,
     mergeEdits: mergeEdits,
+    preserveSource: preserveSource,
     importSummary: importSummary,
     openLookAlikes: openLookAlikes,
   };
@@ -4555,9 +4690,10 @@
         project: result.project,
         raw: result.raw,
         warnings: result.warnings,
-        coverage: result.confidence && result.confidence.overall,
+        verification: result.verification,
         reviewMode: result.reviewMode,
         originalFileUrl: url,
+        originalFileName: file && file.name,
         layoutSession: result.layoutSession || null,
         preferEdit: cameFromCreator(opts),
       }).then(function (out) {

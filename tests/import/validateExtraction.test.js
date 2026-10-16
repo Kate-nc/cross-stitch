@@ -34,7 +34,7 @@ describe('validateExtraction', () => {
     const cells = [{ code: null, matchConfidence: 0 }, { code: null, matchConfidence: 0 }, cell('310')];
     const r = validateExtraction({ cells, legend: { rows: [] }, width: 10, height: 10 });
     expect(r.warnings.some(w => w.code === 'LOW_PALETTE_COVERAGE')).toBe(true);
-    expect(r.coverage).toBeCloseTo(1 / 3, 2);
+    expect(r.coverage).toBeNull();
   });
 
   it('warns when a chart code is missing from legend', () => {
@@ -72,9 +72,10 @@ describe('validateExtraction — finished projects', () => {
   it('does not report colour coverage for a strategy that hands over a finished project', () => {
     // PDF imports arrive as a finished project with no cell list; checking the
     // empty list told every one of them "0% of stitches matched a colour".
-    const out = ENGINE.validateExtraction({ width: 10, height: 10, cells: [], _legacyProject: { w: 10, h: 10 } });
+    const out = ENGINE.validateExtraction({ width: 10, height: 10, cells: [], _legacyProject: { w: 10, h: 10, pattern: Array(100).fill({ id: '__skip__' }) } });
     expect(out.warnings).toEqual([]);
     expect(out.errors).toEqual([]);
-    expect(out.coverage).toBe(1);
+    expect(out.coverage).toBeNull();
+    expect(out.verification.status).toBe('limited');
   });
 });
