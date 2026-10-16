@@ -3438,9 +3438,9 @@ function doExportOxs(){
     window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
     return;
   }
-  var result=generateOXS({w:sW,h:sH,pattern:pat,bsLines:bsLines||[],knots:knots,beads:beadsRef.current||[],name:projectName||'pattern'});
+  var result=generateOXS({w:sW,h:sH,threadBrand:threadBrand,pattern:pat,partialStitches:partialStitches,halfStitches:halfStitches,bsLines:bsLines||[],knots:knots,beads:beadsRef.current||[],name:projectName||'pattern'});
   if(result.warnings&&result.warnings.length>0){
-    window.Toast&&Toast.show({message:result.warnings[0],type:'warning',duration:6000});
+    window.Toast&&Toast.show({message:result.warnings.join(' '),type:'warning',duration:6000});
   }
   var blob=new Blob([result.xml],{type:'application/xml'});
   var url=URL.createObjectURL(blob);
@@ -3820,7 +3820,7 @@ function processLoadedProject(project){
   (project.bsLines||project.bs||[]).forEach(ln=>{
     if(!ln||ln.colorId==null||ln.colorId===""||bsSeen.has(String(ln.colorId)))return;
     bsSeen.add(String(ln.colorId));
-    try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined,brand:brand}));}catch(_){}
+    try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:ln.rgb||(/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined),brand:ln.brand||brand}));}catch(_){}
   });
   let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells));
   setPat(restored);setPal(newPal);setCmap(newCmap);
@@ -4218,8 +4218,12 @@ function loadProject(e){
     rd.onload=async ev=>{
       try{
         if (typeof window.loadThreadConversions === 'function') await window.loadThreadConversions();
+        if (/<blend\b/i.test(ev.target.result) && /\banchor\b/i.test(ev.target.result) && typeof window.loadAnchorData === 'function') await window.loadAnchorData();
         let result = parseOXS(ev.target.result);
         let project = importResultToProject(result, 14, baseName);
+        if (result.warnings && result.warnings.length) {
+          window.Toast && Toast.show({message:result.warnings.join(' '),type:'warning',duration:10000});
+        }
         const importedAt = Date.now();
         project.id = "proj_" + importedAt;
         if(!project.createdAt) project.createdAt = new Date(importedAt).toISOString();

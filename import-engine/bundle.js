@@ -2354,6 +2354,9 @@
           typeof window.getOfficialMatch !== 'function' && typeof window.loadThreadConversions === 'function') {
         try { await window.loadThreadConversions(); } catch (_) { /* closest colour instead */ }
       }
+      if (/<blend\b/i.test(xml) && /\banchor\b/i.test(xml) && typeof window.loadAnchorData === 'function') {
+        try { await window.loadAnchorData(); } catch (_) { /* parser reports unsupported blend references */ }
+      }
       let result;
       try {
         result = parseOXS(xml);

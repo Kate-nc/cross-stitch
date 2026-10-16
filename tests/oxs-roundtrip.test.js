@@ -127,7 +127,7 @@ describe('generateOXS + parseOXS round-trip', () => {
     expect(nonNull).toHaveLength(2);
   });
 
-  test('blend stitch is downgraded to primary thread with a warning', () => {
+  test('two-thread blend retains both components without a warning', () => {
     const pattern = [
       { id: '310+550', type: 'blend', rgb: [34, 0, 43] },
       { id: '310+550', type: 'blend', rgb: [34, 0, 43] },
@@ -135,22 +135,19 @@ describe('generateOXS + parseOXS round-trip', () => {
     const project = { w: 2, h: 1, name: 'Blend', pattern, bsLines: [] };
 
     const { xml, warnings } = generateOXS(project);
-    // Should warn exactly once for the blend id.
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/310\+550/);
-    expect(warnings[0]).toMatch(/exported as primary thread/);
-
+    expect(warnings).toEqual([]);
     const result = parseOXS(xml);
-    result.pattern.filter(Boolean).forEach(cell => {
-      expect(cell.id).toBe('310');
+    result.pattern.forEach(cell => {
+      expect(cell.id).toBe('310+550');
+      expect(cell.type).toBe('blend');
     });
   });
 
   test('backstitch lines are preserved in XML', () => {
     const pattern = solidPattern(3, 3, '310', [0, 0, 0]);
     const bsLines = [
-      { x1: 0, y1: 0, x2: 1, y2: 1 },
-      { x1: 1, y1: 1, x2: 2, y2: 2 },
+      { x1: 0, y1: 0, x2: 1, y2: 1, colorId: '310' },
+      { x1: 1, y1: 1, x2: 2, y2: 2, colorId: '310' },
     ];
     const project = { w: 3, h: 3, name: 'BS', pattern, bsLines };
 

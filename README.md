@@ -92,7 +92,7 @@ The default landing page and project hub.
 | `.json` | Full project — pattern, progress, sessions, parking markers, thread ownership. File > Download (.json), or Ctrl+S. Reload at any time in the Creator or Tracker. |
 | PDF chart | Multi-page, Pattern Keeper-compatible chart using the embedded `CrossStitchSymbols.ttf` symbol font. Presets for Pattern Keeper and home printing; Auto / A4 / US Letter; four print sizes; B&W and colour chart modes; optional cover, info, chart index and mini-legend pages; 2-row overlap zone; designer branding. See [EXPORT_QUICKSTART.md](EXPORT_QUICKSTART.md). |
 | PNG image | Single image of the pattern grid. |
-| `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. |
+| `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. Retains backstitch thread references, supported fractional stitches and equal two-thread blends, including charts without full crosses. Review counted warnings for unsupported content. |
 | `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
 | Backup (`.csb`) | Every project, the stash and validated portable global preferences in one compressed file (older backups are `.json`). Device controls, pattern view positions and Sync setup stay on the destination; see [the preference contract](docs/portable-backup-preferences.md). File > Export Backup / Restore from Backup. |
 | `.csync` | Cross-device sync file — see [Cross-device sync](#cross-device-sync). |

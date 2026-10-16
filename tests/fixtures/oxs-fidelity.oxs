@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<chart>
+  <properties chartwidth="4" chartheight="3" />
+  <palette>
+    <palette_item index="0" number="cloth" color="FFFFFF" />
+    <palette_item index="7" number="DMC 310" name="Black" color="000000" />
+    <palette_item index="12" number="DMC 666" name="Red" color="CC0000" />
+    <palette_item index="29" number="DMC 3750" name="Blue" color="203A63" />
+    <palette_item index="42" number="Blend 1" name="Black and violet" color="22002C">
+      <blend number="DMC 310" color="000000" strands="1" />
+      <blend number="DMC 550" color="440057" strands="1" />
+    </palette_item>
+  </palette>
+  <fullstitches>
+    <stitch x="0" y="0" palindex="7" />
+    <stitch x="3" y="2" palindex="42" />
+  </fullstitches>
+  <partstitches>
+    <partstitch x="1" y="1" palindex1="12" palindex2="0" direction="3" />
+    <partstitch x="2" y="1" palindex1="42" palindex2="0" direction="4" />
+    <partstitch x="3" y="1" palindex1="29" palindex2="0" direction="2" />
+  </partstitches>
+  <backstitches>
+    <backstitch x1="1" y1="0" x2="4" y2="0" palindex="12" />
+    <backstitch x1="0" y1="0" x2="0.5" y2="0.5" palindex="29" />
+    <backstitch x1="0" y1="3" x2="4" y2="3" palindex="42" />
+  </backstitches>
+  <ornaments_inc_knots_and_beads>
+    <object x1="0.5" y1="2" palindex="12" objecttype="quarter" petit="false" />
+  </ornaments_inc_knots_and_beads>
+</chart>

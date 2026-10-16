@@ -233,7 +233,7 @@ Which threads you own, are low on, or need to buy, from your Stash Manager inven
 - **Open in Stitch Tracker** — opens the pattern in the Tracker, no file needed.
 - **Quick presets** — *For Pattern Keeper* or *For printing (home)*.
 - **Format & settings** — PDF or PNG, page size (Auto / A4 / US Letter), margins, stitches per page, chart modes (symbols on white, colour blocks with symbols), overlap zone, cover / info / index / mini-legend pages, Workshop print theme.
-- **Export PDF** / **Export .oxs**.
+- **Export PDF** / **Export .oxs**. OXS retains explicit backstitch threads over empty cells, supported fractional stitches and equal blends of two known threads of the same brand. Review every warning: unsupported blend proportions, miniature crosses and other unsupported objects are reported with affected types and counts. Diagonal quarters use the XSPro `petit="false"` extension; other programs may display them differently.
 - **Download bundle** — one `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest.
 
 Designer branding (name, copyright, contact, logo) is set once in **File > Preferences > Profile & branding**. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md) for a walk-through.
