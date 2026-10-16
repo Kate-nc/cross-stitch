@@ -234,13 +234,20 @@ const SyncEngine = (() => {
           spec[1].forEach(function (side) { if (e[1][side]) fractional.push([spec[0], e[0], side, e[1][side]]); });
         });
       });
+      if(project.specialtyStitches&&project.specialtyStitches.length)knotHash+='_sp'+simpleHash(JSON.stringify(project.specialtyStitches));
+
+      // Bead identity and material/position edits are chart changes, never tracking-only merges.
+      var beadRows = Beads.normalise(project.beads).map(function(b) {
+        return Object.keys(b).sort().map(function(k) { return [k,b[k]]; });
+      }).map(function(b) { return JSON.stringify(b); }).sort();
+      var beadHash = beadRows.length ? '_be' + simpleHash(JSON.stringify(beadRows)) : '';
       var fractionHash = fractional.length ? '_fr' + simpleHash(JSON.stringify(fractional)) : '';
       const raw = w + "x" + h + ":" + parts.join(",") + bsHash;
 
       if (typeof pako === "undefined" || typeof pako.deflate !== "function") {
-        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash + fractionHash;
+        return "fp_" + w + "x" + h + "_" + simpleHash(raw) + knotHash + fractionHash + beadHash;
       }
-      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash + fractionHash;
+      return computeDeflateFingerprint(stringToUint8Array(raw), w, h) + knotHash + fractionHash + beadHash;
     } catch (e) {
       return "fp_error";
     }
@@ -1544,6 +1551,8 @@ const SyncEngine = (() => {
     merged.partialStitches = mergeIndexedPairs(local.partialStitches, remote.partialStitches);
 
     // These are chart structure; the classifier has already checked their fingerprint.
+    merged.specialtyStitches=local.specialtyStitches||remote.specialtyStitches;
+    merged.specialtyVersion=local.specialtyVersion||remote.specialtyVersion;
     merged.knots = Array.isArray(local.knots) ? local.knots : remote.knots;
     if (merged.knots === undefined) delete merged.knots;
     merged.beads = Array.isArray(local.beads) ? local.beads : remote.beads;

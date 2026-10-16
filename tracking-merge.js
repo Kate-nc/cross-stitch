@@ -27,7 +27,7 @@
   // restore its stale value, so the caller asks instead.
   var NOT_COMPARED = {
     id: 1, page: 1, version: 1, pattern: 1, createdAt: 1, updatedAt: 1, lastWriteAt: 1, lastWriteTabId: 1,
-    activeSessionCheckpoint: 1, sessionCheckpoints: 1, trackingSync: 1, done: 1, halfDone: 1, knotsDone: 1, bsDone: 1, partialDone: 1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
+    activeSessionCheckpoint: 1, sessionCheckpoints: 1, trackingSync: 1, done: 1, halfDone: 1, knotsDone: 1, beadsDone: 1, bsDone: 1, partialDone: 1, specialtyDone:1, statsSessions: 1, achievedMilestones: 1, deletedSessionIds: 1,
     savedZoom: 1, savedScroll: 1, hlRow: 1, hlCol: 1, focusBlock: 1, workingContext: 1, breadcrumbs: 1,
     doneSnapshots: 1, stitchLog: 1, totalTime: 1, lastTouchedAt: 1, startedAt: 1, completedAt: 1, finishStatus: 1
   };
@@ -71,6 +71,7 @@
     // (a loaded record and a saved snapshot can spell a cell's brand or type differently).
     if (!samePattern(base.pattern, remote.pattern) && !(local && samePattern(local.pattern, remote.pattern))) return "pattern";
     if (local && local.pattern && local.pattern.length !== remote.pattern.length) return "local pattern";
+    if(!same(base.specialtyStitches,remote.specialtyStitches)&&!(local&&same(local.specialtyStitches,remote.specialtyStitches)))return "specialty stitches";
     var done = remote.done;
     if (!Array.isArray(done) || done.length !== remote.pattern.length) return "done";
     var keys = {};

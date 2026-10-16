@@ -7,7 +7,7 @@ describe('the how-to-mark banners', () => {
   test('go away on any marked stitch (full, half or knot), not only a full cross', () => {
     const src = read('tracker-app.js');
     expect(src).toMatch(/useEffect\(\(\)=>\{\s*if\(hintsSeen\|\|!_hasMarks\)return;\s*setHintsSeen\(true\);/);
-    expect(src).toMatch(/const _hasMarks=doneCount>0\|\|_halfMarked\|\|knotsDone\.length>0\|\|partialDone\.size>0\|\|bsDone\.length>0;/);
+    expect(src).toMatch(/const _hasMarks=doneCount>0\|\|_halfMarked\|\|knotsDone\.length>0\|\|beadsDone\.length>0\|\|partialDone\.size>0\|\|bsDone\.length>0\|\|specialtyDone\.length>0;/);
   });
 });
 

@@ -9,3 +9,5 @@ Project completion and its side effects use exact unfiltered project counts. The
 Examples: 2,499 / 2,500 displays 99.9%, incomplete. One done full and one pending half is 1 / 1.5 units, 66.7%. One pending quarter is 0 / 0.25, not an empty project. A completed full with unfinished backstitch has 100% counted units and separate pending lines.
 
 Full-stitch marks use existing incremental counters. Half-mark invalidation updates half counts without rescanning the full pattern. Structural changes, loads and undo may rebuild counters.
+
+Petite crosses and long stitches are independent `specialtyStitches` objects, marked by stable ID in `specialtyDone`. Petite = 0.25 units; long stitch = 0.5 units per whole segment, independent of length. They count in project and colour completion, including over an occupied full-cross cell, and use the same synchronous session accounting and causal unmark semantics. See [lifecycle and compatibility](petite-long-lifecycle.md).

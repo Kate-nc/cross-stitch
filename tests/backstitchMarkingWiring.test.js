@@ -27,7 +27,7 @@ describe('backstitch marking in the Tracker', () => {
     expect(tracker).toMatch(/bsSelectRef\.current>=0&&bsLines\[bsSelectRef\.current\]\)\{toggleBsLine\(bsSelectRef\.current\);return;\}/);
   });
   test('a colour used only for backstitch gets a legend entry, and never reads 0/0', () => {
-    expect(tracker).toMatch(/buildPalette\(restored\.concat\(partialCells,knotCells,bsCells\)\)/);
+    expect(tracker).toMatch(/buildPalette\(restored\.concat\(partialCells,knotCells,bsCells,loadedSpecialty\.map/);
     expect(tracker).toMatch(/if\(dc\.total>0\|\|!other\)parts\.push/);
     expect(tracker).toMatch(/" lines"\);/);
   });

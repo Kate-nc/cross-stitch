@@ -8819,3 +8819,9 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 
 .import-review-header { flex-wrap: wrap; }
 .import-review-status { flex-basis: 100%; }
+
+.bead-progress { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--text-primary); }
+.bead-progress-list { max-height: 240px; overflow: auto; }
+.bead-progress-list > div { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 6px; }
+.bead-progress button { min-height: 44px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; }
+.bead-progress button[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }

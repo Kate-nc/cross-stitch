@@ -438,3 +438,7 @@ ISC
 Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.
 
 Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.
+
+Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.
+
+Bead progress: the Tracker Beads list selects and marks individual beads, including overlaps. Bead counts are separate from stitch percentages. Undo/Redo, project saves, backups and sync retain marks. See [the Tracker guide](wiki/Stitch-Tracker-Guide.md) for lifecycle and export limits.

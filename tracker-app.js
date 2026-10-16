@@ -551,7 +551,7 @@ function PdfExportModal({onClose,onExport}){
       <div className="modal-content" style={{maxWidth:400}} onClick={e=>e.stopPropagation()}>
         <button className="modal-close" onClick={onClose} aria-label="Close">{Icons.x?Icons.x():null}</button>
         <h3 id="pdf-export-title" style={{marginTop:0,marginBottom:6}}>Export PDF</h3>
-        <p style={{margin:"0 0 var(--s-4)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>A printable, Pattern Keeper-compatible chart. These settings are shared with the Export tab in the Pattern Creator, which has the full set.</p>
+        <p style={{margin:"0 0 var(--s-4)",fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>A printable, Pattern Keeper-compatible chart. PDF omits beads and bead progress. These settings are shared with the Export tab in the Pattern Creator, which has the full set.</p>
         <div style={{display:"flex",flexDirection:"column",gap:'var(--s-4)'}}>
           <fieldset style={{border:0,padding:0,margin:0,display:"flex",flexDirection:"column",gap:6}}>
             <legend style={Object.assign({},PDF_MODAL_LABEL_STYLE,{marginBottom:6})}>Charts</legend>
@@ -1444,6 +1444,10 @@ const[halfStitches,setHalfStitches]=useState(new Map());
 const[halfDone,_setHalfDone]=useState(new Map());
 const halfDoneRef=useRef(halfDone);
 function setHalfDone(update){const next=typeof update==='function'?update(halfDoneRef.current):update;halfDoneRef.current=next;_setHalfDone(next);}
+const[specialtyStitches,setSpecialtyStitches]=useState([]);
+const[specialtyDone,setSpecialtyDone]=useState([]);
+const[specialtySelected,setSpecialtySelected]=useState(null);
+const specialtyDoneRef=useRef(specialtyDone);specialtyDoneRef.current=specialtyDone;
 const[partialStitches,setPartialStitches]=useState(new Map());
 // French knots (knots.js): [{x, y, id, rgb}] in half-stitch units, and the
 // keys ("x,y") of those marked done.
@@ -1452,12 +1456,27 @@ const[knotsDone,_setKnotsDone]=useState([]);
 const knotsDoneRef=useRef(knotsDone);
 function setKnotsDone(update){const next=typeof update==='function'?update(knotsDoneRef.current):update;knotsDoneRef.current=next;_setKnotsDone(next);}
 // Backstitch lines marked done (backstitch.js keys) and quarter stitches marked done (fractional.js: Map of
-// cellIndex -> Set of positions). Beads from an imported chart are carried untouched (they are not tracked).
+// cellIndex -> Set of positions). Beads have independent object identities and marks.
 const[bsDone,setBsDone]=useState([]);
 const[partialDone,_setPartialDone]=useState(new Map());
 const partialDoneRef=useRef(partialDone);
 function setPartialDone(update){const next=typeof update==='function'?update(partialDoneRef.current):update;partialDoneRef.current=next;_setPartialDone(next);}
 const beadsRef=useRef(undefined);
+const[beads,setBeads]=useState([]);
+const[beadsDone,_setBeadsDone]=useState([]);
+const beadsDoneRef=useRef([]);
+function setBeadsDone(update){const next=typeof update==='function'?update(beadsDoneRef.current):update;beadsDoneRef.current=next;_setBeadsDone(next);}
+const[selectedBead,setSelectedBead]=useState(null);
+const[beadPanelOpen,setBeadPanelOpen]=useState(false);
+const beadPanelRef=useRef(null);
+const beadCounts=useMemo(()=>window.Beads.progress(beads,beadsDone),[beads,beadsDone]);
+function flipBeadDone(uid){setBeadsDone(prev=>window.Beads.toggle(beadsRef.current,prev,uid));}
+function toggleBeadDone(uid){
+  if(!(beadsRef.current||[]).some(b=>b.uid===uid))return;
+  flipBeadDone(uid);
+  setTrackHistory(prev=>[...prev,{type:"BEAD",key:uid}].slice(-TRACK_HISTORY_MAX));
+  setRedoStack([]);
+}
 // The backstitch line the keyboard has selected (an index into bsLines, -1 for none), and the cell it was chosen at.
 const[bsSelect,setBsSelect]=useState(-1);
 const bsSelectRef=useRef(-1);
@@ -1472,7 +1491,7 @@ bsSelectRef.current=bsSelect;
 // owner is the (project id, state) pair as of the last committed render, so a write can
 // never put one project's marks under another project's id while switching.
 const progressOwnerRef=useRef(null);
-const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,bsDone:null,partialDone:null});
+const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,beadsDone:null,bsDone:null,partialDone:null});
 const progressTimerRef=useRef(null);
 // Save badge (header). One honest status for the whole project, derived from refs so that
 // updating it costs nothing on the mark path: React skips a setState to the same value.
@@ -2147,7 +2166,7 @@ const handedness=useTrackerPref('trackerHandedness','right')==='left'?'left':'ri
 useFillChartHeight(stitchScrollRef,!!pat);
 // Once stitches exist worth protecting, offer a backup if it has been a while (helpers.js, BackupReminder).
 const _halfMarked=useMemo(()=>{for(const v of halfDone.values())if(v&&(v.fwd||v.bck))return true;return false;},[halfDone]);
-const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0||partialDone.size>0||bsDone.length>0;
+const _hasMarks=doneCount>0||_halfMarked||knotsDone.length>0||beadsDone.length>0||partialDone.size>0||bsDone.length>0||specialtyDone.length>0;
 // Any marked stitch (full, half or knot) is the signal that the how-to-mark banners have done their job.
 useEffect(()=>{
   if(hintsSeen||!_hasMarks)return;
@@ -2210,9 +2229,10 @@ bsKeysRef.current=bsKeys;if(!bsDragActiveRef.current)bsDoneSetRef.current=bsDone
 
 // Progress in units, from the one shared definition (progress-units.js: a full stitch is one unit, a half stitch
 // half, a French knot one). Every figure below, and every other page, reads it from there.
-const progAll=useMemo(()=>ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total}}),[doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts]);
+const specialtyCounts=useMemo(()=>ProgressUnits.specialty.counts(specialtyStitches,specialtyDone),[specialtyStitches,specialtyDone]);
+const progAll=useMemo(()=>ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total},...specialtyCounts}),[doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts,specialtyCounts]);
 // The strip follows the visible-layer filter; everything else counts every type.
-const progShown=useMemo(()=>statsCountMode==='visible'?ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total}},{include:{full:layerVis.full,half:layerVis.half,knot:layerVis.french_knot,quarter:layerVis.quarter}}):progAll,[progAll,statsCountMode,layerVis,doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts]);
+const progShown=useMemo(()=>statsCountMode==='visible'?ProgressUnits.progressUnits({full:{done:doneCount,total:totalStitchable},half:{done:halfStitchCounts.done,total:halfStitchCounts.total},knot:{done:knotCounts.done,total:knotCounts.total},quarter:{done:quarterCounts.done,total:quarterCounts.total},...specialtyCounts},{include:{full:layerVis.full,half:layerVis.half,knot:layerVis.french_knot,quarter:layerVis.quarter,petite:layerVis.petite,long_stitch:layerVis.long_stitch}}):progAll,[progAll,statsCountMode,layerVis,doneCount,totalStitchable,halfStitchCounts,knotCounts,quarterCounts,specialtyCounts]);
 const combinedTotal=progAll.totalUnits;
 const combinedDone=progAll.doneUnits;
 const effectiveCombinedTotal=progShown.totalUnits;
@@ -2265,7 +2285,7 @@ const estPaceInfo=useMemo(()=>{
   return{pace:computePace(statsSessions||[],deh),speed:seconds>0?added/(seconds/3600):0,deh};
 },[statsSessions,statsSettings]);
 const completionEstimate=useMemo(()=>{
-  if(!totalStitchable||!Array.isArray(statsSessions)||statsSessions.length===0)return null;
+  if(!combinedTotal||!Array.isArray(statsSessions)||statsSessions.length===0)return null;
   return estimateFromPace(estPaceInfo.pace,Math.max(0,combinedTotal-combinedDone),{today:getStitchingDate(new Date(),estPaceInfo.deh),percent:progAll.percent,speed:estPaceInfo.speed});
 },[estPaceInfo,combinedTotal,combinedDone,progAll,totalStitchable,statsSessions]);
 const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
@@ -2273,12 +2293,13 @@ const prevBarPct=Math.max(0,Math.min(progressPct,100)-todayBarPct);
 const [progressInfoOpen,setProgressInfoOpen]=useState(false);
 const progressChipRef=useRef(null);
 
+const specialtyColours=useMemo(()=>ProgressUnits.coloursFromProject({settings:{sW,sH},specialtyStitches,specialtyDone}),[sW,sH,specialtyStitches,specialtyDone]);
 const colourDoneCounts=useMemo(()=>{
   const out={};
-  const ids=new Set([...Object.keys(colourDoneCountsRef.current),...Object.keys(knotsByThread),...Object.keys(quartersByThread)]);
-  ids.forEach(id=>{const kn=knotsByThread[id]||{},qt=quartersByThread[id]||{};out[id]={...(colourDoneCountsRef.current[id]||{total:0,done:0,halfTotal:0,halfDone:0}),knotTotal:kn.total,knotDone:kn.done,quarterTotal:qt.total,quarterDone:qt.done};});
+  const ids=new Set([...Object.keys(colourDoneCountsRef.current),...Object.keys(knotsByThread),...Object.keys(quartersByThread),...Object.keys(specialtyColours)]);
+  ids.forEach(id=>{const kn=knotsByThread[id]||{},qt=quartersByThread[id]||{};out[id]={...(specialtyColours[id]||{}),...(colourDoneCountsRef.current[id]||{total:0,done:0,halfTotal:0,halfDone:0}),knotTotal:kn.total,knotDone:kn.done,quarterTotal:qt.total,quarterDone:qt.done};});
   return out;
-},[countsVer,knotsByThread,quartersByThread]);
+},[countsVer,knotsByThread,quartersByThread,specialtyColours]);
 // The counts that "which colours are left" questions should use: the work
 // area's while one is active, the whole pattern's otherwise.
 const scopedColourCounts=areaColourCounts||colourDoneCounts;
@@ -2289,7 +2310,7 @@ useEffect(()=>{
   const next=pal&&pal.find(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;});
   setFocusColour(next?next.id:null);
 },[areaColourCounts,focusColour,pal]);
-const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:0,french_knot:knots.length,long_stitch:0}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total]);
+const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:specialtyCounts.petite.total,french_knot:knots.length,long_stitch:specialtyCounts.long_stitch.total}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total,specialtyCounts]);
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
@@ -2300,8 +2321,10 @@ const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total
 // (so a colour used only in quarter stitches or knots never reads "0/0").
 function legendCountText(dc,kn,qt,bsc){
   const parts=[];
-  const other=(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0)||(bsc&&bsc.total>0);
+  const other=(dc.petiteTotal>0)||(dc.longTotal>0)||(dc.halfTotal>0)||(kn&&kn.total>0)||(qt&&qt.total>0)||(bsc&&bsc.total>0);
   if(dc.total>0||!other)parts.push(dc.done+"/"+dc.total);
+  if(dc.petiteTotal>0)parts.push((dc.petiteDone||0)+"/"+dc.petiteTotal+" petite");
+  if(dc.longTotal>0)parts.push((dc.longDone||0)+"/"+dc.longTotal+" long stitch");
   if(dc.halfTotal>0)parts.push(dc.halfDone+"/"+dc.halfTotal+" half");
   if(kn&&kn.total>0)parts.push(kn.done+"/"+kn.total+" knots");
   if(qt&&qt.total>0)parts.push(qt.done+"/"+qt.total+" fractional");
@@ -2311,7 +2334,7 @@ function legendCountText(dc,kn,qt,bsc){
 const legendRows=useMemo(()=>{
   if(!pal)return null;
   // In a work area: only the colours it contains, with its counts.
-  const src=areaColourCounts||colourDoneCountsRef.current;
+  const src=areaColourCounts||colourDoneCounts;
   const shown=areaColourCounts?pal.filter(p=>{const c=areaColourCounts[p.id];return c&&(c.total+c.halfTotal)>0;}):pal;
   const rows=shown.map(p=>{
     const dc=src[p.id]||{total:0,done:0,halfTotal:0,halfDone:0};
@@ -2332,7 +2355,7 @@ const legendRows=useMemo(()=>{
   else if(legendSort==="count")rows.sort((a,b)=>b.remaining-a.remaining);
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
-},[pal,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
+},[pal,colourDoneCounts,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -2371,7 +2394,7 @@ const focusableColors=useMemo(()=>{
   if(!highlightSkipDone)return list;
   const incomplete=list.filter(p=>{const dc=cc[p.id];return !dc||dc.done<dc.total;});
   return incomplete.length>0?incomplete:list;
-},[pal,countsVer,highlightSkipDone,onlyStarted,areaColourCounts]);
+},[pal,colourDoneCounts,countsVer,highlightSkipDone,onlyStarted,areaColourCounts]);
 
 const sections=useMemo(()=>{
   if(!statsView||!pat||!done)return[];
@@ -2661,23 +2684,26 @@ useEffect(()=>{
     // count; a missing one is taken as "no change" and set from here on.
     const curKnot=knotCounts.done;
     const prevKnot=typeof prev.knotDone==="number"?prev.knotDone:curKnot;
+    const curPetite=specialtyCounts.petite.done,curLong=specialtyCounts.long_stitch.done;
+    const prevPetite=typeof prev.petiteDone==='number'?prev.petiteDone:curPetite,prevLong=typeof prev.longDone==='number'?prev.longDone:curLong;
+    const petiteDiff=curPetite-prevPetite,longDiff=curLong-prevLong;
     const curQuarter=quarterCounts.done;
     const prevQuarter=typeof prev.quarterDone==="number"?prev.quarterDone:curQuarter;
     if(prevDone<0||prevHalf<0){
-      prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter};
+      prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter,petiteDone:curPetite,longDone:curLong};
       return;
     }
     const doneDiff=curDone-prevDone;
     const halfDiff=curHalf-prevHalf;
     const knotDiff=curKnot-prevKnot;
     const quarterDiff=curQuarter-prevQuarter;
-    if(doneDiff!==0||halfDiff!==0||knotDiff!==0||quarterDiff!==0){
-      const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff),quarter:Math.max(0,quarterDiff)});
+    if(doneDiff!==0||halfDiff!==0||knotDiff!==0||quarterDiff!==0||petiteDiff!==0||longDiff!==0){
+      const completedUnits=ProgressUnits.sessionUnits({full:Math.max(0,doneDiff),half:Math.max(0,halfDiff),knot:Math.max(0,knotDiff),quarter:Math.max(0,quarterDiff),petite:Math.max(0,petiteDiff),long_stitch:Math.max(0,longDiff)});
       // Accounting is synchronous at the action; this effect only observes milestones and snapshots.
       // Milestone detection
       if(completedUnits>0&&combinedTotal>0){
-        const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot,quarter:prevQuarter});
-        const newTotal=ProgressUnits.sessionUnits({full:curDone,half:curHalf,knot:curKnot,quarter:curQuarter});
+        const prevTotal=ProgressUnits.sessionUnits({full:prevDone,half:prevHalf,knot:prevKnot,quarter:prevQuarter,petite:prevPetite,long_stitch:prevLong});
+        const newTotal=ProgressUnits.sessionUnits({full:curDone,half:curHalf,knot:curKnot,quarter:curQuarter,petite:curPetite,long_stitch:curLong});
         try{
           const hits=checkMilestones(prevTotal,newTotal,combinedTotal);
           if(hits&&hits.length>0){
@@ -2736,9 +2762,9 @@ useEffect(()=>{
         }
       }catch(e){console.warn('[stitchx/tracker] daily snapshot check failed:',e);}
     }
-    prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter};
+    prevAutoCountRef.current={done:curDone,halfDone:curHalf,knotDone:curKnot,quarterDone:curQuarter,petiteDone:curPetite,longDone:curLong};
   }catch(e){}
-},[doneCount,halfStitchCounts.done,knotCounts.done,quarterCounts.done]);
+},[doneCount,halfStitchCounts.done,knotCounts.done,quarterCounts.done,specialtyCounts]);
 // Goal-completion detection: remembers when a goal is first reached in this session; says so only when goals are shown.
 useEffect(()=>{
   try{
@@ -3075,6 +3101,23 @@ function flipKnotDone(key){
   setKnotsDone(prev=>prev.indexOf(key)===-1?prev.concat([key]):prev.filter(x=>x!==key));
 }
 // A quarter stitch marked or unmarked: {type:"QUARTER", idx, pos}. Undo and redo both flip it back.
+function flipSpecialtyDone(uid){
+  const next=specialtyDoneRef.current.includes(uid)?specialtyDoneRef.current.filter(x=>x!==uid):specialtyDoneRef.current.concat(uid);
+  specialtyDoneRef.current=next;setSpecialtyDone(next);
+}
+function specialtyAvailable(o){
+  if(layerVis[o.type]===false||(isColourLocked()&&o.thread.id!==focusColour))return false;
+  if(!areaOn)return true;
+  return ProgressUnits.specialty.segments(o).every(a=>[[a[0],a[1]],[a[2],a[3]]].every(pt=>window.WorkArea.contains(workArea,Math.min(sW-1,Math.floor(pt[0])),Math.min(sH-1,Math.floor(pt[1])))));
+}
+function toggleSpecialtyDone(uid){
+  const o=specialtyStitches.find(x=>x.uid===uid);
+  if(!o||!_dragMarkActive||!specialtyAvailable(o))return;
+  const old=specialtyDoneRef.current.includes(uid),units=ProgressUnits.WEIGHTS[o.type];
+  flipSpecialtyDone(uid);pendingColoursRef.current.add(o.thread.id);
+  const entry={type:'SPECIALTY',uid};entry.activity=recordAutoActivity(old?0:1,old?1:0,old?0:units,old?units:0);
+  setTrackHistory(prev=>prev.concat(entry).slice(-TRACK_HISTORY_MAX));setRedoStack([]);
+}
 function flipQuarterDone(idx,pos){
   setPartialDone(prev=>window.Fractional?window.Fractional.toggle(prev,idx,pos):prev);
 }
@@ -3101,8 +3144,18 @@ function undoTrack(){
     setRedoStack(prev=>[...prev,{...lastEntry,oldVal:lastEntry.oldVal?0:1}].slice(-TRACK_HISTORY_MAX));
     return;
   }
+  if(lastEntry&&lastEntry.type==="SPECIALTY"){
+    flipSpecialtyDone(lastEntry.uid);
+    setTrackHistory(prev=>prev.slice(0,-1));setRedoStack(prev=>prev.concat(lastEntry).slice(-TRACK_HISTORY_MAX));return;
+  }
   if(lastEntry&&lastEntry.type==="QUARTER"){
     flipQuarterDone(lastEntry.idx,lastEntry.pos);
+    setTrackHistory(prev=>prev.slice(0,-1));
+    setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
+  if(lastEntry&&lastEntry.type==="BEAD"){
+    flipBeadDone(lastEntry.key);
     setTrackHistory(prev=>prev.slice(0,-1));
     setRedoStack(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
@@ -3156,8 +3209,18 @@ function redoTrack(){
     setTrackHistory(prev=>[...prev,{...lastEntry,oldVal:lastEntry.oldVal?0:1}].slice(-TRACK_HISTORY_MAX));
     return;
   }
+  if(lastEntry&&lastEntry.type==="SPECIALTY"){
+    flipSpecialtyDone(lastEntry.uid);
+    setRedoStack(prev=>prev.slice(0,-1));setTrackHistory(prev=>prev.concat(lastEntry).slice(-TRACK_HISTORY_MAX));return;
+  }
   if(lastEntry&&lastEntry.type==="QUARTER"){
     flipQuarterDone(lastEntry.idx,lastEntry.pos);
+    setRedoStack(prev=>prev.slice(0,-1));
+    setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+    return;
+  }
+  if(lastEntry&&lastEntry.type==="BEAD"){
+    flipBeadDone(lastEntry.key);
     setRedoStack(prev=>prev.slice(0,-1));
     setTrackHistory(prev=>{let n=[...prev,lastEntry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
     return;
@@ -3388,12 +3451,13 @@ async function doSaveProject(finalName){
     singleStitchEdits: sseArr,
     halfStitches: hsArr,
     halfDone: hdArr,
+    specialtyVersion:1, specialtyStitches, specialtyDone:specialtyDoneRef.current,
     partialStitches: psArr,
     knots: knotsForSave(knots, threadBrand),
     knotsDone: knotsDoneRef.current.slice(),
     bsDone: window.Backstitch?(window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]):[],
     partialDone: window.Fractional?(window.Fractional.forSave(partialDoneRef.current)||[]):[],
-    beads: beadsRef.current,
+    beads: beadsRef.current, beadsDone: beadsDoneRef.current.slice(),
     notes: projectNotes||undefined,
     statsSessions:statsSessionsRef.current,
     deletedSessionIds:deletedSessionIdsRef.current.length?deletedSessionIdsRef.current.slice():undefined,
@@ -3438,7 +3502,7 @@ function doExportOxs(){
     window.Toast&&Toast.show({message:'OXS export is not available.',type:'error'});
     return;
   }
-  var result=generateOXS({w:sW,h:sH,threadBrand:threadBrand,pattern:pat,partialStitches:partialStitches,halfStitches:halfStitches,bsLines:bsLines||[],knots:knots,beads:beadsRef.current||[],name:projectName||'pattern'});
+  var result=generateOXS({w:sW,h:sH,threadBrand:threadBrand,pattern:pat,specialtyStitches:specialtyStitches,partialStitches:partialStitches,halfStitches:halfStitches,bsLines:bsLines||[],knots:knots,beads:beadsRef.current||[],name:projectName||'pattern'});
   if(result.warnings&&result.warnings.length>0){
     window.Toast&&Toast.show({message:result.warnings.join(' '),type:'warning',duration:6000});
   }
@@ -3498,7 +3562,7 @@ function resolveReconcile(choice){
   doneRef.current=nd;
   recomputeAllCounts(pat,nd,halfStitches,hd);
   setDone(nd);setHalfDone(hd);
-  if(!cand)setKnotsDone([]);
+  if(!cand){setKnotsDone([]);setSpecialtyDone([]);}
   reconcileRef.current=null;savesBlockedRef.current=false;setReconcile(null);
   if(rc.recap)setResumeRecap({...rc.recap,doneSt:kept});
   window.Toast&&Toast.show({message:cand?('Kept '+kept.toLocaleString('en-GB')+' of '+rc.oldMarks.toLocaleString('en-GB')+' stitches'+(cand.lost?'; '+cand.lost.toLocaleString('en-GB')+' fell outside the new pattern.':'.')+' Your earlier marks are saved in Stats > Compare.'):('Progress started again. Your earlier '+rc.oldMarks.toLocaleString('en-GB')+' stitches are saved in Stats > Compare.'),type:'info',duration:8000});
@@ -3546,7 +3610,9 @@ async function mergeRemoteProject(info){
   recomputeAllCounts(pat,nd,halfStitches,hdMap);
   setDone(nd);
   setHalfDone(hdMap);
+  setSpecialtyDone(TM.mergeSet(base.specialtyDone,local.specialtyDone,remote.specialtyDone));
   setKnotsDone(mergedKnots);
+  setBeadsDone(window.Beads.live(beadsRef.current,TM.mergeSet(base.beadsDone,local.beadsDone,remote.beadsDone)));
   setBsDone(mergedBs);
   setPartialDone(window.Fractional?window.Fractional.toMap(mergedQuarters):new Map());
   setStatsSessions(mergedSessions);
@@ -3594,7 +3660,7 @@ function handleEditInCreator(){
             originalPaletteState:project.originalPaletteState,
             singleStitchEdits:project.singleStitchEdits,
             halfStitches:project.halfStitches, halfDone:project.halfDone,
-            knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, notes:project.notes,
+            specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
             finishStatus:_v3h.finishStatus, startedAt:_v3h.startedAt,
             lastTouchedAt:_v3h.lastTouchedAt, completedAt:_v3h.completedAt,
             stitchLog:_v3h.stitchLog
@@ -3708,6 +3774,8 @@ function processLoadedProject(project){
         project.id, project.lastWriteAt, project.lastWriteTabId);
     }
   } catch (_) {}
+    if(project.specialtyVersion!=null&&project.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+project.specialtyVersion+'.');
+  project=ProgressUnits.specialty.migrate(project);
   // Canonical numeric indices also cover legacy string-keyed half marks.
   project={...project,halfDone:TrackingSync.merge(project,{}).halfDone};
   mergeBaseRef.current=project;
@@ -3790,6 +3858,8 @@ function processLoadedProject(project){
     restored=p.map(m=>restoreStitch(m,brand));
   }
 
+  const loadedSpecialty=ProgressUnits.specialty.read(project,s.sW||project.w,s.sH||project.h,brand);
+  setSpecialtyStitches(loadedSpecialty);setSpecialtyDone(ProgressUnits.specialty.live(project.specialtyDone,loadedSpecialty));setSpecialtySelected(null);
   const partialMap = new Map();
   const partialCells = [];
   (project.partialStitches || []).forEach(([idx, quarters]) => {
@@ -3822,7 +3892,7 @@ function processLoadedProject(project){
     bsSeen.add(String(ln.colorId));
     try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:ln.rgb||(/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined),brand:ln.brand||brand}));}catch(_){}
   });
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells));
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
   const rtContext={projectId:project.id||null,initial:rtInitial,accounting:null,ready:null};
@@ -3841,7 +3911,10 @@ function processLoadedProject(project){
   setKnotsDone(Array.isArray(project.knotsDone)?project.knotsDone.filter(kk=>typeof kk==="string"):[]);
   setBsDone(window.Backstitch?window.Backstitch.live(project.bsDone,project.bsLines||project.bs):[]);
   setPartialDone(window.Fractional?window.Fractional.live(window.Fractional.toMap(project.partialDone),partialMap):new Map());
-  beadsRef.current=Array.isArray(project.beads)&&project.beads.length?project.beads:undefined;
+  beadsRef.current=window.Beads.normalise(project.beads);
+  setBeads(beadsRef.current);
+  setBeadsDone(window.Beads.live(beadsRef.current,project.beadsDone));
+  setSelectedBead(null);setBeadPanelOpen(false);
   if (project.originalPaletteState) {
     setOriginalPaletteState(project.originalPaletteState);
   } else {
@@ -4583,8 +4656,9 @@ const buildSnapshot = () => {
     bsLines, done: doneRef.current ? Array.from(doneRef.current) : null, parkMarkers,
     hlRow, hlCol, threadOwned, originalPaletteState,
     singleStitchEdits: sseArr, halfStitches: hsArr, halfDone: hdArr, partialStitches: psArr,
+    specialtyVersion:1,specialtyStitches,specialtyDone:specialtyDoneRef.current,
     knots: knotsForSave(knots, threadBrand), knotsDone: knotsDoneRef.current.slice(),
-    bsDone: window.Backstitch ? (window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDoneRef.current)||[]) : [], beads: beadsRef.current,
+    bsDone: window.Backstitch ? (window.Backstitch.forSave(Array.from(bsDoneSetRef.current))||[]) : [], partialDone: window.Fractional ? (window.Fractional.forSave(partialDoneRef.current)||[]) : [], beads: beadsRef.current, beadsDone: beadsDoneRef.current.slice(),
     activeSessionCheckpoint:getSessionCheckpoint(),
     statsSessions:statsSessionsRef.current, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
@@ -4669,8 +4743,10 @@ function writeProgressNow() {
     const data = {
       done: recovery ? recovery.done : done,
       halfDone: recovery ? recovery.halfDone : (projectIdRef.current===o.id ? [...halfDoneRef.current.entries()] : [...o.halfDone.entries()]),
+      beadsDone: recovery ? recovery.beadsDone || [] : (projectIdRef.current===o.id?beadsDoneRef.current:o.beadsDone),
       knotsDone: recovery ? recovery.knotsDone || [] : (projectIdRef.current===o.id?knotsDoneRef.current:o.knotsDone),
       bsDone: recovery ? recovery.bsDone || [] : (projectIdRef.current===o.id?Array.from(bsDoneSetRef.current):o.bsDone),
+      specialtyDone:recovery?recovery.specialtyDone||[]:(projectIdRef.current===o.id?specialtyDoneRef.current:o.specialtyDone),
       partialDone: recovery ? recovery.partialDone || [] : (window.Fractional && window.Fractional.forSave(projectIdRef.current===o.id?partialDoneRef.current:o.partialDone)) || [],
       baseWriteAt: seen && typeof seen.lastWriteAt === 'number' ? seen.lastWriteAt : null,
       tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
@@ -4736,7 +4812,7 @@ useEffect(() => {
               originalPaletteState:project.originalPaletteState,
               singleStitchEdits:project.singleStitchEdits,
               halfStitches:project.halfStitches, halfDone:project.halfDone,
-              knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, notes:project.notes,
+              specialtyDone:project.specialtyDone, knotsDone:project.knotsDone, bsDone:project.bsDone, partialDone:project.partialDone, beads:project.beads, beadsDone:project.beadsDone, notes:project.notes,
               finishStatus:_v3.finishStatus, startedAt:_v3.startedAt,
               lastTouchedAt:_v3.lastTouchedAt, completedAt:_v3.completedAt,
               stitchLog:_v3.stitchLog
@@ -4759,7 +4835,7 @@ useEffect(() => {
   }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
-    halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone,
+    halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
     sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
     // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
@@ -4898,7 +4974,7 @@ useEffect(() => {
   if (!pat) return;
   uiGenRef.current++;
   refreshSaveUi();
-}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, bsDone, partialDone,
+}, [pat, done, bsLines, parkMarkers, halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
     statsSessions, statsSettings, projectName, doneSnapshots, achievedMilestones, threadOwned,
     originalPaletteState, sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs,
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
@@ -4921,10 +4997,10 @@ useEffect(() => {
   // owner changes, or the timer would fire for the new project and drop them.
   const _prev = progressOwnerRef.current;
   if (_prev && _prev.id !== id && progressTimerRef.current) writeProgressNow();
-  progressOwnerRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone };
+  progressOwnerRef.current = { id, done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone };
   const b = progressBaseRef.current;
   if (b.id !== id) {                       // just loaded or switched: nothing has changed yet
-    progressBaseRef.current = { id, done, halfDone, knotsDone, bsDone, partialDone };
+    progressBaseRef.current = { id, done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone };
     uiSavedGenRef.current = uiGenRef.current;     // what was just loaded is what is stored
     // Another project: its own save state, and writes still running for the old one must not touch it.
     { const u = saveUiRef.current; u.error = null; u.savedOnce = false; u.inFlight = 0; u.conflict = false; u.epoch++; }
@@ -4932,9 +5008,9 @@ useEffect(() => {
     refreshSaveUi();
     return;
   }
-  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone && b.bsDone === bsDone && b.partialDone === partialDone) return;
+  if (b.done === done && b.halfDone === halfDone && b.knotsDone === knotsDone && b.beadsDone === beadsDone && b.bsDone === bsDone && b.partialDone === partialDone && b.specialtyDone === specialtyDone) return;
   scheduleProgressWrite();
-}, [done, halfDone, knotsDone, bsDone, partialDone]);
+}, [done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone]);
 useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimerRef.current); }, []);
 
 // ── Zoom-adaptive tier helpers ──
@@ -5329,6 +5405,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.lineWidth=1;
   }
 
+  ProgressUnits.specialty.draw(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected);
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
   // Dash phase anchored to the chart origin (lineDashOffset = distance from
   // it), so the dashes sit in the same place whatever range is painted — a
@@ -5397,6 +5474,19 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         ctx.fillStyle="rgba(255,255,255,0.9)";ctx.fill();
         ctx.lineWidth=Math.max(1.5,cSz*0.1);ctx.strokeStyle=col;ctx.stroke();
       }
+    });
+    ctx.restore();
+  }
+  if(beads.length){
+    ctx.save();
+    beads.slice().sort((a,b)=>Number(a.uid===selectedBead)-Number(b.uid===selectedBead)).forEach(b=>{
+      const x=b.x/2,y=b.y/2;
+      if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
+      const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDone.includes(b.uid);
+      ctx.beginPath();ctx.ellipse(gut+x*cSz,gut+y*cSz,r,r*0.7,-Math.PI/4,0,Math.PI*2);
+      ctx.fillStyle=marked?'rgb('+rgb.join(',')+')':'white';ctx.fill();
+      ctx.strokeStyle=b.uid===selectedBead?'#B85C38':'rgb('+rgb.join(',')+')';ctx.lineWidth=b.uid===selectedBead?3:2;ctx.stroke();
+      if(marked){ctx.beginPath();ctx.arc(gut+x*cSz,gut+y*cSz,Math.max(1,r*0.22),0,Math.PI*2);ctx.fillStyle='white';ctx.fill();}
     });
     ctx.restore();
   }
@@ -5508,7 +5598,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -5538,7 +5628,7 @@ const renderStitchIfScrolledOut=useCallback(()=>{
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
 useEffect(()=>{
-  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;return;}
+  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;if(!specialtyStitches.length&&!beads.length)return;}
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed
@@ -7826,6 +7916,10 @@ function applyUnpickPlan(p,undo){
     for(const c of p.half)for(const dir of ["fwd","bck"])applyHalfDoneDelta(c.idx,dir,(halfDoneRef.current.get(c.idx)||{})[dir],(next.get(c.idx)||{})[dir],halfStitches);
     setHalfDone(next);
   }
+  if(p.specialty&&p.specialty.length){
+    const marks=new Set(specialtyDoneRef.current);p.specialty.forEach(uid=>undo?marks.add(uid):marks.delete(uid));
+    specialtyDoneRef.current=Array.from(marks);setSpecialtyDone(specialtyDoneRef.current);
+  }
   if(p.quarter.length)setPartialDone(m=>window.Unpick.nextPartialDone(m,p,undo));
   if(p.knots.length)setKnotsDone(l=>window.Unpick.nextKnotsDone(l,p,undo));
   if(p.bs.length)setBsKeysDone(p.bs,undo);
@@ -7843,7 +7937,7 @@ function unpickArea(cells){
     if(areaOn&&!window.WorkArea.contains(workArea,x,y))continue;
     set.add(y*sW+x);
   }
-  const p=window.Unpick.plan({sW,sH,pat,done:doneRef.current,halfStitches,halfDone:halfDoneRef.current,partialStitches,partialDone:partialDoneRef.current,knots,knotsDone:knotsDoneRef.current,bsLines,bsDone:Array.from(bsDoneSetRef.current),set,lockId:isColourLocked()?focusColour:null});
+  const p=window.Unpick.plan({sW,sH,pat,done:doneRef.current,halfStitches,halfDone:halfDoneRef.current,partialStitches,partialDone:partialDoneRef.current,knots,knotsDone:knotsDoneRef.current,bsLines,bsDone:Array.from(bsDoneSetRef.current),specialtyStitches,specialtyDone:specialtyDoneRef.current,set,lockId:isColourLocked()?focusColour:null});
   if(p.empty){
     if(window.Toast&&window.Toast.show)window.Toast.show({message:isColourLocked()?"Nothing of the locked colour is marked in that area.":"Nothing is marked in that area.",type:'info',duration:3000});
     return false;
@@ -7882,6 +7976,23 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
     if(e.button===2||isMacSecondaryClick(e))return;
     const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
+    if(plain&&_dragMarkActive&&beads.length&&stitchRef.current){
+      const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
+      const fx=(e.clientX-rect.left+ct.x-G)/scs,fy=(e.clientY-rect.top+ct.y-G)/scs;
+      const hits=window.Beads.hitTest(beads,fx,fy,Math.min(0.45,Math.max(0.3,12/scs)));
+      if(hits.length){
+        const at=hits.findIndex(b=>b.uid===selectedBead),bead=hits[(at+1)%hits.length];
+        knotPressRef.current={bead,id:e.pointerId,x:e.clientX,y:e.clientY};
+        if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);
+        return;
+      }
+    }
+    if(plain&&_dragMarkActive&&stitchRef.current){
+      const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
+      const fx=(e.clientX-rect.left+ct.x-G)/scs,fy=(e.clientY-rect.top+ct.y-G)/scs;
+      const hit=specialtyStitches.find(o=>specialtyAvailable(o)&&ProgressUnits.specialty.segments(o).some(a=>window.Backstitch.segDist(fx,fy,...a)<=Math.min(0.15,6/scs)));
+      if(hit){setSpecialtySelected(hit.uid);knotPressRef.current={specialty:hit.uid,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
+    }
     const k=plain?knotAtPoint(e.clientX,e.clientY):null;
     const b=plain&&!k?bsHitAt(e.clientX,e.clientY,e.pointerType):null;
     if(b){
@@ -7935,7 +8046,7 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     if(p&&p.id===e.pointerId){
       knotPressRef.current=null;
       if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
-      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.bead){setSelectedBead(p.bead.uid);setBeadPanelOpen(true);}else if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
       return;
     }
     if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
@@ -8102,6 +8213,17 @@ return(
     }}
   >Exit edit mode</button>
 </div>}
+{!isEditMode&&beads.length>0&&<section aria-label="Bead progress" className="bead-progress">
+  <button type="button" aria-expanded={beadPanelOpen} onClick={()=>setBeadPanelOpen(o=>!o)}>Beads {beadCounts.done}/{beadCounts.total}</button>
+  {beadPanelOpen&&<div ref={beadPanelRef} className="bead-progress-list">
+    <p>Beads are counted separately from stitch progress. Select a bead, then mark or unmark it. Chart taps cycle overlapping beads.</p>
+    <p>PDF and image exports omit beads. OXS keeps bead appearance and position, but does not carry completion or object IDs. Use project saves or backups for progress.</p>
+    {beads.map((b,i)=><div key={b.uid}>
+      <button type="button" aria-pressed={selectedBead===b.uid} onClick={()=>setSelectedBead(b.uid)}>Select bead {i+1}: {b.label||b.id||'Bead'} ({b.x/2}, {b.y/2})</button>
+      <button type="button" aria-pressed={beadsDone.includes(b.uid)} onClick={()=>toggleBeadDone(b.uid)}>{beadsDone.includes(b.uid)?'Unmark':'Complete'} bead {i+1}</button>
+    </div>)}
+  </div>}
+</section>}
 {!isEditMode&&<div className="info-strip-wrap">
 <div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
   setLeftSidebarTab("session");
@@ -8146,6 +8268,7 @@ return(
       ['This week', ProgressUnits.formatUnits(weekStitchesForChip)]
     ];
     // Backstitch is counted on its own, in lines, and is not part of the percentage above.
+    if (beadCounts.total > 0) progressRows.splice(1, 0, ['Beads', `${beadCounts.done}/${beadCounts.total} beads (separate)`]);
     if (bsCounts.total > 0) progressRows.splice(1, 0, ['Backstitch', `${bsCounts.done}/${bsCounts.total} lines`]);
     if (unpickedToday > 0) progressRows.splice(2, 0, ['Unpicked today', ProgressUnits.formatUnits(unpickedToday)]);
     const timeEst = sessionsTimeIsEstimated(statsSessions || []);
@@ -8972,10 +9095,11 @@ return(
 
         {/* -- Layers tab -- */}
         {leftSidebarTab==="layers"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {window.SpecialtyStitchPanel&&<window.SpecialtyStitchPanel tracking objects={specialtyStitches} done={specialtyDone} visible={layerVis} accept={specialtyAvailable} disabled={!_dragMarkActive} onSelect={setSpecialtySelected} onToggle={toggleSpecialtyDone}/>}
           {STITCH_LAYERS.map(layer=>
             <label key={layer.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
               <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
-              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label}</span>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({layerCounts[layer.id]})</span>
             </label>
           )}
           <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
@@ -9359,7 +9483,7 @@ return(
   })()}
   {modal==="about"&&<SharedModals.About onClose={()=>setModal(null)} />}
   {modal==="pdf_export"&&<PdfExportModal onClose={()=>setModal(null)} onExport={()=>{
-    if(window.ExportPdf)window.ExportPdf.run({pat,pal,sW,sH,bsLines,partialStitches,knots,fabricCt,skeinPrice,projectName,projectDesigner});
+    if(window.ExportPdf)window.ExportPdf.run({pat,pal,sW,sH,bsLines,partialStitches,specialtyStitches,knots,fabricCt,skeinPrice,projectName,projectDesigner});
   }}/>}
 
   {modal==="shortcuts"&&<SharedModals.Help defaultTab="shortcuts" onClose={()=>setModal(null)} />}

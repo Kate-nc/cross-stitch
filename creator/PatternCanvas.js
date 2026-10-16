@@ -255,7 +255,7 @@ window.PatternCanvas = function PatternCanvas() {
     // (Not the tool or stitch type: the base doesn't draw them, and Effect 2
     // repaints the overlay when they change. Switching tools used to redraw
     // every stitch.)
-    gen.img, ctx.partialStitches, ctx.knots,
+    gen.img, ctx.partialStitches, cv.specialtySelected, ctx.specialtyStitches, ctx.knots,
     gen.showCleanupDiff, gen.cleanupDiff,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,

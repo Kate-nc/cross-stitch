@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.164';
+window.APP_VERSION = '1.0.166';
 
 window.APP_CHANGELOG = [
   {
@@ -12,8 +12,10 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Backup recovery now validates archives and attachment integrity, includes tracing pictures and session checkpoints, and stages data and portable settings before publishing them together. Existing projects are retained; conflicting identifiers stop the import. Old files remain readable with completeness warnings. Failed or interrupted imports leave the previous storage intact.',
+      'Added: bead progress with stable object IDs, chart selection, an accessible list, completion and unmarking, Undo/Redo and separate bead quantities. Project saves, backups and sync preserve bead marks. OXS carries bead appearance and position only; PDF and image exports omit beads.',
       'Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.',
       'Improved: import review separates cell recognition, legend matches, stitch preservation, dimensions, unsupported content and declared counts. Unknown coverage stays explicit, limitations include repair guidance, and the original source is retained. PDF key-matching figures keep their existing meaning.',
+      'Added: petite crosses and long stitches have independent identities, thread references and geometry, creation/editing controls, chart rendering, weighted progress, marking, undo/redo and native save/reload. OXS preserves petites and reports unsupported long-stitch export; PDF export reports unsupported objects instead of omitting them.',
       'Fixed: transparent image areas stay unstitched through resizing, smoothing, dithering, cleanup and saving. Alpha below 128 is empty; alpha 128 or above keeps its uncomposited colour. Transparent pixels do not consume threads. Skip background preserves opaque details in transparent pictures, and enclosed matching details in opaque pictures. Fully transparent pictures create empty patterns.',
       'Fixed: PDF charts now give every used thread or blend a distinct embedded symbol, with the same assignment in the key and page summaries. The font supports 112 symbols and clearer shapes; larger exports stop with an error instead of reusing symbols. Unused palette colours and empty cells do not count towards the limit.'
     ]

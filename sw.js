@@ -54,6 +54,7 @@ var PRECACHE_URLS = [
   './cross-tab-resolution.js',
   './cross-tab-lock.js',
   './progress-units.js',
+  './creator/SpecialtyStitchPanel.js',
   './project-storage.js',
   './blob-store.js',
   './stash-bridge.js',
@@ -128,7 +129,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "6eee3084b23feec693061e9c06bcc627fdb8b6c7da550351426b65d58d4b6e28";
+var BUILD_ID = "859924ac22d52d9f227d725bd280d8f4233fdffe2bb7c45c2ff59f9f51dfa8a3";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -174,6 +175,7 @@ var REQUIRED_URLS = [
   "./cross-tab-resolution.js",
   "./cross-tab-lock.js",
   "./progress-units.js",
+  "./creator/SpecialtyStitchPanel.js",
   "./project-storage.js",
   "./blob-store.js",
   "./stash-bridge.js",
@@ -232,6 +234,7 @@ var REQUIRED_URLS = [
   "./components/PartialStitchThumb.js",
   "./components/Overlay.js",
   "./onboarding-wizard.js",
+  "./beads.js",
   "./apply-prefs.js",
   "./touch-constants.js",
   "./toast.js",
@@ -257,19 +260,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "66fc5e3995a9c938164c9732e0c0ff26f512dc7dd3bb94f20e1c2f6de586b739"
+    "sha256": "790f99cb3abfecdd40f9c08b6775995b4eb38161b1cb7abdcb6d7c222d1d35a0"
   },
   "./index.html": {
-    "sha256": "8d7ef235df0181f25ab900ad7d0e13e1aca0aea104b76311e0c5e3d98f91a8cd"
+    "sha256": "74a22c6d87d2c995c8e89e064a382af8cdda3baa7d6d0df4cc277699ef3f8fff"
   },
   "./create.html": {
-    "sha256": "83fff90f4dbd1e7840280dcb08f1adae110f85af2182e3ef6319f7aba01abc88"
+    "sha256": "c9e1f941699ec6fc7bd0de5d0c3aaab003cbeb5de97545afe9cdfc3593bb14a7"
   },
   "./stitch.html": {
-    "sha256": "8c8f02d50614a7535d946dfceb7d8cbb2f6532587b1734107cdb6e3fb68a1be8"
+    "sha256": "54ee24aa09a7a958c70579e53ca790b865bca68500e11bf1bfae81efceda4249"
   },
   "./manager.html": {
-    "sha256": "bfcb19ddf5807819d470490700238353ffa1a9423139835d90f30388bee6d445"
+    "sha256": "b95c5c32d2075d01b66b156f61ea081ff7aa007121a6a79f729b24b15487aad0"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -287,10 +290,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "224127e5a9be009a4646603d9b7735520e1cac710670f66dc7db83ccbffd0fe9"
+    "sha256": "b9ce76b86bf5f2f78b7d90782efd049250ee400eadaf3d4130cd414a02fca803"
   },
   "./version.js": {
-    "sha256": "195d3cc170d5aec3d53aa3cf13bed1c512d3fb0c0f23583065400037e5fe76ac"
+    "sha256": "fbb58971127ce6a19a662917051ba407ee7606c4e2e3bc79cf435a2d533a0cd7"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -332,7 +335,7 @@ var BUILD_ASSETS = {
     "sha256": "90f48e5bd39bc16eb407c6aeec4607af17029e841ad6f628dc23bb8d7e637d61"
   },
   "./unpick.js": {
-    "sha256": "25e1b10dfa9e47d79f9622020f8501540286e91581854c80f3893afec3230283"
+    "sha256": "831e9f7e44665313746cd68c728eaa86e0e4ead76875cfa3fbdead11be7e6fd5"
   },
   "./photos.js": {
     "sha256": "f08775898857f6d3b90590f298218e6689891150f553b1f3caf76fb0138a5128"
@@ -344,16 +347,16 @@ var BUILD_ASSETS = {
     "sha256": "3d7c2c9becaed45212ed4e4c8a4f299637f158f29f2fbec78bfe502a294d6d2d"
   },
   "./tracking-merge.js": {
-    "sha256": "a42d012a1f0485929bb057d987c16d19427e9eb3fb6cea4788816ab94ea0db78"
+    "sha256": "8e541427d27420148aa0ec591e88668ba69b4e4ef9d9dfcf7e0e24d2383dc816"
   },
   "./tracking-sync.js": {
-    "sha256": "5e18b7ce14f945a00a9ce36df5827022e9b6ef2d9b47212d9eb26069a22ccec1"
+    "sha256": "5878ffd2a1e7cdfecd35d38a5033a63277558cb4fdde6641d7ff8f987c3a87b9"
   },
   "./icons.js": {
     "sha256": "3a0a2ba9bd9d707ab6fd814504708b5184f6d243626a5106ec8a1d8af6fdc36f"
   },
   "./import-formats.js": {
-    "sha256": "81226a3235209c4fca1ca6cbdbfe16c5c7557998daccbbc281952d02583f3cab"
+    "sha256": "c29ca83916ba1b6d699eb7b5a08ea21ba0c73fd87abfc09d4c32ea343b8d4200"
   },
   "./components.js": {
     "sha256": "6be29e98a07ef9ce61c9885f5d375bb82821d8e493211c9d14904e4f002550bc"
@@ -386,10 +389,13 @@ var BUILD_ASSETS = {
     "sha256": "50b89b4c2607d32dc39d4a13620b86d02d762f71a9d0cb93032ac83a8c00b97c"
   },
   "./progress-units.js": {
-    "sha256": "dc8cdcea6c69e5371003d4d30b5e10f3585e29a5d279ad4f49f98ca4970d83e9"
+    "sha256": "bde17b0f3e8002fa29d732c52efd84962490b9dedb89ed062dd191f5db7e65bf"
+  },
+  "./creator/SpecialtyStitchPanel.js": {
+    "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "3d96eb27a58dc304908520f8ca9a84484e8ed2e8509a467ea6f7c61308e4f1bf"
+    "sha256": "47c225d256c20c451bede36109b8340767308b5af7c08c4651c65084735347f0"
   },
   "./blob-store.js": {
     "sha256": "00cdd57a4ea73749240a20b5b7c0127d8a582046c33b6f504810ba541d80a4f4"
@@ -413,10 +419,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "4a953177f42529aa6356611973f454b69657cdab4e7aef85d377bf358e4a41e4"
+    "sha256": "5246524790859fceb512a4dbccadd3b4f6950d4ada3d6586decdfa0d61c8495b"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "07851ac907800ef2561237e2b72e60b3108160f17d9db6c0f6a3c3f25f7643b7"
+    "sha256": "564bb829e451b715611c8ac017eda3634f29715544ed06d7888b8cf9c04a5bf8"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "d0399142a717ce58705e4d94071a364a34c830d5de4704df90ad8814d023d1a4"
@@ -428,7 +434,7 @@ var BUILD_ASSETS = {
     "sha256": "961930b8928dd85c4895c45c490978566605ccad0b6393e3f0c87f648bac998b"
   },
   "./import-engine/bundle.js": {
-    "sha256": "1aa9dd1105f0657f0190414f76fd29697e176f1d4e1fe1243d726746559f1682"
+    "sha256": "68853bf4f0965d42ee8e9d790b9ebf25e955dcfb343a2823785ed85b9e40e226"
   },
   "./compiled/manager-app.compiled.js": {
     "sha256": "ab5d5af698d1c43815f1abb91f4b3d32669ae0457b90ae93dbc848edf87329df"
@@ -437,10 +443,10 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "736c89065eab80a17c9459b4aa381e448bd1e2d2eef423304690bb8edd01419a"
+    "sha256": "8cf07d4d72db61afec40195e27847dc8d494b48190b3301d67c7dae13c51d645"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "e12abe6b764d0ff3fc28812481d30859431cc4983a49d5d08e54ad06756e4438"
+    "sha256": "044407f9b66243c08421d02e55e0970c979cf43c2e40a2acd965260e6f62a6b3"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
@@ -515,13 +521,13 @@ var BUILD_ASSETS = {
     "sha256": "12a714855c9bdcbe5de740a63e5b988997749b1310978f64e0e4579babadaf7d"
   },
   "./help-drawer.js": {
-    "sha256": "86dc411fb328fdc4626fd52c67fc1020fa8331b0f78d104cd3391598473c902d"
+    "sha256": "dd9226b47e8ae0e30fb8d09bbe556aa3a231f0ebe4491e89b536737958ed0ca1"
   },
   "./creator/pdfExport.js": {
-    "sha256": "83562ac16e19c60940fff27548027a2a7de3471134288f623140d5675f27cd95"
+    "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
   },
   "./sync-engine.js": {
-    "sha256": "6b97fe1ea34ea6999d1fa0355c2d1ffbb3bd313ce92ec05712289acfa598dfac"
+    "sha256": "78cac1030f6ee78f06405eb9770558e54b82900cb0be8be5f7fb3205e9f2aa1a"
   },
   "./assets/fonts/CrossStitchSymbols.base64.js": {
     "sha256": "c6b5293953acb71cf7dd71bd8b293333c9012ab1760ba3f7a19e7977f3b30ca4"
@@ -553,6 +559,9 @@ var BUILD_ASSETS = {
   "./onboarding-wizard.js": {
     "sha256": "db7464a12c2d198fd51041f2d39dceca67c5f07f8d12448c91dfd4b9569057f8"
   },
+  "./beads.js": {
+    "sha256": "c7a295f9184daf1f8bf528cdfcff36e3808e772f7feca278ab5616e282574641"
+  },
   "./apply-prefs.js": {
     "sha256": "a8346e4d9ed2ee8d74714f8bf048a3a53365e195c620eb5473e5af35a7801c62"
   },
@@ -581,7 +590,7 @@ var BUILD_ASSETS = {
     "sha256": "fb451bb1b4ee3da26650e9bdb33e0be69bf71a81922b69300b7ae4da12a21f99"
   },
   "./embroidery.html": {
-    "sha256": "19079888843218b2f523215e0d601b0a23f2726ad5fe227d079ca3fc0e71b7af"
+    "sha256": "cfc48284fb6a28c67edbf24c2976b85a207a9a5d4575de69cbfafee782bffea8"
   },
   "./embroidery.js": {
     "sha256": "ec2e4ea674fd96cd02f301428d997919fbe0db858247f21b31ea9e6c07a98577"

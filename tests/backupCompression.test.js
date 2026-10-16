@@ -239,3 +239,18 @@ describe('createBackup / restore — CrossStitchDB round-trip with sync_snapshot
     expect(restoredSnap).toEqual(originalSnap);
   });
 });
+
+test('compressed and JSON backups preserve bead identity, material references and completion through actual restore', async()=>{
+  const {IDBFactory}=require('fake-indexeddb');
+  const beads=require('../beads').normalise([{x:1,y:1,id:'MH-1',brand:'millhill',label:'Gold',rgb:[200,180,40]},{x:1,y:1,label:'Blue',rgb:[0,0,200]}]);
+  const p={id:'proj_beads',version:11,pattern:[{id:'310'}],done:[0],beads,beadsDone:[beads[0].uid]};
+  for(const flags of [{},{compressedBackups:false}]){
+    const backup=makeSampleBackup();
+    backup.databases.CrossStitchDB.projects=[{key:p.id,value:p}];
+    const idb=new IDBFactory(),BR=loadBackupRestore({idb,flags});
+    const parsed=BR.parseBackupText(BR.serializeBackupFile(backup).text);
+    await BR.restore(parsed);
+    const restored=await BR.createBackup();
+    expect(restored.databases.CrossStitchDB.projects.find(e=>e.key===p.id).value).toEqual(p);
+  }
+});

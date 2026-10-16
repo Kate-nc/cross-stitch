@@ -19,12 +19,12 @@
  */
 (function (root) {
   // type → weight in units. One row per stitch type; this is the only place the weights live.
-  var WEIGHTS = { full: 1, half: 0.5, quarter: 0.25, petite: 0.25, knot: 1 };
+  var WEIGHTS = { full: 1, half: 0.5, quarter: 0.25, petite: 0.25, long_stitch: 0.5, knot: 1 };
   // Short names for "2 half, 1 knot" style breakdowns.
-  var LABELS = { full: "full", half: "half", quarter: "quarter", petite: "petite", knot: "knot" };
-  var ORDER = ["full", "half", "quarter", "petite", "knot"];
+  var LABELS = { full: "full", half: "half", quarter: "quarter", petite: "petite", long_stitch: "long stitch", knot: "knot" };
+  var ORDER = ["full", "half", "quarter", "petite", "long_stitch", "knot"];
   // Counted on their own, not in the percentage.
-  var SEPARATE = ["backstitch"];
+  var SEPARATE = ["backstitch", "bead"];
 
   function num(v) { return typeof v === "number" && isFinite(v) && v > 0 ? v : 0; }
 
@@ -68,7 +68,7 @@
   function colourProgress(c) {
     c = c || {};
     return progressUnits({ full: {done:c.done, total:c.total}, half: {done:c.halfDone, total:c.halfTotal},
-      quarter: {done:c.quarterDone, total:c.quarterTotal}, knot: {done:c.knotDone, total:c.knotTotal} });
+      petite:{done:c.petiteDone,total:c.petiteTotal}, long_stitch:{done:c.longDone,total:c.longTotal}, quarter: {done:c.quarterDone, total:c.quarterTotal}, knot: {done:c.knotDone, total:c.knotTotal} });
   }
 
   // Legacy whole-unit helpers remain for callers requesting whole numbers. Unit text retains fractions.
@@ -280,8 +280,92 @@
     return {total:total, done:done};
   }
 
+  // Additive v11 extension, specialtyVersion:1. Missing fields mean no objects.
+  // Coordinates are in cells on a half-cell grid; petite is a 0.5-cell cross.
+  // IDs belong to objects, never to their thread or their coordinates.
+  function specialtyValid(o, w, h) {
+    if (!o || !o.thread || typeof o.thread.id !== 'string' || !o.thread.id || /^__/.test(o.thread.id)) return false;
+    if (!Array.isArray(o.thread.rgb) || o.thread.rgb.length !== 3 || !o.thread.rgb.every(function(v) { return Number.isInteger(v) && v >= 0 && v <= 255; })) return false;
+    var keys = o.type === 'petite' ? ['x','y'] : o.type === 'long_stitch' ? ['x1','y1','x2','y2'] : [];
+    if (!keys.length || !keys.every(function(k) { return typeof o[k] === 'number' && Number.isFinite(o[k]) && Number.isInteger(o[k]*2) && o[k] >= 0; })) return false;
+    if (o.type === 'petite') return o.x + 0.5 <= w && o.y + 0.5 <= h;
+    return o.x1 <= w && o.x2 <= w && o.y1 <= h && o.y2 <= h && (o.x1 !== o.x2 || o.y1 !== o.y2);
+  }
+  function specialtyNormalise(list, w, h, brand) {
+    var used = new Set(), reserved = new Set((Array.isArray(list) ? list : []).filter(Boolean).map(function(o) { return o.uid; })), out = [];
+    (Array.isArray(list) ? list : []).forEach(function(o, i) {
+      if (!specialtyValid(o,w,h)) return;
+      var uid = typeof o.uid === 'string' && o.uid ? o.uid : 'specialty-legacy-' + i;
+      if (used.has(uid) || !o.uid) { var base = 'specialty-legacy-' + i; uid = base; while (used.has(uid) || reserved.has(uid)) uid += '-copy'; }
+      used.add(uid);
+      var n = {uid:uid, type:o.type, thread:Object.assign({},o.thread,{brand:o.thread.brand || brand || 'dmc'})};
+      (o.type === 'petite' ? ['x','y'] : ['x1','y1','x2','y2']).forEach(function(k) { n[k]=o[k]; });
+      out.push(n);
+    });
+    return out;
+  }
+  function specialtyLive(done, objects) {
+    var ids = new Set(objects.map(function(o) { return o.uid; }));
+    return Array.from(new Set(Array.isArray(done) ? done : [])).filter(function(id) { return ids.has(id); }).sort();
+  }
+  function specialtyCounts(objects, done) {
+    var out = {petite:{total:0,done:0},long_stitch:{total:0,done:0}}, marks = new Set(done || []);
+    objects.forEach(function(o) { out[o.type].total++; if(marks.has(o.uid))out[o.type].done++; });
+    return out;
+  }
+  function specialtyOffset(objects, dx, dy, w, h) {
+    return objects.map(function(o) {
+      var n=Object.assign({},o);
+      (o.type === 'petite' ? ['x','y'] : ['x1','y1','x2','y2']).forEach(function(k) { n[k]+=k[0]==='x'?dx:dy; });
+      return n;
+    }).filter(function(o) { return specialtyValid(o,w,h); });
+  }
+  function specialtySegments(o) {
+    return o.type === 'petite' ? [[o.x,o.y,o.x+0.5,o.y+0.5],[o.x,o.y+0.5,o.x+0.5,o.y]] : [[o.x1,o.y1,o.x2,o.y2]];
+  }
+  function specialtyDraw(ctx, objects, done, x, y, size, visible, selected) {
+    if(!objects.length)return;
+    var marks=new Set(done || []);
+    ctx.save(); ctx.lineCap='round';
+    objects.forEach(function(o) {
+      if (visible && visible[o.type] === false) return;
+      ctx.strokeStyle='rgb('+o.thread.rgb.join(',')+')'; ctx.lineWidth=Math.max(1,size*0.08);
+      ctx.globalAlpha=marks.has(o.uid)?0.4:1;
+      ctx.setLineDash(marks.has(o.uid)?[2,2]:[]);
+      specialtySegments(o).forEach(function(a) {ctx.beginPath();ctx.moveTo(x+a[0]*size,y+a[1]*size);ctx.lineTo(x+a[2]*size,y+a[3]*size);ctx.stroke();});
+      if (selected===o.uid) { ctx.setLineDash([3,2]);ctx.lineWidth=1; var a=specialtySegments(o)[0];ctx.strokeRect(x+Math.min(a[0],a[2])*size-3,y+Math.min(a[1],a[3])*size-3,Math.abs(a[2]-a[0])*size+6,Math.abs(a[3]-a[1])*size+6); }
+    });
+    ctx.restore();
+  }
+  function specialtyMigrate(p) {
+    if(!p || p.specialtyVersion===1)return p;
+    var migratedDone=p.done?Array.from(p.done):p.done;
+    var pat=p.pattern, objects=(p.specialtyStitches||[]).slice(), marks=(p.specialtyDone||[]).slice(), changed=false;
+    if(Array.isArray(pat))pat=pat.map(function(c,i){
+      if(!c || c.type!=='petite')return c;
+      var w=(p.settings||{}).sW||p.w;
+      var uid='legacy-petite-cell-'+i;
+      while(objects.some(function(o){return o.uid===uid;}))uid+='-copy';
+      var thread=Object.assign({},c,{type:String(c.id).includes('+')?'blend':'solid'});
+      if(!thread.rgb&&typeof restoreStitch==='function')thread=restoreStitch(thread,(p.settings||{}).threadBrand||'dmc');
+      objects.push({uid:uid,type:'petite',x:i%w,y:Math.floor(i/w),thread:thread});
+      if((p.done||[])[i]===1)marks.push(uid);
+      if(migratedDone)migratedDone[i]=0;
+      changed=true;return {id:'__skip__'};
+    });
+    return changed?Object.assign({},p,{specialtyVersion:1,pattern:pat,done:migratedDone,specialtyStitches:objects,specialtyDone:marks}):p;
+  }
+  function specialtyRead(p,w,h,brand) {
+    if(p.specialtyVersion!=null&&p.specialtyVersion!==1)throw new Error('Unsupported petite/long stitch schema version '+p.specialtyVersion+'.');
+    var list=specialtyNormalise(p.specialtyStitches,w,h,brand), rejected=(Array.isArray(p.specialtyStitches)?p.specialtyStitches.length:0)-list.length;
+    if(rejected&&root.Toast&&root.Toast.show)root.Toast.show({message:rejected+' petite or long stitch objects have invalid thread data or geometry and were not loaded.',type:'warning',duration:10000});
+    return list;
+  }
+  var specialty = {read:specialtyRead,migrate:specialtyMigrate,valid:specialtyValid, normalise:specialtyNormalise, live:specialtyLive, counts:specialtyCounts, offset:specialtyOffset, segments:specialtySegments, draw:specialtyDraw};
+
   function countsFromProject(p) {
     if (!p) return {};
+    p=specialtyMigrate(p);
     var pat = p.pattern || p.p;
     var knots = Array.isArray(p.knots) ? p.knots : [];
     var knotKeys = new Set(Array.isArray(p.knotsDone) ? p.knotsDone : []);
@@ -289,10 +373,14 @@
     for (var i = 0; i < knots.length; i++) if (knots[i] && knotKeys.has(knots[i].x + "," + knots[i].y)) kd++;
     var fullTotal = (pat && pat.length) ? countStitchCells(pat) : (p.totalStitches || 0);
     var fullDone = p.done ? countMarked(p.done, pat) : (p.completedStitches || 0);
+    var special=specialtyCounts(specialtyNormalise(p.specialtyStitches,(p.settings||{}).sW||p.w,(p.settings||{}).sH||p.h),p.specialtyDone);
     return {
+      bead: typeof Beads !== "undefined" ? Beads.progress(Beads.normalise(p.beads),p.beadsDone) : {total:0,done:0},
       full: { done: fullDone, total: fullTotal },
       half: countHalves(p),
       knot: { done: kd, total: knots.length },
+      petite: special.petite,
+      long_stitch: special.long_stitch,
       quarter: countQuarters(p),
       backstitch: countBackstitch(p)
     };
@@ -300,6 +388,7 @@
 
   // Used when Stats loads a different saved project, including colours absent from the full grid.
   function coloursFromProject(p) {
+    p=specialtyMigrate(p);
     var out = {}, pat = p.pattern || p.p || [], marks = p.done || [];
     function entry(c) {
       var id = c && (Array.isArray(c) ? c[0] : c.id);
@@ -316,12 +405,18 @@
       ["TL","TR","BL","BR"].forEach(function(pos) { var e=entry(cell[pos]); if(e) { e.quarterTotal++; if((qd.get(i) || []).indexOf(pos)!==-1)e.quarterDone++; } });
     });
     (p.knots || []).forEach(function(k) { var e=entry(k); if(e) {e.knotTotal++; if(kd.has(k.x+","+k.y))e.knotDone++;} });
+    var sm=new Set(p.specialtyDone || []);
+    specialtyNormalise(p.specialtyStitches,(p.settings||{}).sW||p.w,(p.settings||{}).sH||p.h).forEach(function(o) {
+      var e=entry(o.thread), prefix=o.type==='petite'?'petite':'long';
+      if(e) { e[prefix+'Total']=(e[prefix+'Total']||0)+1; if(sm.has(o.uid))e[prefix+'Done']=(e[prefix+'Done']||0)+1; }
+    });
     return out;
   }
 
   function fromProject(p, opts) { return progressUnits(countsFromProject(p), opts); }
 
   var api = {
+    specialty: specialty,
     partialWithoutLegacyHalves: partialWithoutLegacyHalves,
     percent: percent, colourProgress: colourProgress, coloursFromProject: coloursFromProject, WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,

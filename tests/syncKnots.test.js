@@ -67,3 +67,26 @@ describe('mergeTrackingProgress', () => {
     expect('knotsDone' in merged).toBe(false);
   });
 });
+
+describe('beads across sync devices',()=>{
+  const B=require('../beads');
+  const beads=B.normalise([{x:1,y:1,label:'Gold',rgb:[200,180,40]},{x:1,y:1,label:'Blue',rgb:[0,0,200]}]);
+  test('bead edits/deletion/identity change need chart review; completion alone does not',()=>{
+    const p=proj({beads});const fp=SE.computeFingerprint(p);
+    expect(SE.computeFingerprint({...p,beadsDone:[beads[0].uid]})).toBe(fp);
+    expect(SE.computeFingerprint({...p,beads:beads.slice().reverse()})).toBe(fp);
+    for(const b of [{...beads[0],x:4},{...beads[0],label:'Red'},{...beads[0],uid:'copy'}]){
+      expect(SE.computeFingerprint({...p,beads:[b,beads[1]]})).not.toBe(fp);
+    }
+    expect(SE.computeFingerprint({...p,beads:[]})).not.toBe(fp);
+    expect(SE.computeFingerprint(proj({beads:[]}))).toBe(SE.computeFingerprint(proj()));
+  });
+  test('sync merge preserves identities/references and independently merges completion registers',()=>{
+    const p=proj({beads,beadsDone:[]});
+    const l=TrackingSync.record(p,{...p,beadsDone:[beads[0].uid]},'left');
+    const r=TrackingSync.record(p,{...p,beadsDone:[beads[1].uid]},'right');
+    const merged=SE.mergeTrackingProgress(l,r);
+    expect(merged.beads).toEqual(beads);
+    expect(new Set(merged.beadsDone)).toEqual(new Set(beads.map(b=>b.uid)));
+  });
+});
