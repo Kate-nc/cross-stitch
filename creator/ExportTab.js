@@ -326,10 +326,14 @@ window.CreatorExportTab = function CreatorExportTab() {
     var oxsString = null;
     try {
       oxsString = window.ZipBundle._serializeOxs({
-        width: ctx.sW, height: ctx.sH, pattern: ctx.pat,
-        bsLines: ctx.bsLines || [], palette: ctx.pal, knots: ctx.knots || []
+        width: ctx.sW, height: ctx.sH, threadBrand: ctx.threadBrand, pattern: ctx.pat,
+        bsLines: ctx.bsLines || [], partialStitches: ctx.partialStitches, knots: ctx.knots || [],
+        beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
+      }, function (warnings) {
+        if (typeof Toast !== 'undefined' && Toast.show) Toast.show({ message: warnings.join(' '), type: 'warning', duration: 10000 });
       });
     } catch (e) {
+      setError('Bundle OXS: ' + (e.message || e));
       console.warn("Bundle: OXS serialise failed:", e);
     }
     var jsonObj = null;
@@ -552,17 +556,18 @@ window.CreatorExportTab = function CreatorExportTab() {
         onClick: function () {
           if (typeof generateOXS !== 'function') { return; }
           var project = {
-            w: ctx.sW, h: ctx.sH,
+            w: ctx.sW, h: ctx.sH, threadBrand: ctx.threadBrand,
             name: app.projectName || 'pattern',
             pattern: ctx.pat,
             bsLines: ctx.bsLines || [],
+            partialStitches: ctx.partialStitches,
             knots: ctx.knots || [],
             beads: (app.trackerFieldsRef && app.trackerFieldsRef.current && app.trackerFieldsRef.current.beads) || []
           };
           var result = generateOXS(project);
           if (result.warnings && result.warnings.length > 0) {
             if (typeof Toast !== 'undefined' && Toast.show) {
-              Toast.show({ message: result.warnings[0], type: 'warning', duration: 6000 });
+              Toast.show({ message: result.warnings.join(' '), type: 'warning', duration: 6000 });
             }
           }
           var blob = new Blob([result.xml], { type: 'application/xml' });

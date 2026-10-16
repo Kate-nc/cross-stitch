@@ -200,7 +200,7 @@ describe('OXS export', () => {
     const mixed = run(withAnchor, `generateOXS({ w: 2, h: 1, pattern: ${JSON.stringify([cell('10', [1, 1, 1], 'anchor'), cell('10', [2, 2, 2])])}, bsLines: [] })`).xml;
     expect(mixed).toContain('number="Anchor 10"');
     expect(mixed).toContain('number="10"');
-    expect(mixed).toMatch(/<stitch x="1" y="0" palindex="1"/);
+    expect(mixed).toMatch(/<stitch x="1" y="0" palindex="2"/); // index 0 is cloth
   });
 });
 

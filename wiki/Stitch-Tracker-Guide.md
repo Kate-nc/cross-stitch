@@ -148,7 +148,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 | Format | Notes |
 |--------|-------|
 | **.json** | stitchx project file |
-| **.oxs** | Pattern Keeper, KG-Chart, MacStitch, WinStitch. French knots are read; beads and other ornaments are not. |
+| **.oxs** | Open X-Stitch charts from other design programs. Backstitch retains its thread colours over empty cells; charts need not contain full crosses. Supported diagonal halves, three-quarter stitches, XSPro diagonal quarters and equal two-thread blends are preserved. French knots are read; beads are kept but not tracked. Unsupported content is reported by type and count. |
 | **Image** | Converted into a pattern |
 | **PDF** | Multi-page, scanned and booklet charts. A review screen shows how many stitches matched the colour key and lets you fix pages and threads before saving. |
 

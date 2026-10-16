@@ -151,9 +151,10 @@ describe('Beads in OXS (Phase 6)', () => {
 
 describe('French knots in the bundle OXS', () => {
   test('_serializeOxs writes them as ornaments', () => {
+    global.generateOXS = generateOXS;
     const ZB = require('../creator/zipBundle.js');
     const xml = ZB._serializeOxs({ width: 2, height: 2, pattern: [solid('310', [0, 0, 0])], bsLines: [],
       knots: [{ x: 3, y: 1, id: '666', rgb: [204, 0, 0] }] });
-    expect(xml).toMatch(/<object x1="1.5" y1="0.5" palindex="2" objecttype="knot"\/>/);
+    expect(xml).toMatch(/<object x1="1.5" y1="0.5" palindex="2" objecttype="knot" \/>/);
   });
 });

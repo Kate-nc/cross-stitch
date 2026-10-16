@@ -99,7 +99,7 @@ describe('parseOXS brand-aware palette matching', () => {
       (from === 'anchor' && id === '400' && to === 'dmc' ? { id: '414', confidence: 'official' } : null);
     const r = parseOXS(oxs([{ number: 'Anchor 400', hex: '4F5459' }]));
     expect(r.pattern[0].id).toBe('414');
-    expect(r.warnings).toEqual(['Anchor 400 was matched to DMC 414 (official conversion).']);
+    expect(r.warnings).toEqual(expect.arrayContaining(['Anchor 400 was matched to DMC 414 (official conversion).', '1 full stitch: thread reference Anchor 400 matched to DMC 414.']));
   });
 
   test('other brands go to the closest colour, with a warning', () => {
