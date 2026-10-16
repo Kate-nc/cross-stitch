@@ -50,5 +50,8 @@ jobs:
             exit 1
           fi
 
+      - name: Check service-worker build fingerprints
+        run: node build-sw.js --check
+
       - name: Run Jest
         run: npm test -- --ci --reporters=default

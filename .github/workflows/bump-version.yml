@@ -9,8 +9,9 @@ on:
     branches:
       - main
     paths-ignore:
-      # Don't re-trigger if only version.js changed (the auto-commit itself).
+      # Don't re-trigger for the version and generated worker auto-commit.
       - 'version.js'
+      - 'sw.js'
 
 jobs:
   bump:
@@ -47,6 +48,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add version.js
+          node build-sw.js
+          git add version.js sw.js
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
           git push

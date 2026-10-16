@@ -8,6 +8,11 @@ window.APP_VERSION = '1.0.159';
 
 window.APP_CHANGELOG = [
   {
+    version: 'Next release',
+    date: 'October 2026',
+    notes: ['Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.']
+  },
+  {
     version: '1.0.156',
     date: 'October 2026',
     notes: [

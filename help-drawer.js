@@ -440,6 +440,7 @@
         {
           heading: "Save vs. Download vs. Export",
           bullets: [
+            ["App updates", "Updates download and validate in the background. Finish your work, close all stitchx tabs and app windows, then reopen to use the update. An incomplete download keeps the working offline version. Project saves are stored separately from application caches."],
             ["Save", "Write to the app's own storage on this device (no file appears). Happens automatically as you work. Recent Tracker marks are also kept when you reload or leave the page."],
             ["Download", "Write a file to your device (e.g. a backup or a .json project)."],
             ["Export", "Produce a file to print or share (PDF chart, .oxs, PNG)."],
