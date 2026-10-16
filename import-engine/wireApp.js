@@ -154,9 +154,10 @@
         project: result.project,
         raw: result.raw,
         warnings: result.warnings,
-        coverage: result.confidence && result.confidence.overall,
+        verification: result.verification,
         reviewMode: result.reviewMode,
         originalFileUrl: url,
+        originalFileName: file && file.name,
         layoutSession: result.layoutSession || null,
         preferEdit: cameFromCreator(opts),
       }).then(function (out) {
