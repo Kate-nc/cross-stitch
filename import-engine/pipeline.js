@@ -200,10 +200,18 @@
         for (const w of validation.warnings) warnings.push(w);
       }
 
+      for (const e of (validation && validation.errors) || []) warnings.push(Object.assign({}, e, { severity: 'error' }));
+
       // ── Stage 6 — materialise
       abortGuard('materialise'); progress('materialise');
       const built = await stages.materialise(resolved, validation, probe, opts, ctx);
 
+      const attach = typeof window !== 'undefined' && window.ImportEngine && window.ImportEngine.attachOriginalFile;
+      if (built.project && attach && probe.fullBytes) attach(built.project, { originalFile: {
+        name: probe.fileName, type: probe.mimeType, bytes: await probe.fullBytes() } });
+      if (built.project && validation && validation.verification) {
+        built.project._import = Object.assign({}, built.project._import, { verification: validation.verification });
+      }
       const perCell = built.perCellConfidence || [];
       const perPalette = (validation && validation.perPaletteEntry) || [];
       const overall = computeOverall(perCell, perPalette, probe.formatConfidence);
@@ -213,6 +221,7 @@
         ok: errs.length === 0,
         project: built.project,
         publisher: (resolved.meta && resolved.meta.publisher) || (raw.meta && raw.meta.publisher),
+        verification: validation && validation.verification,
         confidence: { overall, perCell, perPaletteEntry: perPalette },
         warnings,
         reviewHints: built.reviewHints || [],

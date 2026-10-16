@@ -567,6 +567,18 @@ function parseOXS(xmlString) {
   if (!stitchCount && !bsLines.length && !partialStitches.length && !knots.length && !beads.length) {
     throw new Error('No valid stitches found in pattern' + (Object.keys(losses).length ? ': ' + Object.keys(losses).map(k => losses[k] + ' ' + k).join('; ') : ''));
   }
+  // Inventory only: flag sections/objects the existing parser does not read.
+  const knownSections = new Set(['properties','palette','fullstitches','stitches','crosses','grid','partstitches','backstitches','lines','ornaments_inc_knots_and_beads','ornaments','title','name','author','copyright','instructions','format','size']);
+  Array.from(chart.children).forEach(el => {
+    if (!knownSections.has(el.tagName.toLowerCase())) loss(el.tagName, 'unverified source section');
+  });
+  for (const container of [stitchContainer, bsContainer, ornContainer, chart.querySelector('partstitches')]) {
+    if (!container || container === chart) continue;
+    const knownObjects = /^(stitch|cross|cell|point|backstitch|line|object|ornament|partstitch)$/i;
+    Array.from(container.children).forEach(el => {
+      if (!knownObjects.test(el.tagName)) loss(el.tagName, 'unsupported stitch object');
+    });
+  }
   const warnings = Object.keys(losses).map(k => losses[k] + ' ' + k + '.');
   if (otherOrnaments > 0) {
     warnings.push(otherOrnaments + (otherOrnaments === 1 ? " ornament was" : " ornaments were") +
@@ -592,6 +604,7 @@ function parseOXS(xmlString) {
     knots,
     beads,
     stitchCount,
+    fidelity: { sourceFullCells: stitchEls.length, fullCells: stitchCount, losses: Object.keys(losses) },
     paletteSize: Object.keys(paletteMap).length,
     warnings
   };

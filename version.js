@@ -12,6 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Fixed: app updates validate the complete offline application before becoming available. Close all stitchx tabs and app windows, then reopen to use an update without interrupting editing or stitching. Failed downloads keep the working version; project saves remain separate.',
+      'Improved: import review separates cell recognition, legend matches, stitch preservation, dimensions, unsupported content and declared counts. Unknown coverage stays explicit, limitations include repair guidance, and the original source is retained. PDF key-matching figures keep their existing meaning.',
       'Fixed: transparent image areas stay unstitched through resizing, smoothing, dithering, cleanup and saving. Alpha below 128 is empty; alpha 128 or above keeps its uncomposited colour. Transparent pixels do not consume threads. Skip background preserves opaque details in transparent pictures, and enclosed matching details in opaque pictures. Fully transparent pictures create empty patterns.',
       'Fixed: PDF charts now give every used thread or blend a distinct embedded symbol, with the same assignment in the key and page summaries. The font supports 112 symbols and clearer shapes; larger exports stop with an error instead of reusing symbols. Unused palette colours and empty cells do not count towards the limit.'
     ]

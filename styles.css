@@ -6762,6 +6762,7 @@ button[aria-disabled="true"] {
     "header header" auto
     "design design" auto
     "tabs   tabs"   auto
+    "verify verify" auto
     "body   warn"   1fr
     "footer footer" auto / 1fr 280px;
   width: min(1100px, 100%);
@@ -7163,6 +7164,7 @@ button[aria-disabled="true"] {
       "header" auto
       "design" auto
       "tabs"   auto
+      "verify" auto
       "body"   1fr
       "warn"   auto
       "footer" auto / 1fr;
@@ -7193,6 +7195,7 @@ button[aria-disabled="true"] {
       "header" auto
       "design" auto
       "tabs"   auto
+      "verify" auto
       "body"   minmax(0, 1fr)
       "warn"   auto
       "footer" auto / minmax(0, 1fr);
@@ -8803,3 +8806,16 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 
 .stats-container :is(button, input, select, summary) { scroll-margin-top: calc(var(--app-header-height, 48px) + 80px); }
 .stats-container > .gsd-tabs { top: var(--app-header-height, 48px); }
+
+/* Import evidence stays available on desktop and phone. */
+.import-review-status { font-weight: 600; color: var(--text-primary); }
+.import-review-verification {
+  padding: var(--s-3); border-bottom: 1px solid var(--line);
+  grid-area: verify; min-height: 0; max-height: 25vh; overflow: auto;
+  color: var(--text-secondary); font-size: var(--text-sm);
+}
+.import-review-verification summary { cursor: pointer; font-weight: 600; }
+.import-review-verification a { color: var(--accent); }
+
+.import-review-header { flex-wrap: wrap; }
+.import-review-status { flex-basis: 100%; }

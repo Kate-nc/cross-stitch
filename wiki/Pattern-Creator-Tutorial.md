@@ -297,3 +297,5 @@ Set the fabric count before exporting so the finished size and thread estimates 
 
 **Last Updated:** October 2026
 **Questions?** Press `?` in the app for in-app help.
+
+Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.

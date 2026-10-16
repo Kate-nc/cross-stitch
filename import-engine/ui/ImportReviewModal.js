@@ -8,7 +8,7 @@
  *   project,            // v8 project (already materialised)
  *   raw,                // original raw extraction (for confidence overlay)
  *   warnings,           // from validateExtraction
- *   coverage,           // 0..1
+ *   verification,       // explicit checks; unknown coverage stays null
  *   reviewMode,         // 'fast'|'standard'|'wizard'
  *   originalFileUrl?,   // ObjectURL for side-by-side view
  * }
@@ -19,6 +19,7 @@
   if (typeof window === 'undefined' || !window.React) return;
 
   var h = React.createElement;
+  var ENGINE = window.ImportEngine = window.ImportEngine || {};
   var Icons = window.Icons || {};
 
   function I(name) { return typeof Icons[name] === 'function' ? Icons[name]() : null; }
@@ -809,7 +810,7 @@
       if (st.placement && st.placement.manual && !(LM && LM.samePlacement(st.placement, s.placement))) {
         arranged = memoBuild(s, st.placement);
       }
-      return mergeEdits(arranged, st.edits || {});
+      return preserveSource(mergeEdits(arranged, st.edits || {}), props.project);
     }
     function importAll() {
       // The one on screen first: it is the one opened after the import.
@@ -862,14 +863,28 @@
     if (session && placement && placement.manual && !(LM && LM.samePlacement(placement, session.placement))) {
       arranged = memoBuild(session, placement);
     }
-    var working = mergeEdits(arranged, edits);
+    var working = preserveSource(mergeEdits(arranged, edits), props.project);
     // The importer's own findings — a page left out, a size that differs from
     // what the PDF states — belong beside the engine's.
     var reportWarnings = ((working && working.importReport && working.importReport.warnings) || [])
       .map(function (m) { return { message: m, severity: 'medium' }; });
-    var allWarnings = (props.warnings || []).concat(reportWarnings);
+    // Refresh validation findings after repairs; extraction notes keep their provenance.
+    var refreshed = working && working.importReport && ENGINE.validateExtraction
+      ? ENGINE.validateExtraction({ _legacyProject: working }) : null;
+    var verification = refreshed ? refreshed.verification : props.verification || (working && working._import && working._import.verification);
+    var seenWarnings = new Set();
+    var sourceWarnings = (props.warnings || []).filter(function (w) {
+      return !refreshed || !['THREAD_REFERENCE', 'UNSUPPORTED_STITCH', 'DIMENSIONS', 'CELL_BOUNDS'].includes(w.code);
+    });
+    var allWarnings = sourceWarnings.concat(refreshed ? refreshed.warnings : [], reportWarnings).filter(function (w) {
+      if (!w || seenWarnings.has(w.message)) return false;
+      seenWarnings.add(w.message); return true;
+    });
+    if (refreshed) working = Object.assign({}, working, { _import: Object.assign({}, working._import, { verification: verification }) });
+    var verificationLabel = verification && verification.status === 'verified' ? 'Fully verified import' :
+      verification && verification.status === 'invalid' ? 'Import needs repair' : 'Usable import with limitations';
 
-    var summary = importSummary(working, props.coverage);
+    var summary = importSummary(working, verification);
     var coverageIcon = summary.level === 'high' ? I('confidenceHigh') : (summary.level === 'medium' ? I('info') : I('confidenceLow'));
 
     var tabs = [].concat(session ? [{ id: 'pages', label: 'Pages', icon: I('layers') }] : [], [
@@ -883,6 +898,7 @@
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
+          h('div', { className: 'import-review-status', role: 'status' }, verificationLabel),
           h('div', { className: 'import-review-coverage', title: summary.detail || null }, coverageIcon, h('span', null, summary.label)),
           h('button', { className: 'import-review-close', onClick: function () { props.onClose && props.onClose('cancel'); }, 'aria-label': 'Close' }, I('x'))
         ),
@@ -907,6 +923,16 @@
             }, narrow ? null : t.icon, h('span', null, t.label));
           })
         ),
+        h('section', { className: 'import-review-verification', 'aria-label': 'Import verification' },
+          h('details', { open: true }, h('summary', null, 'Verification and repairs'),
+            verification && h('ul', null, Object.keys(verification.checks).map(function (name) {
+              var c = verification.checks[name];
+              var labels = { recognisedCells: 'Recognised cells', legendMatches: 'Legend matches', stitchTypes: 'Stitch types', dimensions: 'Dimensions', unsupportedContent: 'Unsupported content', counts: 'Declared counts' };
+              return h('li', { key: name }, labels[name] + ': ' + c.status + '. ' +
+                (c.denominator > 0 && c.numerator != null ? c.numerator + ' of ' + c.denominator + '. ' : '') + c.detail);
+            })),
+            h('p', null, 'Use Palette to assign unresolved symbols, Pages to correct PDF page arrangements when available, or Edit first to repair supported stitches. For missing objects or incorrect source dimensions, correct the source and re-import. Compare with the original before stitching.'),
+            props.originalFileUrl && h('a', { href: props.originalFileUrl, download: props.originalFileName || 'original' }, 'Download original source'))),
         h('section', { className: 'import-review-body' },
           tab === 'pages'    && session && h(PageLayoutPanel, { key: 'layout' + designIndex, session: session, placement: placement, project: working,
                                                 onPlacement: setPlacement }),
@@ -938,16 +964,13 @@
           h('div', { className: 'import-review-actions' },
             h('button', { type: 'button', className: 'g-btn',
               onClick: function () { props.onClose && props.onClose('cancel'); } }, 'Cancel'),
-            (props.coverage < 0.95) && h('button', { type: 'button', className: 'g-btn',
-              onClick: function () { props.onClose && props.onClose('wizard', { project: working, edits: edits }); }
-            }, I('wandFix'), h('span', null, 'Open guided wizard')),
             // Most imported charts are bought to be stitched, so Start
             // stitching leads; from inside the Creator, Edit first does.
             [
-              h('button', { key: 'edit', type: 'button', className: 'g-btn import-review-edit' + (props.preferEdit ? ' primary' : ''),
+              h('button', { key: 'edit', type: 'button', disabled: verification && verification.status === 'invalid', className: 'g-btn import-review-edit' + (props.preferEdit ? ' primary' : ''),
                 onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'edit' }); } },
                 I('pencil'), h('span', null, 'Edit first')),
-              h('button', { key: 'stitch', type: 'button', className: 'g-btn import-review-stitch' + (props.preferEdit ? '' : ' primary'),
+              h('button', { key: 'stitch', type: 'button', disabled: verification && verification.status === 'invalid', className: 'g-btn import-review-stitch' + (props.preferEdit ? '' : ' primary'),
                 onClick: function () { props.onClose && props.onClose('confirm', { project: working, edits: edits, destination: 'stitch' }); } },
                 I('needle'), h('span', null, 'Start stitching'))
             ][props.preferEdit ? 'reverse' : 'slice']()
@@ -974,6 +997,14 @@
     return project;
   }
 
+  function preserveSource(project, original) {
+    var attachments = original && original.meta && original.meta.attachments;
+    if (!project || !attachments || !attachments.originalFile) return project;
+    return Object.assign({}, project, { meta: Object.assign({}, project.meta, {
+      attachments: Object.assign({}, project.meta && project.meta.attachments, { originalFile: attachments.originalFile })
+    }) });
+  }
+
   function mergeEdits(project, edits) {
     if (!project) return project;
     if (!edits || !Object.keys(edits).length) return project;
@@ -993,7 +1024,7 @@
    * since the importer hands over a finished pattern, which said nothing.
    * A scan, and a chart with no key, have nothing to match to and say so. Other
    * formats keep the engine's figure. */
-  function importSummary(project, coverage) {
+  function importSummary(project, verification) {
     var r = project && project.importReport;
     var m = r && r.matched;
     var left = (r && r.placeholders && r.placeholders.length) || 0;
@@ -1007,14 +1038,9 @@
         return { level: 'low', label: 'No colour key found',
           detail: 'Thread colours were estimated from the chart.' + needs };
       }
-      // Nearest key colour counts as a match when the key's colours are too
-      // far apart to mistake (PAT1968_2's seven), not when two are close.
-      var partialSwatch = typeof m.partialSwatch === 'number' ? m.partialSwatch : (m.partial || 0);
-      var partialNearest = typeof m.partialNearest === 'number' ? m.partialNearest : 0;
-      var read = (m.symbol || 0) + (m.swatch || 0) + partialSwatch +
-        (r.keyColoursDistinct ? (m.nearest || 0) + partialNearest : 0);
-      var total = (m.symbol || 0) + (m.swatch || 0) + (m.nearest || 0) +
-        partialSwatch + partialNearest + (m.catalogue || 0) + (m.unresolved || 0);
+      var key = ENGINE.pdfKeyMatch && ENGINE.pdfKeyMatch(r);
+      var read = key ? key.read : 0;
+      var total = key ? key.total : 0;
       if (total) {
         var share = read / total;
         var pct = Math.floor(share * 100);
@@ -1024,8 +1050,8 @@
             (read < total ? '; the rest were matched by colour similarity or not at all.' : '.') + needs };
       }
     }
-    var c = coverage || 0;
-    return { level: c >= 0.95 ? 'high' : c >= 0.8 ? 'medium' : 'low', label: Math.round(c * 100) + '% confidence' };
+    if (verification && verification.status === 'verified') return { level: 'high', label: 'Supported source structure verified' };
+    return { level: 'low', label: 'Source coverage unverified' };
   }
 
   /* Give colours the threads the stitcher chose: `threads` maps a colour's id
@@ -1202,6 +1228,7 @@
     ImportProgress: ImportProgress,
     WarningList: WarningList,
     mergeEdits: mergeEdits,
+    preserveSource: preserveSource,
     importSummary: importSummary,
     openLookAlikes: openLookAlikes,
   };
