@@ -134,7 +134,97 @@
     });
     return out;
   }
-  var api = { record: record, merge: merge, marks: marks };
+  // Multi-value causal registers for fields that cannot be safely unioned.
+  var valueFields = ['name', 'state', 'finishStatus', 'projectColor', 'notes', 'description', 'designer', 'settings', 'threadOwned', 'parkMarkers'];
+  function canonical(v) {
+    if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map(function(k) { return JSON.stringify(k) + ':' + canonical(v[k]); }).join(',') + '}';
+    return JSON.stringify(v);
+  }
+  function valueFrontier(events) {
+    var byEvent = new Map();
+    (events || []).forEach(function(e) {
+      if (!e || !own(e, 'value') || !e.clock || typeof e.clock !== 'object' || Array.isArray(e.clock)) throw new Error('Invalid sync register');
+      var clock = Object.create(null);
+      Object.keys(e.clock).sort().forEach(function(k) {
+        if (!Number.isSafeInteger(e.clock[k]) || e.clock[k] < 1 || k === '__proto__') throw new Error('Invalid sync clock');
+        clock[k] = e.clock[k];
+      });
+      var event = {value:e.value, clock:clock};
+      byEvent.set(canonical(event), event);
+    });
+    var all = Array.from(byEvent.values());
+    return all.filter(function(e, i) { return !all.some(function(o,j) {
+      return i !== j && dominates(o.clock,e.clock) && !dominates(e.clock,o.clock);
+    }); }).sort(function(a,b) { return canonical(a).localeCompare(canonical(b)); });
+  }
+  function valueRecord(events, value, author) {
+    var old = valueFrontier(events);
+    if (old.length === 1 && canonical(old[0].value) === canonical(value)) return old;
+    var clock = Object.create(null);
+    old.forEach(function(e) { Object.keys(e.clock).forEach(function(k) { clock[k] = Math.max(clock[k] || 0,e.clock[k]); }); });
+    var a = author || actor;
+    clock[a] = (clock[a] || 0) + 1;
+    return [{value:value, clock:clock}];
+  }
+  function valuesOf(p) {
+    var values = {};
+    valueFields.forEach(function(f) { if (p && own(p,f)) values[f] = p[f]; });
+    ['statsSessions','sessions'].forEach(function(field) {
+      (p && p[field] || []).forEach(function(row) {
+        if (!row) return;
+        var id = row.id || row.startTime || row.start || row.date;
+        if (id != null) { var authored = Object.assign({},row); delete authored.totalAtEnd; delete authored.percentAtEnd; values['journal_' + field + '_' + encodeURIComponent(id)] = authored; }
+      });
+    });
+    return values;
+  }
+  function fieldsOf(a,b) {
+    return Array.from(new Set(valueFields.concat(Object.keys(valuesOf(a)),Object.keys(valuesOf(b)),
+      Object.keys(a && a.valueSync && a.valueSync.fields || {}),Object.keys(b && b.valueSync && b.valueSync.fields || {})))).sort();
+  }
+  function valueEvents(p, field) {
+    var meta = p && p.valueSync;
+    if (meta && meta.version !== 1) throw new Error('Unsupported value sync version');
+    var events = meta && meta.fields && meta.fields[field];
+    if (events) return valueFrontier(events);
+    var values = valuesOf(p);
+    return own(values,field) ? [{value:values[field],clock:{}}] : [];
+  }
+  function mergeValues(local, remote, choices) {
+    var fields = {}, values = {}, conflicts = [];
+    var lValues = valuesOf(local), rValues = valuesOf(remote);
+    fieldsOf(local,remote).forEach(function(f) {
+      // Legacy parking lists were additive; only authored registers prove removal.
+      if (f === 'parkMarkers' && !(local.valueSync && local.valueSync.fields[f]) && !(remote.valueSync && remote.valueSync.fields[f])) return;
+      var events = valueFrontier(valueEvents(local,f).concat(valueEvents(remote,f)));
+      var distinct = new Set(events.map(function(e) { return canonical(e.value); }));
+      if (distinct.size > 1) {
+        var choice = choices && choices[f];
+        if (choice === 'keep-local' || choice === 'keep-remote') events = valueRecord(events, (choice === 'keep-local' ? lValues : rValues)[f]);
+        else conflicts.push(f);
+      }
+      if (events.length) {
+        fields[f] = events;
+        if (distinct.size <= 1 || (choices && choices[f])) values[f] = events[0].value;
+      }
+    });
+    return {values:values, valueSync:{version:1,fields:fields}, conflicts:conflicts};
+  }
+  var recordMarks = record;
+  record = function(base,next,author) {
+    var out = recordMarks(base,next,author), fields = {};
+    valueFields.forEach(function(f) { if (!own(next,f) && base && own(base,f)) out[f] = base[f]; });
+    var beforeValues = valuesOf(base), nextValues = valuesOf(next);
+    fieldsOf(base,next).forEach(function(f) {
+      var events = valueEvents(base,f);
+      if (own(nextValues,f) && canonical(nextValues[f]) !== canonical(beforeValues[f])) events = valueRecord(events,nextValues[f],author);
+      if (events.length) fields[f] = events;
+    });
+    out.valueSync = {version:1,fields:fields};
+    return out;
+  };
+  var api = { record: record, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TrackingSync = api;
 })(typeof window !== 'undefined' ? window : this);

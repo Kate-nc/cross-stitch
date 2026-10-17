@@ -27,7 +27,7 @@ async function exported() {
   return SE.decompress(SE.compress(obj));
 }
 function file(p) {
-  return { _format: SE.SYNC_FORMAT, _version: SE.SYNC_VERSION, _deviceId: 'peer', projects: [{ id: p.id, updatedAt: p.updatedAt, fingerprint: SE.computeFingerprint(p), data: p }] };
+  return { _format: SE.SYNC_FORMAT, _version: 1, _deviceId: 'peer', projects: [{ id: p.id, updatedAt: p.updatedAt, fingerprint: SE.computeFingerprint(p), data: p }] };
 }
 async function imported(obj) {
   const plan = await SE.prepareImport(obj);

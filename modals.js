@@ -1850,8 +1850,8 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
       localContent = conflict.localStitchCount + ' stitches done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString('en-GB') : '');
       remoteContent = conflict.remoteStitchCount + ' stitches done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString('en-GB') : '');
     } else if (conflict.type === 'stash') {
-      subjectText = 'Thread: DMC ' + conflict.threadId;
-      subjectSub = 'Owned count differs';
+      subjectText = conflict.id === 'stash:inventory' ? 'Stash and accounting' : 'Thread: DMC ' + conflict.threadId;
+      subjectSub = conflict.id === 'stash:inventory' ? 'Choose the inventory baseline; consumption history is retained' : 'Owned count differs';
       localLabel = 'This device';
       remoteLabel = 'Synced from ' + deviceName;
       localContent = 'Owned: ' + conflict.localOwned;

@@ -84,7 +84,7 @@
     if(!ledger.projects[pid])ledger.projects[pid]={baseline:Object.fromEntries(Object.keys(marks).map(k=>[k,true])),date,reason:'Existing stock preserved; historical consumption unknown',legacy:legacy||null};
   }
   function totals(ledger,pid) {
-    const out=dict();Object.values(ledger.events).forEach(e=>{if(pid&&e.projectId!==pid)return;Object.entries(e.debit||{}).forEach(([k,v])=>out[k]=(out[k]||0)+v);Object.entries(e.credit||{}).forEach(([k,v])=>out[k]=(out[k]||0)-v);});return out;
+    const out=dict();Object.keys(ledger.events).sort().map(id=>ledger.events[id]).forEach(e=>{if(pid&&e.projectId!==pid)return;Object.entries(e.debit||{}).forEach(([k,v])=>out[k]=(out[k]||0)+v);Object.entries(e.credit||{}).forEach(([k,v])=>out[k]=(out[k]||0)-v);});return out;
   }
   function apply(ledger,threads,ops,date) {
     const changed=new Set(),heads=dict();
@@ -160,15 +160,17 @@
     a=a||empty();b=b||empty();validate(a);validate(b);
     const out=copy(a);
     Object.entries(b.projects).forEach(([id,p])=>{if(!out.projects[id])out.projects[id]=copy(p);
-      else if(stable(out.projects[id].baseline)!==stable(p.baseline))throw Error('Conflicting consumption baselines. Reconcile inventory before syncing these copies.');});
+      else if(stable(out.projects[id].baseline)!==stable(p.baseline)||stable(out.projects[id].legacy)!==stable(p.legacy))throw Error('Conflicting consumption baselines. Reconcile inventory before syncing these copies.');
+      else if (p.date < out.projects[id].date) out.projects[id].date = p.date;});
     Object.entries(b.events).forEach(([id,e])=>{
       validateAmounts(e.debit);validateAmounts(e.credit);
       if(id!==JSON.stringify([e.projectId,e.unit,e.seq])||!Number.isSafeInteger(e.seq)||e.seq<1)throw Error('Invalid consumption event identity');
       if(out.events[id]){
         const l=Object.assign({},out.events[id]),r=Object.assign({},e);delete l.date;delete r.date;
         if(stable(l)!==stable(r))throw Error('Conflicting consumption history. Reconcile inventory before syncing these copies.');
+        if (e.date < out.events[id].date) out.events[id].date = e.date;
       }else out.events[id]=copy(e);
-    });out.receipts=Object.assign({},a.receipts,b.receipts);return validate(out);
+    });Object.entries(b.receipts||{}).forEach(([token,id])=>{if(out.receipts[token]&&out.receipts[token]!==id)throw Error('Conflicting consumption receipt');out.receipts[token]=id;});return validate(out);
   }
   // Reconstruct each side's stock before its known events, reconcile that stock,
   // then subtract the union once. A side without a ledger is an inventory baseline.

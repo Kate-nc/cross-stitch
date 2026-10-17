@@ -83,9 +83,10 @@ describe('drafts stay out of projects, stats, backups and sync', () => {
     expect(backup).not.toMatch(/openDB\("CrossStitchDB", \d/);
   });
 
-  test('sync only creates the store; it never reads it', () => {
+  test('sync reads owned attachments through a manifest', () => {
     const sync = loadSource('sync-engine.js');
-    expect((sync.match(/pendingImports/g) || []).length).toBe(2);
+    expect(sync).toMatch(/_attachmentOwner/);
+    expect(sync).toMatch(/_exportAttachments/);
     expect(sync).toMatch(/if \(!db\.objectStoreNames\.contains\("pendingImports"\)\) db\.createObjectStore\("pendingImports"/);
   });
 

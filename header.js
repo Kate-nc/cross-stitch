@@ -916,6 +916,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             })()
           },
             (function() {
+              if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
               if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
               if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
               if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
@@ -937,6 +938,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             // Header row
             React.createElement('div', { className: 'sync-popover-header' },
               (function() {
+                if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
                 if (!syncStatus || !syncStatus.hasWatchDir) return Icons.cloudOff();
                 if (syncStatus.autoSync) return React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck());
                 return React.createElement('span', { style: { color: 'var(--accent)' } }, Icons.cloudSync());
@@ -1019,6 +1021,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               return rows;
             })(),
 
+            syncStatus && syncStatus.protocol && syncStatus.protocol.state !== 'idle' && React.createElement('div', {className:'sync-popover-row',role:'status'},
+              React.createElement('span', null, 'Import: ' + syncStatus.protocol.state + (syncStatus.protocol.message ? ' — ' + syncStatus.protocol.message : ''))),
+            syncStatus && syncStatus.exportProtocol && syncStatus.exportProtocol.state !== 'idle' && React.createElement('div', {className:'sync-popover-row',role:'status'},
+              React.createElement('span', null, 'Export: ' + syncStatus.exportProtocol.state + (syncStatus.exportProtocol.message ? ' — ' + syncStatus.exportProtocol.message : ''))),
             React.createElement('div', { className: 'sync-popover-divider' }),
 
             // Quick actions
