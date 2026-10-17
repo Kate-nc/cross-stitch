@@ -1933,8 +1933,7 @@ function CreatorApp({
     onSaveJson: io.saveProject,
     onMoreExports: () => _nameNudgeRef.current('exports'),
     onPreferences: typeof window.PreferencesModal !== 'undefined' ? () => state.setPreferencesOpen(true) : undefined,
-    stitchScore: state.confettiData ? Math.round(100 - state.confettiData.clean.pct) : null,
-    stitchScoreNote: state.confettiData ? state.confettiData.clean.singles.toLocaleString('en-GB') + ' isolated stitches' : null,
+    onReview: () => state.setMaterialsTab("review"),
     sW: state.sW,
     sH: state.sH,
     fabricCt: state.fabricCt,
@@ -1943,7 +1942,6 @@ function CreatorApp({
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,
-    solidPct: state.confettiData ? 100 - state.confettiData.clean.pct : undefined,
     stitchSpeed: state.stitchSpeed,
     doneCount: state.doneCount
   }), !_compact && window.CreatorActionBar && /*#__PURE__*/React.createElement(window.CreatorActionBar, {
@@ -1956,7 +1954,6 @@ function CreatorApp({
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,
-    solidPct: state.confettiData ? 100 - state.confettiData.clean.pct : undefined,
     stitchSpeed: state.stitchSpeed,
     doneCount: state.doneCount,
     appMode: state.appMode,

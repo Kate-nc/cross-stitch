@@ -119,6 +119,7 @@ const EXTRAS_ORDER = [
   'DesignerBrandingSection.js',
   'ExportTab.js',
   'ShoppingListModal.js',
+  'ReadyReview.js',
   'MaterialsHub.js',
 ];
 

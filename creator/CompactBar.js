@@ -9,7 +9,7 @@
  *   window.CreatorCompactTopBar → one 48px bar: Home, project name (tap to
  *     rename), save status icon, Convert / Edit / Materials and a More
  *     button. More opens a sheet with Print PDF, Export…, Open in Tracker,
- *     Pattern info, the Stitch Score, Help and links to the other tools.
+ *     Pattern info, Ready to stitch review, Help and links to the other tools.
  *
  * The bottom tool rail lives in creator/ToolStrip.js (it shares the More
  * panel there). CSS: the "Compact phone chrome" block in styles.css, keyed
@@ -141,7 +141,6 @@
       }, Icons.more ? Icons.more() : Icons.menu())
     );
 
-    var score = props.stitchScore;
     var sheet = sheetOpen ? h(React.Fragment, null,
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
@@ -166,10 +165,7 @@
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        score != null ? h("div", { className: "cc-sheet__score", title: "Higher score = easier to stitch: fewer isolated single stitches." },
-          h("span", { className: "cc-sheet__score-lbl" }, "Stitch Score"),
-          h("span", { className: "cc-sheet__score-val" }, score + "/100"),
-          props.stitchScoreNote ? h("span", { className: "cc-sheet__meta" }, props.stitchScoreNote) : null) : null,
+        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),

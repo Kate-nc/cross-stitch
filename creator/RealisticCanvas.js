@@ -7,7 +7,8 @@
    Depends on: context.js (CreatorContext) */
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
-  var ctx = window.usePatternData();
+  var context = window.usePatternData();
+  var ctx = (props && props.patternData) || context;
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -24,12 +25,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = cv.cs;
-  var previewShowGrid = app.previewShowGrid;
+  var review = !!(props && props.review);
+  var cs = review ? Math.min(24, 1600 / Math.max(ctx.sW, ctx.sH)) : cv.cs;
+  var previewShowGrid = !review && app.previewShowGrid;
   // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
   var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;
   var fabricCt = ctx.fabricCt;
-  var coverageOverride = app.coverageOverride;
+  var coverageOverride = review ? null : app.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -42,12 +44,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     realisticRafRef.current = null;
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
-    var MAX_DIM = 8192;
+    var MAX_DIM = review ? 1600 : 8192;
     // Levels 3–4 use the detailed renderer and require larger tiles for fibre detail; levels 1–2 cap at 16px.
     var maxCellSz = (realisticLevel >= 3) ? 32 : 16;
     var rawCellSz = Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH));
     if (rawCellSz < 1) return; // Pattern too large for realistic preview on this device
-    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, rawCellSz));
+    var CELL_SIZE = Math.max(review ? 1 : 4, Math.min(maxCellSz, rawCellSz));
 
     var canvasW = sW * CELL_SIZE;
     var canvasH = sH * CELL_SIZE;
@@ -98,9 +100,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     // Coarser fabric → more strands in the needle.
     var SC;
     var fc = fabricCt || 14;
+    if (review) fc = fc / stitchOverFor(fc);
     if      (fc <= 11) { SC = 3; }
     else if (fc <= 17) { SC = 2; }
     else               { SC = 1; }
+    if (review) SC = 2;
 
     // Coverage: 0.0 = thin strands (lots of fabric visible); 1.0 = thick strands (minimal fabric).
     // Auto-calculated from fabric count and strand count; overridden by the manual slider.
@@ -409,8 +413,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
         var blendParts = splitBlendId(cell.id);
-        var e1 = cmap && cmap[blendParts[0]];
-        var e2 = cmap && cmap[blendParts[1]];
+        var e1 = cell.threads && cell.threads[0] && cell.threads[0].rgb ? cell.threads[0] : (cmap && cmap[blendParts[0]]);
+        var e2 = cell.threads && cell.threads[1] && cell.threads[1].rgb ? cell.threads[1] : (cmap && cmap[blendParts[1]]);
         if (e1) rgb = e1.rgb;
         if (e2) rgb2 = e2.rgb;
       }
@@ -443,7 +447,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -502,6 +506,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     }),
     h("div", {className: "preview-status-bar"},
       (function() {
+        if (review) return sW + " × " + sH + " stitches; 2 strands; illustrative full-cross simulation";
         var sFc = fabricCt || 14;
         var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
         var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));

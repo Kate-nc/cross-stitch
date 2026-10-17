@@ -126,6 +126,13 @@ describe('buildThreadShoppingRows', () => {
     expect(row.status).toBe('partial');
   });
 
+  test('shopping defaults use the same two-strand, 20% waste model as the review and summaries', () => {
+    const rows = build([{id:'310', type:'solid', count:1140}], {fabricCt:14});
+    expect(rows[0].needed).toBe(env.stitchesToSkeins({stitchCount:1140, fabricCount:14, strandsUsed:2, wasteFactor:0.20}).skeinsToBuy);
+    expect(rows[0].needed).toBe(2);
+    expect(build([{id:'310', type:'solid', count:1140}], {fabricCt:14, wasteFactor:0.15})[0].needed).toBe(1);
+  });
+
   test('skips background and empty cells', () => {
     expect(build([{ id: '__skip__', count: 9 }, { id: '__empty__', count: 9 }], {})).toEqual([]);
   });

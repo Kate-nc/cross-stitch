@@ -8825,3 +8825,30 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .bead-progress-list > div { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 6px; }
 .bead-progress button { min-height: 44px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; }
 .bead-progress button[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Ready-to-stitch review shares Workshop tokens and contains wide canvases. */
+.ready-review { max-width: 1200px; margin: 0 auto; padding: var(--s-3); color: var(--text-primary); }
+.ready-review h2, .ready-review h3 { margin: 0 0 var(--s-2); }
+.ready-review p { line-height: 1.55; color: var(--text-secondary); margin: var(--s-2) 0 var(--s-3); }
+.ready-review-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+.ready-review figure { margin: 0; padding: var(--s-2); min-width: 0; background: var(--surface-secondary); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: auto; }
+.ready-review figcaption { font-weight: 600; margin-bottom: var(--s-2); }
+.ready-review canvas, .ready-review img { display: block; width: auto; max-width: 100%; height: auto; margin: 0 auto; object-fit: contain; }
+.ready-review img { max-height: 400px; }
+.ready-review .preview-wrap { min-width: 0; overflow: hidden; }
+.ready-review .preview-status-bar { white-space: normal; overflow-wrap: anywhere; }
+.ready-review-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); margin: var(--s-3) 0; }
+.ready-review-summary > div { padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
+.ready-review button { min-height: 44px; padding: var(--s-2) var(--s-3); margin: 0 var(--s-2) var(--s-2) 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--accent); cursor: pointer; font: inherit; max-width: 100%; }
+.ready-review label { display: flex; flex-direction: column; gap: var(--s-1); }
+.ready-review input, .ready-review select { box-sizing: border-box; min-height: 44px; max-width: 100%; width: 100%; padding: var(--s-2); border: 1px solid var(--line); background: var(--surface); color: var(--text-primary); border-radius: var(--radius-sm); font: inherit; }
+.ready-review-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+.ready-review-images--sample { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--s-3); }
+.ready-review-note { border-left: 3px solid var(--accent); padding-left: var(--s-3); }
+@media (max-width: 700px) {
+  .ready-review-images, .ready-review-summary { grid-template-columns: minmax(0, 1fr); }
+  .ready-review-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ready-review { padding: var(--s-2); padding-bottom: 100px; }
+}
+
+.ready-review-images--sample.is-enlarged canvas { max-width: none; }

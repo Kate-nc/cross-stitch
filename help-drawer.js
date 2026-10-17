@@ -101,7 +101,7 @@
             ["Erase (5)", "Clears full and part stitches under the brush, and any backstitch line you drag across."],
             ["Eyedropper (I)", "Click a stitch to make its colour the current colour."],
             ["Navigate and Draw (H)", "The Navigate | Draw switch says what a touch or click will do, like Mark and Navigate in the Stitch Tracker. Navigate moves around without changing anything: drag the chart to pan it, tap a stitch to see its thread, and press and hold (or right-click) for its menu. Draw makes touches and clicks change the chart with the tool you picked. Choosing Paint, Fill, Erase or any other tool switches to Draw; choosing Navigate keeps your tool for next time. Press H to switch."],
-            ["On a phone", "The Creator keeps the chart as big as it can. The bar at the top has Home, the pattern's name (tap to rename it), whether your changes are saved, Convert / Edit / Materials and a More button for Print PDF, Export, Open in Tracker, Pattern info, the Stitch Score and Help. The bar at the bottom has Navigate | Draw, Paint, Fill, Erase, the current colour (tap it to open the palette), Undo and More. More has zoom (pinching works too), Fit, Show colour strip and the settings panels. The settings panel opens above the bottom bar and hides again when you close it."],
+            ["On a phone", "The Creator keeps the chart as big as it can. The bar at the top has Home, the pattern's name (tap to rename it), whether your changes are saved, Convert / Edit / Materials and a More button for Print PDF, Export, Open in Tracker, Pattern info, Ready to stitch review and Help. The bar at the bottom has Navigate | Draw, Paint, Fill, Erase, the current colour (tap it to open the palette), Undo and More. More has zoom (pinching works too), Fit, Show colour strip and the settings panels. The settings panel opens above the bottom bar and hides again when you close it."],
             ["On a touch screen", "The switch is the first control in the toolbar, and a new pattern opens in Navigate so the first swipe scrolls. In Draw, drag one finger to draw and use two fingers to pan and zoom; a second finger cancels a stroke you've started. Tapping the active Paint, Fill or Erase button again goes back to Navigate. On a computer the switch is in the Tools tab, and the Creator opens in Draw."],
             ["Placing stitches by touch", "In Draw, with Paint, Erase, a part stitch, backstitch or the eyedropper, a magnifier appears above your finger (below it near the top of the screen) showing the stitches under it, with a crosshair on the one you'll change. A tap places its stitch when you lift your finger, so you can slide onto the right square before letting go; move further and you draw a line as usual. For the finest work, turn on Precision cursor in More tools: a crosshair sits a little above your finger, your finger moves it, and lifting places the stitch there. Turn the magnifier off in More tools if you don't want it."],
             ["Zooming by touch", "Pinch with two fingers to zoom. In Navigate, double-tap a spot to zoom to 300% centred on it, and double-tap again to fit the whole chart. Touch screens can zoom in to 400%."]
@@ -136,7 +136,7 @@
             ["Colour, symbol or both (V)", "Shows each stitch in its thread colour, as a printed symbol, or as colour with the symbol on top."],
             ["Preview tab", "Renders the pattern as real stitches on fabric, from a plain chart up to a hoop or frame mock-up. The detail level and fabric colour are set in Preferences > Preview & display."],
             ["Split pane (\\)", "Shows the editable chart and a live preview side by side. Drag the centre handle to resize."],
-            ["Stitch Score", "The Pattern tab shows a 0–100 Stitch Score: 100 minus the percentage of confetti stitches. Higher is easier to stitch."]
+            ["Ready to stitch", "Open the review from the Pattern tab or Materials. Compare the chart and stitch simulation, dimensions and material assumptions. Isolated stitches describe effort, not colour fidelity or retained detail."]
           ]
         },
         {
@@ -187,8 +187,12 @@
           ]
         },
         {
+          heading: "Ready to stitch review",
+          body: "Open Materials & Output > Ready to stitch before buying thread or fabric. Compare the original (when available), current chart and a full-cross stitch simulation rendered from chart cells. Screen colours are approximate, not physical colour calibration or a guarantee of retained detail. Review recognisable features, edges and text yourself. Finished size includes empty grid cells and excludes finishing margins. Material estimates use the Threads calculation: two strands, 20% waste and 8 m skeins; blends assume equal shares. Other stitch types may need extra materials. Isolated crosses and rarely used colours measure stitching effort, not quality. They may be intentional detail: open Edit > Tools to inspect cleanup and preview changes before applying. Choose a representative region by its first row/column and width/height (up to 80 stitches each). Export sample chart PNG includes exactly that region, coordinates, key, finished size and current fabric assumptions. Try several regions and stitch a sample when colour or detail matters.",
+        },
+        {
           heading: "Threads needed and skein estimates",
-          body: "The Materials & Output tab shows what the pattern needs, in three sub-tabs: Threads, Stash status and Export.",
+          body: "The Materials & Output tab shows what the pattern needs, in four sub-tabs: Ready to stitch, Threads, Stash status and Export.",
           bullets: [
             ["Skein count", "Estimated skeins per colour, from the stitch count, fabric count, strand count and a waste allowance. A standard skein is 315 inches (8 metres). 25, 28 and 32 count are worked over two threads, so 28 count uses thread (and gives a finished size) like 14 count Aida."],
             ["Stash status", "Each thread shows whether you own enough (In stash), some but not enough (Partial), or none (Need to buy). A blend is not a separate thread to buy: its stitches count towards each of its two threads."],
@@ -435,7 +439,7 @@
             ["Symbol", "A mark on the chart. A solid stitch's symbol stands for one thread; a blend's symbol stands for two threads stitched together, so a chart can have more symbols than threads."],
             ["Active project", "The project you most recently opened; the Creator and Tracker open it by default."],
             ["Confetti stitches", "Single isolated stitches surrounded by different colours. Each needs its own thread pass, so they are slow to stitch. Confetti Cleanup in the Creator merges them into the surrounding colour."],
-            ["Stitch Score", "A 0–100 rating shown on the Pattern tab: 100 minus the percentage of confetti stitches. Higher is easier to stitch."],
+            ["Ready to stitch", "The review in Materials compares the source, chart, full-cross simulation, finished size and material assumptions before buying."],
             ["Fabric count", "Stitches per inch of fabric. Common values: 11 count (large stitches), 14 count (standard — 14 stitches ≈ 1 inch), 18 count (fine), 28 count (very fine, usually worked over two threads)."],
             ["Blend stitch", "A stitch sewn with two different thread colours in the same needle. Shown in the pattern as two DMC numbers joined with '+', e.g. '310+550'."],
             ["Difference", "How different two colours look — lower means a closer match. Shown when matching picture colours to threads and when suggesting replacement threads."]
@@ -486,11 +490,11 @@
           ]
         },
         {
-          heading: "Stitch Score",
-          body: "The Stitch Score (0–100) on the Pattern tab rates how pleasant the pattern will be to stitch before you start.",
+          heading: "Stitching effort",
+          body: "Ready to stitch in Materials shows effort metrics from the current chart. These do not measure colour fidelity, retained detail or physical results.",
           bullets: [
-            ["How it is worked out", "100 minus the percentage of stitches that are confetti (isolated single stitches or tiny clusters)."],
-            ["Improving the score", "Use Confetti Cleanup and Min stitches per colour in the Creator, or Tidy stray stitches on a finished pattern."]
+            ["What the counts mean", "Isolated full crosses have no same-colour neighbour in the four cardinal directions. Tiny connected groups contain two or three crosses. Rarely used chart colours appear in five or fewer full crosses."],
+            ["Inspect before cleanup", "Eyes, highlights and text may be isolated on purpose. Compare regions and preview cleanup changes before applying them."]
           ]
         }
       ]

@@ -116,9 +116,9 @@ The top bar has three page tabs:
 
 | Page | Contents |
 |---|---|
-| **Pattern** | The chart, tool strip and sidebar. The Stitch Score (0–100, higher is easier to stitch) sits above the chart. |
+| **Pattern** | The chart, tool strip and sidebar. A Ready to stitch review link sits above the chart. |
 | **Project** | Name, designer, fabric, strands, stitching speed, Adapt to my stash / Adapt to brand. |
-| **Materials & Output** | Sub-tabs **Threads**, **Stash status** and **Export**. |
+| **Materials & Output** | Sub-tabs **Ready to stitch**, **Threads**, **Stash status** and **Export**. |
 
 The **action bar** has the **Create / Edit / Track** phase buttons, **Generate pattern**, **Print PDF** and **Export options**.
 
@@ -220,6 +220,11 @@ When **Convert to brand** moves every colour to Anchor, the copy is an **Anchor 
 
 ## Materials & Output
 
+Start with **Ready to stitch**. Compare the source image (if present), actual chart and a full-cross stitch simulation. Check recognisable details and colour relationships yourself; screen thread colours are approximate and do not calibrate physical materials. Review finished dimensions (including blank cells, excluding finishing margins), fabric count and over-two settings, two-strand and 20% waste assumptions, colour/symbol counts and the existing Threads estimates. Isolated crosses and colours used in five or fewer crosses describe effort; they can also be intentional highlights. Links open existing adjustment and cleanup controls without applying changes.
+
+Choose the first column/row and sample width/height (up to 80 stitches each). The sample chart and stitches use the selected cells. **Export sample chart PNG** includes the exact region, coordinates, symbol key, current fabric assumptions and sample finished size. Try several meaningful regions and stitch a sample if colour or detail matters. The simulation shows full crosses only; inspect other stitch types in the chart. Drawn charts and projects with no source image remain reviewable.
+
+
 ### Threads
 
 Every thread in the pattern with its stitch count, estimated skeins (from the fabric count and strands) and cost at your skein price.
@@ -257,7 +262,7 @@ Your pattern saves **automatically** on this device and appears in **Home > Proj
 
 ### Too many isolated stitches?
 
-Raise **Confetti Cleanup** or **Min stitches per colour**, use less shading, or run **Tidy stray stitches** on the finished pattern. Watch the Stitch Score rise.
+Raise **Confetti Cleanup** or **Min stitches per colour**, use less shading, or run **Tidy stray stitches** on the finished pattern. Compare the current chart and representative regions in Ready to stitch before applying cleanup: isolated details can be intentional.
 
 ### Stitching time
 
