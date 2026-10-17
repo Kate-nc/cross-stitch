@@ -509,7 +509,7 @@ const ProjectStorage = (() => {
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
-          let refusedPatternless = false, refusedSyncRace = false;
+          let refusedPatternless = false, refusedSyncRace = false, refusedChartRace = false;
           const putAll = () => {
             const pending = tx.objectStore('pendingImports');
             putCheckpoint(pending, project, project.activeSessionCheckpoint);
@@ -547,6 +547,9 @@ const ProjectStorage = (() => {
                 refusedSyncRace = true; tx.abort(); return;
               }
             }
+            if (!opts.preserveUpdatedAt && existing && (existing.chartRevision || null) !== (project.chartRevision || null)) {
+              refusedChartRace = true; tx.abort(); return;
+            }
             // Distinct writes must retire the prior progress overlay even in the
             // same millisecond (imports can otherwise reload stale completion).
             if (existing && typeof existing.lastWriteAt === "number") project.lastWriteAt = Math.max(project.lastWriteAt, existing.lastWriteAt + 1);
@@ -564,7 +567,9 @@ const ProjectStorage = (() => {
           getReq.onsuccess = finish;
           if (progressReq) progressReq.onsuccess = finish;
           tx.onabort = () => {
-            if (refusedSyncRace) {
+            if (refusedChartRace) {
+              reject(new Error('The chart was updated. Reload this project before saving changes.'));
+            } else if (refusedSyncRace) {
               const err = new Error('Project changed while sync was saving. Prepare the sync file again.'); err.state = 'conflicted'; reject(err);
             } else if (refusedPatternless) {
               console.error("ProjectStorage.save refused: a record without a pattern would overwrite one that has it", project.id);
@@ -762,6 +767,86 @@ const ProjectStorage = (() => {
     },
 
     // Load a single project by ID. Returns null if not found.
+    // Read a review base from one consistent transaction, including progress and
+    // session journals. The token covers bytes rather than timestamps alone.
+    async prepareChartUpdate(id) {
+      await this.get(id); // fold any recoverable navigation progress first
+      const db=await getDB();
+      return new Promise((resolve,reject)=>{
+        const tx=db.transaction([STORE_NAME,'pendingImports'],'readonly');
+        const p=tx.objectStore(STORE_NAME).get(id), r=tx.objectStore('pendingImports').get(PROGRESS_PREFIX+id);
+        const sessions=tx.objectStore('pendingImports').getAll(sessionRange(id));
+        tx.oncomplete=()=>{
+          if(!p.result){reject(new Error('Project no longer exists.'));return;}
+          resolve({project:applyProgressRecord(p.result,r.result),token:TrackingSync.canonical([p.result,r.result||null,sessions.result])});
+        };
+        tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Chart read aborted'));
+      });
+    },
+
+    // Snapshot, source, project, progress fence and summaries commit together.
+    // No stash/consumption API is called here. A failed transaction publishes nothing.
+    async applyChartUpdate(id, token, incoming, options, resolutions, source, restoreId) {
+      if(window.__restoringBackup>Date.now())throw Error('Chart updates are paused during backup recovery.');
+      const db=await getDB(), storage=this;
+      const snapshotId='chart-update:'+id+':'+this.newId();
+      const revision=this.newId();
+      return new Promise((resolve,reject)=>{
+        const tx=db.transaction([STORE_NAME,META_STORE,STATS_STORE,'pendingImports'],'readwrite');
+        const store=tx.objectStore(STORE_NAME),pending=tx.objectStore('pendingImports');
+        const p=store.get(id),r=pending.get(PROGRESS_PREFIX+id),sessions=pending.getAll(sessionRange(id));
+        const snapshot=restoreId?pending.get(restoreId):null;
+        let ready=0,failure;
+        function finish() {
+          if(++ready!==(snapshot?4:3))return;
+          try {
+            if(window.__restoringBackup>Date.now())throw Error('Chart updates are paused during backup recovery.');
+            if(storage._deletedIds.has(id)||!p.result)throw Error('Project no longer exists.');
+            if(TrackingSync.canonical([p.result,r.result||null,sessions.result])!==token)throw Error('Project changed during review. Reopen the preview before applying.');
+            // Running timers / unflushed consumption must be settled in the Tracker first.
+            const before=applyProgressRecord(p.result,r.result);
+            if(sessions.result.some(s=>!s.closed&&!sessionEnded(before,s.sessionId)))throw Error('End the active session in the Tracker before updating this chart.');
+            let next,review;
+            if(snapshot) {
+              if(!snapshot.result||snapshot.result.projectId!==id||!snapshot.result.before)throw Error('Recovery snapshot is missing or belongs to another project.');
+              next=structuredClone(snapshot.result.before);
+            } else {
+              review=window.ChartUpdates.preview(before,incoming,options,resolutions);
+              if(!review.ready)throw Error('Resolve every ambiguous match before applying.');
+              next=review.result;
+            }
+            next.id=id;next.chartRevision=revision;
+            Object.keys(next.chartAccountingUnits||{}).forEach(k=>{
+              if(next.chartAccountingUnits[k].startsWith('pending:'))next.chartAccountingUnits[k]=revision+'|'+k;
+            });
+            next.updatedAt=new Date().toISOString();next.lastWriteAt=Math.max(Date.now(),(p.result.lastWriteAt||0)+1);
+            next.lastWriteTabId=window.CrossTabCoord&&window.CrossTabCoord.tabId||null;
+            // Registers from the old coordinate system must not seed new marks.
+            delete next.trackingSync;delete next.valueSync;
+            Object.assign(next,TrackingSync.record(null,next));
+            pending.put({id:snapshotId,projectId:id,createdAt:Date.now(),before,after:next,
+              originalProject:p.result,progress:r.result||null,sessionRows:sessions.result,
+              incoming:incoming||null,source:source||null,options:options||null,resolutions:resolutions||null,
+              restoredFrom:restoreId||null,annotations:review&&review.annotations||[]});
+            store.put(next,id);pending.delete(PROGRESS_PREFIX+id);
+            tx.objectStore(META_STORE).put(buildMeta(next),id);
+            tx.objectStore(STATS_STORE).put(buildStatsSummary(next),id);
+          } catch(e){failure=e;tx.abort();}
+        }
+        p.onsuccess=finish;r.onsuccess=finish;sessions.onsuccess=finish;if(snapshot)snapshot.onsuccess=finish;
+        tx.onerror=()=>reject(failure||tx.error);
+        tx.onabort=()=>reject(failure||tx.error||new Error('Chart update aborted; previous project retained.'));
+        tx.oncomplete=()=>{
+          storage._allFullCache=null;
+          try {
+            window.dispatchEvent(new CustomEvent('cs:projectsChanged',{detail:{reason:'chart-update',id}}));
+            if(window.CrossTabCoord&&window.CrossTabCoord.notifySaved)window.CrossTabCoord.notifySaved(id,Date.now(),window.CrossTabCoord.tabId);
+          } catch(_) { /* A notification failure cannot turn a committed update into a failed save. */ }
+          resolve(snapshotId);
+        };
+      });
+    },
+
     async get(id) {
       try {
         const db = await getDB();
@@ -892,6 +977,7 @@ const ProjectStorage = (() => {
             if (++ready !== 2) return;
             const prev = req.result;
             const project = projectReq.result;
+            if (project && project.chartRevision && rec.baseWriteAt !== project.lastWriteAt) return;
             const previous = applyProgressRecord(project, prev);
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.

@@ -22,7 +22,7 @@
       const sum=weights.reduce((a,b)=>a+b,0), amounts=dict();
       const length=((geometry==null?4.8*weight:geometry)*assumptions.strands/(fc/over)+2*assumptions.tailAllowanceIn/assumptions.stitchesPerRun*weight)*assumptions.wasteMultiplier;
       parts.forEach((t,i)=>{const k=String(t.brand||thread.brand||(p.settings&&p.settings.threadBrand)||'dmc').toLowerCase()+':'+t.id;amounts[k]=(amounts[k]||0)+length/1890*weights[i]/sum;});
-      out[unit]={type,amounts,assumptions:Object.assign({},assumptions,{weight,geometryInPerCount:geometry==null?4.8*weight:geometry,blendWeights:weights})};
+      out[(p.chartAccountingUnits&&p.chartAccountingUnits[unit])||unit]={type,amounts,assumptions:Object.assign({},assumptions,{weight,geometryInPerCount:geometry==null?4.8*weight:geometry,blendWeights:weights})};
     }
     (p.pattern||[]).forEach((t,i)=>{if(p.done&&p.done[i]===1)add('d:'+i,t,1,'full');});
     const hs=map(p.halfStitches), hd=map(p.halfDone);

@@ -4551,7 +4551,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v8 (2026-10-07 — import every design in a booklet)';
+  var BUILD = 'wireApp v9 (2026-10-17 — reviewed existing-project updates)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -4605,18 +4605,22 @@
 
   function openImportPicker(opts) {
     opts = opts || {};
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
       var input = document.createElement('input');
       input.type = 'file';
       input.accept = opts.accept || ACCEPT;
       input.style.position = 'fixed';
       input.style.left = '-9999px';
       document.body.appendChild(input);
+      input.addEventListener('cancel', function () {
+        if (input.parentNode) input.parentNode.removeChild(input);
+        resolve(null);
+      });
       input.addEventListener('change', function () {
         var f = input.files && input.files[0];
         if (input.parentNode) input.parentNode.removeChild(input);
         if (!f) { resolve(null); return; }
-        importAndReview(f, opts).then(resolve);
+        importAndReview(f, opts).then(resolve, reject);
       });
       input.click();
     });
@@ -4698,6 +4702,11 @@
         preferEdit: cameFromCreator(opts),
       }).then(function (out) {
         if (url) try { URL.revokeObjectURL(url); } catch (_) {}
+        // Existing-project updates must never pass through new-project saving.
+        if (out.action === 'confirm' && out.project && typeof opts.onReviewedProject === 'function') {
+          if (out.projects && out.projects.length > 1) throw new Error('Select a single design before updating an existing project.');
+          return opts.onReviewedProject(out.project, file);
+        }
         var dest = destinationOpts(out.destination, opts);
         if (out.action === 'confirm' && out.project && out.projects && out.projects.length > 1) {
           return saveAll(out.project, out.projects, dest);
