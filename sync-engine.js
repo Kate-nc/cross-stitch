@@ -1696,6 +1696,13 @@ const SyncEngine = (() => {
     // User profile: take whichever exists, prefer local
     merged.userProfile = (localStash && localStash.userProfile) || (remoteStash && remoteStash.userProfile) || null;
 
+    // Consumption events travel with stock, including zero-debit observations.
+    if ((localStash && localStash.thread_consumption_v2) || (remoteStash && remoteStash.thread_consumption_v2)) {
+      if (!window.ThreadAccounting) throw new Error('Consumption history support is required to sync this stash');
+      merged.thread_consumption_v2 = window.ThreadAccounting.mergeStock(localStash||{},remoteStash||{},merged.threads);
+    }
+    // Preserve old checkpoints as migration evidence; never reinterpret them as events.
+    [remoteStash,localStash].forEach(function(stash){Object.keys(stash||{}).forEach(function(k){if(k.indexOf('rt_deduction:')===0)merged[k]=stash[k];});});
     return merged;
   }
 
@@ -1798,9 +1805,10 @@ const SyncEngine = (() => {
       } catch (_) {}
 
       // Read stash (threads owned counts)
-      var stashSnap = {};
+      var stashSnap = {},stashConsumption={};
       try {
         var stashData = await readManagerStore();
+        if(stashData.thread_consumption_v2&&window.ThreadAccounting)stashConsumption=window.ThreadAccounting.totals(stashData.thread_consumption_v2);
         var threads = (stashData && stashData.threads) || {};
         var tKeys = Object.keys(threads);
         for (var ti = 0; ti < tKeys.length; ti++) {
@@ -1825,6 +1833,7 @@ const SyncEngine = (() => {
         _deviceId: getDeviceId(),
         projects: projectsSnap,
         stash: stashSnap,
+        stashConsumption: stashConsumption,
         prefs: prefsSnap
       };
 
@@ -2044,9 +2053,22 @@ const SyncEngine = (() => {
       Object.keys(allThreadIds).forEach(function(id) {
         var L = (localThreads[id] && typeof localThreads[id].owned === "number") ? localThreads[id].owned : 0;
         var R = (remoteThreads[id] && typeof remoteThreads[id].owned === "number") ? remoteThreads[id].owned : 0;
+        // Compare inventory after applying the same event union on each side.
+        // Differences explained solely by consumption are not stock-edit conflicts.
+        var ledger=plan.stashMerge.thread_consumption_v2,net=0,snapshotNet=null;
+        if(ledger){
+          var A=window.ThreadAccounting;
+          net=A.totals(ledger)[id]||0;
+          var ln=A.totals((plan.localStash&&plan.localStash.thread_consumption_v2)||A.empty())[id]||0;
+          var rn=A.totals(plan.syncObj.stash.thread_consumption_v2||A.empty())[id]||0;
+          L=Math.max(0,A.quantity(localThreads[id])+ln-net);
+          R=Math.max(0,A.quantity(remoteThreads[id])+rn-net);
+          snapshotNet=snapshot&&snapshot.stashConsumption?snapshot.stashConsumption[id]||0:null;
+        }
         if (L === R) return;
         if (!noSnapshot) {
           var S = typeof snapStash[id] === "number" ? snapStash[id] : null;
+          if(ledger)S=S!==null&&snapshotNet!==null?Math.max(0,S+snapshotNet-net):null;
           if (S !== null) {
             if (L !== S && R !== S && L !== R) {
               // Both devices changed it differently — conflict card (user chooses).
@@ -2450,26 +2472,6 @@ const SyncEngine = (() => {
     if (plan.stashMerge) {
       var stashToWrite = plan.stashMerge;
       try {
-        var remoteStash = (plan.syncObj && plan.syncObj.stash) || {};
-        var stashMergeOpts = plan.presentProjectIds
-          ? { presentProjectIds: plan.presentProjectIds } : undefined;
-        var freshLocalStash = await readManagerStore();
-        var freshMerge = mergeStash(freshLocalStash, remoteStash, stashMergeOpts);
-        var prepareBaseline = mergeStash(plan.localStash || {}, remoteStash, stashMergeOpts);
-        Object.keys(plan.stashMerge.threads || {}).forEach(function (tid) {
-          var planned = plan.stashMerge.threads[tid];
-          var base = prepareBaseline.threads ? prepareBaseline.threads[tid] : null;
-          if (planned && base && planned.owned !== base.owned && freshMerge.threads[tid]) {
-            freshMerge.threads[tid].owned = planned.owned;
-          }
-        });
-        stashToWrite = freshMerge;
-      } catch (remergeErr) {
-        // Fall back to the prepare-time merge rather than dropping the stash
-        // portion of the import.
-        console.warn("SyncEngine: fresh stash re-merge failed, applying prepare-time merge:", remergeErr);
-      }
-      try {
         // Same cross-tab lock StashBridge takes for every manager_state
         // write, so a sync import can't interleave with a bridge write from
         // another tab.
@@ -2478,11 +2480,27 @@ const SyncEngine = (() => {
           await new Promise(function (resolve, reject) {
             var tx = db.transaction("manager_state", "readwrite");
             var store = tx.objectStore("manager_state");
-            if (stashToWrite.threads) store.put(stashToWrite.threads, "threads");
-            if (stashToWrite.patterns) store.put(stashToWrite.patterns, "patterns");
-            if (stashToWrite.userProfile) store.put(stashToWrite.userProfile, "userProfile");
+            // Read and re-merge inside the write transaction. Optional tab locks
+            // may time out; IndexedDB itself provides the exclusion.
+            var fresh={};
+            var cursorReq=store.openCursor();
+            cursorReq.onsuccess=function(){
+              var cursor=cursorReq.result;
+              if(cursor){fresh[cursor.key]=cursor.value;cursor.continue();return;}
+              try{
+                var remote=(plan.syncObj&&plan.syncObj.stash)||{};
+                var opts=plan.presentProjectIds?{presentProjectIds:plan.presentProjectIds}:undefined;
+                var result=mergeStash(fresh,remote,opts);
+                var base=mergeStash(plan.localStash||{},remote,opts);
+                Object.keys(stashToWrite.threads||{}).forEach(function(k){
+                  if(base.threads[k]&&result.threads[k]&&stashToWrite.threads[k].owned!==base.threads[k].owned)result.threads[k].owned=stashToWrite.threads[k].owned===0?0:Math.max(0,result.threads[k].owned+stashToWrite.threads[k].owned-base.threads[k].owned);
+                });
+                Object.keys(result).forEach(function(k){if(result[k]!=null)store.put(result[k],k);});
+              }catch(e){tx.abort();reject(e);}
+            };
             tx.oncomplete = function () { db.close(); resolve(); };
             tx.onerror = function () { db.close(); reject(tx.error); };
+            tx.onabort = function () { db.close(); reject(tx.error||new Error("Stash transaction aborted")); };
           });
         });
       } catch (e) {

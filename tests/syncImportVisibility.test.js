@@ -89,14 +89,16 @@ function makeFakeManagerDB(state) {
               const cursor = pair
                 ? { key: pair[0], value: pair[1], continue() { i++; setImmediate(step); } }
                 : null;
+              r.result=cursor;
               if (r.onsuccess) r.onsuccess({ target: { result: cursor } });
+              if(!cursor)setImmediate(()=>{if(tx.oncomplete)tx.oncomplete();});
             }
             setImmediate(step);
             return r;
           }
         };
       };
-      setImmediate(() => { if (tx.oncomplete) tx.oncomplete(); });
+
       return tx;
     }
   };

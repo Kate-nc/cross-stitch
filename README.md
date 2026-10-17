@@ -47,7 +47,7 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 A digital replacement for a printed chart while you stitch.
 
-Live stash deductions use persistent per-project checkpoints on this device; reopening and retrying do not charge the same consumption twice. Existing marks are checkpointed without charging historical use. See [thread deduction accounting](reports/thread-deduction-accounting.md) for formulas, migration and unpick limitations.
+Live stash deductions record durable events for full and fractional stitches, knots and backstitch. Estimates keep their original assumptions; retries and stash sync deduplicate events. Existing balances receive an explicit historical baseline. Ordinary mark corrections credit recorded debits; physical Unpick area keeps usage consumed and restitching charges again. More > Tools > Thread consumption history explains adjustments. Complete history travels with stash backups and sync. See [accounting rules and migration evidence](reports/thread-deduction-accounting.md).
 
 - **Marking:** Mark mode — click, tap or drag to mark stitches done; Shift+drag (or press-and-hold then tap on touch) marks a rectangle. On touch, one finger marks and two fingers pan and zoom.
 - **Navigate mode:** a hand tool — drag to move around, click to place a guide crosshair across a row and column.

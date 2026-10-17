@@ -570,6 +570,12 @@ const BackupRestore = (() => {
           }
         }
       }
+      const managerRows=backup.databases.stitch_manager_db&&backup.databases.stitch_manager_db.manager_state;
+      const accounting=managerRows&&managerRows.find(e=>e&&e.key==='thread_consumption_v2');
+      if(accounting){
+        try{if(!window.ThreadAccounting)throw new Error('Consumption history support is required to restore this backup');window.ThreadAccounting.validate(accounting.value);}
+        catch(e){return {valid:false,error:e.message};}
+      }
       if (Object.prototype.hasOwnProperty.call(backup, "preferences")) {
         try { preferenceAPI().validatePortableSnapshot(backup.preferences); }
         catch (e) { return { valid: false, error: e.message }; }

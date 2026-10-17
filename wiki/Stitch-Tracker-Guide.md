@@ -231,13 +231,11 @@ Start timer records elapsed time even without marked stitches. Pauses and hidden
 
 ## Live stash deductions
 
-In More > Tools, enable **Use up stash thread as I stitch**. New full-cross consumption is deducted after 30 seconds of inactivity, when hiding the page, and on completion or navigation where the browser allows the write to finish. Reopening or retrying uses saved per-project checkpoints, so unchanged consumption does not deduct again. Stash additions and other projects' deductions are retained on this device.
+In More > Tools, enable **Use up stash thread as I stitch**. New full, half, quarter and petite stitches, French knots and backstitch create durable consumption events with their original fabric, strand, blend, tail and waste assumptions. Changing preferences affects later stitches. Backstitch is estimated by line length; knots use a full-cross allowance.
 
-The first checkpoint treats existing marks as historical: older projects may already have deducted that thread, so the app never silently charges it again. Turning Live off keeps recorded deductions; re-enabling catches up marks above the saved checkpoint, including marks added while off. Blends divide usage between constituent strands. Half stitches, quarters, knots and backstitch are outside the current live consumption model.
+On first use, an explicit baseline preserves existing stock without inventing earlier usage. Ordinary unmark, Undo and Reset correct accidental progress: only an actual recorded debit is credited. **Unpick area** records physical removal without returning stock; stitching that area again charges a new occurrence. Undoing an accidental Unpick area restores its state without using more thread.
 
-Unmarking, Undo and Reset do not return thread to inventory. Physical unpicking usually discards thread. For an erroneous tracking deduction, turn Live off and choose **Correct deductions recorded for this project**. This credits only recorded actual debits, once, and preserves later purchases and other projects. It cannot recover deductions made before accounting metadata existed. Physical restitching below the previous consumption peak is not automatically counted again; adjust stash manually until a separate restitch accounting workflow is defined.
-
-Accounting is local to this browser's stash database. Cross-device stash synchronisation, restoring older backups and reconciling inventory on separate devices do not provide a distributed transaction guarantee. See [the engineering notes](../reports/thread-deduction-accounting.md).
+Marks made while Live is off are recorded without a stock debit; re-enabling affects subsequent stitching. This replaces the old high-water catch-up behaviour. **Thread consumption history** in Tools explains estimates, debits, corrections and the historical baseline. Full backups and stash sync preserve all events and assumptions. Update every device before syncing. Incompatible histories or combined offline usage beyond recorded stock require inventory reconciliation. See [the accounting rules](../reports/thread-deduction-accounting.md).
 
 ### Undo, Redo and session totals
 

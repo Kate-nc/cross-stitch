@@ -38,7 +38,7 @@ var LOW_STASH_SKEIN_THRESHOLD = 1;
 // partialStatus "used-up" contributes 0 (skein is exhausted).
 function stashEffectiveQty(entry) {
   if (!entry || typeof entry !== 'object') return 0;
-  var full = typeof entry.owned === 'number' && !isNaN(entry.owned) && entry.owned > 0
+  var full = typeof entry.owned === 'number' && Number.isFinite(entry.owned) && entry.owned > 0
     ? entry.owned : 0;
   return full + (PARTIAL_STATUS_FRACTIONS[entry.partialStatus] || 0);
 }
@@ -459,7 +459,11 @@ const StashBridge = (() => {
           tx.onerror = () => rejectOnce(tx.error || new Error('Transaction failed'));
           tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
           // Both reads and both writes belong to the same IDB transaction.
-          let record;
+          let record, legacy;
+          if (opts.legacyKey) {
+            const legacyReq=store.get(opts.legacyKey);
+            legacyReq.onsuccess=()=>{legacy=legacyReq.result;};
+          }
           if (opts.recordKey) {
             const recordReq = store.get(opts.recordKey);
             recordReq.onsuccess = () => { record = recordReq.result; };
@@ -467,7 +471,7 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3, record: record };
+            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3, record: record, legacy: legacy };
             let outcome;
             try {
               outcome = mutate(threads, ctx) || {};
@@ -566,6 +570,7 @@ const StashBridge = (() => {
     // Accepts composite keys ('dmc:310') or bare legacy IDs ('310').
     // Tracks history of owned-count changes for stats.
     async updateThreadOwned(dmcId, newCount) {
+      if(!Number.isFinite(newCount)||newCount<0)throw new Error('Owned quantity must be finite and non-negative');
       const key = _normaliseKey(dmcId);
       try {
         return await _withThreadsWrite('updateThreadOwned', function (threads, ctx) {
@@ -603,6 +608,7 @@ const StashBridge = (() => {
           const entry=_ensureThreadEntry(threads,_normaliseKey(key),ctx).entry;
           fields.forEach(f=>{
             if(f==='owned') {
+              if(!Number.isFinite(after.owned)||after.owned<0)throw new Error('Owned quantity must be finite and non-negative');
               const oldOwned=Number(entry.owned)||0;
               const delta=(Number(after.owned)||0)-(Number(before.owned)||0);
               entry.owned=after.owned===0?0:Math.max(0,oldOwned+delta);
@@ -617,6 +623,30 @@ const StashBridge = (() => {
         }
         return { changedKeys: changedKeys, value: threads };
       }, { invalidateStats: true });
+    },
+
+    async getConsumptionAccounting() {
+      const db=await openManagerDB();
+      try{return await new Promise((resolve,reject)=>{
+        const tx=db.transaction('manager_state','readonly');
+        const req=tx.objectStore('manager_state').get(window.ThreadAccounting.KEY);
+        req.onsuccess=()=>resolve(req.result||window.ThreadAccounting.empty());
+        req.onerror=()=>reject(req.error);
+      });}finally{db.close();}
+    },
+
+    // Consumption history and inventory are one atomic manager_state write.
+    async applyConsumptionEvents(projectId, initialMarks, operations) {
+      if(!projectId)throw new Error('A saved project id is required');
+      const A=window.ThreadAccounting;
+      if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
+      return _withThreadsWrite('consumption-events',function(threads,ctx){
+        if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
+        const ledger=ctx.record||A.empty();
+        A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
+        const changed=A.apply(ledger,threads,operations||[],ctx.now);
+        return {record:ledger,value:{accounting:ledger,threads},changedKeys:changed};
+      },{recordKey:A.KEY,legacyKey:'rt_deduction:'+projectId,invalidateStats:true});
     },
 
     // Absolute cumulative consumption, keyed by brand:id. The checkpoint and
