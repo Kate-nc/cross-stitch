@@ -27,6 +27,7 @@
       return window.ImportEngine.sniffMagic(probe);
     }
     const name = (probe.fileName || '').toLowerCase();
+    if (name.endsWith('.xsd')) return { format: 'xsd', confidence: 0.7 };
     if (name.endsWith('.pdf')) return { format: 'pdf', confidence: 0.7 };
     if (name.endsWith('.oxs') || name.endsWith('.xml')) return { format: 'oxs', confidence: 0.7 };
     if (name.endsWith('.json')) return { format: 'json', confidence: 0.7 };
@@ -233,7 +234,9 @@
         return { ok: false, error: err, warnings };
       }
       if (err && (err.name === 'ImportUnsupportedError' || err.name === 'ImportParseError' || err.name === 'ImportValidateError')) {
-        return { ok: false, error: err, warnings };
+        const failure = { ok: false, error: err, warnings };
+        if (err.details && err.details.verification) failure.verification = err.details.verification;
+        return failure;
       }
       // Unknown error — wrap as ParseError so callers don't have to special-case.
       const wrapped = ENGINE.errors.ParseError(err && err.message || String(err), { cause: err && err.stack });

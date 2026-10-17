@@ -31,6 +31,10 @@
     const ext = extOf(probe.fileName || '');
     const mime = (probe.mimeType || '').toLowerCase();
 
+    // XSD is a versioned binary family. Route even XML/schema or renamed
+    // inputs through its strict parser; an extension never proves support.
+    if (ext === 'xsd' || (bytes[0] === 0x10 && bytes[1] === 0x05)) return { format: 'xsd', confidence: bytes[0] === 0x10 && bytes[1] === 0x05 ? 0.9 : 0.7 };
+
     // 1. Try magic bytes.
     let magicFmt = null;
     for (const sig of SIGNATURES) {

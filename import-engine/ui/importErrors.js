@@ -4,7 +4,7 @@
  *   - classifyFileForCreate(file) → 'image' | 'pattern' | 'unsupported'
  *     Decides, before anything is read, whether a picked or dropped file goes
  *     to the image converter, the import engine, or is turned away. Files
- *     from other design programs (.xsd, .pat, .xsp …) used to be treated as
+ *     from other design programs (.pat, .xsp …) used to be treated as
  *     images, failed to decode and left the user on an empty screen.
  *   - describeImportError(err, fileName) → { message, technical, copyDetails }
  *     Maps a pipeline error to copy a stitcher can act on. The technical
@@ -23,7 +23,6 @@
   // Formats from other cross-stitch software that we can't read yet.
   // program: null means "another program" in the message.
   var UNSUPPORTED = {
-    xsd: 'Pattern Maker',
     pat: 'PCStitch',
     xsp: 'XStitch Pro',
     saga: null,
@@ -31,7 +30,7 @@
     dize: null,
     hvn: null,
   };
-  var PATTERN_EXT = /^(oxs|xml|json|pdf)$/;
+  var PATTERN_EXT = /^(oxs|xml|json|pdf|xsd)$/;
   var IMAGE_EXT = /^(jpe?g|png|gif|webp|bmp|avif|heic|heif|tiff?)$/;
   var HELP_QUERY_TOPIC = { topic: 'creator', section: 'What can I import?' };
 
@@ -77,6 +76,9 @@
 
     if (ext && classifyFileForCreate({ name: 'f.' + ext, type: '' }) === 'unsupported') {
       out.message = unsupportedMessage(ext);
+    } else if (unreadable && (ext === 'xsd' || strategy === 'xsd')) {
+      out.message = (/^XSD: /.test(technical) ? technical : 'This XSD chart could not be read') + '. Export this chart from its source program as OXS or PDF if it is outside the XSD support limits.';
+      out.copyDetails = true;
     } else if (unreadable && (ext === 'pdf' || strategy === 'pdf' || strategy === 'pdf-glyph')) {
       out.message = 'This PDF couldn’t be read. It may be damaged or password-protected.';
     } else if (unreadable && (ext === 'json' || strategy === 'json')) {

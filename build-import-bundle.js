@@ -23,6 +23,8 @@ const ORDER = [
   'pipeline/assemble.js',
   'pipeline/validate.js',
   'pipeline/materialise.js',
+  'formats/xsd.js',
+  'strategies/xsdStrategy.js',
   'strategies/oxsStrategy.js',
   'strategies/jsonStrategy.js',
   'strategies/imageStrategy.js',

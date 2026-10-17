@@ -1547,7 +1547,7 @@ function CreatorApp({
     runNamedAction(key);
   }, [pendingNamedAction, state.namePromptOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const printPdfWithNameNudge = () => _nameNudgeRef.current('pdf');
-  // Audit IMPORT-05: files from other design programs (.xsd, .pat, .xsp …)
+  // Audit IMPORT-05: files from other design programs (.pat, .xsp …)
   // and other non-images are turned away with a plain-English toast instead
   // of being handed to the image converter (import-engine/ui/importErrors.js).
   const rejectUnsupportedFile = f => {
@@ -1646,7 +1646,7 @@ function CreatorApp({
   }, /*#__PURE__*/React.createElement("input", {
     ref: state.loadRef,
     type: "file",
-    accept: window.Platform ? window.Platform.fileAccept(".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept(".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -1655,7 +1655,7 @@ function CreatorApp({
         e.target.value = '';
         return;
       }
-      var isPattern = /\.(oxs|xml|pdf)$/i.test(n);
+      var isPattern = /\.(oxs|xml|pdf|xsd)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
         e.target.value = '';
         window.ImportEngine.importAndReview(f, {
@@ -2022,7 +2022,7 @@ function CreatorApp({
   }, "Preparing your pattern\u2026"), isActive && state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !window.__pendingProjectBrandLoad && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
-    accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xml,.json,.pdf") : "image/*,.oxs,.xml,.json,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.oxs,.xsd,.xml,.json,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -2031,8 +2031,8 @@ function CreatorApp({
         e.target.value = '';
         return;
       }
-      var isImage = (f.type || '').indexOf('image/') === 0;
-      var isPattern = !isImage && /\.(oxs|xml|json|pdf)$/i.test(n);
+      var isImage = !/\.xsd$/i.test(n) && (f.type || '').indexOf('image/') === 0;
+      var isPattern = !isImage && /\.(oxs|xml|json|pdf|xsd)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
         e.target.value = '';
         window.ImportEngine.importAndReview(f, {

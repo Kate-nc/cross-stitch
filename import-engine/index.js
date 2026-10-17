@@ -61,6 +61,17 @@
   async function importPattern(file, opts) {
     opts = opts || {};
 
+    // Recognise oversized XSD Files before reading their complete payload,
+    // including renamed files. Other formats retain their existing limits.
+    const xsdLimit = 16 * 1024 * 1024;
+    if (file && file.size > xsdLimit) {
+      let isXSD = /\.xsd$/i.test(file.name || '');
+      if (!isXSD && typeof file.slice === 'function') {
+        const head = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+        isXSD = head[0] === 0x10 && head[1] === 0x05;
+      }
+      if (isXSD) return { ok: false, error: ENGINE.errors.ParseError('XSD: exceeds the 16 MiB input limit', { strategy: 'xsd' }), warnings: [] };
+    }
     const buffer = await readAllBytes(file);
     const bytes = new Uint8Array(buffer);
 

@@ -125,6 +125,7 @@ See **[Cross-Device Sync](Cross-Device-Sync.md)** for encryption, pairing codes 
 
 Yes. **Home > Create new > New from pattern file** (or **File > Open…**) reads:
 - `.oxs` files (KG-Chart / Pattern Keeper / Open X-Stitch)
+- Pattern Maker `.xsd` binary charts from 4.8.4.12 only. Review counted omissions and compare with the original; [support and verification limits](../docs/xsd-import.md). XML Schema documents and PAT files are unsupported.
 - `.json` stitchx project files
 - images — converted into a pattern
 - PDF charts — including charts printed over several pages, scanned charts and booklets with several designs. A review screen lets you check pages and threads before saving.
