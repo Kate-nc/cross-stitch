@@ -444,3 +444,7 @@ Import review shows separate verification checks for recognised cells, legend ma
 Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.
 
 Bead progress: the Tracker Beads list selects and marks individual beads, including overlaps. Bead counts are separate from stitch percentages. Undo/Redo, project saves, backups and sync retain marks. See [the Tracker guide](wiki/Stitch-Tracker-Guide.md) for lifecycle and export limits.
+
+### Automatic WebDAV sync
+
+An optional, user-configured WebDAV connection exchanges verified v2 sync files while the page is visible and online. No hosted service or paid account is required. Credentials stay in page memory; reconnect after navigation. Your deployment must proxy DAV on the app origin or explicitly allowlist your chosen server in CSP. See [setup, security, status and limitations](docs/webdav-sync.md). Local-only use, manual/folder sync and full backups remain available; continuous iOS background sync is not provided.

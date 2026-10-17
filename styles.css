@@ -8852,3 +8852,13 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 }
 
 .ready-review-images--sample.is-enlarged canvas { max-width: none; }
+
+/* Optional foreground WebDAV connection in Preferences. */
+.webdav-panel { padding: 16px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); }
+.webdav-panel p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.webdav-panel form, .webdav-panel label { display: flex; flex-direction: column; gap: 8px; }
+.webdav-panel form { gap: 12px; }
+.webdav-panel input { width: 100%; box-sizing: border-box; padding: 8px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.webdav-panel button { padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); cursor: pointer; }
+.webdav-panel button:disabled { opacity: .5; cursor: default; }
+.webdav-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

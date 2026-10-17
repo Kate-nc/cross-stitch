@@ -118,6 +118,7 @@ var PRECACHE_URLS = [
   // has it inside creator/bundle.js.
   './creator/pdfExport.js',
   './sync-engine.js',
+  './webdav-sync.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
   './assets/fonts/CrossStitchSymbols.ttf',
 
@@ -130,7 +131,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "aa75f44b796b33d580ffc0bb49487bf03d5d1a8f2bbfc5664dd6ee966c0030e0";
+var BUILD_ID = "f8c94528480690d9d572ca90e15a996c03915cf6ac4a2f720627abe3cf5ab1c0";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -223,6 +224,7 @@ var REQUIRED_URLS = [
   "./help-drawer.js",
   "./creator/pdfExport.js",
   "./sync-engine.js",
+  "./webdav-sync.js",
   "./assets/fonts/CrossStitchSymbols.base64.js",
   "./assets/fonts/CrossStitchSymbols.ttf",
   "https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js",
@@ -262,19 +264,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "530ed0b9991f112955bb313bedce884efd7b7508b434ca8e1dd8d4e45bc3ea9e"
+    "sha256": "be851e3a806720e8e7ddc362c70e443abba91ff3045bc82ed7e4853860184bfd"
   },
   "./index.html": {
-    "sha256": "673fa867903321321a0a4c2ca02d18fcd5d1371fa790008a20d9611dc3ccc9f0"
+    "sha256": "430e883da4da7c969adfc0083ac59c43e1e4596b71645d4211342fd48ce04c54"
   },
   "./create.html": {
-    "sha256": "7108802cc41d66787b674bf3a28dc39b07ee320e4f5462a15d0ecdeaa5257c9b"
+    "sha256": "ee61a0e1a93fc37ca366b936e3e6d210c026ed321fabf8a4f3f7528e8e86ab94"
   },
   "./stitch.html": {
-    "sha256": "543987f7ff098c5792678730a681e8e1cfbf46175d677e5347b627975d7a31a1"
+    "sha256": "dc697e9bbfbed908f1f2433bb0601f09c378eca2b83ced6789aaefba84342aa8"
   },
   "./manager.html": {
-    "sha256": "0e85bf3b9be06b631d20b9f6cda4560d258129c9ac805982cbd40c2a82dc97fb"
+    "sha256": "44a79c99cdecdffd133ec85cfeb590b8c93b47cfae76a129b298fd26b5bd67ea"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -292,10 +294,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "50f508e0589d27eac382c4176a436b441cffc3c3e015390c560648b4e29b66cc"
+    "sha256": "a5ac1f92627fdf667306446e6e09a796cd931d82ba9905ae39ac1d406922dc3b"
   },
   "./version.js": {
-    "sha256": "edd05e0a72b305098e4ae8df2f81a5ecd9bbf610b018421a4771b99f218b7017"
+    "sha256": "87803d8fb9958ebf2ddf23727587bc6f645d49e8afe644674e58c6e6eb6ef852"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -370,7 +372,7 @@ var BUILD_ASSETS = {
     "sha256": "ee35e3e194037dc9bdc9c74591fd4945db28fe3df53aea0398e9703f768fb0f8"
   },
   "./header.js": {
-    "sha256": "42782d6639dac5b3858dbe41677dffe7d0e544a99f7445cbb9b03e1ea32c7cad"
+    "sha256": "160b56af5458091461cc2556c4211a5c79cef225213030b1c31a4989898dd20b"
   },
   "./modals.js": {
     "sha256": "eb84db870b91539ed2e5e79fe6886bfadcf81d2b8005c8573f6482bda925f959"
@@ -400,7 +402,7 @@ var BUILD_ASSETS = {
     "sha256": "2168eff891a0168c3f4cee3f9356e4a6b04aac05c3927d9ff849f1768f86eb5d"
   },
   "./blob-store.js": {
-    "sha256": "679b49816912050765871f58aff0856a2c4bd0cf5a6299e6325c26e40ebb0e7c"
+    "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
   },
   "./thread-accounting.js": {
     "sha256": "c61545c36f392bf93a7f4d00b33a7b365e06426d88733db838ca980e3440a494"
@@ -526,13 +528,16 @@ var BUILD_ASSETS = {
     "sha256": "2fdcf834be0f2af1c90860ccacccb0cb9c81a07cd185a145b58f5c4b675eeaa5"
   },
   "./help-drawer.js": {
-    "sha256": "ac147d6ca24b3a06c58dc3c14989d04b56abfb91723ee8d8e81b6f632a2ff728"
+    "sha256": "2b6611d21785ac59b188d331d892a016f232ba48656f2e220e524bcca3d50d33"
   },
   "./creator/pdfExport.js": {
     "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
   },
   "./sync-engine.js": {
-    "sha256": "45ba7ee57e8e35990a1e1431fb0bbf065528be5853ecc09e2e7acf8a297cdaeb"
+    "sha256": "994ee1a34fe6e7c6e6f82568184eae0aa3f82b3343d1c711b6b774df7b5cd42b"
+  },
+  "./webdav-sync.js": {
+    "sha256": "eb6cceb9c949c479b79108eeae059db6022221763d97ba454578672be887a39c"
   },
   "./assets/fonts/CrossStitchSymbols.base64.js": {
     "sha256": "c6b5293953acb71cf7dd71bd8b293333c9012ab1760ba3f7a19e7977f3b30ca4"
@@ -580,7 +585,7 @@ var BUILD_ASSETS = {
     "sha256": "8dc10cf65cc4cac5838ac62e1dd52b4ea79f2bc844767f77e7dd72d7005761e4"
   },
   "./preferences-modal.js": {
-    "sha256": "dad4fd03f7a0197bd1f1bea7a7626b36539e5b15099be314c9867339dba13c71"
+    "sha256": "badf334e86fd439e97b5fa4f0c03c63715b54296a0ef59194fc686b66319d7f4"
   },
   "./coaching.js": {
     "sha256": "fdd2a7cea5a5780f52b6c3f5e240344d3dabe1faa6a4d8f2ad76db47f319ab4c"

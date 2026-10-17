@@ -3515,6 +3515,7 @@ const SyncEngine = (() => {
   }
 
   function triggerAutoExport() {
+    if (window.WebDAVSync) window.WebDAVSync.changed();
     if (!isAutoSyncEnabled()) return;
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
       if (!dirHandle) return;
@@ -4610,9 +4611,30 @@ const SyncEngine = (() => {
     try { localStorage.removeItem(LS_HANDSHAKE_TOKENS); } catch (e) {}
   }
 
+  // Shared protocol entry point for automatic transports. Never choose conflicts
+  // on behalf of the user, and never partition an attachment-bearing delivery.
+  async function receiveAutomatic(syncObj, source, active) {
+    var plan = await prepareImport(syncObj);
+    if (!active()) return 'cancelled';
+    plan._transportSource = source;
+    if (!_planHasProjectWork(plan) && !_planHasSideEffects(plan)) {
+      _setProtocolState('completed');
+      return 'unchanged';
+    }
+    if (_isPlanAutoApplicable(plan)) {
+      await executeImport(plan);
+      try { window.dispatchEvent(new CustomEvent('cs:backupRestored')); } catch (_) {}
+      return 'applied';
+    }
+    setPendingPlan(plan);
+    _setProtocolState('conflicted', 'Review the incoming sync changes.');
+    return 'review';
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   return {
+    receiveAutomatic: receiveAutomatic,
     // Export
     exportSync: exportSync,
     downloadSync: downloadSync,

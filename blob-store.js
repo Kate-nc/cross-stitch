@@ -56,12 +56,18 @@
     });
   }
 
+  function changed(id) {
+    if (/^(trace|photo|photothumb):/.test(id) && root.dispatchEvent) {
+      try { root.dispatchEvent(new CustomEvent('cs:attachmentsChanged')); } catch (_) {}
+    }
+  }
+
   function put(id, record) {
     var rec = Object.assign({}, record, { id: id });
     if (!rec.createdAt) rec.createdAt = Date.now();
     rec.updatedAt = Date.now();
     rec.syncRevision = newId('revision');
-    return run('readwrite', function (s) { return s.put(rec); }).then(function () { return rec; });
+    return run('readwrite', function (s) { return s.put(rec); }).then(function () { changed(id); return rec; });
   }
 
   function get(id) {
@@ -93,7 +99,7 @@
     });
   }
 
-  function del(id) { return erase(id); }
+  function del(id) { return erase(id).then(function () { changed(id); }); }
 
   function list(prefix) {
     return run('readonly', function (s) { return s.getAll(); }).then(function (all) {
@@ -121,7 +127,7 @@
   }
 
   function deletePrefix(prefix) {
-    return erase(prefixRange(prefix));
+    return erase(prefixRange(prefix)).then(function () { changed(prefix); });
   }
 
   function newId(kind) {
