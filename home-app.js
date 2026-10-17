@@ -284,7 +284,8 @@
             type: 'button',
             className: 'btn',
             onClick: function () { activateAndGoExport(p.id); }
-          }, 'Export pattern')
+          }, 'Export pattern'),
+          h('button', {type:'button',className:'btn',onClick:function(){ window.ChartUpdates.open(p.id).catch(function(e){window.Toast.show({message:e.message,type:'error'});}); }}, 'Update chart')
         )
       )
     );
@@ -461,7 +462,8 @@
                 type: 'button',
                 className: 'btn btn-sm',
                 onClick: function () { activateAndGoExport(p.id); }
-              }, 'Export')
+              }, 'Export'),
+              h('button', {type:'button',className:'btn btn-sm',onClick:function(){ window.ChartUpdates.open(p.id).catch(function(e){window.Toast.show({message:e.message,type:'error'});}); }}, 'Update chart')
             )
           );
         })

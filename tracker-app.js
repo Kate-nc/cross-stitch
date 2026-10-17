@@ -2527,7 +2527,7 @@ const difficultyMetrics=useMemo(()=>{
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
 // Capture assumptions with each progress transition. Preferences alone never create usage.
-const rtMarks=useMemo(()=>window.ThreadAccounting.snapshot({pattern:pat,done,fabricCt,
+const rtMarks=useMemo(()=>window.ThreadAccounting.snapshot({...v3FieldsRef.current,pattern:pat,done,fabricCt,
   halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,
   settings:{threadBrand}},wastePrefs),[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,countsVer]);
 const rtAmounts=useMemo(()=>{const out={};Object.values(rtMarks).forEach(m=>Object.entries(m.amounts).forEach(([k,v])=>out[k]=(out[k]||0)+v));return out;},[rtMarks]);
@@ -3466,6 +3466,7 @@ async function doSaveProject(finalName){
   const psArr = partialsForSave(partialStitches, threadBrand);
   let project={
     version:11,
+    chartRevision:v3FieldsRef.current.chartRevision,chartAccountingUnits:v3FieldsRef.current.chartAccountingUnits,meta:v3FieldsRef.current.meta,
     id:projectIdRef.current||undefined,
     page:"tracker",
     name:finalName,
@@ -3693,6 +3694,7 @@ function handleEditInCreator(){
         if(typeof window.__updateCreatorTrackerFields==='function'){
           var _v3h=v3FieldsRef.current||{};
           window.__updateCreatorTrackerFields({
+            chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,
             statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
             achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots, deletedSnapshotIds:project.deletedSnapshotIds,
             breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
@@ -4067,7 +4069,7 @@ function processLoadedProject(project){
   setParkMarkers(liveParkMarkers);
   setBreadcrumbs(project.breadcrumbs||[]);
   // Preserve v3 stats fields through auto-save round-trips
-  v3FieldsRef.current={finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
+  v3FieldsRef.current={chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,finishStatus:project.finishStatus,startedAt:project.startedAt,lastTouchedAt:project.lastTouchedAt,completedAt:project.completedAt,stitchLog:project.stitchLog};
   if(project.stitchingStyle)setStitchingStyle(project.stitchingStyle);
   // T-2: prefer the per-project value; fall back to last-used (localStorage)
   // or the user pref shape; final default 10/TL. Doing it here (not in
@@ -4859,6 +4861,7 @@ useEffect(() => {
           if(typeof window.__updateCreatorTrackerFields==='function'){
             var _v3=v3FieldsRef.current||{};
             window.__updateCreatorTrackerFields({
+            chartRevision:project.chartRevision,chartAccountingUnits:project.chartAccountingUnits,meta:project.meta,
               statsSessions:project.statsSessions, deletedSessionIds:project.deletedSessionIds, statsSettings:project.statsSettings,
               achievedMilestones:project.achievedMilestones, doneSnapshots:project.doneSnapshots, deletedSnapshotIds:project.deletedSnapshotIds,
               breadcrumbs:project.breadcrumbs, stitchingStyle:project.stitchingStyle,
@@ -7961,7 +7964,7 @@ function applyUnpickPlan(p,undo){
   if(ctx){
     const units=[...p.full.map(c=>'d:'+c.idx),...p.half.flatMap(c=>['fwd','bck'].filter(d=>c.before&&c.before[d]&&!(c.after&&c.after[d])).map(d=>'h:'+c.idx+':'+d)),
       ...p.quarter.flatMap(c=>(c.before||[]).filter(pos=>!(c.after||[]).includes(pos)).map(pos=>'q:'+c.idx+':'+pos)),...p.knots.map(k=>'k:'+(typeof k==='string'?k:k.key)),...p.bs.map(k=>'b:'+k),...(p.specialty||[]).map(uid=>'s:'+uid)];
-    units.forEach(u=>ctx.intents[u]=undo?'undo-unpick':'unpick');
+    units.forEach(u=>ctx.intents[(v3FieldsRef.current.chartAccountingUnits||{})[u]||u]=undo?'undo-unpick':'unpick');
   }
 
   if(p.full.length){

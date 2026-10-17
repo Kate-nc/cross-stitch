@@ -256,3 +256,25 @@ Beads are quantities, separate from stitch units, percentages, thread requiremen
 Project saves, reloads, full backups/restores and .csync preserve the bead array and `beadsDone` object IDs. Version 11 projects remain readable; optional `uid` on a bead is distinct from material `id`, `brand`, `label` and colour. Legacy beads receive deterministic IDs. Move or edit an object while keeping its `uid` to retain completion. Deleting it removes it from live progress; a replacement or copy must receive a new ID. The Creator currently carries beads through saves but does not provide individual bead editing or copying. Canvas resize moves beads with the canvas, drops cropped beads from progress, and Undo restores both objects and their marks.
 
 PDF and image exports omit beads. OXS exports bead labels, colours and positions, but omits completion and object IDs; repeated identical ornaments at the same position may be deduplicated on OXS import. Use project saves or backups for a complete progress round trip. Bead marks are managed individually in the Beads list; stitch bulk marking, colour locks, layer visibility and Unpick area do not change bead marks.
+
+## Corrected charts and stitch-along pages
+
+On Home, use **Update chart** for the existing project. End and save your session
+first. Review the imported design, then choose a corrected full chart or added
+pages. Confirm page placement and whole-cell coordinate offsets in the difference
+preview. For an inserted page, the advanced region mappings move only the old
+rectangle after the insertion. Geometry and thread identity drive matching;
+symbol changes and palette reordering alone do not reset completion.
+
+Every ambiguous overlap, changed stitch and deletion needs an explicit decision.
+Transfer accepts your existing work for that target; archive leaves the
+replacement unmarked and keeps the old work in the recovery snapshot. Notes and
+sessions are retained; old edit caches and displaced annotations are archived
+with acknowledgement. Updates and rollback consume no thread. Existing matching
+stitches retain their inventory history for later correction or unpicking.
+
+Use **Update chart > Recovery snapshots** to download the pre-update project and
+source or review a rollback. A rollback first saves your current state in another
+snapshot. Snapshots are local to this browser and excluded from portable backups
+and sync attachments; download them before clearing browser storage. Import
+limitations still apply. Repair unsupported objects in the source application.

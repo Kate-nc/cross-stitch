@@ -156,3 +156,29 @@ describe('wireApp.saveAll — a booklet imported whole', () => {
     expect(out.projects).toHaveLength(3);
   });
 });
+
+describe('reviewed chart update handoff',()=>{
+  it('returns the reviewed project and original file without saving or navigating',async()=>{
+    const ctx=loadWireApp('home.html'),project={settings:{sW:1,sH:1},pattern:[{id:'310'}]},file={name:'corrected.json'};
+    ctx.win.ImportEngine.importPattern=jest.fn().mockResolvedValue({ok:true,project});
+    ctx.win.ImportEngine.openReview=jest.fn().mockResolvedValue({action:'confirm',project});
+    const onReviewedProject=jest.fn().mockResolvedValue({action:'update-preview'});
+    const out=await ctx.win.ImportEngine.importAndReview(file,{onReviewedProject});
+    expect(onReviewedProject).toHaveBeenCalledWith(project,file);expect(out.action).toBe('update-preview');
+    expect(ctx.saved).toEqual([]);expect(ctx.getAssigned()).toBeNull();
+  });
+  it('rejects a booklet with multiple designs without saving any project',async()=>{
+    const ctx=loadWireApp('home.html'),project={settings:{sW:1,sH:1},pattern:[{id:'310'}]};
+    ctx.win.ImportEngine.importPattern=jest.fn().mockResolvedValue({ok:true,project});
+    ctx.win.ImportEngine.openReview=jest.fn().mockResolvedValue({action:'confirm',project,projects:[project,{...project}]});
+    await expect(ctx.win.ImportEngine.importAndReview({name:'booklet.pdf'},{onReviewedProject:jest.fn()})).rejects.toThrow(/single design/);
+    expect(ctx.saved).toEqual([]);
+  });
+});
+
+it('rejects a picker failure so the chart-update dialog can reopen with an error',async()=>{
+  const ctx=loadWireApp('home.html'),listeners={};
+  global.document.createElement=()=>({style:{},files:[{name:'broken.pdf'}],addEventListener:(name,fn)=>{listeners[name]=fn;},click:()=>listeners.change()});
+  ctx.win.ImportEngine.importPattern=jest.fn().mockRejectedValue(new Error('Import read failure'));
+  await expect(ctx.win.ImportEngine.openImportPicker({onReviewedProject:jest.fn()})).rejects.toThrow(/Import read failure/);
+});
