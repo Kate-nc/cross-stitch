@@ -48,10 +48,11 @@ function makeFakeManagerDB(state) {
     close() {},
     objectStoreNames: { contains: () => true },
     transaction() {
-      const tx = { oncomplete: null, onerror: null, onabort: null };
+      const tx = { oncomplete: null, onerror: null, onabort: null, abort() {} };
       tx.objectStore = function () {
         return {
           put(value, key) { state[key] = value; },
+          delete(key) { delete state[key]; },
           get(key) {
             const r = {};
             setTimeout(() => { r.result = state[key]; if (r.onsuccess) r.onsuccess(); }, 0);
@@ -96,7 +97,7 @@ function makeProject(id, updatedAt, overrides) {
 function makeSyncObj(projects, extra) {
   return Object.assign({
     _format: SE.SYNC_FORMAT,
-    _version: SE.SYNC_VERSION,
+    _version: 1,
     _createdAt: '2026-08-15T12:00:00.000Z',
     _deviceId: 'device-A',
     _deviceName: 'Browser A',
@@ -182,12 +183,12 @@ describe('5.1a: a live local project overrides its tombstone in classification',
 });
 
 describe('5.1b: absorbing peer tombstones never freezes a live local project', () => {
-  async function importWithRemoteTombstone(record) {
+  async function importWithRemoteTombstone(record, choice='keep-local') {
     const plan = await SE.prepareImport(makeSyncObj([], {
       deletedProjectIds: [record.id],
       deletedProjects: [record]
     }));
-    await SE.executeImport(plan);
+    await SE.executeImport(plan,{}, {['delete:' + record.id]:choice});
     return SE.getTombstones().map(t => t.id);
   }
 
@@ -199,8 +200,9 @@ describe('5.1b: absorbing peer tombstones never freezes a live local project', (
 
   test('peer deletion NEWER than our local edit still absorbs (peer intent stands)', async () => {
     await ProjectStorage.save({ ...makeProject('proj_stale', '2026-08-10T00:00:00.000Z') }, { preserveUpdatedAt: true });
-    const ids = await importWithRemoteTombstone({ id: 'proj_stale', deletedAt: '2026-08-20T00:00:00.000Z' });
+    const ids = await importWithRemoteTombstone({ id: 'proj_stale', deletedAt: '2026-08-20T00:00:00.000Z' },'keep-remote');
     expect(ids).toContain('proj_stale');
+    expect(await ProjectStorage.get('proj_stale')).toBeNull();
   });
 
   test('timestampless legacy tombstone never outranks a live record', async () => {
@@ -224,7 +226,7 @@ describe('5.2: executeImport stash write', () => {
     return makeSyncObj([], { stash: { threads: threads, patterns: [] } });
   }
 
-  test('changes made between prepare and execute survive the import', async () => {
+  test('changes during review remain intact and require another review', async () => {
     managerState.threads = { 'dmc:310': { owned: 1, tobuy: false } };
     const plan = await SE.prepareImport(stashSyncObj({ 'dmc:550': { owned: 2, tobuy: false } }));
 
@@ -234,11 +236,9 @@ describe('5.2: executeImport stash write', () => {
       'dmc:666': { owned: 5, tobuy: false }
     };
 
-    await SE.executeImport(plan);
-    // The prepare-time merge knew nothing about 666; a wholesale write of it
-    // would have erased the purchase.
+    await expect(SE.executeImport(plan,{}, {'stash:inventory':'keep-local'})).rejects.toMatchObject({state:'conflicted'});
     expect(managerState.threads['dmc:666'].owned).toBe(5);
-    expect(managerState.threads['dmc:550'].owned).toBe(2); // remote contribution applied
+    expect(managerState.threads['dmc:550']).toBeUndefined();
     expect(managerState.threads['dmc:310'].owned).toBe(1);
   });
 
@@ -249,9 +249,7 @@ describe('5.2: executeImport stash write', () => {
     // conflict to "keep local" (4) by overriding the planned merge — exactly
     // what analyseConflicts/modals.js do.
     expect(plan.stashMerge.threads['dmc:310'].owned).toBe(9);
-    plan.stashMerge.threads['dmc:310'].owned = 4;
-
-    await SE.executeImport(plan);
+    await SE.executeImport(plan,{}, {'stash:inventory':'keep-local'});
     // A naive fresh re-merge would resurrect max()=9; the override must win.
     expect(managerState.threads['dmc:310'].owned).toBe(4);
   });

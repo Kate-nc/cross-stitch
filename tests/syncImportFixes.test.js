@@ -91,7 +91,7 @@ function makeRemoteProject(id, updatedAt, overrides) {
 function makeSyncObj(projects, stashPatterns) {
   return {
     _format: SE.SYNC_FORMAT,
-    _version: SE.SYNC_VERSION,
+    _version: 1,
     _createdAt: '2026-08-15T12:00:00.000Z',
     _deviceId: 'device-A',
     _deviceName: 'Browser A',
@@ -259,7 +259,7 @@ describe('declined imports: toast + restoreSkippedPatterns', () => {
     expect(projects.map(p => p.id)).toContain('proj_100');
   });
 
-  test('a peer edit AFTER the local deletion imports directly, even in the same session', async () => {
+  test('a future-dated peer edit needs explicit restore after local deletion', async () => {
     const remote = makeRemoteProject('proj_200', '2026-08-10T00:00:00.000Z');
     await ProjectStorage.save({ ...remote });
     await ProjectStorage.clearAllProjects({ tombstone: true });
@@ -267,11 +267,12 @@ describe('declined imports: toast + restoreSkippedPatterns', () => {
     // The other device kept stitching: updatedAt is newer than our deletion.
     const edited = makeRemoteProject('proj_200', '2100-01-01T00:00:00.000Z', { done: [1, 0, 0, 0] });
     const plan = await SE.prepareImport(makeSyncObj([edited], []));
-    expect(plan.skippedTombstoned.length).toBe(0);
-    expect(plan.newRemote.length).toBe(1);
-
-    const result = await SE.executeImport(plan);
-    expect(result.imported).toBe(1);
+    expect(plan.skippedTombstoned.length).toBe(1);
+    expect(plan.newRemote.length).toBe(0);
+    await SE.executeImport(plan);
+    expect((await ProjectStorage.listProjects()).map(p=>p.id)).not.toContain('proj_200');
+    const result = await SE.restoreSkippedPatterns(plan);
+    expect(result.restored).toBe(1);
     // Without the resurrect flag this save was silently swallowed by the
     // session-delete guard while the result still claimed success.
     const projects = await ProjectStorage.listProjects();

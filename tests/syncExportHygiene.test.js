@@ -24,7 +24,7 @@ global.localStorage = (() => {
   };
 })();
 global.pako = pako;
-global.indexedDB = undefined;
+global.indexedDB = new (require('fake-indexeddb').IDBFactory)();
 
 const BIG_IMAGE = 'data:image/png;base64,' + 'A'.repeat(200000);
 

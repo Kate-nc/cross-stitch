@@ -14,8 +14,8 @@
  *   photothumb:<projectId>:<id>  its small thumbnail, in its own record so a list never reads a full picture.
  *
  * Backups carry photo, photothumb, trace and session records owned by saved projects;
- * progress journals are folded into project records. Handoffs, drafts and orphaned blobs are excluded. Sync does not read this store, and
- * the project list, stats and sync only see projects.
+ * progress journals are folded into project records. Handoffs, drafts and orphaned blobs are excluded. Sync carries owned attachments through a verified manifest;
+ * attachment deletion evidence shares this store.
  *
  *   BlobStore.put(id, record)   → Promise (record is stored with its id)
  *   BlobStore.get(id)           → Promise<record | null>
@@ -60,6 +60,7 @@
     var rec = Object.assign({}, record, { id: id });
     if (!rec.createdAt) rec.createdAt = Date.now();
     rec.updatedAt = Date.now();
+    rec.syncRevision = newId('revision');
     return run('readwrite', function (s) { return s.put(rec); }).then(function () { return rec; });
   }
 
@@ -67,9 +68,32 @@
     return run('readonly', function (s) { return s.get(id); }).then(function (r) { return r || null; });
   }
 
-  function del(id) {
-    return run('readwrite', function (s) { return s.delete(id); });
+  // Record attachment removals in the same transaction as deleting the bytes.
+  // Imports may arrive before the next export; absence alone is not evidence.
+  function erase(key) {
+    return run('readwrite', function(s) {
+      var rows = s.getAll(key), manifest = s.get('sync:attachments'), ready = 0;
+      function finish() {
+        if (++ready !== 2) return;
+        try {
+          var known = new Map(((manifest.result || {}).manifest || []).map(function(e) { return [e.id,e]; }));
+          rows.result.forEach(function(row) {
+            var id = row.id;
+            if (/^(trace|photo|photothumb):/.test(id)) {
+              var pid = row.projectId || (id.indexOf('trace:') === 0 ? id.slice(6) : id.slice(id.indexOf(':') + 1,id.lastIndexOf(':')));
+              known.set(id,{id:id,projectId:pid,deleted:true});
+            }
+            s.delete(id);
+          });
+          if (known.size > 10000) throw new Error('Attachment deletion record limit reached; explicitly reset sync.');
+          s.put({id:'sync:attachments',manifest:Array.from(known.values())});
+        } catch(e) { s.transaction.abort(); }
+      }
+      rows.onsuccess = finish; manifest.onsuccess = finish;
+    });
   }
+
+  function del(id) { return erase(id); }
 
   function list(prefix) {
     return run('readonly', function (s) { return s.getAll(); }).then(function (all) {
@@ -97,7 +121,7 @@
   }
 
   function deletePrefix(prefix) {
-    return run('readwrite', function (s) { return s.delete(prefixRange(prefix)); });
+    return erase(prefixRange(prefix));
   }
 
   function newId(kind) {

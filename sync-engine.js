@@ -5,7 +5,7 @@
 
 const SyncEngine = (() => {
   const SYNC_FORMAT = "cross-stitch-sync";
-  const SYNC_VERSION = 1;
+  const SYNC_VERSION = 2;
 
   // Prefer structuredClone (faster) but fall back to JSON round-trip for older browsers.
   var _clone = typeof structuredClone === 'function' ? structuredClone : function(x) { return JSON.parse(JSON.stringify(x)); };
@@ -45,6 +45,238 @@ const SyncEngine = (() => {
     "cs_pref_currency",
     "cs_pref_fabricUnit"
   ];
+
+  // Protocol 2 uses existing IndexedDB stores and embeds content-addressed blobs in
+  // the existing .csync transport. No sidecar service or path-based blob fetching.
+  var MAX_SYNC_BYTES = 64 * 1024 * 1024;
+  function protocolError(state, message, conflicts) {
+    var e = new Error(message); e.name = 'SyncProtocolError'; e.state = state; e.conflicts = conflicts || [];
+    _setProtocolState(state, message); return e;
+  }
+  function _setProtocolState(state, message, direction) {
+    localStorage.setItem(direction === 'export' ? 'cs_sync_exportState' : 'cs_sync_protocolState', JSON.stringify({state:state,message:message || null}));
+    try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged')); } catch (_) {}
+  }
+  function _readProtocolState(key) {
+    try { return JSON.parse(localStorage.getItem(key) || '{"state":"idle"}'); }
+    catch (_) { return {state:'failed',message:'Unreadable sync state; retry the sync file.'}; }
+  }
+  function _inventoryValue(stash) {
+    var accounting = {}, threads = {}, A = window.ThreadAccounting;
+    var ledger = stash && stash.thread_consumption_v2;
+    if (ledger && !A) throw new Error('Consumption history support is required.');
+    var totals = ledger ? A.totals(A.validate(ledger)) : {};
+    Object.keys(stash || {}).sort().forEach(function(k) { if (k.indexOf('rt_deduction:') === 0) accounting[k] = stash[k]; });
+    Object.keys(stash && stash.threads || {}).sort().forEach(function(k) {
+      var row = Object.assign({},stash.threads[k]);
+      // Gross stock plus separately unioned immutable events avoids double debits.
+      row.owned = Math.round(((A ? A.quantity(row) : Number(row.owned) || 0) + (totals[k] || 0)) * 1e12) / 1e12;
+      row.partialStatus = null;
+      delete row._v; delete row.history; delete row.lastAdjustedAt;
+      threads[k] = row;
+    });
+    return {threads:threads, accounting:accounting};
+  }
+  function _inventoryEvents(stash) {
+    var current = _inventoryValue(stash), old = (stash && stash['sync:inventory']) || [];
+    if (!old.length) return Object.keys(current.threads).length || Object.keys(current.accounting).length ? [{value:current,clock:{}}] : [];
+    return TrackingSync.valueRecord(old,current);
+  }
+  async function _captureInventory() {
+    var db = await openManagerDB();
+    try { return await new Promise(function(resolve,reject) {
+      var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), stash = {};
+      var req = store.openCursor();
+      req.onsuccess = function(event) {
+        var c = event.target.result;
+        if (c) { stash[c.key] = c.value; c.continue(); return; }
+        try { stash['sync:inventory'] = _inventoryEvents(stash); store.put(stash['sync:inventory'],'sync:inventory'); }
+        catch(e) { tx.abort(); reject(e); }
+      };
+      tx.oncomplete = function() { resolve(stash); };
+      tx.onabort = tx.onerror = function() { reject(tx.error || new Error('Inventory snapshot failed')); };
+    }); } finally { db.close(); }
+  }
+  function _inventoryMerge(local,remote,choice) {
+    var events = TrackingSync.valueFrontier(_inventoryEvents(local).concat(_inventoryEvents(remote)));
+    var values = new Set(events.map(function(e) { return TrackingSync.canonical(e.value); }));
+    if (values.size > 1) {
+      if (choice !== 'keep-local' && choice !== 'keep-remote') return {conflict:true,events:events};
+      events = TrackingSync.valueRecord(events,_inventoryValue(choice === 'keep-local' ? local : remote));
+    }
+    return {events:events,value:events.length ? events[0].value : {threads:{},accounting:{}}};
+  }
+  function _projectSignature(p) {
+    return p ? TrackingSync.canonical({lastWriteAt:p.lastWriteAt || null,
+      marks:TrackingSync.merge(p,{}).trackingSync,values:TrackingSync.mergeValues(p,{}).valueSync}) : null;
+  }
+  function _attachmentOwner(id,ids) {
+    return ids.find(function(pid) { return id === 'source:' + pid || id === 'trace:' + pid || id.indexOf('photo:' + pid + ':') === 0 || id.indexOf('photothumb:' + pid + ':') === 0; });
+  }
+  async function _blobBytes(blob) {
+    if (blob.arrayBuffer) return new Uint8Array(await blob.arrayBuffer());
+    return new Promise(function(resolve,reject) {
+      var r = new FileReader(); r.onload = function() { resolve(new Uint8Array(r.result)); }; r.onerror = function() { reject(r.error); }; r.readAsArrayBuffer(blob);
+    });
+  }
+  async function _contentId(bytes) {
+    if (typeof crypto === 'undefined' || !crypto.subtle) throw new Error('Attachment integrity requires a secure browser context.');
+    return 'sha256:' + _bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
+  }
+  async function _attachmentRows() {
+    var db = await _openSnapshotDB();
+    try { return await new Promise(function(resolve,reject) {
+      var tx = db.transaction('pendingImports','readonly'), req = tx.objectStore('pendingImports').getAll();
+      req.onsuccess = function() { resolve(req.result); }; req.onerror = function() { reject(req.error); };
+    }); } finally { db.close(); }
+  }
+  async function _exportAttachments(projects, includeImages) {
+    var ids = projects.map(function(p) { return p.id; }), rows = await _attachmentRows();
+    var manifest = [], blobs = {}, total = 0, current = new Set();
+    for (var row of rows) {
+      var pid = _attachmentOwner(row.id,ids);
+      if (!pid) continue;
+      if (!(row.blob instanceof Blob)) throw new Error('Missing required attachment: ' + row.id);
+      var bytes = await _blobBytes(row.blob), hash = await _contentId(bytes);
+      total += bytes.length;
+      if (total > MAX_SYNC_BYTES * 0.75) throw new Error('Attachments exceed the safe sync size limit.');
+      var record = Object.assign({},row); delete record.blob; delete record.syncRevision;
+      manifest.push({id:row.id,projectId:pid,contentId:hash,bytes:bytes.length,type:row.blob.type,record:record,required:true});
+      blobs[hash] = _bytesToBase64(bytes); current.add(row.id);
+    }
+    for (var project of projects) {
+      var sourceId = 'source:' + project.id;
+      current.add(sourceId);
+      if (!includeImages || !project.imgData) {
+        manifest.push({id:sourceId,projectId:project.id,optional:true,excluded:true});
+      } else {
+        var sourceBytes = new TextEncoder().encode(project.imgData), sourceHash = await _contentId(sourceBytes);
+        total += sourceBytes.length;
+        if (total > MAX_SYNC_BYTES * 0.75) throw new Error('Attachments exceed the safe sync size limit.');
+        manifest.push({id:sourceId,projectId:project.id,contentId:sourceHash,bytes:sourceBytes.length,type:'text/plain',record:{id:sourceId},required:true});
+        blobs[sourceHash] = _bytesToBase64(sourceBytes);
+      }
+    }
+    var old = rows.find(function(r) { return r.id === 'sync:attachments'; });
+    (old && old.manifest || []).forEach(function(e) {
+      if (ids.indexOf(e.projectId) >= 0 && !current.has(e.id)) manifest.push({id:e.id,projectId:e.projectId,deleted:true});
+    });
+    projects.forEach(function(p) {
+      if (p.settings && p.settings.traceImage && !current.has('trace:' + p.id)) throw new Error('Missing required tracing picture: ' + p.id);
+    });
+    if (manifest.length > 10000) throw new Error('Attachment deletion record limit reached; explicitly reset sync.');
+    manifest.sort(function(a,b) { return a.id.localeCompare(b.id); });
+    var db = await _openSnapshotDB();
+    try { await new Promise(function(resolve,reject) {
+      var tx = db.transaction('pendingImports','readwrite');
+      // Retain evidence for projects omitted by an incremental export.
+      var kept = (old && old.manifest || []).filter(function(e) { return ids.indexOf(e.projectId) < 0; });
+      tx.objectStore('pendingImports').put({id:'sync:attachments',manifest:kept.concat(manifest.filter(function(e) { return e.id.indexOf('source:') !== 0; }))});
+      tx.oncomplete = resolve; tx.onabort = tx.onerror = function() { reject(tx.error); };
+    }); } finally { db.close(); }
+    return {version:1,manifest:manifest,blobs:blobs,optional:{sourceImages:includeImages ? 'included' : 'excluded'}};
+  }
+  async function _verifyAttachments(syncObj) {
+    if (!syncObj) return [];
+    var a = syncObj.attachments;
+    if (!a) {
+      if (syncObj._version >= 2) throw protocolError('failed','Sync file is missing its attachment manifest.');
+      return []; // Legacy completeness is unknown; absence is never deletion.
+    }
+    if (a.version !== 1 || !Array.isArray(a.manifest) || a.manifest.length > 10000 || !a.blobs || !a.optional || !['included','excluded'].includes(a.optional.sourceImages)) throw protocolError('failed','Invalid attachment manifest.');
+    var ids = syncObj.projects.map(function(p) { return p.id; }), seen = new Set(), used = new Set(), decoded = [], total = 0;
+    for (var e of a.manifest) {
+      if (!e || typeof e.id !== 'string' || seen.has(e.id) || _attachmentOwner(e.id,ids) !== e.projectId) throw protocolError('failed','Duplicate or orphaned attachment.');
+      seen.add(e.id);
+      if (e.optional === true && e.excluded === true && e.id === 'source:' + e.projectId) continue;
+      if (e.deleted === true) { decoded.push(e); continue; }
+      if (e.required !== true || !/^sha256:[a-f0-9]{64}$/.test(e.contentId) || !Number.isSafeInteger(e.bytes) || e.bytes < 0 || !e.record || e.record.id !== e.id || e.record.projectId && e.record.projectId !== e.projectId) throw protocolError('failed','Invalid attachment identity: ' + e.id);
+      var data = a.blobs[e.contentId];
+      if (typeof data !== 'string') throw protocolError('pending','Missing required attachment: ' + e.id + '. Retry with the complete sync file.');
+      var bytes;
+      try { bytes = _base64ToBytes(data); } catch (_) { throw protocolError('failed','Invalid attachment encoding: ' + e.id); }
+      total += bytes.length;
+      if (total > MAX_SYNC_BYTES * 0.75 || bytes.length !== e.bytes || await _contentId(bytes) !== e.contentId) throw protocolError('failed','Attachment integrity check failed: ' + e.id);
+      if (e.id === 'source:' + e.projectId) {
+        if (a.optional.sourceImages !== 'included') throw protocolError('failed','Source image exclusion contradicts its manifest.');
+        var sourceProject = syncObj.projects.find(function(p) { return p.id === e.projectId; });
+        if (sourceProject.data.imgData !== new TextDecoder().decode(bytes)) throw protocolError('failed','Source image does not match its manifest.');
+        used.add(e.contentId); continue;
+      }
+      used.add(e.contentId); decoded.push(Object.assign({},e,{blob:new Blob([bytes],{type:e.type || ''})}));
+    }
+    if (Object.keys(a.blobs).some(function(k) { return !used.has(k); })) throw protocolError('failed','Unreferenced attachment content.');
+    for (var p of syncObj.projects) {
+      if (p.data.settings && p.data.settings.traceImage && !a.manifest.some(function(e) { return e.id === 'trace:' + p.id && !e.deleted; })) throw protocolError('pending','Missing required tracing picture: ' + p.id);
+    }
+    for (var e of a.manifest) {
+      if (e.deleted) continue;
+      var partner = e.id.indexOf('photo:') === 0 ? e.id.replace(/^photo:/,'photothumb:') : e.id.indexOf('photothumb:') === 0 ? e.id.replace(/^photothumb:/,'photo:') : null;
+      if (partner && !a.manifest.some(function(p) { return p.id === partner && !p.deleted; })) throw protocolError('pending','Missing required photo pair: ' + e.id);
+    }
+    return decoded;
+  }
+  function _attachmentSignature(row) {
+    if (!row) return null;
+    var plain = Object.assign({},row);
+    if (plain.blob) { plain.blobSize = plain.blob.size; plain.blobType = plain.blob.type; }
+    delete plain.blob;
+    return TrackingSync.canonical(plain);
+  }
+  async function _checkLocalAttachments(incoming, rows) {
+    var byId = new Map(rows.map(function(r) { return [r.id,r]; }));
+    var known = new Map(((byId.get('sync:attachments') || {}).manifest || []).map(function(e) { return [e.id,e]; }));
+    for (var e of incoming) {
+      if (e.deleted || known.get(e.id) && known.get(e.id).deleted) continue;
+      var local = byId.get(e.id);
+      if (!local) continue;
+      var plain = Object.assign({},local); delete plain.blob; delete plain.syncRevision;
+      if (!local.blob || await _contentId(await _blobBytes(local.blob)) !== e.contentId || TrackingSync.canonical(plain) !== TrackingSync.canonical(e.record)) throw protocolError('conflicted','Attachment identifier collision: ' + e.id + '. Preserve both files and reconcile the attachment before retrying.');
+    }
+    return byId;
+  }
+
+  async function _applyAttachments(syncObj) {
+    if (!syncObj || !syncObj.attachments) return;
+    var incoming = await _verifyAttachments(syncObj), live = [];
+    var expected = await _checkLocalAttachments(incoming,await _attachmentRows());
+    for (var e of incoming) { if (await ProjectStorage.get(e.projectId)) live.push(e); }
+    var db = await _openSnapshotDB();
+    try { await new Promise(function(resolve,reject) {
+      var tx = db.transaction(['pendingImports','projects'],'readwrite'), store = tx.objectStore('pendingImports'), req = store.getAll();
+      var projectsReq = tx.objectStore('projects').getAllKeys(), ready = 0;
+      function publish() {
+        if (++ready !== 2) return;
+        try {
+          var presentProjects = new Set(projectsReq.result);
+          live = live.filter(function(e) { return presentProjects.has(e.projectId); });
+          var actual = new Map(req.result.map(function(row) { return [row.id,row]; }));
+          live.forEach(function(e) { if (_attachmentSignature(actual.get(e.id)) !== _attachmentSignature(expected.get(e.id))) throw protocolError('conflicted','Attachments changed during transfer. Retry the sync file.'); });
+          if (_attachmentSignature(actual.get('sync:attachments')) !== _attachmentSignature(expected.get('sync:attachments'))) throw protocolError('conflicted','Attachment deletions changed during transfer. Retry the sync file.');
+          var known = new Map(((actual.get('sync:attachments') || {}).manifest || []).map(function(e) { return [e.id,e]; }));
+          live.forEach(function(e) {
+            var old = known.get(e.id);
+            // Attachment IDs are immutable; a replacement needs a new ID.
+            if (old && old.deleted && !e.deleted) return;
+            if (old && !old.deleted && !e.deleted && (old.contentId !== e.contentId || TrackingSync.canonical(old.record) !== TrackingSync.canonical(e.record))) throw protocolError('conflicted','Attachment identifier collision: ' + e.id);
+            var plain = Object.assign({},e); delete plain.blob;
+            known.set(e.id,plain);
+            if (e.deleted) store.delete(e.id);
+            else store.put(Object.assign({},e.record,{blob:e.blob,syncRevision:'import_' + Math.random().toString(36).slice(2)}));
+          });
+          if (known.size > 10000) throw new Error('Attachment deletion record limit reached.');
+          store.put({id:'sync:attachments',manifest:Array.from(known.values()).sort(function(a,b) { return a.id.localeCompare(b.id); })});
+        } catch(e) { tx.abort(); reject(e); }
+      }
+      req.onsuccess = publish; projectsReq.onsuccess = publish;
+      tx.oncomplete = resolve; tx.onabort = tx.onerror = function() { reject(tx.error || new Error('Attachment transfer interrupted; retry the sync file.')); };
+    }); } finally { db.close(); }
+    var finalRows = new Set((await _attachmentRows()).map(function(r) { return r.id; }));
+    for (var projectEntry of syncObj.projects) {
+      var currentProject = await ProjectStorage.get(projectEntry.id);
+      if (currentProject && currentProject.settings && currentProject.settings.traceImage && !finalRows.has('trace:' + projectEntry.id)) throw protocolError('conflicted','The required tracing picture was deleted. Reconcile the picture or tracing setting before retrying.');
+    }
+  }
 
   // ── Device identity ──────────────────────────────────────────────────────
 
@@ -95,7 +327,7 @@ const SyncEngine = (() => {
   // when exporting (so remote devices know not to re-import it) and when
   // classifying remote projects (so already-deleted projects are skipped).
   var LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
-  var TOMBSTONE_MAX = 200;
+  var TOMBSTONE_MAX = 10000;
 
   // Tombstones are stored as { id, deletedAt } records. They used to be bare
   // id strings, which made a deletion permanent and unconditional: once an id
@@ -112,7 +344,7 @@ const SyncEngine = (() => {
     try {
       var raw = localStorage.getItem(LS_TOMBSTONE_KEY);
       var arr = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(arr)) return [];
+      if (!Array.isArray(arr) || arr.length > TOMBSTONE_MAX) throw new Error('Invalid or excessive project deletion history.');
       var out = [];
       for (var i = 0; i < arr.length; i++) {
         var e = arr[i];
@@ -123,7 +355,7 @@ const SyncEngine = (() => {
         }
       }
       return out;
-    } catch (e) { return []; }
+    } catch (e) { throw new Error('Could not read project deletion history: ' + e.message); }
   }
 
   // Id-only view. The .csync wire format carries a plain id array, and
@@ -133,12 +365,9 @@ const SyncEngine = (() => {
   }
 
   function _writeTombstoneRecords(records) {
-    try {
-      var trimmed = (records.length > TOMBSTONE_MAX)
-        ? records.slice(records.length - TOMBSTONE_MAX)
-        : records;
-      localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(trimmed));
-    } catch (e) {}
+    // Never evict deletion evidence: stale offline files may return at any age.
+    if (records.length > TOMBSTONE_MAX) throw new Error('Deletion record limit reached; explicitly reset sync before continuing.');
+    localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(records));
   }
 
   // Release a tombstone so the pattern can arrive again from a peer.
@@ -337,6 +566,7 @@ const SyncEngine = (() => {
       // timestamp that gets poisoned by the most recent peer's clock.
       // This was the root cause of the "changes from Device B never appear
       // on Device A" bug when multiple devices had drifting clocks.
+      deliveryId: syncObj._deliveryId || null,
       fileCreatedAt: (syncObj && syncObj._createdAt) || null,
       deviceName: syncObj._deviceName || null,
       projectCount: (syncObj.projects && syncObj.projects.length) || 0
@@ -422,8 +652,7 @@ const SyncEngine = (() => {
         cursorReq.onerror = function () { db.close(); reject(cursorReq.error); };
       });
     }).catch(function (e) {
-      console.warn("SyncEngine: could not read stash DB:", e);
-      return {};
+      throw new Error('Could not read stash database: ' + e.message);
     });
   }
 
@@ -493,7 +722,7 @@ const SyncEngine = (() => {
 
     // Flush any in-flight React state before reading
     if (window.__flushProjectToIDB) {
-      try { await window.__flushProjectToIDB(); } catch (e) {}
+      await window.__flushProjectToIDB();
     }
 
     // Read all projects
@@ -510,7 +739,7 @@ const SyncEngine = (() => {
           // VER-SYNC-001: project entry exists in metadata but the IDB record
           // returned null (record missing or read race). Log so the developer can
           // investigate — we skip it rather than crashing the export.
-          console.warn("SyncEngine: project " + (metaList[i] && metaList[i].id) + " returned null from IDB, skipping export.");
+          throw new Error('Required project could not be read: ' + metaList[i].id);
         }
       }
     } catch (e) {
@@ -579,11 +808,12 @@ const SyncEngine = (() => {
     // Include stash data
     if (includeStash) {
       try {
-        syncObj.stash = await readManagerStore();
-      } catch (e) {
-        syncObj.stash = {};
-      }
+        syncObj.stash = await _captureInventory();
+      } catch (e) { throw new Error('Could not snapshot inventory: ' + e.message); }
     }
+
+    syncObj._deliveryId = 'delivery_' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now() + '_' + Math.random().toString(36).slice(2));
+    syncObj.attachments = await _exportAttachments(projectsToExport,includeSourceImages);
 
     // Build the prefs envelope. Palettes and user preferences are tracked
     // independently. crossstitch_active_project is per-device UI state and is
@@ -610,6 +840,10 @@ const SyncEngine = (() => {
     if (Object.keys(prefsEnvelope).length > 0) {
       syncObj.prefs = prefsEnvelope;
     }
+
+    var exportedIds = new Set(syncObj.projects.map(function(e) { return e.id; }));
+    if (syncObj.deletedProjectIds.some(function(id) { return exportedIds.has(id); })) throw protocolError('conflicted','A project changed deletion state during export. Reconcile or retry before sending it.');
+    await _verifyAttachments(syncObj);
 
     // NOTE: cs_sync_lastExportAt is deliberately NOT recorded here. Building
     // the object is not exporting it — encryption can still throw
@@ -689,7 +923,7 @@ const SyncEngine = (() => {
   var ENC_PBKDF2_ITERATIONS = 310000;
   var ENC_SALT_BYTES = 16;
   var ENC_IV_BYTES = 12;
-  var ENC_INNER_FIELDS = ["projects", "stash", "prefs", "deletedProjectIds", "_projectCountTotal", "_since"];
+  var ENC_INNER_FIELDS = ["attachments", "deletedProjects", "projects", "stash", "prefs", "deletedProjectIds", "_projectCountTotal", "_since"];
 
   var _sessionPassphrase = null;
   var _derivedKeyCache = new Map(); // key: passphrase + "|" + saltHex + "|" + iter, val: CryptoKey
@@ -979,6 +1213,7 @@ const SyncEngine = (() => {
   // sync folder, or download handed to the browser). See the note in
   // exportSync for why this must not run at build time.
   function _markExportComplete(ts) {
+    _setProtocolState('completed','Sync file handed to the transport; receipt by another device is not confirmed.','export');
     try { localStorage.setItem(LS_LAST_EXPORT, ts || new Date().toISOString()); } catch (e) {}
   }
 
@@ -1013,7 +1248,7 @@ const SyncEngine = (() => {
     if (!syncObj || syncObj._format !== SYNC_FORMAT) {
       return { valid: false, error: "Not a valid Cross Stitch sync file." };
     }
-    if (syncObj._version !== SYNC_VERSION) {
+    if (syncObj._version !== 1 && syncObj._version !== SYNC_VERSION) {
       return { valid: false, error: "Unsupported sync file version: " + syncObj._version + ". Please update the app." };
     }
     // Encrypted envelopes are valid even without a `projects` array — the
@@ -1053,6 +1288,7 @@ const SyncEngine = (() => {
       projectCount: syncObj.projects.length,
       totalProjectCount: syncObj._projectCountTotal || syncObj.projects.length,
       hasStash: !!(syncObj.stash && (syncObj.stash.threads || syncObj.stash.patterns)),
+      attachmentCompleteness: syncObj._version >= 2 ? 'manifest-verified-at-prepare' : 'legacy-unknown',
       hasPrefs: !!(syncObj.prefs && Object.keys(syncObj.prefs).length > 0)
     };
     return { valid: true, summary: summary };
@@ -1074,6 +1310,25 @@ const SyncEngine = (() => {
   // record so executeImport can converge both devices on a single
   // canonical id (lexicographically smallest — deterministic across
   // devices, no clock or device-id required).
+
+  // The legacy deflate prefix is an index hint, never proof of equal charts.
+  // Compare complete canonical structures before combining completion identities.
+  function _chartKey(p) {
+    if (!p) return null;
+    var brand = p.settings && p.settings.threadBrand || 'dmc';
+    var cells = Array.from(p.pattern || p.p || []).map(function(c) {
+      var id = c && (Array.isArray(c) ? c[0] : c.id);
+      if (!id) return null;
+      var row = {id:id,type:c.type || (String(id).indexOf('+') >= 0 ? 'blend' : 'solid'),brand:c.brand || brand};
+      ['rgb','threads','blendRatio'].forEach(function(f) { if (c[f] !== undefined) row[f] = c[f]; });
+      return row;
+    });
+    function list(field) { return (p[field] || []).map(TrackingSync.canonical).sort(); }
+    return TrackingSync.canonical({w:_projectWidth(p),h:_projectHeight(p),cells:cells,
+      bs:(p.bsLines || p.bs || []).map(TrackingSync.canonical).sort(),knots:list('knots'),beads:list('beads'),
+      half:list('halfStitches'),quarter:list('partialStitches'),specialty:list('specialtyStitches')});
+  }
+  function _sameChart(a,b) { return _chartKey(a) === _chartKey(b); }
 
   function buildFingerprintIndex(localProjectsArray) {
     var index = Object.create(null);
@@ -1099,10 +1354,11 @@ const SyncEngine = (() => {
     // Compare canonical marks/history, not write stamps or derived/default fields
     // introduced by a merge. Equal timestamps alone cannot prove equal progress.
     return JSON.stringify(TrackingSync.merge(local, {}).trackingSync) === JSON.stringify(TrackingSync.merge(remote, {}).trackingSync)
+      && TrackingSync.canonical(TrackingSync.mergeValues(local, {}).valueSync) === TrackingSync.canonical(TrackingSync.mergeValues(remote, {}).valueSync)
       && JSON.stringify(mergeParkingMarkers(local.parkMarkers, [])) === JSON.stringify(mergeParkingMarkers(remote.parkMarkers, []));
   }
 
-  function classifyProjects(remoteProjects, localProjectsMap) {
+  function classifyProjects(remoteProjects, localProjectsMap, strictIdentity) {
     // Collect tombstones from both local and remote so we can skip projects
     // that were intentionally deleted on either device.
     // localTombstoneSet: ids deleted on this device (never re-import them).
@@ -1147,21 +1403,9 @@ const SyncEngine = (() => {
       // future update to a project the user could see in their library.
       var tomb = localTombstoneSet[remote.id];
       if (tomb && !local) {
-        var deletedAtMs = tomb.deletedAt ? new Date(tomb.deletedAt).getTime() : null;
-        var remoteUpdatedMs = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
-        var staleDeletion = (deletedAtMs !== null)
-          && isFinite(deletedAtMs)
-          && remoteUpdatedMs > deletedAtMs;
-        if (!staleDeletion) {
-          skippedTombstoned.push({
-            id: remote.id,
-            name: (remote.data && remote.data.name) || null,
-            deletedAt: tomb.deletedAt,
-            remoteUpdatedAt: remote.updatedAt || null,
-            reason: (deletedAtMs === null) ? "legacy-tombstone" : "deleted-after-remote-edit"
-          });
-          continue;
-        }
+        skippedTombstoned.push({id:remote.id, name:remote.data && remote.data.name,
+          deletedAt:tomb.deletedAt, remoteUpdatedAt:remote.updatedAt || null, reason:'explicit-deletion'});
+        continue;
       }
 
       var entry = {
@@ -1177,11 +1421,11 @@ const SyncEngine = (() => {
         var remoteUpdated = remote.updatedAt || "";
         var localFP = computeFingerprint(local);
         var remoteFP = remote.data ? computeFingerprint(remote.data) : remote.fingerprint;
-        if (localUpdated === remoteUpdated && localFP === remoteFP && _sameTrackingState(local, remote.data)) {
+        if (localUpdated === remoteUpdated && localFP === remoteFP && _sameChart(local,remote.data) && _sameTrackingState(local, remote.data)) {
           entry.classification = "identical";
         } else {
           // Both exist and differ — check if the chart structure changed
-          if (localFP === remoteFP) {
+          if (localFP === remoteFP && _sameChart(local,remote.data)) {
             entry.classification = "merge-tracking";
           } else {
             entry.classification = "conflict";
@@ -1190,11 +1434,11 @@ const SyncEngine = (() => {
       } else {
         // No id match — try fingerprint match. This is the duplication-bug fix.
         var remoteFP2 = remote.data ? computeFingerprint(remote.data) : remote.fingerprint;
-        if (remoteFP2 && byFp[remoteFP2]) {
+        if (!strictIdentity && remoteFP2 && byFp[remoteFP2]) {
           var candidates = byFp[remoteFP2];
           var matched = null;
           for (var ci = 0; ci < candidates.length; ci++) {
-            if (!claimed[candidates[ci].id]) { matched = candidates[ci]; break; }
+            if (!claimed[candidates[ci].id] && _sameChart(candidates[ci],remote.data)) { matched = candidates[ci]; break; }
           }
           if (matched) {
             claimed[matched.id] = true;
@@ -1578,8 +1822,8 @@ const SyncEngine = (() => {
     merged.lastTouchedAt = _laterIso(local.lastTouchedAt, remote.lastTouchedAt);
     merged.completedAt = _earlierIso(local.completedAt, remote.completedAt);
 
-    // Merge project-level metadata. Default strategy: the side with the newer
-    // updatedAt timestamp wins. metaOverrides can pin a field to 'keep-local'
+    // Legacy/derived asset defaults are resolved here. Authored values are
+    // subsequently replaced by causal registers or explicit review choices. metaOverrides can pin a field to 'keep-local'
     // or 'keep-remote' to respect explicit user choices made in the
     // SyncReviewGate conflict UI.
     //
@@ -1618,6 +1862,25 @@ const SyncEngine = (() => {
     // loads on pages that do not load that one.
     merged.workArea = mergeWorkArea(local.workArea, remote.workArea);
 
+    var text = TrackingSync.mergeValues(local, remote, metaOverrides);
+    Object.keys(text.values).forEach(function(f) {
+      if (f.indexOf('journal_') !== 0) { merged[f] = text.values[f]; return; }
+      ['statsSessions','sessions'].forEach(function(field) {
+        if (f.indexOf('journal_' + field + '_') !== 0) return;
+        var row = text.values[f], deleted = merged.deletedSessionIds || [];
+        if (row.id != null && deleted.indexOf(row.id) >= 0) return;
+        var id = f.slice(('journal_' + field + '_').length);
+        var list = merged[field] || [], at = list.findIndex(function(s) { return s && encodeURIComponent(s.id || s.startTime || s.start || s.date) === id; });
+        if (at >= 0) { var prior = list[at]; list[at] = _clone(row); ['totalAtEnd','percentAtEnd'].forEach(function(f) { if (prior[f] !== undefined) list[at][f] = prior[f]; }); }
+      });
+    });
+    merged.valueSync = text.valueSync;
+    if ((local.statsSessions || []).length && (remote.statsSessions || []).length) {
+      merged.statsSessions = recomputeMergedTotals(merged.statsSessions,
+        (local.statsSessions || []).filter(function(x) { return x && deletedSessionIds.indexOf(x.id) < 0; }),
+        (remote.statsSessions || []).filter(function(x) { return x && deletedSessionIds.indexOf(x.id) < 0; }));
+    }
+    if (deletedSessionIds.length) merged.totalTime = Math.max(_sumSessionSeconds(merged.statsSessions),_sumSessionSeconds(merged.sessions));
     return merged;
   }
 
@@ -1914,6 +2177,12 @@ const SyncEngine = (() => {
     _seenPendingKeys = Object.create(null);
     try { clearPendingPlan(); } catch (e) {}
     await _clearSnapshot();
+    var attachmentDB = await _openSnapshotDB();
+    try { await new Promise(function(resolve,reject) {
+      var tx = attachmentDB.transaction('pendingImports','readwrite');
+      tx.objectStore('pendingImports').delete('sync:attachments');
+      tx.oncomplete = resolve; tx.onabort = tx.onerror = function() { reject(tx.error); };
+    }); } finally { attachmentDB.close(); }
 
     _logEvent({
       type: "library-reset",
@@ -1966,7 +2235,7 @@ const SyncEngine = (() => {
   //     hasChanges:      true when any category has at least one change
   //   }
   function analyseConflicts(plan, snapshot) {
-    var conflicts = [];
+    var conflicts = (plan.semanticConflicts || []).slice();
     var stitchAdded = 0, stitchProjects = 0;
     var stashUpdated = 0;
     var metaUpdated = 0;
@@ -2201,6 +2470,10 @@ const SyncEngine = (() => {
   }
 
   async function prepareImport(syncObj) {
+    try { return await _prepareImport(syncObj); }
+    catch(e) { _setProtocolState(e.state || (/Conflicting consumption|Combined consumption/.test(e.message) ? 'conflicted' : 'failed'),e.message); throw e; }
+  }
+  async function _prepareImport(syncObj) {
     // If the envelope is encrypted, decrypt before any further work.
     // Throws a typed EncryptionError ("passphrase_required" or
     // "incorrect_passphrase") that callers — manual import buttons,
@@ -2214,6 +2487,25 @@ const SyncEngine = (() => {
     var check = validate(syncObj);
     if (!check.valid) throw new Error(check.error);
 
+    var verifiedAttachments = await _verifyAttachments(syncObj);
+    var localAttachments = verifiedAttachments.length ? await _attachmentRows() : [];
+    if (verifiedAttachments.length) await _checkLocalAttachments(verifiedAttachments,localAttachments);
+    if (syncObj._version === 1) syncObj.projects = syncObj.projects.map(function(e) {
+      return e && !e.data && (e.pattern || e.p) ? {id:e.id,updatedAt:e.updatedAt,data:e} : e;
+    });
+    if (syncObj._version >= 2 && (typeof syncObj._deliveryId !== 'string' || !syncObj._deliveryId)) throw protocolError('failed','Missing sync delivery identity.');
+    var seenIds = new Set();
+    syncObj.projects.forEach(function(e) {
+      if (!e || typeof e.id !== 'string' || !e.id || e.id.length > 512 || ['__proto__','constructor','prototype'].includes(e.id) || !e.data || e.data.id !== e.id || seenIds.has(e.id)) throw protocolError('failed','Invalid or duplicate project identifier.');
+      seenIds.add(e.id);
+      if (Number(e.data.version || e.data.v || 0) > 11) throw protocolError('failed','Unsupported project schema version.');
+      ['deletedSessionIds','deletedSnapshotIds'].forEach(function(f) { if (e.data[f] && (!Array.isArray(e.data[f]) || e.data[f].length > 10000)) throw protocolError('failed','Invalid or excessive deletion history.'); });
+      if (e.data.trackingSync && e.data.trackingSync.version !== 1) throw protocolError('failed','Unsupported tracking sync schema.');
+      TrackingSync.mergeValues(e.data,{});
+    });
+
+    // Supported v1 files sometimes placed the project directly in the entry.
+    // Normalise only that documented legacy shape before identity checks.
     // Repair object-form done arrays ({"0":1,...}) from files written while a
     // legacy IDB record still held a typed array — the importing side would
     // otherwise store the object and the tracker's `done.length` check would
@@ -2228,17 +2520,28 @@ const SyncEngine = (() => {
       var metaList = await ProjectStorage.listProjects();
       // PERF (perf-5 #2): parallel fetch of all local projects.
       var fetched = await Promise.all(metaList.map(function(m){ return ProjectStorage.get(m.id); }));
-      for (var i = 0; i < fetched.length; i++) { if (fetched[i]) localMap[fetched[i].id] = fetched[i]; }
+      for (var i = 0; i < fetched.length; i++) {
+        if (!fetched[i]) throw new Error('Required local project could not be read: ' + metaList[i].id);
+        localMap[fetched[i].id] = fetched[i];
+      }
     } catch (e) {
-      console.error("SyncEngine.prepareImport: failed to read local projects:", e);
+      throw new Error('Could not read local projects: ' + e.message);
     }
 
     // Read local stash
     var localStash = {};
-    try { localStash = await readManagerStore(); } catch (e) {}
+    if (syncObj.stash) localStash = await readManagerStore();
+
+    ['deletedProjectIds','deletedProjects'].forEach(function(f) {
+      if (syncObj[f] != null && (!Array.isArray(syncObj[f]) || syncObj[f].length > TOMBSTONE_MAX)) throw protocolError('failed','Invalid or excessive project deletion history.');
+    });
+    (syncObj.deletedProjectIds || []).forEach(function(id) { if (typeof id !== 'string' || !id || id.length > 512) throw protocolError('failed','Invalid project deletion identity.'); });
+    (syncObj.deletedProjects || []).forEach(function(r) { if (!r || typeof r.id !== 'string' || !r.id || r.id.length > 512) throw protocolError('failed','Invalid project deletion identity.'); });
+
+    if (syncObj._version >= 2 && (syncObj.deletedProjectIds || []).concat((syncObj.deletedProjects || []).map(function(r) { return r.id; })).some(function(id) { return seenIds.has(id); })) throw protocolError('conflicted','Sync file contains a live project and its deletion. Restore or delete it explicitly before exporting again.');
 
     // Classify each remote project
-    var classified = classifyProjects(syncObj.projects, localMap);
+    var classified = classifyProjects(syncObj.projects, localMap, syncObj._version >= 2);
 
     // Build import plan
     var plan = {
@@ -2268,6 +2571,14 @@ const SyncEngine = (() => {
       localMap: localMap,
       localStash: localStash
     };
+
+    plan.identical.slice().forEach(function(e) {
+      if (TrackingSync.mergeValues(e.local,e.remote.data).conflicts.length) {
+        plan.identical.splice(plan.identical.indexOf(e),1); plan.mergeTracking.push(e);
+      }
+    });
+
+    plan.remoteTombstones = Array.from(new Set(plan.remoteTombstones.concat((plan.remoteTombstoneRecords || []).map(function(r) { return r.id; }))));
 
     // Find local-only projects — must account for fingerprint matches so
     // a locally-renamed-but-same-chart project isn't double-counted as both
@@ -2304,16 +2615,50 @@ const SyncEngine = (() => {
       plan.presentProjectIds = presentProjectIds;
     }
 
+    var attachmentMap = new Map(localAttachments.map(function(row) { return [row.id,row]; }));
+    var knownManifest = new Map(((attachmentMap.get('sync:attachments') || {}).manifest || []).map(function(e) { return [e.id,e]; }));
+    plan.attachmentsChanged = verifiedAttachments.some(function(e) {
+      var known = knownManifest.get(e.id), actual = attachmentMap.get(e.id);
+      if (known && known.deleted && !e.deleted) return false;
+      return e.deleted ? !!actual || !known || !known.deleted : !actual;
+    });
+    plan.semanticConflicts = [];
+    plan.mergeTracking.concat(plan.identical).forEach(function(e) {
+      TrackingSync.mergeValues(e.local,e.remote.data).conflicts.forEach(function(f) {
+        plan.semanticConflicts.push({type:'meta',id:'meta:' + e.id + ':' + f,projectId:e.id,field:f,
+          localValue:TrackingSync.canonical(TrackingSync.valuesOf(e.local)[f]),remoteValue:TrackingSync.canonical(TrackingSync.valuesOf(e.remote.data)[f]),projectName:e.local.name || e.id});
+      });
+    });
+    if (syncObj.stash && _inventoryMerge(localStash,syncObj.stash).conflict) plan.semanticConflicts.push({type:'stash',id:'stash:inventory',threadId:'inventory and accounting',localOwned:'Review this device’s inventory snapshot',remoteOwned:'Review the incoming inventory snapshot'});
+    var remoteDeleted = new Set(plan.remoteTombstones);
+    Object.keys(localMap).forEach(function(id) {
+      if (remoteDeleted.has(id)) plan.semanticConflicts.push({type:'meta',id:'delete:' + id,projectId:id,field:'deletion',localValue:'Keep project',remoteValue:'Delete project',projectName:localMap[id].name || id});
+    });
+    plan.status = plan.semanticConflicts.length || plan.conflicts.length ? 'conflicted' : 'pending';
+    _setProtocolState(plan.status);
     return plan;
   }
 
   async function executeImport(plan, conflictResolutions, gateResolutions) {
+    try { var result = await _executeImport(plan,conflictResolutions,gateResolutions); clearPendingPlan(); return result; }
+    catch(e) { _setProtocolState(e.state || 'failed',e.message); throw e; }
+  }
+  async function _executeImport(plan, conflictResolutions, gateResolutions) {
     // conflictResolutions: { [projectId]: "keep-local" | "keep-remote" | "keep-both" }
     // gateResolutions: optional { [gateConflictId]: "keep-local" | "keep-remote" }
     //   gateConflictId formats: "meta:<pid>:<field>", "pref:<key>",
     //                           "stitch:<pid>", "stash:<threadId>"
     conflictResolutions = conflictResolutions || {};
     gateResolutions = gateResolutions || {};
+
+    _setProtocolState('pending');
+    var unresolved = (plan.semanticConflicts || []).filter(function(c) { return !['keep-local','keep-remote'].includes(gateResolutions[c.id]); });
+    (plan.conflicts || []).forEach(function(c) { if (!['keep-local','keep-remote','keep-both'].includes(conflictResolutions[c.id])) unresolved.push(c); });
+    if (unresolved.length) throw protocolError('conflicted','Sync requires explicit conflict choices.',unresolved);
+    await _verifyAttachments(plan.syncObj);
+    for (var chart of (plan.conflicts || [])) {
+      if (conflictResolutions[chart.id] === 'keep-both' && plan.syncObj && plan.syncObj.attachments && plan.syncObj.attachments.manifest.some(function(e) { return e.projectId === chart.id && !e.deleted; })) throw protocolError('conflicted','A chart with attachments cannot be forked safely during sync. Save a separate project copy before resolving this conflict.');
+    }
 
     // Build a per-project meta overrides map from gateResolutions.
     // meta gate conflict ids have the form "meta:<projectId>:<field>".
@@ -2337,7 +2682,7 @@ const SyncEngine = (() => {
     // this, a concurrent save could overwrite a just-merged record immediately
     // after we write it.
     if (window.__flushProjectToIDB) {
-      try { await window.__flushProjectToIDB(); } catch (e) {}
+      await window.__flushProjectToIDB();
     }
 
     // VER-SYNC-013 — ATOMICITY BOUNDARY NOTE:
@@ -2349,6 +2694,27 @@ const SyncEngine = (() => {
     // current IDB state (re-read inside the merge loop), and conflicting
     // projects are re-presented on next import.  Partial imports do NOT corrupt
     // data — they only mean some projects were not yet imported.
+
+    for (var ne of (plan.newRemote || []).slice()) {
+      var existing = await ProjectStorage.get(ne.id);
+      if (existing) {
+        if (!_sameChart(existing,ne.remote.data)) throw protocolError('conflicted','Project changed during import. Prepare the sync file again.');
+        plan.newRemote.splice(plan.newRemote.indexOf(ne),1);
+        plan.mergeTracking.push(Object.assign({},ne,{local:existing}));
+      }
+    }
+    var tombIds = new Set(getLocalTombstones());
+    for (var pe of (plan.newRemote || []).concat(plan.mergeTracking || [])) {
+      if (!pe.releasedTombstone && (tombIds.has(pe.id) || pe.local && tombIds.has(pe.local.id))) throw protocolError('conflicted','A project was deleted during review. Prepare the sync file again.');
+      var now = await ProjectStorage.get(pe.local ? pe.local.id : pe.id);
+      if (!now && pe.idRewrite) now = await ProjectStorage.get(pe.idRewrite.canonicalId);
+      if (pe.local && !now || !pe.local && now) throw protocolError('conflicted','Project identity changed during review. Prepare the sync file again.');
+      var nextConflicts = now ? TrackingSync.mergeValues(now,pe.remote.data).conflicts : [];
+      for (var field of nextConflicts) {
+        var key = 'meta:' + pe.id + ':' + field;
+        if (!['keep-local','keep-remote'].includes(gateResolutions[key]) || TrackingSync.canonical(TrackingSync.valuesOf(now)[field]) !== TrackingSync.canonical(TrackingSync.valuesOf(pe.local)[field])) throw protocolError('conflicted','Project values changed during review. Prepare the sync file again.');
+      }
+    }
 
     // 1. Import new-remote projects.
     //    preserveUpdatedAt keeps the authoring device's edit time. Without it
@@ -2364,7 +2730,7 @@ const SyncEngine = (() => {
         // "Delete all patterns" followed by a re-import in the same session
         // silently dropped every save while executeImport still reported the
         // projects as imported.
-        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true });
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:null });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -2383,6 +2749,12 @@ const SyncEngine = (() => {
         || (mEntry.local && mEntry.local.id)
         || mEntry.id;
       var freshLocal = await ProjectStorage.get(localId);
+      if (!freshLocal && mEntry.idRewrite) freshLocal = await ProjectStorage.get(mEntry.idRewrite.canonicalId);
+      var expectedProject = _projectSignature(freshLocal);
+      if (!freshLocal || !_sameChart(freshLocal,mEntry.remote.data)) throw protocolError('conflicted','Project changed during review. Prepare the sync file again.');
+      TrackingSync.mergeValues(freshLocal,mEntry.remote.data).conflicts.forEach(function(f) {
+        if (!gateResolutions['meta:' + mEntry.id + ':' + f]) throw protocolError('conflicted','Project values changed during review. Prepare the sync file again.');
+      });
       // A legacy review choice supplies the missing intent: record an explicit
       // removal for disputed cells (local=1, remote=0). Other additions still merge.
       // The stitch conflict id in gateResolutions is the project id (= mEntry.id = remote.id).
@@ -2401,10 +2773,10 @@ const SyncEngine = (() => {
       // Build per-field meta overrides for this project from gateResolutions.
       var projectMetaOverrides = null;
       var metaProjectId = localId || mEntry.id;
-      var mFields = ["name", "state"];
+      var mFields = Object.keys(TrackingSync.valuesOf(freshLocal)).concat(Object.keys(TrackingSync.valuesOf(mEntry.remote.data)));
       for (var mfi = 0; mfi < mFields.length; mfi++) {
         var mf = mFields[mfi];
-        var mk = metaProjectId + ':' + mf;
+        var mk = mEntry.id + ':' + mf;
         if (metaOverridesMap[mk]) {
           if (!projectMetaOverrides) projectMetaOverrides = {};
           projectMetaOverrides[mf] = metaOverridesMap[mk];
@@ -2418,7 +2790,7 @@ const SyncEngine = (() => {
         merged.id = canon;
         // mergeTrackingProgress already resolved updatedAt to the later of
         // the two sides — preserve it rather than restamping with "now".
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
@@ -2440,7 +2812,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null });
       }
     }
 
@@ -2449,73 +2821,72 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true });
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local) });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
-        delete remoteCopy.id;
+        remoteCopy.id = cEntry.id + '_sync_' + simpleHash(TrackingSync.canonical(cEntry.remote.data));
+        var priorCopy = await ProjectStorage.get(remoteCopy.id);
+        if (priorCopy && !_sameChart(priorCopy,remoteCopy)) throw protocolError('conflicted','Sync copy identifier collision.');
         delete remoteCopy.createdAt;
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";
-        await ProjectStorage.save(remoteCopy);
+        if (!priorCopy) await ProjectStorage.save(remoteCopy,{preserveUpdatedAt:true,resurrect:true});
       }
       // "keep-local" → do nothing
     }
 
-    // 4. Merge stash. plan.stashMerge was computed at PREPARE time; the
-    //    review gate (or a hydrated pending plan) can execute it much later,
-    //    so writing it wholesale would clobber every stash change made in
-    //    between. Re-merge against the stash as it is NOW, then carry over
-    //    the explicit per-thread resolutions (gate choices and snapshot-based
-    //    one-sided changes) by diffing the plan's merge against a
-    //    deterministic re-run over the prepare-time local stash — any thread
-    //    whose owned differs from that baseline was explicitly resolved.
+    // Inventory and accounting form one reviewed snapshot. Never sum deltas,
+    // take max(stock), or write a stale prepare-time balance. Reads, conflict
+    // checks, quantities and checkpoints share one transaction, even without locks.
     if (plan.stashMerge) {
-      var stashToWrite = plan.stashMerge;
-      try {
-        // Same cross-tab lock StashBridge takes for every manager_state
-        // write, so a sync import can't interleave with a bridge write from
-        // another tab.
-        await _withManagerStateLock("sync-import-stash", async function () {
-          var db = await openManagerDB();
-          await new Promise(function (resolve, reject) {
-            var tx = db.transaction("manager_state", "readwrite");
-            var store = tx.objectStore("manager_state");
-            // Read and re-merge inside the write transaction. Optional tab locks
-            // may time out; IndexedDB itself provides the exclusion.
-            var fresh={};
-            var cursorReq=store.openCursor();
-            cursorReq.onsuccess=function(){
-              var cursor=cursorReq.result;
-              if(cursor){fresh[cursor.key]=cursor.value;cursor.continue();return;}
-              try{
-                var remote=(plan.syncObj&&plan.syncObj.stash)||{};
-                var opts=plan.presentProjectIds?{presentProjectIds:plan.presentProjectIds}:undefined;
-                var result=mergeStash(fresh,remote,opts);
-                var base=mergeStash(plan.localStash||{},remote,opts);
-                Object.keys(stashToWrite.threads||{}).forEach(function(k){
-                  if(base.threads[k]&&result.threads[k]&&stashToWrite.threads[k].owned!==base.threads[k].owned)result.threads[k].owned=stashToWrite.threads[k].owned===0?0:Math.max(0,result.threads[k].owned+stashToWrite.threads[k].owned-base.threads[k].owned);
+      await _withManagerStateLock('sync-import-stash',async function() {
+        var db = await openManagerDB();
+        try { await new Promise(function(resolve,reject) {
+          var tx = db.transaction('manager_state','readwrite'), store = tx.objectStore('manager_state'), local = {};
+          var req = store.openCursor();
+          req.onsuccess = function(event) {
+            var c = event.target.result;
+            if (c) { local[c.key] = c.value; c.continue(); return; }
+            try {
+              var choice = gateResolutions['stash:inventory'];
+              if (choice && TrackingSync.canonical(_inventoryValue(local)) !== TrackingSync.canonical(_inventoryValue(plan.localStash))) throw protocolError('conflicted','Inventory changed during review. Review the sync file again.');
+              var mergedInventory = _inventoryMerge(local,plan.syncObj.stash || {},choice);
+              if (mergedInventory.conflict) throw protocolError('conflicted','Inventory and accounting snapshots differ. Choose a snapshot before importing.');
+              var value = _clone(mergedInventory.value);
+              var A = window.ThreadAccounting, ledger = null;
+              if (local.thread_consumption_v2 || plan.syncObj.stash.thread_consumption_v2) {
+                if (!A) throw new Error('Consumption history support is required.');
+                ledger = A.merge(local.thread_consumption_v2 || A.empty(),plan.syncObj.stash.thread_consumption_v2 || A.empty());
+                var totals = A.totals(ledger);
+                Object.keys(totals).forEach(function(k) {
+                  var row = value.threads[k];
+                  if (!row || row.owned + 1e-10 < totals[k]) throw protocolError('conflicted','Combined consumption exceeds reconciled inventory: ' + k);
+                  row.owned = Math.max(0,row.owned - totals[k]);
                 });
-                Object.keys(result).forEach(function(k){if(result[k]!=null)store.put(result[k],k);});
-              }catch(e){tx.abort();reject(e);}
-            };
-            tx.oncomplete = function () { db.close(); resolve(); };
-            tx.onerror = function () { db.close(); reject(tx.error); };
-            tx.onabort = function () { db.close(); reject(tx.error||new Error("Stash transaction aborted")); };
-          });
-        });
-      } catch (e) {
-        // VER-SYNC-019: surface QuotaExceededError with an actionable message
-        // instead of silently swallowing it. Re-throw so the caller's catch
-        // block shows the error; callers should check err.name to distinguish
-        // this from a project-save failure.
-        if (e && e.name === "QuotaExceededError") {
-          throw new Error("Not enough browser storage to complete the sync — free up space or clear cached data and try again. (QuotaExceededError during stash write)");
-        }
-        // For other stash errors, re-throw with a clear message so the caller
-        // knows the stash portion was not saved (rather than silently proceeding
-        // with stashUpdated: true in the result when the write actually failed).
-        throw new Error("Stash update failed: " + (e && e.message ? e.message : String(e)));
-      }
+                store.put(ledger,A.KEY);
+              }
+              Object.keys(value.threads).forEach(function(k) {
+                var l = local.threads && local.threads[k] || {}, r = plan.syncObj.stash.threads && plan.syncObj.stash.threads[k] || {};
+                var history = new Map();
+                (l.history || []).concat(r.history || []).forEach(function(h) { history.set(TrackingSync.canonical(h),h); });
+                value.threads[k].history = Array.from(history.values()).sort(function(a,b) { return TrackingSync.canonical(a).localeCompare(TrackingSync.canonical(b)); }).slice(-500);
+                value.threads[k]._v = Math.max(Number(l._v) || 0,Number(r._v) || 0);
+                value.threads[k].lastAdjustedAt = l.lastAdjustedAt || r.lastAdjustedAt || null;
+              });
+              store.put(value.threads,'threads');
+              // Remove only known ledger keys, then replace from the chosen bundle.
+              Object.keys(local).forEach(function(k) { if (k.indexOf('rt_deduction:') === 0) store.delete(k); });
+              Object.keys(value.accounting).forEach(function(k) { store.put(value.accounting[k],k); });
+              store.put(mergedInventory.events,'sync:inventory');
+              var rest = mergeStash({patterns:local.patterns,userProfile:local.userProfile},{patterns:plan.syncObj.stash.patterns,userProfile:plan.syncObj.stash.userProfile},plan.presentProjectIds ? {presentProjectIds:plan.presentProjectIds} : undefined);
+              if (rest.patterns) store.put(rest.patterns,'patterns');
+              if (rest.userProfile) store.put(rest.userProfile,'userProfile');
+            } catch(e) { tx.abort(); reject(e); }
+          };
+          tx.oncomplete = resolve;
+          tx.onabort = tx.onerror = function() { reject(tx.error || new Error('Inventory write failed; retry the sync file.')); };
+        }); } finally { db.close(); }
+      });
     }
 
     // 5. Absorb remote tombstones: merge the remote's deleted-project list into
@@ -2549,17 +2920,13 @@ const SyncEngine = (() => {
           // stands); a timestampless legacy tombstone never outranks a live
           // record.
           var liveLocal = plan.localMap ? plan.localMap[incoming[ii].id] : null;
-          if (liveLocal) {
-            var absDelMs = incoming[ii].deletedAt ? new Date(incoming[ii].deletedAt).getTime() : NaN;
-            var absUpdMs = liveLocal.updatedAt ? new Date(liveLocal.updatedAt).getTime() : 0;
-            if (!isFinite(absDelMs) || absDelMs <= absUpdMs) continue;
-          }
+          if (liveLocal && gateResolutions['delete:' + incoming[ii].id] !== 'keep-remote') continue;
           existingRecords.push(incoming[ii]);
           tombstoneSet[incoming[ii].id] = true;
           changed = true;
         }
         if (changed) _writeTombstoneRecords(existingRecords);
-      } catch (_) {}
+      } catch (e) { throw e; }
     }
 
     // 5a. Release tombstones for projects we accepted back — either because
@@ -2649,6 +3016,22 @@ const SyncEngine = (() => {
       }
     }
 
+    var attachmentInput = plan.syncObj;
+    if (attachmentInput && attachmentInput.attachments) {
+      var rejected = new Set((plan.conflicts || []).filter(function(c) { return conflictResolutions[c.id] === 'keep-local'; }).map(function(c) { return c.id; }));
+      var attachmentEnvelope = _clone(attachmentInput.attachments);
+      attachmentEnvelope.manifest = attachmentEnvelope.manifest.filter(function(e) { return !rejected.has(e.projectId); });
+      var usedContent = new Set(attachmentEnvelope.manifest.map(function(e) { return e.contentId; }));
+      Object.keys(attachmentEnvelope.blobs).forEach(function(k) { if (!usedContent.has(k)) delete attachmentEnvelope.blobs[k]; });
+      attachmentInput = Object.assign({},attachmentInput,{projects:attachmentInput.projects.filter(function(e) { return !rejected.has(e.id); }),attachments:attachmentEnvelope});
+    }
+    await _applyAttachments(attachmentInput);
+    // Apply reviewed remote deletions through the normal storage cleanup path.
+    for (var dc of (plan.semanticConflicts || [])) {
+      if (dc.id.indexOf('delete:') === 0 && gateResolutions[dc.id] === 'keep-remote') await ProjectStorage.delete(dc.projectId);
+    }
+    _setProtocolState('completed');
+
     // 6. Record import timestamp and mark synced projects
     var importTs = new Date().toISOString();
     try { localStorage.setItem(LS_LAST_IMPORT, importTs); } catch (e) {}
@@ -2687,12 +3070,11 @@ const SyncEngine = (() => {
     // subsequent "Review sync" click would re-show the same already-merged
     // plan. The watcher's dedup (_seenPendingKeys) prevents re-publication
     // unless a fresh file arrives.
-    try { clearPendingPlan(); } catch (e) {}
-
     return {
       imported: plan.newRemote.length,
       merged: plan.mergeTracking.length,
-      conflictsResolved: plan.conflicts.length,
+      status: 'completed',
+      conflictsResolved: plan.conflicts.length + (plan.semanticConflicts || []).length,
       stashUpdated: !!plan.stashMerge,
       // Declined projects, so callers can render their own affordance on top
       // of the engine's warning toast.
@@ -2712,7 +3094,8 @@ const SyncEngine = (() => {
     for (var i = 0; i < remoteList.length; i++) {
       if (remoteList[i] && remoteList[i].id) byId[remoteList[i].id] = remoteList[i];
     }
-    var restored = 0;
+    var restored = 0, restoredIds = new Set();
+    await _verifyAttachments(plan.syncObj);
     for (var s = 0; s < skipped.length; s++) {
       var id = skipped[s] && skipped[s].id;
       if (!id) continue;
@@ -2721,13 +3104,19 @@ const SyncEngine = (() => {
       if (rp && rp.data) {
         try {
           await ProjectStorage.save(rp.data, { preserveUpdatedAt: true, resurrect: true });
-          restored++;
-        } catch (e) {
-          console.warn("SyncEngine.restoreSkippedPatterns: could not restore " + id, e);
-        }
+          restored++; restoredIds.add(id);
+        } catch (e) { _setProtocolState('failed',e.message); throw e; }
       }
     }
     if (restored > 0) {
+      if (plan.syncObj.attachments) {
+        var restoreEnvelope = _clone(plan.syncObj);
+        restoreEnvelope.projects = restoreEnvelope.projects.filter(function(e) { return restoredIds.has(e.id); });
+        restoreEnvelope.attachments.manifest = restoreEnvelope.attachments.manifest.filter(function(e) { return restoredIds.has(e.projectId); });
+        var restoreContent = new Set(restoreEnvelope.attachments.manifest.map(function(e) { return e.contentId; }));
+        Object.keys(restoreEnvelope.attachments.blobs).forEach(function(k) { if (!restoreContent.has(k)) delete restoreEnvelope.attachments.blobs[k]; });
+        try { await _applyAttachments(restoreEnvelope); } catch(e) { _setProtocolState(e.state || 'failed',e.message); throw e; }
+      }
       _logEvent({
         type: "restore-skipped",
         direction: "in",
@@ -2831,6 +3220,11 @@ const SyncEngine = (() => {
 
   // Write current state to the sync folder as a .csync file
   async function exportToFolder(dirHandleArg) {
+    _setProtocolState('pending',null,'export');
+    try { return await _exportToFolder(dirHandleArg); }
+    catch(e) { _setProtocolState('failed',e.message,'export'); throw e; }
+  }
+  async function _exportToFolder(dirHandleArg) {
     var dirHandle = dirHandleArg || _watchDirHandle;
     if (!dirHandle) throw new Error("No sync folder configured.");
     // Verify permission
@@ -2986,6 +3380,10 @@ const SyncEngine = (() => {
       if (f.deviceId && f.deviceId === myDeviceId && myDeviceId !== "dev_unknown") continue;
       var fileTime = f.createdAt ? new Date(f.createdAt).getTime() : (f.lastModified || 0);
       var deviceRecord = (f.deviceId && perDevice[f.deviceId]) ? perDevice[f.deviceId] : null;
+      if (f.syncObj && f.syncObj._deliveryId) {
+        if (!deviceRecord || deviceRecord.deliveryId !== f.syncObj._deliveryId) updates.push(f);
+        continue;
+      }
       if (deviceRecord) {
         // Seen this peer before — accept files newer than what we last
         // imported from THEM. Prefer the recorded fileCreatedAt (matches
@@ -3356,7 +3754,7 @@ const SyncEngine = (() => {
   function _pendingKey(update) {
     var d = (update && update.deviceId) ? update.deviceId : "?";
     var m = (update && update.lastModified) ? update.lastModified : 0;
-    return d + "|" + m;
+    return d + "|" + ((update && update.syncObj && update.syncObj._deliveryId) || m);
   }
 
   function _entryData(entry) {
@@ -3365,6 +3763,7 @@ const SyncEngine = (() => {
 
   function _isPlanAutoApplicable(plan) {
     if (!plan) return false;
+    if (plan.semanticConflicts && plan.semanticConflicts.length) return false;
     // Structural conflicts always need a human: the two devices edited the
     // chart itself in incompatible ways and the merge engine cannot pick a
     // winner without losing someone's work.
@@ -3503,7 +3902,9 @@ const SyncEngine = (() => {
 
   function _planHasSideEffects(plan) {
     if (!plan) return false;
-    return _stashMergeChangesAnything(plan)
+    return !!plan.attachmentsChanged
+        || !!(plan.semanticConflicts && plan.semanticConflicts.length)
+        || _stashMergeChangesAnything(plan)
         || _tombstonesChangeAnything(plan)
         || _prefsChangeAnything(plan)
         // Declined-as-tombstoned projects are not "work" the import will do,
@@ -3525,6 +3926,7 @@ const SyncEngine = (() => {
   // exists and are stripped from reviewPlan so they can't be applied twice.
   function _partitionPlan(plan) {
     if (!plan) return { autoPlan: null, reviewPlan: null };
+    if (plan.semanticConflicts && plan.semanticConflicts.length) return {autoPlan:null,reviewPlan:plan};
 
     if (!_planHasProjectWork(plan)) {
       // Nothing to import. Keep parity for stash/prefs-only deliveries
@@ -3601,6 +4003,10 @@ const SyncEngine = (() => {
         // a decision is queued. A malformed entry no longer holds back the
         // healthy projects that arrived in the same file.
         var parts = _partitionPlan(plan);
+        if (!parts.autoPlan && !parts.reviewPlan) {
+          _recordDeviceImport(plan.syncObj,plan._fileLastModified);
+          _setProtocolState('completed');
+        }
         if (parts.autoPlan) {
           var result = await executeImport(parts.autoPlan);
           autoApplied.push({ update: u, plan: parts.autoPlan, result: result });
@@ -3990,7 +4396,9 @@ const SyncEngine = (() => {
       watchDirName: (_watchDirHandle && _watchDirHandle.name) || null,
       autoSync: isAutoSyncEnabled(),
       watching: isWatching(),
-      lastError: _lastError
+      lastError: _lastError,
+      protocol: _readProtocolState('cs_sync_protocolState'),
+      exportProtocol: _readProtocolState('cs_sync_exportState')
     };
   }
 

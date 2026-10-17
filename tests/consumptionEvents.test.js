@@ -138,7 +138,7 @@ test('actual sync import transaction preserves a debit arriving after prepare an
   await a.applyConsumptionEvents('p',{},[op(1)]);const remote=await store(idb);
   A.baseline(remote[A.KEY],'q',{},null,'now');A.apply(remote[A.KEY],remote.threads,[op(1,'mark','d:0',estimate,'q')],'now');
   const se=syncEngine({ThreadAccounting:A,openManagerDB:()=>dbFor(idb)},idb);
-  const data={_format:se.SYNC_FORMAT,_version:se.SYNC_VERSION,_deviceId:'peer',_createdAt:new Date().toISOString(),projects:[],stash:remote};
+  const data={_format:se.SYNC_FORMAT,_version:1,_deviceId:'peer',_createdAt:new Date().toISOString(),projects:[],stash:remote};
   const plan=await se.prepareImport(data);
   await b.applyConsumptionEvents('r',{},[op(1,'mark','d:0',estimate,'r')]);
   await se.executeImport(plan);expect(await stock()).toBeCloseTo(1-3*cost,14);expect(await history()).toHaveLength(3);

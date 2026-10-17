@@ -275,18 +275,17 @@ const ProjectStorage = (() => {
   // the next sync import. Shared by delete() (one id) and clearAllProjects()
   // when the wipe is a deliberate user action rather than a resync rebuild.
   //
-  // Records are { id, deletedAt }. The timestamp lets SyncEngine tell a stale
-  // deletion from a live one: if a peer edits the project after we deleted it,
-  // that work is accepted back instead of being blocked forever. Legacy bare-
-  // string entries are left as-is and normalised on read.
+  // Records are { id, deletedAt }; timestamps are display metadata. Offline
+  // edits never prove a deletion was undone. Explicit Restore releases evidence.
+  // Legacy bare-string entries remain readable.
   const LS_TOMBSTONE_KEY = "cs_deleted_project_ids";
-  const TOMBSTONE_MAX = 200;
+  const TOMBSTONE_MAX = 10000;
   function writeTombstones(ids) {
     try {
       const raw = localStorage.getItem(LS_TOMBSTONE_KEY);
       let tombstones = [];
-      try { tombstones = JSON.parse(raw) || []; } catch (_) {}
-      if (!Array.isArray(tombstones)) tombstones = [];
+      tombstones = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(tombstones)) throw new Error('Invalid project deletion history.');
       const deletedAt = new Date().toISOString();
       for (const id of ids) {
         const already = tombstones.some(function (t) {
@@ -296,10 +295,10 @@ const ProjectStorage = (() => {
       }
       // Cap to avoid unbounded localStorage growth.
       if (tombstones.length > TOMBSTONE_MAX) {
-        tombstones = tombstones.slice(tombstones.length - TOMBSTONE_MAX);
+        throw new Error('Deletion record limit reached; explicitly reset sync before deleting more projects.');
       }
       localStorage.setItem(LS_TOMBSTONE_KEY, JSON.stringify(tombstones));
-    } catch (_) {}
+    } catch (e) { throw e; }
   }
 
   let _cachedDB = null;
@@ -421,33 +420,23 @@ const ProjectStorage = (() => {
     // Mark projects as synced (sets lastSyncedAt on each).
     async markSynced(projectIds, timestamp) {
       const ts = timestamp || new Date().toISOString();
-      // PERF (perf-5 #1): batch reads in parallel and coalesce writes into a single
-      // transaction. Was N sequential get-then-put round-trips; now ~1 read fan-out + 1 tx.
-      const projects = await Promise.all(
-        projectIds.map(id => this.get(id).catch(e => { console.warn("markSynced get failed for", id, e); return null; }))
-      );
-      const toUpdate = projects.filter(p => p);
-      if (!toUpdate.length) return;
-      for (const p of toUpdate) {
-        if (!p.syncMeta) p.syncMeta = {};
-        p.syncMeta.lastSyncedAt = ts;
-        p.syncMeta.syncVersion = (p.syncMeta.syncVersion || 0) + 1;
-      }
-      try {
-        const db = await getDB();
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE], "readwrite");
-          for (const p of toUpdate) {
-            tx.objectStore(STORE_NAME).put(p, p.id);
-            tx.objectStore(META_STORE).put(buildMeta(p), p.id);
-            if (p.id && p.id.startsWith("proj_")) {
-              tx.objectStore(STATS_STORE).put(buildStatsSummary(p), p.id);
-            }
-          }
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
+      const db = await getDB();
+      await new Promise((resolve,reject) => {
+        const tx = db.transaction([STORE_NAME,META_STORE,STATS_STORE],'readwrite');
+        projectIds.forEach(id => {
+          const req = tx.objectStore(STORE_NAME).get(id);
+          req.onsuccess = () => {
+            const p = req.result;
+            if (!p) return; // A concurrent deletion must stay deleted.
+            p.syncMeta = Object.assign({},p.syncMeta,{lastSyncedAt:ts});
+            tx.objectStore(STORE_NAME).put(p,id);
+            tx.objectStore(META_STORE).put(buildMeta(p),id);
+            if (id.startsWith('proj_')) tx.objectStore(STATS_STORE).put(buildStatsSummary(p),id);
+          };
         });
-      } catch (e) { console.warn("markSynced batch write failed", e); }
+        tx.oncomplete = resolve;
+        tx.onerror = tx.onabort = () => reject(tx.error || new Error('Sync status write failed'));
+      });
     },
 
     // Save a project. Assigns a new ID and createdAt if the project has none.
@@ -520,7 +509,7 @@ const ProjectStorage = (() => {
           let store = tx.objectStore(STORE_NAME);
           let metaStore = tx.objectStore(META_STORE);
           let statsStore = tx.objectStore(STATS_STORE);
-          let refusedPatternless = false;
+          let refusedPatternless = false, refusedSyncRace = false;
           const putAll = () => {
             const pending = tx.objectStore('pendingImports');
             putCheckpoint(pending, project, project.activeSessionCheckpoint);
@@ -550,6 +539,14 @@ const ProjectStorage = (() => {
           const finish = () => {
             if (++ready !== (progressReq ? 2 : 1)) return;
             const existing = getReq.result;
+            if (Object.prototype.hasOwnProperty.call(opts,'syncExpected')) {
+              const current = applyProgressRecord(existing,progressReq && progressReq.result);
+              const signature = p => p ? TrackingSync.canonical({lastWriteAt:p.lastWriteAt || null,
+                marks:TrackingSync.merge(p,{}).trackingSync,values:TrackingSync.mergeValues(p,{}).valueSync}) : null;
+              if (signature(current) !== opts.syncExpected) {
+                refusedSyncRace = true; tx.abort(); return;
+              }
+            }
             // Distinct writes must retire the prior progress overlay even in the
             // same millisecond (imports can otherwise reload stale completion).
             if (existing && typeof existing.lastWriteAt === "number") project.lastWriteAt = Math.max(project.lastWriteAt, existing.lastWriteAt + 1);
@@ -567,7 +564,9 @@ const ProjectStorage = (() => {
           getReq.onsuccess = finish;
           if (progressReq) progressReq.onsuccess = finish;
           tx.onabort = () => {
-            if (refusedPatternless) {
+            if (refusedSyncRace) {
+              const err = new Error('Project changed while sync was saving. Prepare the sync file again.'); err.state = 'conflicted'; reject(err);
+            } else if (refusedPatternless) {
               console.error("ProjectStorage.save refused: a record without a pattern would overwrite one that has it", project.id);
               try {
                 if (typeof window !== 'undefined' && window.Toast && window.Toast.show) {
@@ -1104,6 +1103,7 @@ const ProjectStorage = (() => {
 
     // Delete a project by ID.
     async delete(id) {
+      writeTombstones([id]);
       try {
         // Record the deletion so in-flight auto-saves from Tracker/Creator
         // don't resurrect the project before the page fully reloads.
@@ -1135,7 +1135,6 @@ const ProjectStorage = (() => {
           };
           autoSaveReq.onerror = () => reject(autoSaveReq.error);
           tx.oncomplete = () => {
-            writeTombstones([id]);
             // Brief D — remove any auto-synced Manager pattern entry that was
             // linked to this project so the library doesn't show stale entries.
             if (typeof StashBridge !== "undefined" && StashBridge.unlinkProjectFromLibrary) {
@@ -1209,6 +1208,7 @@ const ProjectStorage = (() => {
           k => typeof k === "string" && k.startsWith("proj_"));
         await new Promise((resolve, reject) => {
           const hasPending = db.objectStoreNames.contains("pendingImports");
+          if (tombstone) writeTombstones(projectIds);
           const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE].concat(hasPending ? ["pendingImports"] : []), "readwrite");
           const store = tx.objectStore(STORE_NAME);
           const metaStore = tx.objectStore(META_STORE);
@@ -1229,7 +1229,6 @@ const ProjectStorage = (() => {
           // Deliberate user deletion: make it stick. Tombstones stop a
           // connected sync folder re-importing the patterns, and the session
           // guard stops an autosave already in flight from re-writing one.
-          writeTombstones(projectIds);
           try { for (const id of projectIds) this._deletedIds.add(id); } catch (_) {}
         } else {
           // Release the session-delete guard. It exists to stop an in-flight

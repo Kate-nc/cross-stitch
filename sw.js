@@ -130,7 +130,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "2e3015c69e9a469f8af38d54da371215db18817b05c6cf855c4977b735d5dc7e";
+var BUILD_ID = "05f0f2596a2def39cd72979798c0f097c23662d61be6999342c8433dbf44d0b9";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -295,7 +295,7 @@ var BUILD_ASSETS = {
     "sha256": "50f508e0589d27eac382c4176a436b441cffc3c3e015390c560648b4e29b66cc"
   },
   "./version.js": {
-    "sha256": "eeaa676111d3728de6255a05e752329fa203942533fd9260b193bac6ad33984b"
+    "sha256": "cd0e94fb67c3a0dfffbd5e3ca6669f41b7a4b7de4467952d640a3f6a36006dd2"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -352,7 +352,7 @@ var BUILD_ASSETS = {
     "sha256": "8e541427d27420148aa0ec591e88668ba69b4e4ef9d9dfcf7e0e24d2383dc816"
   },
   "./tracking-sync.js": {
-    "sha256": "5878ffd2a1e7cdfecd35d38a5033a63277558cb4fdde6641d7ff8f987c3a87b9"
+    "sha256": "7fb6ffbb059ec1c923e3045738274051c1f1cc508f3a4608d32532b25c79f2f9"
   },
   "./icons.js": {
     "sha256": "3a0a2ba9bd9d707ab6fd814504708b5184f6d243626a5106ec8a1d8af6fdc36f"
@@ -370,10 +370,10 @@ var BUILD_ASSETS = {
     "sha256": "ee35e3e194037dc9bdc9c74591fd4945db28fe3df53aea0398e9703f768fb0f8"
   },
   "./header.js": {
-    "sha256": "8f6229dd545192f99679806ab8954b48822c7a110b2887f87304b4ce75752dc3"
+    "sha256": "42782d6639dac5b3858dbe41677dffe7d0e544a99f7445cbb9b03e1ea32c7cad"
   },
   "./modals.js": {
-    "sha256": "94e4c4dcff8e7cb0ecf5f8277ee34d7ee5431f8bbaa7349f83ab850abe743819"
+    "sha256": "eb84db870b91539ed2e5e79fe6886bfadcf81d2b8005c8573f6482bda925f959"
   },
   "./threadCalc.js": {
     "sha256": "c8edb90a753668b7580af829970c9ac8ee93d4666b71c852185a9ba8f7b39425"
@@ -397,13 +397,13 @@ var BUILD_ASSETS = {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "47c225d256c20c451bede36109b8340767308b5af7c08c4651c65084735347f0"
+    "sha256": "2168eff891a0168c3f4cee3f9356e4a6b04aac05c3927d9ff849f1768f86eb5d"
   },
   "./blob-store.js": {
-    "sha256": "00cdd57a4ea73749240a20b5b7c0127d8a582046c33b6f504810ba541d80a4f4"
+    "sha256": "679b49816912050765871f58aff0856a2c4bd0cf5a6299e6325c26e40ebb0e7c"
   },
   "./thread-accounting.js": {
-    "sha256": "9e85c170e89441a259b1c685f70274a4e7eec93f036608a23368557eead73b2f"
+    "sha256": "c61545c36f392bf93a7f4d00b33a7b365e06426d88733db838ca980e3440a494"
   },
   "./stash-bridge.js": {
     "sha256": "041186bd96180c963e83a2cfbd28f7a32add2f4744daca54a1f0e5c972a28fbe"
@@ -526,13 +526,13 @@ var BUILD_ASSETS = {
     "sha256": "2fdcf834be0f2af1c90860ccacccb0cb9c81a07cd185a145b58f5c4b675eeaa5"
   },
   "./help-drawer.js": {
-    "sha256": "4a4fdb83834608f1b35738d7e59f0802226e0a05537accbe12774c47c12c1b97"
+    "sha256": "ac147d6ca24b3a06c58dc3c14989d04b56abfb91723ee8d8e81b6f632a2ff728"
   },
   "./creator/pdfExport.js": {
     "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
   },
   "./sync-engine.js": {
-    "sha256": "4abb3d83d2220346f64c1860d0cf2b21191f2a0f84013c92364511f90ecc29cf"
+    "sha256": "45ba7ee57e8e35990a1e1431fb0bbf065528be5853ecc09e2e7acf8a297cdaeb"
   },
   "./assets/fonts/CrossStitchSymbols.base64.js": {
     "sha256": "c6b5293953acb71cf7dd71bd8b293333c9012ab1760ba3f7a19e7977f3b30ca4"

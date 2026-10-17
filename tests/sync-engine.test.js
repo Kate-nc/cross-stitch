@@ -19,7 +19,7 @@ global.localStorage = (() => {
   };
 })();
 global.pako = pako;
-global.indexedDB = undefined; // Not available in Node — DB-dependent tests are skipped
+global.indexedDB = new (require('fake-indexeddb').IDBFactory)();
 
 // Silence console.warn from expected IndexedDB fallback paths
 const originalWarn = console.warn;
@@ -794,7 +794,7 @@ describe('executeImport', () => {
     expect(copy.name).toContain('(synced)');
   });
 
-  test('defaults unresolved conflicts to keep-local', async () => {
+  test('leaves unresolved conflicts explicit', async () => {
     const local = makeProject('proj_1', '2024-06-01T00:00:00Z');
     const remote = makeProject('proj_1', '2024-06-02T00:00:00Z', [{ id: '999' }, { id: '999' }, { id: '999' }, { id: '999' }]);
     global.ProjectStorage._store['proj_1'] = local;
@@ -806,9 +806,7 @@ describe('executeImport', () => {
       stashMerge: null
     };
 
-    // No resolutions provided — should default to keep-local
-    const result = await SE.executeImport(plan, {});
-    expect(result.conflictsResolved).toBe(1);
+    await expect(SE.executeImport(plan, {})).rejects.toMatchObject({state:'conflicted'});
     expect(global.ProjectStorage._store['proj_1'].pattern[0].id).toBe('310');
   });
 
@@ -1059,7 +1057,7 @@ describe('executeImport: canonical-id reconciliation', () => {
       stashMerge: null
     };
 
-    var result = await SE.executeImport(plan, {});
+    var result = await SE.executeImport(plan, {}, {['meta:' + plan.mergeTracking[0].id + ':name']:'keep-local'});
     expect(result.merged).toBe(1);
 
     // Canonical id present, old id gone — exactly ONE chart in storage.
@@ -1081,10 +1079,10 @@ describe('executeImport: canonical-id reconciliation', () => {
       conflicts: [], stashMerge: null
     };
 
-    await SE.executeImport(plan, {});
+    await SE.executeImport(plan, {}, {['meta:' + plan.mergeTracking[0].id + ':name']:'keep-local'});
     // Second apply: classifier would now see remote.id matches local.id (proj_a_aaaa)
     // and not produce idRewrite — but even if it did, executeImport is safe.
-    await SE.executeImport(plan, {});
+    await SE.executeImport(plan, {}, {['meta:' + plan.mergeTracking[0].id + ':name']:'keep-local'});
     expect(Object.keys(global.ProjectStorage._store)).toEqual(['proj_a_aaaa']);
   });
 });
@@ -1143,7 +1141,7 @@ describe('executeImport: idRewrite tombstone cleanup', () => {
       conflicts: [], stashMerge: null
     };
 
-    await SE.executeImport(plan, {});
+    await SE.executeImport(plan, {}, {['meta:' + plan.mergeTracking[0].id + ':name']:'keep-local'});
 
     // Old local ID should be gone from IDB.
     expect(global.ProjectStorage._store['proj_b_bbbb']).toBeUndefined();
@@ -1171,7 +1169,7 @@ describe('executeImport: idRewrite tombstone cleanup', () => {
       conflicts: [], stashMerge: null
     };
 
-    await SE.executeImport(plan, {});
+    await SE.executeImport(plan, {}, {['meta:' + plan.mergeTracking[0].id + ':name']:'keep-local'});
 
     var tombstones = JSON.parse(global.localStorage.getItem(TS_KEY) || '[]');
     // Pre-existing real user deletion must still be there.
@@ -1273,7 +1271,7 @@ describe('prepareImport: idRewrites + localOnly accounting', () => {
   function makeSyncObj(projects) {
     return {
       _format: SE.SYNC_FORMAT,
-      _version: SE.SYNC_VERSION,
+      _version: 1,
       _createdAt: '2024-06-01T00:00:00Z',
       _deviceId: 'dev_remote',
       _deviceName: 'Remote',

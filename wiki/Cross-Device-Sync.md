@@ -50,7 +50,7 @@ Which project is open, zoom and view settings also stay on each device.
 
 Full stitches, each half-stitch direction, each quarter-stitch position, knots and backstitch lines merge independently. Unpicking on one device is preserved while another device adds work elsewhere. Importing the same file repeatedly does not duplicate marks or parking markers. Parking identity includes position, colour and corner, so several markers in one cell survive.
 
-Each completion mark now carries removal history. An edit that has seen an earlier edit supersedes it. If devices mark and unpick the **same** mark without seeing each other's edits, **unpicked wins**, regardless of device order or clock settings. To mark it again, sync the devices first, then mark it. This policy applies to completion marks; parking remains an additive union, so clearing parking on one device does not remove a peer's markers.
+Each completion mark now carries removal history. An edit that has seen an earlier edit supersedes it. If devices mark and unpick the **same** mark without seeing each other's edits, **unpicked wins**, regardless of device order or clock settings. To mark it again, sync the devices first, then mark it. This policy applies to completion marks. New parking edits carry causal history, including clearing a list; incompatible concurrent list edits need review. Legacy parking lists remain additive.
 
 Older files still open. A missing field or an empty legacy list has no removal history and never counts as an intentional unpick. Existing positive marks are retained unless there is a recorded removal. Update every device: older app versions do not honour this history, and unpicks performed before migration cannot be reconstructed. To recover an unpick made in an old app, import/sync the older work first, then unpick it in the updated app. Older files cannot re-mark a versioned removal; sync and re-mark in the updated app instead.
 
@@ -152,3 +152,15 @@ Compare snapshots travel with each project. Sync merges snapshots by ID and keep
 ### Thread consumption history
 
 Include the stash to transfer consumption events, estimation assumptions and migration baselines with its inventory. Repeated imports deduplicate events. Inventory and the merged ledger commit together; imported marks alone do not mean fresh stitching on the receiving device. Update every device before using this format. Conflicting immutable histories, incompatible baselines or combined offline usage beyond recorded stock stop the stash import and require inventory reconciliation. Full backup/restore also preserves this history.
+
+### Protocol, attachments and completion
+
+New exports use `.csync` version 2. Update every device: older apps reject this version rather than silently discarding its semantics. Supported version-1 sync files still import; they cannot prove attachment completeness or supply missing removal history. Project JSON remains version 11; database versions do not change.
+
+Progress photos, thumbnails and tracing pictures travel in a manifest with SHA-256 content identities. Original source pictures are explicitly included or excluded by the existing option. Missing required bytes leave the import pending. Failed integrity checks or interrupted writes report failure; retry the complete file. Nothing is fetched from a new service.
+
+Concurrent notes, session edits, parking changes and incompatible stash baselines need explicit review. Inventory review chooses a gross stock baseline and retains the union of immutable consumption events; it never adds debits twice. A deletion does not expire merely because an offline file has a newer timestamp. Use the explicit Restore action to recover a deleted project. Deletion records are bounded without automatic eviction; reaching the limit stops the operation and requires a deliberate sync reset.
+
+The cloud popover reports import and export states separately. Completed export means the file was handed to the existing transport, without confirming another device received it. Completed import means the required local writes and attachment checks finished. An interrupted import may have applied some projects; replay is safe.
+
+[Merge rules, compatibility and storage boundaries](../docs/sync-protocol.md).

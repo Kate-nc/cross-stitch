@@ -125,7 +125,7 @@ function makeRemoteProject(id, updatedAt) {
 function makeSyncObj(projects, stashPatterns) {
   return {
     _format: SE.SYNC_FORMAT,
-    _version: SE.SYNC_VERSION,
+    _version: 1,
     _createdAt: '2026-08-15T12:00:00.000Z',
     _deviceId: 'device-A',
     _deviceName: 'Browser A',

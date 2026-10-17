@@ -21,7 +21,7 @@ global.localStorage = (() => {
   };
 })();
 global.pako = pako;
-global.indexedDB = undefined;
+global.indexedDB = new (require('fake-indexeddb').IDBFactory)();
 global.ProjectStorage = { listProjects: async () => [], get: async () => null, save: async p => p.id };
 
 eval(fs.readFileSync('./sync-engine.js', 'utf8'));
@@ -80,16 +80,14 @@ describe('fix #8 — record format', () => {
   });
 });
 
-describe('fix #8 — a deletion no longer outranks later peer work', () => {
-  test('a pattern edited AFTER our deletion comes back', () => {
+describe('deletions require explicit restore regardless of wall-clock order', () => {
+  test('a future-dated pattern stays deleted until explicit restore', () => {
     localStorage.setItem(KEY, JSON.stringify([
       { id: 'proj_x', deletedAt: '2026-05-18T12:43:38.098Z' }
     ]));
     const classified = SE.classifyProjects([remoteEntry('proj_x', '2026-08-23T14:12:36.486Z')], {});
-    expect(classified.length).toBe(1);
-    expect(classified[0].classification).toBe('new-remote');
-    expect(classified[0].releasedTombstone).toBe(true);
-    expect(classified.skippedTombstoned).toEqual([]);
+    expect(classified.length).toBe(0);
+    expect(classified.skippedTombstoned).toHaveLength(1);
   });
 
   test('a pattern untouched since our deletion stays blocked', () => {
@@ -99,7 +97,7 @@ describe('fix #8 — a deletion no longer outranks later peer work', () => {
     const classified = SE.classifyProjects([remoteEntry('proj_x', '2026-05-01T00:00:00.000Z')], {});
     expect(classified.length).toBe(0);
     expect(classified.skippedTombstoned.length).toBe(1);
-    expect(classified.skippedTombstoned[0].reason).toBe('deleted-after-remote-edit');
+    expect(classified.skippedTombstoned[0].reason).toBe('explicit-deletion');
   });
 
   test('legacy tombstones stay conservative — still blocked, but now explained', () => {
@@ -108,7 +106,7 @@ describe('fix #8 — a deletion no longer outranks later peer work', () => {
     localStorage.setItem(KEY, JSON.stringify(['proj_x']));
     const classified = SE.classifyProjects([remoteEntry('proj_x', '2026-08-23T14:12:36.486Z')], {});
     expect(classified.length).toBe(0);
-    expect(classified.skippedTombstoned[0].reason).toBe('legacy-tombstone');
+    expect(classified.skippedTombstoned[0].reason).toBe('explicit-deletion');
     expect(classified.skippedTombstoned[0].remoteUpdatedAt).toBe('2026-08-23T14:12:36.486Z');
   });
 
