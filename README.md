@@ -33,9 +33,11 @@ Convert images into stitchable charts, or design patterns from scratch.
 - Cleanup mode for line-art borders and Denoise mode (palette merge, speckle, fringe).
 - Full undo / redo history.
 - Realistic preview from plain chart up to a hoop or frame mock-up, and a split-pane view of chart and preview side by side.
-- Stitch Score: a 0–100 stitchability rating (100 minus the percentage of confetti stitches).
+- Ready to stitch review: current-chart effort metrics, visual comparisons and material assumptions.
 
 **Materials & Output**
+
+- **Ready to stitch** compares source, current chart and a stitch-data simulation; review finished size, fabric and material assumptions, isolated stitches and rarely used colours before buying. Inspect and export a chosen sample region. Screen colours and estimates are approximate; no quality score is implied.
 - Threads: per-colour stitch counts, skein estimates and cost.
 - Stash status: what you own, what is low, what you need to buy.
 - Export: PDF, PNG, `.oxs` and a `.zip` bundle (see [Export & Sharing](#export--sharing)).

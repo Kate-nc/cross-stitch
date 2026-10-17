@@ -140,7 +140,7 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     var needed;
     if (typeof stitchesToSkeins === 'function') {
       var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
-        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor == null ? 0.20 : opts.wasteFactor });
       needed = sk.skeinsToBuy || 0;
     } else {
       needed = Math.ceil(r.threadStitches / 800) || 0;
@@ -642,22 +642,22 @@ window.useCreatorState = function useCreatorState() {
   });
   var tab        = _tab[0],        setTabRaw     = _tab[1];
   // B4: which sub-tab inside MaterialsHub is active.
-  // 'threads' | 'stash' | 'output'
+  // 'review' | 'threads' | 'stash' | 'output'
   var _materialsTab = useState(function () {
     var v = loadUserPref("creator.materialsTab", null);
-    if (v === "threads" || v === "stash" || v === "output") return v;
+    if (v === "review" || v === "threads" || v === "stash" || v === "output") return v;
     // Honour legacy lastPage as a one-off seed so a user whose last visit
     // was the old Export tab lands on Output in the new hub.
     var lp = loadUserPref("creator.lastPage", null);
     if (lp === "export") return "output";
     if (lp === "prepare") return "stash";
     if (lp === "legend") return "threads";
-    return "threads";
+    return "review";
   });
   var materialsTab = _materialsTab[0];
   var setMaterialsTabRaw = _materialsTab[1];
   function setMaterialsTab(v) {
-    if (v !== "threads" && v !== "stash" && v !== "output") return;
+    if (v !== "review" && v !== "threads" && v !== "stash" && v !== "output") return;
     setMaterialsTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
   }
@@ -1207,21 +1207,11 @@ window.useCreatorState = function useCreatorState() {
 
   var skeinData = useMemo(function() {
     if (!pal) return [];
-    var map = {};
-    // French knots add their thread too (knots.js).
-    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
-    // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
-    withKnots.forEach(function(p) {
-      if (p.type === "solid") { var k = (p.brand || "dmc") + ":" + p.id; map[k] = (map[k] || 0) + p.count; }
-      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { var k = (t.brand || p.brand || "dmc") + ":" + t.id; map[k] = (map[k] || 0) + p.count; }); }
+    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots, typeof restoreStitch === "function" ? restoreStitch : null) : pal;
+    return window.buildThreadShoppingRows(withKnots, { fabricCt: fabricCt }).map(function(row) {
+      return { id: row.p.id, brand: row.p.brand, name: row.p.name, rgb: row.p.rgb,
+        stitches: row.p.count, skeins: row.needed };
     });
-    return Object.entries(map)
-      .map(function(e) { var c = e[0].indexOf(":"); return { brand: e[0].slice(0, c), id: e[0].slice(c + 1), ct: e[1] }; })
-      .sort(function(a, b) { var na = parseInt(a.id) || 0, nb = parseInt(b.id) || 0; if (na && nb) return na - nb; return a.id.localeCompare(b.id); })
-      .map(function(e) {
-        var t = findThreadInCatalog(e.brand, e.id);
-        return { id: e.id, brand: e.brand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: e.ct, skeins: skeinEst(e.ct, fabricCt) };
-      });
   }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);

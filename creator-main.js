@@ -1213,15 +1213,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         onSaveJson={io.saveProject}
         onMoreExports={()=>_nameNudgeRef.current('exports')}
         onPreferences={typeof window.PreferencesModal!=='undefined'?()=>state.setPreferencesOpen(true):undefined}
-        stitchScore={state.confettiData?Math.round(100-state.confettiData.clean.pct):null}
-        stitchScoreNote={state.confettiData?(state.confettiData.clean.singles.toLocaleString('en-GB')+' isolated stitches'):null}
+        onReview={()=>state.setMaterialsTab("review")}
         sW={state.sW} sH={state.sH}
         fabricCt={state.fabricCt}
         colourCount={state.pal?state.pal.length:0} threadCounts={state.threadCounts}
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
-        solidPct={state.confettiData?(100-state.confettiData.clean.pct):undefined}
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
       />}
@@ -1233,7 +1231,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
-        solidPct={state.confettiData?(100-state.confettiData.clean.pct):undefined}
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
         appMode={state.appMode}

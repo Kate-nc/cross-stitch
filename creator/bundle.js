@@ -2835,7 +2835,8 @@ window.CreatorPreviewCanvas = function CreatorPreviewCanvas() {
    Depends on: context.js (CreatorContext) */
 
 window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
-  var ctx = window.usePatternData();
+  var context = window.usePatternData();
+  var ctx = (props && props.patternData) || context;
   var cv = window.useCanvas();
   var app = window.useApp();
   var h = React.createElement;
@@ -2852,12 +2853,13 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
   var pal = ctx.pal;
   var sW = ctx.sW;
   var sH = ctx.sH;
-  var cs = cv.cs;
-  var previewShowGrid = app.previewShowGrid;
+  var review = !!(props && props.review);
+  var cs = review ? Math.min(24, 1600 / Math.max(ctx.sW, ctx.sH)) : cv.cs;
+  var previewShowGrid = !review && app.previewShowGrid;
   // inputLevel prop overrides app.realisticLevel — used by SplitPane right pane
   var realisticLevel = (props && props.inputLevel != null) ? props.inputLevel : app.realisticLevel;
   var fabricCt = ctx.fabricCt;
-  var coverageOverride = app.coverageOverride;
+  var coverageOverride = review ? null : app.coverageOverride;
 
   // ── Effect A: render the full offscreen realistic canvas ───────────────────
   // Re-runs when pattern data or rendering level changes.
@@ -2870,12 +2872,12 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     realisticRafRef.current = null;
 
     // Clamp CELL_SIZE so the offscreen canvas fits within browser limits (~8192px).
-    var MAX_DIM = 8192;
+    var MAX_DIM = review ? 1600 : 8192;
     // Levels 3–4 use the detailed renderer and require larger tiles for fibre detail; levels 1–2 cap at 16px.
     var maxCellSz = (realisticLevel >= 3) ? 32 : 16;
     var rawCellSz = Math.floor(Math.min(MAX_DIM / sW, MAX_DIM / sH));
     if (rawCellSz < 1) return; // Pattern too large for realistic preview on this device
-    var CELL_SIZE = Math.max(4, Math.min(maxCellSz, rawCellSz));
+    var CELL_SIZE = Math.max(review ? 1 : 4, Math.min(maxCellSz, rawCellSz));
 
     var canvasW = sW * CELL_SIZE;
     var canvasH = sH * CELL_SIZE;
@@ -2926,9 +2928,11 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     // Coarser fabric → more strands in the needle.
     var SC;
     var fc = fabricCt || 14;
+    if (review) fc = fc / stitchOverFor(fc);
     if      (fc <= 11) { SC = 3; }
     else if (fc <= 17) { SC = 2; }
     else               { SC = 1; }
+    if (review) SC = 2;
 
     // Coverage: 0.0 = thin strands (lots of fabric visible); 1.0 = thick strands (minimal fabric).
     // Auto-calculated from fabric count and strand count; overridden by the manual slider.
@@ -3237,8 +3241,8 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
       if (cell.id && cell.id.indexOf("+") !== -1) {
         // Blend cell: use each thread's individual colour for bottom/top leg respectively.
         var blendParts = splitBlendId(cell.id);
-        var e1 = cmap && cmap[blendParts[0]];
-        var e2 = cmap && cmap[blendParts[1]];
+        var e1 = cell.threads && cell.threads[0] && cell.threads[0].rgb ? cell.threads[0] : (cmap && cmap[blendParts[0]]);
+        var e2 = cell.threads && cell.threads[1] && cell.threads[1].rgb ? cell.threads[1] : (cmap && cmap[blendParts[1]]);
         if (e1) rgb = e1.rgb;
         if (e2) rgb2 = e2.rgb;
       }
@@ -3271,7 +3275,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     setOffscreenVersion(function(v) { return v + 1; });
     }); // end of RAF callback
     return function() { if (realisticRafRef.current) { cancelAnimationFrame(realisticRafRef.current); realisticRafRef.current = null; } };
-  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride]);
+  }, [pat, cmap, sW, sH, realisticLevel, app.realisticLevel, props && props.inputLevel, fabricCt, coverageOverride, app.fabricColour, review]);
 
   // ── Effect B: scale the offscreen canvas to the display canvas ─────────────
   // Runs whenever the offscreen is rebuilt (offscreenVersion) or zoom changes.
@@ -3330,6 +3334,7 @@ window.CreatorRealisticCanvas = function CreatorRealisticCanvas(props) {
     }),
     h("div", {className: "preview-status-bar"},
       (function() {
+        if (review) return sW + " × " + sH + " stitches; 2 strands; illustrative full-cross simulation";
         var sFc = fabricCt || 14;
         var sSC = sFc <= 11 ? 3 : sFc <= 17 ? 2 : 1;
         var sAutoCov = Math.min(1, Math.max(0, Math.min(1, Math.max(0, (sFc - 8) / 24)) * (sSC / 2)));
@@ -6545,7 +6550,7 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
     var needed;
     if (typeof stitchesToSkeins === 'function') {
       var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
-        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor });
+        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor == null ? 0.20 : opts.wasteFactor });
       needed = sk.skeinsToBuy || 0;
     } else {
       needed = Math.ceil(r.threadStitches / 800) || 0;
@@ -7047,22 +7052,22 @@ window.useCreatorState = function useCreatorState() {
   });
   var tab        = _tab[0],        setTabRaw     = _tab[1];
   // B4: which sub-tab inside MaterialsHub is active.
-  // 'threads' | 'stash' | 'output'
+  // 'review' | 'threads' | 'stash' | 'output'
   var _materialsTab = useState(function () {
     var v = loadUserPref("creator.materialsTab", null);
-    if (v === "threads" || v === "stash" || v === "output") return v;
+    if (v === "review" || v === "threads" || v === "stash" || v === "output") return v;
     // Honour legacy lastPage as a one-off seed so a user whose last visit
     // was the old Export tab lands on Output in the new hub.
     var lp = loadUserPref("creator.lastPage", null);
     if (lp === "export") return "output";
     if (lp === "prepare") return "stash";
     if (lp === "legend") return "threads";
-    return "threads";
+    return "review";
   });
   var materialsTab = _materialsTab[0];
   var setMaterialsTabRaw = _materialsTab[1];
   function setMaterialsTab(v) {
-    if (v !== "threads" && v !== "stash" && v !== "output") return;
+    if (v !== "review" && v !== "threads" && v !== "stash" && v !== "output") return;
     setMaterialsTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.materialsTab", v); } catch (_) {}
   }
@@ -7612,21 +7617,11 @@ window.useCreatorState = function useCreatorState() {
 
   var skeinData = useMemo(function() {
     if (!pal) return [];
-    var map = {};
-    // French knots add their thread too (knots.js).
-    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots) : pal;
-    // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
-    withKnots.forEach(function(p) {
-      if (p.type === "solid") { var k = (p.brand || "dmc") + ":" + p.id; map[k] = (map[k] || 0) + p.count; }
-      else if (p.type === "blend" && p.threads) { p.threads.forEach(function(t) { var k = (t.brand || p.brand || "dmc") + ":" + t.id; map[k] = (map[k] || 0) + p.count; }); }
+    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots, typeof restoreStitch === "function" ? restoreStitch : null) : pal;
+    return window.buildThreadShoppingRows(withKnots, { fabricCt: fabricCt }).map(function(row) {
+      return { id: row.p.id, brand: row.p.brand, name: row.p.name, rgb: row.p.rgb,
+        stitches: row.p.count, skeins: row.needed };
     });
-    return Object.entries(map)
-      .map(function(e) { var c = e[0].indexOf(":"); return { brand: e[0].slice(0, c), id: e[0].slice(c + 1), ct: e[1] }; })
-      .sort(function(a, b) { var na = parseInt(a.id) || 0, nb = parseInt(b.id) || 0; if (na && nb) return na - nb; return a.id.localeCompare(b.id); })
-      .map(function(e) {
-        var t = findThreadInCatalog(e.brand, e.id);
-        return { id: e.id, brand: e.brand, name: t ? t.name : "", rgb: t ? t.rgb : [128, 128, 128], stitches: e.ct, skeins: skeinEst(e.ct, fabricCt) };
-      });
   }, [pal, fabricCt, knots]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
@@ -12883,6 +12878,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   var draftRef = React.useRef({});
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
+  var sourceRestoreRef = React.useRef(0);
   // Tracks whether we have already performed an initial (no-debounce) save for the
   // current pattern. Reset whenever pat/projectId changes so a freshly generated
   // pattern is persisted to IndexedDB and the Stash Manager library immediately,
@@ -13327,10 +13323,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }
     }
 
+    // The chart changes immediately. Never compare it with the previous
+    // project's source while the next image is absent, corrupt or decoding.
+    var restoreToken = ++sourceRestoreRef.current;
+    state.setImg(null);
     if (project.imgData && typeof project.imgData === "string" && project.imgData.startsWith("data:image/")) {
       var li = new Image();
       li.onload = function() {
-        if (!state.userActedRef.current) {
+        if (sourceRestoreRef.current === restoreToken && !state.userActedRef.current) {
           state.setImg(li); state.setOrigW(li.width); state.setOrigH(li.height);
         }
       };
@@ -13344,8 +13344,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       // Its tracing picture lives in IndexedDB as trace:<projectId>.
       if (s.traceImage && project.id && window.BlobStore) {
         window.BlobStore.get('trace:' + project.id).then(function(rec) {
-          if (!rec || !rec.blob) return;
-          showTracePicture(rec.blob, typeof s.overlayOpacity === "number" ? s.overlayOpacity : 0.3, s.traceVisible !== false);
+          if (!rec || !rec.blob || sourceRestoreRef.current !== restoreToken) return;
+          showTracePicture(rec.blob, typeof s.overlayOpacity === "number" ? s.overlayOpacity : 0.3, s.traceVisible !== false, function () { return sourceRestoreRef.current === restoreToken; });
         }).catch(function() {});
       }
     }
@@ -13356,10 +13356,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!state.projectIdRef.current && typeof ProjectStorage !== "undefined") state.projectIdRef.current = ProjectStorage.newId();
     return 'trace:' + state.projectIdRef.current;
   }
-  function showTracePicture(blob, opacity, visible) {
+  function showTracePicture(blob, opacity, visible, isCurrent) {
     var url = URL.createObjectURL(blob);
     var im = new Image();
     im.onload = function() {
+      if (isCurrent && !isCurrent()) { URL.revokeObjectURL(url); return; }
       state.setImg(im);
       if (typeof opacity === "number") state.setOverlayOpacity(opacity);
       state.setShowOverlay(visible !== false);
@@ -16190,7 +16191,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
  *   window.CreatorCompactTopBar → one 48px bar: Home, project name (tap to
  *     rename), save status icon, Convert / Edit / Materials and a More
  *     button. More opens a sheet with Print PDF, Export…, Open in Tracker,
- *     Pattern info, the Stitch Score, Help and links to the other tools.
+ *     Pattern info, Ready to stitch review, Help and links to the other tools.
  *
  * The bottom tool rail lives in creator/ToolStrip.js (it shares the More
  * panel there). CSS: the "Compact phone chrome" block in styles.css, keyed
@@ -16322,7 +16323,6 @@ window.CreatorSplitPane = function CreatorSplitPane() {
       }, Icons.more ? Icons.more() : Icons.menu())
     );
 
-    var score = props.stitchScore;
     var sheet = sheetOpen ? h(React.Fragment, null,
       h("div", { className: "cc-sheet-backdrop", onClick: close }),
       h("div", { className: "cc-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Pattern actions" },
@@ -16347,10 +16347,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           onClick: function () { close(); setInfoOpen(true); }
         }, Icons.info ? Icons.info() : null, h("span", null, "Pattern info"),
           hasStitches && props.difficulty ? h("span", { className: "cc-sheet__meta" }, props.difficulty.label) : null) : null,
-        score != null ? h("div", { className: "cc-sheet__score", title: "Higher score = easier to stitch: fewer isolated single stitches." },
-          h("span", { className: "cc-sheet__score-lbl" }, "Stitch Score"),
-          h("span", { className: "cc-sheet__score-val" }, score + "/100"),
-          props.stitchScoreNote ? h("span", { className: "cc-sheet__meta" }, props.stitchScoreNote) : null) : null,
+        hasPat ? h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { props.onTabChange("materials"); if (props.onReview) props.onReview(); }) }, "Ready to stitch review") : null,
         h("div", { className: "cc-sheet__sep", role: "separator" }),
         h("button", { type: "button", className: "cc-sheet__item", onClick: run(function () { if (window.HelpDrawer) window.HelpDrawer.open({ tab: "help" }); }) },
           Icons.help ? Icons.help() : null, h("span", null, "Help")),
@@ -21758,29 +21755,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    app.confettiData && (function() {
-      var cleanPct = app.confettiData.clean.pct;
-      var score = Math.round(100 - cleanPct);
-      var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
-      var singles = app.confettiData.clean.singles;
-      // On phones the score moves into the top bar's More sheet (COMMON-03).
-      return h("div", {className:"cc-hide-compact", style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
-        h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
-          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
-          h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
-        ),
-        h("div", {style:{flex:1,minWidth:60}},
-          h("div", {style:{height:5,background:"var(--surface-tertiary)",borderRadius:3,overflow:"hidden"}},
-            h("div", {style:{width:score+"%",height:"100%",background:scoreColor,borderRadius:3}})
-          ),
-          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",marginTop:2}}, singles.toLocaleString(), " isolated stitches remaining")
-        ),
-        h("span", {
-          title:"Higher score = easier to stitch. Fewer isolated single stitches means fewer thread changes and less counting fatigue. Reduce Confetti Cleanup level or increase grid size to improve.",
-          style:{cursor:"help",color:"var(--text-tertiary)",borderBottom:"1px dotted var(--text-tertiary)",fontSize:'var(--text-xs)',whiteSpace:"nowrap"}
-        }, "What is this?")
-      );
-    })(),
+    ctx.pat && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
+      h("button", {type:"button", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
+      h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;

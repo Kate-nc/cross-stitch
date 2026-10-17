@@ -1,6 +1,7 @@
 /* creator/MaterialsHub.js — B4 Materials & Output hub.
    Replaces the three former top-level tabs (Materials/Prepare/Export)
-   with a single page exposing three side-tabs:
+   with a single page exposing four side-tabs:
+     Review   : CreatorReadyReview
      Threads  : CreatorLegendTab
      Stash    : CreatorPrepareTab
      Output   : CreatorExportTab
@@ -22,11 +23,12 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
   if (!(ctx && ctx.pat && ctx.pal)) return null;
 
   var SUBTABS = [
+    { id: 'review', label: 'Ready to stitch', icon: window.Icons && Icons.eye ? Icons.eye() : null },
     { id: 'threads',  label: 'Threads',  icon: window.Icons && Icons.thread     ? Icons.thread()     : null },
     { id: 'stash',    label: 'Stash status', icon: window.Icons && Icons.layers ? Icons.layers()     : null },
     { id: 'output',   label: 'Export',   icon: window.Icons && Icons.download   ? Icons.download()   : null },
   ];
-  var activeSub = app.materialsTab || 'threads';
+  var activeSub = app.materialsTab || 'review';
   var activeIdx = 0;
   for (var si = 0; si < SUBTABS.length; si++) {
     if (SUBTABS[si].id === activeSub) { activeIdx = si; break; }
@@ -96,6 +98,7 @@ window.CreatorMaterialsHub = function CreatorMaterialsHub() {
       // Threads / Stash / Output children manage their own visibility via the
       // app.materialsTab guard added in B3, so they are mounted unconditionally
       // here.
+      activeSub === "review" ? h(window.CreatorReadyReview, null) : null,
       h(window.CreatorLegendTab, null),
       h(window.CreatorPrepareTab, null),
       h(window.CreatorExportTab, null)

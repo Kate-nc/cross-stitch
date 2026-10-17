@@ -21,11 +21,11 @@ describe('B4 — CreatorMaterialsHub', () => {
     expect(hubSrc).toMatch(/window\.CreatorMaterialsHub\s*=\s*function/);
   });
 
-  it('declares exactly three sub-tabs: threads, stash, output', () => {
+  it('declares review, threads, stash and output sub-tabs', () => {
     const m = hubSrc.match(/var SUBTABS\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
     const ids = Array.from(m[1].matchAll(/id:\s*'([^']+)'/g)).map(x => x[1]);
-    expect(ids).toEqual(['threads', 'stash', 'output']);
+    expect(ids).toEqual(['review', 'threads', 'stash', 'output']);
   });
 
   it('uses the British "Stash status" label (not "stash state" or US spelling)', () => {

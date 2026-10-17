@@ -22,7 +22,7 @@ describe('compact chrome wiring', () => {
   });
 
   test('the top bar sheet carries Print PDF, Export, Open in Tracker, Pattern info and Help', () => {
-    for (const label of ['"Print PDF"', '"Open in Tracker"', '"Pattern info"', '"Help"', '"Stitch Score"']) {
+    for (const label of ['"Print PDF"', '"Open in Tracker"', '"Pattern info"', '"Help"', '"Ready to stitch review"']) {
       expect(bar).toContain(label);
     }
     expect(bar).toMatch(/"Export(\\u2026|\u2026)"/);

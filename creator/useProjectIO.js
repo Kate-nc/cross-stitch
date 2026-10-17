@@ -71,6 +71,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   var draftRef = React.useRef({});
   var onSwitchToTrack = options && options.onSwitchToTrack;
   var creatorSnapshotRef = React.useRef(null);
+  var sourceRestoreRef = React.useRef(0);
   // Tracks whether we have already performed an initial (no-debounce) save for the
   // current pattern. Reset whenever pat/projectId changes so a freshly generated
   // pattern is persisted to IndexedDB and the Stash Manager library immediately,
@@ -515,10 +516,14 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       }
     }
 
+    // The chart changes immediately. Never compare it with the previous
+    // project's source while the next image is absent, corrupt or decoding.
+    var restoreToken = ++sourceRestoreRef.current;
+    state.setImg(null);
     if (project.imgData && typeof project.imgData === "string" && project.imgData.startsWith("data:image/")) {
       var li = new Image();
       li.onload = function() {
-        if (!state.userActedRef.current) {
+        if (sourceRestoreRef.current === restoreToken && !state.userActedRef.current) {
           state.setImg(li); state.setOrigW(li.width); state.setOrigH(li.height);
         }
       };
@@ -532,8 +537,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       // Its tracing picture lives in IndexedDB as trace:<projectId>.
       if (s.traceImage && project.id && window.BlobStore) {
         window.BlobStore.get('trace:' + project.id).then(function(rec) {
-          if (!rec || !rec.blob) return;
-          showTracePicture(rec.blob, typeof s.overlayOpacity === "number" ? s.overlayOpacity : 0.3, s.traceVisible !== false);
+          if (!rec || !rec.blob || sourceRestoreRef.current !== restoreToken) return;
+          showTracePicture(rec.blob, typeof s.overlayOpacity === "number" ? s.overlayOpacity : 0.3, s.traceVisible !== false, function () { return sourceRestoreRef.current === restoreToken; });
         }).catch(function() {});
       }
     }
@@ -544,10 +549,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!state.projectIdRef.current && typeof ProjectStorage !== "undefined") state.projectIdRef.current = ProjectStorage.newId();
     return 'trace:' + state.projectIdRef.current;
   }
-  function showTracePicture(blob, opacity, visible) {
+  function showTracePicture(blob, opacity, visible, isCurrent) {
     var url = URL.createObjectURL(blob);
     var im = new Image();
     im.onload = function() {
+      if (isCurrent && !isCurrent()) { URL.revokeObjectURL(url); return; }
       state.setImg(im);
       if (typeof opacity === "number") state.setOverlayOpacity(opacity);
       state.setShowOverlay(visible !== false);

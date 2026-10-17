@@ -156,29 +156,9 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
     h(window.MagicWandPanel, null),
 
-    app.confettiData && (function() {
-      var cleanPct = app.confettiData.clean.pct;
-      var score = Math.round(100 - cleanPct);
-      var scoreColor = score >= 90 ? "var(--success)" : score >= 75 ? "#7CB518" : score >= 60 ? "#C9A825" : score >= 40 ? "#D97706" : "var(--danger)";
-      var singles = app.confettiData.clean.singles;
-      // On phones the score moves into the top bar's More sheet (COMMON-03).
-      return h("div", {className:"cc-hide-compact", style:{padding:"6px 10px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',marginBottom:'var(--s-2)',display:"flex",alignItems:"center",gap:'var(--s-3)',flexWrap:"wrap"}},
-        h("div", {style:{display:"flex",flexDirection:"column",gap:1,minWidth:60}},
-          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.04em"}}, "Stitch Score"),
-          h("div", {style:{fontSize:'var(--text-md)',fontWeight:700,color:scoreColor,lineHeight:1.1}}, score, "/100")
-        ),
-        h("div", {style:{flex:1,minWidth:60}},
-          h("div", {style:{height:5,background:"var(--surface-tertiary)",borderRadius:3,overflow:"hidden"}},
-            h("div", {style:{width:score+"%",height:"100%",background:scoreColor,borderRadius:3}})
-          ),
-          h("div", {style:{fontSize:9,color:"var(--text-tertiary)",marginTop:2}}, singles.toLocaleString(), " isolated stitches remaining")
-        ),
-        h("span", {
-          title:"Higher score = easier to stitch. Fewer isolated single stitches means fewer thread changes and less counting fatigue. Reduce Confetti Cleanup level or increase grid size to improve.",
-          style:{cursor:"help",color:"var(--text-tertiary)",borderBottom:"1px dotted var(--text-tertiary)",fontSize:'var(--text-xs)',whiteSpace:"nowrap"}
-        }, "What is this?")
-      );
-    })(),
+    ctx.pat && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
+      h("button", {type:"button", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
+      h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
       var hasResult = gen.disambigData != null;
