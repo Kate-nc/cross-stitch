@@ -30,7 +30,8 @@ var SYNC_STALE_EXPORT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 // zero conflicts — those would have shown no badge at all.
 function _reviewableCount(plan) {
   if (!plan) return 0;
-  return ((plan.conflicts && plan.conflicts.length) || 0)
+  return ((plan.semanticConflicts && plan.semanticConflicts.length) || 0)
+       + ((plan.conflicts && plan.conflicts.length) || 0)
        + ((plan.newRemote && plan.newRemote.length) || 0)
        + ((plan.mergeTracking && plan.mergeTracking.length) || 0);
 }
@@ -909,6 +910,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
               }
               var parts = [];
+              if (window.WebDAVSync) parts.push('WebDAV: ' + window.WebDAVSync.getStatus().message);
               if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
               if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString('en-GB'));
               if (syncStatus && syncStatus.lastImportAt) parts.push('Last import: ' + new Date(syncStatus.lastImportAt).toLocaleString('en-GB'));
@@ -917,6 +919,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           },
             (function() {
               if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
+              if (window.WebDAVSync && window.WebDAVSync.getStatus().connected) return Icons.cloudSync();
               if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
               if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
               if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
@@ -939,6 +942,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             React.createElement('div', { className: 'sync-popover-header' },
               (function() {
                 if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
+                if (window.WebDAVSync && window.WebDAVSync.getStatus().connected) return Icons.cloudSync();
                 if (!syncStatus || !syncStatus.hasWatchDir) return Icons.cloudOff();
                 if (syncStatus.autoSync) return React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck());
                 return React.createElement('span', { style: { color: 'var(--accent)' } }, Icons.cloudSync());
@@ -960,9 +964,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 // "set one up" is an instruction the user cannot carry out.
                 // Describe the workflow that does work on this device instead.
                 var noFolderText = (window.Platform && window.Platform.isIOS())
-                  ? 'This device syncs by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
+                  ? 'You can connect WebDAV in Preferences for foreground sync, or sync by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
                   : 'No sync folder connected. Set one up in Preferences > Sync, backup & data to sync across devices.';
-                rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
+                if (!(window.WebDAVSync && window.WebDAVSync.getStatus().connected)) rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
                   Icons.cloudOff(),
                   React.createElement('span', null, noFolderText)
                 ));
@@ -1021,6 +1025,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               return rows;
             })(),
 
+            window.WebDAVSync && React.createElement('div', {className:'sync-popover-row',role:'status'},
+              React.createElement('span', null, 'WebDAV: ' + window.WebDAVSync.getStatus().message)),
             syncStatus && syncStatus.protocol && syncStatus.protocol.state !== 'idle' && React.createElement('div', {className:'sync-popover-row',role:'status'},
               React.createElement('span', null, 'Import: ' + syncStatus.protocol.state + (syncStatus.protocol.message ? ' — ' + syncStatus.protocol.message : ''))),
             syncStatus && syncStatus.exportProtocol && syncStatus.exportProtocol.state !== 'idle' && React.createElement('div', {className:'sync-popover-row',role:'status'},

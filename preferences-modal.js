@@ -1274,6 +1274,7 @@
       h(PageHeader, { title: "Sync, backup & data",
         subtitle: "Move your patterns and stash between devices, or keep a safety copy of everything." }),
 
+      window.WebDAVSyncPanel && h(window.WebDAVSyncPanel),
       h(Section, { title: "Sync folder" },
         h(Row, { label: "Sync folder",
           desc: hasFolder

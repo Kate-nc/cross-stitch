@@ -164,3 +164,7 @@ Concurrent notes, session edits, parking changes and incompatible stash baseline
 The cloud popover reports import and export states separately. Completed export means the file was handed to the existing transport, without confirming another device received it. Completed import means the required local writes and attachment checks finished. An interrupted import may have applied some projects; replay is safe.
 
 [Merge rules, compatibility and storage boundaries](../docs/sync-protocol.md).
+
+## Automatic WebDAV sync
+
+Use Preferences > Sync, backup & data > Automatic WebDAV sync with a private collection on an existing or self-hosted server. See [the complete setup guide](../docs/webdav-sync.md) for Nextcloud URLs, same-origin proxy or explicit CSP allowlisting, required CORS/conditional writes and per-account access rules. This is foreground sync: re-enter the app password after reloading or navigating. Retry resumes a cancelled connection; revoked access requires reconnection. Disconnect retains local projects and attachment bytes. Local-save, transfer and backup status stay separate, and iOS background operation is not promised.
