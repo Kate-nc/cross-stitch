@@ -8862,3 +8862,22 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 .webdav-panel button { padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); cursor: pointer; }
 .webdav-panel button:disabled { opacity: .5; cursor: default; }
 .webdav-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+/* Existing-project chart review */
+.chart-update-dialog {
+  width: min(900px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+}
+.chart-update-dialog label { display: block; margin-block: 12px; }
+.chart-update-dialog input[type="number"] { width: 7em; }
+.chart-update-dialog textarea { display: block; width: 100%; min-height: 6em; }
+.chart-update-dialog pre { max-height: 300px; overflow: auto; white-space: pre-wrap; }
+.chart-update-dialog .btn { margin: 4px; }
+.chart-update-decisions { max-height: 350px; overflow: auto; }
+.chart-update-dialog select { max-width: 100%; }

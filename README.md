@@ -448,3 +448,38 @@ Bead progress: the Tracker Beads list selects and marks individual beads, includ
 ### Automatic WebDAV sync
 
 An optional, user-configured WebDAV connection exchanges verified v2 sync files while the page is visible and online. No hosted service or paid account is required. Credentials stay in page memory; reconnect after navigation. Your deployment must proxy DAV on the app origin or explicitly allowlist your chosen server in CSP. See [setup, security, status and limitations](docs/webdav-sync.md). Local-only use, manual/folder sync and full backups remain available; continuous iOS background sync is not provided.
+
+### Update a chart or add stitch-along pages
+
+Choose **Update chart** on a Home project. Finish and save any active stitching
+session first. The existing importer reviews one design, including PDF page
+arrangement where available; its format and stitch limitations still apply.
+The subsequent difference preview keeps the existing project identity and notes.
+
+For **Corrected full chart**, enter the offset from old chart coordinates to the
+new chart. For **Add chart pages**, enter the incoming chart's position on the
+existing canvas. Offsets are whole cells, starting at zero. Add non-overlapping
+old-coordinate region mappings for a local shift, such as inserting a page in
+the middle. Confirm placement before applying. Unique matches require identical
+stitch kind, geometry, direction/quadrant and thread identity (including brand
+and blend proportions). Symbols, palette order and page numbers are not identity.
+Unresolved symbol placeholders never match automatically. Incoming completion
+marks are ignored. Conflicting overlaps and ambiguous or changed matches need
+explicit decisions; a stitch cannot give its completion to multiple targets.
+
+The preview lists changed/deleted stitches, additions, retained completion and
+annotations needing archival, and can be downloaded. Project notes and sessions
+are retained. Coordinate annotations follow the confirmed mapping; old chart edit
+caches and displaced annotations are archived with acknowledgement. Applying
+writes the project, summary rows, retained source and a recoverable pre-update
+snapshot in one IndexedDB transaction. Concurrent edits invalidate the preview;
+stale open editors cannot overwrite a new chart revision. Progress migration
+makes no inventory deductions and retains the consumption identities of matches.
+
+**Update chart > Recovery snapshots** downloads previous native projects and
+imported sources or reviews a rollback. Rollback saves the current project in
+another snapshot before restoring. Consumption history and inventory remain as
+recorded. Snapshots live in this browser and are not part of portable backup or
+sync attachment manifests: download the projects and sources before clearing
+browser storage. Unsupported source objects must be repaired or re-exported;
+this workflow does not add a new importer or guarantee every external format.

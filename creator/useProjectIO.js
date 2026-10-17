@@ -437,6 +437,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Preserve Tracker-only fields so Creator auto-saves don't strip them from IDB
     state.trackerFieldsRef.current = {};
     var _tf = state.trackerFieldsRef.current;
+    _tf.chartRevision=project.chartRevision;
+    _tf.chartAccountingUnits=project.chartAccountingUnits;
+    _tf.meta=project.meta;
     if (project.statsSessions)       _tf.statsSessions       = project.statsSessions;
     if (project.deletedSessionIds)   _tf.deletedSessionIds   = project.deletedSessionIds;
     if (project.statsSettings)       _tf.statsSettings        = project.statsSettings;

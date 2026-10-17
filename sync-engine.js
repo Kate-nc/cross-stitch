@@ -1324,7 +1324,7 @@ const SyncEngine = (() => {
       return row;
     });
     function list(field) { return (p[field] || []).map(TrackingSync.canonical).sort(); }
-    return TrackingSync.canonical({w:_projectWidth(p),h:_projectHeight(p),cells:cells,
+    return TrackingSync.canonical({chartRevision:p.chartRevision || null,w:_projectWidth(p),h:_projectHeight(p),cells:cells,
       bs:(p.bsLines || p.bs || []).map(TrackingSync.canonical).sort(),knots:list('knots'),beads:list('beads'),
       half:list('halfStitches'),quarter:list('partialStitches'),specialty:list('specialtyStitches')});
   }
