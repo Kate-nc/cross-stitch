@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Fixed: Tracker palette control semantics and native Space activation, completed-thread contrast and action targets; coalesced chart status, persistent import errors and More-panel keyboard focus. Large-chart tracking avoids redundant chart copies and unchanged saves; tiled rendering is retained.',
       'Added: version-gated Pattern Maker XSD 4.8.4.12 import with bounded binary parsing, original thread identities and geometry, counted unsupported objects and explicit verification limits. Other XSD versions and XML schemas are rejected; PAT remains unsupported.',
       'Added: optional automatic WebDAV sync for private, user-configured servers. Visible online pages exchange verified version-2 sync files with photos and tracing pictures. Credentials stay in page memory; reconnect after navigation. Retry, cancel and disconnect retain local work. Revoked access stops transfers. iOS background sync is not guaranteed; local saves, sync and backups retain separate status.',
 

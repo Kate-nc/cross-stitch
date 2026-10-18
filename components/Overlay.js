@@ -58,10 +58,17 @@
   }
 
   function useFocusTrap(panelRef, active) {
+    // Capture the opener during render, before a child's autoFocus runs in
+    // React's commit phase. Capturing it in the effect remembers the dialog's
+    // own button instead, which is removed before focus can be restored.
+    var opener = React.useRef(null);
+    var wasActive = React.useRef(false);
+    if (active && !wasActive.current) opener.current = document.activeElement;
+    wasActive.current = active;
     React.useEffect(function () {
       if (!active || !panelRef.current) return;
       var panel = panelRef.current;
-      var prevActive = document.activeElement;
+      var prevActive = opener.current;
 
       // Move focus into the panel on mount. Prefer an element marked
       // data-autofocus, otherwise the first focusable child, otherwise
@@ -212,5 +219,6 @@
     }, icon);
   };
 
+  Overlay.useFocusTrap = useFocusTrap;
   window.Overlay = Overlay;
 })();

@@ -15,6 +15,18 @@ const ProjectStorage = (() => {
 
   // Legacy epoch: same constant as stash-bridge.js for consistent 'before tracking' display
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
+  const fencePrefix=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36);
+  let fenceSequence=0, progressBaseCache=null;
+  // One compact base only: retain marks and causal metadata, never chart cells.
+  // Its token must match the metadata read in the SAME transaction as the
+  // progress write. Any full write/recovery/legacy writer invalidates it.
+  function rememberProgressBase(p,fence) {
+    if(!p||!fence||!fence.token)return;
+    const base={id:p.id,lastWriteAt:p.lastWriteAt,chartRevision:p.chartRevision,
+      pattern:{length:p.pattern?p.pattern.length:p.p?p.p.length:0},done:p.done?Uint8Array.from(p.done):null};
+    ['halfDone','knotsDone','beadsDone','bsDone','partialDone','specialtyDone','trackingSync'].forEach(f=>{if(p[f]!==undefined)base[f]=p[f];});
+    progressBaseCache={id:p.id,token:fence.token,project:structuredClone(base)};
+  }
 
   // Progress for a stored record, from the one shared definition (progress-units.js): full stitches, half
   // stitches and French knots in units. `done` and `total` retain exact fractional units, `complete` is decided on
@@ -110,6 +122,13 @@ const ProjectStorage = (() => {
   function sessionEnded(project, id) {
     return (project.deletedSessionIds || []).includes(id) || (project.statsSessions || []).some(s => s && (s.id === id || s.groupId === id));
   }
+  // Compact session retirement projection. Written atomically with every metadata
+  // row, so a checkpoint need not deserialize hundreds of thousands of chart cells.
+  // Older metadata falls back to the full record once, inside the same transaction.
+  function checkpointFence(p) {
+    return {id:p.id, token:fencePrefix+":"+(++fenceSequence), statsSessions:(p.statsSessions||[]).map(s=>s&&({id:s.id,groupId:s.groupId})),
+      deletedSessionIds:p.deletedSessionIds||[]};
+  }
   function validCheckpoint(cp, id) {
     return cp && cp.v === 1 && cp.projectId === id && typeof cp.sessionId === 'string' &&
       Number.isFinite(cp.checkpointAt) && Array.isArray(cp.records) && cp.records.length &&
@@ -147,14 +166,14 @@ const ProjectStorage = (() => {
   // Overlay a progress record onto a project record if, and only if, it is still
   // current: same project write it was based on, and the same pattern size.
   // Returns the project unchanged otherwise. Never mutates its arguments.
-  function applyProgressRecord(project, rec, previous) {
+  function applyProgressRecord(project, rec, previous, options) {
     if (!project || !rec || rec.v !== 1 || !rec.done) return project;
     const cells = project.pattern ? project.pattern.length : (project.p ? project.p.length : -1);
     if (rec.done.length !== cells) return project;
     const base = rec.baseWriteAt == null ? null : rec.baseWriteAt;
     const current = typeof project.lastWriteAt === "number" ? project.lastWriteAt : null;
     if (base !== current) return project;
-    const out = Object.assign({}, previous || project, { done: Array.from(rec.done) });
+    const out = Object.assign({}, previous || project, { done: options&&options.typed ? rec.done : Array.from(rec.done) });
     if (Array.isArray(rec.specialtyDone)) out.specialtyDone=rec.specialtyDone;
     if (Array.isArray(rec.halfDone)) out.halfDone = rec.halfDone;
     if (Array.isArray(rec.beadsDone)) out.beadsDone = rec.beadsDone;
@@ -165,6 +184,7 @@ const ProjectStorage = (() => {
     if (Array.isArray(rec.partialDone)) out.partialDone = rec.partialDone.length ? rec.partialDone : undefined;
     // A current progress record can carry removals before the next full save.
     // Legacy records are diffed only for the fields they actually supplied.
+    if(options&&options.skipTracking)return out;
     const next = Object.assign({}, out);
     ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
     if (rec.trackingSync) return Object.assign(out, { trackingSync: rec.trackingSync });
@@ -231,6 +251,7 @@ const ProjectStorage = (() => {
     return {
       id: p.id,
       name: p.name || `${s.sW || "?"}×${s.sH || "?"} pattern`,
+      checkpointFence: checkpointFence(p),
       designer: p.designer || "",
       description: p.description || "",
       createdAt: p.createdAt,
@@ -524,7 +545,9 @@ const ProjectStorage = (() => {
             delete project.activeSessionCheckpoint;
             delete project.sessionCheckpoints;
             store.put(project, project.id);
-            metaStore.put(buildMeta(project), project.id);
+            const meta=buildMeta(project);
+            metaStore.put(meta, project.id);
+            rememberProgressBase(project,meta.checkpointFence);
             if (project.id && project.id.startsWith("proj_")) {
               statsStore.put(buildStatsSummary(project), project.id);
             }
@@ -854,14 +877,16 @@ const ProjectStorage = (() => {
         // Read history and its retirement fences together. Separate reads could see old
         // history followed by a newly closed checkpoint and briefly hide the recovered run.
         const loaded = await new Promise((resolve, reject) => {
-          const tx = db.transaction([STORE_NAME, 'pendingImports'], 'readonly');
+          const tx = db.transaction([STORE_NAME, 'pendingImports', META_STORE], 'readonly');
           const p = tx.objectStore(STORE_NAME).get(id);
+          const meta = tx.objectStore(META_STORE).get(id);
           const rows = tx.objectStore('pendingImports').getAll(sessionRange(id));
-          tx.oncomplete = () => resolve({project:p.result || null,rows:rows.result || []});
+          tx.oncomplete = () => resolve({project:p.result || null,rows:rows.result || [],meta:meta.result});
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error('Project read aborted'));
         });
         const project = loaded.project;
+        rememberProgressBase(project,loaded.meta&&loaded.meta.checkpointFence);
         if (project) project.sessionCheckpoints = await this.readSessionCheckpoints(id, project, loaded.rows);
         // Normalise threadOwned keys to bare DMC IDs ("310" not "dmc:310").
         // Creator and Tracker both key threadOwned by palette entry id, which is
@@ -903,9 +928,20 @@ const ProjectStorage = (() => {
       const cp = structuredClone(checkpoint);
       const db = await getDB();
       await new Promise((resolve, reject) => {
-        const tx = db.transaction([STORE_NAME, 'pendingImports'], 'readwrite');
-        const req = tx.objectStore(STORE_NAME).get(id);
-        req.onsuccess = () => { if (req.result) putCheckpoint(tx.objectStore('pendingImports'), req.result, cp); else tx.abort(); };
+        const tx = db.transaction([STORE_NAME, META_STORE, 'pendingImports'], 'readwrite');
+        const metaStore=tx.objectStore(META_STORE);
+        const metaReq=metaStore.get(id);
+        metaReq.onsuccess=()=>{
+          const meta=metaReq.result;
+          if(meta&&meta.checkpointFence){putCheckpoint(tx.objectStore('pendingImports'),meta.checkpointFence,cp);return;}
+          const req=tx.objectStore(STORE_NAME).get(id);
+          req.onsuccess=()=>{
+            if(!req.result){tx.abort();return;}
+            const fence=checkpointFence(req.result);
+            if(meta)metaStore.put(Object.assign({},meta,{checkpointFence:fence}),id);
+            putCheckpoint(tx.objectStore('pendingImports'),fence,cp);
+          };
+        };
         tx.oncomplete = resolve;
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error || new Error('Session checkpoint aborted'));
@@ -968,23 +1004,43 @@ const ProjectStorage = (() => {
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
         await new Promise((resolve, reject) => {
-          const tx = db.transaction(["pendingImports", STORE_NAME], "readwrite");
+          const tx = db.transaction(["pendingImports", STORE_NAME, META_STORE], "readwrite");
           const store = tx.objectStore("pendingImports");
           const req = store.get(rec.id);
-          const projectReq = tx.objectStore(STORE_NAME).get(id);
+          const metaStore=tx.objectStore(META_STORE);
+          const metaReq=metaStore.get(id);
+          let project;
+          // No full-record request on a token match. A miss reads once, inside
+          // this transaction, and upgrades metadata from older app versions.
+          metaReq.onsuccess=()=>{
+            const meta=metaReq.result,fence=meta&&meta.checkpointFence;
+            if(fence&&fence.token&&progressBaseCache&&progressBaseCache.id===id&&progressBaseCache.token===fence.token){
+              project=progressBaseCache.project;finish();return;
+            }
+            const full=tx.objectStore(STORE_NAME).get(id);
+            full.onsuccess=()=>{
+              project=full.result;
+              if(project){
+                const currentFence=fence&&fence.token?fence:checkpointFence(project);
+                if(!fence||!fence.token)metaStore.put(Object.assign({},meta||buildMeta(project),{checkpointFence:currentFence}),id);
+                rememberProgressBase(project,currentFence);
+              }
+              finish();
+            };
+          };
           let ready = 0;
           const finish = () => {
             if (++ready !== 2) return;
             const prev = req.result;
-            const project = projectReq.result;
+            if(!project)return;
             if (project && project.chartRevision && rec.baseWriteAt !== project.lastWriteAt) return;
-            const previous = applyProgressRecord(project, prev);
+            const previous = applyProgressRecord(project, prev, null, {typed:true});
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.
             ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => {
               if (!Array.isArray(rec[f]) && previous) rec[f] = Array.isArray(previous[f]) ? previous[f] : [];
             });
-            const current = applyProgressRecord(project, rec);
+            const current = applyProgressRecord(project, rec, null, {typed:true,skipTracking:true});
             if (current !== project) {
               const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, beadsDone: rec.beadsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
               rec.trackingSync = TrackingSync.record(previous, next).trackingSync;
@@ -993,7 +1049,6 @@ const ProjectStorage = (() => {
             if (!prev || prev.baseWriteAt !== rec.baseWriteAt || prev.updatedAt <= rec.updatedAt) store.put(rec);
           };
           req.onsuccess = finish;
-          projectReq.onsuccess = finish;
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));

@@ -1987,6 +1987,10 @@ useEffect(()=>{
 // morePanelOpen controls the slide-up panel; leftSidebarTab (declared above)
 // is re-used for the More panel's tab selection so it persists via UserPrefs.
 const[morePanelOpen,setMorePanelOpen]=useState(false);
+const morePanelRef=useRef(null);
+window.Overlay.useFocusTrap(morePanelRef,morePanelOpen);
+const closeMorePanel=useCallback(()=>setMorePanelOpen(false),[]);
+window.useEscape(morePanelOpen?closeMorePanel:null,{skipWhenEditingTextField:false});
 // Close the More panel when palette panel is opened on phone (avoid two overlays)
 useEffect(()=>{if(leftSidebarMode==="open")setMorePanelOpen(false);},[leftSidebarMode]);
 
@@ -3850,7 +3854,6 @@ function processLoadedProject(project){
   // reject the load before any canvas sizing runs.
   if(typeof window.maxChartCellSize==="function"&&window.maxChartCellSize(nextW,nextH)<2){
     setLoadError(`Pattern (${nextW}×${nextH}) is too large to display on this device in Stitch Tracker. Open it in the Creator to reduce stitch count.`);
-    setTimeout(()=>setLoadError(null),5000);
     return;
   }
   setSW(nextW);
@@ -4339,7 +4342,7 @@ function loadProject(e){
       }catch(err){
         console.error(err);
         setLoadError("Could not load: "+err.message);
-        setTimeout(()=>setLoadError(null),4000);
+
       }
     };
     rd.readAsText(f);
@@ -4369,7 +4372,7 @@ function loadProject(e){
       }catch(err){
         console.error(err);
         setLoadError("Could not load OXS: "+err.message);
-        setTimeout(()=>setLoadError(null),4000);
+
       }
     };
     rd.readAsText(f);
@@ -4377,7 +4380,7 @@ function loadProject(e){
     const MAX_FILE_SIZE = 5 * 1024 * 1024;
     if (f.size > MAX_FILE_SIZE) {
       setLoadError("File is too large. Please select an image under 5MB.");
-      setTimeout(() => setLoadError(null), 4000);
+
       return;
     }
     let rd=new FileReader();
@@ -4391,7 +4394,7 @@ function loadProject(e){
       };
       img.onerror = () => {
         setLoadError("Could not load image.");
-        setTimeout(()=>setLoadError(null),4000);
+
       };
       img.src = ev.target.result;
     };
@@ -4472,11 +4475,9 @@ function loadProject(e){
       // The line above sits under the sidebar while a chart is open; a toast
       // is seen whatever is on screen.
       if (window.Toast && window.Toast.show) window.Toast.show({ message: "Could not load PDF: " + err.message, type: "error", duration: 8000 });
-      setTimeout(()=>setLoadError(null),4000);
     });
   } else {
     setLoadError("Unsupported file format. Please load .json, .oxs, .xml, .pdf, or image files.");
-    setTimeout(()=>setLoadError(null),4000);
   }
 
   if(loadRef.current)loadRef.current.value="";
@@ -4996,6 +4997,13 @@ useEffect(() => {
     endSave(_flushOk ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), _uiGen, saveResult && saveResult.reason, _epoch);
     if (!_flushOk) throw new Error("The current project was not saved: " + (saveResult && saveResult.reason || "unknown failure"));
     await saveProjectToDB(project, { strict: true });
+    // Retire the queued autosave only after both writes succeed, and only
+    // while this is still the same project's unchanged generation. A later
+    // mark must keep its own dirty flag and timer.
+    if(projectIdRef.current===project.id&&autoSaveGenRef.current===_gen){
+      autoSaveDirtyRef.current=false;
+      autoSaveFirstDirtyRef.current=null;
+    }
     return saveResult;
   };
   return () => {
@@ -6584,6 +6592,7 @@ function handleStitchKeyDown(e){
       }
     }
     if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return;
+    if(layerVis.full===false)return;
     const anchor=kbAnchorRef.current;
     if(isEnter&&e.shiftKey&&anchor&&anchor.idx!==idx){
       const ax=anchor.idx%sW,ay=(anchor.idx-ax)/sW;
@@ -6629,14 +6638,24 @@ function moveGuideBy(dx,dy){
   col=Math.max(bx0,Math.min(bx1-1,col));row=Math.max(by0,Math.min(by1-1,row));
   setHlRow(row);setHlCol(col);setBsSelect(-1);
   if(col<vx0+1||col>vx1-2||row<vy0+1||row>vy1-2)centreOnCell(col,row);
-  const live=guideLiveRef.current;
-  if(live){const lbl=cellThreadLabel(row*sW+col);live.textContent="Guide at row "+(row+1)+", column "+(col+1)+(lbl?", "+lbl:"");}
 }
 useEffect(()=>{
-  if(hlRow<0||hlCol<0)return;
-  const live=guideLiveRef.current;
-  if(live){const lbl=cellThreadLabel(hlRow*sW+hlCol);live.textContent="Guide at row "+(hlRow+1)+", column "+(hlCol+1)+(lbl?", "+lbl:"");}
-},[hlRow,hlCol,pat,cmap,sW]);
+  if(!pat)return;
+  const timer=setTimeout(()=>{
+    const live=guideLiveRef.current;if(!live)return;
+    const idx=hlRow*sW+hlCol;
+    const cell=hlRow>=0&&hlCol>=0&&pat[idx];
+    const label=cell&&cellThreadLabel(idx);
+    const state=label?((doneRef.current&&doneRef.current[idx])?"full cross done":"full cross not done"):"empty";
+    const position=cell?"Guide at row "+(hlRow+1)+", column "+(hlCol+1)+(label?", "+label:"")+", "+state+". ":"No guide. ";
+    const selected=focusColour&&cmap&&cmap[focusColour];
+    const text=position+ProgressUnits.formatUnits(effectiveCombinedDone)+" of "+ProgressUnits.formatUnits(effectiveCombinedTotal)+" stitch units done"+(statsCountMode==='visible'?" in visible layers":" across all layers")+". "+
+      (selected?"Selected "+threadLabel(selected)+". ":"")+Math.round(stitchZoom*100)+" percent zoom."+
+      (layerVis.full===false?" Full crosses hidden.":"");
+    if(live.textContent!==text)live.textContent=text;
+  },250);
+  return()=>clearTimeout(timer);
+},[hlRow,hlCol,pat,cmap,sW,done,halfDone,partialDone,effectiveCombinedDone,effectiveCombinedTotal,focusColour,stitchZoom,layerVis.full,statsCountMode]);
 
 // Touch / pen press-and-hold in Navigate mode parks the stitch. Capture-
 // phase handlers so they sit alongside useDragMark's (idle in this mode)
@@ -7117,8 +7136,8 @@ function focusLegend(){
   if(leftSidebarMode!=="open")setLeftSidebarMode("open");
   let tries=0;
   (function go(){
-    const tiles=document.querySelectorAll('.ppal-tile');
-    const target=document.querySelector('.ppal-tile--on')||tiles[0];
+    const tiles=document.querySelectorAll('.ppal-tile-select');
+    const target=document.querySelector('.ppal-tile--on .ppal-tile-select')||tiles[0];
     if(target&&target.getBoundingClientRect().width>0){try{target.scrollIntoView({block:'nearest'});}catch(_){}target.focus();return;}
     if(++tries<12)setTimeout(go,40);
   })();
@@ -7376,6 +7395,7 @@ const trackerShortcuts=!isActive ? [] : [
   // Hold-Space to pan (preventDefault so page doesn't scroll).
   { id: "tracker.space", keys: "space", scope: "tracker",
     description: "Hold to pan canvas",
+    when: e=>!(e.target&&e.target.closest&&e.target.closest('button,input,select,textarea,summary,a[href],[role="button"],[contenteditable]:not([contenteditable="false"])')),
     run: () => { if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;} } },
 
   // Shortcuts panel.
@@ -7625,7 +7645,7 @@ useEffect(()=>{
 // canvas. Mouse input continues to flow through handleStitchMouseDown so
 // the existing pinch / pan / shift+click / range-mode pathways are intact.
 const _dragMarkCellAtPoint=useCallback(function(cx,cy){
-  if(!stitchRef.current||!pat)return -1;
+  if(!stitchRef.current||!pat||layerVis.full===false)return -1;
   const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
   if(!gc)return -1;
   if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
@@ -7633,7 +7653,7 @@ const _dragMarkCellAtPoint=useCallback(function(cx,cy){
   // drag or range can mark them.
   if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return -1;
   return gc.gy*sW+gc.gx;
-},[pat,sW,sH,scs,areaOn,workArea]);
+},[pat,sW,sH,scs,areaOn,workArea,layerVis.full]);
 
 const _pulseCells=useCallback(function(idxList){
   // Briefly add a pulse class on overlay cells. The overlay re-renders from
@@ -7674,7 +7694,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // BUGFIX: read live `done` via doneRef so back-to-back commits before
   // React commits a prior setDone don't rewind earlier in-session marks.
   const cur=doneRef.current;
-  if(!pat||!cur||!set||!set.size)return false;
+  if(!pat||!cur||!set||!set.size||layerVis.full===false)return false;
   const want=intent==='mark'?1:0;
   const changes=[];
   const nd=new Uint8Array(cur);
@@ -7731,7 +7751,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
     });
   }
   return true;   // something was marked or unmarked (false: nothing changed, or the "mark all as" question is open)
-},[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
+},[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts,layerVis.full]);
 
 const _dragMarkOnToggle=useCallback(function(idx){
   // C3: single-cell tap from useDragMark (touch + mouse). Uses the
@@ -7739,7 +7759,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
   // BUGFIX: read live `done` via doneRef so two taps inside one render
   // frame each see the most-recent array, not a stale closure copy.
   const cur=doneRef.current;
-  if(!pat||!cur)return;
+  if(!pat||!cur||layerVis.full===false)return;
   if(idx<0||idx>=pat.length)return;
   const cell=pat[idx];
   if(!cell||cell.id==='__skip__'||cell.id==='__empty__')return;
@@ -7760,7 +7780,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
   skipNextFullRedrawRef.current=true;
   setDone(nd);
 
-},[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts]);
+},[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts,layerVis.full]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
   _commitBulk(set,intent,'drag');
@@ -8297,17 +8317,14 @@ return(
   </div>}
 </section>}
 {!isEditMode&&<div className="info-strip-wrap">
-<div className="info-strip" aria-live="polite" role="button" tabIndex={0} title="Open session controls" onClick={()=>{
-  setLeftSidebarTab("session");
-  setMorePanelOpen(true);
-}} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setLeftSidebarTab("session");setMorePanelOpen(true);}}}>
+<div className="info-strip">
   <div className="info-strip-bar">
     {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
     {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
     {progressPct<100&&todayBarPct>0&&<div className="info-strip-fill info-strip-today" style={{width:todayBarPct+"%"}}/>}
   </div>
   <div className="info-strip-row">
-    <span className="info-strip-pct">{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</span>
+    <button type="button" className="info-strip-pct info-strip-open" aria-label="Open session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}>{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</button>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(progShown.remainingUnits)} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
     {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
@@ -8409,7 +8426,7 @@ return(
 </div>
 </div>}
 {!isEditMode&&completionEstimate&&progressPct<100&&(
-  <div className="completion-projection-bar" aria-live="polite">
+  <div className="completion-projection-bar">
     {completionEstimate.enough
       ?<><span className="completion-projection-text">Estimated finish: {completionEstimate.text}</span>
         <span className="completion-projection-speed" title={completionEstimate.rangeText}>{completionEstimate.basis}</span></>
@@ -8468,7 +8485,7 @@ return(
     </div>
     <button type="button" className="g-btn import-busy-cancel" onClick={importBusy.cancel} disabled={importBusy.stopping}>Cancel</button>
   </div>}
-  {loadError&&<div style={{background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-3)'}}>{loadError}</div>}
+  {loadError&&<div role="alert" style={{background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-3)'}}>{loadError}</div>}
   {copied==="progress"&&<div style={{background:"var(--success-soft)",border:"1px solid var(--success-soft)",borderRadius:'var(--radius-md)',padding:"8px 14px",fontSize:'var(--text-sm)',color:"var(--success)",fontWeight:600,marginBottom:'var(--s-3)',display:'inline-flex',alignItems:'center',gap:6}}>{Icons.check?Icons.check():null} Progress summary copied to clipboard!</div>}
   {importSuccess && (
     <div style={{
@@ -8639,23 +8656,21 @@ return(
           return rows.map(({p,dc,kn,qt,bsc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
-            return <div key={p.id} role="button" tabIndex={0}
+            return <div key={p.id} role="listitem"
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
-              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}
-              onKeyDown={e=>{if(e.target!==e.currentTarget)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}}
-              aria-label={"Select "+threadLabel(p)}
-              title={threadLabel(p)+(complete?" (done)":"")}>
-              <div className="ppal-tile-swatch" style={{background:swRgb}}
-                role="button" tabIndex={0} aria-label={"View "+threadLabel(p)+" detail"}
+              onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
+              <button type="button" className="ppal-tile-swatch" style={{background:swRgb}}
+                aria-label={"View "+threadLabel(p)+" detail"}
                 onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
-                onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}}
               />
               <div className="ppal-tile-body">
-                <div className="ppal-tile-id-row">
+                <button type="button" className="ppal-tile-id-row ppal-tile-select"
+                  aria-pressed={isFocused} aria-label={"Select "+threadLabel(p)+", "+(p.name||"")+", "+pct+" percent complete"}
+                  onClick={e=>{e.stopPropagation();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
                   <span className="ppal-tile-id">{p.id}</span>
                   <span className="ppal-tile-name">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
                   <span className="ppal-tile-pct">{pct}%</span>
-                </div>
+                </button>
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
                   <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
@@ -8678,7 +8693,7 @@ return(
                       className="ppal-tile-done-btn"
                       onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}requestMarkColourDone(p.id,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-                      title={complete?"Mark as not done":"Mark all as done"}
+                      aria-label={(complete?"Mark as not done: ":"Mark all as done: ")+threadLabel(p)} title={complete?"Mark as not done":"Mark all as done"}
                     >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>}
                   </div>
                 </div>
@@ -8806,7 +8821,7 @@ return(
         <span className="work-area-bar__title">{Icons.rowMode()}<span>Row {currentRow+1}</span><span className="work-area-bar__range">of {sH}</span></span>
         <span className="work-area-bar__progress">
           <span className="work-area-bar__track" aria-hidden="true"><span className="work-area-bar__fill" style={{display:"block",width:pct+"%"}}/></span>
-          <span className="work-area-bar__pct" aria-live="polite" aria-label={"Row "+(currentRow+1)+": "+(st.total?left.toLocaleString("en-GB")+" stitches left":"no stitches")}>{st.total?(left?left.toLocaleString("en-GB")+" left":"Done"):"Empty"}</span>
+          <span className="work-area-bar__pct" aria-label={"Row "+(currentRow+1)+": "+(st.total?left.toLocaleString("en-GB")+" stitches left":"no stitches")}>{st.total?(left?left.toLocaleString("en-GB")+" left":"Done"):"Empty"}</span>
         </span>
         <span className="work-area-bar__actions">
           <button type="button" className="work-area-bar__icon-btn" disabled={currentRow<=rowSpan.y0} onClick={()=>goToRow(currentRow-1)} aria-label="Row above" title="Row above">{Icons.chevronUp()}</button>
@@ -8825,13 +8840,14 @@ return(
         an inline max-height of 600px, which no media query could override, so
         a tablet with 1300 CSS px of height showed the chart through the same
         letterbox as a phone. */}
+    <p id="tracker-chart-summary" className="tracker-chart-summary">{sW} columns by {sH} rows. {Math.round(stitchZoom*100)}% zoom. Focus the chart and use arrow keys to move the guide; Enter marks or unmarks in Mark mode. Ctrl+Z undoes. {layerVis.full===false?"Full crosses are hidden.":""}</p>
     <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+      <div aria-hidden="true" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}
       </div>
       <div style={{ display: 'flex', width: 'max-content' }}>
-        <div style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+        <div aria-hidden="true" style={{ position: 'sticky', left: 0, zIndex: 3, width: G, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
           {areaOn?rowRuler.slice(viewBounds.y0,viewBounds.y1):rowRuler}
         </div>
         {/* Explicit size: the chart canvas is absolutely positioned now that it
@@ -8847,7 +8863,7 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-describedby="tracker-chart-summary tracker-chart-status" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {/* B2 — drag-mark / range-select visual overlay (touch) */}
           {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
@@ -8919,10 +8935,10 @@ return(
     <div className={"tracker-hover-wrap"+(hlRow>=0&&hlCol>=0?"":" tracker-hover-wrap--idle")} style={{background:"var(--text-primary)", color:"var(--surface)", padding:"6px 10px", borderRadius:"0 0 8px 8px", fontSize:'var(--text-sm)', fontWeight:500, display:"flex", alignItems:"center", minHeight:30, marginBottom:'var(--s-3)'}}>
       {/* Written directly by renderHoverBar(); React never updates these children. */}
       <span ref={hoverBarRef} className="tracker-hover-bar">{"—"}</span>
-      <span ref={guideLiveRef} className="tracker-sr-only" aria-live="polite"/>
+      <span ref={guideLiveRef} id="tracker-chart-status" className="tracker-sr-only" role="status" aria-live="polite" aria-atomic="true"/>
       {/* Touch has no Esc, and re-tapping the exact guide cell is easy to
           miss, so the guide gets a visible way out wherever it is shown. */}
-      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={clearGuide} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
+      {hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick={()=>{clearGuide();stitchRef.current&&stitchRef.current.focus({preventScroll:true});}} title="Clear the guide crosshair" aria-label="Clear the guide crosshair">
         <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.x?Icons.x():null}</span>Clear guide
       </button>}
     </div>
@@ -8983,7 +8999,7 @@ return(
     {morePanelOpen&&<div className="ppal-more-backdrop" onClick={()=>setMorePanelOpen(false)} aria-hidden="true"/>}
 
     {/* ─ More panel ─ */}
-    <div id="ppal-more-panel" className={"ppal-more-panel"+(morePanelOpen?" ppal-more-panel--open":"")} role="dialog" aria-label="Tracker controls" aria-hidden={!morePanelOpen}>
+    <div ref={morePanelRef} tabIndex={-1} id="ppal-more-panel" className={"ppal-more-panel"+(morePanelOpen?" ppal-more-panel--open":"")} role="dialog" aria-modal={morePanelOpen?"true":undefined} aria-label="Tracker controls" aria-hidden={!morePanelOpen} inert={!morePanelOpen?"":undefined}>
       <div className="ppal-more-header">
         <span className="ppal-more-title">Controls</span>
         <button className={"ppal-utility-chip"+(wakeLockActive?" ppal-utility-chip--on":"")} onClick={toggleWakeLock} aria-pressed={wakeLockActive} title={wakeLockActive?"The screen stays on while you stitch. Tap to let it sleep.":"Keep the screen on while you stitch"}>
@@ -9289,7 +9305,6 @@ return(
           }catch(err){
             console.error(err);
             setLoadError("Image import failed: "+err.message);
-            setTimeout(()=>setLoadError(null),4000);
           }
           setImportDialog(null);
           setImportImage(null);
@@ -9379,7 +9394,6 @@ return(
             setLoadError("Image import failed: " + err.message);
             setImportDialog(null);
             setImportImage(null);
-            setTimeout(()=>setLoadError(null), 4000);
           }
         }} style={{padding:"8px 16px", borderRadius:'var(--radius-md)', border:"none", background:"var(--accent)", color:"var(--surface)", cursor:"pointer", fontWeight:600}}>Import Pattern</button>
       </div>

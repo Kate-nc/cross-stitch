@@ -47,6 +47,8 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 ### Stitch Tracker ([`stitch.html`](stitch.html))
 
+Keyboard tracking includes a compact chart status (guide position, full-cross state, progress and zoom), separate thread actions and keyboard focus in More. See [the focused audit and benchmark instructions](reports/focused-tracking-accessibility.md) for measured results and review limitations.
+
 A digital replacement for a printed chart while you stitch.
 
 Live stash deductions record durable events for full and fractional stitches, knots and backstitch. Estimates keep their original assumptions; retries and stash sync deduplicate events. Existing balances receive an explicit historical baseline. Ordinary mark corrections credit recorded debits; physical Unpick area keeps usage consumed and restitching charges again. More > Tools > Thread consumption history explains adjustments. Complete history travels with stash backups and sync. Version-2 sync files include verified attachment manifests and explicit conflicts for incompatible edits; version-1 files remain readable. See [sync protocol and compatibility](docs/sync-protocol.md). See [accounting rules and migration evidence](reports/thread-deduction-accounting.md).

@@ -81,13 +81,13 @@ test('keyboard only: move the guide, mark, unmark, rectangle, undo, colour, lege
   await press(page, 'Control+z'); await page.waitForTimeout(300);
   expect(await doneCount(page)).toBe(base + 1);
   // ] and [ change the selected colour (the legend's selection) without a pointer.
-  const sel = () => page.evaluate(() => { const t = document.querySelector('.ppal-tile--on'); return t ? t.getAttribute('aria-label') : null; });
+  const sel = () => page.evaluate(() => { const t = document.querySelector('.ppal-tile--on .ppal-tile-select'); return t ? t.getAttribute('aria-label') : null; });
   await press(page, ']'); const c1 = await sel(); expect(c1).toBeTruthy();
   await press(page, ']'); const c2 = await sel(); expect(c2).not.toBe(c1);
   await press(page, '['); expect(await sel()).toBe(c1);
   // G goes to the legend.
   await press(page, 'g'); await page.waitForTimeout(300);
-  expect(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('ppal-tile'))).toBe(true);
+  expect(await page.evaluate(() => !!document.activeElement && document.activeElement.classList.contains('ppal-tile-select'))).toBe(true);
   // Shift+G goes back to the chart without Tabbing, and N switches to Navigate mode, where Enter does not mark.
   await press(page, 'Shift+G'); await page.waitForTimeout(200);
   expect(await page.evaluate(() => document.activeElement && document.activeElement.tagName)).toBe('CANVAS');

@@ -164,6 +164,9 @@ test.describe('Tracker saves', () => {
 
   test('marks survive a hard close half a second after marking (no unload handler runs)', async ({ page, context }) => {
     await loadTrackerFixture(page);
+    // Keep this a progress-journal test even when opening the helper tab takes
+    // longer than the five-second autosave interval on a loaded host.
+    await page.evaluate(() => { ProjectStorage.save = () => new Promise(() => {}); });
     await markRow(page, 3, 2, 11);
     await page.waitForTimeout(700);                         // the progress record, not the full save (5 s)
     const other = await context.newPage();

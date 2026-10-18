@@ -123,3 +123,22 @@ test('a full save of an older row cannot retire a pending history correction wit
   await ProjectStorage.save(proj({statsSessions:[corrected]}));
   expect(localStorage.getItem('cs_pending_session_proj_p')).toBeNull();
 });
+
+test('steady checkpoints read the compact fence, not the full chart; legacy metadata upgrades once',async()=>{
+  await ProjectStorage.save(proj());
+  const db=await getDB();
+  // Simulate metadata written by an older build.
+  await new Promise((resolve,reject)=>{const tx=db.transaction('project_meta','readwrite'),store=tx.objectStore('project_meta'),r=store.get('proj_p');r.onsuccess=()=>{const m=r.result;delete m.checkpointFence;store.put(m,'proj_p');};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+  const Store=require('fake-indexeddb/lib/FDBObjectStore');
+  const original=Store.prototype.get;let chartReads=0;
+  const spy=jest.spyOn(Store.prototype,'get').mockImplementation(function(key){if(this.name==='projects')chartReads++;return original.call(this,key);});
+  try {
+    await ProjectStorage.saveSessionCheckpoint('proj_p',cp());expect(chartReads).toBe(1);
+    await ProjectStorage.saveSessionCheckpoint('proj_p',cp({revision:2}));expect(chartReads).toBe(1);
+  } finally {spy.mockRestore();}
+  // Retirement remains atomic with a full save, including a checkpoint arriving
+  // for a finalised run that had never previously written a journal row.
+  await ProjectStorage.save(proj({statsSessions:[{id:'part',groupId:'sess_late',durationSeconds:1}]}));
+  await ProjectStorage.saveSessionCheckpoint('proj_p',cp({sessionId:'sess_late',records:[{id:'part',groupId:'sess_late',durationSeconds:1}]}));
+  expect((await ProjectStorage.get('proj_p')).sessionCheckpoints.some(c=>c.sessionId==='sess_late')).toBe(false);
+});

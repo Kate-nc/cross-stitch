@@ -46,7 +46,7 @@ describe('who owns the guide', () => {
 describe('review fixes (Copilot on #303)', () => {
   test('the Clear guide button, Esc and every other way of clearing the guide go through one helper that also hands back the keyboard', () => {
     expect(tracker).toMatch(/function clearGuide\(\)\{setHlRow\(-1\);setHlCol\(-1\);kbGuideRef\.current=false;kbAnchorRef\.current=null;setBsSelect\(-1\);\}/);
-    expect(tracker).toMatch(/className="tracker-hover-bar__clear" onClick=\{clearGuide\}/);
+    expect(tracker).toMatch(/className="tracker-hover-bar__clear" onClick=\{\(\)=>\{clearGuide\(\);/);
     expect(tracker).toMatch(/hlRow>=0&&hlCol>=0\)\{clearGuide\(\);return;\}/);
   });
   test('a different pattern hands the guide back too, not only a change of mode', () => {

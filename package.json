@@ -21,7 +21,9 @@
     "build:runtime-js": "node build-runtime-js.js",
     "build": "node build-creator-bundle.js && node build-runtime-js.js && node build-sw.js",
     "prepare": "node scripts/install-hooks.js",
-    "test:ipad": "playwright test --project=ipad-webkit"
+    "test:ipad": "playwright test --project=ipad-webkit",
+    "test:tracking-accessibility": "playwright test --config=playwright.focused.config.js",
+    "perf:tracking": "node tests/perf/focused-journey.cjs"
   },
   "jest": {
     "setupFiles": [
@@ -33,7 +35,8 @@
       "/tests/perf/",
       "/tests/mobile-audit/",
       "/tests/ipad/",
-      "/tests/service-worker/"
+      "/tests/service-worker/",
+      "/tests/tracking-audit/"
     ]
   },
   "repository": {
@@ -56,6 +59,7 @@
     "@babel/preset-react": "^7.27.1",
     "@pdf-lib/fontkit": "^1.1.1",
     "@playwright/test": "^1.59.1",
+    "axe-core": "4.10.3",
     "fake-indexeddb": "^6.2.5",
     "fast-check": "^3.23.2",
     "husky": "^9.1.7",
