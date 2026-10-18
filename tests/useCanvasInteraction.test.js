@@ -370,3 +370,11 @@ test('crop cancellation clears the preview and releases the owning capture', () 
   h.handleCropPointerMove(makePointerEvent({clientX:90,clientY:90}));
   expect(s.cropRect).toBeNull();
 });
+
+test('cancelling a backstitch aiming gesture hides its loupe and clears the anchor', () => {
+  const hook=loadHook(),s=makeState({activeTool:'backstitch'}),h=hook(s,{});
+  global.creatorLoupe={show:jest.fn(),hide:jest.fn()};
+  const e=makePointerEvent();h.handlePatPointerDown(e);h.handlePatPointerCancel(e);
+  expect(global.creatorLoupe.hide).toHaveBeenCalled();expect(s.bsStart).toBeNull();
+  delete global.creatorLoupe;
+});

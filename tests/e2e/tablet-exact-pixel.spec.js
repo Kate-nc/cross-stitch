@@ -44,6 +44,12 @@ test('exact PNG import previews native pixels, alpha and remapping before genera
  const before=await page.evaluate(()=>({ids:window.__tabletState.previewMapped.map(c=>c.id),url:window.__tabletState.previewUrl}));
  const alpha=await page.evaluate(async url=>{const i=new Image();i.src=url;await i.decode();const c=document.createElement('canvas');c.width=i.width;c.height=i.height;const x=c.getContext('2d');x.drawImage(i,0,0);const d=x.getImageData(0,0,i.width,i.height).data;return [i.width,i.height,d[3],d[11],d[35]];},before.url);
  expect(alpha).toEqual([9,7,0,255,255]);
+ // An asynchronously unavailable stash must not fall back to catalogue colours.
+ await page.evaluate(()=>{window.__tabletState.setStashConstrained(true);window.__tabletState.setGlobalStash(null);});
+ await clickGenerate(page);
+ await expect(page.getByText('Your stash is empty', {exact:false})).toBeVisible();
+ expect(await page.evaluate(()=>window.__tabletState.pat)).toBeNull();
+ await page.evaluate(()=>window.__tabletState.setStashConstrained(false));
  await clickGenerate(page);await waitForEdit(page);
  expect(await ids(page)).toEqual(before.ids);
  expect(await page.evaluate(()=>window.__tabletState.pal.some(p=>p.count===1))).toBe(true);

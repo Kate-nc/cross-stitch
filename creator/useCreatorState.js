@@ -1956,7 +1956,7 @@ window.useCreatorState = function useCreatorState() {
     var allowedPalette = window.threadBrandPool ? window.threadBrandPool(genBrand) : null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
-    if (stashConstrained && globalStash) {
+    if (stashConstrained) {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {

@@ -276,7 +276,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     cancelShape();
     if (keepStroke && isDraggingRef.current) handlePatMouseUp({});
     else cancelDragSession();
-    cancelTouchDraw(); clearPendingTap(); clearNavTap();
+    cancelTouchDraw(); hideTouchTarget(); clearPendingTap(); clearNavTap();
     panStateRef.current = null;
     if (state.cancelMove) state.cancelMove();
     if (state.clip && state.clip.cancelDrag) state.clip.cancelDrag();

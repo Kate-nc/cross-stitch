@@ -104,7 +104,7 @@ describe('wiring', () => {
 
   test('a second finger cancels a pending touch stitch', () => {
     expect(canvas).toMatch(/activePointersRef\.current\.size >= 2\) \{\s*interruptTools\(false\);/);
-    expect(canvas).toMatch(/cancelTouchDraw\(\); clearPendingTap\(\); clearNavTap\(\);/);
+    expect(canvas).toMatch(/cancelTouchDraw\(\); hideTouchTarget\(\); clearPendingTap\(\); clearNavTap\(\);/);
   });
 
   test('the loupe covers Paint, Erase, partial stitches and the eyedropper, not Navigate', () => {
