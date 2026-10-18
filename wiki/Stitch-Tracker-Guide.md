@@ -50,12 +50,18 @@ A hand tool for moving around without marking anything.
 
 The bar under the chart shows the guide's row, column and thread, with a **Clear guide** button.
 
+### Marking a whole colour
+
+In the colour list, **Mark all done** on a colour's row marks every stitch of that colour; once the colour is finished the chip becomes **Mark all not done** and clears them. You are always asked first, with the colour and the exact number of stitches ("Mark all 1,573 stitches of DMC 05 Light Driftwood as done?"). Afterwards a toast offers **Undo**, and the ordinary **Undo** reverses the whole colour in one step too. Tapping the row itself only selects the colour. In a work area the change covers only that part.
+
+The key under the progress bar shows how stitches look: pale for **To stitch**, the thread colour for **Stitched**. A stitched cell is drawn in its thread colour capped at mid-grey, so white and ecru look grey once done. For a clearer mark, choose **Corner tick** under **More controls > View**.
+
 ### Undo & redo
 
 - **Ctrl+Z** (Cmd+Z on Mac) — undo
 - **Ctrl+Y** or **Ctrl+Shift+Z** — redo
 
-Undo covers marking stitches and parking. The history lasts until you leave the page.
+Undo covers marking stitches (including a whole colour at once) and parking. The history lasts until you leave the page.
 
 ## Views
 
@@ -112,7 +118,7 @@ Mark where a thread is parked so you can pick it up again.
 
 **Find a parked thread:** tap the **P** on a colour in the palette. The chart scrolls to where it's parked and the guide marks the spot; tap again for the next place.
 
-**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**.
+**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**, which asks first and can be undone.
 
 ## Sessions and Timing
 
