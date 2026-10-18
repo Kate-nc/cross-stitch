@@ -143,7 +143,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 ## Importing Patterns
 
 - **From the Creator:** press **Track** in the action bar, or **Open in Stitch Tracker** on **Materials & Output > Export**.
-- **From a file:** **File > Open…**, or **Home > Create new > New from pattern file**:
+- **From a file:** **File > Open…**, or **Home > Create new > Stitch an existing chart**:
 
 | Format | Notes |
 |--------|-------|

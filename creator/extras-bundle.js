@@ -3902,7 +3902,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
     app.trackerFieldsRef && app.trackerFieldsRef.current && (app.trackerFieldsRef.current.beads || []).length > 0 && h("p", { role: "note" }, "PDF and PNG exports omit beads. OXS preserves bead appearance and position, but omits completion and object IDs. Use project saves or backups to retain bead progress."),
     h("div", null,
-      h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
+      h("button", { "aria-expanded":settingsOpen[0], onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
         h("span", null, "Format & settings"),
         h("span", { "aria-hidden": "true", style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, color: "var(--text-tertiary)" } },
           (typeof window !== "undefined" && window.Icons) ? (settingsOpen[0] ? window.Icons.chevronUp() : window.Icons.chevronDown()) : null)
@@ -3935,17 +3935,17 @@ window.CreatorExportTab = function CreatorExportTab() {
 
         h("div", { style: { marginBottom:'var(--s-3)' } },
           h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Stitches per page"),
-          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
+          h("select", { "aria-label":"Stitches per page", value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
             h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
             h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
             h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
             h("option", { value: "custom" }, "Custom")
           ),
           stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap:'var(--s-2)', marginTop: 6 } },
-            h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
+            h("input", { type: "number", min: 10, max: 200, step: 10, "aria-label":"Custom columns per PDF page", value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
               style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
             h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "cols ×"),
-            h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
+            h("input", { type: "number", min: 10, max: 200, step: 10, "aria-label":"Custom rows per PDF page", value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
               style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
             h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "rows")
           )

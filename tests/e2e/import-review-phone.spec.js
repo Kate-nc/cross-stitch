@@ -45,10 +45,17 @@ test.describe('Import review on Pixel 5', function() {
     await expect(page.getByRole('button', { name: 'Edit first' })).toBeInViewport();
     await expect(page.getByRole('button', { name: 'Start stitching' })).toHaveClass(/primary/);
 
-    // Notes fold into one line; none of this chart's is high severity, so closed.
+    // High-severity findings stay open; lesser notes can be revealed on demand.
     const notes = page.locator('details.import-review-notes');
     await expect(notes.locator('summary')).toHaveText(/^\d+ notes?$/);
-    await expect(notes).not.toHaveAttribute('open', /.*/);
+    if (await page.locator('.import-warning.high').count()) await expect(notes).toHaveAttribute('open', '');
+    else await expect(notes).not.toHaveAttribute('open', /.*/);
+    if (!(await notes.evaluate(el=>el.open))) await notes.locator('summary').click();
+    const repair = notes.getByRole('button',{name:'Assign threads'}).first();
+    await repair.click();
+    await expect(page.getByRole('tab',{name:'Palette',exact:true})).toHaveAttribute('aria-selected','true');
+    await expect(page.getByRole('tab',{name:'Palette',exact:true})).toBeFocused();
+    await page.screenshot({path:'work/after-import-repair-mobile.png',fullPage:true});
 
     // The symbol missing from the key shows as unassigned, not as a colour.
     await page.locator('.import-review-tab', { hasText: 'Palette' }).click();
@@ -75,7 +82,7 @@ test.describe('Import review on Pixel 5', function() {
     expect(p.done).toBe(0);
     // The Tracker has the chart up.
     await expect(page.locator('canvas').first()).toBeVisible({ timeout: 20000 });
-    await expect(page.getByText(/\b0%/).first()).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/\b0%/).filter({visible:true}).first()).toBeVisible({ timeout: 20000 });
   });
 
   test('Edit first opens the pattern in the Creator', async function({ page }) {

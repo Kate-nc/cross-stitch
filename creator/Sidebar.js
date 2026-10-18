@@ -298,6 +298,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -1840,6 +1841,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, then Generate."),
+      h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
+        app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
+        app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
+      }}, "Show all conversion controls"),
       // 0. What kind of picture is this? (presets)
       pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)

@@ -838,7 +838,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // by the system): offer to carry on.
     var tabDraftId = null;
     try { tabDraftId = sessionStorage.getItem('cs_active_draft'); } catch (_) {}
-    if (tabDraftId && BS && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
+    // Explicit project links take precedence over a different unfinished conversion.
+    var explicitProject = new URLSearchParams(window.location.search).get('id');
+    if (tabDraftId && BS && !explicitProject && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
       BS.get(tabDraftId).then(function(rec) {
         if (!rec || !rec.blob) { try { sessionStorage.removeItem('cs_active_draft'); } catch (_) {} return false; }
         var nice = String(rec.name || 'your picture').replace(/\.[a-z0-9]+$/i, '');
@@ -1038,18 +1040,16 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }).then(settle, settle);
   }
 
-  // Keep the Convert draft's settings current, a second after the last change.
+  // Start each draft write as soon as settings commit. A debounce lost the last
+  // edit when Back or a workflow switch happened within its one-second window.
   var draftSettingsKey = JSON.stringify(creatorDraftSettings(state)) + '|' + (state.projectName || '');
   React.useEffect(function() {
     var d = draftRef.current;
-    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return undefined;
-    var t = setTimeout(function() {
-      var cur = draftRef.current;
-      if (!cur || cur.id !== d.id || state.pat) return;
-      window.BlobStore.put(cur.id, { blob: cur.blob, name: cur.name, type: cur.type, createdAt: cur.createdAt,
-        settings: creatorDraftSettings(state) }).catch(function() {});
-    }, 1000);
-    return function() { clearTimeout(t); };
+    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return;
+    window.BlobStore.put(d.id, { blob: d.blob, name: d.name, type: d.type, createdAt: d.createdAt,
+      settings: creatorDraftSettings(state) }).catch(function() {
+        if (state.addToast) state.addToast("Could not save conversion settings. Keep this page open and try again.", {type:"error"});
+      });
   }, [draftSettingsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The first pattern makes a real project, so the draft is done.
