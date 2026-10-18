@@ -70,3 +70,27 @@ test('opening global Stats directly migrates rounded v2 summaries without rewrit
   expect(summary.totalStitches).toBe(6.5);expect(summary.unitsV).toBe(4);
   expect((await ProjectStorage.get('proj_stats')).lastWriteAt).toBe(before);
 });
+
+test('summary migration cannot restore a stale session fence or resurrect deleted metadata',async()=>{
+  const id='proj_migrate_race';await ProjectStorage.save(proj(id));
+  const db=await getDB();
+  await new Promise(resolve=>{const tx=db.transaction('project_meta','readwrite'),store=tx.objectStore('project_meta'),q=store.get(id);q.onsuccess=()=>store.put({...q.result,unitsV:2},id);tx.oncomplete=resolve;});
+  const original=ProjectStorage.get;
+  const spy=jest.spyOn(ProjectStorage,'get').mockImplementation(async key=>{
+    const stale=await original.call(ProjectStorage,key);
+    await ProjectStorage.save(proj(id,{done:[1,0,0,0,0,0],statsSessions:[{id:'finished',durationSeconds:60}]}));
+    return stale;
+  });
+  try{expect(await ProjectStorage.refreshProgressRows({idle:cb=>cb()})).toBe(1);}finally{spy.mockRestore();}
+  const row=(await ProjectStorage.listProjects()).find(r=>r.id===id);
+  expect(row.completedStitches).toBe(1);
+  expect(row.checkpointFence.statsSessions).toEqual([{id:'finished',groupId:undefined}]);
+  await ProjectStorage.saveSessionCheckpoint(id,{v:1,projectId:id,sessionId:'finished',checkpointAt:1000,records:[{id:'finished',durationSeconds:60}]});
+  const pending=await new Promise(resolve=>{const r=db.transaction('pendingImports').objectStore('pendingImports').getAll();r.onsuccess=()=>resolve(r.result);});
+  expect(pending.some(r=>r.sessionId==='finished'&&!r.closed)).toBe(false);
+  // A deletion between the migration read and write must not recreate a list row.
+  await new Promise(resolve=>{const tx=db.transaction('project_meta','readwrite'),store=tx.objectStore('project_meta'),q=store.get(id);q.onsuccess=()=>store.put({...q.result,unitsV:2},id);tx.oncomplete=resolve;});
+  const deleted=jest.spyOn(ProjectStorage,'get').mockImplementation(async key=>{const stale=await original.call(ProjectStorage,key);await ProjectStorage.delete(key);return stale;});
+  try{expect(await ProjectStorage.refreshProgressRows({idle:cb=>cb()})).toBe(0);}finally{deleted.mockRestore();}
+  expect((await ProjectStorage.listProjects()).some(r=>r.id===id)).toBe(false);
+});

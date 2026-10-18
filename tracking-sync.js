@@ -15,7 +15,9 @@
   function marks(p) {
     var out = Object.create(null);
     if (!p) return out;
-    if (Array.isArray(p.done) || ArrayBuffer.isView(p.done)) Array.from(p.done).forEach(function (v, i) { if (v) out['d:' + i] = 1; });
+    if (Array.isArray(p.done) || ArrayBuffer.isView(p.done)) {
+      for (var i = 0; i < p.done.length; i++) if (p.done[i]) out['d:' + i] = 1;
+    }
     [['halfDone', 'h:', ['fwd', 'bck']], ['partialDone', 'q:', ['TL', 'TR', 'BL', 'BR']]].forEach(function (spec) {
       (Array.isArray(p[spec[0]]) ? p[spec[0]] : []).forEach(function (e) {
         if (!Array.isArray(e) || e.length !== 2) return;

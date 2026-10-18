@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.177';
+window.APP_VERSION = '1.0.178';
 
 window.APP_CHANGELOG = [
   {
@@ -12,6 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Improved: marking a whole colour in the Stitch Tracker colours list is safe and clearly named. The chips read Mark all done and Mark all not done, always ask first in a styled dialog with the colour and the exact stitch count, and show a toast with Undo afterwards. The change is a single undo step. Chips are separate 44 px touch targets from the row, which only selects the colour. Start fresh, Remove stitch and park marker Clear all use the same dialog (Clear all can be undone, including which colours were hidden), and the backstitch chip now reads Mark all lines done, asks first and offers Undo too. Danger dialogs start on Cancel, and keyboard shortcuts such as Ctrl+Z wait while a question is open. A key under the progress bar explains To stitch and Stitched, and points pale-thread users to the Corner tick option.',
+      'Fixed: Tracker palette control semantics and native Space activation, completed-thread contrast, dark-theme thread swatches and action targets; coalesced chart status, persistent import errors, a quiet empty import screen and More-panel keyboard focus. Large-chart tracking avoids redundant chart copies and unchanged saves; tiled rendering is retained. Background summary refresh preserves newer progress, closed sessions and project deletions.',
       'Fixed: a chart never reuses a symbol. Every thread and blend gets its own, and the symbol on screen in the Creator and Tracker is now the same shape the PDF prints for that thread. Charts of up to 112 symbols are supported; converting a picture that needs more shows a warning and a mark in the Palette header. Projects saved with repeated symbols are repaired on opening: symbols you chose are kept, and only repeats change. Done stitches are untouched.',
       'Added: opt-in pen drawing with finger navigation, safe gesture interruption and native-size exact pixel-art import. Preview each source colour matched to a solid thread; hard edges, one-pixel details and transparent holes are preserved. Exact mode supports sources up to 500 by 500 pixels.',
       'Improved: Home exposes Stitch an existing chart, Convert a picture and Draw a pattern, explains printed-chart photographs, and offers an isolated practice chart. Browser Back restores Home tabs, conversion draft settings save promptly, advanced conversion controls expand on demand, and import warnings link to available repair tabs. Existing PDF density, symbol reassignment and backup controls are easier to find.',

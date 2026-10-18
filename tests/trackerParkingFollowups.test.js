@@ -107,11 +107,11 @@ describe('status bar', () => {
   });
 
   test('it refreshes the live label when the pattern or palette changes', () => {
-    expect(src).toMatch(/\},\[hlRow,hlCol,pat,cmap,sW\]\);/);
+    expect(src).toMatch(/\},\[hlRow,hlCol,pat,cmap,sW,done,[^\]]*\]\);/);
   });
 
   test('a Clear guide button appears while there is a guide', () => {
-    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{clearGuide\}/);
+    expect(src).toMatch(/\{hlRow>=0&&hlCol>=0&&<button type="button" className="tracker-hover-bar__clear" onClick=\{\(\)=>\{clearGuide\(\);/);
   });
 
   test('hovering shows the thread in every mode, not only Mark', () => {
@@ -131,8 +131,8 @@ describe('keyboard guide', () => {
   test('the guide stays inside the chart or work-area view and is announced', () => {
     const b = body('function moveGuideBy(dx,dy){', '\n}\n');
     expect(b).toMatch(/col=Math\.max\(bx0,Math\.min\(bx1-1,col\)\);row=Math\.max\(by0,Math\.min\(by1-1,row\)\);/);
-    expect(b).toMatch(/live\.textContent="Guide at row "/);
-    expect(src).toMatch(/<span ref=\{guideLiveRef\} className="tracker-sr-only" aria-live="polite"\/>/);
+    expect(src).toMatch(/const position=cell\?"Guide at row "/);
+    expect(src).toMatch(/<span ref=\{guideLiveRef\}[^>]*role="status" aria-live="polite" aria-atomic="true"\/>/);
   });
 
   test('the chart label says how', () => {
