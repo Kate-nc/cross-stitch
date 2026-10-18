@@ -881,8 +881,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
     ),
     // ── Touch placement aids (audit DRAW-03) ──
-    coarsePointer && h("div", {className:"tb-more-panel__section"},
-      h("span", {className:"tb-ovf-lbl"}, "Touch"),
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Touch and pen"),
+      h("label", {className:"tb-more-check"},
+        h("input", {type:"checkbox", checked:!!cv.penNavigation, onChange:function(e){ cv.setPenNavigation(e.target.checked); }}),
+        h("span", null, "Pen draws; fingers navigate")
+      ),
+      h("p", {className:"hint"}, "Enable for devices reporting pen input. In Draw, the pen uses the selected tool and fingers pan or pinch. Mixed pen and finger contact interrupts drawing. If input types are unreliable, turn this off and switch explicitly between Navigate and Draw."),
       h("label", {className:"tb-more-check", title:"While drawing, show an enlarged view of the stitches under your finger"},
         h("input", {type:"checkbox", checked:!!cv.magnifierOn, onChange:function(e){ if (cv.setMagnifierOn) cv.setMagnifierOn(e.target.checked); }}),
         h("span", null, "Magnifier")

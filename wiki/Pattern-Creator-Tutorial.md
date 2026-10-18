@@ -308,3 +308,43 @@ Import review shows separate verification checks for recognised cells, legend ma
 ## Petite and long stitches
 
 In Creator, use **More tools > Petite and long stitches** to add objects with a thread and half-cell coordinates, select them, edit their geometry or delete them. Undo and Redo restore edits. These objects use their own panel; general canvas selection tools edit the other stitch types. In Tracker, click the geometry or use **Layers > Petite and long stitches** to mark overlapping objects independently. A petite counts as 0.25 units and a long stitch as 0.5; each is marked as a whole. Native JSON retains their identities and marks. PNG renders both. OXS exports petites and warns about unsupported long stitches. PDF export stops with an explanation. See the [capability matrix](../docs/petite-long-lifecycle.md).
+
+## Exact pixel-art import
+
+The editable **Pixel art** preset is a starting point. For pixel-for-pixel
+geometry, enable **Exact pixel-art import** in Convert. Sources up to 500 by
+500 pixels retain their original dimensions, including small motifs below
+10 pixels. Larger sources must be resized explicitly before import.
+
+Exact mode ignores size controls, brightness/contrast/saturation, sharpening,
+smoothing, background removal, the colour limit, blends, dithering and cleanup.
+Even isolated single-pixel details remain. Transparent alpha below 128 becomes
+an empty stitch; alpha at or above 128 is stitched without flattening onto a
+background. Opaque background pixels stay stitched.
+
+Thread colours are an approximation: each visible source RGB maps to the nearest
+solid thread in the selected brand or stash. Expand **Source colours mapped to
+threads** beside the preview to compare source RGB, thread RGB, thread identity
+and counts. Multiple source colours can map to the same thread. Preview and
+Generate use the same native-resolution conversion. Resized variation galleries
+require leaving exact mode.
+
+## Tablet pen and finger rules
+
+Enable **More tools > Pen draws; fingers navigate** for devices that reliably
+report stylus input as a pen. In Draw, the selected tool acts with a pen or mouse;
+one finger pans and two fingers pan/pinch. Navigate prevents all drawing.
+Simultaneous pen and finger contact interrupts drawing and requires every contact
+to lift before starting again. This conservative policy does not claim hardware
+palm rejection.
+
+Leave the option off when the browser cannot distinguish the stylus. Use
+**Navigate** to move around and **Draw** to edit explicitly. Finger taps with
+single-action tools such as Fill commit on lift, allowing a second finger to
+cancel them. Two-finger navigation discards unfinished strokes and previews;
+a finger left down cannot continue drawing.
+
+A cancelled pointer, lost capture, hidden page, blur or viewport resize ends the
+gesture. Interrupted brush strokes retain one Undo step. Unfinished shapes and
+selection drags are cancelled without clearing the existing selection. Rotate,
+resize or zoom, then start a fresh gesture after the canvas settles.

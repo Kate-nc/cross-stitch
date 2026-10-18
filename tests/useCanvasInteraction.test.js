@@ -268,3 +268,113 @@ describe('computePinchScroll', () => {
     expect(r.scrollTop).toBe(0);
   });
 });
+
+describe('tablet pointer ownership and interrupted edits', () => {
+  let hook;
+  beforeEach(() => { jest.useFakeTimers(); hook = loadHook(); });
+  afterEach(() => jest.useRealTimers());
+  function drawing(extra) {
+    const s = makeState(Object.assign({activeTool:'paint', partialStitches:new Map(), pal:[]}, extra));
+    s.setPartialStitches = jest.fn();
+    s.setPat = jest.fn(p => { s.pat = p; });
+    s.history = [];
+    s.setEditHistory = jest.fn(fn => { s.history = fn(s.history); });
+    return s;
+  }
+  test.each(['mouse', 'pen'])('%s cancellation commits one undoable stroke and releases capture', pointerType => {
+    const s = drawing(), h = hook(s, {}), original = s.pat.slice();
+    const e = makePointerEvent({pointerType});
+    h.handlePatPointerDown(e);
+    expect(h.isDraggingRef.current).toBe(true);
+    h.handlePatPointerCancel(e);
+    expect(h.isDraggingRef.current).toBe(false);
+    expect(e.target.releasePointerCapture).toHaveBeenCalledWith(e.pointerId);
+    expect(s.history).toHaveLength(1);
+    const restored = s.pat.slice();
+    s.history[0].changes.forEach(c => { restored[c.idx] = c.old; });
+    expect(restored).toEqual(original);
+    h.handlePatPointerCancel(e); // lostpointercapture after release is idempotent
+    h.handlePatPointerUp(e);
+    expect(s.history).toHaveLength(1);
+    h.handlePatPointerDown(e); h.handlePatPointerUp(e);
+    expect(h.isDraggingRef.current).toBe(false);
+  });
+  test('finger pans with Paint selected in pen navigation; pen still paints', () => {
+    const s = drawing({penNavigationRef:{current:true}}), h = hook(s, {});
+    const finger = makePointerEvent({clientX:100, clientY:100});
+    h.handlePatPointerDown(finger);
+    h.handlePatPointerMove(makePointerEvent({clientX:140,clientY:120}));
+    h.handlePatPointerUp(finger);
+    expect(s.scrollRef.current.scrollLeft).toBe(40);
+    expect(s.history).toHaveLength(0);
+    const pen = makePointerEvent({pointerType:'pen',pointerId:2});
+    h.handlePatPointerDown(pen); h.handlePatPointerUp(pen);
+    expect(s.history).toHaveLength(1);
+  });
+  test.each(['touch', 'pen'])('second contact interrupts %s; remaining contact cannot resume painting', pointerType => {
+    const s = drawing(), h = hook(s, {});
+    const first = makePointerEvent({pointerType, pointerId:1});
+    const second = makePointerEvent({pointerId:2,clientX:40});
+    h.handlePatPointerDown(first); h.handlePatPointerDown(second);
+    h.handlePatPointerUp(second);
+    h.handlePatPointerMove(first); h.handlePatPointerUp(first);
+    expect(s.history).toHaveLength(0);
+    expect(h.isDraggingRef.current).toBe(false);
+  });
+  test('Fill waits until lift, so a pinch never fills the starting cell', () => {
+    const s = drawing({activeTool:'fill'}), h = hook(s, {});
+    const first = makePointerEvent(), second = makePointerEvent({pointerId:2,clientX:40});
+    h.handlePatPointerDown(first);
+    expect(s.history).toHaveLength(0);
+    h.handlePatPointerDown(second); h.handlePatPointerUp(second); h.handlePatPointerUp(first);
+    expect(s.history).toHaveLength(0);
+    h.handlePatPointerDown(first); h.handlePatPointerUp(first);
+    expect(s.history).toHaveLength(1);
+  });
+  test('unknown pointer-up and pen barrel button cannot finish or start painting', () => {
+    const s = drawing(), h = hook(s, {});
+    h.handlePatPointerDown(makePointerEvent({pointerType:'pen',button:2}));
+    expect(h.isDraggingRef.current).toBe(false);
+    const pen = makePointerEvent({pointerType:'pen'});
+    h.handlePatPointerDown(pen);
+    h.handlePatPointerUp(makePointerEvent({pointerId:99}));
+    expect(h.isDraggingRef.current).toBe(true);
+    h.handlePatPointerUp(pen);
+    expect(s.history).toHaveLength(1);
+  });
+  test('cancelled aiming tap releases capture and never places a stitch', () => {
+    const s = drawing(), h = hook(s, {}), e = makePointerEvent();
+    h.handlePatPointerDown(e); h.handlePatPointerCancel(e);
+    expect(e.target.releasePointerCapture).toHaveBeenCalledWith(1);
+    expect(s.history).toHaveLength(0);
+  });
+  test('pinch cancels temporary selection gestures without clearing the selection', () => {
+    const mask = new Uint8Array([1,0,0,0]);
+    const s = drawing({activeTool:'move',selectionMask:mask,cancelMove:jest.fn(),cancelLasso:jest.fn(),clip:{cancelDrag:jest.fn()},startMove:jest.fn()}), h = hook(s, {});
+    h.handlePatPointerDown(makePointerEvent());
+    h.handlePatPointerDown(makePointerEvent({pointerId:2,clientX:40}));
+    expect(s.cancelMove).toHaveBeenCalled(); expect(s.clip.cancelDrag).toHaveBeenCalled();
+    expect(s.selectionMask).toBe(mask);
+    expect(s.history).toHaveLength(0);
+  });
+});
+
+test('crop cancellation clears the preview and releases the owning capture', () => {
+  const hook=loadHook(),s=makeState({isCropping:true}),h=hook(s,{});
+  const e=makePointerEvent({pointerType:'pen',clientX:20,clientY:30});
+  h.handleCropPointerDown(e);h.handleCropPointerMove(makePointerEvent({pointerType:'pen',clientX:80,clientY:70}));
+  expect(s.cropStartRef.current).not.toBeNull();
+  h.handleCropPointerCancel(e);
+  expect(s.cropStartRef.current).toBeNull();expect(s.cropRect).toBeNull();
+  expect(e.target.releasePointerCapture).toHaveBeenCalledWith(e.pointerId);
+  h.handleCropPointerMove(makePointerEvent({clientX:90,clientY:90}));
+  expect(s.cropRect).toBeNull();
+});
+
+test('cancelling a backstitch aiming gesture hides its loupe and clears the anchor', () => {
+  const hook=loadHook(),s=makeState({activeTool:'backstitch'}),h=hook(s,{});
+  global.creatorLoupe={show:jest.fn(),hide:jest.fn()};
+  const e=makePointerEvent();h.handlePatPointerDown(e);h.handlePatPointerCancel(e);
+  expect(global.creatorLoupe.hide).toHaveBeenCalled();expect(s.bsStart).toBeNull();
+  delete global.creatorLoupe;
+});

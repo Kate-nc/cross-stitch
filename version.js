@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Added: opt-in pen drawing with finger navigation, safe gesture interruption and native-size exact pixel-art import. Preview each source colour matched to a solid thread; hard edges, one-pixel details and transparent holes are preserved. Exact mode supports sources up to 500 by 500 pixels.',
       'Improved: Home exposes Stitch an existing chart, Convert a picture and Draw a pattern, explains printed-chart photographs, and offers an isolated practice chart. Browser Back restores Home tabs, conversion draft settings save promptly, advanced conversion controls expand on demand, and import warnings link to available repair tabs. Existing PDF density, symbol reassignment and backup controls are easier to find.',
       'Added: initial unencrypted PCStitch 7 PAT import with DMC identifiers, dimensions, full crosses, supported fractions and backstitch. Review reports omitted objects and unverified blends, palette attributes and header options. Other versions are rejected; the original file is retained for comparison and repair.',
       'Added: version-gated Pattern Maker XSD 4.8.4.12 import with bounded binary parsing, original thread identities and geometry, counted unsupported objects and explicit verification limits. Other XSD versions and XML schemas are rejected.',

@@ -346,7 +346,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
     floatClip: floatClip, replaceClip: replaceClip,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
-    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
+    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, cancelDrag: function() { dragRef.current = null; notifyGhost(); }, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }
   }; }, [clipboard, float]); // eslint-disable-line react-hooks/exhaustive-deps
 };
