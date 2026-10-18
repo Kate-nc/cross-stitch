@@ -333,6 +333,9 @@ const BackupRestore = (() => {
           throw new Error("The latest changes could not be included in the backup. Keep this page open, resolve the save problem and retry Export Backup.", { cause: e });
         }
       }
+      // Dashboard archive state is local-only. Retire its claims before the
+      // portable stash is read, so restoring cannot reactivate archived claims.
+      if(window.MaterialReservations&&window.ProjectStorage&&window.StashBridge&&window.StashBridge.projectMaterials)await window.StashBridge.projectMaterials();
       let backup = {
         _format: "cross-stitch-backup",
         _version: 2,
@@ -574,6 +577,11 @@ const BackupRestore = (() => {
       const accounting=managerRows&&managerRows.find(e=>e&&e.key==='thread_consumption_v2');
       if(accounting){
         try{if(!window.ThreadAccounting)throw new Error('Consumption history support is required to restore this backup');window.ThreadAccounting.validate(accounting.value);}
+        catch(e){return {valid:false,error:e.message};}
+      }
+      const reservations=managerRows&&managerRows.find(e=>e&&e.key==='thread_reservations_v1');
+      if(reservations){
+        try{if(!window.MaterialReservations)throw new Error('Material reservation support is required');window.MaterialReservations.validate(reservations.value);}
         catch(e){return {valid:false,error:e.message};}
       }
       if (Object.prototype.hasOwnProperty.call(backup, "preferences")) {

@@ -66,7 +66,8 @@ const SyncEngine = (() => {
     var ledger = stash && stash.thread_consumption_v2;
     if (ledger && !A) throw new Error('Consumption history support is required.');
     var totals = ledger ? A.totals(A.validate(ledger)) : {};
-    Object.keys(stash || {}).sort().forEach(function(k) { if (k.indexOf('rt_deduction:') === 0) accounting[k] = stash[k]; });
+    if(stash&&stash.thread_reservations_v1){if(!window.MaterialReservations)throw new Error('Material reservation support is required');window.MaterialReservations.validate(stash.thread_reservations_v1);}
+    Object.keys(stash || {}).sort().forEach(function(k) { if (k.indexOf('rt_deduction:') === 0 || k === 'thread_reservations_v1') accounting[k] = stash[k]; });
     Object.keys(stash && stash.threads || {}).sort().forEach(function(k) {
       var row = Object.assign({},stash.threads[k]);
       // Gross stock plus separately unioned immutable events avoids double debits.
@@ -1964,6 +1965,13 @@ const SyncEngine = (() => {
       if (!window.ThreadAccounting) throw new Error('Consumption history support is required to sync this stash');
       merged.thread_consumption_v2 = window.ThreadAccounting.mergeStock(localStash||{},remoteStash||{},merged.threads);
     }
+    if ((localStash&&localStash.thread_reservations_v1)||(remoteStash&&remoteStash.thread_reservations_v1)) {
+      var lr=localStash&&localStash.thread_reservations_v1, rr=remoteStash&&remoteStash.thread_reservations_v1;
+      if(!window.MaterialReservations)throw new Error('Material reservation support is required');
+      if(lr)window.MaterialReservations.validate(lr);if(rr)window.MaterialReservations.validate(rr);
+      if(lr&&rr&&TrackingSync.canonical(lr)!==TrackingSync.canonical(rr))throw new Error('Conflicting project reservations. Reconcile material plans before syncing.');
+      merged.thread_reservations_v1=lr||rr;
+    }
     // Preserve old checkpoints as migration evidence; never reinterpret them as events.
     [remoteStash,localStash].forEach(function(stash){Object.keys(stash||{}).forEach(function(k){if(k.indexOf('rt_deduction:')===0)merged[k]=stash[k];});});
     return merged;
@@ -2875,7 +2883,7 @@ const SyncEngine = (() => {
               });
               store.put(value.threads,'threads');
               // Remove only known ledger keys, then replace from the chosen bundle.
-              Object.keys(local).forEach(function(k) { if (k.indexOf('rt_deduction:') === 0) store.delete(k); });
+              Object.keys(local).forEach(function(k) { if (k.indexOf('rt_deduction:') === 0 || k === 'thread_reservations_v1') store.delete(k); });
               Object.keys(value.accounting).forEach(function(k) { store.put(value.accounting[k],k); });
               store.put(mergedInventory.events,'sync:inventory');
               var rest = mergeStash({patterns:local.patterns,userProfile:local.userProfile},{patterns:plan.syncObj.stash.patterns,userProfile:plan.syncObj.stash.userProfile},plan.presentProjectIds ? {presentProjectIds:plan.presentProjectIds} : undefined);
