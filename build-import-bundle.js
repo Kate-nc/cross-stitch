@@ -25,6 +25,8 @@ const ORDER = [
   'pipeline/materialise.js',
   'formats/xsd.js',
   'strategies/xsdStrategy.js',
+  'binary/reader.js',
+  'strategies/patStrategy.js',
   'strategies/oxsStrategy.js',
   'strategies/jsonStrategy.js',
   'strategies/imageStrategy.js',

@@ -148,6 +148,7 @@ Your finish date is estimated from your actual stitching speed and gets more acc
 | Format | Notes |
 |--------|-------|
 | **.json** | stitchx project file |
+| **.pat** | Initial unencrypted PCStitch 7 support: DMC identifiers, dimensions, full crosses, diagonal halves, quarters, three-quarter stitches and backstitch. Review all limitations: blends and palette/header attributes remain unverified; other schemes use placeholders, and knots and unsupported types are omitted with notes. Other versions and unrelated PAT formats are rejected. |
 | **.oxs** | Open X-Stitch charts from other design programs. Backstitch retains its thread colours over empty cells; charts need not contain full crosses. Supported diagonal halves, three-quarter stitches, XSPro diagonal quarters and equal two-thread blends are preserved. French knots are read; beads have a separate tracking list. Unsupported content is reported by type and count. |
 | **Image** | Converted into a pattern |
 | **PDF** | Multi-page, scanned and booklet charts. A review screen shows how many stitches matched the colour key and lets you fix pages and threads before saving. |

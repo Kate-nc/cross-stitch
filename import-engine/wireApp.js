@@ -32,7 +32,7 @@
     __traceKeys.forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (_) {}
 
-  var ACCEPT = '.oxs,.xsd,.xml,.json,.pdf,image/*';
+  var ACCEPT = '.pat,.oxs,.xsd,.xml,.json,.pdf,image/*';
 
   // One-time global listener so any unhandled promise rejection coming from
   // the import pipeline (e.g. PDF strategy throwing, classifier blowing up,

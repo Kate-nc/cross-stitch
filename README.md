@@ -440,6 +440,8 @@ ISC
 
 Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.
 
+Initial PCStitch `.pat` import supports the unencrypted version 7 layout, retaining dimensions, DMC identifiers, full crosses, diagonal halves, quarters, three-quarter stitches and backstitch. Every import has explicit verification limits: blends and custom palette/header attributes remain unverified; other thread schemes use placeholders, and knots and unsupported stitch types are omitted with notes. Other versions and unrelated `.pat` formats are rejected. See [the support matrix and validation evidence](docs/pcstitch-pat-import.md).
+
 Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.
 
 Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.

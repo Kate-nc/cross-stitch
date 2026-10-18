@@ -546,7 +546,7 @@
       var IE = window.ImportEngine;
       if (IE && typeof IE.classifyFileForCreate === 'function') return IE.classifyFileForCreate(file);
       if ((file.type || '').indexOf('image/') === 0) return 'image';
-      return /\.(oxs|xml|json|pdf|xsd)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
+      return /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
     }
 
     // Each tile has its own picker (audit COMMON-04). A file that suits the
@@ -609,8 +609,8 @@
         if (typeof IE.showImportError === 'function') IE.showImportError(unsupported, file.name);
         return;
       }
-      var isImage = !/\.xsd$/i.test(name) && (file.type || '').indexOf('image/') === 0;
-      var isPattern = /\.(oxs|xml|json|pdf|xsd)$/i.test(name);
+      var isImage = !/\.(pat|xsd)$/i.test(name) && (file.type || '').indexOf('image/') === 0;
+      var isPattern = /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(name);
       if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
         // We already have the file — call importAndReview directly so the
         // user doesn't have to pick it again.
@@ -747,7 +747,7 @@
       h('input', {
         ref: importInputRef,
         type: 'file',
-        accept: accept('.pdf,.oxs,.xsd,.xml,.json'),
+        accept: accept('.pdf,.pat,.oxs,.xsd,.xml,.json'),
         className: 'home-import-file-input',
         onChange: handleImportChange,
         'aria-hidden': 'true',
@@ -792,7 +792,7 @@
             typeof Icons.document === 'function' ? Icons.document() : null),
           h('span', { className: 'home-create-tile__copy' },
             h('strong', null, 'Import a chart'),
-            h('span', null, 'A PDF, .oxs or supported Pattern Maker .xsd chart. Photos of paper charts aren\u2019t supported yet.')
+            h('span', null, 'A PDF, .oxs, supported Pattern Maker .xsd or PCStitch 7 .pat chart. Photos of paper charts aren\u2019t supported yet.')
           )
         ),
         // Embroidery planner: experimental third tile, only rendered when the

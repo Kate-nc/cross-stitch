@@ -72,6 +72,9 @@
       }
       if (isXSD) return { ok: false, error: ENGINE.errors.ParseError('XSD: exceeds the 16 MiB input limit', { strategy: 'xsd' }), warnings: [] };
     }
+    if (/\.pat$/i.test(file && file.name || '') && file.size > 16 * 1024 * 1024) {
+      return { ok: false, warnings: [], error: ENGINE.errors.ParseError('PCStitch PAT exceeds the 16 MiB import limit.', { strategy: 'pat' }) };
+    }
     const buffer = await readAllBytes(file);
     const bytes = new Uint8Array(buffer);
 
