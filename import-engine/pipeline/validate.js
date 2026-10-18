@@ -172,6 +172,15 @@
       checks.unsupportedContent = measure(audit.losses.length ? 'limited' : 'verified', audit.losses.length ? 'OXS reports unsupported, substituted or malformed content.' : 'No unsupported objects reported in recognised OXS sections.');
       checks.legendMatches = measure(audit.losses.some(x => /thread|palette|blend/.test(x)) ? 'limited' : 'verified', 'OXS palette references checked by the parser.');
     }
+    if (raw._xsdAudit) {
+      const a = raw._xsdAudit;
+      if (checks.dimensions.status !== 'limited') checks.dimensions = measure('verified', 'XSD binary dimensions and stored grid agree.');
+      checks.recognisedCells = measure(a.fullCells === a.sourceFullCells ? 'verified' : 'limited', 'Full-cross cells retained from XSD; fractional and joint objects counted separately.', a.fullCells, a.sourceFullCells);
+      checks.legendMatches = measure(a.losses.some(x => /palette|thread|blend/.test(x.reason)) ? 'limited' : 'verified', 'XSD physical palette indices checked; no colour substitution.');
+      checks.stitchTypes = measure(a.losses.length ? 'limited' : 'verified', a.importedObjects + ' of ' + a.sourceObjects + ' known decoded stitch objects retained; ' + a.unknownSmallCells + ' fractional cells have unknown contents and were omitted. See type-specific limitations.', a.importedObjects, a.unknownSmallCells ? null : a.sourceObjects);
+      checks.counts = measure('not applicable', 'XSD supplies grid, small-buffer and joint record counts, not independent per-thread stitch totals. Record bounds were checked by the parser.');
+      checks.unsupportedContent = measure('limited', 'Undocumented header data and display/strand settings are unverified; see XSD notes and affected-object counts.');
+    }
     const key = pdfKeyMatch(r);
     if (key) checks.legendMatches = measure(key.read === key.total && !(r.placeholders || []).length ? 'verified' : 'limited', 'Stitches matched to the PDF colour key.', key.read, key.total);
     if (r.scanned) checks.legendMatches = measure('unknown', 'Read from a scan; compare symbols and colours with the printed key.');

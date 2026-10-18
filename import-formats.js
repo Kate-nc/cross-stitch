@@ -66,6 +66,7 @@ function importResultToProject(result, fabricCt = 14, name = "") {
 function detectImportFormat(file) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.oxs') || name.endsWith('.xml')) return "oxs";
+  if (name.endsWith('.xsd')) return "xsd";
   if (name.endsWith('.json')) return "json";
   if (name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') ||
       name.endsWith('.gif') || name.endsWith('.bmp') || name.endsWith('.webp')) return "image";

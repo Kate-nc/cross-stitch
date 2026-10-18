@@ -19,7 +19,7 @@ describe('classifyFileForCreate', () => {
     [{ name: 'chart.oxs', type: '' }, 'pattern'],
     [{ name: 'chart.xml', type: 'text/xml' }, 'pattern'],
     [{ name: 'project.json', type: 'application/json' }, 'pattern'],
-    [{ name: 'pattern.xsd', type: '' }, 'unsupported'],
+    [{ name: 'pattern.xsd', type: '' }, 'pattern'],
     [{ name: 'PATTERN.PAT', type: '' }, 'unsupported'],
     [{ name: 'design.xsp', type: 'application/octet-stream' }, 'unsupported'],
     [{ name: 'design.saga', type: '' }, 'unsupported'],
@@ -41,7 +41,7 @@ describe('classifyFileForCreate', () => {
 describe('describeImportError', () => {
   test('design-software formats name the program and the way out', () => {
     expect(IE.describeImportError(err('ImportUnsupportedError', 'x'), 'pattern.xsd').message)
-      .toBe('Files from Pattern Maker (.xsd) can’t be opened here yet. In Pattern Maker, export the chart as OXS or PDF and import that file.');
+      .toMatch(/This XSD chart could not be read.*OXS or PDF/);
     expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.pat').message).toMatch(/^Files from PCStitch \(\.pat\)/);
     expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.xsp').message).toMatch(/^Files from XStitch Pro \(\.xsp\)/);
     expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.saga').message).toMatch(/^Files from other cross-stitch programs \(\.saga\)/);

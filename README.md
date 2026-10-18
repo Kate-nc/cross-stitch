@@ -59,7 +59,7 @@ Live stash deductions record durable events for full and fractional stitches, kn
 - **Stitch layers:** show or hide full stitches, half stitches, French knots and backstitch.
 - **Row mode** and **Section spotlight:** work one row, or one block, at a time.
 - **Sessions:** start automatically when you stitch and end after a configurable idle time; three timing modes. Used to estimate your completion date and feed the Stats page.
-- **Import:** `.json` projects, `.oxs` (KG-Chart / Pattern Keeper XML), images, and PDF charts — including multi-page, scanned and booklet PDFs, with a review screen before saving.
+- **Import:** supported Pattern Maker `.xsd` charts ([version and fidelity limits](docs/xsd-import.md)), `.json` projects, `.oxs` (KG-Chart / Pattern Keeper XML), images, and PDF charts — including multi-page, scanned and booklet PDFs, with a review screen before saving.
 
 ---
 
@@ -95,6 +95,7 @@ The default landing page and project hub.
 | PDF chart | Multi-page, Pattern Keeper-compatible chart using the embedded `CrossStitchSymbols.ttf` symbol font. Up to 112 distinct used threads or blends; larger palettes stop with an error. Unused colours and empty cells do not count. Presets for Pattern Keeper and home printing; Auto / A4 / US Letter; four print sizes; B&W and colour chart modes; optional cover, info, chart index and mini-legend pages; 2-row overlap zone; designer branding. See [EXPORT_QUICKSTART.md](EXPORT_QUICKSTART.md). |
 | PNG image | Single image of the pattern grid. |
 | `.oxs` | Open X-Stitch XML for MacStitch, WinStitch, FlossCross and Pattern Keeper. Retains backstitch thread references, supported fractional stitches and equal two-thread blends, including charts without full crosses. Review counted warnings for unsupported content. |
+| `.xsd` (import only) | Pattern Maker 4.8.4.12 binary charts; strict version and size checks, known DMC/Anchor identities and supported geometry. Always review counted omissions and unverified content. [Support matrix](docs/xsd-import.md). |
 | `.zip` bundle | One archive with the PDF, `.oxs`, a PNG preview, the `.json` project and a `manifest.json`. |
 | Backup (`.csb`) | Every project, photo, tracing picture, session checkpoint, stash/accounting record and portable global preference in one validated compressed file (older backups are `.json`). Recovery stages an isolated copy before publication, retains existing projects and rejects conflicting identifiers. See [recovery guarantees](docs/backup-recovery.md). Device controls, pattern view positions and Sync setup stay on the destination; see [the preference contract](docs/portable-backup-preferences.md). File > Export Backup / Restore from Backup. |
 | `.csync` | Cross-device sync file — see [Cross-device sync](#cross-device-sync). |

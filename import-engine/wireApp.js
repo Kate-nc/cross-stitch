@@ -15,7 +15,7 @@
   // user can verify (in the browser console) that they're running the
   // current bundle and not a stale service-worker copy. If you don't see
   // this log on page load, the SW is serving an old cache.
-  var BUILD = 'wireApp v9 (2026-10-17 — reviewed existing-project updates)';
+  var BUILD = 'wireApp v10 (2026-10-17 — version-gated XSD import and reviewed chart updates)';
   try { console.info('[ImportEngine]', BUILD); } catch (_) {}
   // Also expose it for assertion in DevTools: `window.ImportEngine.__build`.
   try {
@@ -32,7 +32,7 @@
     __traceKeys.forEach(function (k) { sessionStorage.removeItem(k); });
   } catch (_) {}
 
-  var ACCEPT = '.oxs,.xml,.json,.pdf,image/*';
+  var ACCEPT = '.oxs,.xsd,.xml,.json,.pdf,image/*';
 
   // One-time global listener so any unhandled promise rejection coming from
   // the import pipeline (e.g. PDF strategy throwing, classifier blowing up,

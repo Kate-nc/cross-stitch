@@ -1,5 +1,5 @@
 // P0-3 (audit IMPORT-05): failed imports show plain-English messages with a
-// next step and a help link, and files the app can't read (.xsd, .pat …)
+// next step and a help link, and files the app can't read (.pat …)
 // never reach the image converter.
 const path = require('path');
 const { test, expect, devices } = require('@playwright/test');
@@ -24,7 +24,7 @@ async function openHomeCreate(page) {
 const CASES = [
   { file: 'broken.pdf', message: 'This PDF couldn’t be read. It may be damaged or password-protected.' },
   { file: 'not-a-pattern.json', message: 'This .json file isn’t a stitchx pattern or backup.' },
-  { file: 'pattern.xsd', message: 'Files from Pattern Maker (.xsd) can’t be opened here yet. In Pattern Maker, export the chart as OXS or PDF and import that file.' },
+  { file: 'pattern.xsd', message: 'XML Schema documents are not charts' },
 ];
 
 test.describe('Import errors on Pixel 5', function() {
