@@ -21,7 +21,7 @@ remain, and a clean profile uses defaults. The legacy localStorage map cannot
 bypass the preference allowlist. Migration markers are generated locally rather
 than copied from the source.
 
-## Portable allowlist (99 keys)
+## Portable allowlist (102 keys)
 
 Branding (including a bounded PNG/JPEG data URL), export and generation defaults,
 tracking behaviour, global preview/display choices, accessibility, notifications,
@@ -69,6 +69,9 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_exportCustomCols`
 - `cs_pref_exportCustomRows`
 - `cs_pref_exportGridInterval`
+- `cs_pref_exportIncludeBranding`
+- `cs_pref_exportIncludeLegend`
+- `cs_pref_exportNamedPresets`
 - `cs_pref_exportIncludeCover`
 - `cs_pref_exportIncludeIndex`
 - `cs_pref_exportIncludeInfo`
@@ -192,3 +195,5 @@ palettes, shortcut hint and global goals/compatibility goals) is unchanged, as
 are the existing project/stash/photo backup sections.
 
 Automatic Compare snapshot opt-in is portable. Restore establishes a fresh stitching-day baseline on the destination and invalidates queued automatic work; the operational `trackerSnapshotsEnabledAt` timestamp stays device-local and is never imported. Missing values in older preference sections default to off.
+
+Named export presets use a versioned, global-scoped array of at most 50 uniquely named records. Each record contains only validated PDF setting keys; branding values and project metadata are excluded. Invalid collections restore as an empty list.

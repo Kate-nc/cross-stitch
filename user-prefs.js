@@ -35,6 +35,9 @@
     designerContact:      "",
 
     // ─── PDF export defaults (last-used values for the Export panel) ────
+    exportNamedPresets:      [], // global; full backups only, never project JSON
+    exportIncludeLegend:     true,
+    exportIncludeBranding:   true,
     exportPreset:           "patternKeeper", // "patternKeeper" | "homePrinting"
     exportPageSize:         "auto",          // "auto" | "a4" | "letter"
     exportMarginsMm:        12,
@@ -336,6 +339,46 @@
   portableNumber("skeinPriceDefault", 0, 50);
   portableNumber("toastMaxVisible", 1, 6, true);
   PORTABLE_RULES.statsDayEndHour = function(v) { return v === null || (Number.isInteger(v) && v >= 0 && v <= 23); };
+  var EXPORT_PRESET_KEYS = ("exportPageSize exportMarginsMm exportStitchesPerPage exportCustomCols exportCustomRows exportChartModeBw exportChartModeColour exportOverlap exportIncludeCover exportIncludeInfo exportIncludeIndex exportIncludeLegend exportMiniLegend exportIncludeBranding creator.pdfWorkshopTheme").split(" ");
+  portableKeys("exportIncludeLegend exportIncludeBranding", function(v) { return typeof v === "boolean"; });
+  function validExportPreset(p) {
+    if (!p || p.version !== 1 || p.scope !== "global" || typeof p.name !== "string" ||
+        !p.name.trim() || p.name !== p.name.trim() || p.name.length > 80 || !p.settings ||
+        Object.keys(p.settings).length !== EXPORT_PRESET_KEYS.length) return false;
+    if (!EXPORT_PRESET_KEYS.every(function(k) { return Object.prototype.hasOwnProperty.call(p.settings, k) && PORTABLE_RULES[k](p.settings[k]); })) return false;
+    var v = p.settings;
+    return v.exportMarginsMm >= 10 && v.exportMarginsMm <= 30 &&
+      [v.exportCustomCols, v.exportCustomRows].every(function(n) { return n >= 10 && n <= 200 && n % 10 === 0; }) &&
+      (v.exportChartModeBw || v.exportChartModeColour);
+  }
+  PORTABLE_RULES.exportNamedPresets = function(v) {
+    return Array.isArray(v) && v.length <= 50 && v.every(validExportPreset) &&
+      new Set(v.map(function(p) { return p.name.toLowerCase(); })).size === v.length;
+  };
+  function namedExportPresets() {
+    var items = get("exportNamedPresets");
+    return PORTABLE_RULES.exportNamedPresets(items) ? JSON.parse(JSON.stringify(items)) : [];
+  }
+  function saveExportPreset(name, settings, previousName) {
+    var item = {version: 1, scope: "global", name: name.trim(), settings: {}};
+    EXPORT_PRESET_KEYS.forEach(function(k) { item.settings[k] = settings[k]; });
+    if (!validExportPreset(item)) throw new Error("Enter a name (up to 80 characters) and valid PDF settings, including a chart mode.");
+    var list = namedExportPresets();
+    var index = previousName ? list.findIndex(function(p) { return p.name === previousName; }) : -1;
+    if (previousName && index < 0) throw new Error("This preset was removed. Save a new preset.");
+    if (list.some(function(p, i) { return i !== index && p.name.toLowerCase() === item.name.toLowerCase(); })) throw new Error("A preset with that name already exists.");
+    if (index < 0) list.push(item); else list[index] = item;
+    if (!PORTABLE_RULES.exportNamedPresets(list)) throw new Error("You can save up to 50 presets.");
+    persistExportPresets(list);
+    return item;
+  }
+  function persistExportPresets(list) {
+    set("exportNamedPresets", list);
+    if (JSON.stringify(get("exportNamedPresets")) !== JSON.stringify(list)) throw new Error("Could not save presets. Check available browser storage.");
+  }
+  function deleteExportPreset(name) {
+    persistExportPresets(namedExportPresets().filter(function(p) { return p.name !== name; }));
+  }
   var PORTABLE_KEYS = Object.freeze(Object.keys(PORTABLE_RULES).sort());
 
   function validatePortableSnapshot(snapshot) {
@@ -637,6 +680,10 @@
   })();
 
   window.UserPrefs = {
+    EXPORT_PRESET_KEYS: EXPORT_PRESET_KEYS,
+    namedExportPresets: namedExportPresets,
+    saveExportPreset: saveExportPreset,
+    deleteExportPreset: deleteExportPreset,
     PORTABLE_VERSION: PORTABLE_VERSION,
     PORTABLE_KEYS: PORTABLE_KEYS,
     exportPortable: exportPortable,

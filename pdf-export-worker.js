@@ -139,6 +139,7 @@ self.onmessage = function (e) {
 
 // ─── build pipeline ──────────────────────────────────────────────────────
 async function buildPdf(project, options, reqId) {
+  Layout.validateOptions(options);
   var PDFLib = self.PDFLib;
   if (!PDFLib) throw new Error("pdf-lib failed to load");
   var rgbColor = PDFLib.rgb;
@@ -218,12 +219,7 @@ async function buildPdf(project, options, reqId) {
 
   // Estimate total pages we are about to draw, for progress reporting.
   var chartModes = (options.chartModes && options.chartModes.length) ? options.chartModes : ["bw"];
-  var totalPages =
-    (options.includeCover ? 1 : 0) +
-    (options.includeInfo  ? 1 : 0) +
-    legendPageCount(paletteMap.order) +
-    pages.length * chartModes.length +
-    (options.includeIndex ? 1 : 0);
+  var totalPages = Layout.planExport(project, options).totalPages;
 
   var pageDone = 0;
   function bumpPage(stage) {
@@ -247,7 +243,7 @@ async function buildPdf(project, options, reqId) {
 
   // 3. Thread legend (one or more pages)
   progress(reqId, "legend", pageDone, totalPages);
-  var legendPages = drawLegendPages(pdfDoc, project, paletteMap, counts, helvetica, helveticaBold, symbolFont, rgbColor, pageWpt, pageHpt, geom, themeCols);
+  var legendPages = options.includeLegend === false ? 0 : drawLegendPages(pdfDoc, project, paletteMap, counts, helvetica, helveticaBold, symbolFont, rgbColor, pageWpt, pageHpt, geom, themeCols);
   for (var lp = 0; lp < legendPages; lp++) bumpPage("legend");
 
   // 4. Chart pages — one section per mode
@@ -529,7 +525,7 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
 // ─── legend pages ────────────────────────────────────────────────────────
 function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbolFont, rgbColor, pageW, pageH, geom, themeCols) {
   var marginPt = Layout.mmToPt(geom.marginMm);
-  var rowsPerPage = 32;
+  var rowsPerPage = Layout.legendRowsPerPage(geom);
   // Build sorted entries (matches the codepoint assignment order).
   var orderedIds = paletteMap.order;
   var entries = orderedIds.map(function (id) {

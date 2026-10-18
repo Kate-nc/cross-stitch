@@ -176,6 +176,61 @@
     return pages;
   }
 
+  // Reject malformed persisted/preset values before either preview or export.
+  function validateOptions(opts) {
+    opts = opts || {};
+    function choice(key, allowed) {
+      if (opts[key] != null && allowed.indexOf(opts[key]) < 0) throw new Error("Invalid PDF " + key + ".");
+    }
+    choice("pageSize", ["auto", "a4", "letter"]);
+    choice("stitchesPerPage", ["small", "medium", "large", "custom"]);
+    choice("theme", ["pk", "workshop"]);
+    ["marginsMm", "customCols", "customRows"].forEach(function (k) {
+      if (opts[k] == null) return;
+      var min = k === "marginsMm" ? 10 : 10, max = k === "marginsMm" ? 30 : 200;
+      if (!Number.isFinite(opts[k]) || opts[k] < min || opts[k] > max ||
+          (k !== "marginsMm" && opts[k] % 10 !== 0)) throw new Error("PDF " + k + " must be " + min + "–" + max + (k === "marginsMm" ? " mm." : " in steps of 10."));
+    });
+    ["overlap", "includeCover", "includeInfo", "includeIndex", "includeLegend", "miniLegend", "includeBranding"].forEach(function (k) {
+      if (opts[k] != null && typeof opts[k] !== "boolean") throw new Error("Invalid PDF " + k + ".");
+    });
+    if (opts.chartModes != null && (!Array.isArray(opts.chartModes) || !opts.chartModes.length ||
+        opts.chartModes.some(function (m) { return m !== "bw" && m !== "colour"; }) || new Set(opts.chartModes).size !== opts.chartModes.length)) throw new Error("Pick at least one valid chart mode.");
+  }
+
+  function usedThreadCounts(project) {
+    var counts = Object.create(null);
+    (project.pattern || []).forEach(function (c) {
+      if (c && c.id && c.id !== "__skip__" && c.id !== "__empty__") counts[c.id] = (counts[c.id] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function legendRowsPerPage(geom) {
+    return Math.min(32, Math.floor((mmToPt(geom.pageHmm - 2 * geom.marginMm) - 52) / 18));
+  }
+
+  // A single plan drives the preview and the worker's progress totals.
+  function planExport(project, opts) {
+    validateOptions(opts);
+    var geom = computePageGeometry(opts);
+    var pages = paginate({patternW: project.w, patternH: project.h, colsPerPage: geom.colsPerPage,
+      rowsPerPage: geom.rowsPerPage, overlap: opts.overlap});
+    var n = Object.keys(usedThreadCounts(project)).length;
+    var rows = legendRowsPerPage(geom);
+    var legends = opts.includeLegend === false ? 0 : Math.max(1, Math.ceil(n / rows));
+    if (legends && opts.theme === "workshop" && project.knots && project.knots.length) {
+      var knotThreads = new Set(project.knots.map(function (k) { return k.id; })).size;
+      var lastRows = n - (legends - 1) * rows;
+      var remaining = mmToPt(geom.pageHmm - 2 * geom.marginMm) - 52 - lastRows * 18 - 14;
+      if (remaining - (knotThreads + 1) * 18 < 0) legends++;
+    }
+    var charts = pages.length * (opts.chartModes || ["bw"]).length;
+    var index = opts.includeIndex && pages.length > 1 ? 1 : 0;
+    return {geom: geom, pages: pages, legendPages: legends, chartPages: charts, indexPages: index,
+      totalPages: charts + legends + index + (opts.includeCover ? 1 : 0) + (opts.includeInfo ? 1 : 0)};
+  }
+
   /**
    * Build a deterministic palette → codepoint map.
    *
@@ -266,6 +321,10 @@
   }
 
   var api = {
+    validateOptions: validateOptions,
+    usedThreadCounts: usedThreadCounts,
+    legendRowsPerPage: legendRowsPerPage,
+    planExport: planExport,
     PAGE_SIZES_MM: PAGE_SIZES_MM,
     mmToPt: mmToPt,
     ptToMm: ptToMm,
