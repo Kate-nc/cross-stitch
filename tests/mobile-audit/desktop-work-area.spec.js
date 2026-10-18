@@ -262,8 +262,8 @@ test('"mark all done" marks only the stitches inside the area', async ({ page })
   const tile = page.locator('.ppal-tile').first();
   const id = (await tile.locator('.ppal-tile-id').textContent()).trim();
   const areaTotal = +(await tile.locator('.ppal-tile-count').textContent()).split('/')[1];
-  page.on('dialog', d => d.accept());
   await tile.locator('.ppal-tile-done-btn').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();
   await page.waitForTimeout(500);
   expect((await tile.locator('.ppal-tile-count').textContent()).trim()).toBe(`${areaTotal}/${areaTotal}`);
   // Back on the whole pattern, that colour has exactly the area's stitches done.
@@ -292,10 +292,10 @@ test('finishing the area says so and offers the next one', async ({ page }) => {
   await openTracker(page);
   await page.evaluate((a) => window.__workArea.enter(a), ONE);
   await page.waitForTimeout(800);
-  page.on('dialog', d => d.accept());
   const buttons = page.locator('.ppal-tile:not(.ppal-tile--done) .ppal-tile-done-btn');
   for (let guard = 0; guard < 80 && await buttons.count() > 0; guard++) {
     await buttons.first().click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();
     await page.waitForTimeout(80);
   }
   await expect(page.locator('.work-area-bar')).toContainText('100%');
