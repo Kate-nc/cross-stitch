@@ -23,14 +23,13 @@
   // Formats from other cross-stitch software that we can't read yet.
   // program: null means "another program" in the message.
   var UNSUPPORTED = {
-    pat: 'PCStitch',
     xsp: 'XStitch Pro',
     saga: null,
     chart: null,
     dize: null,
     hvn: null,
   };
-  var PATTERN_EXT = /^(oxs|xml|json|pdf|xsd)$/;
+  var PATTERN_EXT = /^(pat|oxs|xml|json|pdf|xsd)$/;
   var IMAGE_EXT = /^(jpe?g|png|gif|webp|bmp|avif|heic|heif|tiff?)$/;
   var HELP_QUERY_TOPIC = { topic: 'creator', section: 'What can I import?' };
 
@@ -79,6 +78,8 @@
     } else if (unreadable && (ext === 'xsd' || strategy === 'xsd')) {
       out.message = (/^XSD: /.test(technical) ? technical : 'This XSD chart could not be read') + '. Export this chart from its source program as OXS or PDF if it is outside the XSD support limits.';
       out.copyDetails = true;
+    } else if (unreadable && (ext === 'pat' || strategy === 'pat')) {
+      out.message = technical + ' Only unencrypted PCStitch 7 PAT is currently supported; other .pat formats are unrelated. Export a supported copy or PDF from the source program.';
     } else if (unreadable && (ext === 'pdf' || strategy === 'pdf' || strategy === 'pdf-glyph')) {
       out.message = 'This PDF couldn’t be read. It may be damaged or password-protected.';
     } else if (unreadable && (ext === 'json' || strategy === 'json')) {

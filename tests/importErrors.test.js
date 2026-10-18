@@ -20,7 +20,7 @@ describe('classifyFileForCreate', () => {
     [{ name: 'chart.xml', type: 'text/xml' }, 'pattern'],
     [{ name: 'project.json', type: 'application/json' }, 'pattern'],
     [{ name: 'pattern.xsd', type: '' }, 'pattern'],
-    [{ name: 'PATTERN.PAT', type: '' }, 'unsupported'],
+    [{ name: 'PATTERN.PAT', type: '' }, 'pattern'],
     [{ name: 'design.xsp', type: 'application/octet-stream' }, 'unsupported'],
     [{ name: 'design.saga', type: '' }, 'unsupported'],
     [{ name: 'notes.txt', type: 'text/plain' }, 'unsupported'],
@@ -30,7 +30,7 @@ describe('classifyFileForCreate', () => {
   });
 
   test('an unsupported extension wins over an image MIME type', () => {
-    expect(IE.classifyFileForCreate({ name: 'x.pat', type: 'image/x-pict' })).toBe('unsupported');
+    expect(IE.classifyFileForCreate({ name: 'x.xsp', type: 'image/x-pict' })).toBe('unsupported');
   });
 
   test('no file is unsupported', () => {
@@ -42,7 +42,7 @@ describe('describeImportError', () => {
   test('design-software formats name the program and the way out', () => {
     expect(IE.describeImportError(err('ImportUnsupportedError', 'x'), 'pattern.xsd').message)
       .toMatch(/This XSD chart could not be read.*OXS or PDF/);
-    expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.pat').message).toMatch(/^Files from PCStitch \(\.pat\)/);
+    expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.pat').message).toMatch(/Only unencrypted PCStitch 7 PAT/);
     expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.xsp').message).toMatch(/^Files from XStitch Pro \(\.xsp\)/);
     expect(IE.describeImportError(err('ImportParseError', 'x'), 'a.saga').message).toMatch(/^Files from other cross-stitch programs \(\.saga\)/);
   });

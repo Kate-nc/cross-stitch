@@ -44,7 +44,8 @@
     // Text-y formats need a textual sniff.
     if (!magicFmt) {
       const head = decodeAscii(bytes, 0, 256).trimStart();
-      if (head.startsWith('<?xml') || /^<chart\b|^<oxs\b|^<pattern\b/i.test(head)) magicFmt = 'oxs';
+      if (/^PCStitch [0-9]{1,2} Pattern File(?:$|[\x00 \r\n])/.test(head)) magicFmt = 'pat';
+      else if (head.startsWith('<?xml') || /^<chart\b|^<oxs\b|^<pattern\b/i.test(head)) magicFmt = 'oxs';
       else if (head.startsWith('{') || head.startsWith('[')) magicFmt = 'json';
     }
 

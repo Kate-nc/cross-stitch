@@ -337,6 +337,11 @@
         if (!rows[m.id]) rows[m.id] = m;
       });
     });
+    (props.project.bsLines || []).forEach(function (line) {
+      if (!line.colorId) return;
+      counts[line.colorId] = (counts[line.colorId] || 0) + 1;
+      if (!rows[line.colorId]) rows[line.colorId] = { id: line.colorId, rgb: line.rgb, brand: line.brand };
+    });
     var report = props.project.importReport || {};
     var pending = {};
     (report.placeholders || []).forEach(function (p) { if (counts[p.id]) pending[p.id] = p; });
@@ -1064,16 +1069,19 @@
     var own = {};
     (project.pattern || []).forEach(function (m) {
       if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
-        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol, brand: m.brand };
       }
     });
     (project.partialStitches || []).forEach(function (e) {
       Object.keys(e[1] || {}).forEach(function (k) {
         var m = e[1][k];
         if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
-          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol, brand: m.brand };
         }
       });
+    });
+    (project.bsLines || []).forEach(function (line) {
+      if (line.colorId && !own[line.colorId]) own[line.colorId] = { id: line.colorId, rgb: line.rgb, brand: line.brand };
     });
     function target(id) {
       if (id in memo) return memo[id];
@@ -1092,6 +1100,7 @@
       var t = target(m.id);
       if (!t) return m;
       var out = Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      if (t.brand) out.brand = t.brand; else delete out.brand;
       if (t.symbol !== undefined) out.symbol = t.symbol;
       return out;
     }
@@ -1104,6 +1113,16 @@
           q[k] = t ? { id: t.id, rgb: t.rgb.slice(), name: t.name } : e[1][k];
         });
         return [e[0], q];
+      });
+    }
+    if (project.bsLines) {
+      next.bsLines = project.bsLines.map(function (line) {
+        var t = target(line.colorId);
+        if (!t) return line;
+        var out = Object.assign({}, line, { colorId: t.id, rgb: t.rgb.slice(),
+          color: '#' + t.rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('') });
+        if (t.brand) out.brand = t.brand; else delete out.brand;
+        return out;
       });
     }
     var report = project.importReport;

@@ -998,12 +998,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.HoverContext.Provider value={hovCtx}>
       {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to
           no UTI and would grey out every file in the Files picker. */}
-      <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
+      <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;
         var n = (f.name || '').toLowerCase();
         if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
-        var isPattern = /\.(oxs|xml|pdf|xsd)$/i.test(n);
+        var isPattern = /\.(pat|oxs|xml|pdf|xsd)$/i.test(n);
         if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
           e.target.value = '';
           window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
@@ -1276,13 +1276,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
           {isActive&&state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!window.__pendingProjectBrandLoad&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
         </div>}
-        <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
+        <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.pat,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.pat,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
           if (!f) return;
           var n = (f.name || '').toLowerCase();
           if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
-          var isImage = !/\.xsd$/i.test(n) && (f.type || '').indexOf('image/') === 0;
-          var isPattern = !isImage && /\.(oxs|xml|json|pdf|xsd)$/i.test(n);
+          var isImage = !/\.(pat|xsd)$/i.test(n) && (f.type || '').indexOf('image/') === 0;
+          var isPattern = !isImage && /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(n);
           if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
             e.target.value = '';
             window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
