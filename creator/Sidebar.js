@@ -104,10 +104,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
   var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
   function symbolPanel(list) {
-    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    if (!symbolPickerFor || !window.SymbolGlyphs || !window.PaletteTools) return null;
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
-    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
     return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
@@ -294,7 +294,13 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.symbolLimitWarning && window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) && h("span", {
+            className: "palette-counts-warn", role: "img",
+            title: window.symbolLimitWarning(window.creatorThreadCounts(displayPal)),
+            "aria-label": window.symbolLimitWarning(window.creatorThreadCounts(displayPal)),
+            style: {display:"inline-flex",width:16,height:16,color:"var(--danger)"}
+          }, Icons.warning())
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},

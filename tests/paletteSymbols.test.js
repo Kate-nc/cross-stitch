@@ -44,20 +44,23 @@ describe('reassignSymbol', () => {
   });
 });
 
+// buildPalette on its own, with no symbol font loaded: it falls back to the
+// older SYMS shapes. (With the font it follows the PDF; see
+// uniqueChartSymbols.test.js.)
 describe('buildPalette keeps chosen symbols', () => {
   const src = loadSource('colour-utils.js');
-  const fn = src.match(/function buildPalette\(patArr\)\{[\s\S]*?\n\}/)[0];
+  const fn = src.match(/function freeChartSymbol[\s\S]*?\n\}/)[0] + src.match(/function buildPalette\(patArr\)\{[\s\S]*?\n\}/)[0];
   // eslint-disable-next-line no-new-func
   const buildPalette = new Function('SYMS', fn + '; return buildPalette;')(SYMS);
   const cell = (id, symbol) => (symbol ? { id, type: 'solid', symbol } : { id, type: 'solid' });
 
-  test('without carried symbols, symbols follow stitch count as before', () => {
+  test('without carried symbols, symbols are handed out in order', () => {
     const pat = [cell('a'), cell('a'), cell('a'), cell('b'), cell('b'), cell('c')];
     expect(buildPalette(pat).pal.map((p) => p.symbol)).toEqual([SYMS[0], SYMS[1], SYMS[2]]);
   });
 
   test('a carried symbol wins, and no other colour gets it', () => {
-    // 'c' carries SYMS[0], which 'a' would take by rank.
+    // 'c' carries SYMS[0], which 'a' would otherwise take first.
     const pat = [cell('a'), cell('a'), cell('a'), cell('b'), cell('b'), cell('c', SYMS[0])];
     const syms = buildPalette(pat).pal.map((p) => p.symbol);
     expect(syms[2]).toBe(SYMS[0]);
@@ -66,7 +69,7 @@ describe('buildPalette keeps chosen symbols', () => {
 
   test('changing one colour to an unused symbol leaves the others alone', () => {
     const pat = [cell('a', SYMS[10]), cell('a', SYMS[10]), cell('b'), cell('c')];
-    expect(buildPalette(pat).pal.map((p) => p.symbol)).toEqual([SYMS[10], SYMS[1], SYMS[2]]);
+    expect(buildPalette(pat).pal.map((p) => p.symbol)).toEqual([SYMS[10], SYMS[0], SYMS[1]]);
   });
 });
 
@@ -127,7 +130,8 @@ describe('saved symbols', () => {
   });
 
   test('the Creator and the Tracker restore saved symbols onto cells', () => {
-    expect(src).toMatch(/savedSyms\[c\.id\] \? Object\.assign\(\{\}, c, \{ symbol: savedSyms\[c\.id\] \}\)/);
+    expect(src).toMatch(/restored = applySavedSymbols\(restored, savedSyms\)/);
+    expect(loadSource('tracker-app.js')).toMatch(/restored=applySavedSymbols\(restored,savedSyms\)/);
     const tracker = loadSource('tracker-app.js');
     expect(tracker).toMatch(/symbols:symbolsRef\.current\|\|undefined/);
     expect(tracker).toMatch(/symbols: symbolsRef\.current \|\| undefined/);

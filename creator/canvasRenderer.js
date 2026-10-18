@@ -350,7 +350,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
         }
         ctx2d.fillStyle = symColor;
-        ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+        ctx2d.font = chartSymbolFont(Math.max(6, cSz * 0.6), true);
         ctx2d.textAlign = "center";
         ctx2d.textBaseline = "middle";
         ctx2d.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
@@ -664,7 +664,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // thread's colour string is built once, and fill, stroke, line width and
   // font are set only when they change. The pixels drawn are the same.
   var lastFill = null, lastStroke = null, lineOne = false, symFontSet = false;
-  var symFont = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+  var symFont = chartSymbolFont(Math.max(6, cSz * 0.6), true);
   var rgbaCache = new Map();
   function rgbaOf(rgb, a) {
     var byAlpha = rgbaCache.get(rgb);

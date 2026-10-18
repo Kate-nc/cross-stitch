@@ -1555,7 +1555,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
         }
         ctx2d.fillStyle = symColor;
-        ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+        ctx2d.font = chartSymbolFont(Math.max(6, cSz * 0.6), true);
         ctx2d.textAlign = "center";
         ctx2d.textBaseline = "middle";
         ctx2d.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
@@ -1869,7 +1869,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // thread's colour string is built once, and fill, stroke, line width and
   // font are set only when they change. The pixels drawn are the same.
   var lastFill = null, lastStroke = null, lineOne = false, symFontSet = false;
-  var symFont = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+  var symFont = chartSymbolFont(Math.max(6, cSz * 0.6), true);
   var rgbaCache = new Map();
   function rgbaOf(rgb, a) {
     var byAlpha = rgbaCache.get(rgb);
@@ -4138,11 +4138,9 @@ window.useMagicWand = function useMagicWand(state) {
     // used just by part stitches / backstitch, keep it in the scratch palette
     // so it keeps its palette entry and symbol.
     if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
-      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var sym = nextChartSymbol(dstEntry, r.pal);
       var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
-        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym, autoSymbol: true };
       if (dstEntry.threads) keep.threads = dstEntry.threads;
       if (state.setScratchPalette) {
         state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
@@ -4239,18 +4237,14 @@ window.useMagicWand = function useMagicWand(state) {
         ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
       });
       keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
       var keeps = [];
       Object.keys(stillUsed).forEach(function(id) {
         if (r.cmap[id]) return;
         var old = state.cmap && state.cmap[id];
         if (!old) return;
-        var sym = old.symbol;
-        if (!sym || usedSyms.has(sym)) sym = SY.find(function(x) { return !usedSyms.has(x); }) || sym;
-        usedSyms.add(sym);
-        keeps.push(Object.assign({}, old, { count: 0, symbol: sym }));
+        keeps.push(Object.assign({}, old, { count: 0 }));
       });
+      keeps = dedupeChartSymbols(r.pal, keeps);
       if (keeps.length) {
         if (state.setScratchPalette) {
           state.setScratchPalette(function(prev) {
@@ -6751,6 +6745,14 @@ function threadCountsSentence(c) {
 function threadCountsShort(c) {
   return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
 }
+// The printed chart has a fixed set of distinct symbols (SymbolGlyphs). When a
+// chart needs more, say so: it can't be exported to PDF as it is. Empty when
+// the chart fits.
+function symbolLimitWarning(c) {
+  var cap = window.SymbolGlyphs ? window.SymbolGlyphs.capacity() : 0;
+  if (!cap || !c || c.symbols <= cap) return '';
+  return 'This chart has ' + c.symbols + ' symbols, but the printed chart has only ' + cap + ' different ones. Lower Threads (max) or turn off blends and convert again; the PDF can\u2019t be exported as it is.';
+}
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
@@ -6827,6 +6829,7 @@ if (typeof window !== 'undefined') {
   window.creatorThreadCounts = creatorThreadCounts;
   window.threadCountsSentence = threadCountsSentence;
   window.threadCountsShort = threadCountsShort;
+  window.symbolLimitWarning = symbolLimitWarning;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -7777,10 +7780,10 @@ window.useCreatorState = function useCreatorState() {
     var result = buildPalette(np);
     if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
-    var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
+    var extras = dedupeChartSymbols(result.pal, scratchPalette.filter(function(x) { return !ids.has(x.id); }));
     var ec = {};
     extras.forEach(function(e) { ec[e.id] = e; });
-    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec) };
+    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec), symbolOverflow: result.symbolOverflow };
   }
 
   function chgW(v) {
@@ -7990,13 +7993,12 @@ window.useCreatorState = function useCreatorState() {
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
-    var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
-    var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
+    var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
-      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym, autoSymbol: true };
     } else {
-      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym, autoSymbol: true };
     }
     // Another brand's thread (P4-5) keeps its brand.
     if (d.brand && d.brand !== "dmc") entry.brand = d.brand;
@@ -8203,8 +8205,12 @@ window.useCreatorState = function useCreatorState() {
     // bar's "< Setup" button is the way back. (Polish B.)
     // Threads and chart symbols, not "colours": a blend is one symbol made of
     // two threads (audit IMG-02).
-    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    var tc = creatorThreadCounts(result.pal);
+    var counts = threadCountsSentence(tc);
     addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // More symbols than the printed chart has (audit UX-005): say so now, not at export.
+    var limitMsg = symbolLimitWarning(tc);
+    if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -9980,6 +9986,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
       .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (zeroed.length) {
+      zeroed = dedupeChartSymbols(built.pal, zeroed);
       var cmap2 = Object.assign({}, built.cmap);
       zeroed.forEach(function(p) { cmap2[p.id] = p; });
       state.setPal(built.pal.concat(zeroed));
@@ -10705,7 +10712,7 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
       if (j !== idx && pal[j] && pal[j].symbol === sym) return { ok: false, reason: "duplicate" };
     }
     var next = pal.slice();
-    next[idx] = Object.assign({}, pal[idx], { symbol: sym });
+    next[idx] = Object.assign({}, pal[idx], { symbol: sym, autoSymbol: false });
     return { ok: true, pal: next, from: from };
   }
 
@@ -10714,7 +10721,7 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
     var out = new Array(pat.length);
     for (var i = 0; i < pat.length; i++) {
       var c = pat[i];
-      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym }) : c;
+      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym, autoSymbol: false }) : c;
     }
     return out;
   }
@@ -11083,6 +11090,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       .filter(function(p) { return !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (!zeroed.length) return r;
+    zeroed = dedupeChartSymbols(r.pal, zeroed);
     var cmap2 = Object.assign({}, r.cmap);
     zeroed.forEach(function(p) { cmap2[p.id] = p; });
     return { pal: r.pal.concat(zeroed), cmap: cmap2 };
@@ -13179,9 +13187,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Symbols chosen with Change symbol ride on their cells (buildPalette
     // keeps a symbol its cells carry).
     var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
-    if (savedSyms) {
-      restored = restored.map(function(c) { return c && savedSyms[c.id] ? Object.assign({}, c, { symbol: savedSyms[c.id] }) : c; });
-    }
+    restored = applySavedSymbols(restored, savedSyms);
     if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
@@ -19065,10 +19071,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
   var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
   function symbolPanel(list) {
-    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    if (!symbolPickerFor || !window.SymbolGlyphs || !window.PaletteTools) return null;
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
-    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
     return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
@@ -19255,7 +19261,13 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          window.symbolLimitWarning && window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) && h("span", {
+            className: "palette-counts-warn", role: "img",
+            title: window.symbolLimitWarning(window.creatorThreadCounts(displayPal)),
+            "aria-label": window.symbolLimitWarning(window.creatorThreadCounts(displayPal)),
+            style: {display:"inline-flex",width:16,height:16,color:"var(--danger)"}
+          }, Icons.warning())
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},

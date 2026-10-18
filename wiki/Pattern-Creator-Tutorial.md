@@ -69,7 +69,7 @@ Screen colours are approximations; check physical threads when choosing material
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
-A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow.
+A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
 
 | Threads | Use case |
 |---------|----------|
@@ -241,7 +241,7 @@ Which threads you own, are low on, or need to buy, from your Stash Manager inven
 - **Export PDF** / **Export .oxs**. OXS retains explicit backstitch threads over empty cells, supported fractional stitches and equal blends of two known threads of the same brand. Review every warning: unsupported blend proportions, miniature crosses and other unsupported objects are reported with affected types and counts. Diagonal quarters use the XSPro `petit="false"` extension; other programs may display them differently.
 - **Download bundle** — one `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest.
 
-PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. PDF symbols are assigned independently of symbols chosen in the editor.
+PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. On-screen symbols follow the same assignment, so they match the PDF unless you changed one with Change symbol (the PDF ignores those). Adding or removing a thread can move later threads to a different symbol.
 
 Designer branding (name, copyright, contact, logo) is set once in **File > Preferences > Profile & branding**. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md) for a walk-through.
 

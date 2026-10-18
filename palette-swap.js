@@ -684,7 +684,8 @@ function applyMapping(pat, mapping) {
       name: m.dest.name,
       rgb: m.dest.rgb,
       lab: m.dest.lab,
-      symbol: cell.symbol
+      symbol: cell.symbol,
+      autoSymbol: cell.autoSymbol
     };
   }
   return newPat;

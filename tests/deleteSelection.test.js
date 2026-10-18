@@ -13,6 +13,12 @@ eval(read('creator/colourReplace.js')); // eslint-disable-line no-eval
 eval(read('creator/useEditHistory.js')); // eslint-disable-line no-eval
 eval(read('creator/useMagicWand.js')); // eslint-disable-line no-eval
 window.Knots = require('../knots.js');
+// The symbol helpers useMagicWand calls are globals from colour-utils.js.
+global.SYMS = require('../dmc-data.js').SYMS;
+const cu = read('colour-utils.js');
+const helperSrc = ['freeChartSymbol', 'dedupeChartSymbols', 'nextChartSymbol']
+  .map((name) => cu.match(new RegExp('function ' + name + '[\\s\\S]*?\\n\\}'))[0]).join('\n');
+Object.assign(global, new Function('SYMS', helperSrc + '; return { dedupeChartSymbols, nextChartSymbol };')(global.SYMS));
 
 const BLACK = { id: '310', type: 'solid', rgb: [0, 0, 0] };
 const RED = { id: '321', type: 'solid', rgb: [199, 43, 59] };
