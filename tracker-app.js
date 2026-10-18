@@ -2356,6 +2356,13 @@ const legendRows=useMemo(()=>{
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
 },[pal,colourDoneCounts,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
+// The key under the progress bar: the chart's own pale and done looks for one colour, and whether any thread is pale
+// enough to look grey once stitched. Only changes with the palette or the selected colour, not with every stitch.
+const stitchKey=useMemo(()=>{
+  if(!pal||!pal.length)return null;
+  const sample=(focusColour&&cmap&&cmap[focusColour])||pal[0];
+  return{pend:pendingStitchLook(sample.rgb,0.5).fill,done:doneStitchLook(sample.rgb).fill,pale:pal.some(p=>lum709(p.rgb)>DONE_MAX_LUM)};
+},[pal,cmap,focusColour]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -3091,7 +3098,7 @@ function askConfirm(opts){
 }
 // An Undo toast for one history step. The step is bound to the toast: the message goes as soon as that step is no longer the
 // newest (see the trackHistory effect), and its button reverses exactly that step, the same as the Undo button.
-function offerStepUndo(entry,message,undoLabel){
+function offerStepUndo(entry,message,undoLabel,staleMessage){
   if(!entry||!window.Toast||!window.Toast.show)return;
   if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
   bulkToastEntryRef.current=entry;
@@ -3100,7 +3107,7 @@ function offerStepUndo(entry,message,undoLabel){
     undoAction:function(){
       const h=trackHistoryRef.current;
       if(h[h.length-1]!==entry){
-        window.Toast.show({message:"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
+        window.Toast.show({message:staleMessage||"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
         return false;
       }
       if(bulkUndoRef.current)bulkUndoRef.current();
@@ -3113,11 +3120,10 @@ function colourAreaFilter(){const a=areaOn?workArea:null;return a?(i=>window.Wor
 function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;
   const changes=colourDoneChanges(pat,cur,cid,md,colourAreaFilter());
   const nd=new Uint8Array(cur);for(let k=0;k<changes.length;k++)nd[changes[k].idx]=md?1:0;
-  if(changes.length>0){pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}
   if(changes.length>0){
     const n=changes.length,count=n===1?"1 stitch":n.toLocaleString('en-GB')+" stitches",name=colourDoneName(cmap&&cmap[cid]||{id:cid});
-    offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);
-  }
+    offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);   // `changes` is the history step
+    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}
   doneRef.current=nd;setDone(nd);}
 // The chip on a colour row: always ask first, with the colour and the exact number of stitches, then go through the usual
 // catch-up or today question (requestMarkColourDone) when marking.
@@ -3126,7 +3132,8 @@ function confirmAndMarkColour(p,md){
   const name=colourDoneName(p);
   const n=colourDoneChanges(pat,doneRef.current,p.id,md,colourAreaFilter()).length;
   if(n===0){
-    if(window.Toast&&window.Toast.show)window.Toast.show({message:"Every stitch of "+name+(areaOn?" in this work area":"")+" is already marked "+(md?"done":"not done")+".",type:'info',duration:4000});
+    // Only full stitches are changed here; half stitches, knots and backstitch are marked on the chart (or by their own chip).
+    if(window.Toast&&window.Toast.show)window.Toast.show({message:(md?"Every full stitch of ":"No full stitch of ")+name+(areaOn?" in this work area":"")+(md?" is already marked done.":" is marked done."),type:'info',duration:4000});
     return;
   }
   const t=colourDoneConfirmText(name,n,md,areaOn);
@@ -6526,14 +6533,14 @@ function toggleParkAt(gx,gy){
 // (markers added / removed) rather than a snapshot, so undoing cannot bring
 // back markers that changed some other way since (sync, load pruning).
 function sameParkMarker(a,b){return a.x===b.x&&a.y===b.y&&a.colorId===b.colorId&&(a.corner||"BL")===(b.corner||"BL");}
-function commitParkMarkers(prev,next){
+function commitParkMarkers(prev,next,extra){
   const added=next.filter(m=>!prev.some(o=>sameParkMarker(o,m)));
   const removed=prev.filter(m=>!next.some(o=>sameParkMarker(o,m)));
   if(!added.length&&!removed.length)return;
   // Ahead of the render, so a second toggle in the same frame sees this one.
   parkMarkersRef.current=next;
   setParkMarkers(next);
-  const entry={type:"PARK",added,removed};
+  const entry=Object.assign({type:"PARK",added,removed},extra);
   setTrackHistory(h=>{let n=[...h,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
   return entry;
@@ -6543,7 +6550,7 @@ function clearAllParkMarkers(){
   const n0=parkMarkersRef.current.length;if(!n0)return;
   askConfirm({title:"Clear all park markers?",message:"Remove all "+(n0===1?"1 park marker":n0.toLocaleString('en-GB')+" park markers")+" from the chart?\n\nYou can undo this straight afterwards.",confirmLabel:"Clear all",danger:true}).then(ok=>{
     if(!ok)return;
-    const entry=commitParkMarkers(parkMarkersRef.current,[]);setParkLayers({});
+    const entry=commitParkMarkers(parkMarkersRef.current,[],{layersBefore:Object.assign({},parkLayersRef.current)});setParkLayers({});
     if(entry)offerStepUndo(entry,(entry.removed.length===1?"1 park marker":entry.removed.length.toLocaleString('en-GB')+" park markers")+" cleared","Undo");
   });
 }
@@ -6554,6 +6561,8 @@ function applyParkEntry(entry,forward){
   const next=cur.filter(m=>!drop.some(o=>sameParkMarker(o,m))).concat(add.filter(m=>!cur.some(o=>sameParkMarker(o,m))));
   parkMarkersRef.current=next;
   setParkMarkers(next);
+  // A step that also reset the layer visibility (Clear all) remembers what it was: Undo puts it back, redo clears it again.
+  if(entry.layersBefore)setParkLayers(forward?{}:Object.assign({},entry.layersBefore));
 }
 
 // Desktop secondary clicks select a colour; Shift parks / unparks instead.
@@ -7768,25 +7777,9 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // A stroke or rectangle that marked (or unmarked) a good many stitches at once offers a way back, because a stray
   // swipe is easy to make and hard to untangle later. Undo is the ordinary one (this was one history step).
   const _bulkMin=(window.TouchConstants&&window.TouchConstants.BULK_UNDO_MIN)||5;
-  if(changes.length>_bulkMin&&window.Toast&&window.Toast.show){
-    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
-    const n=changes.length;
-    const strokeEntry=lastBulkEntryRef.current;
-    bulkToastEntryRef.current=strokeEntry;
-    bulkUndoToastRef.current=window.Toast.show({
-      message:n.toLocaleString('en-GB')+' stitches '+(want===1?'marked':'unmarked'),
-      type:'info',duration:8000,
-      undoLabel:'Undo '+n.toLocaleString('en-GB')+' stitches',
-      undoAction:function(){
-        // Only this stroke: if anything has been marked, parked or undone since, the newest step is not it.
-        const h=trackHistoryRef.current;
-        if(!strokeEntry||h[h.length-1]!==strokeEntry){
-          window.Toast.show({message:"That stroke can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
-          return false;
-        }
-        if(bulkUndoRef.current)bulkUndoRef.current();
-      }
-    });
+  if(changes.length>_bulkMin){
+    const n=changes.length.toLocaleString('en-GB');
+    offerStepUndo(lastBulkEntryRef.current,n+' stitches '+(want===1?'marked':'unmarked'),'Undo '+n+' stitches',"That stroke can no longer be undone on its own. Use Undo to step back.");
   }
   return true;   // something was marked or unmarked (false: nothing changed, or the "mark all as" question is open)
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts]);
@@ -7982,8 +7975,10 @@ function paintBsKeys(keys){
 function pushBsHistory(keys,on,colourId){
   if(!keys.length)return;
   if(colourId!=null)pendingColoursRef.current.add(colourId);
-  setTrackHistory(prev=>{let n=[...prev,{type:"BS",keys,on}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry={type:"BS",keys,on};
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
+  return entry;
 }
 // One line, tapped or chosen at the keyboard: flip it.
 function toggleBsLine(i){
@@ -7993,9 +7988,10 @@ function toggleBsLine(i){
   pushBsHistory([k],on,bsLines[i]&&bsLines[i].colorId);
 }
 // Every line of one colour (the legend's "mark all backstitch"): all done if any is not, otherwise all unmarked.
-function markAllBsOfColour(colour){
-  if(!window.Backstitch)return;
+// The backstitch lines of one colour a whole-colour change would flip (all pending -> done, otherwise done -> not done).
+function bsPlanForColour(colour){
   const keys=[];let anyPending=false;
+  if(!window.Backstitch)return{changed:[],anyPending:false};
   bsLines.forEach((ln,i)=>{
     if(!window.Backstitch.wellFormed(ln)||window.Backstitch.colourOf(ln)!==colour)return;
     if(areaOn&&!window.WorkArea.contains(workArea,Math.max(0,Math.min(sW-1,Math.floor(Math.min(ln.x1,ln.x2)))),Math.max(0,Math.min(sH-1,Math.floor(Math.min(ln.y1,ln.y2))))))return;
@@ -8003,10 +7999,26 @@ function markAllBsOfColour(colour){
     if(keys.indexOf(k)===-1)keys.push(k);
     if(!bsDoneSetRef.current.has(k))anyPending=true;
   });
-  const changed=keys.filter(k=>bsDoneSetRef.current.has(k)!==anyPending);
-  if(!changed.length)return;
-  setBsKeysDone(changed,anyPending);
-  pushBsHistory(changed,anyPending,colour);
+  return{changed:keys.filter(k=>bsDoneSetRef.current.has(k)!==anyPending),anyPending};
+}
+function markAllBsOfColour(colour){
+  const plan=bsPlanForColour(colour);
+  if(!plan.changed.length)return null;
+  setBsKeysDone(plan.changed,plan.anyPending);
+  return pushBsHistory(plan.changed,plan.anyPending,colour);
+}
+// The Lines chip on a colour row follows the same rules as the stitch chip: ask first with the exact count, then an Undo toast.
+function confirmAndMarkBsOfColour(p){
+  const colour=String(p.id),name=colourDoneName(p),plan=bsPlanForColour(colour);
+  if(!plan.changed.length)return;
+  const md=plan.anyPending,t=colourDoneConfirmText(name,plan.changed.length,md,areaOn,true);
+  askConfirm({title:t.title,message:t.message,confirmLabel:t.confirmLabel,danger:!md}).then(ok=>{
+    if(!ok)return;
+    const entry=markAllBsOfColour(colour);
+    if(!entry)return;
+    const n=entry.keys.length,count=n===1?"1 line":n.toLocaleString('en-GB')+" lines";
+    offerStepUndo(entry,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);
+  });
 }
 // B at the keyboard guide: the lines touching the guide's cell, in drawing order, one per press.
 function selectBsAtGuide(){
@@ -8077,18 +8089,7 @@ function unpickArea(cells){
   if(p.stitches>0)entry.activity=recordAutoActivity(0,p.stitches,0,p.units,0,'frog');
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
-  if(window.Toast&&window.Toast.show){
-    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
-    const msg="Unpicked "+p.stitches.toLocaleString('en-GB')+(p.stitches===1?" stitch":" stitches")+(p.counts.backstitch?" and "+p.counts.backstitch+" backstitch line"+(p.counts.backstitch===1?"":"s"):"");
-    bulkUndoToastRef.current=window.Toast.show({
-      message:msg,type:'info',duration:8000,undoLabel:'Undo',
-      undoAction:function(){
-        const h=trackHistoryRef.current;
-        if(h[h.length-1]!==entry){window.Toast.show({message:"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});return false;}
-        if(bulkUndoRef.current)bulkUndoRef.current();
-      }
-    });
-  }
+  offerStepUndo(entry,"Unpicked "+p.stitches.toLocaleString('en-GB')+(p.stitches===1?" stitch":" stitches")+(p.counts.backstitch?" and "+p.counts.backstitch+" backstitch line"+(p.counts.backstitch===1?"":"s"):""),"Undo");
   return true;
 }
 unpickAreaRef.current=unpickArea;
@@ -8659,18 +8660,11 @@ return(
               {Icons.play?Icons.play():null}{" "}Start timer
             </button>}
         </div>
-        {pal&&pal.length>0&&(()=>{
-          // The same looks the chart draws for a colour: pale until stitched, then the thread colour (capped at mid-grey).
-          const sample=(focusColour&&cmap&&cmap[focusColour])||pal[0];
-          const pl=pendingStitchLook(sample.rgb,0.5),dl=doneStitchLook(sample.rgb);
-          const tick=doneStyle==="tick";
-          const paleThreads=!tick&&pal.some(p=>lum709(p.rgb)>DONE_MAX_LUM);
-          return <div className="ppal-key" role="group" aria-label="Key to stitch colours">
-            <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:pl.fill}} aria-hidden="true"/>To stitch</span>
-            <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:tick?pl.fill:dl.fill}} aria-hidden="true">{tick&&<span className="ppal-key-tick"/>}</span>Stitched{tick?" (corner tick)":""}</span>
-            {paleThreads&&<span className="ppal-key-note">Pale threads such as white and ecru look grey once stitched. For a corner tick instead, choose Corner tick in More &gt; View.</span>}
-          </div>;
-        })()}
+        {stitchKey&&<div className="ppal-key" role="group" aria-label="Key to stitch colours">
+          <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:stitchKey.pend}} aria-hidden="true"/>To stitch</span>
+          <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:doneStyle==="tick"?stitchKey.pend:stitchKey.done}} aria-hidden="true">{doneStyle==="tick"&&<span className="ppal-key-tick"/>}</span>Stitched{doneStyle==="tick"?" (corner tick)":""}</span>
+          {stitchKey.pale&&doneStyle!=="tick"&&<span className="ppal-key-note">Very pale threads such as white and ecru look light grey once stitched. For a corner tick instead, choose Corner tick in More &gt; View.</span>}
+        </div>}
       </div>
       {/* ─ Sort row ─ */}
       <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
@@ -8739,16 +8733,16 @@ return(
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     {bsc&&bsc.total>0&&<button
                       className="ppal-tile-done-btn ppal-tile-bs-btn"
-                      onClick={e=>{e.stopPropagation();markAllBsOfColour(String(p.id));}}
+                      onClick={e=>{e.stopPropagation();confirmAndMarkBsOfColour(p);}}
                       style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
-                      title={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                      aria-label={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}{" Lines"}</>:<>{Icons.check?Icons.check():null}{" Lines"}</>}</button>}
+                      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsc.done>=bsc.total?" as not done":" as done")}
+                      aria-label={(bsc.done>=bsc.total?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
+                    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
                     {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
                       className="ppal-tile-done-btn"
                       onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-                      title={(complete?"Mark all stitches of ":"Mark all stitches of ")+colourDoneName(p)+(complete?" as not done":" as done")}
+                      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
                       aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
                     >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
                   </div>

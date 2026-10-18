@@ -2360,11 +2360,12 @@ function colourDoneName(entry){
   return threadLabel(entry)+(nm?' '+nm:'');
 }
 // The question and the explanation for the confirmation dialog. n is the exact number of stitches that will change.
-function colourDoneConfirmText(name,n,md,inArea){
-  var count=Number(n).toLocaleString('en-GB');
-  var what=(n===1?'Mark 1 stitch':'Mark all '+count+' stitches')+' of '+name+(inArea?' in this work area':'')+(md?' as done?':' as not done?');
-  var note=md?'You can undo this straight afterwards.':'They come off your progress. You can undo this straight afterwards.';
-  return{title:md?'Mark all as done?':'Mark all as not done?',message:what+'\n\n'+note,confirmLabel:md?'Mark all done':'Mark all not done'};
+// `lines` words it for backstitch lines instead of stitches.
+function colourDoneConfirmText(name,n,md,inArea,lines){
+  var count=Number(n).toLocaleString('en-GB'),one=lines?'backstitch line':'stitch',many=lines?'backstitch lines':'stitches';
+  var what=(n===1?'Mark 1 '+one:'Mark all '+count+' '+many)+' of '+name+(inArea?' in this work area':'')+(md?' as done?':' as not done?');
+  var note=md?'You can undo this straight afterwards.':(n===1?'It comes':'They come')+' off your progress. You can undo this straight afterwards.';
+  return{title:md?'Mark all as done?':'Mark all as not done?',message:what+'\n\n'+note,confirmLabel:lines?(md?'Mark all lines done':'Mark all lines not done'):(md?'Mark all done':'Mark all not done')};
 }
 if(typeof window!=='undefined'){
   window.THREAD_BRANDS=THREAD_BRANDS;

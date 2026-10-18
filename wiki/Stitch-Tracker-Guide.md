@@ -52,9 +52,9 @@ The bar under the chart shows the guide's row, column and thread, with a **Clear
 
 ### Marking a whole colour
 
-In the colour list, **Mark all done** on a colour's row marks every stitch of that colour; once the colour is finished the chip becomes **Mark all not done** and clears them. You are always asked first, with the colour and the exact number of stitches ("Mark all 1,573 stitches of DMC 05 Light Driftwood as done?"). Afterwards a toast offers **Undo**, and the ordinary **Undo** reverses the whole colour in one step too. Tapping the row itself only selects the colour. In a work area the change covers only that part.
+In the colour list, **Mark all done** on a colour's row marks every full stitch of that colour; once the colour is finished the chip becomes **Mark all not done** and clears them. Half stitches, knots and quarters are marked on the chart, and backstitch has its own **Mark all lines done** chip. You are always asked first, with the colour and the exact number ("Mark all 1,573 stitches of DMC 05 Light Driftwood as done?"). Afterwards a toast offers **Undo**, and the ordinary **Undo** reverses the whole colour in one step too. Tapping the row itself only selects the colour. In a work area the change covers only that part. While a question is open, keyboard shortcuts such as Ctrl+Z wait until you answer.
 
-The key under the progress bar shows how stitches look: pale for **To stitch**, the thread colour for **Stitched**. A stitched cell is drawn in its thread colour capped at mid-grey, so white and ecru look grey once done. For a clearer mark, choose **Corner tick** under **More controls > View**.
+The key under the progress bar shows how stitches look: pale for **To stitch**, the thread colour for **Stitched**. A stitched cell is drawn in its thread colour, but very pale threads are toned down to light grey, so white and ecru look grey once done. For a clearer mark, choose **Corner tick** under **More controls > View**.
 
 ### Undo & redo
 
@@ -118,7 +118,7 @@ Mark where a thread is parked so you can pick it up again.
 
 **Find a parked thread:** tap the **P** on a colour in the palette. The chart scrolls to where it's parked and the guide marks the spot; tap again for the next place.
 
-**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**, which asks first and can be undone.
+**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**, which asks first and can be undone (Undo also restores which colours were hidden).
 
 ## Sessions and Timing
 

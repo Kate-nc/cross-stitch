@@ -93,6 +93,18 @@ describe('colourDoneName and colourDoneConfirmText', () => {
     expect(t.confirmLabel).toBe('Mark all not done');
   });
 
+  test('a single stitch says "It comes", not "They come"', () => {
+    expect(api.colourDoneConfirmText('DMC 310 Black', 1, false, false).message).toMatch(/\nIt comes off your progress\./);
+  });
+
+  test('backstitch lines are worded as lines', () => {
+    const t = api.colourDoneConfirmText('DMC 310 Black', 7, true, false, true);
+    expect(t.message.split('\n')[0]).toBe('Mark all 7 backstitch lines of DMC 310 Black as done?');
+    expect(t.confirmLabel).toBe('Mark all lines done');
+    expect(api.colourDoneConfirmText('DMC 310 Black', 1, false, false, true).confirmLabel).toBe('Mark all lines not done');
+    expect(api.colourDoneConfirmText('DMC 310 Black', 1, false, false, true).message.split('\n')[0]).toBe('Mark 1 backstitch line of DMC 310 Black as not done?');
+  });
+
   test('a work area and a single stitch are worded plainly', () => {
     expect(api.colourDoneConfirmText('DMC 310 Black', 12, true, true).message.split('\n')[0])
       .toBe('Mark all 12 stitches of DMC 310 Black in this work area as done?');
@@ -153,7 +165,7 @@ describe('tracker-app.js wiring', () => {
     expect(body).toContain('askConfirm(');
     expect(body).toContain('danger:true');
     expect(body).toContain('offerStepUndo(entry,');
-    expect(trackerSrc).toMatch(/const entry=\{type:"PARK",added,removed\};[\s\S]*return entry;/);
+    expect(trackerSrc).toMatch(/const entry=Object\.assign\(\{type:"PARK",added,removed\},extra\);[\s\S]*return entry;/);
   });
 
   test('a key explains the done and not-done look and points to Corner tick', () => {
@@ -177,5 +189,72 @@ describe('styles.css touch targets', () => {
     const rules = stylesSrc.split('\n').filter((l) => /^\.ppal-key/.test(l)).join('\n');
     expect(rules.length).toBeGreaterThan(0);
     expect(rules).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+  });
+});
+
+describe('review follow-ups', () => {
+  const modalsSrc = fs.readFileSync('./modals.js', 'utf8');
+  const shortcutsSrc = fs.readFileSync('./shortcuts.js', 'utf8');
+  const helpSrc = fs.readFileSync('./help-drawer.js', 'utf8');
+
+  test('a danger dialog starts on Cancel; others start on the confirm button', () => {
+    expect(modalsSrc).toMatch(/var el = opts\.danger \? cancelRef\.current : confirmRef\.current;/);
+    expect(modalsSrc).toMatch(/ref: cancelRef,/);
+  });
+
+  test('shortcuts ignore keys pressed inside an open modal dialog', () => {
+    expect(shortcutsSrc).toMatch(/evt\.target\.closest\('\[aria-modal="true"\]'\)\) return;/);
+  });
+
+  test('the nothing-to-change toast speaks of full stitches only', () => {
+    expect(trackerSrc).toMatch(/"Every full stitch of "/);
+    expect(trackerSrc).not.toMatch(/"Every stitch of "\+name/);
+  });
+
+  test('one undo-toast helper serves every bulk step, so no toast leaves a stale entry behind', () => {
+    expect((trackerSrc.match(/bulkToastEntryRef\.current=/g) || []).length).toBe(2);   // offerStepUndo, and the effect clearing it
+    expect((trackerSrc.match(/bulkUndoToastRef\.current=window\.Toast\.show/g) || []).length).toBe(1);
+    expect(trackerSrc).toMatch(/offerStepUndo\(entry,"Unpicked "/);
+    expect(trackerSrc).toMatch(/offerStepUndo\(lastBulkEntryRef\.current,/);
+  });
+
+  test('Clear all remembers the layer visibility, and Undo and redo restore it', () => {
+    expect(trackerSrc).toMatch(/layersBefore:Object\.assign\(\{\},parkLayersRef\.current\)/);
+    expect(trackerSrc).toMatch(/if\(entry\.layersBefore\)setParkLayers\(forward\?\{\}:Object\.assign\(\{\},entry\.layersBefore\)\);/);
+  });
+
+  test('the Lines chip asks first, is named for what it does and offers Undo', () => {
+    const start = trackerSrc.indexOf('className="ppal-tile-done-btn ppal-tile-bs-btn"');
+    const chip = trackerSrc.slice(start, trackerSrc.indexOf('</button>}', start));
+    expect(chip).toContain('confirmAndMarkBsOfColour(p)');
+    expect(chip).toContain('Mark all lines not done');
+    expect(chip).toContain('Mark all lines done');
+    expect(chip).not.toMatch(/>\s*\{" Lines"\}/);
+    const fn = trackerSrc.slice(trackerSrc.indexOf('function confirmAndMarkBsOfColour('));
+    const body = fn.slice(0, fn.indexOf('\n}\n'));
+    expect(body).toContain('askConfirm(');
+    expect(body).toContain('offerStepUndo(entry,');
+    expect(trackerSrc).toMatch(/const entry=\{type:"BS",keys,on\};[\s\S]*return entry;/);
+  });
+
+  test('the key is memoised, and the copy no longer says mid-grey', () => {
+    expect(trackerSrc).toMatch(/const stitchKey=useMemo\(/);
+    expect(helpSrc).not.toMatch(/mid-grey/);
+    expect(fs.readFileSync('./wiki/Stitch-Tracker-Guide.md', 'utf8')).not.toMatch(/mid-grey/);
+  });
+
+  test('the colour change is one block with the toast offered before the history step', () => {
+    const start = trackerSrc.indexOf('function markColourDone(');
+    const body = trackerSrc.slice(start, trackerSrc.indexOf('// The chip on a colour row'));
+    expect((body.match(/if\(changes\.length>0\)/g) || []).length).toBe(1);
+  });
+
+  test('the actions can wrap and shrink on every pointer type', () => {
+    expect(stylesSrc).toMatch(/\.ppal-tile-actions\{display:flex;align-items:center;gap:3px;flex-wrap:wrap;[^}]*max-width:100%;\}/);
+    expect(stylesSrc).not.toMatch(/\.ppal-tile-actions\{[^}]*flex-shrink:0/);
+  });
+
+  test('the changelog does not claim the unreachable revert flow', () => {
+    expect(fs.readFileSync('./version.js', 'utf8')).not.toMatch(/Revert to original, Start fresh/);
   });
 });

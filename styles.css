@@ -7687,7 +7687,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .ppal-tile-bar-fill{height:100%;background:var(--accent);border-radius:2px;}
 .ppal-tile-count-row{display:flex;align-items:center;gap:4px;}
 .ppal-tile-count{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex:1;}
-.ppal-tile-actions{display:flex;align-items:center;gap:3px;flex-shrink:0;}
+.ppal-tile-actions{display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%;}
 .ppal-tile-park-btn,.ppal-tile-done-btn{display:inline-flex;align-items:center;gap:2px;font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;white-space:nowrap;font-family:inherit;font-weight:600;}
 .ppal-tile-count-row{flex-wrap:wrap;row-gap:4px;}
 .ppal-tile-count{flex:1 1 4em;}
@@ -7695,7 +7695,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 /* Touch: the action chips are their own 44px targets, spaced apart, so a tap meant to select a colour cannot mark it. */
 @media (pointer:coarse){
   .ppal-tile-park-btn,.ppal-tile-done-btn{min-height:44px;min-width:44px;justify-content:center;gap:4px;padding:6px 12px;font-size:11px;touch-action:manipulation;}
-  .ppal-tile-actions{gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;}
+  .ppal-tile-actions{gap:8px;}
   .ppal-tile-count-row{row-gap:6px;}
 }
 /* Key to the done and not-done look, under the progress bar. */
