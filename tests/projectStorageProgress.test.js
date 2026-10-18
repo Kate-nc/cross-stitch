@@ -295,3 +295,44 @@ test('bead and petite/long progress coexist without overwriting either register 
   p=await ProjectStorage.get(initial.id);
   expect(p.beadsDone).toEqual([]);expect(p.specialtyDone).toEqual(['petite']);expect(p.done.every(v=>!v)).toBe(true);
 });
+
+test('hot progress writes do not read chart cells; legacy metadata misses only once', async () => {
+  await ProjectStorage.save(proj());
+  const b=await base('proj_p'), db=await getDB();
+  const Store=require('fake-indexeddb/lib/FDBObjectStore'), original=Store.prototype.get;
+  let fullReads=0;
+  const spy=jest.spyOn(Store.prototype,'get').mockImplementation(function(key){if(this.name==='projects')fullReads++;return original.call(this,key);});
+  try {
+    await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array([1,0,0,0,0,0]),baseWriteAt:b});
+    await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array([1,1,0,0,0,0]),baseWriteAt:b});
+    expect(fullReads).toBe(0);
+    // An older writer has no cache token. Rebuild from the authoritative row,
+    // then use the newly written token for subsequent progress transactions.
+    await new Promise((resolve,reject)=>{const tx=db.transaction('project_meta','readwrite'),store=tx.objectStore('project_meta'),r=store.get('proj_p');r.onsuccess=()=>{const m=r.result;delete m.checkpointFence.token;store.put(m,'proj_p');};tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array([1,1,1,0,0,0]),baseWriteAt:b});
+    expect(fullReads).toBe(1);
+    await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array([1,1,1,1,0,0]),baseWriteAt:b});
+    expect(fullReads).toBe(1);
+  } finally {spy.mockRestore();}
+  expect((await ProjectStorage.get('proj_p')).done).toEqual([1,1,1,1,0,0]);
+});
+
+test('an external metadata token invalidates the compact base even at the same timestamp',async()=>{
+  await ProjectStorage.save(proj({done:[1,0,0,0,0,0]}));
+  const b=await base('proj_p'),db=await getDB();
+  await new Promise((resolve,reject)=>{
+    const tx=db.transaction(['projects','project_meta','pendingImports'],'readwrite');
+    const projects=tx.objectStore('projects'),metas=tx.objectStore('project_meta');
+    const p=projects.get('proj_p'),m=metas.get('proj_p');
+    p.onsuccess=()=>{const v=p.result;v.done=[0,1,0,0,0,0];delete v.trackingSync;projects.put(v,'proj_p');};
+    m.onsuccess=()=>{const v=m.result;v.checkpointFence.token='external-write';metas.put(v,'proj_p');};
+    tx.objectStore('pendingImports').delete('progress:proj_p');
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+  });
+  const Store=require('fake-indexeddb/lib/FDBObjectStore'),original=Store.prototype.get;let reads=0;
+  const spy=jest.spyOn(Store.prototype,'get').mockImplementation(function(key){if(this.name==='projects')reads++;return original.call(this,key);});
+  try{await ProjectStorage.saveProgress('proj_p',{done:new Uint8Array([0,1,1,0,0,0]),baseWriteAt:b});expect(reads).toBe(1);}finally{spy.mockRestore();}
+  const p=await ProjectStorage.get('proj_p');expect(p.done).toEqual([0,1,1,0,0,0]);
+  expect(p.trackingSync.marks['d:1']).toEqual([{value:1,clock:{}}]);
+  expect(p.trackingSync.marks['d:2'][0].value).toBe(1);
+});

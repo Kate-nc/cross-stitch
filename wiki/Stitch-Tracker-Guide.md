@@ -48,7 +48,9 @@ A hand tool for moving around without marking anything.
 - **Click or tap** a cell to place a guide crosshair across its row and column. Click it again, or press **Esc**, to clear it.
 - With the chart focused, the **arrow keys** move the guide (hold **Shift** for 10 stitches), and **Menu** or **Shift+F10** parks a thread at it.
 
-The bar under the chart shows the guide's row, column and thread, with a **Clear guide** button.
+The bar under the chart shows the guide's row, column and thread, with a **Clear guide** button. Clearing it returns focus to the chart. **Shift+G** focuses the chart; **G** focuses the selected thread's Select button. Thread details and Done are separate buttons. Enter or Space activates buttons; Space toggles layer checkboxes.
+
+The chart summary gives dimensions and zoom. After a short pause in input, an accessible status reports the guide position, full-cross mark state, stitch-unit progress, selected thread and zoom. Rapid marking produces one settled update. Hidden full crosses cannot be marked on the chart; show the layer first. More moves focus into its controls, keeps Tab inside and returns focus when closed with Escape or Close. Import errors remain available until the next import. This compact status avoids creating a screen-reader item for every chart cell; it does not provide a complete spoken description of all specialty geometry.
 
 ### Undo & redo
 
