@@ -2767,6 +2767,17 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-pct{font-size:11px;font-weight:700;color:var(--accent-text);white-space:nowrap;display:flex;align-items:center;gap:4px;}
 .info-strip-counts{font-size:11px;font-weight:400;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;}
 .info-strip-breakdown{font-size:11px;font-weight:400;color:var(--text-tertiary);white-space:nowrap;font-variant-numeric:tabular-nums;}
+/* The "layers hidden" chip (tracker-layer-chip.js): a hidden layer is remembered per project, so the strip says so. */
+.tracker-layers-chip{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;padding:1px 8px;border:1px solid var(--warning);border-radius:var(--radius-pill);background:var(--warning-soft);color:var(--text-primary);font-family:inherit;font-size:11px;font-weight:600;line-height:1.4;cursor:pointer;white-space:nowrap;}
+.tracker-layers-chip__icon{display:inline-flex;flex-shrink:0;}
+.tracker-layers-chip__text{overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.tracker-layers-chip__sep{color:var(--text-secondary);}
+.tracker-layers-chip__show{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px;flex-shrink:0;}
+.tracker-layers-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+/* Focus mode: a pill above the floating bar, never inside it (the bar is already as wide as a phone). */
+.tracker-layers-chip--float{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(16px, env(safe-area-inset-bottom, 0px)) + 68px);max-width:calc(100vw - 32px);z-index:var(--z-coachmark, 1200);min-height:36px;padding:0 14px;font-size:12px;box-shadow:var(--shadow-lg);}
+@media (hover: hover){.tracker-layers-chip:hover{background:var(--surface-tertiary);}}
+@media (pointer: coarse){.tracker-layers-chip{min-height:44px;padding:0 12px;}}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;background:none;border:0;padding:0;font-family:inherit;cursor:pointer;}
 @media (pointer: coarse){.info-strip-timer{min-height:44px;padding:0 6px;}}
 /* Completion projection bar — shown below the info-strip when pace data is available */

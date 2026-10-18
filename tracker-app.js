@@ -2077,23 +2077,7 @@ useEffect(()=>{
   }
   return()=>{document.body.classList.remove("cs-focus");if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);};
 },[focusMode,resetFocusFade]);
-useEffect(()=>{
-  const onKey=e=>{
-    // Ignore when typing in inputs / contenteditable.
-    const t=e.target;
-    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
-    if(e.metaKey||e.ctrlKey||e.altKey)return;
-    if(e.key==="f"||e.key==="F"){
-      e.preventDefault();
-      setFocusMode(v=>!v);
-    }else if(e.key==="Escape"&&focusMode){
-      e.preventDefault();
-      setFocusMode(false);
-    }
-  };
-  window.addEventListener("keydown",onKey);
-  return()=>window.removeEventListener("keydown",onKey);
-},[focusMode]);
+// F and Esc for focus mode are registered shortcuts (tracker.focusMode, and the end of tracker.esc), so the keys have one owner.
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -2153,7 +2137,7 @@ useEffect(()=>{const h=()=>setEditDetailsOpen(true);window.addEventListener('cs:
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
-const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'F'},{id:'half',label:'Half Stitch',key:'H'},{id:'backstitch',label:'Backstitch',key:'B'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'K'},{id:'long_stitch',label:'Long Stitch',key:null}];
+const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'Shift+F'},{id:'half',label:'Half Stitch',key:'Shift+H'},{id:'backstitch',label:'Backstitch',key:'Shift+L'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'Shift+K'},{id:'long_stitch',label:'Long Stitch',key:null}];
 const ALL_LAYERS_VISIBLE={full:true,half:true,backstitch:true,quarter:true,petite:true,french_knot:true,long_stitch:true};
 const[layerVis,setLayerVis]=useState(ALL_LAYERS_VISIBLE);
 const[soloPreState,setSoloPreState]=useState(null);
@@ -2315,6 +2299,8 @@ useEffect(()=>{
   setFocusColour(next?next.id:null);
 },[areaColourCounts,focusColour,pal]);
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:specialtyCounts.petite.total,french_knot:knots.length,long_stitch:specialtyCounts.long_stitch.total}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total,specialtyCounts]);
+// Shows every hidden layer again (the "hidden" chip's one click). The chip unmounts, so keyboard focus goes back to the chart.
+const showHiddenLayers=()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.current;if(c&&c.focus)c.focus();};
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
@@ -7446,6 +7432,8 @@ const trackerShortcuts=!isActive ? [] : [
       if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
       // Last: Esc clears the guide crosshair (in Navigate mode, or when the keyboard has taken it in Mark mode).
       if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){clearGuide();return;}
+      // Nothing else open: Esc leaves focus mode (the Exit focus button says so).
+      if(focusMode){setFocusMode(false);return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -7501,17 +7489,23 @@ const trackerShortcuts=!isActive ? [] : [
       }
     } },
 
-  // Layer toggles. Backstitch moved B→L; all-layers moved A→Shift+A.
-  { id: "tracker.layer.full",   keys: "f", scope: "tracker.notedit",
+  // Focus mode owns the bare F (the toolbar button's title says so). It works in edit mode too, hence scope "tracker".
+  { id: "tracker.focusMode", keys: "f", scope: "tracker",
+    description: "Enter or leave focus mode",
+    run: () => setFocusMode(v=>!v) },
+
+  // Layer toggles are Shift+letter so that one slip of the finger cannot blank the chart. Backstitch is L (B chooses a line);
+  // all-layers is Shift+A.
+  { id: "tracker.layer.full",   keys: "shift+f", scope: "tracker.notedit",
     description: "Toggle full-stitch layer",
     run: () => setLayerVis(v=>({...v,full:!v.full})) },
-  { id: "tracker.layer.half",   keys: "h", scope: "tracker.notedit",
+  { id: "tracker.layer.half",   keys: "shift+h", scope: "tracker.notedit",
     description: "Toggle half-stitch layer",
     run: () => setLayerVis(v=>({...v,half:!v.half})) },
-  { id: "tracker.layer.knot",   keys: "k", scope: "tracker.notedit",
+  { id: "tracker.layer.knot",   keys: "shift+k", scope: "tracker.notedit",
     description: "Toggle French-knot layer",
     run: () => setLayerVis(v=>({...v,french_knot:!v.french_knot})) },
-  { id: "tracker.layer.bs",     keys: "l", scope: "tracker.notedit",
+  { id: "tracker.layer.bs",     keys: "shift+l", scope: "tracker.notedit",
     description: "Toggle backstitch layer",
     run: () => setLayerVis(v=>({...v,backstitch:!v.backstitch})) },
   { id: "tracker.layer.all",    keys: "shift+a", scope: "tracker.notedit",
@@ -7555,8 +7549,7 @@ const trackerShortcuts=!isActive ? [] : [
   { id: "tracker.counting", keys: "c", scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v=>!v) },
-  // S for Section spotlight. Was F, which tracker.layer.full (a more
-  // specific scope) shadowed, so this could never fire.
+  // S for Section spotlight.
   { id: "tracker.focus.toggle", keys: "s", scope: "tracker",
     description: "Toggle section spotlight",
     run: () => {
@@ -8386,6 +8379,7 @@ return(
     <button type="button" className="info-strip-pct info-strip-open" aria-label="Open session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}>{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</button>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(progShown.remainingUnits)} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
+    {window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers})}
     {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
 </div>
@@ -9250,7 +9244,7 @@ return(
         {leftSidebarTab==="layers"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
           {window.SpecialtyStitchPanel&&<window.SpecialtyStitchPanel tracking objects={specialtyStitches} done={specialtyDone} visible={layerVis} accept={specialtyAvailable} disabled={!_dragMarkActive} onSelect={setSpecialtySelected} onToggle={toggleSpecialtyDone}/>}
           {STITCH_LAYERS.map(layer=>
-            <label key={layer.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <label key={layer.id} title={layer.key?"Shortcut: "+layer.key:undefined} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
               <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({layerCounts[layer.id]})</span>
             </label>
@@ -9956,6 +9950,8 @@ return(
   <span className="cs-focus-progress__fill" style={{width:Math.min(100,Math.max(0,progressPct))+"%"}}/>
   <span className="cs-focus-progress__text">{progressPct>=100?"Complete":progressPct.toFixed(1)+"%"+(effectiveCombinedTotal>0?" \u00b7 "+ProgressUnits.formatUnits(progShown.remainingUnits)+" to go":"")}</span>
 </div>}
+{/* The strip is hidden in focus mode, so a hidden layer is signposted by a pill above the bar (the bar itself has no room on a phone). */}
+{focusMode&&window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers,className:"tracker-layers-chip--float"})}
 {focusMode&&<div
   ref={focusBarRef}
   className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}
