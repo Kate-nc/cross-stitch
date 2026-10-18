@@ -503,3 +503,5 @@ It uses the existing alpha cutoff: below 128 is empty, otherwise stitched.
 Colours still map to solid threads in the chosen brand or stash. Expand
 **Source colours mapped to threads** in the preview to review RGB matches and
 pixel counts before generating; several colours may share a thread.
+
+Custom thread reference catalogues can be imported and exported in Stash Manager. See [catalogue CSV guidance](wiki/Thread-Catalogues.md).

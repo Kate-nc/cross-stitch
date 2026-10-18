@@ -202,3 +202,13 @@ describe('stash-bridge locking and entry versions', () => {
     expect(threads['dmc:310']._v).toBe(2);
   });
 });
+ test('bulk stash writes preserve brands and counts and reject invalid batches atomically',async()=>{
+ const indexedDB=new FDBFactory();
+ await seedManagerState(indexedDB,{threads:{'dmc:310':{owned:4,tobuy:false},'anchor:310':{owned:0,tobuy:false}},schema_version:3});
+ const {StashBridge}=loadBridge(indexedDB);
+ await StashBridge.bulkEnsureOwned(['dmc:310','anchor:310','anchor:310']);
+ let threads=await readThreads(indexedDB);
+ expect(threads['dmc:310'].owned).toBe(4);expect(threads['anchor:310'].owned).toBe(1);
+ await expect(StashBridge.bulkEnsureOwned(['dmc:321','bad'])).rejects.toThrow();
+ threads=await readThreads(indexedDB);expect(threads['dmc:321']).toBeUndefined();
+ });

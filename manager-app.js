@@ -89,6 +89,22 @@ function ManagerApp() {
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
+  const [catalogueRecords, setCatalogueRecords] = useState([]);
+  const [catalogueText, setCatalogueText] = useState('');
+  const [cataloguePreview, setCataloguePreview] = useState(null);
+  const [catalogueMessage, setCatalogueMessage] = useState('');
+  const [catalogueBusy, setCatalogueBusy] = useState(false);
+  useEffect(() => { ThreadCatalogues.read().then(setCatalogueRecords).catch(e => setCatalogueMessage(e.message)); }, []);
+  async function importCatalogue() {
+    setCatalogueBusy(true);
+    try { setCatalogueRecords(await ThreadCatalogues.commit(catalogueText)); setCatalogueText(''); setCataloguePreview(null); setCatalogueMessage('Catalogue imported. Projects and matching palettes are unchanged.'); }
+    catch(e) { setCatalogueMessage(e.message); }
+    finally { setCatalogueBusy(false); }
+  }
+  function exportCatalogue() {
+    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(catalogueRecords)], {type:'text/csv;charset=utf-8'}));
+    const a = document.createElement('a'); a.href=url; a.download='custom-thread-catalogues.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
@@ -1032,6 +1048,24 @@ function ManagerApp() {
 
       {/* Filter bar — threads */}
       {tab === "inventory" && (
+        <>
+        <details style={{padding:12}}>
+          <summary>Custom thread catalogues ({catalogueRecords.length} records)</summary>
+          <p>User-owned reference catalogues are separate from manufacturer matching palettes and project colours. RGB values are optional screen approximations, never calibrated measurements. Substitutions are suggestions and are never applied automatically.</p>
+          <p>CSV columns: brand,code,name,rgb,status,substitute,provenance. Use a lowercase custom brand slug, #RRGGBB or an empty colour, active/discontinued/unknown status, and an optional brand:code substitution. Built-in DMC and Anchor data cannot be overwritten.</p>
+          <label>Catalogue CSV file <input type="file" accept=".csv,text/csv" disabled={catalogueBusy} onChange={async e=>{const file=e.target.files[0]; if(!file)return; try { if(file.size>5000000)throw Error('CSV must be under 5 MB.'); const text=await file.text(); setCatalogueText(text); setCataloguePreview(ThreadCatalogues.preview(text,catalogueRecords)); setCatalogueMessage(''); } catch(err){setCatalogueMessage(err.message);} e.target.value='';}} /></label>
+          <label>Catalogue CSV <textarea aria-label="Catalogue CSV" value={catalogueText} disabled={catalogueBusy} onChange={e=>{setCatalogueText(e.target.value);setCataloguePreview(null);}} /></label>
+          <button disabled={catalogueBusy} onClick={()=>setCataloguePreview(ThreadCatalogues.preview(catalogueText,catalogueRecords))}>Preview import</button>
+          <button disabled={catalogueBusy || !catalogueRecords.length} onClick={exportCatalogue}>Export custom CSV</button>
+          {cataloguePreview && <div>
+            <p>{cataloguePreview.records.length} valid records; {cataloguePreview.errors.length} errors; {cataloguePreview.duplicates.length} duplicates. Imports with errors or duplicates save nothing.</p>
+            <ul>{[...cataloguePreview.errors,...cataloguePreview.duplicates].map((message,i)=><li key={i}>{message}</li>)}</ul>
+            <ul>{cataloguePreview.records.map(t=><li key={t.key}>{t.brand} {t.code}: {t.name} — {t.status}; {t.rgb ? 'approximate RGB '+t.rgb.join(',') : 'no colour approximation'}; substitute: {t.substitute || 'none'}; provenance (user supplied): {t.provenance}</li>)}</ul>
+            <button disabled={catalogueBusy || !cataloguePreview.records.length || !!cataloguePreview.errors.length || !!cataloguePreview.duplicates.length} onClick={importCatalogue}>Import catalogue</button>
+          </div>}
+          <p role="status">{catalogueMessage}</p>
+          <ul>{catalogueRecords.map(t=><li key={t.key}>{t.brand} {t.code}: {t.name} — {t.status}; substitute: {t.substitute || 'none'}; provenance (user supplied): {t.provenance}</li>)}</ul>
+        </details>
         <div className="mgr-filter-bar">
           <input
             type="search"
@@ -1082,6 +1116,7 @@ function ManagerApp() {
             >+ Bulk Add</button>
           )}
         </div>
+        </>
       )}
 
       {/* Stats strip — threads.
