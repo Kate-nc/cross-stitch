@@ -49,7 +49,7 @@ describe('reassignSymbol', () => {
 // uniqueChartSymbols.test.js.)
 describe('buildPalette keeps chosen symbols', () => {
   const src = loadSource('colour-utils.js');
-  const fn = src.match(/function freeChartSymbol[\s\S]*?\n\}/)[0] + src.match(/function buildPalette\(patArr\)\{[\s\S]*?\n\}/)[0];
+  const fn = src.match(/function freeChartSymbol[\s\S]*?\n\}/)[0] + src.match(/function buildPalette\(patArr,extraCells\)\{[\s\S]*?\n\}/)[0];
   // eslint-disable-next-line no-new-func
   const buildPalette = new Function('SYMS', fn + '; return buildPalette;')(SYMS);
   const cell = (id, symbol) => (symbol ? { id, type: 'solid', symbol } : { id, type: 'solid' });

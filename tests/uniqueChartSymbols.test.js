@@ -141,6 +141,30 @@ describe('symbols buildPalette handed out are not mistaken for choices', () => {
   });
 });
 
+describe('colours that only part stitches, knots or backstitch use', () => {
+  // The Tracker's palette includes them, but the PDF ranks only the full
+  // stitches, so they must not move any other thread's symbol.
+  test('the Tracker palette (full stitches + extras) gives the full-stitch threads the PDF symbols', () => {
+    const full = cells(20);
+    // A thread sorting before every full-stitch thread, used only by backstitch.
+    const extraThread = DMC.find((d) => d.id === 'blanc') || DMC[0];
+    const extra = [{ id: '1', type: 'solid', name: 'Backstitch only', rgb: [0, 0, 0], lab: extraThread.lab }];
+    ctx.__full = full; ctx.__extra = extra;
+    const r = run('buildPalette(__full, __extra)');
+    const used = Object.fromEntries(full.map((c) => [c.id, 1]));
+    const pdf = layout.buildCodepointMap(r.pal, spec, used);
+    r.pal.filter((p) => p.id !== '1').forEach((p) => expect(p.symbol).toBe(glyph(pdf.map[p.id])));
+    expect(r.cmap['1']).toBeDefined();
+    expect(new Set(symbolsOf(r)).size).toBe(r.pal.length);
+  });
+
+  test('extras alone still get a symbol that no full-stitch thread uses', () => {
+    ctx.__full = cells(112); ctx.__extra = [{ id: '1', type: 'solid', name: 'x', rgb: [0, 0, 0], lab: DMC[0].lab }];
+    const r = run('buildPalette(__full, __extra)');
+    expect(new Set(symbolsOf(r)).size).toBe(113);
+  });
+});
+
 describe('screen and PDF show the same glyph for a thread', () => {
   test.each([5, 43, 71, 112])('%i threads: palette symbol === PDF code point', (n) => {
     const pat = n > 40 ? cells(40).concat(blendCells(n - 40)) : cells(n);

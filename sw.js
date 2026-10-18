@@ -132,7 +132,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "a8e3ac478f02c7d138bb24f39e8ad750f5abf373434082ca21292a875b41c707";
+var BUILD_ID = "96e7691b98593f4a81eac900148cc358cea181390a3b44749729a682bee539ce";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -330,10 +330,10 @@ var BUILD_ASSETS = {
     "sha256": "5b0d7792c6a6759211b8db8c2e611a0da3fbc4ee0d8c7fc87efa698f1da6c2b3"
   },
   "./colour-utils.js": {
-    "sha256": "8067ed08769677695c0299d7a4ec808ef726e7bdf6636e12752bd01b5832247f"
+    "sha256": "d25bd986ac0280ac4b74be3b8fb2dfdc68f5252c0a66616532b04d64b549b7d0"
   },
   "./symbol-glyphs.js": {
-    "sha256": "8c2cb7e0aea098185d3e0c10a6be25f85940de718ff55badd2de47052093607b"
+    "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
     "sha256": "1333b1ef4295908a21a0cfd74b3b5897fbb211e08ad020b3985fea9655fa5f53"
@@ -435,7 +435,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "1890e1fc385563466fd0f8e0a311fad3006a0bc1454ac33071809a0400444bc4"
+    "sha256": "ff98e58f316689f5d009e1a27e74eb05976580b6a1070481c25cae74e088e3f7"
   },
   "./creator/extras-bundle.js": {
     "sha256": "3b03d8fcecfc814adcec808b0e4573f9ace33ca474a419f071bdcc8d1cb7acb4"
@@ -462,7 +462,7 @@ var BUILD_ASSETS = {
     "sha256": "f4573719da9abec716b948d58ff5106a884a0af5975662d8db76d11b93fccbe5"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "9abaa265ec891df9f30f93d251027664b6e3c1260e906a1ad52cca31af15d5b3"
+    "sha256": "760279cb96720c0939a561494ba8682fac194c7e0c8f5bb02416c997a5626fac"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"

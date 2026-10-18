@@ -8,7 +8,6 @@
  *
  *   SymbolGlyphs.forPalette(entries)   { threadId: glyph } exactly as the PDF assigns them
  *   SymbolGlyphs.pool()                the font's glyphs, in assignment order
- *   SymbolGlyphs.isGlyph(ch)           true for a glyph of that font
  *   SymbolGlyphs.freeSymbol(claimed)   a symbol not in `claimed`: a font glyph
  *                                      first, then the older shapes, then a number
  *   SymbolGlyphs.overflow(n)           how many of n symbols the PDF can't print
@@ -40,11 +39,6 @@
   }
 
   function capacity() { var s = spec(); return s ? s.glyphs.length : 0; }
-
-  function isGlyph(ch) {
-    var p = pool();
-    return p.indexOf(ch) !== -1;
-  }
 
   // { threadId: glyph } for the entries, as pdf-export-worker.js assigns them.
   // Entries past the font's capacity are left out (the PDF refuses those).
@@ -86,8 +80,8 @@
   }
 
   // Registers the symbol font for canvas and DOM text. Safe to call again and
-  // in a worker (no document: it resolves false). Fires "symbolfontready" on
-  // window once the glyphs can be drawn, so canvases can redraw.
+  // in a worker (no document: it resolves false). The bytes are in memory, so
+  // it is ready long before a chart first draws.
   function ensureFont() {
     if (fontPromise) return fontPromise;
     var doc = root.document;
@@ -100,9 +94,6 @@
       var face = new root.FontFace(FAMILY, b64ToBytes(root.CROSS_STITCH_SYMBOL_FONT_B64), { weight: "100 900" });
       fontPromise = face.load().then(function () {
         doc.fonts.add(face);
-        if (typeof root.dispatchEvent === "function" && typeof root.Event === "function") {
-          root.dispatchEvent(new root.Event("symbolfontready"));
-        }
         return true;
       }).catch(function () { return false; });
     } catch (e) {
@@ -116,7 +107,6 @@
     fontStack: '"' + FAMILY + '", monospace',
     pool: pool,
     capacity: capacity,
-    isGlyph: isGlyph,
     forPalette: forPalette,
     freeSymbol: freeSymbol,
     overflow: overflow,

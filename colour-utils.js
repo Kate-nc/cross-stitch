@@ -789,17 +789,26 @@ function applySavedSymbols(cells,saved){
   if(!saved||typeof saved!=="object")return cells;
   return cells.map(c=>c&&saved[c.id]?Object.assign({},c,{symbol:saved[c.id]}):c);
 }
-function buildPalette(patArr){
+// `extraCells` are cells that belong in the key but aren't full stitches (part
+// stitches, knots, backstitch-only colours): they are counted, but the PDF
+// doesn't rank them, so they never move another thread's symbol.
+function buildPalette(patArr,extraCells){
   let usage={};
   let symbolMap={};
-  for(let i=0;i<patArr.length;i++){
-    let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
-    usage[m.id].count++;
-    // A symbol buildPalette handed out itself (autoSymbol) isn't a choice, even
-    // when it rides on a cell through a copied palette entry.
-    if(m.symbol&&!m.autoSymbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
+  let stitched={};
+  function tally(list,isStitch){
+    for(let i=0;i<list.length;i++){
+      let m=list[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
+      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
+      usage[m.id].count++;
+      if(isStitch)stitched[m.id]=true;
+      // A symbol buildPalette handed out itself (autoSymbol) isn't a choice, even
+      // when it rides on a cell through a copied palette entry.
+      if(m.symbol&&!m.autoSymbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
+    }
   }
+  tally(patArr,true);
+  if(extraCells)tally(extraCells,false);
   let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
   // Every colour gets its own symbol. A symbol its cells carry (one the user
   // chose, or painted with) is kept; when two colours carry the same one, the
@@ -812,8 +821,11 @@ function buildPalette(patArr){
     let c=symbolMap[e.id];
     if(c&&!claimed[c]){claimed[c]=true;e.symbol=c;}
   });
-  let pdf=typeof SymbolGlyphs!=="undefined"?SymbolGlyphs.forPalette(entries):{};
-  entries.forEach(e=>{
+  let ranked=entries.filter(e=>stitched[e.id]);
+  let pdf=typeof SymbolGlyphs!=="undefined"?SymbolGlyphs.forPalette(ranked):{};
+  // Ranked colours first, so a free symbol handed to an extra can't be the
+  // glyph the PDF prints for a colour not yet assigned.
+  ranked.concat(entries.filter(e=>!stitched[e.id])).forEach(e=>{
     if(e.symbol)return;
     let s=pdf[e.id];
     if(!s||claimed[s])s=freeChartSymbol(claimed);

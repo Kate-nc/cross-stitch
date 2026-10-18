@@ -3935,7 +3935,7 @@ function processLoadedProject(project){
     bsSeen.add(String(ln.colorId));
     try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:ln.rgb||(/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined),brand:ln.brand||brand}));}catch(_){}
   });
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored,partialCells.concat(knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
   const rtInitialMarks=window.ThreadAccounting.snapshot({...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14},loadedWaste);
