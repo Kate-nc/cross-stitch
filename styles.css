@@ -7687,9 +7687,23 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .ppal-tile-bar-fill{height:100%;background:var(--accent);border-radius:2px;}
 .ppal-tile-count-row{display:flex;align-items:center;gap:4px;}
 .ppal-tile-count{font-size:10px;color:var(--text-tertiary);font-variant-numeric:tabular-nums;flex:1;}
-.ppal-tile-actions{display:flex;align-items:center;gap:3px;flex-shrink:0;}
+.ppal-tile-actions{display:flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%;}
 .ppal-tile-park-btn,.ppal-tile-done-btn{display:inline-flex;align-items:center;gap:2px;font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;white-space:nowrap;font-family:inherit;font-weight:600;}
-@media (pointer:coarse){.ppal-tile-park-btn,.ppal-tile-done-btn{min-height:32px;padding:4px 8px;font-size:10px;}}
+.ppal-tile-count-row{flex-wrap:wrap;row-gap:4px;}
+.ppal-tile-count{flex:1 1 4em;}
+.ppal-tile-done-btn span{white-space:nowrap;}
+/* Touch: the action chips are their own 44px targets, spaced apart, so a tap meant to select a colour cannot mark it. */
+@media (pointer:coarse){
+  .ppal-tile-park-btn,.ppal-tile-done-btn{min-height:44px;min-width:44px;justify-content:center;gap:4px;padding:6px 12px;font-size:11px;touch-action:manipulation;}
+  .ppal-tile-actions{gap:8px;}
+  .ppal-tile-count-row{row-gap:6px;}
+}
+/* Key to the done and not-done look, under the progress bar. */
+.ppal-key{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:10px;color:var(--text-tertiary);}
+.ppal-key-item{display:inline-flex;align-items:center;gap:4px;}
+.ppal-key-swatch{position:relative;display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--border);overflow:hidden;flex-shrink:0;}
+.ppal-key-tick{position:absolute;top:0;right:0;width:8px;height:8px;background:var(--text-primary);clip-path:polygon(0 0,100% 0,100% 100%);}
+.ppal-key-note{flex-basis:100%;line-height:1.35;}
 /* Touch long-press rectangle anchor: what to do next, plus Park / Cancel.
    Floats over the chart like the Shift-range hint, so it never moves it. */
 .range-anchor-bar{position:absolute;top:4px;left:50%;transform:translateX(-50%);z-index:30;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;max-width:calc(100% - 32px);padding:6px 8px 6px 12px;border-radius:var(--radius-md);background:var(--accent);color:var(--surface);font-size:var(--text-xs);font-weight:600;box-shadow:var(--shadow-sm);}

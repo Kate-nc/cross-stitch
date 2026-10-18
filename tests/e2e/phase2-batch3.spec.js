@@ -50,9 +50,9 @@ test('marking a whole colour asks once; as catch-up it raises progress but not T
   await page.goto('/stitch.html?id=' + id);
   await page.waitForSelector(TRACKER_CANVAS);
   await page.waitForTimeout(800);
-  page.on('dialog', d => d.accept());                                    // "Mark all 200 stitches ... as done?"
   await openPalette(page);
   await page.locator('.ppal-tile-done-btn').first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();                // the styled "Mark all 200 stitches ... as done?" dialog
   await expect(page.getByText("Count these as today's stitching?")).toBeVisible();
   await page.getByRole('button', { name: 'Count as catch-up' }).click();
   await page.waitForTimeout(600);
@@ -67,9 +67,9 @@ test('once chosen, it is not asked again', async ({ page }) => {
   await page.goto('/stitch.html?id=' + id);
   await page.waitForSelector(TRACKER_CANVAS);
   await page.waitForTimeout(800);
-  page.on('dialog', d => d.accept());
   await openPalette(page);
   await page.locator('.ppal-tile-done-btn').first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();                // the styled "Mark all 200 stitches ... as done?" dialog
   await page.waitForTimeout(600);
   await expect(page.getByText("Count these as today's stitching?")).toHaveCount(0);
   expect(await popoverRow(page, 'Today')).toBe('0');
@@ -80,9 +80,9 @@ test('counted as today\'s stitching, a whole-colour Done adds to Today', async (
   await page.goto('/stitch.html?id=' + id);
   await page.waitForSelector(TRACKER_CANVAS);
   await page.waitForTimeout(800);
-  page.on('dialog', d => d.accept());
   await openPalette(page);
   await page.locator('.ppal-tile-done-btn').first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();                // the styled "Mark all 200 stitches ... as done?" dialog
   await page.waitForTimeout(600);
   expect(await popoverRow(page, 'Today')).toBe('200');
 });

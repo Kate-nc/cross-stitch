@@ -173,6 +173,9 @@
   // ─── Dispatcher ──────────────────────────────────────────────────────
   function dispatch(evt) {
     if (evt.defaultPrevented) return;
+    // A key pressed inside an open modal dialog belongs to that dialog, not to the page behind it: Ctrl+Z must not undo
+    // the chart while a confirmation is asking about it.
+    if (evt.target && evt.target.closest && evt.target.closest('[aria-modal="true"]')) return;
     var matches = [];
     for (var i = 0; i < _entries.length; i++) {
       var entry = _entries[i];

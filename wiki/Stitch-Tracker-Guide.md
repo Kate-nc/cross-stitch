@@ -52,12 +52,18 @@ The bar under the chart shows the guide's row, column and thread, with a **Clear
 
 The chart summary gives dimensions and zoom. After a short pause in input, an accessible status reports the guide position, full-cross mark state, stitch-unit progress, selected thread and zoom. Rapid marking produces one settled update. Hidden full crosses cannot be marked on the chart; show the layer first. More moves focus into its controls, keeps Tab inside and returns focus when closed with Escape or Close. Import errors remain available until the next import. This compact status avoids creating a screen-reader item for every chart cell; it does not provide a complete spoken description of all specialty geometry.
 
+### Marking a whole colour
+
+In the colour list, **Mark all done** on a colour's row marks every full stitch of that colour; once the colour is finished the chip becomes **Mark all not done** and clears them. Half stitches, knots and quarters are marked on the chart, and backstitch has its own **Mark all lines done** chip. You are always asked first, with the colour and the exact number ("Mark all 1,573 stitches of DMC 05 Light Driftwood as done?"). Afterwards a toast offers **Undo**, and the ordinary **Undo** reverses the whole colour in one step too. Tapping the row itself only selects the colour. In a work area the change covers only that part. While a question is open, keyboard shortcuts such as Ctrl+Z wait until you answer.
+
+The key under the progress bar shows how stitches look: pale for **To stitch**, the thread colour for **Stitched**. A stitched cell is drawn in its thread colour, but very pale threads are toned down to light grey, so white and ecru look grey once done. For a clearer mark, choose **Corner tick** under **More controls > View**.
+
 ### Undo & redo
 
 - **Ctrl+Z** (Cmd+Z on Mac) — undo
 - **Ctrl+Y** or **Ctrl+Shift+Z** — redo
 
-Undo covers marking stitches and parking. The history lasts until you leave the page.
+Undo covers marking stitches (including a whole colour at once) and parking. The history lasts until you leave the page.
 
 ## Views
 
@@ -114,7 +120,7 @@ Mark where a thread is parked so you can pick it up again.
 
 **Find a parked thread:** tap the **P** on a colour in the palette. The chart scrolls to where it's parked and the guide marks the spot; tap again for the next place.
 
-**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**.
+**Hide or clear markers:** **More controls > Layers > Park markers** lists every parked colour with a checkbox to hide it, plus **Clear all**, which asks first and can be undone (Undo also restores which colours were hidden).
 
 ## Sessions and Timing
 
