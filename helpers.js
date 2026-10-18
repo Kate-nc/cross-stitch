@@ -2142,7 +2142,7 @@ function formatDateReadable(dateStr){return new Date(dateStr+'T12:00:00').toLoca
 
 // ═══ Thread composite-key helpers ═══
 // threadKey('dmc','310') → 'dmc:310'
-function threadKey(brand,id){return brand+':'+id;}
+function threadKey(brand,id){return String(brand||'dmc').toLowerCase()+':'+String(id);}
 if(typeof window!=='undefined')window.threadKey=threadKey;
 
 // parseThreadKey('dmc:310') → {brand:'dmc',id:'310'}
@@ -2164,6 +2164,7 @@ function getThreadByKey(key){
     var aMap=_getAnchorById();
     return aMap?(aMap[p.id]||null):null;
   }
+  if(p.brand!=='dmc')return null;
   var dMap=_getDmcById();
   return dMap?(dMap[p.id]||null):null;
 }
@@ -2175,7 +2176,7 @@ if(typeof window!=='undefined')window.getThreadByKey=getThreadByKey;
 function classifyMatch(deltaE,isOfficial){
   var thresh=typeof UNIQUE_THRESHOLD_DE!=='undefined'?UNIQUE_THRESHOLD_DE:5;
   var kind,label;
-  if(isOfficial&&deltaE<=thresh){kind='exact';label='Official match';}
+  if(isOfficial&&deltaE<=thresh){kind='exact';label='Chart-listed approximation';}
   else if(deltaE<=2){kind='exact';label='Near-identical';}
   else if(deltaE<=thresh){kind='near';label='Close match';}
   else if(deltaE<=10){kind='different';label='Approximate match';}
@@ -2192,7 +2193,7 @@ if(typeof window!=='undefined')window.classifyMatch=classifyMatch;
 // Returns the thread object or null. Uses the pre-indexed maps from helpers.js.
 function findThreadInCatalog(brand,id){
   if(brand==='anchor'){var aMap=_getAnchorById();return aMap?(aMap[id]||null):null;}
-  return getDmcByIdCI(id);
+  return (!brand||brand==='dmc')?getDmcByIdCI(id):null;
 }
 if(typeof window!=='undefined')window.findThreadInCatalog=findThreadInCatalog;
 
@@ -2232,23 +2233,24 @@ if(typeof window!=='undefined')window.normaliseStashKey=normaliseStashKey;
 // P4-5) are DMC. Cells restored from an Anchor project carry brand:'anchor',
 // so code holding a cell or palette entry can tell which catalogue it is in.
 // Adding a brand is a catalogue file plus an entry here.
-var THREAD_BRANDS={
+var THREAD_BRANDS=Object.assign(Object.create(null),{
   dmc:{id:'dmc',label:'DMC',catalogue:function(){return typeof DMC!=='undefined'?DMC:null;},load:null},
   anchor:{id:'anchor',label:'Anchor',catalogue:function(){return typeof ANCHOR!=='undefined'?ANCHOR:null;},load:'loadAnchorData'}
-};
-// Any value that isn't a known brand (absent, '', an array index from
-// .map) is DMC.
+});
+// Missing or malformed brands default to DMC; valid unknown brand identities
+// survive even when their catalogue is unavailable.
 function normaliseThreadBrand(b){
   b=typeof b==='string'?b.toLowerCase():'';
-  return Object.prototype.hasOwnProperty.call(THREAD_BRANDS,b)?b:'dmc';
+  return /^[a-z][a-z0-9-]{0,63}$/.test(b)?b:'dmc';
 }
 function projectThreadBrand(project){return normaliseThreadBrand(project&&project.settings&&project.settings.threadBrand);}
-function threadBrandLabel(brand){return THREAD_BRANDS[normaliseThreadBrand(brand)].label;}
+function threadBrandLabel(brand){var b=normaliseThreadBrand(brand);return THREAD_BRANDS[b]?THREAD_BRANDS[b].label:b;}
 // The brand's catalogue array, or null while it hasn't loaded.
-function threadCatalogue(brand){return THREAD_BRANDS[normaliseThreadBrand(brand)].catalogue();}
+function threadCatalogue(brand){var b=THREAD_BRANDS[normaliseThreadBrand(brand)];return b?b.catalogue():null;}
 // Resolves once the brand's catalogue is available (DMC always is).
 function loadThreadBrand(brand,opts){
   var b=THREAD_BRANDS[normaliseThreadBrand(brand)];
+  if(!b)return Promise.resolve();
   if(b.catalogue())return Promise.resolve();
   var fn=b.load&&typeof window!=='undefined'?window[b.load]:null;
   if(typeof fn!=='function')return Promise.reject(new Error('No loader for '+b.label+' threads'));
@@ -2516,7 +2518,16 @@ function serializePattern(pat,projectBrand){
     // re-serialises rather than silently saving the wrong cell count.
     if(hit&&hit.brand===pb&&hit.out.length===pat.length)return hit.out;
   }
-  var out=pat.map(function(m){return stripCellForSave(m,pb);});
+  // Snapshot colours and names on new saves. Legacy compact records still hydrate
+  // once from their original brand; catalogue imports never rewrite projects.
+  var out=pat.map(function(m){
+    var o=stripCellForSave(m,pb);
+    if(m&&m.id!=='__skip__'&&m.id!=='__empty__'){
+      if(m.rgb)o.rgb=m.rgb.slice();
+      ['name','provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)o[k]=m[k];});
+    }
+    return o;
+  });
   if(_serialisedPatterns)_serialisedPatterns.set(pat,{brand:pb,out:out});
   return out;
 }

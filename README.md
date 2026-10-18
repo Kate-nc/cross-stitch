@@ -504,6 +504,8 @@ Colours still map to solid threads in the chosen brand or stash. Expand
 **Source colours mapped to threads** in the preview to review RGB matches and
 pixel counts before generating; several colours may share a thread.
 
+Custom thread reference catalogues can be imported and exported in Stash Manager. See [catalogue CSV guidance](wiki/Thread-Catalogues.md).
+
 ### Reusable PDF export presets
 
 In **Materials & Output > Export**, choose a saved preset and **Apply preset**, or name the current settings and **Save as new preset**. Change the existing Format & settings controls, then **Update selected preset** to save edits or a new name. **Delete preset** keeps the active settings. Names are unique (ignoring case), up to 80 characters; up to 50 presets are supported.

@@ -70,7 +70,7 @@ const StashBridge = (() => {
   function _getOwnedCount(threadsData, key, fallbackId) {
     var byKey = stashEffectiveQty(threadsData[key]);
     if (byKey > 0) return byKey;
-    return stashEffectiveQty(threadsData[fallbackId]);
+    return key.indexOf('dmc:') === 0 ? stashEffectiveQty(threadsData[fallbackId]) : 0;
   }
 
   function _parseThreadKey(key) {
@@ -94,6 +94,7 @@ const StashBridge = (() => {
       }
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
     }
+    if (parsed.brand !== "dmc") return null;
     if (typeof _getDmcById === "function") {
       const m = _getDmcById();
       if (m) return m[parsed.id] || null;
@@ -597,6 +598,22 @@ const StashBridge = (() => {
 
     // Merge only edits made since the Manager's last displayed baseline.
     // Quantity edits are deltas, so stale autosave/unload cannot erase RT usage.
+    // A bulk stash import is one transaction, never a sequence of count writes.
+    async bulkEnsureOwned(keys) {
+      if(!Array.isArray(keys)||keys.some(function(key){return typeof key!=='string'||!/^(dmc|anchor):[^:]+$/.test(key);}))throw Error('Invalid bulk stash identity');
+      return _withThreadsWrite('bulkEnsureOwned',function(threads,ctx){
+        var changed=[];
+        Array.from(new Set(keys)).forEach(function(key){
+          var current=threads[key];
+          if(current&&(current.owned||current.tobuy||current.partialStatus))return;
+          var entry=_ensureThreadEntry(threads,key,ctx,{now:ctx.now}).entry;
+          entry.owned=1;entry.lastAdjustedAt=ctx.now;
+          _appendHistory(entry,1,ctx.now);_bumpEntryVersion(key,entry);changed.push(key);
+        });
+        return {changedKeys:changed};
+      },{invalidateStats:true});
+    },
+
     async saveThreadEdits(next, baseline) {
       return _withThreadsWrite('saveThreadEdits', function(threads, ctx) {
         const changedKeys=[];

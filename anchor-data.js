@@ -1,3 +1,7 @@
+// Provenance caution: the reconciliation and source claims below are historical
+// repository documentation, not independently verified measurements or licence
+// evidence. RGB values are screen approximations, not calibrated or official RGB.
+// Do not interpret a historical "official" confidence as manufacturer approval.
 // anchor-data.js — Anchor Stranded Cotton catalogue
 // ─────────────────────────────────────────────────────────────────────────────
 // Data sources used for reconciliation (retrieved April 2025):

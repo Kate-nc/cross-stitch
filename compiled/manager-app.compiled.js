@@ -162,6 +162,37 @@ function ManagerApp() {
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
+  const [catalogueRecords, setCatalogueRecords] = useState([]);
+  const [catalogueText, setCatalogueText] = useState('');
+  const [cataloguePreview, setCataloguePreview] = useState(null);
+  const [catalogueMessage, setCatalogueMessage] = useState('');
+  const [catalogueBusy, setCatalogueBusy] = useState(false);
+  useEffect(() => {
+    ThreadCatalogues.read().then(setCatalogueRecords).catch(e => setCatalogueMessage(e.message));
+  }, []);
+  async function importCatalogue() {
+    setCatalogueBusy(true);
+    try {
+      setCatalogueRecords(await ThreadCatalogues.commit(catalogueText));
+      setCatalogueText('');
+      setCataloguePreview(null);
+      setCatalogueMessage('Catalogue imported. Projects and matching palettes are unchanged.');
+    } catch (e) {
+      setCatalogueMessage(e.message);
+    } finally {
+      setCatalogueBusy(false);
+    }
+  }
+  function exportCatalogue() {
+    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(catalogueRecords)], {
+      type: 'text/csv;charset=utf-8'
+    }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'custom-thread-catalogues.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => {
@@ -1366,7 +1397,54 @@ function ManagerApp() {
       alignItems: "center",
       gap: 6
     }
-  }, Icons.sparkles(), " Showcase"))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
+  }, Icons.sparkles(), " Showcase"))), tab === "inventory" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("details", {
+    style: {
+      padding: 12
+    }
+  }, /*#__PURE__*/React.createElement("summary", null, "Custom thread catalogues (", catalogueRecords.length, " records)"), /*#__PURE__*/React.createElement("p", null, "User-owned reference catalogues are separate from manufacturer matching palettes and project colours. RGB values are optional screen approximations, never calibrated measurements. Substitutions are suggestions and are never applied automatically."), /*#__PURE__*/React.createElement("p", null, "CSV columns: brand,code,name,rgb,status,substitute,provenance. Use a lowercase custom brand slug, #RRGGBB or an empty colour, active/discontinued/unknown status, and an optional brand:code substitution. Built-in DMC and Anchor data cannot be overwritten."), /*#__PURE__*/React.createElement("label", null, "Catalogue CSV file ", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".csv,text/csv",
+    disabled: catalogueBusy,
+    onChange: async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        if (file.size > 5000000) throw Error('CSV must be under 5 MB.');
+        const text = await file.text();
+        setCatalogueText(text);
+        setCataloguePreview(ThreadCatalogues.preview(text, catalogueRecords));
+        setCatalogueMessage('');
+      } catch (err) {
+        setCatalogueMessage(err.message);
+      }
+      e.target.value = '';
+    }
+  })), /*#__PURE__*/React.createElement("label", null, "Catalogue CSV ", /*#__PURE__*/React.createElement("textarea", {
+    "aria-label": "Catalogue CSV",
+    value: catalogueText,
+    disabled: catalogueBusy,
+    onChange: e => {
+      setCatalogueText(e.target.value);
+      setCataloguePreview(null);
+    }
+  })), /*#__PURE__*/React.createElement("button", {
+    disabled: catalogueBusy,
+    onClick: () => setCataloguePreview(ThreadCatalogues.preview(catalogueText, catalogueRecords))
+  }, "Preview import"), /*#__PURE__*/React.createElement("button", {
+    disabled: catalogueBusy || !catalogueRecords.length,
+    onClick: exportCatalogue
+  }, "Export custom CSV"), cataloguePreview && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", null, cataloguePreview.records.length, " valid records; ", cataloguePreview.errors.length, " errors; ", cataloguePreview.duplicates.length, " duplicates. Imports with errors or duplicates save nothing."), /*#__PURE__*/React.createElement("ul", null, [...cataloguePreview.errors, ...cataloguePreview.duplicates].map((message, i) => /*#__PURE__*/React.createElement("li", {
+    key: i
+  }, message))), /*#__PURE__*/React.createElement("ul", null, cataloguePreview.records.map(t => /*#__PURE__*/React.createElement("li", {
+    key: t.key
+  }, t.brand, " ", t.code, ": ", t.name, " \u2014 ", t.status, "; ", t.rgb ? 'approximate RGB ' + t.rgb.join(',') : 'no colour approximation', "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance))), /*#__PURE__*/React.createElement("button", {
+    disabled: catalogueBusy || !cataloguePreview.records.length || !!cataloguePreview.errors.length || !!cataloguePreview.duplicates.length,
+    onClick: importCatalogue
+  }, "Import catalogue")), /*#__PURE__*/React.createElement("p", {
+    role: "status"
+  }, catalogueMessage), /*#__PURE__*/React.createElement("ul", null, catalogueRecords.map(t => /*#__PURE__*/React.createElement("li", {
+    key: t.key
+  }, t.brand, " ", t.code, ": ", t.name, " \u2014 ", t.status, "; substitute: ", t.substitute || 'none', "; provenance (user supplied): ", t.provenance)))), /*#__PURE__*/React.createElement("div", {
     className: "mgr-filter-bar"
   }, /*#__PURE__*/React.createElement("input", {
     type: "search",
@@ -1451,7 +1529,7 @@ function ManagerApp() {
       whiteSpace: 'nowrap'
     },
     title: "Bulk-add threads to your stash by pasting a list or choosing a starter kit"
-  }, "+ Bulk Add")), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
+  }, "+ Bulk Add"))), tab === "inventory" && /*#__PURE__*/React.createElement("div", {
     className: "mgr-stats-strip"
   }, /*#__PURE__*/React.createElement("div", {
     className: "app-info-chip-wrap mgr-stash-chip-wrap"

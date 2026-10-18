@@ -33,6 +33,8 @@ window.BulkAddModal = (function () {
       .filter(function (token) { return token.length > 0; })
       .map(function (token) {
         // Strip brand prefix
+        var opposite = brand === 'anchor' ? /^dmc/i.test(token) : /^anch/i.test(token);
+        if(opposite)return {raw:token,normalised:token};
         var clean = token
           .replace(BULK_PREFIX_ANCHOR, '')
           .replace(BULK_PREFIX_ANCH, '')
@@ -49,7 +51,7 @@ window.BulkAddModal = (function () {
     var arr = brand === 'anchor'
       ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
       : (typeof DMC !== 'undefined' ? DMC : []);
-    var byId = {};
+    var byId = Object.create(null);
     arr.forEach(function (t) { byId[t.id] = t; });
 
     return entries.map(function (e) {
@@ -124,7 +126,7 @@ window.BulkAddModal = (function () {
       var raw = parseBulkThreadList(pasteText, brand);
       var resolved = resolveIds(raw, brand);
       // Remove duplicates by normalised id
-      var seen = {};
+      var seen = Object.create(null);
       return resolved.filter(function (r) {
         if (seen[r.normalised]) return false;
         seen[r.normalised] = true;
@@ -147,7 +149,7 @@ window.BulkAddModal = (function () {
       var arr = kitBrand === 'anchor'
         ? (typeof ANCHOR !== 'undefined' ? ANCHOR : [])
         : (typeof DMC !== 'undefined' ? DMC : []);
-      var byId = {};
+      var byId = Object.create(null);
       arr.forEach(function (t) { byId[t.id] = t; });
       return kit.ids
         .filter(function (id) { return !kitRemovedIds[id]; })
@@ -165,24 +167,13 @@ window.BulkAddModal = (function () {
     async function handleAdd() {
       var items = activeTab === 'paste' ? pasteResolved : kitResolved;
       var validItems = items.filter(function (i) { return i.valid; });
-      if (validItems.length === 0) return;
+      if (validItems.length === 0 || items.some(function(i){return !i.valid;})) return;
       if (!window.StashBridge) { (window.Toast ? window.Toast.show({ message: 'StashBridge is not available. Make sure stash-bridge.js is loaded.', type: 'error' }) : alert('StashBridge is not available. Make sure stash-bridge.js is loaded.')); return; }
 
       setSaving(true);
       try {
-        var stash = await StashBridge.getGlobalStash();
         var activeBrand = activeTab === 'paste' ? brand : kitBrand;
-        for (var i = 0; i < validItems.length; i++) {
-          var item = validItems[i];
-          var key = typeof threadKey === 'function'
-            ? threadKey(activeBrand, item.normalised)
-            : (activeBrand + ':' + item.normalised);
-          var existing = stash[key] || { owned: 0, tobuy: 0 };
-          // Only set to 1 if not already tracked — don't overwrite existing counts
-          if (!existing.owned && !existing.tobuy) {
-            await StashBridge.updateThreadOwned(key, 1);
-          }
-        }
+        await StashBridge.bulkEnsureOwned(validItems.map(function(item){return activeBrand+':'+item.thread.id;}));
         setDone(true);
       } catch (e) {
         console.error('BulkAddModal: save failed', e);
@@ -300,13 +291,13 @@ window.BulkAddModal = (function () {
         // Footer
         React.createElement('div', { style: { padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' } },
           invalidCount > 0 && React.createElement('span', { style: { fontSize:'var(--text-sm)', color: 'var(--warning)', marginRight: 'auto' } },
-            invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' will be skipped'
+            invalidCount + ' unrecognised thread' + (invalidCount === 1 ? '' : 's') + ' must be removed or corrected before importing'
           ),
           React.createElement('button', { className: 'g-btn', onClick: onClose }, 'Cancel'),
           React.createElement('button', {
             className: 'g-btn primary',
             onClick: handleAdd,
-            disabled: saving || validCount === 0
+            disabled: saving || validCount === 0 || invalidCount > 0 || anchorLoading
           }, saving ? 'Saving…' : 'Add ' + validCount + ' thread' + (validCount === 1 ? '' : 's'))
         )
     );

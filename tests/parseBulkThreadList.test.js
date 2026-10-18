@@ -97,3 +97,14 @@ describe('parseBulkThreadList', () => {
     expect(result.map(r => r.normalised)).toEqual(['310', '321', 'blanc', '3865', '402']);
   });
 });
+
+test('opposite-brand prefixes remain invalid rather than being remapped',()=>{
+ expect(parseBulkThreadList('Anchor403', 'dmc')[0].normalised).toBe('Anchor403');
+ expect(parseBulkThreadList('DMC310', 'anchor')[0].normalised).toBe('DMC310');
+});
+
+test('prototype-like thread codes do not resolve as catalogue entries',()=>{
+ const DMC=[{id:'310',rgb:[0,0,0]}];
+ eval(extractFn(src,'resolveIds'));
+ expect(resolveIds(parseBulkThreadList('constructor __proto__ 310','dmc'),'dmc').map(t=>t.valid)).toEqual([false,false,true]);
+});

@@ -314,7 +314,7 @@
       sections: [
         {
           heading: "Thread stash",
-          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low.",
+          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low. Custom thread catalogues imports user-owned CSV reference records after validation and duplicate preview. Export preserves codes, names, optional approximate RGB, status, substitutions and user-supplied provenance. Custom records stay separate from matching palettes and projects; substitutions are never automatic. Bulk Add requires all unrecognised or opposite-brand tokens to be corrected or removed, and saves the batch atomically.",
           bullets: [
             ["Skeins owned", "Select a thread to set how many skeins you have. Composite keys (for example anchor:403) keep DMC and Anchor numbers that look the same apart."],
             ["Part-used skeins", "Mark a thread as Mostly full, About half, Remnant or Used up. Used up sets the skein count to zero."],
