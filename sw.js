@@ -132,7 +132,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "4f3f1757a20155dd90c1c6140eb4b4f9deec460e2ee111d92ad7f8eea4b1abbd";
+var BUILD_ID = "8fd3117c8f100a670dca090e0af92f97e36a47e23d2edb81f67313183e073af7";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -300,10 +300,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "7a08ff1b9beed3f46faa8f26bcbc4e0a21c96762fbf539e4ebd5db6ad26aa356"
+    "sha256": "3cc6f8b2f2a633d466ba7830be2072f5add439a381508e8945d5d463d4fb09d9"
   },
   "./version.js": {
-    "sha256": "56bb51a816158fd98d21da59214f1b81a336b400fb604de4e90a65393927312b"
+    "sha256": "85e41f3f3a14162ce4125af22280c51513afee9332867ab5ea30c8d4741aac05"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -336,7 +336,7 @@ var BUILD_ASSETS = {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "1333b1ef4295908a21a0cfd74b3b5897fbb211e08ad020b3985fea9655fa5f53"
+    "sha256": "3050829f11cb996eb3eb579f406a4b1f02ead0cebfefbe859328b2c35aac4d58"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -462,7 +462,7 @@ var BUILD_ASSETS = {
     "sha256": "a37dd5b654e2ef76d996779aafeebf4e02146fc05d4ffc2a8be5a728ce0d59ce"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "760279cb96720c0939a561494ba8682fac194c7e0c8f5bb02416c997a5626fac"
+    "sha256": "f0adf6249bb608a29d92f103fbb063691637435e0b4ae77d7470f2a16a2e6e92"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
@@ -537,7 +537,7 @@ var BUILD_ASSETS = {
     "sha256": "2fdcf834be0f2af1c90860ccacccb0cb9c81a07cd185a145b58f5c4b675eeaa5"
   },
   "./help-drawer.js": {
-    "sha256": "002b532b5b1149d305dc0c05c2a4d41d928338b634faaa3b34c68fe82af82caf"
+    "sha256": "340269dea17e0103682433db4f088ee52068025b11078cfab372f7597e48584f"
   },
   "./creator/pdfExport.js": {
     "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"

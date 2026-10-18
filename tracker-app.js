@@ -3083,10 +3083,55 @@ function deleteSessionById(id){
   return applySessionHistoryChange(deleteSessionRun(statsSessions,id,combinedTotal),n>1?'Session deleted (it spanned '+n+' days)':'Session deleted');
 }
 function mergeSessionWithNext(id){return applySessionHistoryChange(mergeSessionRecords(statsSessions,id,combinedTotal),'Sessions merged');}
-function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
-  // In a work area "all" means all of this colour inside the area.
-  const _a=areaOn?workArea:null;
-  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+// Styled confirmation, never window.confirm. Resolves true to go ahead; if the dialog is unavailable it resolves false, so a
+// destructive step never runs unasked.
+function askConfirm(opts){
+  if(window.ConfirmDialog&&window.ConfirmDialog.show)return window.ConfirmDialog.show(opts);
+  return Promise.resolve(false);
+}
+// An Undo toast for one history step. The step is bound to the toast: the message goes as soon as that step is no longer the
+// newest (see the trackHistory effect), and its button reverses exactly that step, the same as the Undo button.
+function offerStepUndo(entry,message,undoLabel){
+  if(!entry||!window.Toast||!window.Toast.show)return;
+  if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
+  bulkToastEntryRef.current=entry;
+  bulkUndoToastRef.current=window.Toast.show({
+    message:message,type:'info',duration:8000,undoLabel:undoLabel||'Undo',
+    undoAction:function(){
+      const h=trackHistoryRef.current;
+      if(h[h.length-1]!==entry){
+        window.Toast.show({message:"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
+        return false;
+      }
+      if(bulkUndoRef.current)bulkUndoRef.current();
+    }
+  });
+}
+// In a work area "all" means all of this colour inside the area.
+function colourAreaFilter(){const a=areaOn?workArea:null;return a?(i=>window.WorkArea.containsIndex(a,i,sW)):null;}
+// One history step, however many stitches it covers, so Undo (or the toast's button) reverses the whole colour at once.
+function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;
+  const changes=colourDoneChanges(pat,cur,cid,md,colourAreaFilter());
+  const nd=new Uint8Array(cur);for(let k=0;k<changes.length;k++)nd[changes[k].idx]=md?1:0;
+  if(changes.length>0){pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}
+  if(changes.length>0){
+    const n=changes.length,count=n===1?"1 stitch":n.toLocaleString('en-GB')+" stitches",name=colourDoneName(cmap&&cmap[cid]||{id:cid});
+    offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);
+  }
+  doneRef.current=nd;setDone(nd);}
+// The chip on a colour row: always ask first, with the colour and the exact number of stitches, then go through the usual
+// catch-up or today question (requestMarkColourDone) when marking.
+function confirmAndMarkColour(p,md){
+  if(!pat||!doneRef.current)return;
+  const name=colourDoneName(p);
+  const n=colourDoneChanges(pat,doneRef.current,p.id,md,colourAreaFilter()).length;
+  if(n===0){
+    if(window.Toast&&window.Toast.show)window.Toast.show({message:"Every stitch of "+name+(areaOn?" in this work area":"")+" is already marked "+(md?"done":"not done")+".",type:'info',duration:4000});
+    return;
+  }
+  const t=colourDoneConfirmText(name,n,md,areaOn);
+  askConfirm({title:t.title,message:t.message,confirmLabel:t.confirmLabel,danger:!md}).then(ok=>{if(ok)requestMarkColourDone(p.id,md);});
+}
 // Whole-colour Done: unmarking goes straight through; marking uses the remembered choice, or asks once.
 function requestMarkColourDone(cid,md){
   if(!md){markColourDone(cid,false);return;}
@@ -3425,7 +3470,9 @@ function applyUndo() {
 }
 
 function handleRevertToOriginal(){
-  if(!confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost."))return;
+  askConfirm({title:"Revert to the original import?",message:"Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.",confirmLabel:"Revert",danger:true}).then(ok=>{if(ok)revertToOriginal();});
+}
+function revertToOriginal(){
   const previousPal=originalPaletteState;
   const previousMap={};
   previousPal.forEach(p=>{previousMap[p.symbol]=p;});
@@ -6486,8 +6533,19 @@ function commitParkMarkers(prev,next){
   // Ahead of the render, so a second toggle in the same frame sees this one.
   parkMarkersRef.current=next;
   setParkMarkers(next);
-  setTrackHistory(h=>{let n=[...h,{type:"PARK",added,removed}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry={type:"PARK",added,removed};
+  setTrackHistory(h=>{let n=[...h,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
+  return entry;
+}
+// Clear every park marker: asks first, and the step can be undone from the toast or the Undo button.
+function clearAllParkMarkers(){
+  const n0=parkMarkersRef.current.length;if(!n0)return;
+  askConfirm({title:"Clear all park markers?",message:"Remove all "+(n0===1?"1 park marker":n0.toLocaleString('en-GB')+" park markers")+" from the chart?\n\nYou can undo this straight afterwards.",confirmLabel:"Clear all",danger:true}).then(ok=>{
+    if(!ok)return;
+    const entry=commitParkMarkers(parkMarkersRef.current,[]);setParkLayers({});
+    if(entry)offerStepUndo(entry,(entry.removed.length===1?"1 park marker":entry.removed.length.toLocaleString('en-GB')+" park markers")+" cleared","Undo");
+  });
 }
 // Apply a PARK history entry forwards (redo) or backwards (undo).
 function applyParkEntry(entry,forward){
@@ -8225,7 +8283,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{askConfirm({title:"Start fresh?",message:"Your current project is auto-saved.",confirmLabel:"Start fresh"}).then(ok=>{if(!ok)return;if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}});}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -8601,6 +8659,18 @@ return(
               {Icons.play?Icons.play():null}{" "}Start timer
             </button>}
         </div>
+        {pal&&pal.length>0&&(()=>{
+          // The same looks the chart draws for a colour: pale until stitched, then the thread colour (capped at mid-grey).
+          const sample=(focusColour&&cmap&&cmap[focusColour])||pal[0];
+          const pl=pendingStitchLook(sample.rgb,0.5),dl=doneStitchLook(sample.rgb);
+          const tick=doneStyle==="tick";
+          const paleThreads=!tick&&pal.some(p=>lum709(p.rgb)>DONE_MAX_LUM);
+          return <div className="ppal-key" role="group" aria-label="Key to stitch colours">
+            <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:pl.fill}} aria-hidden="true"/>To stitch</span>
+            <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:tick?pl.fill:dl.fill}} aria-hidden="true">{tick&&<span className="ppal-key-tick"/>}</span>Stitched{tick?" (corner tick)":""}</span>
+            {paleThreads&&<span className="ppal-key-note">Pale threads such as white and ecru look grey once stitched. For a corner tick instead, choose Corner tick in More &gt; View.</span>}
+          </div>;
+        })()}
       </div>
       {/* ─ Sort row ─ */}
       <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
@@ -8659,7 +8729,7 @@ return(
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
                   <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
-                  <div className="ppal-tile-actions">
+                  <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
                       onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
@@ -8673,13 +8743,14 @@ return(
                       style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
                       title={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
                       aria-label={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                    >{bsc.done>=bsc.total?<>{Icons.undo?Icons.undo():null}{" Lines"}</>:<>{Icons.check?Icons.check():null}{" Lines"}</>}</button>}
+                    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}{" Lines"}</>:<>{Icons.check?Icons.check():null}{" Lines"}</>}</button>}
                     {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}requestMarkColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-                      title={complete?"Mark as not done":"Mark all as done"}
-                    >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>}
+                      title={(complete?"Mark all stitches of ":"Mark all stitches of ")+colourDoneName(p)+(complete?" as not done":" as done")}
+                      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
+                    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
                   </div>
                 </div>
               </div>
@@ -9188,7 +9259,7 @@ return(
                 <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{p.id} ({parkCountsByColour[p.id]})</span>
               </label>
             )}
-            <button onClick={()=>{commitParkMarkers(parkMarkersRef.current,[]);setParkLayers({});}} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
+            <button onClick={clearAllParkMarkers} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
           </>}
         </div>}
 
@@ -9775,9 +9846,8 @@ return(
 
           {!isEmpty && (
             <button onClick={()=>{
-              if(confirm(`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`)){
-                handleStitchRemoval(cellEditPopover.idx);
-              }
+              const rmIdx=cellEditPopover.idx;
+              askConfirm({title:"Remove this stitch?",message:`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`,confirmLabel:"Remove stitch",danger:true}).then(ok=>{if(ok)handleStitchRemoval(rmIdx);});
             }} style={{padding:"9px 16px",borderRadius:'var(--radius-md)',border:"1px solid var(--danger-soft)",background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",fontWeight:600,fontSize:'var(--text-md)',textAlign:"left"}}>
               Remove Stitch
             </button>
