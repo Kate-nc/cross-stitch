@@ -742,34 +742,102 @@ function analyseColourCoverage(img,palette,sampleSize){
   if(totalChromatic>0){HUE_BUCKETS.forEach(function(b){var imgPct=imgBuckets[b.name]/totalChromatic;var stashCount=stashBuckets[b.name];if(imgPct>0.15&&stashCount===0)gaps.push({hue:b.name,severity:"high",imgPct:Math.round(imgPct*100)});else if(imgPct>0.08&&stashCount<=1)gaps.push({hue:b.name,severity:"medium",imgPct:Math.round(imgPct*100)});});}
   return{gaps:gaps,hasGaps:gaps.length>0};
 }
-function buildPalette(patArr){
+// Canvas font for a chart symbol: the PDF's symbol font first, so the glyphs
+// match the printed chart, then monospace for older or numeric symbols.
+function chartSymbolFont(px,bold){
+  return (bold?"bold ":"")+px+"px "+(typeof SymbolGlyphs!=="undefined"?SymbolGlyphs.fontStack:"monospace");
+}
+
+// A symbol not yet in `claimed`: a PDF font glyph first (SymbolGlyphs), then
+// the older shapes in SYMS, then a plain number, so a chart never reuses one.
+function freeChartSymbol(claimed){
+  if(typeof SymbolGlyphs!=="undefined")return SymbolGlyphs.freeSymbol(claimed);
+  for(let i=0;i<SYMS.length;i++)if(!claimed[SYMS[i]])return SYMS[i];
+  let n=1;while(claimed[String(n)])n++;
+  return String(n);
+}
+
+// Gives entries that sit beside a freshly built palette (colours kept at zero
+// stitches, scratch colours) a symbol no palette entry uses, keeping the one
+// they have when it is still free. Returns copies; `pal` is not changed.
+function dedupeChartSymbols(pal,extras){
+  let claimed={};
+  (pal||[]).forEach(p=>{if(p&&p.symbol)claimed[p.symbol]=true;});
+  return (extras||[]).map(e=>{
+    if(e.symbol&&!claimed[e.symbol]){claimed[e.symbol]=true;return e;}
+    let s=freeChartSymbol(claimed);claimed[s]=true;
+    return Object.assign({},e,{symbol:s,autoSymbol:true});
+  });
+}
+
+// The symbol for one colour joining a palette: the glyph the PDF will print
+// for it when that is free, otherwise the next free symbol.
+function nextChartSymbol(entry,pal){
+  let claimed={};
+  (pal||[]).forEach(p=>{if(p&&p.symbol)claimed[p.symbol]=true;});
+  if(typeof SymbolGlyphs!=="undefined"){
+    let s=SymbolGlyphs.forPalette((pal||[]).concat([entry]))[entry.id];
+    if(s&&!claimed[s])return s;
+  }
+  return freeChartSymbol(claimed);
+}
+
+// Puts the symbols a project saved (its `symbols` map, by thread id) back onto
+// the cells that use them; buildPalette keeps a symbol its cells carry, and
+// repairs any that two threads share.
+function applySavedSymbols(cells,saved){
+  if(!saved||typeof saved!=="object")return cells;
+  return cells.map(c=>c&&saved[c.id]?Object.assign({},c,{symbol:saved[c.id]}):c);
+}
+// `extraCells` are cells that belong in the key but aren't full stitches (part
+// stitches, knots, backstitch-only colours): they are counted, but the PDF
+// doesn't rank them, so they never move another thread's symbol.
+function buildPalette(patArr,extraCells){
   let usage={};
   let symbolMap={};
-  for(let i=0;i<patArr.length;i++){
-    let m=patArr[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-    if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
-    usage[m.id].count++;
-    if(m.symbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
-  }
-  let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
-  // A colour whose cells carry a symbol (one the user chose, or one painted
-  // with) keeps it; the rest take the symbol for their rank, unless a carried
-  // symbol already claims it, in which case the next free one.
-  let claimed={};
-  entries.forEach(e=>{if(symbolMap[e.id])claimed[symbolMap[e.id]]=true;});
-  let nextFree=0;
-  entries.forEach((e,i)=>{
-    if(symbolMap[e.id]){e.symbol=symbolMap[e.id];return;}
-    let s=SYMS[i%SYMS.length];
-    if(claimed[s]){
-      while(nextFree<SYMS.length&&claimed[SYMS[nextFree]])nextFree++;
-      if(nextFree<SYMS.length)s=SYMS[nextFree];
+  let stitched={};
+  function tally(list,isStitch){
+    for(let i=0;i<list.length;i++){
+      let m=list[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
+      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
+      usage[m.id].count++;
+      if(isStitch)stitched[m.id]=true;
+      // A symbol buildPalette handed out itself (autoSymbol) isn't a choice, even
+      // when it rides on a cell through a copied palette entry.
+      if(m.symbol&&!m.autoSymbol&&!symbolMap[m.id])symbolMap[m.id]=m.symbol;
     }
+  }
+  tally(patArr,true);
+  if(extraCells)tally(extraCells,false);
+  let entries=Object.values(usage).sort((a,b)=>b.count-a.count);
+  // Every colour gets its own symbol. A symbol its cells carry (one the user
+  // chose, or painted with) is kept; when two colours carry the same one, the
+  // colour with more stitches keeps it and the other is reassigned. The rest
+  // take the glyph the PDF prints for them (SymbolGlyphs.forPalette), so the
+  // screen and the printed chart agree; if that glyph is already claimed by a
+  // carried symbol, the next free symbol is used.
+  let claimed={};
+  entries.forEach(e=>{
+    let c=symbolMap[e.id];
+    if(c&&!claimed[c]){claimed[c]=true;e.symbol=c;}
+  });
+  let ranked=entries.filter(e=>stitched[e.id]);
+  let pdf=typeof SymbolGlyphs!=="undefined"?SymbolGlyphs.forPalette(ranked):{};
+  // Ranked colours first, so a free symbol handed to an extra can't be the
+  // glyph the PDF prints for a colour not yet assigned.
+  ranked.concat(entries.filter(e=>!stitched[e.id])).forEach(e=>{
+    if(e.symbol)return;
+    let s=pdf[e.id];
+    if(!s||claimed[s])s=freeChartSymbol(claimed);
     claimed[s]=true;
     e.symbol=s;
+    e.autoSymbol=true;
   });
   let cm={};entries.forEach(e=>{cm[e.id]=e;});
-  return{pal:entries,cmap:cm};
+  let out={pal:entries,cmap:cm};
+  // Symbols past what the PDF can print; the PDF export refuses these charts.
+  if(typeof SymbolGlyphs!=="undefined"&&SymbolGlyphs.overflow(entries.length))out.symbolOverflow=SymbolGlyphs.overflow(entries.length);
+  return out;
 }
 
 // Recalculates stitch counts from the grid while preserving existing symbol assignments.
@@ -806,7 +874,7 @@ function restoreStitch(m,brand){
       if(m.rgb&&m.rgb.some((v,i)=>v!==out.rgb[i])){out.rgb=m.rgb;out.lab=rgbToLab(...m.rgb);}
       out.symbol=m.symbol;
       if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
-      return out;
+      if(m.autoSymbol)out.autoSymbol=true;return out;
     }
     // Blends with an unavailable catalogue or custom component keep their
     // saved colour and type, so a save cannot turn them into solids.
@@ -815,7 +883,7 @@ function restoreStitch(m,brand){
       let out={type:"blend",id:m.id,name:m.name||m.id,rgb:m.rgb,lab:lab,dist:0,symbol:m.symbol,
         threads:ids.map(function(id){let t=findThreadInCatalog(b,id);return t||{id:id,name:id,rgb:m.rgb,lab:lab};})};
       if(tag){out.brand=tag;out.threads=out.threads.map(t=>Object.assign({},t,{brand:tag}));}
-      return out;
+      if(m.autoSymbol)out.autoSymbol=true;return out;
     }
   }
   let t=findThreadInCatalog(b,m.id);
@@ -823,6 +891,7 @@ function restoreStitch(m,brand){
   let out=t?{type:"solid",id:t.id,name:t.name,rgb:rgb,lab:m.rgb?rgbToLab(...rgb):t.lab,dist:0,symbol:m.symbol}
     :{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
   if(tag)out.brand=tag;
+  if(m.autoSymbol)out.autoSymbol=true;
   return out;
 }
 

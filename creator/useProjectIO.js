@@ -373,9 +373,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Symbols chosen with Change symbol ride on their cells (buildPalette
     // keeps a symbol its cells carry).
     var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
-    if (savedSyms) {
-      restored = restored.map(function(c) { return c && savedSyms[c.id] ? Object.assign({}, c, { symbol: savedSyms[c.id] }) : c; });
-    }
+    restored = applySavedSymbols(restored, savedSyms);
     if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);

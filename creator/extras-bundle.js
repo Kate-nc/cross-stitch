@@ -2726,7 +2726,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
                   style:{borderBottom:"0.5px solid var(--surface-tertiary)", cursor:"pointer", background:rowBg}
                 },
-                  h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
+                  h("td", {style:{padding:"5px 10px", fontFamily:"var(--font-symbol)", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {
                       className: "colour-swatch",
@@ -4496,7 +4496,12 @@ window.CreatorExportTab = function CreatorExportTab() {
         g.fillStyle = 'black'; g.fillText('Screen colours are approximate. Key: thread / blend ID, symbol, full crosses in sample', 16, header + c.height + 22);
         local.forEach(function (p, i) {
           var entry = ctx.cmap[p.id] || p;
-          g.fillStyle = 'black'; g.fillText(p.id + '   ' + (entry.symbol || '') + '   ' + p.count, 16, header + c.height + 46 + i * 24);
+          var rowY = header + c.height + 46 + i * 24, idText = p.id + '   ';
+          g.fillStyle = 'black'; g.fillText(idText, 16, rowY);
+          var symX = 16 + g.measureText(idText).width, oldFont = g.font;
+          g.font = chartSymbolFont(14); g.fillText(entry.symbol || '', symX, rowY);
+          var symW = g.measureText(entry.symbol || '').width;
+          g.font = oldFont; g.fillText('   ' + p.count, symX + symW, rowY);
         });
         out.toBlob(function (blob) {
           exporting[1](false);

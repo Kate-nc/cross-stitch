@@ -846,7 +846,7 @@ function drawHalfLine(ctx, px, py, cSz, direction, rgb, alpha, lw) {
 // Draw a symbol centred on the half stitch cell.
 function drawHalfSymbol(ctx, px, py, cSz, direction, symbol, color) {
   ctx.fillStyle = color;
-  ctx.font = "bold " + Math.max(4, cSz * 0.32) + "px monospace";
+  ctx.font = chartSymbolFont(Math.max(4, cSz * 0.32), true);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(symbol, px + cSz / 2, py + cSz / 2);

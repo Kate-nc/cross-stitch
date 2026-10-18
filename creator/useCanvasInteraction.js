@@ -109,6 +109,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       .filter(function(p) { return !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (!zeroed.length) return r;
+    zeroed = dedupeChartSymbols(r.pal, zeroed);
     var cmap2 = Object.assign({}, r.cmap);
     zeroed.forEach(function(p) { cmap2[p.id] = p; });
     return { pal: r.pal.concat(zeroed), cmap: cmap2 };

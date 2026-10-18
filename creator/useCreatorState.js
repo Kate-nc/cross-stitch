@@ -341,6 +341,14 @@ function threadCountsSentence(c) {
 function threadCountsShort(c) {
   return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
 }
+// The printed chart has a fixed set of distinct symbols (SymbolGlyphs). When a
+// chart needs more, say so: it can't be exported to PDF as it is. Empty when
+// the chart fits.
+function symbolLimitWarning(c) {
+  var cap = window.SymbolGlyphs ? window.SymbolGlyphs.capacity() : 0;
+  if (!cap || !c || c.symbols <= cap) return '';
+  return 'This chart has ' + c.symbols + ' symbols, but the printed chart has only ' + cap + ' different ones. Lower Threads (max) or turn off blends and convert again; the PDF can\u2019t be exported as it is.';
+}
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
@@ -417,6 +425,7 @@ if (typeof window !== 'undefined') {
   window.creatorThreadCounts = creatorThreadCounts;
   window.threadCountsSentence = threadCountsSentence;
   window.threadCountsShort = threadCountsShort;
+  window.symbolLimitWarning = symbolLimitWarning;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -1380,10 +1389,10 @@ window.useCreatorState = function useCreatorState() {
     var result = buildPalette(np);
     if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
-    var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
+    var extras = dedupeChartSymbols(result.pal, scratchPalette.filter(function(x) { return !ids.has(x.id); }));
     var ec = {};
     extras.forEach(function(e) { ec[e.id] = e; });
-    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec) };
+    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec), symbolOverflow: result.symbolOverflow };
   }
 
   function chgW(v) {
@@ -1593,13 +1602,12 @@ window.useCreatorState = function useCreatorState() {
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
-    var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
-    var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
+    var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
-      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym, autoSymbol: true };
     } else {
-      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym, autoSymbol: true };
     }
     // Another brand's thread (P4-5) keeps its brand.
     if (d.brand && d.brand !== "dmc") entry.brand = d.brand;
@@ -1806,8 +1814,12 @@ window.useCreatorState = function useCreatorState() {
     // bar's "< Setup" button is the way back. (Polish B.)
     // Threads and chart symbols, not "colours": a blend is one symbol made of
     // two threads (audit IMG-02).
-    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    var tc = creatorThreadCounts(result.pal);
+    var counts = threadCountsSentence(tc);
     addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // More symbols than the printed chart has (audit UX-005): say so now, not at export.
+    var limitMsg = symbolLimitWarning(tc);
+    if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if

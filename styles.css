@@ -9,6 +9,8 @@
  * and add margin/padding equivalents to the base rule.
  */
 :root {
+  /* Chart symbols: the PDF's symbol font (symbol-glyphs.js registers it). */
+  --font-symbol: "CrossStitchSymbols", monospace;
   --accent: #B85C38;
   --accent-hover: #944526;
   --accent-light: #F4DDCF;
@@ -8111,7 +8113,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-row__swatch {
   width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm);
   border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
-  font-size: 15px; line-height: 1; font-weight: 600;
+  font-size: 15px; line-height: 1; font-weight: 600; font-family: var(--font-symbol);
 }
 .pal-row__swatch--black { color: black; }
 .pal-row__swatch--white { color: white; }
@@ -8136,7 +8138,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-symbols__title { flex: 1; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
 .pal-symbols__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; }
 .pal-symbols__btn {
-  height: 36px; font-size: 18px; line-height: 1; cursor: pointer;
+  height: 36px; font-size: 18px; line-height: 1; cursor: pointer; font-family: var(--font-symbol);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--text-primary);
 }
@@ -8190,7 +8192,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-pick-empty { font-size: var(--text-xs); color: var(--text-tertiary); padding: 8px 0; text-align: center; }
 
 /* Tool-strip swatches carry their symbol (P1-4). */
-.tb-swatch-sym { font-size: 16px; line-height: 1; font-weight: 600; pointer-events: none; }
+.tb-swatch-sym { font-size: 16px; line-height: 1; font-weight: 600; pointer-events: none; font-family: var(--font-symbol); }
 .tb-swatch-sym--black { color: black; }
 .tb-swatch-sym--white { color: white; }
 .tb-swatch-tip {

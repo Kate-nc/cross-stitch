@@ -3921,7 +3921,7 @@ function processLoadedProject(project){
   // keeps a symbol its cells carry.
   const savedSyms=project.symbols&&typeof project.symbols==="object"?project.symbols:null;
   symbolsRef.current=savedSyms;
-  if(savedSyms)restored=restored.map(c=>c&&savedSyms[c.id]?{...c,symbol:savedSyms[c.id]}:c);
+  restored=applySavedSymbols(restored,savedSyms);
   // French knots: their threads join the palette (one count each, as the
   // part stitches' quarters do), so they show in the key and the thread totals.
   const kW=(project.settings&&project.settings.sW)||project.w,kH=(project.settings&&project.settings.sH)||project.h;
@@ -3935,7 +3935,7 @@ function processLoadedProject(project){
     bsSeen.add(String(ln.colorId));
     try{bsCells.push(restoreStitch({id:String(ln.colorId),type:String(ln.colorId).includes('+')?'blend':'solid',rgb:ln.rgb||(/^#[0-9a-f]{6}$/i.test(ln.color||"")?[parseInt(ln.color.slice(1,3),16),parseInt(ln.color.slice(3,5),16),parseInt(ln.color.slice(5,7),16)]:undefined),brand:ln.brand||brand}));}catch(_){}
   });
-  let{pal:newPal,cmap:newCmap}=buildPalette(restored.concat(partialCells,knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
+  let{pal:newPal,cmap:newCmap}=buildPalette(restored,partialCells.concat(knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
   const rtInitialMarks=window.ThreadAccounting.snapshot({...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14},loadedWaste);
@@ -5277,10 +5277,10 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
 
   // Tier-aware font sizes
   const symPx=tierSymFontSz(cSz);
-  const fSym=`bold ${symPx}px monospace`;
-  const fCol=`bold ${Math.max(7,Math.round(symPx*0.92))}px monospace`;
-  const fHlDim=`${Math.max(6,Math.round(cSz*0.45))}px monospace`;
-  const fHlFocus=`bold ${symPx}px monospace`;
+  const fSym=chartSymbolFont(symPx,true);
+  const fCol=chartSymbolFont(Math.max(7,Math.round(symPx*0.92)),true);
+  const fHlDim=chartSymbolFont(Math.max(6,Math.round(cSz*0.45)));
+  const fHlFocus=chartSymbolFont(symPx,true);
   ctx.textAlign="center";ctx.textBaseline="middle";
 
   // Half-stitch detail flags — driven by tier rather than raw zoom percentage
@@ -9746,7 +9746,7 @@ return(
           ) : currentEntry ? (
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)',border:"1px solid var(--accent-border)"}}>
               <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
-              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
+              <span style={{fontFamily:"var(--font-symbol)",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
               <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>{threadLabel(currentEntry)}</span>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
               <span style={{fontSize:'var(--text-xs)',color:"var(--accent-text)",fontWeight:600}}>Current</span>
@@ -9763,7 +9763,7 @@ return(
                     background:isCurrent?"var(--accent-light)":"var(--surface)",cursor:isCurrent?"default":"pointer",
                     opacity:isCurrent?0.6:1}}>
                   <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
-                  <span style={{fontFamily:"monospace",fontWeight:700,fontSize:'var(--text-lg)',width:18,textAlign:"center"}}>{p.symbol}</span>
+                  <span style={{fontFamily:"var(--font-symbol)",fontWeight:700,fontSize:'var(--text-lg)',width:18,textAlign:"center"}}>{p.symbol}</span>
                   <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>{threadLabel(p)}</span>
                   <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
                   <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>

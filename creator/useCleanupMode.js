@@ -431,6 +431,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
       .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (zeroed.length) {
+      zeroed = dedupeChartSymbols(built.pal, zeroed);
       var cmap2 = Object.assign({}, built.cmap);
       zeroed.forEach(function(p) { cmap2[p.id] = p; });
       state.setPal(built.pal.concat(zeroed));

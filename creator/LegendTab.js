@@ -427,7 +427,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
                   style:{borderBottom:"0.5px solid var(--surface-tertiary)", cursor:"pointer", background:rowBg}
                 },
-                  h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
+                  h("td", {style:{padding:"5px 10px", fontFamily:"var(--font-symbol)", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {
                       className: "colour-swatch",
