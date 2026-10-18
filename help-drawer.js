@@ -301,8 +301,9 @@
           heading: "Stitch layers",
           body: "Full stitches, half and part stitches, French knots and backstitch are drawn as separate layers, so you can hide the ones you are not working on.",
           bullets: [
-            ["F, H, K and L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers."],
-            ["Shift+A", "Shows or hides all layers at once."]
+            ["Shift+F, Shift+H, Shift+K and Shift+L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers. They need Shift so that a stray keypress cannot blank the chart; the bare F key switches focus mode on and off."],
+            ["Shift+A", "Shows or hides all layers at once."],
+            ["Hidden layers", "Layers stay hidden when you reopen the project. While a layer that has stitches is hidden, a chip in the progress strip (above the focus mode bar, when the strip is hidden) says which, for example Full stitches hidden · Show. Choose it to show them all again."]
           ]
         }
       ]
@@ -608,10 +609,11 @@
     { id: "t.chartFocus", scope: "tracker", keys: ["Shift+G"], description: "Go back to the chart, so you do not have to Tab to it" },
     { id: "t.parkGuide", scope: "tracker", keys: ["Shift+F10", "Menu"], description: "Park a thread at the guide" },
     { id: "t.view",    scope: "tracker", keys: ["V"], description: "Cycle view: symbol / colour / highlight" },
-    { id: "t.full",    scope: "tracker", keys: ["F"], description: "Toggle full-stitch layer visibility" },
-    { id: "t.half",    scope: "tracker", keys: ["H"], description: "Toggle half-stitch layer visibility" },
-    { id: "t.knot",    scope: "tracker", keys: ["K"], description: "Toggle French-knot layer visibility" },
-    { id: "t.bs",      scope: "tracker", keys: ["L"], description: "Toggle backstitch layer visibility" },
+    { id: "t.focusMode", scope: "tracker", keys: ["F"], description: "Enter or leave focus mode (Esc also leaves it)" },
+    { id: "t.full",    scope: "tracker", keys: ["Shift+F"], description: "Toggle full-stitch layer visibility" },
+    { id: "t.half",    scope: "tracker", keys: ["Shift+H"], description: "Toggle half-stitch layer visibility" },
+    { id: "t.knot",    scope: "tracker", keys: ["Shift+K"], description: "Toggle French-knot layer visibility" },
+    { id: "t.bs",      scope: "tracker", keys: ["Shift+L"], description: "Toggle backstitch layer visibility" },
     { id: "t.allLay",  scope: "tracker", keys: ["Shift+A"], description: "Toggle all layers on / off" },
     { id: "t.drawer",  scope: "tracker", keys: ["D"], description: "Toggle the colours drawer" },
     { id: "t.count",   scope: "tracker", keys: ["C"], description: "Toggle counting aids" },
