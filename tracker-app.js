@@ -7411,6 +7411,9 @@ function goToParkedThread(colorId){
   centreOnCell(m.x,m.y);
 }
 
+// Single letters are type-ahead in a focused <select>, so F and the Shift+letter layer keys leave it alone (as the old raw
+// focus-mode listener did).
+const notInSelect=e=>!(e&&e.target&&e.target.tagName==="SELECT");
 // Built every render, so each entry's run() sees this render's state.
 const trackerShortcuts=!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
@@ -7492,21 +7495,26 @@ const trackerShortcuts=!isActive ? [] : [
   // Focus mode owns the bare F (the toolbar button's title says so). It works in edit mode too, hence scope "tracker".
   { id: "tracker.focusMode", keys: "f", scope: "tracker",
     description: "Enter or leave focus mode",
+    when: notInSelect,
     run: () => setFocusMode(v=>!v) },
 
   // Layer toggles are Shift+letter so that one slip of the finger cannot blank the chart. Backstitch is L (B chooses a line);
   // all-layers is Shift+A.
   { id: "tracker.layer.full",   keys: "shift+f", scope: "tracker.notedit",
     description: "Toggle full-stitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,full:!v.full})) },
   { id: "tracker.layer.half",   keys: "shift+h", scope: "tracker.notedit",
     description: "Toggle half-stitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,half:!v.half})) },
   { id: "tracker.layer.knot",   keys: "shift+k", scope: "tracker.notedit",
     description: "Toggle French-knot layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,french_knot:!v.french_knot})) },
   { id: "tracker.layer.bs",     keys: "shift+l", scope: "tracker.notedit",
     description: "Toggle backstitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,backstitch:!v.backstitch})) },
   { id: "tracker.layer.all",    keys: "shift+a", scope: "tracker.notedit",
     description: "Toggle all layers on/off",

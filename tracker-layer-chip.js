@@ -1,7 +1,7 @@
 /* tracker-layer-chip.js — a visible sign that the Tracker is hiding part of the chart.
    ════════════════════════════════════════════════════════════════════════════
    Layer visibility is remembered per project, so a layer hidden in one session is still hidden when the project is reopened,
-   and nothing on the chart says so. This chip sits in the progress strip (and in the Focus mode bar, which hides the strip)
+   and nothing on the chart says so. This chip sits in the progress strip (and, in Focus mode, which hides the strip, as a pill above the floating bar)
    whenever a layer that has stitches in this pattern is hidden, and one click shows everything again.
 
    Loaded as a plain <script> before tracker-app.js. Exposes window.TrackerHiddenLayersChip (a React component) and

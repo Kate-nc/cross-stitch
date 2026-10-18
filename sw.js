@@ -133,7 +133,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "f2e2cc1bdb0d19b35284f5ea099aee660df48bb6edefd9ad43c845b6a4a8e678";
+var BUILD_ID = "615b39d07c69acd3d3870da573da3b96c2b12c98066c8f7247999bfe6db2c20b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -305,7 +305,7 @@ var BUILD_ASSETS = {
     "sha256": "b09eeccd19842038e180a5a3fcc8d155988f172eb8434717d396a73dc3d87e63"
   },
   "./version.js": {
-    "sha256": "2144dc99d125b255627f3fd2534960c58d9b154ff0ec47f95c3b65f0b130e407"
+    "sha256": "d820234aecabb3762f0d39f4e9ea6a0d79062bde0d8edb936ecbabbbfe878a3d"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -464,7 +464,7 @@ var BUILD_ASSETS = {
     "sha256": "a37dd5b654e2ef76d996779aafeebf4e02146fc05d4ffc2a8be5a728ce0d59ce"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "28705872aa05119d731003ff545b29f1e2c44709dc73e999dc70b02e8f91b328"
+    "sha256": "24a919b6fb66315cc50616c8b06bf194284faf4dc0d5d2532609120e1d5c3605"
   },
   "./stats-activity.js": {
     "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
@@ -515,7 +515,7 @@ var BUILD_ASSETS = {
     "sha256": "438dd62ca44de0eaa812283d34f08e19a726ff2dc783bd16a9839d7acf3b89f3"
   },
   "./tracker-layer-chip.js": {
-    "sha256": "c78700a5a0b58841947f0cc26c75591c8e6dc1115ce2135672595ee3c455f368"
+    "sha256": "5c3bcd3183fa5b087e392aee182d721eb87e67fb307cb24924c09fbe7dff7e85"
   },
   "./work-area.js": {
     "sha256": "907f38a428eb2075c7d8bf5ebb4f66b825bd695348e879db3ab2e62f4eef02aa"
@@ -542,7 +542,7 @@ var BUILD_ASSETS = {
     "sha256": "2fdcf834be0f2af1c90860ccacccb0cb9c81a07cd185a145b58f5c4b675eeaa5"
   },
   "./help-drawer.js": {
-    "sha256": "8c20be13e0c3707f250ee0797734271b4d54aa7fbbb98ca947cf866e8ccedbcb"
+    "sha256": "bd0d60aa673c928830d1157a4338a74f27f57ea5074b79c58e274a017f750b1f"
   },
   "./creator/pdfExport.js": {
     "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"

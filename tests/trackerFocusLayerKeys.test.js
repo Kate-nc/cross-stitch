@@ -29,6 +29,14 @@ function registry() {
   return out;
 }
 
+// useEffect blocks that both add a keydown listener and call setFocusMode.
+function offendingEffects(src) {
+  return src.split(/(?=\buseEffect\()/).filter(chunk => {
+    const body = chunk.slice(0, chunk.search(/\n\},\[[^\]]*\]\);/) + 1 || 2000);
+    return /addEventListener\(\s*["']keydown["']/.test(body) && /setFocusMode/.test(body);
+  });
+}
+
 describe('one owner for F', () => {
   const reg = registry();
 
@@ -38,13 +46,10 @@ describe('one owner for F', () => {
   });
 
   test('no raw window keydown listener toggles focus mode any more', () => {
-    // A keydown listener on window/document that mentions focus mode would be a second owner of the key.
-    const listeners = trackerSrc.split(/(?=(?:window|document)\.addEventListener\(\s*["']keydown["'])/).slice(1);
-    listeners.forEach(block => {
-      const body = block.slice(0, 1500);
-      const handler = body.slice(0, body.search(/removeEventListener|\n\},\[/) > 0 ? body.search(/removeEventListener|\n\},\[/) : 1500);
-      expect(handler).not.toMatch(/setFocusMode/);
-    });
+    // A useEffect that adds a keydown listener and calls setFocusMode would be a second owner of the key.
+    expect(offendingEffects(trackerSrc)).toEqual([]);
+    // The check must be able to fail: the pre-fix listener is caught.
+    expect(offendingEffects('useEffect(()=>{\n  const onKey=e=>{ if(e.key==="f"){setFocusMode(v=>!v);} };\n  window.addEventListener("keydown",onKey);\n  return()=>window.removeEventListener("keydown",onKey);\n},[focusMode]);\n').length).toBe(1);
     expect(trackerSrc).not.toMatch(/e\.key===["']f["']\s*\|\|\s*e\.key===["']F["']/);
   });
 
@@ -97,6 +102,13 @@ describe('one owner for F', () => {
     test('each layer key does only its own layer', () => {
       ev('H', { shift: true }); ev('K', { shift: true }); ev('L', { shift: true }); ev('A', { shift: true });
       expect(calls).toEqual(['tracker.layer.half', 'tracker.layer.knot', 'tracker.layer.bs', 'tracker.layer.all']);
+    });
+    test('F and Shift+letter leave a focused <select> to its type-ahead', () => {
+      expect(trackerSrc).toContain('const notInSelect=e=>!(e&&e.target&&e.target.tagName==="SELECT");');
+      ['tracker.focusMode', 'tracker.layer.full', 'tracker.layer.half', 'tracker.layer.knot', 'tracker.layer.bs'].forEach(id => {
+        const at = trackerSrc.indexOf('id: "' + id + '"');
+        expect(trackerSrc.slice(at, at + 260)).toContain('when: notInSelect');
+      });
     });
     test('the old bare layer keys do nothing', () => {
       ev('h'); ev('k'); ev('l');

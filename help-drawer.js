@@ -303,7 +303,7 @@
           bullets: [
             ["Shift+F, Shift+H, Shift+K and Shift+L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers. They need Shift so that a stray keypress cannot blank the chart; the bare F key switches focus mode on and off."],
             ["Shift+A", "Shows or hides all layers at once."],
-            ["Hidden layers", "Layers stay hidden when you reopen the project. While a layer that has stitches is hidden, a chip in the progress strip (and in the focus mode bar) says which, for example Full stitches hidden · Show. Choose it to show them all again."]
+            ["Hidden layers", "Layers stay hidden when you reopen the project. While a layer that has stitches is hidden, a chip in the progress strip (above the focus mode bar, when the strip is hidden) says which, for example Full stitches hidden · Show. Choose it to show them all again."]
           ]
         }
       ]
