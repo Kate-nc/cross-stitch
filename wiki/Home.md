@@ -27,7 +27,7 @@ Inside the app, press **?** (or the **Help** button) for help on every tool and 
 Open `home.html` (or your deployment's address). Four tabs:
 
 - **Projects** — your active project and every other project, with Track, Edit and Export actions
-- **Create new** — **New from pattern file** (image, `.json`, `.oxs`, PCStitch 7 `.pat` or PDF) or **New from scratch**
+- **Create new** — **Stitch an existing chart** (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), **Convert a picture** (image), or **Draw a pattern**
 - **Stash** — what you own, what you could start, and your shopping list
 - **Stats** — lifetime stitches and recent activity
 

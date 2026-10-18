@@ -7159,7 +7159,7 @@ window.useCreatorState = function useCreatorState() {
   var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(false);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -13645,7 +13645,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // by the system): offer to carry on.
     var tabDraftId = null;
     try { tabDraftId = sessionStorage.getItem('cs_active_draft'); } catch (_) {}
-    if (tabDraftId && BS && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
+    // Explicit project links take precedence over a different unfinished conversion.
+    var explicitProject = new URLSearchParams(window.location.search).get('id');
+    if (tabDraftId && BS && !explicitProject && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
       BS.get(tabDraftId).then(function(rec) {
         if (!rec || !rec.blob) { try { sessionStorage.removeItem('cs_active_draft'); } catch (_) {} return false; }
         var nice = String(rec.name || 'your picture').replace(/\.[a-z0-9]+$/i, '');
@@ -13845,18 +13847,16 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }).then(settle, settle);
   }
 
-  // Keep the Convert draft's settings current, a second after the last change.
+  // Start each draft write as soon as settings commit. A debounce lost the last
+  // edit when Back or a workflow switch happened within its one-second window.
   var draftSettingsKey = JSON.stringify(creatorDraftSettings(state)) + '|' + (state.projectName || '');
   React.useEffect(function() {
     var d = draftRef.current;
-    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return undefined;
-    var t = setTimeout(function() {
-      var cur = draftRef.current;
-      if (!cur || cur.id !== d.id || state.pat) return;
-      window.BlobStore.put(cur.id, { blob: cur.blob, name: cur.name, type: cur.type, createdAt: cur.createdAt,
-        settings: creatorDraftSettings(state) }).catch(function() {});
-    }, 1000);
-    return function() { clearTimeout(t); };
+    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return;
+    window.BlobStore.put(d.id, { blob: d.blob, name: d.name, type: d.type, createdAt: d.createdAt,
+      settings: creatorDraftSettings(state) }).catch(function() {
+        if (state.addToast) state.addToast("Could not save conversion settings. Keep this page open and try again.", {type:"error"});
+      });
   }, [draftSettingsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The first pattern makes a real project, so the draft is done.
@@ -19259,6 +19259,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -20801,6 +20802,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, then Generate."),
+      h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
+        app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
+        app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
+      }}, "Show all conversion controls"),
       // 0. What kind of picture is this? (presets)
       pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)

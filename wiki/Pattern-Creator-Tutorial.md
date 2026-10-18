@@ -14,14 +14,14 @@ The Pattern Creator turns images into stitchable charts, or lets you design from
 ### From an image
 
 1. Open the app at **home.html**.
-2. Go to **Create new** and choose **New from pattern file**.
+2. Go to **Create new** and choose **Convert a picture**.
 3. Pick your image. The Pattern Creator opens with it loaded.
 
 You can also open an image inside the Creator with **File > Open…**.
 
 ### From scratch
 
-1. Go to **Create new** and choose **New from scratch**.
+1. Go to **Create new** and choose **Draw a pattern**.
 2. A blank grid opens. Add colours in the **Palette** tab and skip to [Editing Your Pattern](#editing-your-pattern).
 
 ### Guided import (experimental)

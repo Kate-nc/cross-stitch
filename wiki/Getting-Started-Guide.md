@@ -28,8 +28,13 @@ To delete projects, use the **Pattern Library** in the Stash Manager.
 
 ### Create new
 
-- **New from pattern file** — start from an image (JPG, PNG and so on), or open a saved `.json` project, an `.oxs` file or a PDF chart.
-- **New from scratch** — start with a blank grid and draw your own design.
+- **Stitch an existing chart** — review a PDF, `.oxs`, supported Pattern Maker `.xsd`, PCStitch 7 `.pat` or saved `.json` project, then start stitching or edit first.
+- **Convert a picture** — choose thread colours from a photograph or artwork. A photograph of a printed chart is not read as chart symbols; use the original PDF or supported chart file instead.
+- **Draw a pattern** — choose size and fabric, then draw on a blank grid.
+
+These paths also appear immediately on an empty Home. **Try a sample project** offers a small flower chart: select a thread, mark stitches and undo. Practice stays in page memory, never changes real projects, sessions, progress or inventory, and starts fresh on reload. Home tabs support browser Back.
+
+Conversion drafts remain in **Projects** when switching workflows. Their picture and settings stay on this device until generated or explicitly discarded. Saved projects and inventory can be protected with **File > Export Backup** and recovered with **File > Restore from Backup**; conversion drafts are excluded from backups. Import warning actions open **Palette**, **Pages** when available, or **Compare**. Expand **Verification and repairs** for details; invalid imports need repair or a corrected source before saving.
 
 ### Stash
 
@@ -41,9 +46,9 @@ Lifetime stitches, recent activity and your oldest work in progress. The full **
 
 ## Creating Your First Pattern
 
-1. Go to **Home > Create new** and choose **New from pattern file**.
+1. Go to **Home > Create new** and choose **Convert a picture**.
 2. Pick an image. Simple graphics and photos with clear subjects work best.
-3. The Pattern Creator opens with the image. Use the sidebar's **Image**, **Dimensions** and **Palette** tabs to set the size in stitches, the fabric count and the number of colours (10–20 is a good start). The preview updates as you go.
+3. The Pattern Creator opens with the image. Start with **Size & fabric** and **Colours**. Expand **Clean-up** or **Adjust image**, or choose **Show all conversion controls** to set the size in stitches, the fabric count and the number of colours (10–20 is a good start). The preview updates as you go.
 4. Generate the pattern.
 5. The **Tools** and **View** tabs unlock so you can edit stitches by hand.
 
@@ -55,7 +60,7 @@ Your project saves itself as you work — there is no Save button to remember.
 - **Part stitches and backstitch** — quarter, half and three-quarter stitches, and backstitch lines, from the tool strip.
 - **Replace a colour** — right-click a stitch and choose Replace this colour, or press `R`.
 - **Clean up** — Confetti Cleanup, Fix outline colours and Tidy stray stitches remove stray stitches.
-- **Export** — **Materials & Output > Export** produces a PDF chart, PNG, `.oxs` file or a `.zip` bundle.
+- **Export** — **Materials & Output > Export > Format & settings** includes **Stitches per page > Custom** for PDF density and produces a PDF chart, PNG, `.oxs` file or a `.zip` bundle.
 
 See the **[Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)** for details.
 
@@ -123,11 +128,12 @@ See **[Cross-Device Sync](Cross-Device-Sync.md)** for encryption, pairing codes 
 
 ### Can I import a pattern I found online?
 
-Yes. **Home > Create new > New from pattern file** (or **File > Open…**) reads:
+Yes. **Home > Create new > Stitch an existing chart** (or **File > Open…**) reads:
 - `.oxs` files (KG-Chart / Pattern Keeper / Open X-Stitch)
-- Pattern Maker `.xsd` binary charts from 4.8.4.12 only. Review counted omissions and compare with the original; [support and verification limits](../docs/xsd-import.md). XML Schema documents and PAT files are unsupported.
+- Pattern Maker `.xsd` binary charts from 4.8.4.12 only. Review counted omissions and compare with the original; [support and verification limits](../docs/xsd-import.md). XML Schema documents are unsupported.
+- Unencrypted PCStitch 7 `.pat` charts; review the import limitations against the original. Other versions and unrelated PAT formats are unsupported.
 - `.json` stitchx project files
-- images — converted into a pattern
+- for images, choose **Convert a picture** instead
 - PDF charts — including charts printed over several pages, scanned charts and booklets with several designs. A review screen lets you check pages and threads before saving.
 
 ### Can I print my pattern?

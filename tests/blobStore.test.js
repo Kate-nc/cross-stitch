@@ -120,8 +120,7 @@ describe('wiring', () => {
     expect(io).toMatch(/BS\.sweep\('handoff:', BS\.HANDOFF_TTL_MS\)/);
   });
 
-  test('drafts are saved a second after a change and deleted on first generation', () => {
-    expect(io).toMatch(/\}, 1000\);\s*return function\(\) \{ clearTimeout\(t\); \};\s*\}, \[draftSettingsKey\]\);/);
+  test('drafts are deleted on first generation', () => {
     expect(io).toMatch(/if \(!state\.pat \|\| !d \|\| !d\.id\) return;\s*if \(window\.BlobStore\) window\.BlobStore\.delete\(d\.id\)/);
   });
 

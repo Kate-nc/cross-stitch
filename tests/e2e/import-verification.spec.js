@@ -16,8 +16,12 @@ for (const width of [1280,390]) {
     });
     await expect(page.getByRole('status')).toHaveText('Usable import with limitations');
     await expect(page.locator('.import-review-coverage')).toHaveText('100% matched to the key');
+    await page.getByText('Verification and repairs',{exact:true}).click();
     await expect(page.locator('.import-review-verification li')).toHaveCount(6);
     await expect(page.locator('.import-warning')).toHaveCount(1);
+    await page.getByRole('button',{name:'Compare source',exact:true}).click();
+    await expect(page.getByRole('tab',{name:'Compare',exact:true})).toHaveAttribute('aria-selected','true');
+    await expect(page.getByRole('tab',{name:'Compare',exact:true})).toBeFocused();
     await expect(page.getByRole('button',{name:'Open guided wizard'})).toHaveCount(0);
     const download=page.getByRole('link',{name:'Download original source'});
     await expect(download).toHaveAttribute('download','chart.oxs');
