@@ -52,7 +52,7 @@ describe('Navigate hides the tool from the rest of the Creator', () => {
 describe('canvas', () => {
   const src = loadSource('creator/useCanvasInteraction.js');
   test('Navigate pans with one finger or the mouse, and a tap opens the stitch menu', () => {
-    expect(src).toMatch(/\(isTouchPointer\(e\) \|\| isPanTool\(\) \|\| isNavigate\(\)\) && \(isPanTool\(\) \|\| isNavigate\(\)/);
+    expect(src).toMatch(/\(isTouchPointer\(e\) \|\| isPanTool\(\) \|\| isNavigate\(\)\) && \(fingerNavigation \|\| isPanTool\(\) \|\| isNavigate\(\)/);
     expect(src).toMatch(/if \(panTap && isTouchPointer\(e\) && isNavigate\(\)\) \{/);
     // The menu waits out the double-tap window (double-tap zooms, P1-3).
     expect(src).toMatch(/navTapTimerRef\.current = setTimeout\(function\(\) \{[\s\S]{0,120}openCellMenuAt\(tapX, tapY\);[\s\S]{0,20}\}, DOUBLE_TAP_MS\);/);

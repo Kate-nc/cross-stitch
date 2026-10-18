@@ -346,6 +346,7 @@ function migrateNonKeptColors(mapped, keptIds, keptPalette, raw) {
  * @returns {{ pat, pal, cmap, confettiData }} or null if no palette found
  */
 window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
+  if (opts.exactPixelArt) return runExactPixelPipeline(img, opts);
   var sW = opts.sW, sH = opts.sH, maxC = opts.maxC;
   var bri = opts.bri, con = opts.con, sat = opts.sat;
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
@@ -408,4 +409,38 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     preCleanupIds: pipelineResult.preCleanupIds,
     disambigData: pipelineResult.disambigData,
   };
+};
+
+// Exact geometry, explicit solid-thread remapping. No quantisation, dithering,
+// filtering or small-region cleanup: even a single source pixel is deliberate.
+window.runExactPixelPipeline = function runExactPixelPipeline(img, opts) {
+  var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  if (!w || !h || w > 500 || h > 500) throw new Error("Exact pixel art supports source images up to 500 by 500 pixels; resize the source explicitly first.");
+  if ((opts.allowedPalette && !opts.allowedPalette.length) || (opts.stashConstrained && !opts.allowedPalette) || (opts.convertBrand && opts.convertBrand !== "dmc" && !opts.allowedPalette)) throw new Error("No threads are available for exact pixel-art remapping.");
+  var c = document.createElement("canvas"); c.width = w; c.height = h;
+  var cx = c.getContext("2d"); cx.imageSmoothingEnabled = false;
+  cx.drawImage(img, 0, 0);
+  var raw = cx.getImageData(0, 0, w, h).data;
+  // Reuse the corrected alpha cutoff and hidden-RGB handling. Pixel art uses
+  // source alpha alone; opaque background pixels remain deliberate stitches.
+  var coverage = prepareConversionPixels(raw, w, h, { skipBg: false });
+  var pool = opts.allowedPalette || DMC, byRgb = new Map(), mappings = [];
+  var mapped = new Array(w * h);
+  for (var i = 0; i < mapped.length; i++) {
+    if (!coverage[i]) { mapped[i] = { id: "__skip__" }; continue; }
+    var rgb = [raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]], key = rgb.join(",");
+    var row = byRgb.get(key);
+    if (!row) {
+      var thread = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
+      row = { source: rgb, thread: thread, count: 0 };
+      byRgb.set(key, row); mappings.push(row);
+    }
+    row.count++; mapped[i] = row.thread;
+  }
+  var palette = buildPalette(mapped), labels = labelConnectedComponents(mapped, w, h);
+  var confetti = analyzeConfetti(mapped, w, h, labels);
+  return { pat: mapped, mapped: mapped, pal: palette.pal, cmap: palette.cmap,
+    width: w, height: h, mappings: mappings,
+    confettiRaw: confetti, confettiClean: null,
+    confettiData: { raw: confetti, clean: confetti } };
 };

@@ -102,7 +102,8 @@ window.CropModal = function CropModal() {
           onPointerDown: gen.handleCropPointerDown,
           onPointerMove: gen.handleCropPointerMove,
           onPointerUp: gen.handleCropPointerUp,
-          onPointerCancel: gen.handleCropPointerCancel
+          onPointerCancel: gen.handleCropPointerCancel,
+          onLostPointerCapture: gen.handleCropPointerCancel
         },
           h("img", {
             src: gen.img.src,

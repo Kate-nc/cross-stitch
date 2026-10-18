@@ -397,6 +397,7 @@ window.PatternCanvas = function PatternCanvas() {
     onPointerMove:   cv.handlePatPointerMove,
     onPointerLeave:  cv.handlePatPointerLeave,
     onPointerCancel: cv.handlePatPointerCancel,
+    onLostPointerCapture: cv.handlePatPointerCancel,
     onContextMenu: function(e) {
       if (cv.activeTool === "backstitch" && cv.bsStart) {
         e.preventDefault();

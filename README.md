@@ -486,3 +486,18 @@ recorded. Snapshots live in this browser and are not part of portable backup or
 sync attachment manifests: download the projects and sources before clearing
 browser storage. Unsupported source objects must be repaired or re-exported;
 this workflow does not add a new importer or guarantee every external format.
+
+### Tablet editing and exact pixel art
+
+Creator **More tools > Pen draws; fingers navigate** enables pen tools with
+one-finger pan and two-finger pan/pinch. It is opt-in: if the browser cannot
+reliably distinguish the stylus, leave it off and switch explicitly between
+**Navigate** and **Draw**. Mixed pen/finger contact interrupts drawing; a remaining
+finger cannot resume it. Interrupted brush strokes can be undone as one action.
+
+In Convert, **Exact pixel-art import** preserves the source dimensions (up to
+500 by 500), one source pixel per stitch, without smoothing, dithering or cleanup.
+It uses the existing alpha cutoff: below 128 is empty, otherwise stitched.
+Colours still map to solid threads in the chosen brand or stash. Expand
+**Source colours mapped to threads** in the preview to review RGB matches and
+pixel counts before generating; several colours may share a thread.
