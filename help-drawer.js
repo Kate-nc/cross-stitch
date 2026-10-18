@@ -333,6 +333,10 @@
           ]
         },
         {
+          heading: "Project material reservations",
+          body: "Stash Manager > Project materials separates owned, reserved, available and estimated-needed skeins. Reserve estimated needs or set a fractional skein limit. Reserving never consumes stock. Claims use stable project-ID order, adjust with unfinished chart estimates and release for completed, archived, abandoned (UFO) or deleted projects. Available excludes all claims. Shopping lists share remaining free stock once; use the combined list to avoid duplicate purchases. Only the combined shortage is rounded up to whole skeins. Refresh after edits or purchases. Confirm substitutions explicitly using brand:number; the original chart identity stays unchanged and subsequent consumption uses the confirmed replacement. Remove a substitution before changing its replacement. Estimates use saved live-deduction geometry, count, strands, tails and waste, with 1,890 single-strand inches per skein. These differ from the older rounded Creator shopping estimator. Fabric and beads are excluded. Export shopping list JSON for a portable snapshot; full backups preserve reservation intent with stock and consumption history. Project-only exports do not reserve stock on another device.",
+        },
+        {
           heading: "Pattern Library",
           body: "The Pattern Library tab lists every project you save in the Creator or Tracker automatically, plus any pattern you add by hand here.",
           bullets: [

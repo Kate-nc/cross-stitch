@@ -1196,6 +1196,26 @@ const ProjectStorage = (() => {
       return done;
     },
 
+    // Planning must fail on read errors rather than treating an unreadable
+    // library as deleted projects and releasing every reservation.
+    async listMaterialProjects(ids) {
+      const db=await getDB();
+      try {return await new Promise((resolve,reject)=>{
+        const tx=db.transaction([STORE_NAME,'pendingImports'],'readonly');
+        const result=[];
+        const store=tx.objectStore(STORE_NAME);
+        const collect=p=>{
+          if(!p||typeof p.id!=='string'||!p.id.startsWith('proj_'))return;
+          const progress=tx.objectStore('pendingImports').get(PROGRESS_PREFIX+p.id);
+          progress.onsuccess=()=>result.push(applyProgressRecord(p,progress.result));
+        };
+        if(ids)ids.forEach(id=>{const req=store.get(id);req.onsuccess=()=>collect(req.result);});
+        else {const req=store.getAll();req.onsuccess=()=>{(req.result||[]).forEach(collect);};}
+        tx.oncomplete=()=>resolve(result);
+        tx.onerror=tx.onabort=()=>reject(tx.error||new Error('Could not read projects for material planning'));
+      });} finally {db.close();}
+    },
+
     async listProjects() {
       try {
         const db = await getDB();
