@@ -293,7 +293,7 @@
   portableEnum("preferredHoopStyle", ["light-maple", "dark-walnut", "white"]);
   portableEnum("preferredFrameStyle", ["slim-black", "wide-gold", "natural-wood"]);
   portableEnum("designerLogoPosition", ["top-left", "top-right"]);
-  portableEnum("exportPreset", ["patternKeeper", "homePrinting"]);
+  portableEnum("exportPreset", ["patternKeeper", "homePrinting", "custom"]);
   portableEnum("exportPageSize", ["auto", "a4", "letter"]);
   portableEnum("exportStitchesPerPage", ["small", "medium", "large", "custom"]);
   portableEnum("creatorDefaultDithering", ["off", "weak", "balanced", "strong"]);
@@ -348,7 +348,7 @@
     if (!EXPORT_PRESET_KEYS.every(function(k) { return Object.prototype.hasOwnProperty.call(p.settings, k) && PORTABLE_RULES[k](p.settings[k]); })) return false;
     var v = p.settings;
     return v.exportMarginsMm >= 10 && v.exportMarginsMm <= 30 &&
-      [v.exportCustomCols, v.exportCustomRows].every(function(n) { return n >= 10 && n <= 200 && n % 10 === 0; }) &&
+      [v.exportCustomCols, v.exportCustomRows].every(function(n) { return n >= 10 && n <= 200; }) &&
       (v.exportChartModeBw || v.exportChartModeColour);
   }
   PORTABLE_RULES.exportNamedPresets = function(v) {

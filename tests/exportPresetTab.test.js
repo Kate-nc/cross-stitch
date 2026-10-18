@@ -44,3 +44,22 @@ test('invalid settings disable PDF export and do not save presets',()=>{
  expect(button('Export PDF').disabled).toBe(true);
  change('Preset name','Invalid');click('Save as new preset');expect(window.UserPrefs.namedExportPresets()).toEqual([]);
 });
+test('layout updates immediately after settings edits and can preview the last clipped chart region',()=>{
+ ctx={...ctx,sW:137,sH:43,pat:Array.from({length:137*43},()=>ctx.pal[0])};render();
+ const firstCount=host.querySelector('figcaption').textContent;
+ click('Format & settings'); change('Stitches per page','custom');change('Custom columns per PDF page','30');change('Custom rows per PDF page','30');
+ expect(host.querySelector('figcaption').textContent).not.toBe(firstCount);
+ const select=host.querySelector('[aria-label="Preview chart page"]');change('Preview chart page',select.options.length-1);
+ expect(host.querySelector('svg[role="img"]').getAttribute('aria-label')).toContain('Chart page '+select.options.length);
+ ctx={...ctx,sW:1,sH:1,pat:[ctx.pal[0]]};render();
+ expect(host.querySelector('svg[role="img"]').getAttribute('aria-label')).toBe('Chart page 1, to scale');
+});
+test('Workshop compatibility reminder stays visible and Pattern Keeper quick preset resets the theme',()=>{
+ click('Format & settings');
+ const label=[...host.querySelectorAll('label')].find(el=>el.textContent.includes('Workshop print theme ('));
+ act(()=>label.querySelector('input').click());
+ expect(host.querySelector('figure').textContent).toContain('Workshop print theme is selected');
+ click('For Pattern Keeper');
+ expect(host.querySelector('figure').textContent).not.toContain('Workshop print theme is selected');
+ expect(window.UserPrefs.get('creator.pdfWorkshopTheme')).toBe(false);
+});

@@ -352,12 +352,12 @@
   window.exportPDF = legacyExportPDF;
   window.generatePatternThumbnail = legacyGenerateThumbnail;
   // exportCoverSheet was a separate jsPDF helper; route to the same pipeline
-  // with cover-only options for back-compat.
+  // with the legacy cover-focused options (cover, key and B&W chart).
   window.exportCoverSheet = function (ctx) {
     var project = buildExportProject(ctx);
     if (!project) return Promise.reject(new Error("No pattern to export"));
     var opts = Object.assign(presetPatternKeeper(), {
-      chartModes: [], includeInfo: false, includeIndex: false, miniLegend: false, includeCover: true,
+      chartModes: ["bw"], includeInfo: false, includeIndex: false, miniLegend: false, includeCover: true,
       branding: readBranding(),
     });
     return runExport(project, opts).then(function (bytes) {

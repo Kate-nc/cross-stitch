@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Actual worker outputs, shared-plan checks and raster previews; no CDN required.
 const fs=require('fs'), path=require('path'), assert=require('assert');
-const {execFileSync}=require('child_process');
+const execFile=require('util').promisify(require('child_process').execFile);
 const {PDFDocument}=require('pdf-lib');
 const {loadWorker,fixture}=require('../tests/pdfWorkerHarness');
 const layout=require('../creator/pdfChartLayout');
@@ -24,8 +24,8 @@ const scenarios=[
   assert.equal(progress.at(-1).total,plan.totalPages);
   const file=path.join(output,name+'.pdf');fs.writeFileSync(file,bytes);
   const chartPage=(opts.includeCover?1:0)+(opts.includeInfo?1:0)+plan.legendPages+1;
-  execFileSync('pdftoppm',['-f',String(chartPage),'-l',String(chartPage),'-scale-to','1100','-singlefile','-png',file,path.join(output,name+'-chart')]);
-  if(opts.branding)execFileSync('pdftoppm',['-f','1','-l','1','-scale-to','1100','-singlefile','-png',file,path.join(output,name+'-cover')]);
+  await execFile('pdftoppm',['-f',String(chartPage),'-l',String(chartPage),'-scale-to','1100','-singlefile','-png',file,path.join(output,name+'-chart')]);
+  if(opts.branding)await execFile('pdftoppm',['-f','1','-l','1','-scale-to','1100','-singlefile','-png',file,path.join(output,name+'-cover')]);
   results.push({name,dimensions:[w,h],options:opts,pages:pdf.getPageCount(),chartPages:plan.chartPages,legendPages:plan.legendPages,geometry:plan.geom});
  }
  fs.writeFileSync(path.join(output,'validation.json'),JSON.stringify(results,null,2)+'\n');console.log(JSON.stringify(results.map(({name,pages})=>({name,pages})),null,2));

@@ -139,7 +139,9 @@ self.onmessage = function (e) {
 
 // ─── build pipeline ──────────────────────────────────────────────────────
 async function buildPdf(project, options, reqId) {
-  Layout.validateOptions(options);
+  options = options || {};
+  var exportPlan = Layout.planExport(project, options);
+  if (options.includeBranding === false) options = Object.assign({}, options, {branding: {}});
   var PDFLib = self.PDFLib;
   if (!PDFLib) throw new Error("pdf-lib failed to load");
   var rgbColor = PDFLib.rgb;
@@ -172,14 +174,7 @@ async function buildPdf(project, options, reqId) {
   var helveticaBold = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
   // Resolve geometry once — every chart page uses identical cell size.
-  var geom = Layout.computePageGeometry({
-    pageSize: options.pageSize,
-    marginsMm: options.marginsMm,
-    stitchesPerPage: options.stitchesPerPage,
-    customCols: options.customCols,
-    customRows: options.customRows,
-    locale: options.locale,
-  });
+  var geom = exportPlan.geom;
 
   var pageWpt = Layout.mmToPt(geom.pageWmm);
   var pageHpt = Layout.mmToPt(geom.pageHmm);
@@ -209,17 +204,11 @@ async function buildPdf(project, options, reqId) {
   var themeCols = Layout.themeColors(theme);
 
   // Pagination plan.
-  var pages = Layout.paginate({
-    patternW: project.w,
-    patternH: project.h,
-    colsPerPage: geom.colsPerPage,
-    rowsPerPage: geom.rowsPerPage,
-    overlap: options.overlap,
-  });
+  var pages = exportPlan.pages;
 
   // Estimate total pages we are about to draw, for progress reporting.
   var chartModes = (options.chartModes && options.chartModes.length) ? options.chartModes : ["bw"];
-  var totalPages = Layout.planExport(project, options).totalPages;
+  var totalPages = exportPlan.totalPages;
 
   var pageDone = 0;
   function bumpPage(stage) {
@@ -347,6 +336,17 @@ async function embedAndPlaceLogoImage(pdfDoc, page, branding, marginPt, pageW, p
   } catch (_) { /* logo failures shouldn't kill the export */ }
 }
 
+function drawBrandingText(page, text, opts, width) {
+  text = String(text).replace(/[\r\n]+/g, " ");
+  var measured = opts.font.widthOfTextAtSize(text, opts.size);
+  if (measured > width) {
+    var size = opts.size * width / measured;
+    if (size < 6) throw new Error("PDF branding text is too long for this paper and margin. Shorten it in Profile & branding or disable profile branding.");
+    opts = Object.assign({}, opts, {size: size});
+  }
+  page.drawText(text, opts);
+}
+
 async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pageH, geom, themeCols) {
   var page = pdfDoc.addPage([pageW, pageH]);
   paintWorkshopBackground(page, pageW, pageH, rgbColor, themeCols);
@@ -370,10 +370,10 @@ async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pag
 
   // Designer name under title
   if (branding.designerName) {
-    page.drawText(branding.designerName, {
+    drawBrandingText(page, branding.designerName, {
       x: marginPt, y: pageH - marginPt - 60,
       size: 13, font: font, color: rgbColor(0.3, 0.3, 0.3),
-    });
+    }, pageW - 2 * marginPt - 10);
   }
 
   // Cover preview image
@@ -397,7 +397,7 @@ async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pag
   }
 
   // Metadata block (bottom)
-  var metaY = Layout.mmToPt(60);
+  var metaY = Math.max(Layout.mmToPt(60), marginPt + 98);
   var rows = [
     ["Dimensions",       project.w + " × " + project.h + " stitches"],
     ["Finished size",    finishedSize(project.w, project.h, project.fabricCt || 14)],
@@ -411,17 +411,17 @@ async function drawCoverPage(pdfDoc, project, options, font, bold, rgbColor, pag
 
   // Copyright + contact
   if (branding.designerCopyright) {
-    page.drawText(branding.designerCopyright, {
+    drawBrandingText(page, branding.designerCopyright, {
       x: marginPt, y: marginPt + 28,
       size: 9, font: font, color: rgbColor(0.4, 0.4, 0.4),
       maxWidth: pageW - 2 * marginPt,
-    });
+    }, pageW - 2 * marginPt - 10);
   }
   if (branding.designerContact) {
-    page.drawText(branding.designerContact, {
+    drawBrandingText(page, branding.designerContact, {
       x: marginPt, y: marginPt + 14,
       size: 9, font: font, color: rgbColor(0.4, 0.4, 0.4),
-    });
+    }, pageW - 2 * marginPt - 10);
   }
 }
 
@@ -507,18 +507,18 @@ function drawInfoPage(pdfDoc, project, options, font, bold, rgbColor, pageW, pag
   if (branding.designerName) {
     page.drawText("Designer", { x: marginPt, y: y, size: 12, font: bold, color: rgbColor(0, 0, 0) });
     y -= 16;
-    page.drawText(branding.designerName, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+    drawBrandingText(page, branding.designerName, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }, pageW - 2 * marginPt - 10);
     y -= 16;
   }
   if (branding.designerContact) {
-    page.drawText(branding.designerContact, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) });
+    drawBrandingText(page, branding.designerContact, { x: marginPt + 10, y: y, size: 10, font: font, color: rgbColor(0.15, 0.15, 0.15) }, pageW - 2 * marginPt - 10);
     y -= 13;
   }
   if (branding.designerCopyright) {
-    page.drawText(branding.designerCopyright, {
+    drawBrandingText(page, branding.designerCopyright, {
       x: marginPt, y: marginPt + 12, size: 9, font: font, color: rgbColor(0.4, 0.4, 0.4),
       maxWidth: pageW - 2 * marginPt,
-    });
+    }, pageW - 2 * marginPt - 10);
   }
 }
 
@@ -596,15 +596,20 @@ function drawLegendPages(pdfDoc, project, paletteMap, counts, font, bold, symbol
     var lastRows = entries.length - (pages - 1) * rowsPerPage;
     var ky = pageH - marginPt - 22 - 18 - 12 - lastRows * 18 - 14;
     var kPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-    if (ky - (order.length + 1) * 18 < marginPt) {
+    function newKnotPage() {
       kPage = pdfDoc.addPage([pageW, pageH]);
       paintWorkshopBackground(kPage, pageW, pageH, rgbColor, themeCols);
       ky = pageH - marginPt - 22;
       pages++;
     }
-    kPage.drawText("French knots", { x: marginPt, y: ky, size: 12, font: bold, color: rgbColor(0, 0, 0) });
-    ky -= 18;
+    if (ky - (order.length + 1) * 18 < marginPt) newKnotPage();
+    function knotHeading() {
+      kPage.drawText("French knots", { x: marginPt, y: ky, size: 12, font: bold, color: rgbColor(0, 0, 0) });
+      ky -= 18;
+    }
+    knotHeading();
     order.forEach(function (id) {
+      if (ky < marginPt) { newKnotPage(); knotHeading(); }
       var t = byThread[id];
       var pe = (project.palette || []).find(function (p) { return p && p.id === id; }) || { id: id, name: "", type: "solid" };
       var krgb = t.rgb || pe.rgb || [0, 0, 0];

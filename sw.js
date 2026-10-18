@@ -132,7 +132,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "69b9f37db127ae19a4ae668e52aaf747670c1a8ed9b710804acec4ac02cf579c";
+var BUILD_ID = "04310199554a3a0dd503202f461bde420e011b1d2a921e9e16d7b863fff363f1";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -429,7 +429,7 @@ var BUILD_ASSETS = {
     "sha256": "6ad95e6570ea633686aa0f96139eff3b9c1046745dd9d661901a5e813c21fcdb"
   },
   "./user-prefs.js": {
-    "sha256": "80143fe354209df90a5ff9fe31701018bc9c6753620a37f90d9f4b8e0e1fa255"
+    "sha256": "a24a76908e8be4acf01d02b5349c862779313e5d3491602afee00d4041d1607b"
   },
   "./sw-register.js": {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
@@ -438,7 +438,7 @@ var BUILD_ASSETS = {
     "sha256": "65f431bfe9286274bbb113a32a1ceb50e10e45d4c6980c4898df5ed14d9596a3"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "5aca125e531e706e673af5d6e529b5dfa49ed08ece38e5285a5e46410d2b3a4d"
+    "sha256": "1fa8fd53d572d294c1848c5060753241414001effd17f11f75ba43e996a55bce"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "d0399142a717ce58705e4d94071a364a34c830d5de4704df90ad8814d023d1a4"
@@ -540,7 +540,7 @@ var BUILD_ASSETS = {
     "sha256": "d1798c90fe63e363986ea2dd0796870fbddaa884b0723a28862f9b4116201222"
   },
   "./creator/pdfExport.js": {
-    "sha256": "46414465a6cffaf8cef430542fdeadf8de9a892110abdea6ecd2b16ea0fe67f8"
+    "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
   },
   "./sync-engine.js": {
     "sha256": "f44bf473a88b549d9b205a60f5ace94a09853deb42681e8ebd8b64eee1293f67"
@@ -612,7 +612,7 @@ var BUILD_ASSETS = {
     "sha256": "6f0ff93b3e6a6cda427b802efc10b578d58f0247110e46013dad8d8c6d9edc48"
   },
   "./creator/pdfChartLayout.js": {
-    "sha256": "daa57d91aba07a4954f9904d8c0538ab93a52d89908056d42331c50cafd55aa7"
+    "sha256": "dfab6001d334b9e243cdd78b99c6bf18a1e48189fa3e32b434136649049c91e1"
   },
   "./creator/symbolFontSpec.js": {
     "sha256": "a2a4de6283f67446424538e7ee83e10d8ae76f0c379b3ba8bdbbac27d6ca5e69"
@@ -630,7 +630,7 @@ var BUILD_ASSETS = {
     "sha256": "d8df561b9fba98e24f2e5130e40948809281bbbc55a20c412359f1a0a5eb35a6"
   },
   "./pdf-export-worker.js": {
-    "sha256": "0b6ab613d8c3385c4c4396b534b01f2b51c35b903c3ecb4222caa6c42251290a"
+    "sha256": "ed4b2bf7aa55c9f85067726511b1e13c3413b044b704e8a1048bb873eb7561b9"
   },
   "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js": {
     "integrity": "sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI"

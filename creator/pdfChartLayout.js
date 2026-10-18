@@ -120,8 +120,8 @@
   /**
    * Paginate a pattern of width × height into chart segments.
    *
-   * Each break is aligned to the next 10-stitch boundary, so 10×10 blocks
-   * never split. When `overlap` is truthy the previous page's last 2 rows/cols
+   * Density is snapped to tens. Without overlap, breaks align to 10-stitch
+   * boundaries. With overlap, the previous page's last 2 rows/cols
    * are repeated at the start of the next page (and tagged as overlap zones).
    *
    * Returns an array of { pageIndex, gridRow, gridCol, x0, y0, x1, y1,
@@ -140,8 +140,8 @@
 
     // Effective stride: each page advances by (colsPerPage - overlap), but the
     // FIRST page always starts at 0 with no overlap.
-    var strideX = Math.max(10, colsPerPage - overlap);
-    var strideY = Math.max(10, rowsPerPage - overlap);
+    var strideX = Math.max(1, colsPerPage - overlap);
+    var strideY = Math.max(1, rowsPerPage - overlap);
 
     // Build column anchors then row anchors.
     var anchorsX = [0];
@@ -187,9 +187,9 @@
     choice("theme", ["pk", "workshop"]);
     ["marginsMm", "customCols", "customRows"].forEach(function (k) {
       if (opts[k] == null) return;
-      var min = k === "marginsMm" ? 10 : 10, max = k === "marginsMm" ? 30 : 200;
+      var min = 10, max = k === "marginsMm" ? 30 : 200;
       if (!Number.isFinite(opts[k]) || opts[k] < min || opts[k] > max ||
-          (k !== "marginsMm" && opts[k] % 10 !== 0)) throw new Error("PDF " + k + " must be " + min + "–" + max + (k === "marginsMm" ? " mm." : " in steps of 10."));
+          !Number.isInteger(opts[k])) throw new Error("PDF " + k + " must be " + min + "–" + max + (k === "marginsMm" ? " mm." : " stitches (rounded down to tens)."));
     });
     ["overlap", "includeCover", "includeInfo", "includeIndex", "includeLegend", "miniLegend", "includeBranding"].forEach(function (k) {
       if (opts[k] != null && typeof opts[k] !== "boolean") throw new Error("Invalid PDF " + k + ".");
@@ -213,6 +213,7 @@
   // A single plan drives the preview and the worker's progress totals.
   function planExport(project, opts) {
     validateOptions(opts);
+    if (!project || !Number.isInteger(project.w) || !Number.isInteger(project.h) || project.w < 1 || project.h < 1) throw new Error("PDF chart dimensions must be positive whole stitches.");
     var geom = computePageGeometry(opts);
     var pages = paginate({patternW: project.w, patternH: project.h, colsPerPage: geom.colsPerPage,
       rowsPerPage: geom.rowsPerPage, overlap: opts.overlap});
@@ -223,7 +224,11 @@
       var knotThreads = new Set(project.knots.map(function (k) { return k.id; })).size;
       var lastRows = n - (legends - 1) * rows;
       var remaining = mmToPt(geom.pageHmm - 2 * geom.marginMm) - 52 - lastRows * 18 - 14;
-      if (remaining - (knotThreads + 1) * 18 < 0) legends++;
+      // Match the worker: keep a short knot key together, otherwise paginate it.
+      if (remaining - (knotThreads + 1) * 18 < 0) {
+        var knotRows = Math.floor((mmToPt(geom.pageHmm - 2 * geom.marginMm) - 40) / 18) + 1;
+        legends += Math.ceil(knotThreads / knotRows);
+      }
     }
     var charts = pages.length * (opts.chartModes || ["bw"]).length;
     var index = opts.includeIndex && pages.length > 1 ? 1 : 0;

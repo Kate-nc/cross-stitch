@@ -1,0 +1,6 @@
+Byte-identical: 1 threads, a4, 14901 bytes
+Byte-identical: 1 threads, letter, 14851 bytes
+Byte-identical: 100 threads, a4, 59241 bytes
+Byte-identical: 100 threads, letter, 59431 bytes
+Byte-identical: 112 threads, a4, 64159 bytes
+Byte-identical: 112 threads, letter, 64357 bytes
