@@ -47,7 +47,7 @@ describe("ExportPdf.optionsFromPrefs", () => {
     expect(ExportPdf.optionsFromPrefs()).toEqual({
       pageSize: "a4", marginsMm: 15, stitchesPerPage: "large", customCols: 50, customRows: 60,
       chartModes: ["bw"], overlap: false, includeCover: false, includeInfo: true,
-      includeIndex: false, miniLegend: false, locale: "en-GB", theme: "workshop"
+      includeIndex: false, includeLegend: true, includeBranding: true, miniLegend: false, locale: "en-GB", theme: "workshop"
     });
   });
 

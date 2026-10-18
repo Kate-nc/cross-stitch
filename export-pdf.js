@@ -53,6 +53,8 @@
       includeCover: !!pref("exportIncludeCover", true),
       includeInfo: !!pref("exportIncludeInfo", true),
       includeIndex: !!pref("exportIncludeIndex", true),
+      includeLegend: !!pref("exportIncludeLegend", true),
+      includeBranding: !!pref("exportIncludeBranding", true),
       miniLegend: !!pref("exportMiniLegend", true),
       locale: (typeof navigator !== "undefined" && navigator.language) || "en-GB",
       theme: pref("creator.pdfWorkshopTheme", false) === true ? "workshop" : "pk"
@@ -95,7 +97,7 @@
       var branding = typeof PE.readBranding === "function" ? PE.readBranding() : {};
       // Per-project designer overrides the global designer branding, as on the Export tab.
       if (ctx && ctx.projectDesigner) branding = Object.assign({}, branding, { designerName: ctx.projectDesigner });
-      opts.branding = branding;
+      opts.branding = opts.includeBranding ? branding : {};
       toast("Making your PDF…", "info", 2500);
       return PE.runExport(project, opts, null).then(function (bytes) {
         var fname = (project.name || "pattern").replace(UNSAFE_FILENAME_CHARS, "_") + ".pdf";

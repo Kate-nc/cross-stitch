@@ -50,8 +50,10 @@ describe('ExportTab.js dialog UI', () => {
 
   test('options.theme is forwarded to runExport for both single and bundle PDFs', () => {
     var matches = EXPORT_TAB_SRC.match(/theme:\s*workshopTheme\[0\]\s*\?\s*"workshop"\s*:\s*"pk"/g) || [];
-    // Once for `var opts =` (single PDF), once for `var pdfOpts =` (bundle).
-    expect(matches.length).toBe(2);
+    // Both paths share currentOptions, preventing settings drift.
+    expect(matches.length).toBe(1);
+    expect(EXPORT_TAB_SRC).toContain("var opts = currentOptions();");
+    expect(EXPORT_TAB_SRC).toContain("var pdfOpts = currentOptions();");
   });
 });
 

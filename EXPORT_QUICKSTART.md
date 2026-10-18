@@ -37,7 +37,7 @@ Choose **Materials & Output** in the Creator's page tabs, then the **Export** su
 Branding lives in **File > Preferences > Profile & branding** and is applied to every PDF:
 
 - **Your name or studio name** — appears on PDF cover pages.
-- **Copyright line** — shown in the footer of every chart page (e.g. _© 2026 Your Name. For personal use only._).
+- **Copyright line** — shown on cover/info pages (e.g. _© 2026 Your Name. For personal use only._).
 - **Contact or website** — printed on cover pages.
 - **Logo** — PNG or JPEG, up to 600 × 600 px, stored on this device only.
 - **Logo position on cover page** — top-left or top-right.
@@ -66,7 +66,7 @@ Expand **Format & settings** for fine control:
 - **Cover page / Info page / Chart index / Mini-legend strip** — toggle individual sections.
 - **Workshop print theme** — terracotta grid on a linen background. Off by default; leave it off for Pattern Keeper, which expects the standard black grid.
 
-The footer of the panel shows a live page-count estimate so you know what you'll get before clicking export.
+The layout preview shows a live page count so you know what you'll get before clicking export.
 
 ## 6. Export
 
@@ -105,3 +105,15 @@ Then:
 ---
 
 *Need to share this guide with collaborators?* It lives at `EXPORT_QUICKSTART.md` in the repository root.
+
+### Reusable PDF export presets
+
+In **Materials & Output > Export**, choose a saved preset and **Apply preset**, or name the current settings and **Save as new preset**. Change the existing Format & settings controls, then **Update selected preset** to save edits or a new name. **Delete preset** keeps the active settings. Names are unique (ignoring case), up to 80 characters; up to 50 presets are supported.
+
+Presets are **global preferences on this browser**, shared by all projects. Full backups restore them; project JSON, project bundles and sync do not carry them. Opening older projects uses current global export settings. Presets include page size, margins, density/custom rows and columns, chart modes, overlap, optional pages, legends, profile branding inclusion and print theme. They do not capture project metadata or a copy of the profile branding. Enabled branding uses the current Profile & branding preferences; a project designer takes precedence. Branding appears on cover/info pages, not chart pages.
+
+**Chart only** disables cover, info, index, thread legend pages and mini-legends while preserving paper size, density and chart modes. Enable **Thread legend pages** if the recipient needs a key. Mini-legends are independent summaries of colours used on a chart page.
+
+The live layout illustration shows the first chart page to scale, resolved paper dimensions, margins, cell size, chart regions and a page count from the export pagination plan. It illustrates bounds and colours; PDF symbols and typography are rendered during export. Auto resolves from the exporting browser locale, so choose A4 or Letter for a fixed paper size. Custom density accepts 10–200 stitches, rounded down to tens as shown in the preview; margins allow whole millimetres from 10–30. Branding lines shrink to fit, down to 6 pt; longer lines stop export with an explanation. Overlap repeats two rows/columns on adjacent pages. Unused palette entries do not add legend pages.
+
+All presets use the existing worker and its 112-symbol limit, missing-glyph and unsupported-stitch checks. Use the standard print theme for Pattern Keeper. Actual Pattern Keeper import remains a manual device check.

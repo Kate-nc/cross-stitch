@@ -1,0 +1,199 @@
+[
+  {
+    "name": "wide-letter",
+    "dimensions": [
+      137,
+      3
+    ],
+    "options": {
+      "marginsMm": 12,
+      "chartModes": [
+        "bw",
+        "colour"
+      ],
+      "includeCover": true,
+      "includeInfo": true,
+      "includeIndex": true,
+      "miniLegend": true,
+      "pageSize": "letter",
+      "stitchesPerPage": "custom",
+      "customCols": 50,
+      "customRows": 30,
+      "overlap": true
+    },
+    "pages": 10,
+    "chartPages": 6,
+    "legendPages": 1,
+    "geometry": {
+      "pageSize": "letter",
+      "pageWmm": 215.9,
+      "pageHmm": 279.4,
+      "marginMm": 12,
+      "contentWmm": 191.9,
+      "contentHmm": 255.39999999999998,
+      "chartAreaWmm": 185.9,
+      "chartAreaHmm": 219.39999999999998,
+      "chartHeaderMm": 14,
+      "chartFooterMm": 22,
+      "cellMm": 3.718,
+      "colsPerPage": 50,
+      "rowsPerPage": 30
+    }
+  },
+  {
+    "name": "tall-a4",
+    "dimensions": [
+      3,
+      173
+    ],
+    "options": {
+      "marginsMm": 12,
+      "chartModes": [
+        "bw",
+        "colour"
+      ],
+      "includeCover": true,
+      "includeInfo": true,
+      "includeIndex": true,
+      "miniLegend": true,
+      "pageSize": "a4",
+      "stitchesPerPage": "large",
+      "overlap": false
+    },
+    "pages": 12,
+    "chartPages": 8,
+    "legendPages": 1,
+    "geometry": {
+      "pageSize": "a4",
+      "pageWmm": 210,
+      "pageHmm": 297,
+      "marginMm": 12,
+      "contentWmm": 186,
+      "contentHmm": 273,
+      "chartAreaWmm": 180,
+      "chartAreaHmm": 237,
+      "chartHeaderMm": 14,
+      "chartFooterMm": 22,
+      "cellMm": 4.5,
+      "colsPerPage": 40,
+      "rowsPerPage": 50
+    }
+  },
+  {
+    "name": "multipage-a4",
+    "dimensions": [
+      121,
+      97
+    ],
+    "options": {
+      "marginsMm": 12,
+      "chartModes": [
+        "bw",
+        "colour"
+      ],
+      "includeCover": true,
+      "includeInfo": true,
+      "includeIndex": true,
+      "miniLegend": true,
+      "pageSize": "a4",
+      "overlap": true
+    },
+    "pages": 16,
+    "chartPages": 12,
+    "legendPages": 1,
+    "geometry": {
+      "pageSize": "a4",
+      "pageWmm": 210,
+      "pageHmm": 297,
+      "marginMm": 12,
+      "contentWmm": 186,
+      "contentHmm": 273,
+      "chartAreaWmm": 180,
+      "chartAreaHmm": 237,
+      "chartHeaderMm": 14,
+      "chartFooterMm": 22,
+      "cellMm": 2.9625,
+      "colsPerPage": 60,
+      "rowsPerPage": 80
+    }
+  },
+  {
+    "name": "chart-only",
+    "dimensions": [
+      73,
+      41
+    ],
+    "options": {
+      "marginsMm": 12,
+      "chartModes": [
+        "bw"
+      ],
+      "includeCover": false,
+      "includeInfo": false,
+      "includeIndex": false,
+      "miniLegend": false,
+      "pageSize": "letter",
+      "includeLegend": false
+    },
+    "pages": 2,
+    "chartPages": 2,
+    "legendPages": 0,
+    "geometry": {
+      "pageSize": "letter",
+      "pageWmm": 215.9,
+      "pageHmm": 279.4,
+      "marginMm": 12,
+      "contentWmm": 191.9,
+      "contentHmm": 255.39999999999998,
+      "chartAreaWmm": 185.9,
+      "chartAreaHmm": 219.39999999999998,
+      "chartHeaderMm": 14,
+      "chartFooterMm": 22,
+      "cellMm": 3.0983333333333336,
+      "colsPerPage": 60,
+      "rowsPerPage": 70
+    }
+  },
+  {
+    "name": "branded-letter",
+    "dimensions": [
+      17,
+      13
+    ],
+    "options": {
+      "marginsMm": 30,
+      "chartModes": [
+        "bw",
+        "colour"
+      ],
+      "includeCover": true,
+      "includeInfo": true,
+      "includeIndex": true,
+      "miniLegend": true,
+      "pageSize": "letter",
+      "branding": {
+        "designerName": "Needle & Thread Studio",
+        "designerCopyright": "© 2026 Needle & Thread Studio. Personal use only.",
+        "designerContact": "hello@example.test | needle.example.test"
+      }
+    },
+    "pages": 5,
+    "chartPages": 2,
+    "legendPages": 1,
+    "geometry": {
+      "pageSize": "letter",
+      "pageWmm": 215.9,
+      "pageHmm": 279.4,
+      "marginMm": 30,
+      "contentWmm": 155.9,
+      "contentHmm": 219.39999999999998,
+      "chartAreaWmm": 149.9,
+      "chartAreaHmm": 183.39999999999998,
+      "chartHeaderMm": 14,
+      "chartFooterMm": 22,
+      "cellMm": 2.998,
+      "colsPerPage": 50,
+      "rowsPerPage": 60
+    }
+  }
+]
