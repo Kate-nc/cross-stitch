@@ -122,4 +122,24 @@ test.describe('Editing a stitched pattern (desktop)', function() {
       });
     }, { timeout: 10000 }).toBe(200);
   });
+  test('A palette swap resets the stitched cells it recolours; the toolbar Undo restores them', async function({ page }) {
+    await generateLogo(page);
+    await stitchFirst(page, 200);
+    const doneCount = function() {
+      return page.evaluate(async function() {
+        var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+        return p.done.filter(Boolean).length;
+      });
+    };
+    await page.getByRole('tab', { name: 'Convert' }).click();   // the swap lives in the Convert panel
+    await page.getByText('Shift Colours', { exact: true }).first().click();
+    await page.getByRole('button', { name: '180\u00B0', exact: true }).click();
+    await page.getByRole('button', { name: 'Preview & Apply' }).click();
+    await page.getByRole('button', { name: 'Apply Swap' }).click();
+    await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 5000 });
+    await expect.poll(doneCount, { timeout: 10000 }).toBeLessThan(200);
+    await page.getByRole('tab', { name: 'Edit' }).click();
+    await undoButton(page).click();   // one Undo undoes the swap and the reset together
+    await expect.poll(doneCount, { timeout: 10000 }).toBe(200);
+  });
 });

@@ -337,8 +337,9 @@ a stray click edits nothing. Choosing a tool or a colour swatch switches to
 
 When the project has stitching progress, the Edit tab says so (for example
 "This project is 34% stitched"). Changing the colour or stitch type of a cell
-you have marked done (painting, filling, erasing, replacing a colour, cleanup,
-moving or pasting over it) sets that cell back to not done, so your progress
+you have marked done (painting, filling, erasing, replacing a colour, a palette swap or Revert to
+generated palette, Keep look-alike colours apart, cleanup, moving or pasting
+over it) sets that cell back to not done, so your progress
 never counts a stitch in the wrong thread. A toast tells you how many cells were
 reset and has an **Undo** button; Undo and Redo in the toolbar bring the marks
 back, or clear them again, together with the edit. Choose **Show stitched** in

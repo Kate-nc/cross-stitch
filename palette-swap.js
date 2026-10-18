@@ -1062,6 +1062,8 @@ function usePaletteSwap(props) {
   var editHistory = props.editHistory, setEditHistory = props.setEditHistory;
   var setRedoHistory = props.setRedoHistory;
   var setDone = props.setDone;
+  // Resets stitched cells whose colour an edit changes (UX-006); see creator/stitchedEdits.js.
+  var guardStitchedEdit = props.guardStitchedEdit;
   var EDIT_HISTORY_MAX = props.EDIT_HISTORY_MAX || 50;
   var buildPaletteWithScratch = props.buildPaletteWithScratch || buildPalette;
   var genPatSnapshot = props.genPatSnapshot || null;
@@ -1226,19 +1228,23 @@ function usePaletteSwap(props) {
       }
     }
     if (changes.length === 0) return;
+    var revertPat = snap.pat.slice();
+    // Stitched cells that change colour go back to not done, in this undo step (UX-006).
+    var revertReset = guardStitchedEdit && guardStitchedEdit(changes, revertPat);
+    var revertEntry = { type: 'revert_to_gen', changes: changes };
+    if (revertReset) revertEntry.doneReset = revertReset;
     setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'revert_to_gen', changes: changes }]);
+      var n = prev.concat([revertEntry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     setRedoHistory([]);
-    setPat(snap.pat.slice());
+    setPat(revertPat);
     setPal(snap.pal.slice());
     setCmap(Object.assign({}, snap.cmap));
-    // DO NOT zero `done` here. Palette revert changes colours assigned to each
-    // cell index, but it does NOT move stitches around. A done mark at index i
-    // means "the user stitched cell i" and remains semantically valid after a
-    // revert. Wiping it would silently destroy stitching progress (DEFECT-004).
+    // DEFECT-004: never zero `done` wholesale. Only the stitched cells whose
+    // colour actually changed are reset (UX-006, above); every other done mark
+    // is kept, and the reset is part of the same undo step.
     setShiftDeg(0); setActivePreset(null); setActiveTier(null); setMappingOverrides(null);
   }
 
@@ -1263,21 +1269,24 @@ function usePaletteSwap(props) {
       return;
     }
 
+    var newPat = applyMapping(pat, finalMapping);
+    // Stitched cells that change colour go back to not done, in this undo step (UX-006).
+    var swapReset = guardStitchedEdit && guardStitchedEdit(changes, newPat);
+    var swapEntry = { type: "palette_swap", changes: changes };
+    if (swapReset) swapEntry.doneReset = swapReset;
     setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "palette_swap", changes: changes }]);
+      var n = prev.concat([swapEntry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
     setRedoHistory([]);
 
-    var newPat = applyMapping(pat, finalMapping);
     var result = buildPaletteWithScratch(newPat);
     setPat(newPat);
     setPal(result.pal);
     setCmap(result.cmap);
-    // DO NOT zero `done` here. A palette swap re-colours cells in place but
-    // does not move them, so existing done marks remain valid for the same
-    // indices. Wiping silently would destroy stitching progress (DEFECT-004).
+    // DEFECT-004: never zero `done` wholesale. Only the stitched cells whose
+    // colour changed are reset (UX-006, above); the rest keep their marks.
 
     // Reset swap state
     setShiftDeg(0);

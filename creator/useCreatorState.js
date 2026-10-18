@@ -1339,6 +1339,35 @@ window.useCreatorState = function useCreatorState() {
     return idxs;
   }, []);
 
+  // Re-apply of "Keep look-alike colours apart" (and its worker result) swaps
+  // cell colours, so it gets an undo step of its own and goes through the
+  // progress guard like any other edit. Latest-render closure via a ref: the
+  // worker's onmessage is created once and would otherwise see a stale `pat`.
+  var patRef = useRef(pat); patRef.current = pat;
+  var applyDisambiguatedRef = useRef(null);
+  applyDisambiguatedRef.current = function(mapped, build) {
+    var prev = patRef.current, SE = window.StitchedEdits, changes = [];
+    if (prev && SE && mapped.length === prev.length) {
+      for (var i = 0; i < mapped.length; i++) {
+        if (mapped[i] !== prev[i] && SE.cellChanged(prev[i], mapped[i])) changes.push({ idx: i, old: Object.assign({}, prev[i]) });
+      }
+    }
+    if (changes.length) {
+      var entry = { type: "disambiguate", changes: changes };
+      var reset = guardStitchedEdit(changes, mapped);
+      if (reset) entry.doneReset = reset;
+      setEditHistory(function(h) {
+        var n = h.concat([entry]);
+        if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
+        return n;
+      });
+      setRedoHistory([]);
+    }
+    setPat(mapped);
+    var r = build(mapped);
+    setPal(r.pal); setCmap(r.cmap);
+  };
+
   // What the rest of the Creator sees: no tool while in Navigate.
   var effActiveTool = drawMode ? activeTool : null;
   var effPartialStitchTool = drawMode ? partialStitchTool : null;
@@ -1888,9 +1917,7 @@ window.useCreatorState = function useCreatorState() {
             // Post-hoc disambiguation result from PatternTab Re-apply.
             // Apply the updated mapped array and store disambigData.
             if (msg.mapped && msg.mapped.length) {
-              setPat(msg.mapped);
-              var pRes = buildPalette(msg.mapped);
-              setPal(pRes.pal); setCmap(pRes.cmap);
+              applyDisambiguatedRef.current(msg.mapped, buildPalette);
             }
             setDisambigData(msg.disambigData || null);
             setBusy(false);
@@ -2241,12 +2268,7 @@ window.useCreatorState = function useCreatorState() {
           var dr = typeof disambiguateSimilarNeighbours !== 'undefined'
             ? disambiguateSimilarNeighbours(mapped2, sW, sH, null, null, solidPal, Object.assign({deriveBoundaryEdges: true}, (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[disambigLevel] || {threshold: 15, maxDegradation: 20}))
             : {totalSwaps: 0, iterations: 0};
-          var newPal = buildPaletteWithScratch(mapped2);
-          var newCmap = {};
-          newPal.forEach(function(e) { newCmap[e.id] = e; });
-          setPat(mapped2);
-          setPal(newPal);
-          setCmap(newCmap);
+          applyDisambiguatedRef.current(mapped2, buildPaletteWithScratch);
           setDisambigData({swaps: dr.totalSwaps, iterations: dr.iterations});
           setBusy(false);
         } catch (err) { console.error(err); setBusy(false); }
@@ -2303,6 +2325,7 @@ window.useCreatorState = function useCreatorState() {
     setPal: setPal,
     setCmap: setCmap,
     setDone: setDone,
+    guardStitchedEdit: guardStitchedEdit,
     editHistory: editHistory,
     setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory,

@@ -81,7 +81,7 @@ describe('StitchedEdits.stitchedResets', () => {
 function loadGuard(initialDone) {
   const src = read('creator/useCreatorState.js');
   const start = src.indexOf('  var doneRef = useRef(done);');
-  const end = src.indexOf('  // What the rest of the Creator sees');
+  const end = src.indexOf('  // Re-apply of "Keep look-alike colours apart"');
   const body = src.slice(start, end);
   const calls = { setDone: [], toasts: [], undone: [] };
   const fn = new Function('window', 'useRef', 'useCallback', 'done', 'setDone', 'addToast',
@@ -311,5 +311,135 @@ describe('what the user is told', () => {
   test('no emoji or arrow glyphs were added to the new copy', () => {
     const added = [tab, SE.resetMessage(3)].join('\n');
     expect(added).not.toMatch(/[✓✗⚠ℹ→←▸✕]/);
+  });
+});
+
+// ── Palette swap, Revert to generated palette, and Re-apply (look-alike colours) ──
+// These recolour cells outside the paint tools, so they ask the guard too.
+function liftFunction(src, name) {
+  const m = new RegExp('  function ' + name + '\\s*\\([^)]*\\)\\s*\\{').exec(src);
+  if (!m) throw new Error('function not found: ' + name);
+  let i = m.index + m[0].length, depth = 1;
+  while (i < src.length && depth > 0) { const ch = src[i++]; if (ch === '{') depth++; else if (ch === '}') depth--; }
+  return src.slice(m.index, i);
+}
+const noop = () => {};
+function paletteSwapFns(s, extra) {
+  const src = read('palette-swap.js');
+  const names = ['setShiftDeg', 'setActivePreset', 'setActiveTier', 'setMappingOverrides', 'setShowConfirm'];
+  const args = Object.assign({
+    pat: s.pat, EDIT_HISTORY_MAX: 50, guardStitchedEdit: s.guardStitchedEdit,
+    setEditHistory: s.setEditHistory, setRedoHistory: s.setRedoHistory,
+    setPat: s.setPat, setPal: s.setPal, setCmap: s.setCmap, buildPaletteWithScratch: s.buildPaletteWithScratch
+  }, extra);
+  names.forEach((n) => { args[n] = noop; });
+  const keys = Object.keys(args);
+  const body = liftFunction(src, 'applySwap') + '\n' + liftFunction(src, 'revertToGenPalette') +
+    '\nreturn { applySwap: applySwap, revertToGenPalette: revertToGenPalette };';
+  return new Function(...keys, body)(...keys.map((k) => args[k]));
+}
+const swapMapping = (from, to) => {
+  const dest = { id: to, type: 'solid', rgb: [1, 2, 3] };
+  return { [from]: { source: { id: from }, dest, locked: false }, [to]: { source: { id: to }, dest: { id: to }, locked: false } };
+};
+const applyMappingStub = (p, mapping) => p.map((c) => {
+  const m = mapping[c.id];
+  return m && m.source.id !== m.dest.id ? Object.assign({}, c, { id: m.dest.id, rgb: m.dest.rgb }) : c;
+});
+
+describe('Palette swap on a stitched pattern', () => {
+  test('stitched cells that change thread go back to not done; unchanged ones keep their mark', () => {
+    const s = fixture();
+    const fns = paletteSwapFns(s, { finalMapping: swapMapping('310', '321'), applyMapping: applyMappingStub });
+    fns.applySwap();
+    expect(s.pat.map((c) => c.id)).toEqual(['321', '321', '321', '321']);
+    expect(Array.from(s.done)).toEqual([0, 0, 1, 0]);            // cell 2 was already 321 and stays stitched
+    expect(s.toasts.some((t) => t.msg === '2 stitched cells reset to not done.')).toBe(true);
+    expect(s.editHistory[0].type).toBe('palette_swap');
+    expect(s.editHistory[0].doneReset).toEqual([0, 1]);
+  });
+
+  test('one Undo restores both the colours and the stitching; redo resets again', () => {
+    const s = fixture();
+    paletteSwapFns(s, { finalMapping: swapMapping('310', '321'), applyMapping: applyMappingStub }).applySwap();
+    const history = window.useEditHistory(s);
+    history.undoEdit();
+    expect(s.pat.map((c) => c.id)).toEqual(['310', '310', '321', '310']);
+    expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
+    history.redoEdit();
+    expect(Array.from(s.done)).toEqual([0, 0, 1, 0]);
+  });
+
+  test('a swap that touches no stitched cell resets nothing and says nothing', () => {
+    const s = fixture();
+    s.done = new Uint8Array([0, 0, 1, 0]);
+    paletteSwapFns(s, { finalMapping: swapMapping('310', '321'), applyMapping: applyMappingStub }).applySwap();
+    expect(Array.from(s.done)).toEqual([0, 0, 1, 0]);
+    expect(s.editHistory[0].doneReset).toBeUndefined();
+    expect(s.toasts).toHaveLength(0);
+  });
+
+  test('Revert to generated palette resets the stitched cells it recolours, in one undo step', () => {
+    const s = fixture();                                          // current pattern is the swapped one
+    const generated = [BLACK, BLACK, BLACK, BLACK].map((c) => Object.assign({}, c));
+    const fns = paletteSwapFns(s, { genPatSnapshot: { pat: generated, pal: [BLACK], cmap: { '310': BLACK } }, hasPaletteChanged: true });
+    fns.revertToGenPalette();
+    expect(s.pat.map((c) => c.id)).toEqual(['310', '310', '310', '310']);
+    expect(Array.from(s.done)).toEqual([1, 1, 0, 0]);            // only cell 2 (321 -> 310) was stitched and changed
+    expect(s.editHistory[0].type).toBe('revert_to_gen');
+    expect(s.editHistory[0].doneReset).toEqual([2]);
+    window.useEditHistory(s).undoEdit();
+    expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
+  });
+
+  test('neither function zeroes the whole done array (DEFECT-004 still holds)', () => {
+    const src = read('palette-swap.js');
+    expect(liftFunction(src, 'applySwap')).not.toMatch(/setDone\s*\(/);
+    expect(liftFunction(src, 'revertToGenPalette')).not.toMatch(/setDone\s*\(/);
+    expect(read('creator/useCreatorState.js')).toMatch(/setDone: setDone,\s*guardStitchedEdit: guardStitchedEdit,/);
+  });
+});
+
+describe('Re-apply "keep look-alike colours apart" on a stitched pattern', () => {
+  function disambiguator(s) {
+    const src = read('creator/useCreatorState.js');
+    const start = src.indexOf('  var patRef = useRef(pat);');
+    const end = src.indexOf('  // What the rest of the Creator sees');
+    expect(start).toBeGreaterThan(0);
+    const body = src.slice(start, end);
+    const fn = new Function('window', 'useRef', 'pat', 'guardStitchedEdit', 'setEditHistory', 'setRedoHistory',
+      'EDIT_HISTORY_MAX', 'setPat', 'setPal', 'setCmap', body + '\nreturn applyDisambiguatedRef;');
+    return fn(window, (v) => ({ current: v }), s.pat, s.guardStitchedEdit, s.setEditHistory,
+      s.setRedoHistory, 50, s.setPat, s.setPal, s.setCmap);
+  }
+  // What the worker sends back: fresh objects for every cell (structured clone).
+  const workerResult = (ids) => ids.map((id) => Object.assign({}, id === '310' ? BLACK : RED));
+
+  test('cells the pass recolours go back to not done and the pass can be undone', () => {
+    const s = fixture();
+    disambiguator(s).current(workerResult(['310', '321', '321', '310']), s.buildPaletteWithScratch);
+    expect(s.pat.map((c) => c.id)).toEqual(['310', '321', '321', '310']);
+    expect(Array.from(s.done)).toEqual([1, 0, 1, 0]);            // only cell 1 changed colour
+    expect(s.editHistory).toHaveLength(1);
+    expect(s.editHistory[0].type).toBe('disambiguate');
+    expect(s.editHistory[0].doneReset).toEqual([1]);
+    expect(s.cmap['321']).toBeDefined();                          // palette rebuilt from the new pattern
+    window.useEditHistory(s).undoEdit();
+    expect(s.pat.map((c) => c.id)).toEqual(['310', '310', '321', '310']);
+    expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
+  });
+
+  test('a pass that changes nothing adds no history entry and no toast', () => {
+    const s = fixture();
+    disambiguator(s).current(workerResult(['310', '310', '321', '310']), s.buildPaletteWithScratch);
+    expect(s.editHistory).toHaveLength(0);
+    expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
+    expect(s.toasts).toHaveLength(0);
+  });
+
+  test('both the worker result and the no-Worker fallback go through it', () => {
+    const src = read('creator/useCreatorState.js');
+    expect(src).toMatch(/applyDisambiguatedRef\.current\(msg\.mapped, buildPalette\)/);
+    expect(src).toMatch(/applyDisambiguatedRef\.current\(mapped2, buildPaletteWithScratch\)/);
   });
 });
