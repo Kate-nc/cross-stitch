@@ -4,7 +4,7 @@
 // PR merge to main. Do not edit APP_VERSION manually.
 // APP_CHANGELOG is maintained manually alongside each release.
 // ════════════════════════════════════════════════════════════════════
-window.APP_VERSION = '1.0.175';
+window.APP_VERSION = '1.0.176';
 
 window.APP_CHANGELOG = [
   {
@@ -12,6 +12,7 @@ window.APP_CHANGELOG = [
     date: 'October 2026',
     notes: [
       'Fixed: a chart never reuses a symbol. Every thread and blend gets its own, and the symbol on screen in the Creator and Tracker is now the same shape the PDF prints for that thread. Charts of up to 112 symbols are supported; converting a picture that needs more shows a warning and a mark in the Palette header. Projects saved with repeated symbols are repaired on opening: symbols you chose are kept, and only repeats change. Done stitches are untouched.',
+      'Added: opt-in pen drawing with finger navigation, safe gesture interruption and native-size exact pixel-art import. Preview each source colour matched to a solid thread; hard edges, one-pixel details and transparent holes are preserved. Exact mode supports sources up to 500 by 500 pixels.',
       'Improved: Home exposes Stitch an existing chart, Convert a picture and Draw a pattern, explains printed-chart photographs, and offers an isolated practice chart. Browser Back restores Home tabs, conversion draft settings save promptly, advanced conversion controls expand on demand, and import warnings link to available repair tabs. Existing PDF density, symbol reassignment and backup controls are easier to find.',
       'Added: initial unencrypted PCStitch 7 PAT import with DMC identifiers, dimensions, full crosses, supported fractions and backstitch. Review reports omitted objects and unverified blends, palette attributes and header options. Other versions are rejected; the original file is retained for comparison and repair.',
       'Added: version-gated Pattern Maker XSD 4.8.4.12 import with bounded binary parsing, original thread identities and geometry, counted unsupported objects and explicit verification limits. Other XSD versions and XML schemas are rejected.',

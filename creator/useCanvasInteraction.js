@@ -52,12 +52,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var dragPartialStitchesRef = React.useRef(null);
   var dragBsLinesRef       = React.useRef(null);
   var activePointersRef    = React.useRef(new Map());
+  var cropPointersRef = React.useRef(new Map());
   var pinchStateRef        = React.useRef(null);
   var panStateRef          = React.useRef(null);
   var pendingTapRef        = React.useRef(null);
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
   var touchDrawRef         = React.useRef(null);  // one finger drawing (loupe / tap-on-lift)
+  var suppressPointersRef = React.useRef(false); // navigation owns this contact sequence
   var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
   var navTapTimerRef       = React.useRef(null);
 
@@ -145,6 +147,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
     if (t === "paint" || t === "eraseAll") return "stroke";
     if (isShapeTool(t)) return "stroke";
+    if (t === "fill" || t === "eraseBs" || t === "magicWand" || t === "colourReplace") return "single";
     if (t === "eyedropper") return "single";
     if (t === "text") return "single";
     if (t === "knot") return "single";
@@ -269,6 +272,68 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     dragBsLinesRef.current = null;
     redrawCanvasFromState();
   }
+
+  function interruptTools(keepStroke) {
+    cancelShape();
+    if (keepStroke && isDraggingRef.current) handlePatMouseUp({});
+    else cancelDragSession();
+    cancelTouchDraw(); hideTouchTarget(); clearPendingTap(); clearNavTap();
+    panStateRef.current = null;
+    if (state.cancelMove) state.cancelMove();
+    if (state.clip && state.clip.cancelDrag) state.clip.cancelDrag();
+    if (state.cancelLasso) state.cancelLasso();
+    if (state.setBsStart) state.setBsStart(null);
+    var ch = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+    if (ch && ch.handleCleanupPointerUp) ch.handleCleanupPointerUp();
+    var dn = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+    if (dn && dn.handleDenoisePointerUp) dn.handleDenoisePointerUp();
+  }
+  function releasePointer(e) {
+    var entry = activePointersRef.current.get(e.pointerId);
+    var target = entry && entry.target || e.currentTarget || e.target;
+    activePointersRef.current.delete(e.pointerId);
+    if (target && target.releasePointerCapture) {
+      try { target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  }
+  function interruptAll() {
+    if (state.cropStartRef && state.cropStartRef.current) {
+      state.cropStartRef.current = null;
+      state.setCropRect(null);
+    }
+    cropPointersRef.current.forEach(function(target, id) {
+      cropPointersRef.current.delete(id);
+      try { target.releasePointerCapture(id); } catch (_) {}
+    });
+    interruptTools(true);
+    Array.from(activePointersRef.current.keys()).forEach(function(id) { releasePointer({ pointerId: id }); });
+    endPinchIfDone(); suppressPointersRef.current = false;
+    state.setHoverCoords(null);
+  }
+  var interruptRef = React.useRef(interruptAll); interruptRef.current = interruptAll;
+  if (React.useEffect) React.useEffect(function() {
+    function stop() { interruptRef.current(); }
+    function hidden() { if (document.hidden) stop(); }
+    window.addEventListener("blur", stop);
+    window.addEventListener("resize", stop);
+    window.addEventListener("orientationchange", stop);
+    document.addEventListener("visibilitychange", hidden);
+    return function() {
+      stop();
+      window.removeEventListener("blur", stop);
+      window.removeEventListener("resize", stop);
+      window.removeEventListener("orientationchange", stop);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
+
+  if (React.useEffect) React.useEffect(function() {
+    if (!activePointersRef.current.size) return;
+    interruptTools(false);
+    Array.from(activePointersRef.current.keys()).forEach(function(id) { releasePointer({ pointerId: id }); });
+    endPinchIfDone(); suppressPointersRef.current = false;
+  }, [state.sW, state.sH, state.cs, state.activeTool, state.partialStitchTool,
+      state.drawMode, state.penNavigation]);
 
   function startPinchGesture() {
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
@@ -1119,31 +1184,32 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerDown(e) {
     var activeTool = state.activeTool, partialStitchTool = state.partialStitchTool;
     var scrollRef = state.scrollRef;
-    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+    if (!isPrimaryButton(e)) return;
 
-    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target && e.target.setPointerCapture) {
-      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    // Drawing cannot use coordinates while a pinch transform is settling.
+    if (state.pcRef.current && state.pcRef.current.style.transform && activePointersRef.current.size === 0) return;
+    var captureTarget = e.currentTarget || e.target;
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, target: captureTarget });
+    if (captureTarget && captureTarget.setPointerCapture) {
+      try { captureTarget.setPointerCapture(e.pointerId); } catch (_) {}
     }
 
-    if (activePointersRef.current.size === 2) {
-      if (isDraggingRef.current) cancelDragSession();
-      cancelShape();
-      cancelTouchDraw();
-      clearNavTap();
-      clearPendingTap();
-      panStateRef.current = null;
+    if (activePointersRef.current.size >= 2) {
+      interruptTools(false);
+      suppressPointersRef.current = true;
       state.setHoverCoords(null);
-      startPinchGesture();
-      e.preventDefault();
-      return;
+      var contacts = Array.from(activePointersRef.current.values());
+      if (contacts.length === 2 && contacts.every(function(p) { return p.type === "touch"; })) startPinchGesture();
+      else {
+        var oldPinch = pinchStateRef.current; pinchStateRef.current = null;
+        if (oldPinch && oldPinch.previewing) commitPinchPreview(oldPinch);
+      }
+      e.preventDefault(); return;
     }
-    if (activePointersRef.current.size > 2) {
-      e.preventDefault();
-      return;
-    }
+    if (suppressPointersRef.current) { e.preventDefault(); return; }
+    var fingerNavigation = isTouchPointer(e) && state.penNavigationRef && state.penNavigationRef.current;
 
-    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (fingerNavigation || isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
         moved: false,
@@ -1182,6 +1248,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     var tdKind = isTouchPointer(e) ? touchDrawKind() : null;
+    if (isTouchPointer(e) && activeTool === "float" && state.clip) {
+      var floatAt = gridCoord(state.pcRef, e, state.cs, state.G, false);
+      // Touching outside a float places it, so defer that action until lift.
+      // Inside it, retain the existing selection-drag behaviour.
+      if (floatAt && !state.clip.isInside(floatAt.gx, floatAt.gy)) tdKind = "single";
+    }
     if (tdKind && state.pat && state.pcRef && state.pcRef.current) {
       var tdPrecision = precisionOn();
       touchDrawRef.current = {
@@ -1227,8 +1299,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerMove(e) {
+    if (activePointersRef.current.size && !activePointersRef.current.has(e.pointerId)) return;
     if (activePointersRef.current.has(e.pointerId)) {
-      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      Object.assign(activePointersRef.current.get(e.pointerId), { x: e.clientX, y: e.clientY });
     }
 
     if (activePointersRef.current.size === 2 && pinchStateRef.current) {
@@ -1239,6 +1312,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       updatePinchGesture();
       return;
     }
+
+    if (suppressPointersRef.current) { e.preventDefault(); return; }
 
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
@@ -1294,9 +1369,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
     var wasTouchDraw = touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId ? touchDrawRef.current : null;
 
-    activePointersRef.current.delete(e.pointerId);
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (!activePointersRef.current.has(e.pointerId)) return;
+    releasePointer(e);
+    if (suppressPointersRef.current) {
+      endPinchIfDone();
+      if (!activePointersRef.current.size) suppressPointersRef.current = false;
+      state.setHoverCoords(null); e.preventDefault(); return;
     }
 
     if (wasPan) {
@@ -1376,28 +1454,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerCancel(e) {
-    cancelShape();
-    activePointersRef.current.delete(e.pointerId);
-    hideTouchTarget();
-    clearNavTap();
-    if (touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId) {
-      // A cancelled tap places nothing; a cancelled stroke keeps what it drew.
-      var tdc = touchDrawRef.current;
-      touchDrawRef.current = null;
-      if (!tdc.promoted) {
-        endPinchIfDone();
-        state.setHoverCoords(null);
-        return;
-      }
-    }
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
-    }
-    clearPendingTap();
-    panStateRef.current = null;
+    if (!activePointersRef.current.has(e.pointerId)) return;
+    // Completed stroke pixels remain one undoable action; previews are discarded.
+    interruptTools(true);
+    releasePointer(e);
     endPinchIfDone();
+    suppressPointersRef.current = activePointersRef.current.size > 0;
     state.setHoverCoords(null);
-    handlePatMouseUp(e);
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
@@ -1428,28 +1491,39 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handleCropPointerDown(e) {
-    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
-    if (e.target && e.target.setPointerCapture) {
-      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    if (!isPrimaryButton(e) || !state.isCropping) return;
+    var target = e.currentTarget || e.target;
+    cropPointersRef.current.set(e.pointerId, target);
+    if (target && target.setPointerCapture) {
+      try { target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (cropPointersRef.current.size > 1) {
+      state.cropStartRef.current = null; state.setCropRect(null); return;
     }
     handleCropMouseDown(e);
   }
 
   function handleCropPointerMove(e) {
+    if (!cropPointersRef.current.has(e.pointerId) || cropPointersRef.current.size !== 1) return;
     if (!state.isCropping || !state.cropStartRef.current) return;
     e.preventDefault();
     handleCropMouseMove(e);
   }
 
   function handleCropPointerUp(e) {
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (!cropPointersRef.current.has(e.pointerId)) return;
+    var target = cropPointersRef.current.get(e.pointerId);
+    cropPointersRef.current.delete(e.pointerId);
+    if (target && target.releasePointerCapture) {
+      try { target.releasePointerCapture(e.pointerId); } catch (_) {}
     }
     handleCropMouseUp(e);
   }
 
   function handleCropPointerCancel(e) {
+    if (!cropPointersRef.current.has(e.pointerId)) return;
     handleCropPointerUp(e);
+    state.setCropRect(null);
   }
 
   function applyCrop() {

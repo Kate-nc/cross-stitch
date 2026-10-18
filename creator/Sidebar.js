@@ -431,6 +431,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onPointerMove:gen.handleCropPointerMove,
       onPointerUp:gen.handleCropPointerUp,
       onPointerCancel:gen.handleCropPointerCancel,
+      onLostPointerCapture:gen.handleCropPointerCancel,
       onPointerLeave:gen.handleCropPointerUp
     },
       h("img", {
@@ -747,6 +748,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   // shown once any value the preset set has been changed.
   var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
     ? h("div", {className:"picture-type"},
+        h("label", null,
+          h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
+            disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+            onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+        h("p", {className:"hint"}, gen.exactPixelArt
+          ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, dithering and cleanup are ignored. Review source-to-thread mappings in the preview before Generate."
+          : "Exact mode supports sources up to 500 by 500 pixels without resizing. Colours are mapped to solid threads."),
         h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
           window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
@@ -1670,6 +1678,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // a count so the destructive part of the action is explicit.
     var regenSnap = app.lastGenSnapshot;
     var dimensionsStale = regenSnap && (
+      !!regenSnap.exactPixelArt !== !!gen.exactPixelArt ||
       regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
       regenSnap.fabricCt !== ctx.fabricCt ||
       regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat

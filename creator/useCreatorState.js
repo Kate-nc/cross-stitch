@@ -225,7 +225,7 @@ var CONVERSION_STATE_KEYS = [
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
-  'fabricCt',
+  'fabricCt', 'exactPixelArt',
   'disambig', 'disambigLevel',
 ];
 
@@ -791,6 +791,13 @@ window.useCreatorState = function useCreatorState() {
   // { id, values } for the preset last chosen (or guessed on upload).
   // pictureType is that id while every value it set is unchanged, else
   // 'custom' (also 'custom' when no preset has been applied).
+  var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
+  useEffect(function() {
+    if (!exactPixelArt || !img || appMode !== "create") return;
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w > 500 || h > 500) { setExactPixelArt(false); return; }
+    setSW(w); setSH(h);
+  }, [exactPixelArt, img, sW, sH, appMode]);
   var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
@@ -854,6 +861,12 @@ window.useCreatorState = function useCreatorState() {
   // partialStitchTool as null, so one finger (or a mouse drag) pans and a
   // long-press opens the stitch menu. Touch screens start in Navigate, mouse
   // users in Draw; the last choice is remembered per device.
+  var _penNav = useState(function() { return loadUserPref("creator.penNavigation", false) === true; });
+  var penNavigation = _penNav[0], penNavigationRef = useRef(penNavigation);
+  function setPenNavigation(v) {
+    v = !!v; penNavigationRef.current = v; _penNav[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.penNavigation", v); } catch (_) {}
+  }
   var _drawMode = useState(initialDrawMode);
   var drawMode = _drawMode[0];
   var drawModeRef = useRef(drawMode);
@@ -1486,7 +1499,7 @@ window.useCreatorState = function useCreatorState() {
     _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
-    setPictureInfo(null); setPresetApplied(null);
+    setExactPixelArt(false); setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
     // "materials" or "project" tab from a previous session hides the rpanel.
@@ -1752,7 +1765,7 @@ window.useCreatorState = function useCreatorState() {
     // surface a "Re-generate (values changed)" CTA. Stored fields must
     // match the comparator in Sidebar.js (genStaleReason).
     setLastGenSnapshot({
-      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
@@ -1955,7 +1968,7 @@ window.useCreatorState = function useCreatorState() {
     var allowedPalette = window.threadBrandPool ? window.threadBrandPool(genBrand) : null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
-    if (stashConstrained && globalStash) {
+    if (stashConstrained) {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {
@@ -1977,6 +1990,15 @@ window.useCreatorState = function useCreatorState() {
     var startGeneration = function() {
       // Cancelled before the first frame: don't start at all.
       if (reqId !== genReqIdRef.current) return;
+      if (exactPixelArt) {
+        setGenerateCancellable(false);
+        try {
+          var exact = runExactPixelPipeline(img, { allowedPalette: allowedPalette });
+          if (exact.width !== sW || exact.height !== sH) throw new Error("Wait for the source pixel dimensions to update before generating.");
+          applyResultRef.current({ reqId: reqId, mapped: exact.pat, pal: exact.pal, cmap: exact.cmap, confettiData: exact.confettiData });
+        } catch (err) { addToast(err.message, { type: "error" }); setBusy(false); }
+        return;
+      }
       // Extract pixel data here (requires canvas — must stay on main thread)
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
@@ -2010,7 +2032,7 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
@@ -2048,7 +2070,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2118,6 +2140,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
+    if (exactPixelArt) { addToast("Turn off exact pixel-art import to explore resized colour variations.", {type:"info"}); return; }
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     // Brand-aware via the central helper.
     var pool = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
@@ -2179,7 +2202,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -2378,6 +2401,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
+    exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
@@ -2411,6 +2435,7 @@ window.useCreatorState = function useCreatorState() {
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
+    penNavigation, setPenNavigation, penNavigationRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
@@ -2557,7 +2582,7 @@ window.useCreatorState = function useCreatorState() {
         : allowBlends;
       return Object.freeze({
         // Geometry
-        sW: sW, sH: sH,
+        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
@@ -2583,7 +2608,7 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,
