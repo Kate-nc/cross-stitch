@@ -120,8 +120,8 @@
   /**
    * Paginate a pattern of width × height into chart segments.
    *
-   * Each break is aligned to the next 10-stitch boundary, so 10×10 blocks
-   * never split. When `overlap` is truthy the previous page's last 2 rows/cols
+   * Density is snapped to tens. Without overlap, breaks align to 10-stitch
+   * boundaries. With overlap, the previous page's last 2 rows/cols
    * are repeated at the start of the next page (and tagged as overlap zones).
    *
    * Returns an array of { pageIndex, gridRow, gridCol, x0, y0, x1, y1,
@@ -140,8 +140,8 @@
 
     // Effective stride: each page advances by (colsPerPage - overlap), but the
     // FIRST page always starts at 0 with no overlap.
-    var strideX = Math.max(10, colsPerPage - overlap);
-    var strideY = Math.max(10, rowsPerPage - overlap);
+    var strideX = Math.max(1, colsPerPage - overlap);
+    var strideY = Math.max(1, rowsPerPage - overlap);
 
     // Build column anchors then row anchors.
     var anchorsX = [0];
@@ -174,6 +174,66 @@
       }
     }
     return pages;
+  }
+
+  // Reject malformed persisted/preset values before either preview or export.
+  function validateOptions(opts) {
+    opts = opts || {};
+    function choice(key, allowed) {
+      if (opts[key] != null && allowed.indexOf(opts[key]) < 0) throw new Error("Invalid PDF " + key + ".");
+    }
+    choice("pageSize", ["auto", "a4", "letter"]);
+    choice("stitchesPerPage", ["small", "medium", "large", "custom"]);
+    choice("theme", ["pk", "workshop"]);
+    ["marginsMm", "customCols", "customRows"].forEach(function (k) {
+      if (opts[k] == null) return;
+      var min = 10, max = k === "marginsMm" ? 30 : 200;
+      if (!Number.isFinite(opts[k]) || opts[k] < min || opts[k] > max ||
+          !Number.isInteger(opts[k])) throw new Error("PDF " + k + " must be " + min + "–" + max + (k === "marginsMm" ? " mm." : " stitches (rounded down to tens)."));
+    });
+    ["overlap", "includeCover", "includeInfo", "includeIndex", "includeLegend", "miniLegend", "includeBranding"].forEach(function (k) {
+      if (opts[k] != null && typeof opts[k] !== "boolean") throw new Error("Invalid PDF " + k + ".");
+    });
+    if (opts.chartModes != null && (!Array.isArray(opts.chartModes) || !opts.chartModes.length ||
+        opts.chartModes.some(function (m) { return m !== "bw" && m !== "colour"; }) || new Set(opts.chartModes).size !== opts.chartModes.length)) throw new Error("Pick at least one valid chart mode.");
+  }
+
+  function usedThreadCounts(project) {
+    var counts = Object.create(null);
+    (project.pattern || []).forEach(function (c) {
+      if (c && c.id && c.id !== "__skip__" && c.id !== "__empty__") counts[c.id] = (counts[c.id] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function legendRowsPerPage(geom) {
+    return Math.min(32, Math.floor((mmToPt(geom.pageHmm - 2 * geom.marginMm) - 52) / 18));
+  }
+
+  // A single plan drives the preview and the worker's progress totals.
+  function planExport(project, opts) {
+    validateOptions(opts);
+    if (!project || !Number.isInteger(project.w) || !Number.isInteger(project.h) || project.w < 1 || project.h < 1) throw new Error("PDF chart dimensions must be positive whole stitches.");
+    var geom = computePageGeometry(opts);
+    var pages = paginate({patternW: project.w, patternH: project.h, colsPerPage: geom.colsPerPage,
+      rowsPerPage: geom.rowsPerPage, overlap: opts.overlap});
+    var n = Object.keys(usedThreadCounts(project)).length;
+    var rows = legendRowsPerPage(geom);
+    var legends = opts.includeLegend === false ? 0 : Math.max(1, Math.ceil(n / rows));
+    if (legends && opts.theme === "workshop" && project.knots && project.knots.length) {
+      var knotThreads = new Set(project.knots.map(function (k) { return k.id; })).size;
+      var lastRows = n - (legends - 1) * rows;
+      var remaining = mmToPt(geom.pageHmm - 2 * geom.marginMm) - 52 - lastRows * 18 - 14;
+      // Match the worker: keep a short knot key together, otherwise paginate it.
+      if (remaining - (knotThreads + 1) * 18 < 0) {
+        var knotRows = Math.floor((mmToPt(geom.pageHmm - 2 * geom.marginMm) - 40) / 18) + 1;
+        legends += Math.ceil(knotThreads / knotRows);
+      }
+    }
+    var charts = pages.length * (opts.chartModes || ["bw"]).length;
+    var index = opts.includeIndex && pages.length > 1 ? 1 : 0;
+    return {geom: geom, pages: pages, legendPages: legends, chartPages: charts, indexPages: index,
+      totalPages: charts + legends + index + (opts.includeCover ? 1 : 0) + (opts.includeInfo ? 1 : 0)};
   }
 
   /**
@@ -266,6 +326,10 @@
   }
 
   var api = {
+    validateOptions: validateOptions,
+    usedThreadCounts: usedThreadCounts,
+    legendRowsPerPage: legendRowsPerPage,
+    planExport: planExport,
     PAGE_SIZES_MM: PAGE_SIZES_MM,
     mmToPt: mmToPt,
     ptToMm: ptToMm,

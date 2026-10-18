@@ -157,7 +157,8 @@ test('bug hunt: arbitrary JSON cannot introduce objects, arrays, invalid numbers
     const out = prefs.exportPortable();
     expect(Object.keys(out.values).sort()).toEqual([...prefs.PORTABLE_KEYS]);
     Object.entries(out.values).forEach(([k,v]) => {
-      expect(v === null || ['boolean', 'number', 'string'].includes(typeof v)).toBe(true);
+      if (k === 'exportNamedPresets') { expect(v).toEqual([]); }
+      else expect(v === null || ['boolean', 'number', 'string'].includes(typeof v)).toBe(true);
       if (typeof v === 'number') expect(Number.isFinite(v)).toBe(true);
       expect(prefs.get(k)).toEqual(v);
     });
