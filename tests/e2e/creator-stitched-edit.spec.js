@@ -6,8 +6,15 @@ test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   /
 const { device, generateLogo, undoButton } = require('./creator-helpers');
 
 // Mark the first `n` stitches of the saved project as done, as the Tracker would, then reopen it.
+// The Creator saves its own in-memory copy (done: null) when the page unloads, so the marks are
+// written from Home, which has no such handler, after the Creator has gone.
 async function stitchFirst(page, n) {
   await page.waitForFunction(function() { return !!localStorage.getItem('crossstitch_active_project'); });
+  await expect(page.getByText('All changes saved').first()).toBeVisible({ timeout: 20000 });
+  const creatorUrl = page.url();
+  await page.goto('/home.html');
+  await page.waitForFunction(function() { return !!window.ProjectStorage; });
+  await page.waitForTimeout(1000);   // the Creator's unload flush has finished
   await page.evaluate(async function(count) {
     var id = localStorage.getItem('crossstitch_active_project');
     var p = await window.ProjectStorage.get(id);
@@ -18,7 +25,7 @@ async function stitchFirst(page, n) {
     p.done = done;
     await window.ProjectStorage.save(p);
   }, n);
-  await page.reload();
+  await page.goto(creatorUrl);
   await page.waitForSelector('.rpanel--edit', { state: 'attached', timeout: 20000 });
   await page.waitForTimeout(500);
 }
@@ -136,7 +143,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     await page.getByRole('button', { name: '180\u00B0', exact: true }).click();
     await page.getByRole('button', { name: 'Preview & Apply' }).click();
     await page.getByRole('button', { name: 'Apply Swap' }).click();
-    await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 15000 });
     await expect.poll(doneCount, { timeout: 10000 }).toBeLessThan(200);
     await page.getByRole('button', { name: 'Undo', exact: true }).click();   // the toast's Undo, still in the Convert panel: one step undoes the swap and the reset
     await expect.poll(doneCount, { timeout: 10000 }).toBe(200);

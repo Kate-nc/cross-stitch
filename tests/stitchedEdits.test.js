@@ -401,23 +401,24 @@ describe('Palette swap on a stitched pattern', () => {
 });
 
 describe('Re-apply "keep look-alike colours apart" on a stitched pattern', () => {
-  function disambiguator(s) {
+  function disambiguator(s, scratch) {
     const src = read('creator/useCreatorState.js');
     const start = src.indexOf('  var patRef = useRef(pat);');
     const end = src.indexOf('  // What the rest of the Creator sees');
     expect(start).toBeGreaterThan(0);
     const body = src.slice(start, end);
     const fn = new Function('window', 'useRef', 'pat', 'guardStitchedEdit', 'setEditHistory', 'setRedoHistory',
-      'EDIT_HISTORY_MAX', 'setPat', 'setPal', 'setCmap', body + '\nreturn applyDisambiguatedRef;');
+      'EDIT_HISTORY_MAX', 'setPat', 'setPal', 'setCmap', 'buildPaletteWithScratch', 'addToast',
+      body + '\nreturn { apply: applyDisambiguatedRef, base: disambigBaseRef };');
     return fn(window, (v) => ({ current: v }), s.pat, s.guardStitchedEdit, s.setEditHistory,
-      s.setRedoHistory, 50, s.setPat, s.setPal, s.setCmap);
+      s.setRedoHistory, 50, s.setPat, s.setPal, s.setCmap, scratch || s.buildPaletteWithScratch, s.addToast);
   }
   // What the worker sends back: fresh objects for every cell (structured clone).
   const workerResult = (ids) => ids.map((id) => Object.assign({}, id === '310' ? BLACK : RED));
 
   test('cells the pass recolours go back to not done and the pass can be undone', () => {
     const s = fixture();
-    disambiguator(s).current(workerResult(['310', '321', '321', '310']), s.buildPaletteWithScratch);
+    expect(disambiguator(s).apply.current(workerResult(['310', '321', '321', '310']))).toBe(true);
     expect(s.pat.map((c) => c.id)).toEqual(['310', '321', '321', '310']);
     expect(Array.from(s.done)).toEqual([1, 0, 1, 0]);            // only cell 1 changed colour
     expect(s.editHistory).toHaveLength(1);
@@ -431,15 +432,34 @@ describe('Re-apply "keep look-alike colours apart" on a stitched pattern', () =>
 
   test('a pass that changes nothing adds no history entry and no toast', () => {
     const s = fixture();
-    disambiguator(s).current(workerResult(['310', '310', '321', '310']), s.buildPaletteWithScratch);
+    disambiguator(s).apply.current(workerResult(['310', '310', '321', '310']));
     expect(s.editHistory).toHaveLength(0);
     expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
     expect(s.toasts).toHaveLength(0);
   });
 
-  test('both the worker result and the no-Worker fallback go through it', () => {
+  test('a result computed from a pattern that has since changed is dropped, not written over the edits', () => {
+    const s = fixture();
+    const d = disambiguator(s);
+    d.base.current = s.pat.slice();                  // the pattern the request was sent with is no longer the live one
+    expect(d.apply.current(workerResult(['321', '321', '321', '321']))).toBe(false);
+    expect(s.pat.map((c) => c.id)).toEqual(['310', '310', '321', '310']);
+    expect(Array.from(s.done)).toEqual([1, 1, 1, 0]);
+    expect(s.editHistory).toHaveLength(0);
+    expect(s.toasts.some((t) => /changed while the colours were being checked/.test(t.msg))).toBe(true);
+  });
+
+  test('the palette is rebuilt with the latest scratch colours, on the worker path too', () => {
+    const s = fixture();
+    const scratch = jest.fn((p) => Object.assign(s.buildPaletteWithScratch(p), { marker: true }));
+    disambiguator(s, scratch).apply.current(workerResult(['310', '321', '321', '310']));
+    expect(scratch).toHaveBeenCalledTimes(1);
+  });
+
+  test('both the worker result and the no-Worker fallback go through it, and say where the request started', () => {
     const src = read('creator/useCreatorState.js');
-    expect(src).toMatch(/applyDisambiguatedRef\.current\(msg\.mapped, buildPalette\)/);
-    expect(src).toMatch(/applyDisambiguatedRef\.current\(mapped2, buildPaletteWithScratch\)/);
+    expect(src).toMatch(/!applyDisambiguatedRef\.current\(msg\.mapped\)/);
+    expect(src).toMatch(/!applyDisambiguatedRef\.current\(mapped2\)/);
+    expect(src).toMatch(/disambigBaseRef\.current = pat;/);
   });
 });
