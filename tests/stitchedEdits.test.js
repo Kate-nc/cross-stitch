@@ -254,6 +254,21 @@ describe('every edit path that writes the pattern asks the guard first', () => {
       'creator/useDenoiseMode.js', 'creator/useMoveSelection.js', 'creator/useSelectionClipboard.js']
       .forEach((f) => expect(read(f)).toMatch(/doneReset/));
   });
+  // useMagicWand, useMoveSelection and useSelectionClipboard are called inside
+  // useCreatorState with hand-built state objects, not the full state, so each
+  // must be handed the guard or the reset is silently skipped.
+  test.each([
+    ['useMagicWand', /var wand = useMagicWand\(\{[\s\S]*?\n  \}\);/],
+    ['_moveStateProxy', /var _moveStateProxy = \{[\s\S]*?\n  \};/],
+    ['useSelectionClipboard', /window\.useSelectionClipboard\(\{[\s\S]*?\n  \}\);/]
+  ])('%s is given guardStitchedEdit', (name, re) => {
+    const block = read('creator/useCreatorState.js').match(re);
+    expect(block).not.toBeNull();
+    expect(block[0]).toMatch(/guardStitchedEdit: guardStitchedEdit/);
+  });
+  test('the full state returned by useCreatorState exposes the guard to the other hooks', () => {
+    expect(read('creator/useCreatorState.js')).toMatch(/done, setDone, guardStitchedEdit, undoGuardRef,/);
+  });
   test('the new module is bundled before the hooks that use it', () => {
     const b = read('build-creator-bundle.js');
     expect(b.indexOf("'stitchedEdits.js'")).toBeGreaterThan(-1);
@@ -267,6 +282,7 @@ describe('the toast Undo only reverts that edit', () => {
   test('CreatorApp undoes only while the newest edit still carries those cells', () => {
     expect(main).toMatch(/state\.undoGuardRef\.current = function\(idxs\)\{/);
     expect(main).toMatch(/hist\[hist\.length-1\]\.doneReset===idxs\) stableUndoEdit\(\)/);
+    expect(main).toMatch(/That edit has already been undone\./);
   });
 });
 
@@ -282,7 +298,8 @@ describe('what the user is told', () => {
     expect(tab).toMatch(/% stitched\. Changing stitched cells resets them to not done\./);
   });
   test('the banner offers a Show stitched overlay toggle', () => {
-    expect(tab).toMatch(/" Hide stitched" : " Show stitched"/);
+    expect(tab).toMatch(/"aria-pressed": !!cv\.showStitched/);
+    expect(tab).toMatch(/Icons\.eye\(\), " Show stitched"\)/);   // one label; aria-pressed carries the state
     expect(read('creator-main.js')).toMatch(/showStitched: state\.showStitched, setShowStitched: state\.setShowStitched/);
     expect(read('creator/PatternCanvas.js')).toMatch(/cv\.showStitched/);
   });

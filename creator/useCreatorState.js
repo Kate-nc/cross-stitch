@@ -2323,6 +2323,7 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
     addToast: addToast,
+    guardStitchedEdit: guardStitchedEdit,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
   // Keep wandClearRef updated each render so resetAll() can call it
@@ -2351,6 +2352,7 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory,
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    guardStitchedEdit: guardStitchedEdit,
   };
   var move = useMoveSelection(_moveStateProxy);
 
@@ -2371,6 +2373,7 @@ window.useCreatorState = function useCreatorState() {
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     moveFloatActive: move.floatActive,
     deleteSelection: wand.deleteSelection,
+    guardStitchedEdit: guardStitchedEdit,
     addToast: addToast
   });
 

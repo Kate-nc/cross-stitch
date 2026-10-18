@@ -916,7 +916,12 @@ function CreatorApp({
   // still the newest, so a late click never reverts something done after it.
   state.undoGuardRef.current = function (idxs) {
     var hist = _editHistoryRef.current || [];
-    if (hist.length && hist[hist.length - 1].doneReset === idxs) stableUndoEdit();else state.addToast("Can't undo from here \u2014 the pattern has changed since. Use Undo in the toolbar.", {
+    if (hist.length && hist[hist.length - 1].doneReset === idxs) stableUndoEdit();else if (!hist.some(function (e) {
+      return e.doneReset === idxs;
+    })) state.addToast("That edit has already been undone.", {
+      type: "info",
+      duration: 2500
+    });else state.addToast("Can't undo from here \u2014 the pattern has changed since. Use Undo in the toolbar.", {
       type: "info",
       duration: 3500
     });

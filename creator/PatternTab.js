@@ -165,7 +165,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         type:"button", className:"stitched-banner__toggle", "aria-pressed": !!cv.showStitched,
         onClick:function(){ cv.setShowStitched(!cv.showStitched); },
         style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,cursor:"pointer",borderRadius:'var(--radius-sm)',border:cv.showStitched?"1px solid var(--accent)":"0.5px solid var(--line)",background:cv.showStitched?"var(--accent-soft)":"var(--surface)",color:cv.showStitched?"var(--accent)":"var(--text-secondary)",flexShrink:0}
-      }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), cv.showStitched ? " Hide stitched" : " Show stitched")
+      }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), " Show stitched")
     ),
 
     h(window.MagicWandPanel, null),

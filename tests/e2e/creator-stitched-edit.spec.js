@@ -36,8 +36,9 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     await expect(banner).toContainText('% stitched');
 
     const toggle = banner.getByRole('button', { name: 'Show stitched' });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
     await toggle.click();
-    await expect(banner.getByRole('button', { name: 'Hide stitched' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
 
     const info = await page.evaluate(async function() {
       var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
@@ -71,10 +72,54 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     const reset = await page.evaluate(function() { return document.body.innerText.match(/(\d[\d,]*) stitched cells? reset to not done/); });
     expect(reset).not.toBeNull();
     await expect(banner).not.toContainText('6% stitched');   // 200 of 3,290 stitches were 6%; fewer remain
+    // The reset is saved, not just shown: 177 of the 200 cells were reset.
+    await expect.poll(async function() {
+      return page.evaluate(async function() {
+        var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+        return p.done.filter(Boolean).length;
+      });
+    }, { timeout: 10000 }).toBeLessThan(200);
 
     // Toast Undo restores the stitching along with the colours.
     await toastEl.getByRole('button', { name: 'Undo' }).click();
     await expect(undoButton(page)).toBeDisabled();
     await expect(banner).toContainText('6% stitched');   // the stitching is back with the colours
+    await expect.poll(async function() {
+      return page.evaluate(async function() {
+        var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+        return p.done.filter(Boolean).length;
+      });
+    }, { timeout: 10000 }).toBe(200);
+  });
+
+  // Replace colour goes through useMagicWand, which useCreatorState builds with its own
+  // hand-made state object; this guards against that object lacking the progress guard.
+  test('Replace colour resets the stitched cells it recolours; the toolbar Undo restores them', async function({ page }) {
+    await generateLogo(page);
+    await stitchFirst(page, 200);
+    const id = await page.evaluate(async function() {
+      var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+      return p.pattern.find(function(c) { return c.id !== '__skip__' && c.id !== '__empty__'; }).id;
+    });
+    await page.locator('[data-colour-id="' + id + '"] button[aria-label^="Replace "]').click();
+    const dlg = page.getByRole('dialog').first();
+    await expect(dlg).toBeVisible();
+    await dlg.getByRole('option').filter({ hasNot: page.locator('[aria-disabled="true"]') }).first().dblclick();
+    const toastEl = page.locator('.creator-toast-container > div').filter({ hasText: 'reset to not done' }).first();
+    await expect(toastEl).toBeVisible({ timeout: 5000 });
+    await expect.poll(async function() {
+      return page.evaluate(async function() {
+        var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+        return p.done.filter(Boolean).length;
+      });
+    }, { timeout: 10000 }).toBeLessThan(200);
+    await undoButton(page).click();   // one Undo undoes the colour change and the reset together
+    await expect(page.locator('.stitched-banner')).toContainText('6% stitched');
+    await expect.poll(async function() {
+      return page.evaluate(async function() {
+        var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));
+        return p.done.filter(Boolean).length;
+      });
+    }, { timeout: 10000 }).toBe(200);
   });
 });
