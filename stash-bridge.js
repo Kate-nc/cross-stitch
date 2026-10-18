@@ -70,7 +70,7 @@ const StashBridge = (() => {
   function _getOwnedCount(threadsData, key, fallbackId) {
     var byKey = stashEffectiveQty(threadsData[key]);
     if (byKey > 0) return byKey;
-    return stashEffectiveQty(threadsData[fallbackId]);
+    return key.indexOf('dmc:') === 0 ? stashEffectiveQty(threadsData[fallbackId]) : 0;
   }
 
   function _parseThreadKey(key) {
@@ -94,6 +94,7 @@ const StashBridge = (() => {
       }
       return typeof ANCHOR !== "undefined" ? ANCHOR.find(x => x.id === parsed.id) : null;
     }
+    if (parsed.brand !== "dmc") return null;
     if (typeof _getDmcById === "function") {
       const m = _getDmcById();
       if (m) return m[parsed.id] || null;
@@ -459,7 +460,9 @@ const StashBridge = (() => {
           tx.onerror = () => rejectOnce(tx.error || new Error('Transaction failed'));
           tx.onabort = () => rejectOnce(tx.error || new Error('Transaction aborted'));
           // Both reads and both writes belong to the same IDB transaction.
-          let record, legacy;
+          let record, legacy, reservations;
+          const reservationsReq=store.get("thread_reservations_v1");
+          reservationsReq.onsuccess=()=>{reservations=reservationsReq.result;};
           if (opts.legacyKey) {
             const legacyReq=store.get(opts.legacyKey);
             legacyReq.onsuccess=()=>{legacy=legacyReq.result;};
@@ -471,7 +474,7 @@ const StashBridge = (() => {
           const req = store.get("threads");
           req.onsuccess = () => {
             const threads = req.result || {};
-            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3, record: record, legacy: legacy };
+            const ctx = { now: new Date().toISOString(), isV3: _schemaVersion >= 3, record: record, legacy: legacy, reservations: reservations };
             let outcome;
             try {
               outcome = mutate(threads, ctx) || {};
@@ -597,6 +600,22 @@ const StashBridge = (() => {
 
     // Merge only edits made since the Manager's last displayed baseline.
     // Quantity edits are deltas, so stale autosave/unload cannot erase RT usage.
+    // A bulk stash import is one transaction, never a sequence of count writes.
+    async bulkEnsureOwned(keys) {
+      if(!Array.isArray(keys)||keys.some(function(key){return typeof key!=='string'||!/^(dmc|anchor):[^:]+$/.test(key);}))throw Error('Invalid bulk stash identity');
+      return _withThreadsWrite('bulkEnsureOwned',function(threads,ctx){
+        var changed=[];
+        Array.from(new Set(keys)).forEach(function(key){
+          var current=threads[key];
+          if(current&&(current.owned||current.tobuy||current.partialStatus))return;
+          var entry=_ensureThreadEntry(threads,key,ctx,{now:ctx.now}).entry;
+          entry.owned=1;entry.lastAdjustedAt=ctx.now;
+          _appendHistory(entry,1,ctx.now);_bumpEntryVersion(key,entry);changed.push(key);
+        });
+        return {changedKeys:changed};
+      },{invalidateStats:true});
+    },
+
     async saveThreadEdits(next, baseline) {
       return _withThreadsWrite('saveThreadEdits', function(threads, ctx) {
         const changedKeys=[];
@@ -625,6 +644,40 @@ const StashBridge = (() => {
       }, { invalidateStats: true });
     },
 
+    async materialProjects(ids) {
+      if(!window.ProjectStorage)throw new Error('Project storage is required for material planning');
+      const S=window.ProjectStorage;
+      const projects=S.listMaterialProjects?await S.listMaterialProjects(ids):await Promise.all((await S.listProjects()).map(p=>S.get(p.id)));
+      const states=S.getProjectStates?S.getProjectStates():{};
+      return projects.filter(p=>p&&(!ids||ids.includes(p.id))).map(p=>({...p,materialState:states[p.id]}));
+    },
+    async projectMaterials(projectId, request) {
+      const R=window.MaterialReservations;
+      const projects=await this.materialProjects();
+      const prefs=window.UserPrefs?window.UserPrefs.get('rtWastePrefs')||{}:{};
+      return _withThreadsWrite('project-materials',function(threads,ctx){
+        const record=ctx.record||R.empty();R.validate(record);
+        if(projectId){
+          if(!projects.some(p=>p.id===projectId&&R.active(p)))throw new Error('Choose an active saved project');
+          const old=record.projects[projectId];
+          if((request.revision||0)!==((old&&old.revision)||0))throw new Error('Reservation changed in another tab. Refresh and try again.');
+          record.projects[projectId]={...request,revision:(request.revision||0)+1};R.validate(record);
+        }
+        Object.entries(record.projects).forEach(([id,r])=>{if(!projects.some(p=>p.id===id&&R.active(p)))r.enabled=false;});
+        return {record,value:R.plan(threads,record,projects,prefs)};
+      },{recordKey:R.KEY,dispatch:!!projectId});
+    },
+
+    async getMaterialReservationRequests() {
+      const db=await openManagerDB();
+      try{return await new Promise((resolve,reject)=>{
+        const tx=db.transaction('manager_state','readonly');
+        const req=tx.objectStore('manager_state').get(window.MaterialReservations.KEY);
+        req.onsuccess=()=>{try{resolve(window.MaterialReservations.validate(req.result||window.MaterialReservations.empty()));}catch(e){reject(e);}};
+        req.onerror=()=>reject(req.error);
+      });}finally{db.close();}
+    },
+
     async getConsumptionAccounting() {
       const db=await openManagerDB();
       try{return await new Promise((resolve,reject)=>{
@@ -639,12 +692,28 @@ const StashBridge = (() => {
     async applyConsumptionEvents(projectId, initialMarks, operations) {
       if(!projectId)throw new Error('A saved project id is required');
       const A=window.ThreadAccounting;
+      const R=window.MaterialReservations;
+      const intent=R?await this.getMaterialReservationRequests():null;
+      const ids=intent?Object.keys(intent.projects).filter(id=>intent.projects[id].enabled):[];
+      const projects=R&&ids.length?await this.materialProjects(ids):[];
+      const prefs=window.UserPrefs?window.UserPrefs.get('rtWastePrefs')||{}:{};
       if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
       return _withThreadsWrite('consumption-events',function(threads,ctx){
         if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
         const ledger=ctx.record||A.empty();
         A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
-        const changed=A.apply(ledger,threads,operations||[],ctx.now);
+        const requests=ctx.reservations||(R&&R.empty());
+        if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');
+        const plan=R?R.plan(threads,requests,projects.filter(p=>requests.projects[p.id]&&requests.projects[p.id].enabled),prefs):null;
+        const own=plan&&plan.groups.find(p=>p.id===projectId);
+        const protectedStock={};
+        if(plan)Object.entries(plan.reserved).forEach(([k,n])=>{protectedStock[k]=Math.max(0,n-((own&&own.rows.find(r=>r.key===k)||{}).reserved||0));});
+        const mapped=(operations||[]).map(op=>{
+          const request=requests&&requests.projects[projectId];
+          if(!R||!op.estimate||!request)return op;
+          return {...op,estimate:{...op.estimate,amounts:R.remap(op.estimate.amounts,request),substitutions:request.substitutions}};
+        });
+        const changed=A.apply(ledger,threads,mapped,ctx.now,protectedStock);
         return {record:ledger,value:{accounting:ledger,threads},changedKeys:changed};
       },{recordKey:A.KEY,legacyKey:'rt_deduction:'+projectId,invalidateStats:true});
     },

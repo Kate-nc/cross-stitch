@@ -336,3 +336,10 @@ test('an external metadata token invalidates the compact base even at the same t
   expect(p.trackingSync.marks['d:1']).toEqual([{value:1,clock:{}}]);
   expect(p.trackingSync.marks['d:2'][0].value).toBe(1);
 });
+
+test('material planning reads current progress and hydrates only requested saved projects',async()=>{
+ await ProjectStorage.save(proj());await ProjectStorage.save(proj({id:'proj_other'}));
+ const b=await base('proj_p');await ProjectStorage.saveProgress('proj_p',{done:Uint8Array.from([1,1,0,0,0,0]),baseWriteAt:b});
+ const rows=await ProjectStorage.listMaterialProjects(['proj_p']);expect(rows).toHaveLength(1);expect(rows[0].done).toEqual([1,1,0,0,0,0]);
+ expect(await ProjectStorage.listMaterialProjects(['proj_missing'])).toEqual([]);
+});

@@ -63,7 +63,7 @@ function ManagerApp() {
     // to inventory now that the shopping feature has been removed.
     try {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (p === 'inventory' || p === 'patterns') return p;
+      if (p === 'inventory' || p === 'patterns' || p === 'materials') return p;
     } catch (_) {}
     return "inventory";
   }); // 'inventory' | 'patterns'
@@ -89,6 +89,22 @@ function ManagerApp() {
   const [storageUsage, setStorageUsage] = useState(null); // { used, quota, persistent } bytes
   const [searchQuery, setSearchQuery] = useState("");
   const [threadFilter, setThreadFilter] = useState("all"); // 'all', 'owned', 'tobuy', 'lowstock'
+  const [catalogueRecords, setCatalogueRecords] = useState([]);
+  const [catalogueText, setCatalogueText] = useState('');
+  const [cataloguePreview, setCataloguePreview] = useState(null);
+  const [catalogueMessage, setCatalogueMessage] = useState('');
+  const [catalogueBusy, setCatalogueBusy] = useState(false);
+  useEffect(() => { ThreadCatalogues.read().then(setCatalogueRecords).catch(e => setCatalogueMessage(e.message)); }, []);
+  async function importCatalogue() {
+    setCatalogueBusy(true);
+    try { setCatalogueRecords(await ThreadCatalogues.commit(catalogueText)); setCatalogueText(''); setCataloguePreview(null); setCatalogueMessage('Catalogue imported. Projects and matching palettes are unchanged.'); }
+    catch(e) { setCatalogueMessage(e.message); }
+    finally { setCatalogueBusy(false); }
+  }
+  function exportCatalogue() {
+    const url = URL.createObjectURL(new Blob([ThreadCatalogues.exportCSV(catalogueRecords)], {type:'text/csv;charset=utf-8'}));
+    const a = document.createElement('a'); a.href=url; a.download='custom-thread-catalogues.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   const [brandFilter, setBrandFilter] = useState("all"); // 'all', 'dmc', 'anchor'
   const [threadSort, setThreadSort] = useState("number"); // 'number', 'colour', 'name', 'owned_desc', 'owned_asc'
   const _UP = (k, fb) => { try { return (window.UserPrefs && window.UserPrefs.get(k)) || fb; } catch (_) { return fb; } };
@@ -1016,6 +1032,7 @@ function ManagerApp() {
           <button data-onboard="mgr-stash-tab" className={"mgr-tab" + (tab === "inventory" ? " on" : "")} onClick={() => { setTab("inventory"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.thread()}</span> Thread Stash <span className="cnt">{totalOwnedCount}</span>
           </button>
+          <button className={"mgr-tab" + (tab === "materials" ? " on" : "")} onClick={() => setTab("materials")}>Project materials</button>
           <button data-onboard="mgr-patterns-tab" className={"mgr-tab" + (tab === "patterns" ? " on" : "")} onClick={() => { setTab("patterns"); setSearchQuery(""); setSelectedThread(null); setPanelOpen(false); }}>
             <span className="icon">{Icons.clipboard()}</span> Pattern Library <span className="cnt">{patterns.length}</span>
           </button>
@@ -1030,8 +1047,27 @@ function ManagerApp() {
         </button>
       </div>
 
+      {tab === "materials" && <ProjectMaterials catalogues={catalogueRecords} />}
       {/* Filter bar — threads */}
       {tab === "inventory" && (
+        <>
+        <details style={{padding:12}}>
+          <summary>Custom thread catalogues ({catalogueRecords.length} records)</summary>
+          <p>User-owned reference catalogues are separate from manufacturer matching palettes and project colours. RGB values are optional screen approximations, never calibrated measurements. Substitutions are suggestions and are never applied automatically.</p>
+          <p>CSV columns: brand,code,name,rgb,status,substitute,provenance. Use a lowercase custom brand slug, #RRGGBB or an empty colour, active/discontinued/unknown status, and an optional brand:code substitution. Built-in DMC and Anchor data cannot be overwritten.</p>
+          <label>Catalogue CSV file <input type="file" accept=".csv,text/csv" disabled={catalogueBusy} onChange={async e=>{const file=e.target.files[0]; if(!file)return; try { if(file.size>5000000)throw Error('CSV must be under 5 MB.'); const text=await file.text(); setCatalogueText(text); setCataloguePreview(ThreadCatalogues.preview(text,catalogueRecords)); setCatalogueMessage(''); } catch(err){setCatalogueMessage(err.message);} e.target.value='';}} /></label>
+          <label>Catalogue CSV <textarea aria-label="Catalogue CSV" value={catalogueText} disabled={catalogueBusy} onChange={e=>{setCatalogueText(e.target.value);setCataloguePreview(null);}} /></label>
+          <button disabled={catalogueBusy} onClick={()=>setCataloguePreview(ThreadCatalogues.preview(catalogueText,catalogueRecords))}>Preview import</button>
+          <button disabled={catalogueBusy || !catalogueRecords.length} onClick={exportCatalogue}>Export custom CSV</button>
+          {cataloguePreview && <div>
+            <p>{cataloguePreview.records.length} valid records; {cataloguePreview.errors.length} errors; {cataloguePreview.duplicates.length} duplicates. Imports with errors or duplicates save nothing.</p>
+            <ul>{[...cataloguePreview.errors,...cataloguePreview.duplicates].map((message,i)=><li key={i}>{message}</li>)}</ul>
+            <ul>{cataloguePreview.records.map(t=><li key={t.key}>{t.brand} {t.code}: {t.name} — {t.status}; {t.rgb ? 'approximate RGB '+t.rgb.join(',') : 'no colour approximation'}; substitute: {t.substitute || 'none'}; provenance (user supplied): {t.provenance}</li>)}</ul>
+            <button disabled={catalogueBusy || !cataloguePreview.records.length || !!cataloguePreview.errors.length || !!cataloguePreview.duplicates.length} onClick={importCatalogue}>Import catalogue</button>
+          </div>}
+          <p role="status">{catalogueMessage}</p>
+          <ul>{catalogueRecords.map(t=><li key={t.key}>{t.brand} {t.code}: {t.name} — {t.status}; substitute: {t.substitute || 'none'}; provenance (user supplied): {t.provenance}</li>)}</ul>
+        </details>
         <div className="mgr-filter-bar">
           <input
             type="search"
@@ -1082,6 +1118,7 @@ function ManagerApp() {
             >+ Bulk Add</button>
           )}
         </div>
+        </>
       )}
 
       {/* Stats strip — threads.
@@ -2410,3 +2447,56 @@ function UserProfileModal({ profile, onSave, onClose }) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(<ManagerApp />);
 if (typeof SyncEngine !== 'undefined') SyncEngine.registerBeforeUnloadSnapshot();
+
+
+function ProjectMaterials({catalogues}) {
+  const [plan,setPlan]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+  const refresh=useCallback(async()=>{
+    try {const next=await StashBridge.projectMaterials();setPlan(next);setError('');}catch(e){setError(e.message);}
+  },[]);
+  useEffect(()=>{
+    refresh();
+    const visible=()=>{if(document.visibilityState==='visible')refresh();};
+    // Stash reads also announce changes, so do not subscribe to our own writes.
+    window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',visible);
+    window.addEventListener('cs:stashChanged',refresh);window.addEventListener('cs:projectsChanged',refresh);
+    return ()=>{window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',visible);window.removeEventListener('cs:stashChanged',refresh);window.removeEventListener('cs:projectsChanged',refresh);};
+  },[refresh]);
+  async function change(g,patch) {
+    setBusy(true);
+    try{setPlan(await StashBridge.projectMaterials(g.id,{...g.request,...patch}));setError('');}
+    catch(e){setError(e.message);await refresh();setError(e.message);}
+    finally{setBusy(false);}
+  }
+  async function exportList() {
+    try {
+      const current=await StashBridge.projectMaterials();setPlan(current);
+      const blob=new Blob([JSON.stringify(current,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='stitchx-project-shopping-list.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(e){setError(e.message);}
+  }
+  const fmt=n=>n.toLocaleString('en-GB',{maximumFractionDigits:6});
+  return <section style={{padding:20}} aria-label="Project materials">
+    <h2>Project materials and shopping lists</h2>
+    <p>Owned is usable stash, including opened skeins. Reserved is held for a project; available excludes every reservation. Reserving never consumes stock. Earlier project IDs have allocation priority.</p>
+    <p>Needs cover unfinished chart units using saved project count, strands, tails and waste (or live-deduction defaults). One skein is 1,890 single-strand inches, approximately 8 metres of six-strand cotton. These are estimates, not measured lengths. Fabric and beads are excluded.</p>
+    <p>Shortages share remaining free stock once in project order. Buy from the combined list: individual lists must not be rounded and added together. After purchasing, add the quantity to your stash and refresh; this list records no orders.</p>
+    <button onClick={refresh} disabled={busy}>Refresh estimates</button>{' '}
+    <button onClick={exportList} disabled={busy||!plan}>Export shopping list JSON</button>
+    {error&&<p role="alert">{error}</p>}
+    {!plan&&!error&&<p role="status">Loading materials…</p>}
+    {plan&&<><h3>Combined shopping list</h3>{!plan.combined.length?<p>No shortages.</p>:<ul>{plan.combined.map(r=><li key={r.key}>{r.key}: shortage {fmt(r.shortage)} skeins; buy {r.buySkeins} whole skein(s)</li>)}</ul>}
+    {!plan.groups.length&&<p>No active saved projects.</p>}
+    {plan.groups.map(g=><section key={g.id} aria-label={g.name}>
+      <h3>{g.name}</h3>
+      <button disabled={busy} onClick={()=>change(g,{enabled:!g.enabled})}>{g.enabled?'Release reservations':'Reserve estimated needs'}</button>
+      <p>Changed estimates adjust claims automatically. Completed, archived, abandoned (UFO) and deleted projects release their claims. Refresh after editing a project or stash.</p>
+      {Object.entries(g.substitutions).map(([from,s])=><p key={from}>Confirmed substitution: {from} to {s.key}. <button disabled={busy} onClick={()=>{const subs={...g.request.substitutions};delete subs[from];change(g,{substitutions:subs});}}>Remove substitution</button></p>)}
+      <div style={{overflowX:'auto'}}><table><caption>Quantities in skeins</caption><thead><tr>{['Thread','Owned','Estimated needed','Reserved','Available to any project','Shortage','Reservation limit','Substitution'].map(t=><th key={t} scope="col">{t}</th>)}</tr></thead>
+      <tbody>{g.rows.map(r=><tr key={r.key}><th scope="row">{r.key}</th><td>{fmt(r.owned)}</td><td>{fmt(r.estimatedNeeded)}</td><td>{fmt(r.reserved)}</td><td>{fmt(r.available)}</td><td>{fmt(r.shortage)}</td>
+      <td><form onSubmit={e=>{e.preventDefault();const n=Number(new FormData(e.currentTarget).get('limit'));if(!Number.isFinite(n)||n<0){setError('Enter a non-negative skein quantity');return;}change(g,{limits:{...g.request.limits,[r.key]:n}});}}><input key={g.request.revision} aria-label={'Reservation limit for '+g.name+' '+r.key} name="limit" type="number" min="0" step="any" required defaultValue={g.request.limits[r.key]??r.estimatedNeeded}/><button disabled={busy}>Set limit</button></form></td>
+      <td>{Object.values(g.substitutions).some(s=>s.key===r.key)?<span>Remove the confirmed substitution to change it.</span>:<form onSubmit={e=>{e.preventDefault();const input=String(new FormData(e.currentTarget).get('substitute')).trim();const colon=input.indexOf(':'),brand=input.slice(0,colon).toLowerCase(),id=input.slice(colon+1);const catalogue=brand==='dmc'?DMC:brand==='anchor'&&typeof ANCHOR!=='undefined'?ANCHOR:[];const match=catalogue.find(t=>String(t.id).toLowerCase()===id.toLowerCase())||(catalogues||[]).find(t=>t.brand===brand&&t.code===id);const key=match?brand+':'+(match.id??match.code):input;if(!match||key===r.key){setError('Choose a different catalogue thread as brand:number, for example anchor:403.');return;}change(g,{substitutions:{...g.request.substitutions,[r.key]:{key,confirmed:true}}});}}><input name="substitute" required aria-label={'Substitute for '+g.name+' '+r.key} placeholder="anchor:403"/><button disabled={busy}>Confirm substitution</button></form>}</td>
+      </tr>)}</tbody></table></div>
+    </section>)}</>}
+  </section>;
+}

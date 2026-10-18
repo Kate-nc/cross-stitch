@@ -16,7 +16,7 @@
     const out=dict(), map=x=>x instanceof Map?x:new Map(x||[]);
     function add(unit, thread, weight, type, geometry) {
       if(!thread || thread.id==null || String(thread.id).startsWith('__'))return;
-      const parts=thread.type==='blend'||String(thread.id).includes('+')?(thread.threads||String(thread.id).split('+').map(id=>({id}))):[thread];
+      const parts=thread.type==='blend'||(!thread.type&&['dmc','anchor'].includes(String(thread.brand||(p.settings&&p.settings.threadBrand)||'dmc').toLowerCase())&&String(thread.id).includes('+'))?(thread.threads||String(thread.id).split('+').map(id=>({id}))):[thread];
       let weights=parts.map((t,i)=>positive(thread.blendRatio&&thread.blendRatio[i]!=null?thread.blendRatio[i]:t.strands,1,true));
       if(!weights.some(x=>x>0))weights=weights.map(()=>1);
       const sum=weights.reduce((a,b)=>a+b,0), amounts=dict();
@@ -55,7 +55,7 @@
   function empty(){return {version:2,projects:{},events:{},receipts:{}};}
   function validateAmounts(a){
     if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid consumption quantities');
-    Object.entries(a).forEach(([k,v])=>{if(!/^[a-z]+:.+/.test(k)||!Number.isFinite(v)||v<0)throw Error('Invalid consumption quantity: '+k);});
+    Object.entries(a).forEach(([k,v])=>{if(!/^[a-z][a-z0-9-]{0,63}:[^:\x00-\x1f]+$/.test(k)||!Number.isFinite(v)||v<0)throw Error('Invalid consumption quantity: '+k);});
   }
   function validateEstimate(e){
     if(!e||typeof e.type!=='string'||!e.assumptions)throw Error('Missing consumption estimation assumptions');
@@ -86,7 +86,7 @@
   function totals(ledger,pid) {
     const out=dict();Object.keys(ledger.events).sort().map(id=>ledger.events[id]).forEach(e=>{if(pid&&e.projectId!==pid)return;Object.entries(e.debit||{}).forEach(([k,v])=>out[k]=(out[k]||0)+v);Object.entries(e.credit||{}).forEach(([k,v])=>out[k]=(out[k]||0)-v);});return out;
   }
-  function apply(ledger,threads,ops,date) {
+  function apply(ledger,threads,ops,date,protectedStock) {
     const changed=new Set(),heads=dict();
     Object.values(ledger.events).forEach(e=>{const k=JSON.stringify([e.projectId,e.unit]);if(!heads[k]||heads[k].seq<e.seq)heads[k]=e;});
     ops.forEach(op=>{
@@ -105,7 +105,7 @@
       validateEstimate(estimate);
       let active=op.kind==='mark'||op.kind==='undo-unpick', debit={},credit={},remainingDebits=copy(s.debits),unpicked=null;
       if(op.kind==='mark'&&!s.active&&op.enabled){
-        Object.entries(estimate.amounts).forEach(([k,v])=>{const entry=threads[k],available=quantity(entry);debit[k]=Math.min(available,v);remainingDebits[k]=debit[k];});
+        Object.entries(estimate.amounts).forEach(([k,v])=>{const entry=threads[k],available=Math.max(0,quantity(entry)-((protectedStock||{})[k]||0));debit[k]=Math.min(available,v);remainingDebits[k]=debit[k];});
       } else if(op.kind==='correction'||op.kind==='correct-project') {
         credit=copy(s.debits);remainingDebits={};active=op.kind==='correct-project'?s.active:false;
       } else if(op.kind==='unpick') {unpicked={debits:copy(s.debits)};remainingDebits={};}

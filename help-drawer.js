@@ -314,7 +314,7 @@
       sections: [
         {
           heading: "Thread stash",
-          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low.",
+          body: "The Thread Stash tab tracks which DMC and Anchor threads you own, how many skeins, and what is running low. Custom thread catalogues imports user-owned CSV reference records after validation and duplicate preview. Export preserves codes, names, optional approximate RGB, status, substitutions and user-supplied provenance. Custom records stay separate from matching palettes and projects; substitutions are never automatic. Bulk Add requires all unrecognised or opposite-brand tokens to be corrected or removed, and saves the batch atomically.",
           bullets: [
             ["Skeins owned", "Select a thread to set how many skeins you have. Composite keys (for example anchor:403) keep DMC and Anchor numbers that look the same apart."],
             ["Part-used skeins", "Mark a thread as Mostly full, About half, Remnant or Used up. Used up sets the skein count to zero."],
@@ -331,6 +331,10 @@
             ["Anchor ↔ DMC equivalents", "Conversions come from a reconciled table, labelled official, reconciled or single-source. They are close matches, not exact."],
             ["Stash-constrained generation", "When Use only stash threads is on in the Creator, every thread you own in the brand chosen under Threads (DMC or Anchor) is available to the generator."]
           ]
+        },
+        {
+          heading: "Project material reservations",
+          body: "Stash Manager > Project materials separates owned, reserved, available and estimated-needed skeins. Reserve estimated needs or set a fractional skein limit. Reserving never consumes stock. Claims use stable project-ID order, adjust with unfinished chart estimates and release for completed, archived, abandoned (UFO) or deleted projects. Available excludes all claims. Shopping lists share remaining free stock once; use the combined list to avoid duplicate purchases. Only the combined shortage is rounded up to whole skeins. Refresh after edits or purchases. Confirm substitutions explicitly using brand:number; the original chart identity stays unchanged and subsequent consumption uses the confirmed replacement. Remove a substitution before changing its replacement. Estimates use saved live-deduction geometry, count, strands, tails and waste, with 1,890 single-strand inches per skein. These differ from the older rounded Creator shopping estimator. Fabric and beads are excluded. Export shopping list JSON for a portable snapshot; full backups preserve reservation intent with stock and consumption history. Project-only exports do not reserve stock on another device.",
         },
         {
           heading: "Pattern Library",

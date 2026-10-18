@@ -36,11 +36,11 @@ const COLLIDING = run(withAnchor, `
   })()`);
 
 describe('project brand', () => {
-  test('a project without threadBrand is DMC; unknown values are DMC too', () => {
+  test('a project without threadBrand is DMC; unknown brand identities are retained', () => {
     expect(run(withAnchor, 'projectThreadBrand({settings:{}})')).toBe('dmc');
     expect(run(withAnchor, 'projectThreadBrand({})')).toBe('dmc');
     expect(run(withAnchor, 'projectThreadBrand(null)')).toBe('dmc');
-    expect(run(withAnchor, 'projectThreadBrand({settings:{threadBrand:"madeira"}})')).toBe('dmc');
+    expect(run(withAnchor, 'projectThreadBrand({settings:{threadBrand:"madeira"}})')).toBe('madeira');
     expect(run(withAnchor, 'projectThreadBrand({settings:{threadBrand:"anchor"}})')).toBe('anchor');
     expect(run(withAnchor, 'projectThreadBrand({settings:{threadBrand:"Anchor"}})')).toBe('anchor');
   });
@@ -140,7 +140,7 @@ describe('save and load', () => {
   test('an Anchor colour in a DMC pattern (a mixed Adapt copy) stays Anchor', () => {
     const mixed = run(withAnchor, `[restoreStitch({id:'310', type:'solid'}), restoreStitch({id:${JSON.stringify(COLLIDING)}, type:'solid'}, 'anchor')]`);
     const saved = JSON.parse(JSON.stringify(run(withAnchor, `serializePattern(${JSON.stringify(mixed)})`)));
-    expect(saved[0]).toEqual({ id: '310', type: 'solid' });
+    expect(saved[0]).toEqual({ id: '310', type: 'solid', rgb:[0,0,0], name:'Black' });
     expect(saved[1].brand).toBe('anchor');
     const back = run(withAnchor, `${JSON.stringify(saved)}.map(function (m) { return restoreStitch(m); })`);
     expect(back[1].brand).toBe('anchor');
@@ -244,4 +244,24 @@ describe('Adapt to brand', () => {
     expect(brandOf([{ id: '403+46', type: 'blend', threads: [{ id: '403', brand: 'anchor' }, { id: '46', brand: 'anchor' }] }])).toBe('anchor');
     expect(brandOf([{ id: '310', type: 'solid' }])).toBe('dmc');
   });
+});
+
+ test('unknown brands never borrow a colliding DMC identity',()=>{
+ expect(run(withAnchor, "findThreadInCatalog('mine','310')")).toBeNull();
+ expect(run(withAnchor, "getThreadByKey('mine:310')")).toBeNull();
+ expect(run(withAnchor, "libraryThreadKey({brand:'mine',id:'001'})")).toBe('mine:001');
+ const t=run(withAnchor, "restoreStitch({id:'310',brand:'mine',name:'私の黒',rgb:[1,2,3],type:'solid'})");
+ expect(t.brand).toBe('mine');expect(t.name).toBe('私の黒');expect(Array.from(t.rgb)).toEqual([1,2,3]);
+ });
+ test('saved project colours and names survive catalogue edits',()=>{
+ const c=load(BASE);
+ const saved=run(c,"serializePattern([restoreStitch({id:'310',type:'solid'})])");
+ run(c,"DMC.find(t=>t.id==='310').rgb=[80,90,100];DMC.find(t=>t.id==='310').name='Changed';");
+ const restored=run(c,`restoreStitch(${JSON.stringify(saved[0])})`);
+ expect(Array.from(restored.rgb)).toEqual([0,0,0]);expect(restored.name).toBe('Black');
+ });
+
+test('prototype-like brand slugs remain unavailable catalogues without crashing',()=>{
+ expect(run(withAnchor,"threadCatalogue('constructor')")).toBeNull();
+ expect(run(withAnchor,"threadBrandLabel('constructor')")).toBe('constructor');
 });

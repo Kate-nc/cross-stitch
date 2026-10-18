@@ -867,11 +867,12 @@ function restoreStitch(m,brand){
   if(m.type==="blend"){
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
     if(ids.length===2&&t0&&t1){
-      let out={type:"blend",id:m.id,name:m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
       // Explicit RGB is retained by the saver for custom/imported colours.
       // Bare IDs follow catalogue updates; legacy explicit RGB stays intact
       // because its origin cannot safely be inferred from the thread number.
       if(m.rgb&&m.rgb.some((v,i)=>v!==out.rgb[i])){out.rgb=m.rgb;out.lab=rgbToLab(...m.rgb);}
+      ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
       out.symbol=m.symbol;
       if(tag){out.brand=tag;out.threads=[Object.assign({},t0,{brand:tag}),Object.assign({},t1,{brand:tag})];}
       if(m.autoSymbol)out.autoSymbol=true;return out;
@@ -882,14 +883,16 @@ function restoreStitch(m,brand){
       let lab=rgbToLab(...m.rgb);
       let out={type:"blend",id:m.id,name:m.name||m.id,rgb:m.rgb,lab:lab,dist:0,symbol:m.symbol,
         threads:ids.map(function(id){let t=findThreadInCatalog(b,id);return t||{id:id,name:id,rgb:m.rgb,lab:lab};})};
+      ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
       if(tag){out.brand=tag;out.threads=out.threads.map(t=>Object.assign({},t,{brand:tag}));}
       if(m.autoSymbol)out.autoSymbol=true;return out;
     }
   }
   let t=findThreadInCatalog(b,m.id);
   let rgb=m.rgb||(t?t.rgb:[128,128,128]);
-  let out=t?{type:"solid",id:t.id,name:t.name,rgb:rgb,lab:m.rgb?rgbToLab(...rgb):t.lab,dist:0,symbol:m.symbol}
-    :{type:"solid",id:m.id,name:m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
+  let out=t?{type:"solid",id:t.id,name:m.name||t.name,rgb:rgb,lab:m.rgb?rgbToLab(...rgb):t.lab,dist:0,symbol:m.symbol}
+    :{type:"solid",id:m.id,name:m.name||m.id,rgb:m.rgb||[128,128,128],lab:rgbToLab(...(m.rgb||[128,128,128])),dist:0,symbol:m.symbol};
+  ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
   if(tag)out.brand=tag;
   if(m.autoSymbol)out.autoSymbol=true;
   return out;

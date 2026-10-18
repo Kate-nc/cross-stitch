@@ -113,10 +113,10 @@ describe('stripCellForSave — flag ON (default)', () => {
     ];
     const out = serializePattern(pat);
     expect(out).toEqual([
-      { id: '310', type: 'solid' },
+      { id: '310', type: 'solid', rgb:[0,0,0] },
       { id: 'custom', type: 'solid', rgb: [9, 9, 9] },
       { id: '__skip__' },
-      { id: '310+321', type: 'blend' }
+      { id: '310+321', type: 'blend', rgb:[100,15,20] }
     ]);
   });
 
@@ -152,7 +152,7 @@ describe('stripCellForSave — flag ON (default)', () => {
       edited[0] = { id: '321', type: 'solid', rgb: [200, 30, 40] };
       const after = serializePattern(edited);
       expect(after).not.toBe(before);
-      expect(after[0]).toEqual({ id: '321', type: 'solid' });
+      expect(after[0]).toEqual({ id: '321', type: 'solid', rgb:[200,30,40] });
     });
 
     test('a pattern resized in place re-serialises rather than saving a stale cell count', () => {

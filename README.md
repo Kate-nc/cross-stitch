@@ -504,6 +504,8 @@ Colours still map to solid threads in the chosen brand or stash. Expand
 **Source colours mapped to threads** in the preview to review RGB matches and
 pixel counts before generating; several colours may share a thread.
 
+Custom thread reference catalogues can be imported and exported in Stash Manager. See [catalogue CSV guidance](wiki/Thread-Catalogues.md).
+
 ### Reusable PDF export presets
 
 In **Materials & Output > Export**, choose a saved preset and **Apply preset**, or name the current settings and **Save as new preset**. Change the existing Format & settings controls, then **Update selected preset** to save edits or a new name. **Delete preset** keeps the active settings. Names are unique (ignoring case), up to 80 characters; up to 50 presets are supported.
@@ -515,3 +517,7 @@ Presets are **global preferences on this browser**, shared by all projects. Full
 The live layout illustration shows the first chart page to scale, resolved paper dimensions, margins, cell size, chart regions and a page count from the export pagination plan. It illustrates bounds and colours; PDF symbols and typography are rendered during export. Auto resolves from the exporting browser locale, so choose A4 or Letter for a fixed paper size. Custom density accepts 10–200 stitches, rounded down to tens as shown in the preview; margins allow whole millimetres from 10–30. Branding lines shrink to fit, down to 6 pt; longer lines stop export with an explanation. Overlap repeats two rows/columns on adjacent pages. Unused palette entries do not add legend pages.
 
 All presets use the existing worker and its 112-symbol limit, missing-glyph and unsupported-stitch checks. Use the standard print theme for Pattern Keeper. Actual Pattern Keeper import remains a manual device check.
+
+### Project material planning
+
+Stash Manager > Project materials reserves thread for saved projects without consuming it. Set fractional skein limits, review per-project shortages and use the combined shopping list to avoid duplicate purchases. JSON export is a portable list snapshot; full backups preserve reservation intent. See [reservation rules and examples](wiki/Project-Materials.md).
