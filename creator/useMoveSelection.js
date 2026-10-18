@@ -305,9 +305,11 @@ window.useMoveSelection = function useMoveSelection(state) {
     }
 
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var moveReset = state.guardStitchedEdit && state.guardStitchedEdit(patResult.changes, patResult.newPat);
     state.setEditHistory(function(prev) {
       var entry = {
         type: 'move',
+        doneReset: moveReset,
         changes: patResult.changes,
         psChanges: psResult.psChanges.length ? psResult.psChanges : undefined,
         bsLines: bsResult.didChange ? snap.bsLines : undefined,

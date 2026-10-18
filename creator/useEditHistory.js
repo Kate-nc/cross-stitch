@@ -20,7 +20,9 @@
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines?, knots? }
          `bsLines` and `knots` (French knots) are the whole old arrays,
-         swapped in and out. Generic fallthrough: handled by the same `last.changes` loop. The
+         swapped in and out. `doneReset` (optional) lists the stitched cells the
+         edit set back to not done (UX-006): undo marks them done again and
+         redo clears them, in the same step. Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —
          any new edit type that produces a `changes` array will Just Work
          without touching this file. New types that need bespoke palette
@@ -145,6 +147,8 @@ window.useEditHistory = function useEditHistory(state) {
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
+    // The cells this edit reset to not done are stitched again.
+    if (last.doneReset && state.done && window.StitchedEdits) state.setDone(window.StitchedEdits.restoreDone(state.done, last.doneReset));
 
     var redoPsChanges = null;
     if (last.psChanges) {
@@ -174,6 +178,7 @@ window.useEditHistory = function useEditHistory(state) {
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
       var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots, specialtyStitches:redoSpecialty };
+      if (last.doneReset) entry.doneReset = last.doneReset;
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -283,6 +288,8 @@ window.useEditHistory = function useEditHistory(state) {
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
+    // Re-applying the edit sets those stitched cells back to not done.
+    if (last.doneReset && state.done && window.StitchedEdits) state.setDone(window.StitchedEdits.clearDone(state.done, last.doneReset));
 
     var undoPsChanges = null;
     if (last.psChanges) {
@@ -312,6 +319,7 @@ window.useEditHistory = function useEditHistory(state) {
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
       var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots, specialtyStitches:undoSpecialty };
+      if (last.doneReset) entry.doneReset = last.doneReset;
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);

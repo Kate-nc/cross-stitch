@@ -504,8 +504,9 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     }
 
     // Push single undo entry (one step for both passes — per Q2 decision).
+    var denoiseReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, workingPat);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'denoise', changes: changes }]);
+      var n = prev.concat([{ type: 'denoise', changes: changes, doneReset: denoiseReset }]);
       if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
       return n;
     });

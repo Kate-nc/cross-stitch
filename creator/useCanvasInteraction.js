@@ -802,13 +802,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         });
         if (!ch.length) return;
+        ch.forEach(function(c2) { np2[c2.idx] = Object.assign({}, pe); });
+        var fillReset = state.guardStitchedEdit && state.guardStitchedEdit(ch, np2);
         state.setEditHistory(function(prev) {
-          var n = prev.concat([{ type: "fill", changes: ch }]);
+          var n = prev.concat([{ type: "fill", changes: ch, doneReset: fillReset }]);
           if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
           return n;
         });
         state.setRedoHistory([]);
-        ch.forEach(function(c2) { np2[c2.idx] = Object.assign({}, pe); });
       } else {
         return; // paint handled by mousedown drag
       }
@@ -1148,12 +1149,15 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (psChanged) state.setPartialStitches(newPs);
       if (bsLinesChanged) state.setBsLines(dragBsLinesRef.current);
       var changes = dragChangesRef.current.slice();
+      var dragReset = madeChanges && state.guardStitchedEdit ? state.guardStitchedEdit(changes, dragPatRef.current) : undefined;
+      var dragType = dragActionRef.current;
       state.setEditHistory(function(prev) {
         var n = prev.concat([{
-          type: dragActionRef.current,
+          type: dragType,
           changes: changes,
           psChanges: psChanges.length > 0 ? psChanges : undefined,
           bsLines: bsLinesChanged ? bsLines : undefined,
+          doneReset: dragReset,
         }]);
         if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
         return n;

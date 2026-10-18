@@ -256,7 +256,7 @@ window.PatternCanvas = function PatternCanvas() {
     // repaints the overlay when they change. Switching tools used to redraw
     // every stitch.)
     gen.img, ctx.partialStitches, cv.specialtySelected, ctx.specialtyStitches, ctx.knots,
-    gen.showCleanupDiff, gen.cleanupDiff,
+    gen.showCleanupDiff, gen.cleanupDiff, cv.showStitched, cv.showStitched ? ctx.done : null,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
     app.fabricColour, app.canvasTexture, replaceHoverId

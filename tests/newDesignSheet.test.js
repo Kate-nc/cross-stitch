@@ -54,7 +54,7 @@ describe('startScratch(w, h, opts)', () => {
       setSW: rec('sW'), setSH: rec('sH'), setFabricCt: rec('fabricCt'), setFabricColour: rec('fabricColour'),
       setImg: rec('img'), prevSW: {}, prevSH: {}, initBlankGrid: (w, h) => { calls.grid = [w, h]; },
       setPatternCreatedThisVisit: rec('created'), setAppMode: rec('mode'), setSidebarTab: rec('tab'),
-      pendingFitRef: {}, window: {},
+      setDrawMode: rec('drawMode'), pendingFitRef: {}, window: {},
     };
     const names = Object.keys(env);
     // eslint-disable-next-line no-new-func
@@ -69,6 +69,7 @@ describe('startScratch(w, h, opts)', () => {
     expect(c.fabricCt).toBe(14);
     expect(c.fabricColour).toBe('#1A1A1A');
     expect(c.scratch).toBe(true);
+    expect(c.drawMode).toBe(true);   // "Start drawing" opens in Draw (UX-009)
     // The fabric is set after resetAll, so it is not reset to the default.
     expect(fnSrc.indexOf('resetAll()')).toBeLessThan(fnSrc.indexOf('setFabricColour(opts.fabricColour)'));
   });

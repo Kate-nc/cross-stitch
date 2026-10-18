@@ -589,6 +589,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
   var cleanupDiff = state.cleanupDiff;
+  var stitchedDone = state.showStitched && state.done && state.done.length === sW * sH ? state.done : null;
   // Resolve highlight mode + dimming params
   var hl = _resolveHighlight(state);
 
@@ -809,6 +810,20 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
     ctx2d.restore();
+  }
+
+  // "Show stitched" (UX-006): a green wash over the cells marked done.
+  if (stitchedDone) {
+    ctx2d.fillStyle = "rgba(46,125,50,0.38)";
+    for (var sty = cy0; sty < cy1; sty++) {
+      for (var stx = cx0; stx < cx1; stx++) {
+        var sti = (offY + sty) * sW + (offX + stx);
+        if (stitchedDone[sti] !== 1) continue;
+        var stCell = pat[sti];
+        if (!stCell || stCell.id === "__skip__" || stCell.id === "__empty__") continue;
+        ctx2d.fillRect(gut + stx * cSz, gut + sty * cSz, cSz, cSz);
+      }
+    }
   }
 
   // Cleanup diff overlay (magenta at 40%, below gridlines)

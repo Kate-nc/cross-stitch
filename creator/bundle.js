@@ -1829,6 +1829,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   var op          = state.overlayOpacity !== undefined ? state.overlayOpacity : 0.3;
   var showCleanupDiff = state.showCleanupDiff;
   var cleanupDiff = state.cleanupDiff;
+  var stitchedDone = state.showStitched && state.done && state.done.length === sW * sH ? state.done : null;
   // Resolve highlight mode + dimming params
   var hl = _resolveHighlight(state);
 
@@ -2049,6 +2050,20 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
       }
     }
     ctx2d.restore();
+  }
+
+  // "Show stitched" (UX-006): a green wash over the cells marked done.
+  if (stitchedDone) {
+    ctx2d.fillStyle = "rgba(46,125,50,0.38)";
+    for (var sty = cy0; sty < cy1; sty++) {
+      for (var stx = cx0; stx < cx1; stx++) {
+        var sti = (offY + sty) * sW + (offX + stx);
+        if (stitchedDone[sti] !== 1) continue;
+        var stCell = pat[sti];
+        if (!stCell || stCell.id === "__skip__" || stCell.id === "__empty__") continue;
+        ctx2d.fillRect(gut + stx * cSz, gut + sty * cSz, cSz, cSz);
+      }
+    }
   }
 
   // Cleanup diff overlay (magenta at 40%, below gridlines)
@@ -3659,6 +3674,69 @@ window.ColourReplace = (function() {
 })();
 
 
+/* ─── stitchedEdits.js ─── */
+/* creator/stitchedEdits.js ─────────────────────────────────────────────────
+   Pure helpers that keep stitching progress (`done`) consistent when the
+   pattern is edited in the Creator. No DOM, no React.
+
+   Exposed as window.StitchedEdits:
+     cellChanged(oldCell, newCell)
+       → true when the colour or stitch type differs (a symbol-only change
+         is not a change: the stitch is still the same thread).
+     stitchedResets(done, changes, newPat)
+       → [idx] of cells that were marked done and whose colour or type the
+         edit changes. `changes` is the history shape [{ idx, old }].
+         Returns [] when there is nothing to reset.
+     clearDone(done, idxs)  → new Uint8Array with those cells not done.
+     restoreDone(done, idxs) → new Uint8Array with those cells done again.
+     resetMessage(n)  → the toast text for n reset cells.
+   ────────────────────────────────────────────────────────────────────────── */
+
+window.StitchedEdits = (function() {
+  function isBlank(cell) {
+    return !cell || cell.id === "__skip__" || cell.id === "__empty__";
+  }
+
+  function cellChanged(a, b) {
+    if (isBlank(a) && isBlank(b)) return false;
+    if (isBlank(a) !== isBlank(b)) return true;
+    return a.id !== b.id || (a.type || "solid") !== (b.type || "solid");
+  }
+
+  function stitchedResets(done, changes, newPat) {
+    var out = [];
+    if (!done || !changes || !changes.length || !newPat) return out;
+    var seen = {};
+    for (var i = 0; i < changes.length; i++) {
+      var c = changes[i], idx = c && c.idx;
+      if (idx == null || seen[idx] || idx < 0 || idx >= done.length || done[idx] !== 1) continue;
+      seen[idx] = true;
+      if (cellChanged(c.old, newPat[idx])) out.push(idx);
+    }
+    return out;
+  }
+
+  function clearDone(done, idxs) {
+    var n = new Uint8Array(done);
+    for (var i = 0; i < idxs.length; i++) n[idxs[i]] = 0;
+    return n;
+  }
+
+  function restoreDone(done, idxs) {
+    var n = new Uint8Array(done);
+    for (var i = 0; i < idxs.length; i++) n[idxs[i]] = 1;
+    return n;
+  }
+
+  function resetMessage(n) {
+    return n.toLocaleString() + " stitched cell" + (n === 1 ? "" : "s") + " reset to not done.";
+  }
+
+  return { cellChanged: cellChanged, stitchedResets: stitchedResets, clearDone: clearDone,
+    restoreDone: restoreDone, resetMessage: resetMessage };
+})();
+
+
 /* ─── useMagicWand.js ─── */
 /* creator/useMagicWand.js — Magic Wand selection engine.
    Provides flood-fill + global colour selection, modifier key modes,
@@ -3956,8 +4034,9 @@ window.useMagicWand = function useMagicWand(state) {
     if (!changes.length) return;
 
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var confettiReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "confettiCleanup", changes: changes }]);
+      var n = prev.concat([{ type: "confettiCleanup", changes: changes, doneReset: confettiReset }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -4084,8 +4163,9 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (!changes.length) return;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var reduceReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReduction", changes: changes }]);
+      var n = prev.concat([{ type: "colorReduction", changes: changes, doneReset: reduceReset }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -4148,6 +4228,8 @@ window.useMagicWand = function useMagicWand(state) {
       return null;
     }
     var entry = { type: 'colourReplace', changes: changes };
+    var replaceReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
+    if (replaceReset) entry.doneReset = replaceReset;
     // Generic undo/redo in useEditHistory restores psChanges and bsLines.
     if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
     if (bsRes.count) entry.bsLines = state.bsLines.slice();
@@ -4252,6 +4334,8 @@ window.useMagicWand = function useMagicWand(state) {
     }
 
     var entry = { type: "deleteSelection", changes: changes };
+    var deleteReset = np && state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
+    if (deleteReset) entry.doneReset = deleteReset;
     if (psChanges.length) entry.psChanges = psChanges;
     if (bsRemoved) entry.bsLines = bsLines.slice();
     if (knotsRemoved) entry.knots = knots.slice();
@@ -5123,9 +5207,11 @@ window.useMoveSelection = function useMoveSelection(state) {
     }
 
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var moveReset = state.guardStitchedEdit && state.guardStitchedEdit(patResult.changes, patResult.newPat);
     state.setEditHistory(function(prev) {
       var entry = {
         type: 'move',
+        doneReset: moveReset,
         changes: patResult.changes,
         psChanges: psResult.psChanges.length ? psResult.psChanges : undefined,
         bsLines: bsResult.didChange ? snap.bsLines : undefined,
@@ -5737,9 +5823,10 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var d = T.diffForHistory(f.orig, r);
     if (!d.empty) {
       var MAX = s.EDIT_HISTORY_MAX;
+      var placeReset = s.guardStitchedEdit && s.guardStitchedEdit(d.changes, r.pat);
       s.setEditHistory(function (prev) {
         var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines, knots: d.knots,
-          prevMask: f.orig.mask || null, nextMask: r.mask }]);
+          prevMask: f.orig.mask || null, nextMask: r.mask, doneReset: placeReset }]);
         if (n.length > MAX) n = n.slice(n.length - MAX);
         return n;
       });
@@ -6871,12 +6958,11 @@ if (typeof window !== 'undefined') {
 function isFinePointerNow() {
   try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
 }
-// Navigate / Draw starting mode: the last choice on this device, else Draw
-// for a mouse or trackpad and Navigate for touch (audit DRAW-01).
+// Navigate / Draw starting mode: always Navigate, on every device, so a stray
+// click or tap on a freshly opened pattern edits nothing (audit UX-009). Choosing
+// a tool or a colour switches to Draw; the choice is not carried to the next visit.
 function initialDrawMode() {
-  var saved = loadUserPref("creator.drawMode", null);
-  if (saved === true || saved === false) return saved;
-  return isFinePointerNow();
+  return false;
 }
 // Highest Creator zoom. Touch screens get 4 (80px cells) for precise
 // placement (audit DRAW-03) where the device can hold that canvas: the chart
@@ -7298,8 +7384,8 @@ window.useCreatorState = function useCreatorState() {
   // Draw / Navigate (audit DRAW-01). In Navigate the chosen tool is
   // remembered but inactive: everything outside this hook sees activeTool and
   // partialStitchTool as null, so one finger (or a mouse drag) pans and a
-  // long-press opens the stitch menu. Touch screens start in Navigate, mouse
-  // users in Draw; the last choice is remembered per device.
+  // long-press opens the stitch menu. Every device starts in Navigate until a
+  // tool or colour is chosen (audit UX-009).
   var _penNav = useState(function() { return loadUserPref("creator.penNavigation", false) === true; });
   var penNavigation = _penNav[0], penNavigationRef = useRef(penNavigation);
   function setPenNavigation(v) {
@@ -7314,7 +7400,6 @@ window.useCreatorState = function useCreatorState() {
     if (drawModeRef.current === v) return;
     drawModeRef.current = v;
     _drawMode[1](v);
-    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
   }, []);
   // Touch placement aids (audit DRAW-03). The loupe defaults to on for
   // touch screens; the precision cursor is opt-in.
@@ -7466,6 +7551,8 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+  // "Show stitched" overlay on the Edit canvas: tints the cells marked done (UX-006).
+  var _showStitched     = useState(false); var showStitched     = _showStitched[0],     setShowStitched     = _showStitched[1];
   // Disambiguation result from last generation (null = not run or not enabled)
   var _disambigData     = useState(null);  var disambigData     = _disambigData[0],     setDisambigData     = _disambigData[1];
 
@@ -7755,6 +7842,29 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
+  // Progress guard (UX-006). An edit that changes the colour or type of a cell
+  // marked done sets that cell back to not done, so `done` never claims a
+  // stitch in a thread the user did not stitch. Edit sites call this with the
+  // history `changes` and the new pattern, then keep the returned cell list on
+  // their history entry as `doneReset`; useEditHistory restores or re-applies
+  // it with the rest of that undo step. Returns undefined when nothing reset.
+  var doneRef = useRef(done); doneRef.current = done;
+  // Set by CreatorApp: undoes the newest edit if it still carries these cells.
+  var undoGuardRef = useRef(null);
+  var guardStitchedEdit = useCallback(function(changes, newPat) {
+    var SE = window.StitchedEdits, cur = doneRef.current;
+    if (!SE || !cur) return undefined;
+    var idxs = SE.stitchedResets(cur, changes, newPat);
+    if (!idxs.length) return undefined;
+    var next = SE.clearDone(cur, idxs);
+    doneRef.current = next;
+    setDone(next);
+    addToast(SE.resetMessage(idxs.length), { type: "info", duration: 6000, action: { label: "Undo", onClick: function() {
+      if (undoGuardRef.current) undoGuardRef.current(idxs);
+    } } });
+    return idxs;
+  }, []);
+
   // What the rest of the Creator sees: no tool while in Navigate.
   var effActiveTool = drawMode ? activeTool : null;
   var effPartialStitchTool = drawMode ? partialStitchTool : null;
@@ -8032,6 +8142,8 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: gw, h: gh });
     prevSW.current = gw; prevSH.current = gh;
     initBlankGrid(gw, gh);
+    // "Start drawing" is the choice to edit, so this one opens in Draw.
+    setDrawMode(true);
     setPatternCreatedThisVisit(true);
     // Scratch mode bypasses Create → go straight to Edit
     setAppMode("edit");
@@ -8363,7 +8475,7 @@ window.useCreatorState = function useCreatorState() {
         var _ovr = overrides;
         window.ConfirmDialog.show({
           title: "Regenerate will clear your progress",
-          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (Project \u203a Backup) before continuing.\n\nContinue anyway?",
+          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
           confirmLabel: "Regenerate (clear progress)",
           danger: true
         }).then(function(ok) {
@@ -8888,7 +9000,7 @@ window.useCreatorState = function useCreatorState() {
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
-    done, setDone, isScratchMode, setIsScratchMode,
+    done, setDone, guardStitchedEdit, undoGuardRef, isScratchMode, setIsScratchMode,
     scratchPalette, setScratchPalette, dmcSearch, setDmcSearch,
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
@@ -8925,7 +9037,7 @@ window.useCreatorState = function useCreatorState() {
     saveError, setSaveError,
     nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
-    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
+    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff, showStitched, setShowStitched,
     disambigData, setDisambigData,
     cleanupTargetColorId, setCleanupTargetColorId,
     cleanupTolerance, setCleanupTolerance,
@@ -9166,7 +9278,9 @@ window.useCreatorState = function useCreatorState() {
      - { type: "paint" | "erase" | "fill" | "rect" | "lasso" | "deleteSelection" | undefined,
          changes, psChanges?, bsLines?, knots? }
          `bsLines` and `knots` (French knots) are the whole old arrays,
-         swapped in and out. Generic fallthrough: handled by the same `last.changes` loop. The
+         swapped in and out. `doneReset` (optional) lists the stitched cells the
+         edit set back to not done (UX-006): undo marks them done again and
+         redo clears them, in the same step. Generic fallthrough: handled by the same `last.changes` loop. The
          `type` string is *preserved* on the redo stack but never inspected —
          any new edit type that produces a `changes` array will Just Work
          without touching this file. New types that need bespoke palette
@@ -9291,6 +9405,8 @@ window.useEditHistory = function useEditHistory(state) {
     var redoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
+    // The cells this edit reset to not done are stitched again.
+    if (last.doneReset && state.done && window.StitchedEdits) state.setDone(window.StitchedEdits.restoreDone(state.done, last.doneReset));
 
     var redoPsChanges = null;
     if (last.psChanges) {
@@ -9320,6 +9436,7 @@ window.useEditHistory = function useEditHistory(state) {
     state.setEditHistory(function(prev) { return prev.slice(0, -1); });
     state.setRedoHistory(function(prev) {
       var entry = { type: last.type, changes: redoChanges, psChanges: redoPsChanges, bsLines: redoBsLines, knots: redoKnots, specialtyStitches:redoSpecialty };
+      if (last.doneReset) entry.doneReset = last.doneReset;
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -9429,6 +9546,8 @@ window.useEditHistory = function useEditHistory(state) {
     var undoChanges = last.changes.map(function(c) { return { idx: c.idx, old: Object.assign({}, np[c.idx]) }; });
     last.changes.forEach(function(c) { np[c.idx] = Object.assign({}, c.old); });
     state.setPat(np);
+    // Re-applying the edit sets those stitched cells back to not done.
+    if (last.doneReset && state.done && window.StitchedEdits) state.setDone(window.StitchedEdits.clearDone(state.done, last.doneReset));
 
     var undoPsChanges = null;
     if (last.psChanges) {
@@ -9458,6 +9577,7 @@ window.useEditHistory = function useEditHistory(state) {
     state.setRedoHistory(function(prev) { return prev.slice(0, -1); });
     state.setEditHistory(function(prev) {
       var entry = { type: last.type, changes: undoChanges, psChanges: undoPsChanges, bsLines: undoBsLines, knots: undoKnots, specialtyStitches:undoSpecialty };
+      if (last.doneReset) entry.doneReset = last.doneReset;
       if (last.prevMask !== undefined) { entry.prevMask = last.prevMask; entry.nextMask = last.nextMask; }
       var n = prev.concat([entry]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
@@ -10058,8 +10178,9 @@ window.useCleanupMode = function useCleanupMode(state, history) {
 
     // Push undo entry (generic changes[] loop in useEditHistory handles this
     // without any new branch — type "cleanup" just passes through).
+    var cleanupReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'cleanup', changes: changes }]);
+      var n = prev.concat([{ type: 'cleanup', changes: changes, doneReset: cleanupReset }]);
       if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
       return n;
     });
@@ -10646,8 +10767,9 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     }
 
     // Push single undo entry (one step for both passes — per Q2 decision).
+    var denoiseReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, workingPat);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'denoise', changes: changes }]);
+      var n = prev.concat([{ type: 'denoise', changes: changes, doneReset: denoiseReset }]);
       if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
       return n;
     });
@@ -11845,13 +11967,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
           }
         });
         if (!ch.length) return;
+        ch.forEach(function(c2) { np2[c2.idx] = Object.assign({}, pe); });
+        var fillReset = state.guardStitchedEdit && state.guardStitchedEdit(ch, np2);
         state.setEditHistory(function(prev) {
-          var n = prev.concat([{ type: "fill", changes: ch }]);
+          var n = prev.concat([{ type: "fill", changes: ch, doneReset: fillReset }]);
           if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
           return n;
         });
         state.setRedoHistory([]);
-        ch.forEach(function(c2) { np2[c2.idx] = Object.assign({}, pe); });
       } else {
         return; // paint handled by mousedown drag
       }
@@ -12191,12 +12314,15 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (psChanged) state.setPartialStitches(newPs);
       if (bsLinesChanged) state.setBsLines(dragBsLinesRef.current);
       var changes = dragChangesRef.current.slice();
+      var dragReset = madeChanges && state.guardStitchedEdit ? state.guardStitchedEdit(changes, dragPatRef.current) : undefined;
+      var dragType = dragActionRef.current;
       state.setEditHistory(function(prev) {
         var n = prev.concat([{
-          type: dragActionRef.current,
+          type: dragType,
           changes: changes,
           psChanges: psChanges.length > 0 ? psChanges : undefined,
           bsLines: bsLinesChanged ? bsLines : undefined,
+          doneReset: dragReset,
         }]);
         if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
         return n;
@@ -15346,7 +15472,7 @@ window.PatternCanvas = function PatternCanvas() {
     // repaints the overlay when they change. Switching tools used to redraw
     // every stitch.)
     gen.img, ctx.partialStitches, cv.specialtySelected, ctx.specialtyStitches, ctx.knots,
-    gen.showCleanupDiff, gen.cleanupDiff,
+    gen.showCleanupDiff, gen.cleanupDiff, cv.showStitched, cv.showStitched ? ctx.done : null,
     cv.dimFraction, cv.dimHiId, cv.bgDimOpacity, cv.bgDimDesaturation,
     cv.highlightMode, cv.tintColor, cv.tintOpacity, cv.spotDimOpacity,
     app.fabricColour, app.canvasTexture, replaceHoverId
@@ -17277,6 +17403,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             // A long-press shows the tooltip; it doesn't also change the colour.
             var press = swatchPressRef.current;
             if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
+            // Choosing a colour is choosing to edit: leave Navigate (UX-009).
+            if (cv.selectedColorId !== p.id && cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
             cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
           },
           onPointerDown: function(e) { swatchPressStart(e, p); },
@@ -21935,6 +22063,20 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         }, "\xD7")
       );
     })(),
+
+    // Stitched progress (UX-006): edits to stitched cells reset them, so say so
+    // up front and offer to show which cells those are.
+    ctx.progressPct > 0 && h("div", {
+      className:"stitched-banner", role:"status",
+      style:{padding:"8px 12px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderLeft:"3px solid var(--accent)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+    },
+      h("span", null, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("button", {
+        type:"button", className:"stitched-banner__toggle", "aria-pressed": !!cv.showStitched,
+        onClick:function(){ cv.setShowStitched(!cv.showStitched); },
+        style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,cursor:"pointer",borderRadius:'var(--radius-sm)',border:cv.showStitched?"1px solid var(--accent)":"0.5px solid var(--line)",background:cv.showStitched?"var(--accent-soft)":"var(--surface)",color:cv.showStitched?"var(--accent)":"var(--text-secondary)",flexShrink:0}
+      }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), cv.showStitched ? " Hide stitched" : " Show stitched")
+    ),
 
     h(window.MagicWandPanel, null),
 

@@ -694,6 +694,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             // A long-press shows the tooltip; it doesn't also change the colour.
             var press = swatchPressRef.current;
             if (press && press.fired && press.id === p.id) { swatchPressRef.current = null; return; }
+            // Choosing a colour is choosing to edit: leave Navigate (UX-009).
+            if (cv.selectedColorId !== p.id && cv.setDrawMode && !cv.drawMode) cv.setDrawMode(true);
             cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
           },
           onPointerDown: function(e) { swatchPressStart(e, p); },

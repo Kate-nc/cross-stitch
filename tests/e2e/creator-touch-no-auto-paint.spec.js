@@ -1,6 +1,6 @@
 // P0-1 (audit DRAW-01, first part): on touch screens a new pattern must not
-// paint on the first swipe. Picking Paint still paints; desktop still arms
-// Paint. (P1-1 made the touch default Navigate; see creator-draw-navigate.)
+// paint on the first swipe. Picking Paint still paints. (P1-1 made the touch
+// default Navigate; UX-009 made desktop open in Navigate too.)
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
@@ -48,11 +48,14 @@ test.describe('Creator on a phone: no automatic Paint', function() {
   });
 });
 
-test.describe('Creator on desktop: Paint armed after generating', function() {
+test.describe('Creator on desktop: Navigate after generating (UX-009)', function() {
   test.use(device('desktop'));
 
-  test('Paint is active after generation', async function({ page }) {
+  test('Paint is not active after generation until it is chosen', async function({ page }) {
     await generateLogo(page);
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(undoButton(page)).toBeDisabled();
+    await page.getByRole('button', { name: 'Paint tool' }).click();
     await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

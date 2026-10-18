@@ -446,6 +446,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // were created in (e.g. the colour-replace "Undo" button).
   const _editHistoryRef = React.useRef(null); _editHistoryRef.current = state.editHistory;
   const stableRedoEdit = React.useCallback(function(){_histRef.current.redoEdit();}, []);
+  // The "Undo" on the stitched-cells-reset toast: only while that edit is
+  // still the newest, so a late click never reverts something done after it.
+  state.undoGuardRef.current = function(idxs){
+    var hist=_editHistoryRef.current||[];
+    if(hist.length&&hist[hist.length-1].doneReset===idxs) stableUndoEdit();
+    else state.addToast("Can't undo from here \u2014 the pattern has changed since. Use Undo in the toolbar.",{type:"info",duration:3500});
+  };
 
   // Request to switch from Edit → Convert tab.  Fires the confirmation
   // modal when manual edits exist; otherwise switches immediately.
@@ -650,6 +657,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     hiId: state.hiId, setHiId: state.setHiId,
     showCtr: state.showCtr, setShowCtr: state.setShowCtr,
     showOverlay: state.showOverlay, setShowOverlay: state.setShowOverlay,
+    showStitched: state.showStitched, setShowStitched: state.setShowStitched,
     overlayOpacity: state.overlayOpacity, setOverlayOpacity: state.setOverlayOpacity,
     highlightMode: state.highlightMode, setHighlightMode: state.setHighlightMode,
     bgDimOpacity: state.bgDimOpacity, setBgDimOpacity: state.setBgDimOpacity,
@@ -769,7 +777,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet,
     state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
-    state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,
+    state.hiId, state.showCtr, state.showOverlay, state.showStitched, state.overlayOpacity,
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
     state.bgDimDesaturation, state.dimFraction, state.dimHiId,
     state.tintColor, state.tintOpacity, state.spotDimOpacity,

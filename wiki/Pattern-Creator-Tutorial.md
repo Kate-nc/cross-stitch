@@ -329,6 +329,22 @@ and counts. Multiple source colours can map to the same thread. Preview and
 Generate use the same native-resolution conversion. Resized variation galleries
 require leaving exact mode.
 
+## Editing a pattern you have already stitched
+
+Every pattern opens in **Navigate**, on a computer as well as a touch screen, so
+a stray click edits nothing. Choosing a tool or a colour swatch switches to
+**Draw**. A new blank design (**Start drawing**) opens in Draw.
+
+When the project has stitching progress, the Edit tab says so (for example
+"This project is 34% stitched"). Changing the colour or stitch type of a cell
+you have marked done (painting, filling, erasing, replacing a colour, cleanup,
+moving or pasting over it) sets that cell back to not done, so your progress
+never counts a stitch in the wrong thread. A toast tells you how many cells were
+reset and has an **Undo** button; Undo and Redo in the toolbar bring the marks
+back, or clear them again, together with the edit. Choose **Show stitched** in
+the note to tint the cells marked done on the chart. Before regenerating from a
+picture, which clears progress, export a backup with **File > Export Backup**.
+
 ## Tablet pen and finger rules
 
 Enable **More tools > Pen draws; fingers navigate** for devices that reliably

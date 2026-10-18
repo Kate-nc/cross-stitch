@@ -912,6 +912,15 @@ function CreatorApp({
   const stableRedoEdit = React.useCallback(function () {
     _histRef.current.redoEdit();
   }, []);
+  // The "Undo" on the stitched-cells-reset toast: only while that edit is
+  // still the newest, so a late click never reverts something done after it.
+  state.undoGuardRef.current = function (idxs) {
+    var hist = _editHistoryRef.current || [];
+    if (hist.length && hist[hist.length - 1].doneReset === idxs) stableUndoEdit();else state.addToast("Can't undo from here \u2014 the pattern has changed since. Use Undo in the toolbar.", {
+      type: "info",
+      duration: 3500
+    });
+  };
 
   // Request to switch from Edit → Convert tab.  Fires the confirmation
   // modal when manual edits exist; otherwise switches immediately.
@@ -1212,6 +1221,8 @@ function CreatorApp({
       setShowCtr: state.setShowCtr,
       showOverlay: state.showOverlay,
       setShowOverlay: state.setShowOverlay,
+      showStitched: state.showStitched,
+      setShowStitched: state.setShowStitched,
       overlayOpacity: state.overlayOpacity,
       setOverlayOpacity: state.setOverlayOpacity,
       highlightMode: state.highlightMode,
@@ -1389,7 +1400,7 @@ function CreatorApp({
       // Copy, paste, flip and rotate (useSelectionClipboard)
       clip: state.clip
     };
-  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.specialtySelected, state.specialtyStitches, state.knots, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
+  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.showStitched, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.specialtySelected, state.specialtyStitches, state.knots, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
 
   // ── HoverContext value (pointer hover coords only) ──
   // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
