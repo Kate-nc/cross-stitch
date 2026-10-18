@@ -122,7 +122,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
       });
     }, { timeout: 10000 }).toBe(200);
   });
-  test('A palette swap resets the stitched cells it recolours; the toolbar Undo restores them', async function({ page }) {
+  test('A palette swap resets the stitched cells it recolours; the toast Undo restores them', async function({ page }) {
     await generateLogo(page);
     await stitchFirst(page, 200);
     const doneCount = function() {
@@ -138,8 +138,7 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     await page.getByRole('button', { name: 'Apply Swap' }).click();
     await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 5000 });
     await expect.poll(doneCount, { timeout: 10000 }).toBeLessThan(200);
-    await page.getByRole('tab', { name: 'Edit' }).click();
-    await undoButton(page).click();   // one Undo undoes the swap and the reset together
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();   // the toast's Undo, still in the Convert panel: one step undoes the swap and the reset
     await expect.poll(doneCount, { timeout: 10000 }).toBe(200);
   });
 });
