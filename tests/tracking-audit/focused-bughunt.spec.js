@@ -41,7 +41,10 @@ test.describe('touch palette and readable symbols',()=>{
     await page.keyboard.press('g');await expect(page.locator('.ppal-tile-select').first()).toBeVisible();
     const targets=await page.locator('.ppal-tile button').evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().width).map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height];}));
     const coarse=await page.evaluate(()=>matchMedia('(pointer:coarse)').matches);console.log('TOUCH_TARGETS',JSON.stringify({coarse,targets:targets.slice(0,6)}));
-    expect(targets.length).toBeGreaterThan(0);expect(targets.every(([w,h])=>w>=44&&h>=44),JSON.stringify(targets.filter(([w,h])=>w<44||h<44))).toBe(true);
+    // CSS transforms can report 43.9998779 for a 44 px target. Allow
+    // only floating-point/layout rounding, never a meaningful target shortfall.
+    const minimum=44-0.01;
+    expect(targets.length).toBeGreaterThan(0);expect(targets.every(([w,h])=>w>=minimum&&h>=minimum),JSON.stringify(targets.filter(([w,h])=>w<minimum||h<minimum))).toBe(true);
     await page.getByRole('button',{name:'Close palette panel',exact:true}).click();
     await page.locator(GRID).focus();await page.keyboard.press('=');await page.keyboard.press('=');
     const size=await page.locator('.tracker-chart-scroll > div').first().evaluate(e=>e.children[1].getBoundingClientRect().width);

@@ -1137,6 +1137,7 @@ function migrateNonKeptColors(mapped, keptIds, keptPalette, raw) {
  * @returns {{ pat, pal, cmap, confettiData }} or null if no palette found
  */
 window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
+  if (opts.exactPixelArt) return runExactPixelPipeline(img, opts);
   var sW = opts.sW, sH = opts.sH, maxC = opts.maxC;
   var bri = opts.bri, con = opts.con, sat = opts.sat;
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
@@ -1199,6 +1200,40 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
     preCleanupIds: pipelineResult.preCleanupIds,
     disambigData: pipelineResult.disambigData,
   };
+};
+
+// Exact geometry, explicit solid-thread remapping. No quantisation, dithering,
+// filtering or small-region cleanup: even a single source pixel is deliberate.
+window.runExactPixelPipeline = function runExactPixelPipeline(img, opts) {
+  var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+  if (!w || !h || w > 500 || h > 500) throw new Error("Exact pixel art supports source images up to 500 by 500 pixels; resize the source explicitly first.");
+  if ((opts.allowedPalette && !opts.allowedPalette.length) || (opts.stashConstrained && !opts.allowedPalette) || (opts.convertBrand && opts.convertBrand !== "dmc" && !opts.allowedPalette)) throw new Error("No threads are available for exact pixel-art remapping.");
+  var c = document.createElement("canvas"); c.width = w; c.height = h;
+  var cx = c.getContext("2d"); cx.imageSmoothingEnabled = false;
+  cx.drawImage(img, 0, 0);
+  var raw = cx.getImageData(0, 0, w, h).data;
+  // Reuse the corrected alpha cutoff and hidden-RGB handling. Pixel art uses
+  // source alpha alone; opaque background pixels remain deliberate stitches.
+  var coverage = prepareConversionPixels(raw, w, h, { skipBg: false });
+  var pool = opts.allowedPalette || DMC, byRgb = new Map(), mappings = [];
+  var mapped = new Array(w * h);
+  for (var i = 0; i < mapped.length; i++) {
+    if (!coverage[i]) { mapped[i] = { id: "__skip__" }; continue; }
+    var rgb = [raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2]], key = rgb.join(",");
+    var row = byRgb.get(key);
+    if (!row) {
+      var thread = findSolid(rgbToLab(rgb[0], rgb[1], rgb[2]), pool);
+      row = { source: rgb, thread: thread, count: 0 };
+      byRgb.set(key, row); mappings.push(row);
+    }
+    row.count++; mapped[i] = row.thread;
+  }
+  var palette = buildPalette(mapped), labels = labelConnectedComponents(mapped, w, h);
+  var confetti = analyzeConfetti(mapped, w, h, labels);
+  return { pat: mapped, mapped: mapped, pal: palette.pal, cmap: palette.cmap,
+    width: w, height: h, mappings: mappings,
+    confettiRaw: confetti, confettiClean: null,
+    confettiData: { raw: confetti, clean: confetti } };
 };
 
 
@@ -1555,7 +1590,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
           symColor = view === "both" ? (lum > 128 ? "#000" : "#fff") : "#333";
         }
         ctx2d.fillStyle = symColor;
-        ctx2d.font = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+        ctx2d.font = chartSymbolFont(Math.max(6, cSz * 0.6), true);
         ctx2d.textAlign = "center";
         ctx2d.textBaseline = "middle";
         ctx2d.fillText(info.symbol, px + cSz / 2, py + cSz / 2);
@@ -1869,7 +1904,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   // thread's colour string is built once, and fill, stroke, line width and
   // font are set only when they change. The pixels drawn are the same.
   var lastFill = null, lastStroke = null, lineOne = false, symFontSet = false;
-  var symFont = "bold " + Math.max(6, cSz * 0.6) + "px monospace";
+  var symFont = chartSymbolFont(Math.max(6, cSz * 0.6), true);
   var rgbaCache = new Map();
   function rgbaOf(rgb, a) {
     var byAlpha = rgbaCache.get(rgb);
@@ -4138,11 +4173,9 @@ window.useMagicWand = function useMagicWand(state) {
     // used just by part stitches / backstitch, keep it in the scratch palette
     // so it keeps its palette entry and symbol.
     if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
-      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var sym = nextChartSymbol(dstEntry, r.pal);
       var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
-        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym, autoSymbol: true };
       if (dstEntry.threads) keep.threads = dstEntry.threads;
       if (state.setScratchPalette) {
         state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
@@ -4239,18 +4272,14 @@ window.useMagicWand = function useMagicWand(state) {
         ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
       });
       keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
       var keeps = [];
       Object.keys(stillUsed).forEach(function(id) {
         if (r.cmap[id]) return;
         var old = state.cmap && state.cmap[id];
         if (!old) return;
-        var sym = old.symbol;
-        if (!sym || usedSyms.has(sym)) sym = SY.find(function(x) { return !usedSyms.has(x); }) || sym;
-        usedSyms.add(sym);
-        keeps.push(Object.assign({}, old, { count: 0, symbol: sym }));
+        keeps.push(Object.assign({}, old, { count: 0 }));
       });
+      keeps = dedupeChartSymbols(r.pal, keeps);
       if (keeps.length) {
         if (state.setScratchPalette) {
           state.setScratchPalette(function(prev) {
@@ -5908,7 +5937,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     copy: copy, cut: cut, paste: paste, duplicate: duplicate, transform: transform,
     floatClip: floatClip, replaceClip: replaceClip,
     commit: function () { return commit(); }, cancel: cancel, deleteFloat: deleteFloat,
-    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, isInside: isInside, dragGhost: dragGhost,
+    startDrag: startDrag, updateDrag: updateDrag, endDrag: endDrag, cancelDrag: function() { dragRef.current = null; notifyGhost(); }, isInside: isInside, dragGhost: dragGhost,
     isDragging: function () { return !!dragRef.current; }
   }; }, [clipboard, float]); // eslint-disable-line react-hooks/exhaustive-deps
 };
@@ -6635,7 +6664,7 @@ var CONVERSION_STATE_KEYS = [
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
-  'fabricCt',
+  'fabricCt', 'exactPixelArt',
   'disambig', 'disambigLevel',
 ];
 
@@ -6751,6 +6780,14 @@ function threadCountsSentence(c) {
 function threadCountsShort(c) {
   return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
 }
+// The printed chart has a fixed set of distinct symbols (SymbolGlyphs). When a
+// chart needs more, say so: it can't be exported to PDF as it is. Empty when
+// the chart fits.
+function symbolLimitWarning(c) {
+  var cap = window.SymbolGlyphs ? window.SymbolGlyphs.capacity() : 0;
+  if (!cap || !c || c.symbols <= cap) return '';
+  return 'This chart has ' + c.symbols + ' symbols, but the printed chart has only ' + cap + ' different ones. Lower Threads (max) or turn off blends and convert again; the PDF can\u2019t be exported as it is.';
+}
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
@@ -6827,6 +6864,7 @@ if (typeof window !== 'undefined') {
   window.creatorThreadCounts = creatorThreadCounts;
   window.threadCountsSentence = threadCountsSentence;
   window.threadCountsShort = threadCountsShort;
+  window.symbolLimitWarning = symbolLimitWarning;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -7159,7 +7197,7 @@ window.useCreatorState = function useCreatorState() {
   var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(false);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -7192,6 +7230,13 @@ window.useCreatorState = function useCreatorState() {
   // { id, values } for the preset last chosen (or guessed on upload).
   // pictureType is that id while every value it set is unchanged, else
   // 'custom' (also 'custom' when no preset has been applied).
+  var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
+  useEffect(function() {
+    if (!exactPixelArt || !img || appMode !== "create") return;
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w > 500 || h > 500) { setExactPixelArt(false); return; }
+    setSW(w); setSH(h);
+  }, [exactPixelArt, img, sW, sH, appMode]);
   var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
@@ -7255,6 +7300,12 @@ window.useCreatorState = function useCreatorState() {
   // partialStitchTool as null, so one finger (or a mouse drag) pans and a
   // long-press opens the stitch menu. Touch screens start in Navigate, mouse
   // users in Draw; the last choice is remembered per device.
+  var _penNav = useState(function() { return loadUserPref("creator.penNavigation", false) === true; });
+  var penNavigation = _penNav[0], penNavigationRef = useRef(penNavigation);
+  function setPenNavigation(v) {
+    v = !!v; penNavigationRef.current = v; _penNav[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.penNavigation", v); } catch (_) {}
+  }
   var _drawMode = useState(initialDrawMode);
   var drawMode = _drawMode[0];
   var drawModeRef = useRef(drawMode);
@@ -7777,10 +7828,10 @@ window.useCreatorState = function useCreatorState() {
     var result = buildPalette(np);
     if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
-    var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
+    var extras = dedupeChartSymbols(result.pal, scratchPalette.filter(function(x) { return !ids.has(x.id); }));
     var ec = {};
     extras.forEach(function(e) { ec[e.id] = e; });
-    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec) };
+    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec), symbolOverflow: result.symbolOverflow };
   }
 
   function chgW(v) {
@@ -7887,7 +7938,7 @@ window.useCreatorState = function useCreatorState() {
     _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
-    setPictureInfo(null); setPresetApplied(null);
+    setExactPixelArt(false); setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
     // "materials" or "project" tab from a previous session hides the rpanel.
@@ -7990,13 +8041,12 @@ window.useCreatorState = function useCreatorState() {
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
-    var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
-    var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
+    var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
-      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym, autoSymbol: true };
     } else {
-      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym, autoSymbol: true };
     }
     // Another brand's thread (P4-5) keeps its brand.
     if (d.brand && d.brand !== "dmc") entry.brand = d.brand;
@@ -8154,7 +8204,7 @@ window.useCreatorState = function useCreatorState() {
     // surface a "Re-generate (values changed)" CTA. Stored fields must
     // match the comparator in Sidebar.js (genStaleReason).
     setLastGenSnapshot({
-      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
@@ -8203,8 +8253,12 @@ window.useCreatorState = function useCreatorState() {
     // bar's "< Setup" button is the way back. (Polish B.)
     // Threads and chart symbols, not "colours": a blend is one symbol made of
     // two threads (audit IMG-02).
-    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    var tc = creatorThreadCounts(result.pal);
+    var counts = threadCountsSentence(tc);
     addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // More symbols than the printed chart has (audit UX-005): say so now, not at export.
+    var limitMsg = symbolLimitWarning(tc);
+    if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -8353,7 +8407,7 @@ window.useCreatorState = function useCreatorState() {
     var allowedPalette = window.threadBrandPool ? window.threadBrandPool(genBrand) : null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
-    if (stashConstrained && globalStash) {
+    if (stashConstrained) {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {
@@ -8375,6 +8429,15 @@ window.useCreatorState = function useCreatorState() {
     var startGeneration = function() {
       // Cancelled before the first frame: don't start at all.
       if (reqId !== genReqIdRef.current) return;
+      if (exactPixelArt) {
+        setGenerateCancellable(false);
+        try {
+          var exact = runExactPixelPipeline(img, { allowedPalette: allowedPalette });
+          if (exact.width !== sW || exact.height !== sH) throw new Error("Wait for the source pixel dimensions to update before generating.");
+          applyResultRef.current({ reqId: reqId, mapped: exact.pat, pal: exact.pal, cmap: exact.cmap, confettiData: exact.confettiData });
+        } catch (err) { addToast(err.message, { type: "error" }); setBusy(false); }
+        return;
+      }
       // Extract pixel data here (requires canvas — must stay on main thread)
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
@@ -8408,7 +8471,7 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
@@ -8446,7 +8509,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8516,6 +8579,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
+    if (exactPixelArt) { addToast("Turn off exact pixel-art import to explore resized colour variations.", {type:"info"}); return; }
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     // Brand-aware via the central helper.
     var pool = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
@@ -8577,7 +8641,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -8776,6 +8840,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
+    exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
@@ -8809,6 +8874,7 @@ window.useCreatorState = function useCreatorState() {
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
+    penNavigation, setPenNavigation, penNavigationRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
@@ -8955,7 +9021,7 @@ window.useCreatorState = function useCreatorState() {
         : allowBlends;
       return Object.freeze({
         // Geometry
-        sW: sW, sH: sH,
+        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
@@ -8981,7 +9047,7 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,
@@ -9980,6 +10046,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
       .filter(function(p) { return changedIds.has(p.id) && !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (zeroed.length) {
+      zeroed = dedupeChartSymbols(built.pal, zeroed);
       var cmap2 = Object.assign({}, built.cmap);
       zeroed.forEach(function(p) { cmap2[p.id] = p; });
       state.setPal(built.pal.concat(zeroed));
@@ -10705,7 +10772,7 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
       if (j !== idx && pal[j] && pal[j].symbol === sym) return { ok: false, reason: "duplicate" };
     }
     var next = pal.slice();
-    next[idx] = Object.assign({}, pal[idx], { symbol: sym });
+    next[idx] = Object.assign({}, pal[idx], { symbol: sym, autoSymbol: false });
     return { ok: true, pal: next, from: from };
   }
 
@@ -10714,7 +10781,7 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
     var out = new Array(pat.length);
     for (var i = 0; i < pat.length; i++) {
       var c = pat[i];
-      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym }) : c;
+      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym, autoSymbol: false }) : c;
     }
     return out;
   }
@@ -11028,12 +11095,14 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   var dragPartialStitchesRef = React.useRef(null);
   var dragBsLinesRef       = React.useRef(null);
   var activePointersRef    = React.useRef(new Map());
+  var cropPointersRef = React.useRef(new Map());
   var pinchStateRef        = React.useRef(null);
   var panStateRef          = React.useRef(null);
   var pendingTapRef        = React.useRef(null);
   var longPressTimerRef    = React.useRef(null);
   var longPressTriggeredRef = React.useRef(false);
   var touchDrawRef         = React.useRef(null);  // one finger drawing (loupe / tap-on-lift)
+  var suppressPointersRef = React.useRef(false); // navigation owns this contact sequence
   var navTapRef            = React.useRef(null);  // last Navigate tap, for double-tap zoom
   var navTapTimerRef       = React.useRef(null);
 
@@ -11083,6 +11152,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       .filter(function(p) { return !inResult.has(p.id); })
       .map(function(p) { return Object.assign({}, p, { count: 0 }); });
     if (!zeroed.length) return r;
+    zeroed = dedupeChartSymbols(r.pal, zeroed);
     var cmap2 = Object.assign({}, r.cmap);
     zeroed.forEach(function(p) { cmap2[p.id] = p; });
     return { pal: r.pal.concat(zeroed), cmap: cmap2 };
@@ -11120,6 +11190,7 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     if (p) return p === "half-fwd" || p === "half-bck" ? "stroke" : "single";
     if (t === "paint" || t === "eraseAll") return "stroke";
     if (isShapeTool(t)) return "stroke";
+    if (t === "fill" || t === "eraseBs" || t === "magicWand" || t === "colourReplace") return "single";
     if (t === "eyedropper") return "single";
     if (t === "text") return "single";
     if (t === "knot") return "single";
@@ -11244,6 +11315,68 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     dragBsLinesRef.current = null;
     redrawCanvasFromState();
   }
+
+  function interruptTools(keepStroke) {
+    cancelShape();
+    if (keepStroke && isDraggingRef.current) handlePatMouseUp({});
+    else cancelDragSession();
+    cancelTouchDraw(); hideTouchTarget(); clearPendingTap(); clearNavTap();
+    panStateRef.current = null;
+    if (state.cancelMove) state.cancelMove();
+    if (state.clip && state.clip.cancelDrag) state.clip.cancelDrag();
+    if (state.cancelLasso) state.cancelLasso();
+    if (state.setBsStart) state.setBsStart(null);
+    var ch = state.cleanupHandlersRef && state.cleanupHandlersRef.current;
+    if (ch && ch.handleCleanupPointerUp) ch.handleCleanupPointerUp();
+    var dn = state.denoiseHandlersRef && state.denoiseHandlersRef.current;
+    if (dn && dn.handleDenoisePointerUp) dn.handleDenoisePointerUp();
+  }
+  function releasePointer(e) {
+    var entry = activePointersRef.current.get(e.pointerId);
+    var target = entry && entry.target || e.currentTarget || e.target;
+    activePointersRef.current.delete(e.pointerId);
+    if (target && target.releasePointerCapture) {
+      try { target.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  }
+  function interruptAll() {
+    if (state.cropStartRef && state.cropStartRef.current) {
+      state.cropStartRef.current = null;
+      state.setCropRect(null);
+    }
+    cropPointersRef.current.forEach(function(target, id) {
+      cropPointersRef.current.delete(id);
+      try { target.releasePointerCapture(id); } catch (_) {}
+    });
+    interruptTools(true);
+    Array.from(activePointersRef.current.keys()).forEach(function(id) { releasePointer({ pointerId: id }); });
+    endPinchIfDone(); suppressPointersRef.current = false;
+    state.setHoverCoords(null);
+  }
+  var interruptRef = React.useRef(interruptAll); interruptRef.current = interruptAll;
+  if (React.useEffect) React.useEffect(function() {
+    function stop() { interruptRef.current(); }
+    function hidden() { if (document.hidden) stop(); }
+    window.addEventListener("blur", stop);
+    window.addEventListener("resize", stop);
+    window.addEventListener("orientationchange", stop);
+    document.addEventListener("visibilitychange", hidden);
+    return function() {
+      stop();
+      window.removeEventListener("blur", stop);
+      window.removeEventListener("resize", stop);
+      window.removeEventListener("orientationchange", stop);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
+
+  if (React.useEffect) React.useEffect(function() {
+    if (!activePointersRef.current.size) return;
+    interruptTools(false);
+    Array.from(activePointersRef.current.keys()).forEach(function(id) { releasePointer({ pointerId: id }); });
+    endPinchIfDone(); suppressPointersRef.current = false;
+  }, [state.sW, state.sH, state.cs, state.activeTool, state.partialStitchTool,
+      state.drawMode, state.penNavigation]);
 
   function startPinchGesture() {
     var scrollRef = state.scrollRef, pcRef = state.pcRef;
@@ -12094,31 +12227,32 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   function handlePatPointerDown(e) {
     var activeTool = state.activeTool, partialStitchTool = state.partialStitchTool;
     var scrollRef = state.scrollRef;
-    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
+    if (!isPrimaryButton(e)) return;
 
-    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (e.target && e.target.setPointerCapture) {
-      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    // Drawing cannot use coordinates while a pinch transform is settling.
+    if (state.pcRef.current && state.pcRef.current.style.transform && activePointersRef.current.size === 0) return;
+    var captureTarget = e.currentTarget || e.target;
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, target: captureTarget });
+    if (captureTarget && captureTarget.setPointerCapture) {
+      try { captureTarget.setPointerCapture(e.pointerId); } catch (_) {}
     }
 
-    if (activePointersRef.current.size === 2) {
-      if (isDraggingRef.current) cancelDragSession();
-      cancelShape();
-      cancelTouchDraw();
-      clearNavTap();
-      clearPendingTap();
-      panStateRef.current = null;
+    if (activePointersRef.current.size >= 2) {
+      interruptTools(false);
+      suppressPointersRef.current = true;
       state.setHoverCoords(null);
-      startPinchGesture();
-      e.preventDefault();
-      return;
+      var contacts = Array.from(activePointersRef.current.values());
+      if (contacts.length === 2 && contacts.every(function(p) { return p.type === "touch"; })) startPinchGesture();
+      else {
+        var oldPinch = pinchStateRef.current; pinchStateRef.current = null;
+        if (oldPinch && oldPinch.previewing) commitPinchPreview(oldPinch);
+      }
+      e.preventDefault(); return;
     }
-    if (activePointersRef.current.size > 2) {
-      e.preventDefault();
-      return;
-    }
+    if (suppressPointersRef.current) { e.preventDefault(); return; }
+    var fingerNavigation = isTouchPointer(e) && state.penNavigationRef && state.penNavigationRef.current;
 
-    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
+    if ((isTouchPointer(e) || isPanTool() || isNavigate()) && (fingerNavigation || isPanTool() || isNavigate() || (!activeTool && !partialStitchTool)) && scrollRef.current) {
       panStateRef.current = {
         pointerId: e.pointerId,
         moved: false,
@@ -12157,6 +12291,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     }
 
     var tdKind = isTouchPointer(e) ? touchDrawKind() : null;
+    if (isTouchPointer(e) && activeTool === "float" && state.clip) {
+      var floatAt = gridCoord(state.pcRef, e, state.cs, state.G, false);
+      // Touching outside a float places it, so defer that action until lift.
+      // Inside it, retain the existing selection-drag behaviour.
+      if (floatAt && !state.clip.isInside(floatAt.gx, floatAt.gy)) tdKind = "single";
+    }
     if (tdKind && state.pat && state.pcRef && state.pcRef.current) {
       var tdPrecision = precisionOn();
       touchDrawRef.current = {
@@ -12202,8 +12342,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerMove(e) {
+    if (activePointersRef.current.size && !activePointersRef.current.has(e.pointerId)) return;
     if (activePointersRef.current.has(e.pointerId)) {
-      activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      Object.assign(activePointersRef.current.get(e.pointerId), { x: e.clientX, y: e.clientY });
     }
 
     if (activePointersRef.current.size === 2 && pinchStateRef.current) {
@@ -12214,6 +12355,8 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       updatePinchGesture();
       return;
     }
+
+    if (suppressPointersRef.current) { e.preventDefault(); return; }
 
     if (panStateRef.current && panStateRef.current.pointerId === e.pointerId && state.scrollRef.current) {
       var dx = e.clientX - panStateRef.current.startX;
@@ -12269,9 +12412,12 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     var wasPan = panStateRef.current && panStateRef.current.pointerId === e.pointerId ? panStateRef.current : null;
     var wasTouchDraw = touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId ? touchDrawRef.current : null;
 
-    activePointersRef.current.delete(e.pointerId);
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (!activePointersRef.current.has(e.pointerId)) return;
+    releasePointer(e);
+    if (suppressPointersRef.current) {
+      endPinchIfDone();
+      if (!activePointersRef.current.size) suppressPointersRef.current = false;
+      state.setHoverCoords(null); e.preventDefault(); return;
     }
 
     if (wasPan) {
@@ -12351,28 +12497,13 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handlePatPointerCancel(e) {
-    cancelShape();
-    activePointersRef.current.delete(e.pointerId);
-    hideTouchTarget();
-    clearNavTap();
-    if (touchDrawRef.current && touchDrawRef.current.pointerId === e.pointerId) {
-      // A cancelled tap places nothing; a cancelled stroke keeps what it drew.
-      var tdc = touchDrawRef.current;
-      touchDrawRef.current = null;
-      if (!tdc.promoted) {
-        endPinchIfDone();
-        state.setHoverCoords(null);
-        return;
-      }
-    }
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
-    }
-    clearPendingTap();
-    panStateRef.current = null;
+    if (!activePointersRef.current.has(e.pointerId)) return;
+    // Completed stroke pixels remain one undoable action; previews are discarded.
+    interruptTools(true);
+    releasePointer(e);
     endPinchIfDone();
+    suppressPointersRef.current = activePointersRef.current.size > 0;
     state.setHoverCoords(null);
-    handlePatMouseUp(e);
   }
 
   // ─── Crop handlers ───────────────────────────────────────────────────────────
@@ -12403,28 +12534,39 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
   }
 
   function handleCropPointerDown(e) {
-    if (e.pointerType === "mouse" && !isPrimaryButton(e)) return;
-    if (e.target && e.target.setPointerCapture) {
-      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    if (!isPrimaryButton(e) || !state.isCropping) return;
+    var target = e.currentTarget || e.target;
+    cropPointersRef.current.set(e.pointerId, target);
+    if (target && target.setPointerCapture) {
+      try { target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (cropPointersRef.current.size > 1) {
+      state.cropStartRef.current = null; state.setCropRect(null); return;
     }
     handleCropMouseDown(e);
   }
 
   function handleCropPointerMove(e) {
+    if (!cropPointersRef.current.has(e.pointerId) || cropPointersRef.current.size !== 1) return;
     if (!state.isCropping || !state.cropStartRef.current) return;
     e.preventDefault();
     handleCropMouseMove(e);
   }
 
   function handleCropPointerUp(e) {
-    if (e.target && e.target.releasePointerCapture) {
-      try { e.target.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (!cropPointersRef.current.has(e.pointerId)) return;
+    var target = cropPointersRef.current.get(e.pointerId);
+    cropPointersRef.current.delete(e.pointerId);
+    if (target && target.releasePointerCapture) {
+      try { target.releasePointerCapture(e.pointerId); } catch (_) {}
     }
     handleCropMouseUp(e);
   }
 
   function handleCropPointerCancel(e) {
+    if (!cropPointersRef.current.has(e.pointerId)) return;
     handleCropPointerUp(e);
+    state.setCropRect(null);
   }
 
   function applyCrop() {
@@ -12831,7 +12973,7 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
+  'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
 ];
 function creatorDraftSettings(state) {
   var o = {};
@@ -12949,7 +13091,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
@@ -13019,7 +13161,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -13151,6 +13293,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setBsLines(project.bsLines || []);
     if(state.setSpecialtyStitches)state.setSpecialtyStitches(ProgressUnits.specialty.read(project,s.sW,s.sH,brand));
     if (state.setKnots) state.setKnots(window.Knots ? window.Knots.normalise(project.knots, s.sW, s.sH, brand) : []);
+    state.setExactPixelArt(!!s.exactPixelArt);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
     state.setStashConstrained(!!s.stashConstrained);
@@ -13179,9 +13322,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // Symbols chosen with Change symbol ride on their cells (buildPalette
     // keeps a symbol its cells carry).
     var savedSyms = project.symbols && typeof project.symbols === "object" ? project.symbols : null;
-    if (savedSyms) {
-      restored = restored.map(function(c) { return c && savedSyms[c.id] ? Object.assign({}, c, { symbol: savedSyms[c.id] }) : c; });
-    }
+    restored = applySavedSymbols(restored, savedSyms);
     if (state.setSymbolOverrides) state.setSymbolOverrides(savedSyms ? Object.assign({}, savedSyms) : {});
     var result = buildPalette(restored);
     state.setPat(restored); state.setPal(result.pal); state.setCmap(result.cmap);
@@ -13645,7 +13786,9 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // by the system): offer to carry on.
     var tabDraftId = null;
     try { tabDraftId = sessionStorage.getItem('cs_active_draft'); } catch (_) {}
-    if (tabDraftId && BS && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
+    // Explicit project links take precedence over a different unfinished conversion.
+    var explicitProject = new URLSearchParams(window.location.search).get('id');
+    if (tabDraftId && BS && !explicitProject && !window.__pendingCreatorFile && !window.__pendingCreatorJsonFile) {
       BS.get(tabDraftId).then(function(rec) {
         if (!rec || !rec.blob) { try { sessionStorage.removeItem('cs_active_draft'); } catch (_) {} return false; }
         var nice = String(rec.name || 'your picture').replace(/\.[a-z0-9]+$/i, '');
@@ -13845,18 +13988,16 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     }).then(settle, settle);
   }
 
-  // Keep the Convert draft's settings current, a second after the last change.
+  // Start each draft write as soon as settings commit. A debounce lost the last
+  // edit when Back or a workflow switch happened within its one-second window.
   var draftSettingsKey = JSON.stringify(creatorDraftSettings(state)) + '|' + (state.projectName || '');
   React.useEffect(function() {
     var d = draftRef.current;
-    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return undefined;
-    var t = setTimeout(function() {
-      var cur = draftRef.current;
-      if (!cur || cur.id !== d.id || state.pat) return;
-      window.BlobStore.put(cur.id, { blob: cur.blob, name: cur.name, type: cur.type, createdAt: cur.createdAt,
-        settings: creatorDraftSettings(state) }).catch(function() {});
-    }, 1000);
-    return function() { clearTimeout(t); };
+    if (!d || !d.id || d.restore || state.pat || !window.BlobStore) return;
+    window.BlobStore.put(d.id, { blob: d.blob, name: d.name, type: d.type, createdAt: d.createdAt,
+      settings: creatorDraftSettings(state) }).catch(function() {
+        if (state.addToast) state.addToast("Could not save conversion settings. Keep this page open and try again.", {type:"error"});
+      });
   }, [draftSettingsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The first pattern makes a real project, so the draft is done.
@@ -13988,7 +14129,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -14065,7 +14206,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.pat, state.pal, state.sW, state.sH, state.maxC,
     state.bri, state.con, state.sat, state.dith, state.skipBg, state.bgTh, state.bgCol,
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
-    state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
+    state.exactPixelArt, state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
     state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
@@ -14236,14 +14377,23 @@ window.usePreview = function usePreview(state) {
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
-    if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+    if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
     if (pw < 1) pw = 1;
     if (ph < 1) ph = 1;
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
-    var raw;
+    var raw, exactResult;
+    if (settings.exactPixelArt) {
+      try { exactResult = runExactPixelPipeline(img, settings); }
+      catch (err) {
+        state.setPreviewUrl(null); state.setPreviewStats(null);
+        if (state.setPreviewLoading) state.setPreviewLoading(false);
+        return;
+      }
+    }
     var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
-    if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
+    if (exactResult) { pw = exactResult.width; ph = exactResult.height;
+    } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
       raw = rawCacheRef.current.raw;
     } else {
       var c = document.createElement("canvas"); c.width = pw; c.height = ph;
@@ -14283,7 +14433,7 @@ window.usePreview = function usePreview(state) {
       var pcx = pc.getContext("2d"); var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
       for (var i = 0; i < mapped.length; i++) {
         var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
         else { d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255; }
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
@@ -14291,7 +14441,7 @@ window.usePreview = function usePreview(state) {
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
-    if (dith) {
+    if (dith && !exactResult) {
       var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
         // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
         // honour the user's blend preference so the preview is bit-faithful
@@ -14306,7 +14456,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, pipelineOpts());
+      var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
       if (!pipelineResult) { if (state.setPreviewLoading) state.setPreviewLoading(false); return; }
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -14346,6 +14496,7 @@ window.usePreview = function usePreview(state) {
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
         stashUsage: stashUsage,
+        exactMappings: exactResult ? exactResult.mappings : null,
       });
 
       var colorList = Object.keys(colorCounts).map(function(id) {
@@ -14363,7 +14514,7 @@ window.usePreview = function usePreview(state) {
       var hasHeat = false;
       for (var i = 0; i < mapped.length; i++) {
         var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
         else {
           d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255;
           var row = Math.floor(i / pw), col = i % pw;
@@ -15336,6 +15487,7 @@ window.PatternCanvas = function PatternCanvas() {
     onPointerMove:   cv.handlePatPointerMove,
     onPointerLeave:  cv.handlePatPointerLeave,
     onPointerCancel: cv.handlePatPointerCancel,
+    onLostPointerCapture: cv.handlePatPointerCancel,
     onContextMenu: function(e) {
       if (cv.activeTool === "backstitch" && cv.bsStart) {
         e.preventDefault();
@@ -17312,8 +17464,13 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         window.Icons.sliders ? window.Icons.sliders() : null, " Panels: palette, tools, view…")
     ),
     // ── Touch placement aids (audit DRAW-03) ──
-    coarsePointer && h("div", {className:"tb-more-panel__section"},
-      h("span", {className:"tb-ovf-lbl"}, "Touch"),
+    h("div", {className:"tb-more-panel__section"},
+      h("span", {className:"tb-ovf-lbl"}, "Touch and pen"),
+      h("label", {className:"tb-more-check"},
+        h("input", {type:"checkbox", checked:!!cv.penNavigation, onChange:function(e){ cv.setPenNavigation(e.target.checked); }}),
+        h("span", null, "Pen draws; fingers navigate")
+      ),
+      h("p", {className:"hint"}, "Enable for devices reporting pen input. In Draw, the pen uses the selected tool and fingers pan or pinch. Mixed pen and finger contact interrupts drawing. If input types are unreliable, turn this off and switch explicitly between Navigate and Draw."),
       h("label", {className:"tb-more-check", title:"While drawing, show an enlarged view of the stitches under your finger"},
         h("input", {type:"checkbox", checked:!!cv.magnifierOn, onChange:function(e){ if (cv.setMagnifierOn) cv.setMagnifierOn(e.target.checked); }}),
         h("span", null, "Magnifier")
@@ -18472,7 +18629,8 @@ window.CropModal = function CropModal() {
           onPointerDown: gen.handleCropPointerDown,
           onPointerMove: gen.handleCropPointerMove,
           onPointerUp: gen.handleCropPointerUp,
-          onPointerCancel: gen.handleCropPointerCancel
+          onPointerCancel: gen.handleCropPointerCancel,
+          onLostPointerCapture: gen.handleCropPointerCancel
         },
           h("img", {
             src: gen.img.src,
@@ -19065,10 +19223,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
   var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
   function symbolPanel(list) {
-    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    if (!symbolPickerFor || !window.SymbolGlyphs || !window.PaletteTools) return null;
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
-    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
     return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
@@ -19091,6 +19249,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
+    var symbolLimitMsg = window.symbolLimitWarning ? window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) : "";
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
     var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
@@ -19255,10 +19414,17 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          symbolLimitMsg && h("span", {
+            className: "palette-counts-warn", role: "img",
+            title: symbolLimitMsg,
+            "aria-label": symbolLimitMsg,
+            style: {display:"inline-flex",width:16,height:16,color:"var(--danger)"}
+          }, Icons.warning())
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -19384,6 +19550,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onPointerMove:gen.handleCropPointerMove,
       onPointerUp:gen.handleCropPointerUp,
       onPointerCancel:gen.handleCropPointerCancel,
+      onLostPointerCapture:gen.handleCropPointerCancel,
       onPointerLeave:gen.handleCropPointerUp
     },
       h("img", {
@@ -19700,6 +19867,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   // shown once any value the preset set has been changed.
   var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
     ? h("div", {className:"picture-type"},
+        h("label", null,
+          h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
+            disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+            onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+        h("p", {className:"hint"}, gen.exactPixelArt
+          ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, dithering and cleanup are ignored. Review source-to-thread mappings in the preview before Generate."
+          : "Exact mode supports sources up to 500 by 500 pixels without resizing. Colours are mapped to solid threads."),
         h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
           window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
@@ -20623,6 +20797,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // a count so the destructive part of the action is explicit.
     var regenSnap = app.lastGenSnapshot;
     var dimensionsStale = regenSnap && (
+      !!regenSnap.exactPixelArt !== !!gen.exactPixelArt ||
       regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
       regenSnap.fabricCt !== ctx.fabricCt ||
       regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
@@ -20801,6 +20976,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, then Generate."),
+      h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
+        app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
+        app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
+      }}, "Show all conversion controls"),
       // 0. What kind of picture is this? (presets)
       pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)

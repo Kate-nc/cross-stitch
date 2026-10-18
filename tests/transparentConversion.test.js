@@ -180,3 +180,38 @@ test('Atkinson error cannot jump a one-cell transparent gap', () => {
   expect(mapped[1].id).toBe('__skip__');
   expect(mapped[2].id).toBe(isolated[0].id);
 });
+
+test.each(['crisp', 'alpha'])('exact pixel-art PNG %s preserves every location, hard edge and one-pixel accent', kind => {
+  const c = runtime(), image = new Image();
+  image.src = fs.readFileSync(`tests/fixtures/pixel-art-${kind}.png`);
+  const source = canvas(image.width, image.height, new Uint8ClampedArray(image.width * image.height * 4));
+  source.getContext('2d').drawImage(image, 0, 0);
+  const raw = source.getContext('2d').getImageData(0, 0, image.width, image.height).data;
+  const opts = {...options, exactPixelArt:true,sW:80,sH:80,maxC:1,dith:true,smooth:3,orphans:10,preSharpenOpts:{amount:2},bri:90,con:80,sat:-100,skipBg:true};
+  const r = c.runGenerationPipeline(image, opts);
+  expect([r.width, r.height, r.pat.length]).toEqual([9,7,63]);
+  for(let i=0;i<r.pat.length;i++) {
+    if(raw[i*4+3]<128) expect(r.pat[i].id).toBe('__skip__');
+    else {
+      const rgb = Array.from(raw.slice(i*4,i*4+3));
+      const row = r.mappings.find(m => String(m.source)===String(rgb));
+      expect(row).toBeDefined(); expect(r.pat[i].id).toBe(row.thread.id);
+    }
+  }
+  expect(r.mappings.find(m => String(m.source)==='0,255,0').count).toBe(1);
+  expect(r.pal.some(p => p.id===r.pat[62].id && p.count===1)).toBe(true);
+  const preview = c.runExactPixelPipeline(image, opts);
+  expect(ids(preview.mapped)).toEqual(ids(r.pat));
+  expect(r.pal.reduce((n,p)=>n+p.count,0)).toBe(kind==='alpha'?49:63);
+  expect(ids(JSON.parse(JSON.stringify(c.serializePattern(r.pat))).map(x=>c.restoreStitch(x)))).toEqual(ids(r.pat));
+});
+test('exact colour-to-thread remapping honours the supplied pool and exposes merged colours', () => {
+  const c = runtime(), image = new Image(); image.src=fs.readFileSync('tests/fixtures/pixel-art-crisp.png');
+  const r = c.runExactPixelPipeline(image,{allowedPalette:[vm.runInContext("DMC.find(t=>t.id==='310')",c)]});
+  expect(r.pal).toHaveLength(1); expect(r.mappings).toHaveLength(3);
+  expect(r.mappings.every(m=>m.thread.id==='310')).toBe(true);
+  expect(()=>c.runExactPixelPipeline(image,{allowedPalette:[]})).toThrow(/No threads/);
+  expect(()=>c.runExactPixelPipeline(image,{stashConstrained:true,allowedPalette:null})).toThrow(/No threads/);
+  expect(()=>c.runExactPixelPipeline(image,{convertBrand:'anchor',allowedPalette:null})).toThrow(/No threads/);
+  expect(()=>c.runExactPixelPipeline({width:501,height:3},{})).toThrow(/500/);
+});

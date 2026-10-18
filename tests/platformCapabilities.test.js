@@ -414,9 +414,9 @@ describe('call sites route through Platform', () => {
   // mounted by any page — /home.html renders home-app.js instead.)
   it.each([
     // Home has one picker per tile (P2-1): photos, and charts to import.
-    ['home-app.js', /fileAccept\(list\)[\s\S]*accept\('\.pdf,\.oxs,\.xsd,\.xml,\.json'\)/],
-    ['creator-main.js', /fileAccept\("image\/\*,\.oxs,\.xsd,\.xml,\.json,\.pdf"\)/],
-    ['tracker-app.js', /fileAccept\("\.json,\.oxs,\.xsd,\.xml,\.png/],
+    ['home-app.js', /fileAccept\(list\)[\s\S]*accept\('\.pdf,\.pat,\.oxs,\.xsd,\.xml,\.json'\)/],
+    ['creator-main.js', /fileAccept\("image\/\*,\.pat,\.oxs,\.xsd,\.xml,\.json,\.pdf"\)/],
+    ['tracker-app.js', /fileAccept\("\.json,\.pat,\.oxs,\.xsd,\.xml,\.png/],
   ])('%s sanitises its pattern-open accept filter', (file, pattern) => {
     expect(loadSource(file)).toMatch(pattern);
   });

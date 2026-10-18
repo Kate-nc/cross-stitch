@@ -61,6 +61,8 @@ test('hidden full crosses cannot be marked by keyboard; zoom and clear guide rem
 });
 for(const theme of ['light','dark'])test(`axe, targets and focus indication in ${theme}`,async({page})=>{
   await open(page);await page.evaluate(t=>{window.UserPrefs.set('a11yDarkMode',t);window.dispatchEvent(new CustomEvent('cs:prefsChanged',{detail:{key:'a11yDarkMode',value:t}}));},theme);await page.waitForTimeout(350);
+  const swatchColours=await page.locator('.ppal-tile-swatch').evaluateAll(es=>es.map(e=>({expected:e.style.backgroundColor,actual:getComputedStyle(e).backgroundColor})));
+  expect(swatchColours.every(c=>c.actual===c.expected),JSON.stringify(swatchColours.filter(c=>c.actual!==c.expected))).toBe(true);
   await page.addScriptTag({path:axePath});
   const audit=()=>page.evaluate(async()=> (await axe.run({runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)})));
   expect(await audit()).toEqual([]);
@@ -97,4 +99,11 @@ test('reopen cycles release large-chart memory and canvas allocations',async({pa
   }
   console.log('REOPEN_MEMORY',JSON.stringify({heaps,canvases}));
   expect(heaps.at(-1)).toBeLessThan(heaps[0]*1.25+8*1024*1024);expect(new Set(canvases).size).toBe(1);
+});
+
+test('empty import screen is quiet while a missing requested project gives feedback',async({page})=>{
+  const warning=page.getByText('No pattern found. Please select a project from your library.',{exact:true});
+  await page.goto('/stitch.html?from=home');await page.getByRole('button',{name:'Load Project',exact:true}).waitFor();await page.waitForTimeout(700);
+  expect(await warning.count()).toBe(0);
+  await page.goto('/stitch.html?id=proj_missing');await expect(warning).toBeVisible();
 });

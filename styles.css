@@ -9,6 +9,8 @@
  * and add margin/padding equivalents to the base rule.
  */
 :root {
+  /* Chart symbols: the PDF's symbol font (symbol-glyphs.js registers it). */
+  --font-symbol: "CrossStitchSymbols", monospace;
   --accent: #B85C38;
   --accent-hover: #944526;
   --accent-light: #F4DDCF;
@@ -4217,7 +4219,7 @@ html.pref-dark .sidebar { background: var(--surface) !important; color: var(--te
 html.pref-dark input,
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *) {
+html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }
@@ -8111,7 +8113,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-row__swatch {
   width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm);
   border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
-  font-size: 15px; line-height: 1; font-weight: 600;
+  font-size: 15px; line-height: 1; font-weight: 600; font-family: var(--font-symbol);
 }
 .pal-row__swatch--black { color: black; }
 .pal-row__swatch--white { color: white; }
@@ -8136,7 +8138,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-symbols__title { flex: 1; font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); }
 .pal-symbols__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; }
 .pal-symbols__btn {
-  height: 36px; font-size: 18px; line-height: 1; cursor: pointer;
+  height: 36px; font-size: 18px; line-height: 1; cursor: pointer; font-family: var(--font-symbol);
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--text-primary);
 }
@@ -8190,7 +8192,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .pal-pick-empty { font-size: var(--text-xs); color: var(--text-tertiary); padding: 8px 0; text-align: center; }
 
 /* Tool-strip swatches carry their symbol (P1-4). */
-.tb-swatch-sym { font-size: 16px; line-height: 1; font-weight: 600; pointer-events: none; }
+.tb-swatch-sym { font-size: 16px; line-height: 1; font-weight: 600; pointer-events: none; font-family: var(--font-symbol); }
 .tb-swatch-sym--black { color: black; }
 .tb-swatch-sym--white { color: white; }
 .tb-swatch-tip {
@@ -8892,4 +8894,26 @@ body:not(.cs-focus) .touch-lock-pill { top: calc(var(--app-header-height, 48px) 
 @media (pointer:coarse){
   .ppal-tile-select,.ppal-tile-park-btn,.ppal-tile-done-btn{min-height:44px;}
   .ppal-tile-park-btn,.ppal-tile-done-btn{min-width:44px;}
+}
+
+/* First-use additions use existing Workshop surfaces and stay within the flows. */
+.home-first-use-note { margin-block: var(--s-3); color: var(--text-secondary); line-height: 1.6; }
+.home-first-use-note summary, .home-sample summary { cursor: pointer; font-weight: 600; min-height: 44px; align-content: center; }
+.home-sample { margin-block: var(--s-3); padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.home-sample p { line-height: 1.6; }
+.home-sample__threads { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-block: var(--s-2); }
+.home-sample__threads button { min-height: 44px; }
+.home-sample__threads [aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-sample__chart { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, 1fr); aspect-ratio: 1; width: 288px; max-width: 100%; margin-block: var(--s-3); }
+.home-sample__cell { border: 1px solid var(--border); color: var(--text-primary); background: var(--surface-secondary); font-weight: 700; cursor: pointer; }
+.home-sample__cell:disabled { opacity: .45; cursor: default; }
+.home-sample__cell[aria-pressed="true"] { background: var(--accent-light); }
+.home-sample__cell svg { width: 20px; height: 20px; }
+.home-sample__cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.convert-first-use { margin: var(--s-2) var(--s-3); font-size: var(--text-sm); line-height: 1.5; flex-shrink: 0; }
+.import-warning-repair { margin: var(--s-1); min-height: 44px; white-space: normal; }
+
+@media (max-width: 599px) {
+  .home-tabs { padding-inline: var(--s-2); gap: 0; overflow-x: auto; }
+  .home-tab { padding-inline: var(--s-2); min-height: 44px; }
 }

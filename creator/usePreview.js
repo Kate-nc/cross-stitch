@@ -30,14 +30,23 @@ window.usePreview = function usePreview(state) {
     if (!img || !img.src) return;
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
-    if (pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+    if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
     if (pw < 1) pw = 1;
     if (ph < 1) ph = 1;
 
     // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
-    var raw;
+    var raw, exactResult;
+    if (settings.exactPixelArt) {
+      try { exactResult = runExactPixelPipeline(img, settings); }
+      catch (err) {
+        state.setPreviewUrl(null); state.setPreviewStats(null);
+        if (state.setPreviewLoading) state.setPreviewLoading(false);
+        return;
+      }
+    }
     var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
-    if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
+    if (exactResult) { pw = exactResult.width; ph = exactResult.height;
+    } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
       raw = rawCacheRef.current.raw;
     } else {
       var c = document.createElement("canvas"); c.width = pw; c.height = ph;
@@ -77,7 +86,7 @@ window.usePreview = function usePreview(state) {
       var pcx = pc.getContext("2d"); var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
       for (var i = 0; i < mapped.length; i++) {
         var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
         else { d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255; }
       }
       pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
@@ -85,7 +94,7 @@ window.usePreview = function usePreview(state) {
 
     // Progressive preview: if dithering is on, show a fast map-only result immediately,
     // then let React commit that frame before running the full dither pass.
-    if (dith) {
+    if (dith && !exactResult) {
       var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
         // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
         // honour the user's blend preference so the preview is bit-faithful
@@ -100,7 +109,7 @@ window.usePreview = function usePreview(state) {
 
     function runFull() {
       fullPassTimerRef.current = null;
-      var pipelineResult = runCleanupPipeline(raw, pw, ph, pipelineOpts());
+      var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
       if (!pipelineResult) { if (state.setPreviewLoading) state.setPreviewLoading(false); return; }
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
@@ -140,6 +149,7 @@ window.usePreview = function usePreview(state) {
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
         stashUsage: stashUsage,
+        exactMappings: exactResult ? exactResult.mappings : null,
       });
 
       var colorList = Object.keys(colorCounts).map(function(id) {
@@ -157,7 +167,7 @@ window.usePreview = function usePreview(state) {
       var hasHeat = false;
       for (var i = 0; i < mapped.length; i++) {
         var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=255; }
+        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
         else {
           d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255;
           var row = Math.floor(i / pw), col = i % pw;

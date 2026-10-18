@@ -50,6 +50,7 @@
     exportMiniLegend:       true,
     exportGridInterval:     10,
     exportCentreMarks:      true,
+    "creator.penNavigation": false,          // opt-in: pen tools with finger pan/pinch
     "creator.drawMode": null,               // P1-1: last Navigate/Draw choice on this device; null = by pointer (touch Navigate, mouse Draw)
     "creator.magnifier": null,              // P1-3: touch loupe while drawing; null = on for touch screens
     "creator.precisionCursor": false,       // P1-3: crosshair 40px above the finger, placed on lift

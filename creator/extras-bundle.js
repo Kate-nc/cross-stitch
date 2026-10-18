@@ -2726,7 +2726,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
                   style:{borderBottom:"0.5px solid var(--surface-tertiary)", cursor:"pointer", background:rowBg}
                 },
-                  h("td", {style:{padding:"5px 10px", fontFamily:"monospace", fontSize:15}}, p.symbol),
+                  h("td", {style:{padding:"5px 10px", fontFamily:"var(--font-symbol)", fontSize:15}}, p.symbol),
                   h("td", {style:{padding:"5px 8px"}},
                     h("div", {
                       className: "colour-swatch",
@@ -3902,7 +3902,7 @@ window.CreatorExportTab = function CreatorExportTab() {
 
     app.trackerFieldsRef && app.trackerFieldsRef.current && (app.trackerFieldsRef.current.beads || []).length > 0 && h("p", { role: "note" }, "PDF and PNG exports omit beads. OXS preserves bead appearance and position, but omits completion and object IDs. Use project saves or backups to retain bead progress."),
     h("div", null,
-      h("button", { onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
+      h("button", { "aria-expanded":settingsOpen[0], onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
         h("span", null, "Format & settings"),
         h("span", { "aria-hidden": "true", style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, color: "var(--text-tertiary)" } },
           (typeof window !== "undefined" && window.Icons) ? (settingsOpen[0] ? window.Icons.chevronUp() : window.Icons.chevronDown()) : null)
@@ -3935,17 +3935,17 @@ window.CreatorExportTab = function CreatorExportTab() {
 
         h("div", { style: { marginBottom:'var(--s-3)' } },
           h("div", { style: { fontSize:'var(--text-sm)', fontWeight: 600, color: "#3f3f46", marginBottom:'var(--s-1)' } }, "Stitches per page"),
-          h("select", { value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
+          h("select", { "aria-label":"Stitches per page", value: stPerPg[0], onChange: function (e) { setStPerPg(e.target.value); }, style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)' } },
             h("option", { value: "small" },  "Small print (~80 × 100, ~2mm cells)"),
             h("option", { value: "medium" }, "Medium print (~60 × 70, ~2.8mm cells, ideal for PK)"),
             h("option", { value: "large" },  "Large print (~40 × 50, ~4mm cells, easier to read)"),
             h("option", { value: "custom" }, "Custom")
           ),
           stPerPg[0] === "custom" && h("div", { style: { display: "flex", gap:'var(--s-2)', marginTop: 6 } },
-            h("input", { type: "number", min: 10, max: 200, step: 10, value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
+            h("input", { type: "number", min: 10, max: 200, step: 10, "aria-label":"Custom columns per PDF page", value: customCols[0], onChange: function (e) { setCustomCols(Number(e.target.value)); },
               style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
             h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "cols ×"),
-            h("input", { type: "number", min: 10, max: 200, step: 10, value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
+            h("input", { type: "number", min: 10, max: 200, step: 10, "aria-label":"Custom rows per PDF page", value: customRows[0], onChange: function (e) { setCustomRows(Number(e.target.value)); },
               style: { padding: "6px 10px", borderRadius:'var(--radius-sm)', border: "1px solid #CFC4AC", fontSize:'var(--text-sm)', width: 90 } }),
             h("span", { style: { fontSize:'var(--text-sm)', alignSelf: "center" } }, "rows")
           )
@@ -4496,7 +4496,12 @@ window.CreatorExportTab = function CreatorExportTab() {
         g.fillStyle = 'black'; g.fillText('Screen colours are approximate. Key: thread / blend ID, symbol, full crosses in sample', 16, header + c.height + 22);
         local.forEach(function (p, i) {
           var entry = ctx.cmap[p.id] || p;
-          g.fillStyle = 'black'; g.fillText(p.id + '   ' + (entry.symbol || '') + '   ' + p.count, 16, header + c.height + 46 + i * 24);
+          var rowY = header + c.height + 46 + i * 24, idText = p.id + '   ';
+          g.fillStyle = 'black'; g.fillText(idText, 16, rowY);
+          var symX = 16 + g.measureText(idText).width, oldFont = g.font;
+          g.font = chartSymbolFont(14); g.fillText(entry.symbol || '', symX, rowY);
+          var symW = g.measureText(entry.symbol || '').width;
+          g.font = oldFont; g.fillText('   ' + p.count, symX + symW, rowY);
         });
         out.toBlob(function (blob) {
           exporting[1](false);

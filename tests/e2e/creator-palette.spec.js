@@ -85,12 +85,14 @@ for (const name of ['desktop', 'Pixel 5']) {
       // Materials › Threads legend shows the new symbol.
       if (await isCompact(page)) await page.locator('.rpanel-backdrop').click({ position: { x: 10, y: 10 } });
       await page.getByRole('tab', { name: 'Materials' }).first().click();
+      await page.getByRole('tab', { name: 'Threads', exact: true }).click();
       await expect.poll(() => legendSymbol(page, id)).toBe(pick);
 
       // Undo restores the old symbol.
       await page.getByRole('tab', { name: 'Edit' }).first().click();
       await undoButton(page).click();
       await page.getByRole('tab', { name: 'Materials' }).first().click();
+      await page.getByRole('tab', { name: 'Threads', exact: true }).click();
       await expect.poll(() => legendSymbol(page, id)).toBe(before);
     });
   });

@@ -181,6 +181,15 @@
       checks.counts = measure('not applicable', 'XSD supplies grid, small-buffer and joint record counts, not independent per-thread stitch totals. Record bounds were checked by the parser.');
       checks.unsupportedContent = measure('limited', 'Undocumented header data and display/strand settings are unverified; see XSD notes and affected-object counts.');
     }
+    if (r.pat) {
+      const a = r.pat;
+      if (checks.dimensions.status !== 'limited') checks.dimensions = measure('verified', 'PCStitch 7 dimensions and stored grid agree.');
+      checks.recognisedCells = measure(a.decodedCells === a.sourceCells ? 'verified' : 'limited', 'Column-major PCStitch grid runs checked against declared dimensions.', a.decodedCells, a.sourceCells);
+      checks.legendMatches = measure('unknown', 'Thread identifiers and brands retained; blends and custom palette attributes are unverified. Compare with the source.');
+      checks.stitchTypes = measure('limited', 'PCStitch 7 supported geometry retained; inspect notes for omitted objects.', a.retainedObjects, a.sourceObjects);
+      checks.unsupportedContent = measure('limited', 'Header options, symbols, blends and unknown fields are not fully decoded. Review notes and the original.');
+      checks.counts = measure('not applicable', 'No independently declared per-thread stitch totals in this layout.');
+    }
     const key = pdfKeyMatch(r);
     if (key) checks.legendMatches = measure(key.read === key.total && !(r.placeholders || []).length ? 'verified' : 'limited', 'Stitches matched to the PDF colour key.', key.read, key.total);
     if (r.scanned) checks.legendMatches = measure('unknown', 'Read from a scan; compare symbols and colours with the printed key.');

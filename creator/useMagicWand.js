@@ -511,11 +511,9 @@ window.useMagicWand = function useMagicWand(state) {
     // used just by part stitches / backstitch, keep it in the scratch palette
     // so it keeps its palette entry and symbol.
     if ((psRes.psChanges.length || bsRes.count) && !r.cmap[dstEntry.id]) {
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
-      var sym = SY.find(function(x) { return !usedSyms.has(x); }) || (SY.length ? SY[r.pal.length % SY.length] : undefined);
+      var sym = nextChartSymbol(dstEntry, r.pal);
       var keep = { id: dstEntry.id, type: dstEntry.type || 'solid', name: dstEntry.name || dstEntry.id,
-        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym };
+        rgb: dstEntry.rgb, lab: dstEntry.lab, count: 0, symbol: sym, autoSymbol: true };
       if (dstEntry.threads) keep.threads = dstEntry.threads;
       if (state.setScratchPalette) {
         state.setScratchPalette(function(prev) { return prev.filter(function(p) { return p.id !== keep.id; }).concat([keep]); });
@@ -612,18 +610,14 @@ window.useMagicWand = function useMagicWand(state) {
         ['TL', 'TR', 'BL', 'BR'].forEach(function(q) { if (entry && entry[q]) stillUsed[entry[q].id] = entry[q]; });
       });
       keptBs.forEach(function(ln) { if (ln && ln.colorId != null && !stillUsed[ln.colorId]) stillUsed[ln.colorId] = null; });
-      var usedSyms = new Set(r.pal.map(function(p) { return p.symbol; }));
-      var SY = typeof SYMS !== 'undefined' ? SYMS : [];
       var keeps = [];
       Object.keys(stillUsed).forEach(function(id) {
         if (r.cmap[id]) return;
         var old = state.cmap && state.cmap[id];
         if (!old) return;
-        var sym = old.symbol;
-        if (!sym || usedSyms.has(sym)) sym = SY.find(function(x) { return !usedSyms.has(x); }) || sym;
-        usedSyms.add(sym);
-        keeps.push(Object.assign({}, old, { count: 0, symbol: sym }));
+        keeps.push(Object.assign({}, old, { count: 0 }));
       });
+      keeps = dedupeChartSymbols(r.pal, keeps);
       if (keeps.length) {
         if (state.setScratchPalette) {
           state.setScratchPalette(function(prev) {

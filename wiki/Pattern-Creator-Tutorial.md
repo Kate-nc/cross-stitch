@@ -14,14 +14,14 @@ The Pattern Creator turns images into stitchable charts, or lets you design from
 ### From an image
 
 1. Open the app at **home.html**.
-2. Go to **Create new** and choose **New from pattern file**.
+2. Go to **Create new** and choose **Convert a picture**.
 3. Pick your image. The Pattern Creator opens with it loaded.
 
 You can also open an image inside the Creator with **File > Open…**.
 
 ### From scratch
 
-1. Go to **Create new** and choose **New from scratch**.
+1. Go to **Create new** and choose **Draw a pattern**.
 2. A blank grid opens. Add colours in the **Palette** tab and skip to [Editing Your Pattern](#editing-your-pattern).
 
 ### Guided import (experimental)
@@ -69,7 +69,7 @@ Screen colours are approximations; check physical threads when choosing material
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
-A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow.
+A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
 
 | Threads | Use case |
 |---------|----------|
@@ -241,7 +241,7 @@ Which threads you own, are low on, or need to buy, from your Stash Manager inven
 - **Export PDF** / **Export .oxs**. OXS retains explicit backstitch threads over empty cells, supported fractional stitches and equal blends of two known threads of the same brand. Review every warning: unsupported blend proportions, miniature crosses and other unsupported objects are reported with affected types and counts. Diagonal quarters use the XSPro `petit="false"` extension; other programs may display them differently.
 - **Download bundle** — one `.zip` with the PDF, `.oxs`, a PNG preview, the `.json` project and a manifest.
 
-PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. PDF symbols are assigned independently of symbols chosen in the editor.
+PDF charts support up to **112 used threads or blends**, with a distinct embedded symbol for each one in both chart modes, the thread key and page summaries. Unused palette colours and empty cells do not count. Above the limit, export stops with an error; reduce the used colours or blends first. On-screen symbols follow the same assignment, so they match the PDF unless you changed one with Change symbol (the PDF ignores those). Adding or removing a thread can move later threads to a different symbol.
 
 Designer branding (name, copyright, contact, logo) is set once in **File > Preferences > Profile & branding**. See [EXPORT_QUICKSTART.md](../EXPORT_QUICKSTART.md) for a walk-through.
 
@@ -308,3 +308,43 @@ Import review shows separate verification checks for recognised cells, legend ma
 ## Petite and long stitches
 
 In Creator, use **More tools > Petite and long stitches** to add objects with a thread and half-cell coordinates, select them, edit their geometry or delete them. Undo and Redo restore edits. These objects use their own panel; general canvas selection tools edit the other stitch types. In Tracker, click the geometry or use **Layers > Petite and long stitches** to mark overlapping objects independently. A petite counts as 0.25 units and a long stitch as 0.5; each is marked as a whole. Native JSON retains their identities and marks. PNG renders both. OXS exports petites and warns about unsupported long stitches. PDF export stops with an explanation. See the [capability matrix](../docs/petite-long-lifecycle.md).
+
+## Exact pixel-art import
+
+The editable **Pixel art** preset is a starting point. For pixel-for-pixel
+geometry, enable **Exact pixel-art import** in Convert. Sources up to 500 by
+500 pixels retain their original dimensions, including small motifs below
+10 pixels. Larger sources must be resized explicitly before import.
+
+Exact mode ignores size controls, brightness/contrast/saturation, sharpening,
+smoothing, background removal, the colour limit, blends, dithering and cleanup.
+Even isolated single-pixel details remain. Transparent alpha below 128 becomes
+an empty stitch; alpha at or above 128 is stitched without flattening onto a
+background. Opaque background pixels stay stitched.
+
+Thread colours are an approximation: each visible source RGB maps to the nearest
+solid thread in the selected brand or stash. Expand **Source colours mapped to
+threads** beside the preview to compare source RGB, thread RGB, thread identity
+and counts. Multiple source colours can map to the same thread. Preview and
+Generate use the same native-resolution conversion. Resized variation galleries
+require leaving exact mode.
+
+## Tablet pen and finger rules
+
+Enable **More tools > Pen draws; fingers navigate** for devices that reliably
+report stylus input as a pen. In Draw, the selected tool acts with a pen or mouse;
+one finger pans and two fingers pan/pinch. Navigate prevents all drawing.
+Simultaneous pen and finger contact interrupts drawing and requires every contact
+to lift before starting again. This conservative policy does not claim hardware
+palm rejection.
+
+Leave the option off when the browser cannot distinguish the stylus. Use
+**Navigate** to move around and **Draw** to edit explicitly. Finger taps with
+single-action tools such as Fill commit on lift, allowing a second finger to
+cancel them. Two-finger navigation discards unfinished strokes and previews;
+a finger left down cannot continue drawing.
+
+A cancelled pointer, lost capture, hidden page, blur or viewport resize ends the
+gesture. Interrupted brush strokes retain one Undo step. Unfinished shapes and
+selection drags are cancelled without clearing the existing selection. Rotate,
+resize or zoom, then start a fresh gesture after the canvas settles.

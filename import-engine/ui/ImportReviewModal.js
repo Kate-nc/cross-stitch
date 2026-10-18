@@ -337,6 +337,11 @@
         if (!rows[m.id]) rows[m.id] = m;
       });
     });
+    (props.project.bsLines || []).forEach(function (line) {
+      if (!line.colorId) return;
+      counts[line.colorId] = (counts[line.colorId] || 0) + 1;
+      if (!rows[line.colorId]) rows[line.colorId] = { id: line.colorId, rgb: line.rgb, brand: line.brand };
+    });
     var report = props.project.importReport || {};
     var pending = {};
     (report.placeholders || []).forEach(function (p) { if (counts[p.id]) pending[p.id] = p; });
@@ -465,7 +470,13 @@
     return h('ul', { className: 'import-warnings' },
       props.warnings.map(function (w, i) {
         var icon = w.severity === 'high' ? I('warning') : I('info');
-        return h('li', { key: i, className: 'import-warning ' + (w.severity || '') }, icon, ' ', w.message);
+        var threadIssue = /THREAD_REFERENCE|placeholder|symbol.*(thread|key)|unresolved/i.test((w.code || '') + ' ' + w.message);
+        var pageIssue = /page|overlap|arrangement/i.test(w.message);
+        var target = threadIssue ? 'palette' : pageIssue && props.hasPages ? 'pages' : 'compare';
+        var label = target === 'palette' ? 'Assign threads' : target === 'pages' ? 'Review page layout' : 'Compare source';
+        return h('li', { key: i, className: 'import-warning ' + (w.severity || '') }, icon, ' ', w.message,
+          props.onRepair && h('button', { type: 'button', className: 'g-btn import-warning-repair',
+            onClick: function () { props.onRepair(target); } }, label));
       })
     );
   }
@@ -894,7 +905,16 @@
       { id: 'compare',  label: 'Compare',  icon: I('splitView') },
     ]);
 
-    return h('div', { className: 'import-review-modal-overlay', role: 'dialog', 'aria-modal': 'true' },
+    function openRepair(target) {
+      setTab(target);
+      requestAnimationFrame(function () {
+        var button = document.querySelector('.import-review-tab[data-review-tab="' + target + '"]');
+        if (button) button.focus();
+        var body = document.querySelector('.import-review-body');
+        if (body) body.scrollTop = 0;
+      });
+    }
+    return h('div', { className: 'import-review-modal-overlay', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Review imported pattern' },
       h('div', { className: 'import-review-modal' },
         h('header', { className: 'import-review-header' },
           h('h2', null, 'Review imported pattern'),
@@ -917,14 +937,15 @@
         h('nav', { className: 'import-review-tabs', role: 'tablist' },
           tabs.map(function (t) {
             return h('button', {
-              key: t.id, role: 'tab', 'aria-selected': tab === t.id,
+              key: t.id, role: 'tab', 'aria-selected': tab === t.id, 'data-review-tab': t.id,
               className: 'import-review-tab ' + (tab === t.id ? 'active' : ''),
               onClick: function () { setTab(t.id); }
             }, narrow ? null : t.icon, h('span', null, t.label));
           })
         ),
         h('section', { className: 'import-review-verification', 'aria-label': 'Import verification' },
-          h('details', { open: true }, h('summary', null, 'Verification and repairs'),
+          h('details', { open: verification && verification.status === 'invalid' ? true : undefined }, h('summary', null, 'Verification and repairs'),
+            verification && verification.status === 'invalid' && h('p', {role:'status'}, 'Saving is unavailable until invalid data is repaired. Use the note actions; for unsupported content or source dimensions, cancel, correct the source and import again.'),
             verification && h('ul', null, Object.keys(verification.checks).map(function (name) {
               var c = verification.checks[name];
               var labels = { recognisedCells: 'Recognised cells', legendMatches: 'Legend matches', stitchTypes: 'Stitch types', dimensions: 'Dimensions', unsupportedContent: 'Unsupported content', counts: 'Declared counts' };
@@ -952,9 +973,9 @@
               open: allWarnings.some(function (w) { return w && w.severity === 'high'; }) || undefined },
               h('summary', null, I(allWarnings.some(function (w) { return w && w.severity === 'high'; }) ? 'warning' : 'info'),
                 h('span', null, allWarnings.length + (allWarnings.length === 1 ? ' note' : ' notes'))),
-              h(WarningList, { warnings: allWarnings })))
+              h(WarningList, { warnings: allWarnings, onRepair: openRepair, hasPages: !!session })))
           : h('aside', { className: 'import-review-warnings' },
-              h(WarningList, { warnings: allWarnings })
+              h(WarningList, { warnings: allWarnings, onRepair: openRepair, hasPages: !!session })
             ),
         h('footer', { className: 'import-review-footer' },
           h('label', { className: 'import-review-toggle' },
@@ -1064,16 +1085,19 @@
     var own = {};
     (project.pattern || []).forEach(function (m) {
       if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
-        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+        own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol, brand: m.brand };
       }
     });
     (project.partialStitches || []).forEach(function (e) {
       Object.keys(e[1] || {}).forEach(function (k) {
         var m = e[1][k];
         if (m && m.id && m.id !== '__skip__' && m.id !== '__empty__' && !own[m.id]) {
-          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol };
+          own[m.id] = { id: m.id, name: m.name, rgb: m.rgb, lab: m.lab, symbol: m.symbol, brand: m.brand };
         }
       });
+    });
+    (project.bsLines || []).forEach(function (line) {
+      if (line.colorId && !own[line.colorId]) own[line.colorId] = { id: line.colorId, rgb: line.rgb, brand: line.brand };
     });
     function target(id) {
       if (id in memo) return memo[id];
@@ -1092,6 +1116,7 @@
       var t = target(m.id);
       if (!t) return m;
       var out = Object.assign({}, m, { id: t.id, name: t.name, rgb: t.rgb.slice(), lab: t.lab ? t.lab.slice() : m.lab });
+      if (t.brand) out.brand = t.brand; else delete out.brand;
       if (t.symbol !== undefined) out.symbol = t.symbol;
       return out;
     }
@@ -1104,6 +1129,16 @@
           q[k] = t ? { id: t.id, rgb: t.rgb.slice(), name: t.name } : e[1][k];
         });
         return [e[0], q];
+      });
+    }
+    if (project.bsLines) {
+      next.bsLines = project.bsLines.map(function (line) {
+        var t = target(line.colorId);
+        if (!t) return line;
+        var out = Object.assign({}, line, { colorId: t.id, rgb: t.rgb.slice(),
+          color: '#' + t.rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('') });
+        if (t.brand) out.brand = t.brand; else delete out.brand;
+        return out;
       });
     }
     var report = project.importReport;

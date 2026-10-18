@@ -19,20 +19,20 @@ test.describe('Starting a pattern on Pixel 5', function() {
 
   test('Home shows three tiles', async function({ page }) {
     await openCreateTab(page);
-    await expect(page.getByRole('button', { name: /Turn a photo into a pattern/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Draw on a blank grid/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Import a chart/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Convert a picture/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Draw a pattern/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Stitch an existing chart/ })).toBeVisible();
     // Each picker accepts its own kind of file.
     await expect(page.locator('input.home-create-file-input')).toHaveAttribute('accept', 'image/*');
-    await expect(page.locator('input.home-import-file-input')).toHaveAttribute('accept', '.pdf,.oxs,.xml,.json');
+    await expect(page.locator('input.home-import-file-input')).toHaveAttribute('accept', '.pdf,.pat,.oxs,.xsd,.xml,.json');
   });
 
   test('a picture on the import tile is offered to Convert, and accepting opens it', async function({ page }) {
     await openCreateTab(page);
     await page.locator('input.home-import-file-input').setInputFiles(LOGO);
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('This is a picture. Turn it into a pattern instead?');
-    await dialog.getByRole('button', { name: 'Turn into a pattern' }).click();
+    await expect(dialog).toContainText('Convert chooses threads from the colours in a picture.');
+    await dialog.getByRole('button', { name: 'Convert picture' }).click();
     await page.waitForURL(/create\.html/);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 15000 });
   });
@@ -56,7 +56,7 @@ test.describe('Starting a pattern on Pixel 5', function() {
 
   test('a blank grid shows only tools, and its first tab is Canvas', async function({ page }) {
     await openCreateTab(page);
-    await page.getByRole('link', { name: /Draw on a blank grid/ }).click();
+    await page.getByRole('link', { name: /Draw a pattern/ }).click();
     await startBlankGrid(page, { navigate: false });
     await page.waitForSelector('.creator-rail', { timeout: 15000 });
     await expect(page.getByRole('tab', { name: 'Canvas' })).toBeVisible();

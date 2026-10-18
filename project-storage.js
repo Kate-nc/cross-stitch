@@ -1156,8 +1156,8 @@ const ProjectStorage = (() => {
     // Return lightweight metadata for all named projects (those with IDs starting "proj_"),
     // sorted newest-first. Reads from the dedicated metadata store — no pattern data is loaded.
     // Rewrites the progress figures in rows saved before progress was counted in units (they counted full
-    // stitches and knots only, so a project with half stitches read lower on Home than in the Tracker). Reads each
-    // such project once, one at a time, and writes only its two summary rows, never the project itself. Run it
+    // stitches and knots only, so a project with half stitches read lower on Home than in the Tracker). Reads old
+    // projects sequentially, rechecking inside the write transaction, and writes only their summary rows. Run it
     // when the browser is idle; returns how many rows it rewrote (0 once everything is current).
     async refreshProgressRows(opts) {
       const idle = (opts && opts.idle) || (cb => (typeof requestIdleCallback === "function" ? requestIdleCallback(cb, { timeout: 3000 }) : setTimeout(cb, 50)));
@@ -1170,14 +1170,25 @@ const ProjectStorage = (() => {
           const full = await this.get(row.id);
           if (!full || !(full.pattern || full.p)) continue;
           const db = await getDB();
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction([META_STORE, STATS_STORE], "readwrite");
-            tx.objectStore(META_STORE).put(buildMeta(full), full.id);
-            tx.objectStore(STATS_STORE).put(buildStatsSummary(full), full.id);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
+          const refreshed = await new Promise((resolve, reject) => {
+            // get() above may recover a navigation journal, but another tab can
+            // save or delete before this transaction starts. Build summaries and
+            // the checkpoint fence from the current record and overlay together.
+            const tx = db.transaction([STORE_NAME, META_STORE, STATS_STORE, "pendingImports"], "readwrite");
+            const projectReq=tx.objectStore(STORE_NAME).get(full.id);
+            const progressReq=tx.objectStore("pendingImports").get(PROGRESS_PREFIX+full.id);
+            let ready=0;
+            const finish=()=>{
+              if(++ready!==2||!projectReq.result)return;
+              const current=applyProgressRecord(projectReq.result,progressReq.result);
+              tx.objectStore(META_STORE).put(buildMeta(current),full.id);
+              tx.objectStore(STATS_STORE).put(buildStatsSummary(current),full.id);
+            };
+            projectReq.onsuccess=finish;progressReq.onsuccess=finish;
+            tx.oncomplete = () => resolve(!!projectReq.result);
+            tx.onerror = tx.onabort = () => reject(tx.error || new Error("Summary refresh aborted"));
           });
-          done++;
+          if(refreshed)done++;
         }
       } catch (err) {
         console.warn("ProjectStorage.refreshProgressRows failed:", err);

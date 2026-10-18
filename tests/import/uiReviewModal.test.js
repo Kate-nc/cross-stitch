@@ -240,3 +240,17 @@ test('page rebuilds and other designs retain the original source attachment', ()
   expect(out.meta.designer).toBe('A');
   expect(rebuilt.meta.attachments).toBeUndefined();
 });
+
+describe('PAT backstitch placeholder repair', () => {
+  it('assigns threads on lines over empty cells and removes a custom placeholder brand', () => {
+    window.getDmcByIdCI = id => id === '310' ? {id:'310',name:'Black',rgb:[0,0,0]} : null;
+    const p = {pattern:[{id:'U1',type:'solid',brand:'custom',rgb:[1,2,3]}],
+      bsLines:[{x1:0,y1:0,x2:1,y2:1,colorId:'U1',brand:'custom',rgb:[1,2,3]}],
+      importReport:{placeholders:[{id:'U1'}],warnings:[]}};
+    const next = mergeEdits(p,{threads:{U1:'310'}});
+    expect(next.pattern[0].id).toBe('310'); expect(next.pattern[0].brand).toBeUndefined();
+    expect(next.bsLines[0]).toEqual({x1:0,y1:0,x2:1,y2:1,colorId:'310',rgb:[0,0,0],color:'#000000'});
+    expect(p.bsLines[0].colorId).toBe('U1');
+    delete window.getDmcByIdCI;
+  });
+});

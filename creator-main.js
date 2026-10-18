@@ -464,6 +464,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     isUploading: state.isUploading, setIsUploading: state.setIsUploading,
     isDragging: state.isDragging, setIsDragging: state.setIsDragging,
     maxC: state.maxC, setMaxC: state.setMaxC,
+    exactPixelArt: state.exactPixelArt, setExactPixelArt: state.setExactPixelArt,
     pictureType: state.pictureType, pictureInfo: state.pictureInfo, applyPicturePreset: state.applyPicturePreset,
     bri: state.bri, setBri: state.setBri,
     con: state.con, setCon: state.setCon,
@@ -523,7 +524,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
-    state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
+    state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage,
@@ -638,6 +639,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const cvCtx = useMemo(function() { return {
     activeTool: state.activeTool, setActiveTool: state.setActiveTool, activeToolRef: state.activeToolRef,
     drawMode: state.drawMode, setDrawMode: state.setDrawMode, drawModeRef: state.drawModeRef,
+    penNavigation: state.penNavigation, setPenNavigation: state.setPenNavigation,
     magnifierOn: state.magnifierOn, setMagnifierOn: state.setMagnifierOn,
     precisionCursor: state.precisionCursor, setPrecisionCursor: state.setPrecisionCursor, maxZoom: state.maxZoom,
     brushMode: state.brushMode, setBrushMode: state.setBrushMode, brushModeRef: state.brushModeRef,
@@ -765,7 +767,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     clip: state.clip,
   }; }, [
     state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet,
-    state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
+    state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize,
     state.selectedColorId, state.view, state.zoom,
     state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity,
     state.highlightMode, state.bgDimOpacity, state.hiAdvanced,
@@ -998,12 +1000,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     <window.HoverContext.Provider value={hovCtx}>
       {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to
           no UTI and would grey out every file in the Files picker. */}
-      <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
+      <input ref={state.loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={(e)=>{
         var f = e.target.files && e.target.files[0];
         if (!f) return;
         var n = (f.name || '').toLowerCase();
         if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
-        var isPattern = /\.(oxs|xml|pdf|xsd)$/i.test(n);
+        var isPattern = /\.(pat|oxs|xml|pdf|xsd)$/i.test(n);
         if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
           e.target.value = '';
           window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
@@ -1276,13 +1278,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           <div style={{fontSize:14,fontWeight:600}}>Preparing your pattern…</div>
           {isActive&&state.bootSettled&&!state.isUploading&&!window.__pendingCreatorFile&&!window.__pendingCreatorHandoffId&&!window.__pendingCreatorAction&&!window.__pendingCreatorJsonFile&&!window.__pendingCreatorDraftId&&!window.__pendingProjectBrandLoad&&!state.newDesignOpen&&<CreatorNoProjectRedirect/>}
         </div>}
-        <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
+        <input ref={state.fRef} type="file" accept={window.Platform ? window.Platform.fileAccept("image/*,.pat,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.pat,.oxs,.xsd,.xml,.json,.pdf"} onChange={(e)=>{
           var f = e.target.files && e.target.files[0];
           if (!f) return;
           var n = (f.name || '').toLowerCase();
           if (rejectUnsupportedFile(f)) { e.target.value = ''; return; }
-          var isImage = !/\.xsd$/i.test(n) && (f.type || '').indexOf('image/') === 0;
-          var isPattern = !isImage && /\.(oxs|xml|json|pdf|xsd)$/i.test(n);
+          var isImage = !/\.(pat|xsd)$/i.test(n) && (f.type || '').indexOf('image/') === 0;
+          var isPattern = !isImage && /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(n);
           if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
             e.target.value = '';
             window.ImportEngine.importAndReview(f, { navigateTo: 'create.html?from=home' }).catch(function(err){ console.error('[creator] Import failed:', err); });
@@ -1396,6 +1398,17 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                       </div>
                     );
                   })()}
+                  {state.exactPixelArt && state.previewStats.exactMappings && <details style={{maxHeight:240,overflowY:"auto"}}>
+                    <summary>Source colours mapped to threads ({state.previewStats.exactMappings.length})</summary>
+                    <p>Geometry is exact. Colours use the nearest solid thread in the selected brand or stash. Several source colours may share a thread.</p>
+                    <table><thead><tr><th>Source RGB</th><th>Thread RGB</th><th>Thread</th><th>Pixels</th></tr></thead><tbody>
+                      {state.previewStats.exactMappings.map(row => <tr key={row.source.join(',')}>
+                        <td style={{borderLeft:'12px solid rgb('+row.source.join(',')+')'}}>{row.source.join(', ')}</td>
+                        <td style={{borderLeft:'12px solid rgb('+row.thread.rgb.join(',')+')'}}>{row.thread.rgb.join(', ')}</td>
+                        <td>{row.thread.id} {row.thread.name}</td><td>{row.count}</td>
+                      </tr>)}
+                    </tbody></table>
+                  </details>}
                   {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
                     <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>

@@ -935,6 +935,8 @@ function CreatorApp({
       setIsDragging: state.setIsDragging,
       maxC: state.maxC,
       setMaxC: state.setMaxC,
+      exactPixelArt: state.exactPixelArt,
+      setExactPixelArt: state.setExactPixelArt,
       pictureType: state.pictureType,
       pictureInfo: state.pictureInfo,
       applyPicturePreset: state.applyPicturePreset,
@@ -1036,7 +1038,7 @@ function CreatorApp({
       srcClick: stableSrcClick,
       autoCrop: stableAutoCrop
     };
-  }, [state.img, state.isUploading, state.isDragging, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1186,6 +1188,8 @@ function CreatorApp({
       drawMode: state.drawMode,
       setDrawMode: state.setDrawMode,
       drawModeRef: state.drawModeRef,
+      penNavigation: state.penNavigation,
+      setPenNavigation: state.setPenNavigation,
       magnifierOn: state.magnifierOn,
       setMagnifierOn: state.setMagnifierOn,
       precisionCursor: state.precisionCursor,
@@ -1385,7 +1389,7 @@ function CreatorApp({
       // Copy, paste, flip and rotate (useSelectionClipboard)
       clip: state.clip
     };
-  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.specialtySelected, state.specialtyStitches, state.knots, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
+  }, [state.clip, state.mirror, state.shapeFilled, state.lineSnap, state.textSheet, state.activeTool, state.drawMode, state.penNavigation, state.magnifierOn, state.precisionCursor, state.maxZoom, state.brushMode, state.brushSize, state.selectedColorId, state.view, state.zoom, state.hiId, state.showCtr, state.showOverlay, state.overlayOpacity, state.highlightMode, state.bgDimOpacity, state.hiAdvanced, state.bgDimDesaturation, state.dimFraction, state.dimHiId, state.tintColor, state.tintOpacity, state.spotDimOpacity, state.antsOffset, state.contextMenu, state.selectionModifier, state.bsLines, state.specialtySelected, state.specialtyStitches, state.knots, state.partialStitches, state.bsStart, state.bsContinuous, state.editHistory, state.redoHistory, state.stitchType, state.cs, state.paletteSwap, state.pat, state.cmap, state.sW, state.sH, state.selectionMask, state.wandTolerance, state.wandContiguous, state.wandOpMode, state.wandPanel, state.confettiThreshold, state.confettiPreview, state.reduceTarget, state.reducePreview, state.outlineColor, state.selectionCount, state.hasSelection, state.selectionStats, state.lassoMode, state.lassoPoints, state.lassoActive, state.lassoCursor, state.lassoPreviewMask, state.lassoOpMode, state.lassoPointCount, state.lassoInProgress, state.colourReplaceModal, state.cleanupTargetColorId, state.cleanupTolerance, state.cleanupSelTool, state.cleanupBrushSize, state.cleanupPendingMask, state.cleanupAutoRunning, state.cleanupAutoError, cleanupMode, state.denoisePendingMask, state.denoiseAutoRunning, state.denoiseAutoError, state.denoiseSelTool, state.denoiseBrushSize, state.denoiseThreshold, state.denoiseOps, state.denoisePreviewReport, state.denoiseDitherWarning, denoiseMode]);
 
   // ── HoverContext value (pointer hover coords only) ──
   // Action plan headline H5 (=2B.1). hoverCoords ticks at ~60 fps during a
@@ -1646,7 +1650,7 @@ function CreatorApp({
   }, /*#__PURE__*/React.createElement("input", {
     ref: state.loadRef,
     type: "file",
-    accept: window.Platform ? window.Platform.fileAccept(".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -1655,7 +1659,7 @@ function CreatorApp({
         e.target.value = '';
         return;
       }
-      var isPattern = /\.(oxs|xml|pdf|xsd)$/i.test(n);
+      var isPattern = /\.(pat|oxs|xml|pdf|xsd)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
         e.target.value = '';
         window.ImportEngine.importAndReview(f, {
@@ -2022,7 +2026,7 @@ function CreatorApp({
   }, "Preparing your pattern\u2026"), isActive && state.bootSettled && !state.isUploading && !window.__pendingCreatorFile && !window.__pendingCreatorHandoffId && !window.__pendingCreatorAction && !window.__pendingCreatorJsonFile && !window.__pendingCreatorDraftId && !window.__pendingProjectBrandLoad && !state.newDesignOpen && /*#__PURE__*/React.createElement(CreatorNoProjectRedirect, null)), /*#__PURE__*/React.createElement("input", {
     ref: state.fRef,
     type: "file",
-    accept: window.Platform ? window.Platform.fileAccept("image/*,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.oxs,.xsd,.xml,.json,.pdf",
+    accept: window.Platform ? window.Platform.fileAccept("image/*,.pat,.oxs,.xsd,.xml,.json,.pdf") : "image/*,.pat,.oxs,.xsd,.xml,.json,.pdf",
     onChange: e => {
       var f = e.target.files && e.target.files[0];
       if (!f) return;
@@ -2031,8 +2035,8 @@ function CreatorApp({
         e.target.value = '';
         return;
       }
-      var isImage = !/\.xsd$/i.test(n) && (f.type || '').indexOf('image/') === 0;
-      var isPattern = !isImage && /\.(oxs|xml|json|pdf|xsd)$/i.test(n);
+      var isImage = !/\.(pat|xsd)$/i.test(n) && (f.type || '').indexOf('image/') === 0;
+      var isPattern = !isImage && /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(n);
       if (isPattern && window.ImportEngine && typeof window.ImportEngine.importAndReview === 'function') {
         e.target.value = '';
         window.ImportEngine.importAndReview(f, {
@@ -2463,7 +2467,22 @@ function CreatorApp({
         marginTop: 4
       }
     }, tips[t.label] || "", state.previewStats.confettiCleanSingles != null && state.previewStats.confettiCleanSingles < state.previewStats.confettiSingles ? ` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup` : ""));
-  })(), state.previewColors && state.previewColors.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })(), state.exactPixelArt && state.previewStats.exactMappings && /*#__PURE__*/React.createElement("details", {
+    style: {
+      maxHeight: 240,
+      overflowY: "auto"
+    }
+  }, /*#__PURE__*/React.createElement("summary", null, "Source colours mapped to threads (", state.previewStats.exactMappings.length, ")"), /*#__PURE__*/React.createElement("p", null, "Geometry is exact. Colours use the nearest solid thread in the selected brand or stash. Several source colours may share a thread."), /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Source RGB"), /*#__PURE__*/React.createElement("th", null, "Thread RGB"), /*#__PURE__*/React.createElement("th", null, "Thread"), /*#__PURE__*/React.createElement("th", null, "Pixels"))), /*#__PURE__*/React.createElement("tbody", null, state.previewStats.exactMappings.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.source.join(',')
+  }, /*#__PURE__*/React.createElement("td", {
+    style: {
+      borderLeft: '12px solid rgb(' + row.source.join(',') + ')'
+    }
+  }, row.source.join(', ')), /*#__PURE__*/React.createElement("td", {
+    style: {
+      borderLeft: '12px solid rgb(' + row.thread.rgb.join(',') + ')'
+    }
+  }, row.thread.rgb.join(', ')), /*#__PURE__*/React.createElement("td", null, row.thread.id, " ", row.thread.name), /*#__PURE__*/React.createElement("td", null, row.count)))))), state.previewColors && state.previewColors.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 12,
       paddingTop: 12,

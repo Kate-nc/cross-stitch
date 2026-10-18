@@ -82,7 +82,7 @@ Thread inventory and pattern library.
 The default landing page and project hub.
 
 - **Projects:** greeting, the active project card (progress, last edited), and every other project with Track, Edit and Export actions.
-- **Create new:** New from pattern file (image, `.json`, `.oxs` or `.pdf`) or New from scratch (blank grid).
+- **Create new:** Stitch an existing chart (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), Convert a picture, or Draw a pattern. Empty Home shows these paths immediately. Converting an image chooses thread colours; it does not read a photograph of a printed chart. Try a sample project offers memory-only marking and undo without changing real progress or inventory.
 - **Stash:** thread ownership summary and shopping list, linking to the Stash Manager.
 - **Stats:** lifetime stitches, recent activity and your oldest work in progress, linking to the Stats page.
 - Refreshes live on `cs:projectsChanged`, `cs:backupRestored`, `cs:stashChanged` and `visibilitychange`, so changes made in another tab show up.
@@ -442,6 +442,8 @@ ISC
 
 Tracker active sessions use local recovery checkpoints (normally every five seconds); recovery excludes crash downtime. Explicit timers can save time without stitch marks. See [session durability](reports/session-durability.md) for timing, recovery and loss-window limits.
 
+Initial PCStitch `.pat` import supports the unencrypted version 7 layout, retaining dimensions, DMC identifiers, full crosses, diagonal halves, quarters, three-quarter stitches and backstitch. Every import has explicit verification limits: blends and custom palette/header attributes remain unverified; other thread schemes use placeholders, and knots and unsupported stitch types are omitted with notes. Other versions and unrelated `.pat` formats are rejected. See [the support matrix and validation evidence](docs/pcstitch-pat-import.md).
+
 Import review shows separate verification checks for recognised cells, legend matches, stitch types, dimensions, unsupported content and declared counts. Unknown source totals are unverified, and a PDF key percentage describes only legend matching. Use Palette for unresolved symbols, Pages for PDF page arrangements, or repair the source and re-import missing objects. The original file is retained with the import and can be downloaded during review.
 
 Petite crosses and long stitches can be created and edited in **More tools > Petite and long stitches**, then marked in the Tracker chart or Layers panel. Native JSON preserves objects and marks; PNG renders them. See the [capability matrix and compatibility contract](docs/petite-long-lifecycle.md) for import/export support and progress weights.
@@ -486,3 +488,18 @@ recorded. Snapshots live in this browser and are not part of portable backup or
 sync attachment manifests: download the projects and sources before clearing
 browser storage. Unsupported source objects must be repaired or re-exported;
 this workflow does not add a new importer or guarantee every external format.
+
+### Tablet editing and exact pixel art
+
+Creator **More tools > Pen draws; fingers navigate** enables pen tools with
+one-finger pan and two-finger pan/pinch. It is opt-in: if the browser cannot
+reliably distinguish the stylus, leave it off and switch explicitly between
+**Navigate** and **Draw**. Mixed pen/finger contact interrupts drawing; a remaining
+finger cannot resume it. Interrupted brush strokes can be undone as one action.
+
+In Convert, **Exact pixel-art import** preserves the source dimensions (up to
+500 by 500), one source pixel per stitch, without smoothing, dithering or cleanup.
+It uses the existing alpha cutoff: below 128 is empty, otherwise stitched.
+Colours still map to solid threads in the chosen brand or stash. Expand
+**Source colours mapped to threads** in the preview to review RGB matches and
+pixel counts before generating; several colours may share a thread.

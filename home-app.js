@@ -486,6 +486,49 @@
   // "Embroidery planner (beta)": optional third tile, only rendered when the
   // experimental.embroideryTool pref is on. Goes to embroidery.html (a
   // separate prototype page).
+  // Deliberately memory-only: practice never enters project, session, sync or stash storage.
+  function SampleProject() {
+    var rows = ['..AA....', '.ABBA...', '.ABBA...', '..AA....', '...C..C.', '.C.C.C..', '..CCC...', '...C....'];
+    var colours = { A: '321 Red', B: '444 Lemon', C: '700 Green' };
+    var doneState = React.useState([]), done = doneState[0], setDone = doneState[1];
+    var historyState = React.useState([]), history = historyState[0], setHistory = historyState[1];
+    var selectedState = React.useState('A'), selected = selectedState[0], setSelected = selectedState[1];
+    var cells = rows.join('').split('');
+    var total = cells.filter(function (c) { return c !== '.'; }).length;
+    function mark(i) {
+      setHistory(function (h) { return h.concat([done]); });
+      setDone(function (d) { return d.indexOf(i) < 0 ? d.concat(i) : d.filter(function (n) { return n !== i; }); });
+    }
+    var next = cells.findIndex(function (c, i) { return c === selected && done.indexOf(i) < 0; });
+    return h('details', { className: 'home-sample' },
+      h('summary', null, 'Try a sample project'),
+      h('h3', null, 'Practice tracking: Little flower'),
+      h('p', null, 'Choose a thread, then tap its stitches to mark or unmark them. Or use Mark next stitch. This practice stays on this page only; it never changes your projects, progress, sessions or thread inventory.'),
+      h('div', { className: 'home-sample__threads', role: 'group', 'aria-label': 'Sample threads' },
+        Object.keys(colours).map(function (key) {
+          return h('button', { key: key, type: 'button', className: 'btn', 'aria-pressed': selected === key,
+            onClick: function () { setSelected(key); } }, key + ' · DMC ' + colours[key]);
+        })),
+      h('div', { className: 'home-sample__chart', role: 'group', 'aria-label': 'Sample chart, 8 by 8 stitches' },
+        cells.map(function (c, i) {
+          var marked = done.indexOf(i) >= 0;
+          if (c === '.') return h('span', { key: i, 'aria-hidden': 'true' });
+          return h('button', { key: i, type: 'button', className: 'home-sample__cell home-sample__cell--' + c,
+            'aria-label': 'Row ' + (Math.floor(i / 8) + 1) + ', column ' + (i % 8 + 1) + ', DMC ' + colours[c],
+            'aria-pressed': marked, disabled: c !== selected,
+            onClick: function () { mark(i); } }, marked ? h('span', { 'aria-hidden': 'true' }, window.Icons.check()) : c);
+        })),
+      h('p', { role: 'status', 'aria-live': 'polite' }, done.length + ' of ' + total + ' stitches marked (' + Math.round(done.length / total * 100) + '%).'),
+      next < 0 && h('p', null, done.length === total ? 'Sample complete. You can unmark a stitch or undo a mark to practise corrections.' : 'All stitches for ' + selected + ' are marked. Choose another thread to continue.'),
+      h('div', { className: 'home-sample__threads' },
+        h('button', { type: 'button', className: 'btn btn-primary', disabled: next < 0, onClick: function () { mark(next); } }, 'Mark next stitch'),
+        h('button', { type: 'button', className: 'btn', disabled: !history.length, onClick: function () {
+          setDone(history[history.length - 1]); setHistory(history.slice(0, -1));
+        } }, 'Undo sample mark')),
+      h('p', null, 'Ready for your own chart? Use Stitch an existing chart above. The Tracker adds zoom, marking tools, sessions and saved progress.')
+    );
+  }
+
   function CreatePanel() {
     var Icons = window.Icons || {};
     var fileInputRef = React.useRef(null);
@@ -546,7 +589,7 @@
       var IE = window.ImportEngine;
       if (IE && typeof IE.classifyFileForCreate === 'function') return IE.classifyFileForCreate(file);
       if ((file.type || '').indexOf('image/') === 0) return 'image';
-      return /\.(oxs|xml|json|pdf|xsd)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
+      return /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
     }
 
     // Each tile has its own picker (audit COMMON-04). A file that suits the
@@ -567,7 +610,7 @@
       if (tile === 'photo' && kind === 'pattern') {
         ask = { title: 'This looks like a chart file', message: 'This looks like a chart file. Import it instead?', confirmLabel: 'Import' };
       } else if (tile === 'import' && kind === 'image') {
-        ask = { title: 'This is a picture', message: 'This is a picture. Turn it into a pattern instead?', confirmLabel: 'Turn into a pattern' };
+        ask = { title: 'Convert this picture?', message: 'Convert chooses threads from the colours in a picture. It does not read the grid, symbols or thread key in a photograph of a printed chart. For a printed chart, cancel and use the original PDF or supported chart file.', confirmLabel: 'Convert picture' };
       }
       if (!ask) return startFile(file);
       var CD = window.ConfirmDialog;
@@ -609,8 +652,8 @@
         if (typeof IE.showImportError === 'function') IE.showImportError(unsupported, file.name);
         return;
       }
-      var isImage = !/\.xsd$/i.test(name) && (file.type || '').indexOf('image/') === 0;
-      var isPattern = /\.(oxs|xml|json|pdf|xsd)$/i.test(name);
+      var isImage = !/\.(pat|xsd)$/i.test(name) && (file.type || '').indexOf('image/') === 0;
+      var isPattern = /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(name);
       if (!isImage && isPattern && window.ImportEngine && typeof window.ImportEngine.openImportPicker === 'function') {
         // We already have the file — call importAndReview directly so the
         // user doesn't have to pick it again.
@@ -731,7 +774,7 @@
       'aria-labelledby': 'home-create-panel-title',
       onDragOver: onDragOver, onDragEnter: onDragOver, onDragLeave: onDragLeave, onDrop: onDrop
     },
-      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'Start a new pattern'),
+      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'What would you like to do?'),
       // One picker per tile. ".oxs" resolves to no UTI on iOS and would grey
       // out the whole Files picker; Platform.fileAccept drops the filter
       // there and keeps it everywhere else (tests/platformCapabilities.test.js).
@@ -747,13 +790,27 @@
       h('input', {
         ref: importInputRef,
         type: 'file',
-        accept: accept('.pdf,.oxs,.xsd,.xml,.json'),
+        accept: accept('.pdf,.pat,.oxs,.xsd,.xml,.json'),
         className: 'home-import-file-input',
         onChange: handleImportChange,
         'aria-hidden': 'true',
         tabIndex: -1
       }),
       h('div', { className: 'home-create-panel__grid' },
+        h('button', {
+          type: 'button',
+          className: 'home-create-tile',
+          onClick: handleImportChart,
+          disabled: pending,
+          'data-onboard': 'home-import-chart'
+        },
+          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
+            typeof Icons.document === 'function' ? Icons.document() : null),
+          h('span', { className: 'home-create-tile__copy' },
+            h('strong', null, 'Stitch an existing chart'),
+            h('span', null, 'A PDF, .oxs, supported Pattern Maker .xsd or PCStitch 7 .pat chart, or saved .json project. Photos of paper charts aren\u2019t supported yet.')
+          )
+        ),
         h('button', {
           type: 'button',
           className: 'home-create-tile home-create-tile--primary',
@@ -764,8 +821,8 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.image === 'function' ? Icons.image() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Turn a photo into a pattern'),
-            h('span', null, 'Pick a picture and we\u2019ll choose the threads.')
+            h('strong', null, 'Convert a picture'),
+            h('span', null, 'Turn a photograph or artwork into stitches by choosing thread colours. This does not read a printed chart.')
           )
         ),
         h('a', {
@@ -777,22 +834,8 @@
           h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
             typeof Icons.pencil === 'function' ? Icons.pencil() : null),
           h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Draw on a blank grid'),
+            h('strong', null, 'Draw a pattern'),
             h('span', null, 'Design stitch by stitch.')
-          )
-        ),
-        h('button', {
-          type: 'button',
-          className: 'home-create-tile',
-          onClick: handleImportChart,
-          disabled: pending,
-          'data-onboard': 'home-import-chart'
-        },
-          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.document === 'function' ? Icons.document() : null),
-          h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Import a chart'),
-            h('span', null, 'A PDF, .oxs or supported Pattern Maker .xsd chart. Photos of paper charts aren\u2019t supported yet.')
           )
         ),
         // Embroidery planner: experimental third tile, only rendered when the
@@ -814,6 +857,12 @@
           )
         )
       ),
+      h('p', { className: 'home-first-use-note' }, 'A photograph of a printed chart is different from a picture to convert: stitchx does not read the chart grid or thread key from an image file. Use the original PDF or a supported chart file.'),
+      h(SampleProject, null),
+      h('details', { className: 'home-first-use-note' },
+        h('summary', null, 'Saving, recovery and advanced tools'),
+        h('p', null, 'Saved projects and unfinished picture conversions are in Projects. Cancel conversion to keep its settings and any existing pattern. Use File > Export Backup to protect saved projects and inventory, or File > Restore from Backup to recover a backup. Picture conversion drafts stay on this device and are not included in backups.'),
+        h('p', null, 'In the Creator, expand Clean-up or Adjust image for more control. In Palette, use Change symbol beside a thread to reassign its symbol. Materials & Output > Export > Format & settings includes Stitches per page presets and Custom for your own PDF stitch density.')),
       // Transitional overlay shown between FileReader-load and the Creator
       // page taking over. Stops the page change feeling like a teleport.
       pending && h('div', {
@@ -822,7 +871,7 @@
         'aria-live': 'polite'
       },
         h('div', { className: 'home-create-pending__spinner', 'aria-hidden': 'true' }),
-        h('div', { className: 'home-create-pending__msg' }, 'Preparing your image\u2026')
+        h('div', { className: 'home-create-pending__msg' }, 'Preparing your file\u2026')
       )
     );
   }
@@ -1068,7 +1117,22 @@
       } catch (_) {}
       return 'projects';
     });
-    var tab = tabState[0]; var setTab = tabState[1];
+    var tab = tabState[0];
+    function setTab(next) {
+      if (next === tab) return;
+      var url = new URL(window.location.href);
+      url.searchParams.set('tab', next);
+      window.history.pushState({}, '', url.pathname + url.search + url.hash);
+      tabState[1](next);
+    }
+    React.useEffect(function () {
+      function restoreTab() {
+        var t = new URLSearchParams(window.location.search).get('tab');
+        tabState[1](['create', 'stash', 'stats', 'projects'].indexOf(t) >= 0 ? t : 'projects');
+      }
+      window.addEventListener('popstate', restoreTab);
+      return function () { window.removeEventListener('popstate', restoreTab); };
+    }, []);
     var activeState = React.useState(null);
     var active = activeState[0]; var setActive = activeState[1];
     var listState = React.useState([]);
@@ -1313,27 +1377,23 @@
       h('div', { className: 'home-page', role: 'tabpanel' },
         tab === 'projects' && h(React.Fragment, null,
           h(GreetingRow, { list: list, onTab: setTab }),
-          h(ActiveProjectCard, { activeProject: active }),
+          list.length > 0 && h(ActiveProjectCard, { activeProject: active }),
           h(DraftsList, null),
-          h(ProjectsList, { projects: otherProjects }),
-          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
+          h(ProjectsList, { projects: otherProjects })
         ),
-        tab === 'create' && h(React.Fragment, null,
-          h(CreatePanel, null),
-          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
-        ),
+        h('div', { hidden: !(tab === 'create' || (tab === 'projects' && !list.length)) },
+          h(CreatePanel, null)),
         tab === 'stash' && h(React.Fragment, null,
-          h(StashPanel, { stash: stash, shopping: shopping, ready: ready }),
-          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
+          h(StashPanel, { stash: stash, shopping: shopping, ready: ready })
         ),
         tab === 'stats' && h(React.Fragment, null,
           h(StatsPanel, {
             lifetimeStitches: stats.lifetimeStitches,
             dailyLog: stats.dailyLog,
             oldestWip: stats.oldestWip
-          }),
-          h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
-        )
+          })
+        ),
+        h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
       ),
       prefsOpen && typeof window.PreferencesModal !== 'undefined'
         ? h(window.PreferencesModal, { onClose: function () { setPrefsOpen(false); } })

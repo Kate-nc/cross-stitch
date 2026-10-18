@@ -21,6 +21,8 @@
    Dependencies (imported via importScripts — all pure, no DOM):
      constants.js  → FABRIC_COUNTS, A4W, A4H, etc.
      dmc-data.js   → DMC_RAW, rgbToLab, dE, dE2, DMC, SYMS
+     creator/symbolFontSpec.js, creator/pdfChartLayout.js, symbol-glyphs.js
+                   → SymbolGlyphs (the chart symbols buildPalette assigns)
      colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doRiemersma, doMap,
                        buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        generateSaliencyMap, generateEdgeMap,
@@ -28,7 +30,7 @@
                        analyzeConfetti, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
 */
 
-importScripts('constants.js', 'dmc-data.js', 'colour-utils.js');
+importScripts('constants.js', 'dmc-data.js', 'creator/symbolFontSpec.js', 'creator/pdfChartLayout.js', 'symbol-glyphs.js', 'colour-utils.js');
 
 // STRENGTH_MAP mirrors window.STRENGTH_MAP in creator/generate.js.
 // Duplicated here because creator/generate.js assigns via `window.*` and

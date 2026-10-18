@@ -165,7 +165,8 @@ describe('threads and symbols', () => {
     expect(api.threadCountsShort({ threads: 1, symbols: 1, blends: 0 })).toBe('1 thread · 1 symbol');
   });
   test('the success toast, Palette header and summaries use it', () => {
-    expect(src).toMatch(/var counts = threadCountsSentence\(creatorThreadCounts\(result\.pal\)\);/);
+    expect(src).toMatch(/var counts = threadCountsSentence\(tc\);/);
+    expect(src).toMatch(/var tc = creatorThreadCounts\(result\.pal\);/);
     const sb = loadSource('creator/Sidebar.js');
     expect(sb).toMatch(/className:"palette-counts"[^\n]*window\.threadCountsShort\(window\.creatorThreadCounts\(displayPal\)\)/);
     expect(sb).toMatch(/label:"Threads \(max\)"/);

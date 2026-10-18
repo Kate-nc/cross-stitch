@@ -48,7 +48,7 @@
       if (j !== idx && pal[j] && pal[j].symbol === sym) return { ok: false, reason: "duplicate" };
     }
     var next = pal.slice();
-    next[idx] = Object.assign({}, pal[idx], { symbol: sym });
+    next[idx] = Object.assign({}, pal[idx], { symbol: sym, autoSymbol: false });
     return { ok: true, pal: next, from: from };
   }
 
@@ -57,7 +57,7 @@
     var out = new Array(pat.length);
     for (var i = 0; i < pat.length; i++) {
       var c = pat[i];
-      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym }) : c;
+      out[i] = c && c.id === id ? Object.assign({}, c, { symbol: sym, autoSymbol: false }) : c;
     }
     return out;
   }

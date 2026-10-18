@@ -104,10 +104,10 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
   var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
   function symbolPanel(list) {
-    if (!symbolPickerFor || typeof SYMS === "undefined" || !window.PaletteTools) return null;
+    if (!symbolPickerFor || !window.SymbolGlyphs || !window.PaletteTools) return null;
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
-    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, SYMS);
+    var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
     return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
@@ -130,6 +130,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
+    var symbolLimitMsg = window.symbolLimitWarning ? window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) : "";
     var isHsTool = ctx.partialStitchTool && ctx.partialStitchTool !== "erase";
     var isPaintMode = cv.activeTool === "paint" || cv.activeTool === "fill" || isHsTool;
     var selInfo = cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId];
@@ -294,10 +295,17 @@ window.CreatorSidebar = function CreatorSidebar() {
             title: "Select all stitches and open the Simplify Colours panel to merge similar colours",
             style:{fontSize:'var(--text-xs)',padding:"2px 7px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",fontWeight:500,cursor:"pointer",lineHeight:1.4}
           }, "Simplify colours\u2026"),
-          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal)))
+          h("span", {className:"palette-counts", style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, window.threadCountsShort(window.creatorThreadCounts(displayPal))),
+          symbolLimitMsg && h("span", {
+            className: "palette-counts-warn", role: "img",
+            title: symbolLimitMsg,
+            "aria-label": symbolLimitMsg,
+            style: {display:"inline-flex",width:16,height:16,color:"var(--danger)"}
+          }, Icons.warning())
         )
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
+      app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -423,6 +431,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       onPointerMove:gen.handleCropPointerMove,
       onPointerUp:gen.handleCropPointerUp,
       onPointerCancel:gen.handleCropPointerCancel,
+      onLostPointerCapture:gen.handleCropPointerCancel,
       onPointerLeave:gen.handleCropPointerUp
     },
       h("img", {
@@ -739,6 +748,13 @@ window.CreatorSidebar = function CreatorSidebar() {
   // shown once any value the preset set has been changed.
   var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
     ? h("div", {className:"picture-type"},
+        h("label", null,
+          h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
+            disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+            onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+        h("p", {className:"hint"}, gen.exactPixelArt
+          ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, dithering and cleanup are ignored. Review source-to-thread mappings in the preview before Generate."
+          : "Exact mode supports sources up to 500 by 500 pixels without resizing. Colours are mapped to solid threads."),
         h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
           window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
@@ -1662,6 +1678,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     // a count so the destructive part of the action is explicit.
     var regenSnap = app.lastGenSnapshot;
     var dimensionsStale = regenSnap && (
+      !!regenSnap.exactPixelArt !== !!gen.exactPixelArt ||
       regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
       regenSnap.fabricCt !== ctx.fabricCt ||
       regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
@@ -1840,6 +1857,11 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
+      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, then Generate."),
+      h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
+        app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
+        app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
+      }}, "Show all conversion controls"),
       // 0. What kind of picture is this? (presets)
       pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)

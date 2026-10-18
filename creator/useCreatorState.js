@@ -225,7 +225,7 @@ var CONVERSION_STATE_KEYS = [
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
-  'fabricCt',
+  'fabricCt', 'exactPixelArt',
   'disambig', 'disambigLevel',
 ];
 
@@ -341,6 +341,14 @@ function threadCountsSentence(c) {
 function threadCountsShort(c) {
   return _threadPlural(c.threads, 'thread', 'threads') + ' \u00B7 ' + _threadPlural(c.symbols, 'symbol', 'symbols');
 }
+// The printed chart has a fixed set of distinct symbols (SymbolGlyphs). When a
+// chart needs more, say so: it can't be exported to PDF as it is. Empty when
+// the chart fits.
+function symbolLimitWarning(c) {
+  var cap = window.SymbolGlyphs ? window.SymbolGlyphs.capacity() : 0;
+  if (!cap || !c || c.symbols <= cap) return '';
+  return 'This chart has ' + c.symbols + ' symbols, but the printed chart has only ' + cap + ' different ones. Lower Threads (max) or turn off blends and convert again; the PDF can\u2019t be exported as it is.';
+}
 
 // Build the allowedPalette + count from a globalStash (composite-keyed) or a
 // pre-built variation subset. ONE place that does the brand-aware key dance —
@@ -417,6 +425,7 @@ if (typeof window !== 'undefined') {
   window.creatorThreadCounts = creatorThreadCounts;
   window.threadCountsSentence = threadCountsSentence;
   window.threadCountsShort = threadCountsShort;
+  window.symbolLimitWarning = symbolLimitWarning;
 }
 
 // Plain helper (not a hook) — safe to call inside useState lazy initializers.
@@ -749,7 +758,7 @@ window.useCreatorState = function useCreatorState() {
   var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(false);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -782,6 +791,13 @@ window.useCreatorState = function useCreatorState() {
   // { id, values } for the preset last chosen (or guessed on upload).
   // pictureType is that id while every value it set is unchanged, else
   // 'custom' (also 'custom' when no preset has been applied).
+  var _exactPixel = useState(false), exactPixelArt = _exactPixel[0], setExactPixelArt = _exactPixel[1];
+  useEffect(function() {
+    if (!exactPixelArt || !img || appMode !== "create") return;
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w > 500 || h > 500) { setExactPixelArt(false); return; }
+    setSW(w); setSH(h);
+  }, [exactPixelArt, img, sW, sH, appMode]);
   var _picInfo = useState(null);     var pictureInfo = _picInfo[0], setPictureInfo = _picInfo[1];
   var _preset  = useState(null);     var presetApplied = _preset[0], setPresetApplied = _preset[1];
   var pictureInfoRef = useRef(null);
@@ -845,6 +861,12 @@ window.useCreatorState = function useCreatorState() {
   // partialStitchTool as null, so one finger (or a mouse drag) pans and a
   // long-press opens the stitch menu. Touch screens start in Navigate, mouse
   // users in Draw; the last choice is remembered per device.
+  var _penNav = useState(function() { return loadUserPref("creator.penNavigation", false) === true; });
+  var penNavigation = _penNav[0], penNavigationRef = useRef(penNavigation);
+  function setPenNavigation(v) {
+    v = !!v; penNavigationRef.current = v; _penNav[1](v);
+    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.penNavigation", v); } catch (_) {}
+  }
   var _drawMode = useState(initialDrawMode);
   var drawMode = _drawMode[0];
   var drawModeRef = useRef(drawMode);
@@ -1367,10 +1389,10 @@ window.useCreatorState = function useCreatorState() {
     var result = buildPalette(np);
     if (!scratchPalette.length) return result;
     var ids = new Set(result.pal.map(function(x) { return x.id; }));
-    var extras = scratchPalette.filter(function(x) { return !ids.has(x.id); });
+    var extras = dedupeChartSymbols(result.pal, scratchPalette.filter(function(x) { return !ids.has(x.id); }));
     var ec = {};
     extras.forEach(function(e) { ec[e.id] = e; });
-    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec) };
+    return { pal: result.pal.concat(extras), cmap: Object.assign({}, result.cmap, ec), symbolOverflow: result.symbolOverflow };
   }
 
   function chgW(v) {
@@ -1477,7 +1499,7 @@ window.useCreatorState = function useCreatorState() {
     _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
-    setPictureInfo(null); setPresetApplied(null);
+    setExactPixelArt(false); setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
     // "materials" or "project" tab from a previous session hides the rpanel.
@@ -1580,13 +1602,12 @@ window.useCreatorState = function useCreatorState() {
 
   function addScratchColour(d) {
     if (cmap && cmap[d.id]) return;
-    var usedSyms = new Set(pal ? pal.map(function(p) { return p.symbol; }) : []);
-    var sym = SYMS.find(function(s) { return !usedSyms.has(s); }) || SYMS[(pal ? pal.length : 0) % SYMS.length];
+    var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
-      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym };
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym, autoSymbol: true };
     } else {
-      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym };
+      entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym, autoSymbol: true };
     }
     // Another brand's thread (P4-5) keeps its brand.
     if (d.brand && d.brand !== "dmc") entry.brand = d.brand;
@@ -1744,7 +1765,7 @@ window.useCreatorState = function useCreatorState() {
     // surface a "Re-generate (values changed)" CTA. Stored fields must
     // match the comparator in Sidebar.js (genStaleReason).
     setLastGenSnapshot({
-      sW: sW, sH: sH, fabricCt: fabricCt, maxC: maxC,
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
       bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
       allowBlends: allowBlends, skipBg: skipBg
     });
@@ -1793,8 +1814,12 @@ window.useCreatorState = function useCreatorState() {
     // bar's "< Setup" button is the way back. (Polish B.)
     // Threads and chart symbols, not "colours": a blend is one symbol made of
     // two threads (audit IMG-02).
-    var counts = threadCountsSentence(creatorThreadCounts(result.pal));
+    var tc = creatorThreadCounts(result.pal);
+    var counts = threadCountsSentence(tc);
     addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // More symbols than the printed chart has (audit UX-005): say so now, not at export.
+    var limitMsg = symbolLimitWarning(tc);
+    if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
   };
 
   // Lazily create (and reuse) the Web Worker. Falls back to 'unavailable' if
@@ -1943,7 +1968,7 @@ window.useCreatorState = function useCreatorState() {
     var allowedPalette = window.threadBrandPool ? window.threadBrandPool(genBrand) : null;
     var effMaxC = maxC;
     var effAllowBlends = allowBlends;
-    if (stashConstrained && globalStash) {
+    if (stashConstrained) {
       if (_subset !== null) {
         allowedPalette = _subset;
       } else {
@@ -1965,6 +1990,15 @@ window.useCreatorState = function useCreatorState() {
     var startGeneration = function() {
       // Cancelled before the first frame: don't start at all.
       if (reqId !== genReqIdRef.current) return;
+      if (exactPixelArt) {
+        setGenerateCancellable(false);
+        try {
+          var exact = runExactPixelPipeline(img, { allowedPalette: allowedPalette });
+          if (exact.width !== sW || exact.height !== sH) throw new Error("Wait for the source pixel dimensions to update before generating.");
+          applyResultRef.current({ reqId: reqId, mapped: exact.pat, pal: exact.pal, cmap: exact.cmap, confettiData: exact.confettiData });
+        } catch (err) { addToast(err.message, { type: "error" }); setBusy(false); }
+        return;
+      }
       // Extract pixel data here (requires canvas — must stay on main thread)
       var c = document.createElement("canvas");
       c.width = sW; c.height = sH;
@@ -1998,7 +2032,7 @@ window.useCreatorState = function useCreatorState() {
           if (reqId !== genReqIdRef.current) { setBusy(false); return; }
           try {
             var result = runGenerationPipeline(img, {
-              sW: sW, sH: sH, maxC: effMaxC, bri: bri, con: con, sat: sat,
+              sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
               stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
@@ -2036,7 +2070,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2106,6 +2140,7 @@ window.useCreatorState = function useCreatorState() {
 
   var generateGallery = useCallback(function() {
     if (!img || !stashConstrained) return;
+    if (exactPixelArt) { addToast("Turn off exact pixel-art import to explore resized colour variations.", {type:"info"}); return; }
     var newSeeds = [0, 1, 2, 3].map(function() { return ((Math.random() * 0xFFFFFFFE) + 1) >>> 0; });
     // Brand-aware via the central helper.
     var pool = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).threads;
@@ -2167,7 +2202,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -2366,6 +2401,7 @@ window.useCreatorState = function useCreatorState() {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
+    exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
@@ -2399,6 +2435,7 @@ window.useCreatorState = function useCreatorState() {
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
     rememberedTool: activeTool, drawMode: drawMode, setDrawMode: setDrawMode, drawModeRef: drawModeRef,
+    penNavigation, setPenNavigation, penNavigationRef,
     magnifierOn, setMagnifierOn, magnifierRef, precisionCursor, setPrecisionCursor, precisionCursorRef, maxZoom,
     bsLines, setBsLines, bsStart, setBsStart,
     specialtyStitches, setSpecialtyStitches, specialtySelected,setSpecialtySelected,
@@ -2545,7 +2582,7 @@ window.useCreatorState = function useCreatorState() {
         : allowBlends;
       return Object.freeze({
         // Geometry
-        sW: sW, sH: sH,
+        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
         // Image adjustments
         bri: bri, con: con, sat: sat,
         smooth: smooth, smoothType: smoothType,
@@ -2571,7 +2608,7 @@ window.useCreatorState = function useCreatorState() {
         stashCount: stashInfo.count,
       });
     }, [
-      sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
       maxC, dith, dithMode, dithStrength, allowBlends,
       skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
       disambig, disambigLevel,
