@@ -733,9 +733,13 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
     var uid = React.useId();
     var titleId = 'cs-confirm-title-' + uid;
     var confirmRef = React.useRef(null);
+    var cancelRef = React.useRef(null);
     React.useEffect(function () {
-      // Focus the destructive/primary button on mount so Enter activates it.
-      var t = setTimeout(function () { try { confirmRef.current && confirmRef.current.focus(); } catch (e) {} }, 0);
+      // Focus the primary button on mount so Enter activates it. A destructive (danger) dialog starts on Cancel instead,
+      // so a repeated or held Enter cannot confirm it.
+      var t = setTimeout(function () {
+        try { var el = opts.danger ? cancelRef.current : confirmRef.current; el && el.focus(); } catch (e) {}
+      }, 0);
       return function () { clearTimeout(t); };
     }, []);
     return h(window.Overlay, {
@@ -748,6 +752,7 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
         h('p', { style: { margin: 0, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap' } }, opts.message || ''),
         h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 } },
           h('button', {
+            ref: cancelRef,
             type: 'button',
             onClick: props.onCancel,
             style: { padding: '8px 16px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer' }

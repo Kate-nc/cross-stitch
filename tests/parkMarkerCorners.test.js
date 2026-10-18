@@ -63,7 +63,7 @@ describe('Multi-colour parking — source assertions', () => {
   });
 
   test('Option C: Clear all removes every marker (undoably) and resets parkLayers', () => {
-    expect(src).toMatch(/commitParkMarkers\(parkMarkersRef\.current,\[\]\);setParkLayers\(\{\}\)/);
+    expect(src).toMatch(/commitParkMarkers\(parkMarkersRef\.current,\[\],\{layersBefore:.*?\}\);setParkLayers\(\{\}\)/);
   });
 });
 

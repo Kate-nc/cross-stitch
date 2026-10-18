@@ -226,7 +226,8 @@
             ["Zoomed in, or on a narrow screen", "Below 1024 pixels wide, which includes a desktop browser zoomed to 200%, the colour legend starts shut so the chart is what you see; open it with the Colours button (or G, then Tab through the colours). Text and controls are held to a 4.5 to 1 contrast against their background in both themes, the dark theme has its own lighter accent, a focus ring shows on whatever the keyboard is on, and a selected colour, a finished milestone, the next one and an upcoming one each differ in more than colour (an edge bar, a tick, the word Next, a dashed border)."],
             ["Marking with the keyboard", "Tab to the chart (it gets an outline). The arrow keys move the guide crosshair (Shift moves 10 stitches); in row mode Up and Down change the row instead. In Mark mode, Enter marks or unmarks the stitch at the guide (the first Enter just shows the guide), and Space does too once the arrow keys have the guide. Shift+Enter marks or unmarks the rectangle from the last stitch you marked with the keyboard to the guide, as Shift+click does. [ and ] change colour, G goes to the colour legend and Shift+G back to the chart, T and N switch Mark and Navigate mode, Ctrl+Z undoes. Esc clears the guide, and a click on the chart gives Space back to hold-to-pan. Navigate mode never marks: the keyboard only moves the guide there."],
             ["Pattern overview", "When the pattern is bigger than the chart box, a small map of the whole pattern sits in the corner of the chart. Finished areas show in full thread colour and the rest is faded, and the outlined rectangle is what you are looking at. Tap or drag the map to jump there, or focus it and use the arrow keys (Shift for bigger steps). It hides itself when the whole pattern fits, and you can turn it off in More > View or Preferences > Stitch Tracker. On a phone in Focus mode it starts closed; the map button opens it."],
-            ["Finished stitches", "In Symbol and Colour views a done stitch fills with its thread colour and keeps a dimmed symbol, so finished areas stand out even in greyscale; not-done stitches stay pale. Choose Corner tick instead (More > View, or Preferences > Stitch Tracker) to keep each stitch as it was and add a dark tick in its corner. Zoomed out until cells are too small for symbols, every stitch is one coloured pixel: done in its thread colour, not done faded, so the whole pattern still reads at Fit."],
+            ["Finished stitches", "In Symbol and Colour views a done stitch fills with its thread colour and keeps a dimmed symbol, so finished areas stand out even in greyscale; not-done stitches stay pale. The key under the progress bar shows both looks. A done stitch is drawn in its thread colour, but very pale threads are toned down to light grey, so white and ecru look grey once stitched. Choose Corner tick instead (More > View, or Preferences > Stitch Tracker) to keep each stitch as it was and add a dark tick in its corner. Zoomed out until cells are too small for symbols, every stitch is one coloured pixel: done in its thread colour, not done faded, so the whole pattern still reads at Fit."],
+            ["Marking a whole colour", "In the colours list, Mark all done on a colour's row marks every full stitch of that colour, and Mark all not done (shown once the colour is finished) clears them. Half stitches, knots and quarters are marked on the chart, and backstitch has its own Mark all lines done chip. You are always asked first, with the colour and the exact number, and the change is one step: press Undo on the toast that follows, or the ordinary Undo, to put everything back. Tapping the row itself only selects the colour. In a work area the change covers only that part. Clear all on the park markers asks first too, and Undo also brings back which colours were hidden. While a question is open, keyboard shortcuts such as Ctrl+Z are held back until you answer."],
             ["Undoing a stroke", "When one drag or rectangle marks (or unmarks) more than five stitches, a message offers Undo N stitches for a few seconds. It is the ordinary Undo, so the whole stroke goes in one step."],
             ["Navigate mode (N)", "Move around without marking anything: drag the chart to pan it. Click a cell to place a guide crosshair across its row and column; click it again, or press Esc, to clear it. On a touch screen, drag to scroll and tap to place or clear the guide."],
             ["Marking a rectangle", "Hold Shift and click a stitch to mark the whole rectangle between it and the last stitch you marked (Shift-drag shows the rectangle before you let go). On a touch screen, press and hold a stitch, then tap another one."],
@@ -300,8 +301,9 @@
           heading: "Stitch layers",
           body: "Full stitches, half and part stitches, French knots and backstitch are drawn as separate layers, so you can hide the ones you are not working on.",
           bullets: [
-            ["F, H, K and L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers."],
-            ["Shift+A", "Shows or hides all layers at once."]
+            ["Shift+F, Shift+H, Shift+K and Shift+L", "Show or hide the full-stitch, half-stitch, French-knot and backstitch layers. They need Shift so that a stray keypress cannot blank the chart; the bare F key switches focus mode on and off."],
+            ["Shift+A", "Shows or hides all layers at once."],
+            ["Hidden layers", "Layers stay hidden when you reopen the project. While a layer that has stitches is hidden, a chip in the progress strip (above the focus mode bar, when the strip is hidden) says which, for example Full stitches hidden · Show. Choose it to show them all again."]
           ]
         }
       ]
@@ -607,10 +609,11 @@
     { id: "t.chartFocus", scope: "tracker", keys: ["Shift+G"], description: "Go back to the chart, so you do not have to Tab to it" },
     { id: "t.parkGuide", scope: "tracker", keys: ["Shift+F10", "Menu"], description: "Park a thread at the guide" },
     { id: "t.view",    scope: "tracker", keys: ["V"], description: "Cycle view: symbol / colour / highlight" },
-    { id: "t.full",    scope: "tracker", keys: ["F"], description: "Toggle full-stitch layer visibility" },
-    { id: "t.half",    scope: "tracker", keys: ["H"], description: "Toggle half-stitch layer visibility" },
-    { id: "t.knot",    scope: "tracker", keys: ["K"], description: "Toggle French-knot layer visibility" },
-    { id: "t.bs",      scope: "tracker", keys: ["L"], description: "Toggle backstitch layer visibility" },
+    { id: "t.focusMode", scope: "tracker", keys: ["F"], description: "Enter or leave focus mode (Esc also leaves it)" },
+    { id: "t.full",    scope: "tracker", keys: ["Shift+F"], description: "Toggle full-stitch layer visibility" },
+    { id: "t.half",    scope: "tracker", keys: ["Shift+H"], description: "Toggle half-stitch layer visibility" },
+    { id: "t.knot",    scope: "tracker", keys: ["Shift+K"], description: "Toggle French-knot layer visibility" },
+    { id: "t.bs",      scope: "tracker", keys: ["Shift+L"], description: "Toggle backstitch layer visibility" },
     { id: "t.allLay",  scope: "tracker", keys: ["Shift+A"], description: "Toggle all layers on / off" },
     { id: "t.drawer",  scope: "tracker", keys: ["D"], description: "Toggle the colours drawer" },
     { id: "t.count",   scope: "tracker", keys: ["C"], description: "Toggle counting aids" },

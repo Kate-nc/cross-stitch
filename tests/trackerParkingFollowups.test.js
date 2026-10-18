@@ -45,8 +45,8 @@ describe('park undo', () => {
   });
 
   test('history entries are diffs of added and removed markers', () => {
-    const b = body('function commitParkMarkers(prev,next){', '\n}\n');
-    expect(b).toMatch(/\{type:"PARK",added,removed\}/);
+    const b = body('function commitParkMarkers(prev,next,extra){', '\n}\n');
+    expect(b).toMatch(/Object\.assign\(\{type:"PARK",added,removed\},extra\)/);
     expect(b).toMatch(/setRedoStack\(\[\]\);/);
   });
 
