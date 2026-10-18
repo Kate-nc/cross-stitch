@@ -62,11 +62,15 @@ test.describe('Navigate | Draw on Pixel 5', function() {
 test.describe('Desktop', function() {
   test.use(device('desktop'));
 
-  test('starts in Draw with Paint armed; the toggle is in the Tools tab', async function({ page }) {
+  test('opens in Navigate like touch does; choosing Paint switches to Draw (UX-009)', async function({ page }) {
     await generateLogo(page);
-    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.tb-status')).toContainText('Navigate');
     await expect(page.locator('.tb-mode-toggle')).toHaveCount(0);
     await page.locator('.creator-sidebar-tab[data-tab-id="tools"]').click();
+    await expect(page.getByRole('group', { name: 'Chart mode' }).locator('[data-mode="navigate"]')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Paint tool' }).click();
+    await expect(page.getByRole('button', { name: 'Paint tool' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByRole('group', { name: 'Chart mode' }).locator('[data-mode="draw"]')).toHaveAttribute('aria-pressed', 'true');
   });
 });

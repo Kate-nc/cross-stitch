@@ -54,7 +54,7 @@
     exportGridInterval:     10,
     exportCentreMarks:      true,
     "creator.penNavigation": false,          // opt-in: pen tools with finger pan/pinch
-    "creator.drawMode": null,               // P1-1: last Navigate/Draw choice on this device; null = by pointer (touch Navigate, mouse Draw)
+    "creator.drawMode": null,               // Retired (UX-009): the Creator now always opens in Navigate, so this is no longer read or written. Kept so older backups still restore.
     "creator.magnifier": null,              // P1-3: touch loupe while drawing; null = on for touch screens
     "creator.precisionCursor": false,       // P1-3: crosshair 40px above the finger, placed on lift
     "creator.pdfWorkshopTheme": false,       // UX-12 PR #14: opt-in Workshop print theme (terracotta + linen). OFF = bit-identical PK output.

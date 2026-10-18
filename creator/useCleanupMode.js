@@ -443,8 +443,9 @@ window.useCleanupMode = function useCleanupMode(state, history) {
 
     // Push undo entry (generic changes[] loop in useEditHistory handles this
     // without any new branch — type "cleanup" just passes through).
+    var cleanupReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: 'cleanup', changes: changes }]);
+      var n = prev.concat([{ type: 'cleanup', changes: changes, doneReset: cleanupReset }]);
       if (n.length > state.EDIT_HISTORY_MAX) n = n.slice(n.length - state.EDIT_HISTORY_MAX);
       return n;
     });

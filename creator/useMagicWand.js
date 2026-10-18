@@ -294,8 +294,9 @@ window.useMagicWand = function useMagicWand(state) {
     if (!changes.length) return;
 
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var confettiReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "confettiCleanup", changes: changes }]);
+      var n = prev.concat([{ type: "confettiCleanup", changes: changes, doneReset: confettiReset }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -422,8 +423,9 @@ window.useMagicWand = function useMagicWand(state) {
     }
     if (!changes.length) return;
     var EDIT_HISTORY_MAX = state.EDIT_HISTORY_MAX;
+    var reduceReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
     state.setEditHistory(function(prev) {
-      var n = prev.concat([{ type: "colorReduction", changes: changes }]);
+      var n = prev.concat([{ type: "colorReduction", changes: changes, doneReset: reduceReset }]);
       if (n.length > EDIT_HISTORY_MAX) n = n.slice(n.length - EDIT_HISTORY_MAX);
       return n;
     });
@@ -486,6 +488,8 @@ window.useMagicWand = function useMagicWand(state) {
       return null;
     }
     var entry = { type: 'colourReplace', changes: changes };
+    var replaceReset = state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
+    if (replaceReset) entry.doneReset = replaceReset;
     // Generic undo/redo in useEditHistory restores psChanges and bsLines.
     if (psRes.psChanges.length) entry.psChanges = psRes.psChanges;
     if (bsRes.count) entry.bsLines = state.bsLines.slice();
@@ -590,6 +594,8 @@ window.useMagicWand = function useMagicWand(state) {
     }
 
     var entry = { type: "deleteSelection", changes: changes };
+    var deleteReset = np && state.guardStitchedEdit && state.guardStitchedEdit(changes, np);
+    if (deleteReset) entry.doneReset = deleteReset;
     if (psChanges.length) entry.psChanges = psChanges;
     if (bsRemoved) entry.bsLines = bsLines.slice();
     if (knotsRemoved) entry.knots = knots.slice();

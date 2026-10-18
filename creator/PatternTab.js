@@ -154,6 +154,20 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       );
     })(),
 
+    // Stitched progress (UX-006): edits to stitched cells reset them, so say so
+    // up front and offer to show which cells those are.
+    ctx.progressPct > 0 && h("div", {
+      className:"stitched-banner", role:"status",
+      style:{padding:"8px 12px",background:"var(--surface-secondary)",border:"0.5px solid var(--border)",borderLeft:"3px solid var(--accent)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center",gap:'var(--s-2)',flexWrap:"wrap"}
+    },
+      h("span", null, Icons.info(), " This project is ", ctx.progressPct >= 100 ? "100" : ctx.progressPct >= 1 ? Math.min(99, Math.round(ctx.progressPct)) : "less than 1", "% stitched. Changing stitched cells resets them to not done."),
+      h("button", {
+        type:"button", className:"stitched-banner__toggle", "aria-pressed": !!cv.showStitched,
+        onClick:function(){ cv.setShowStitched(!cv.showStitched); },
+        style:{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",fontSize:'var(--text-xs)',fontWeight:500,cursor:"pointer",borderRadius:'var(--radius-sm)',border:cv.showStitched?"1px solid var(--accent)":"0.5px solid var(--line)",background:cv.showStitched?"var(--accent-soft)":"var(--surface)",color:cv.showStitched?"var(--accent)":"var(--text-secondary)",flexShrink:0}
+      }, cv.showStitched ? Icons.eyeOff() : Icons.eye(), " Show stitched")
+    ),
+
     h(window.MagicWandPanel, null),
 
     ctx.pat && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},

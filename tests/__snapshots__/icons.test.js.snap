@@ -31,6 +31,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "download",
   "duplicate",
   "eye",
+  "eyeOff",
   "eyedropper",
   "fire",
   "flipHorizontal",
