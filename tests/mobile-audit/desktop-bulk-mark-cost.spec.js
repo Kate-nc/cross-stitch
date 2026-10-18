@@ -19,11 +19,10 @@ const { suppressOnboarding, SCROLLER_FN } = require('../_helpers/deviceEmulation
 
 async function openTracker(page) {
   await page.addInitScript(() => {
-    // Count fills, and auto-accept the "mark all N stitches?" confirm.
+    // Count fills.
     window.__fills = 0;
     const of = CanvasRenderingContext2D.prototype.fillRect;
     CanvasRenderingContext2D.prototype.fillRect = function () { window.__fills++; return of.apply(this, arguments); };
-    window.confirm = () => true;
   });
   await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.locator('input[type="file"]').first().setInputFiles(fixtureFor('large'));
@@ -57,6 +56,7 @@ test('marking a whole colour does not paint thousands of off-screen cells', asyn
 
   await page.evaluate(() => { window.__fills = 0; });
   await btn.click({ force: true });
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();   // the styled confirmation
   await page.waitForTimeout(2500);
 
   const r = await page.evaluate(() => ({
@@ -121,6 +121,7 @@ test('cells marked off-screen still appear when scrolled to', async ({ page }) =
   await scrollTo(0, 0);
   await page.waitForTimeout(1200);
   await btn.click({ force: true });
+  await page.getByRole('dialog').getByRole('button', { name: 'Mark all done', exact: true }).click();   // the styled confirmation
   await page.waitForTimeout(2000);
 
   await showTarget();

@@ -2341,6 +2341,34 @@ function threadLabel(entry){
   if(!entry)return'';
   return threadBrandLabel(entry.brand)+' '+entry.id;
 }
+// ── Whole-colour Done / Not done (Stitch Tracker colour list) ──
+// Which full stitches of one colour a whole-colour change would flip, as history entries ({idx, oldVal}). `inArea` is
+// an optional (idx) => boolean limiting the change to a work area. Pure, so the confirmation can quote the exact count
+// and the change itself is the same list.
+function colourDoneChanges(pat,done,cid,md,inArea){
+  var changes=[],want=md?1:0;
+  if(!pat||!done)return changes;
+  for(var i=0;i<pat.length;i++){
+    if(!pat[i]||pat[i].id!==cid)continue;
+    if(inArea&&!inArea(i))continue;
+    if(done[i]!==want)changes.push({idx:i,oldVal:done[i]});
+  }
+  return changes;
+}
+// "DMC 05 Light Driftwood": the brand and id, then the thread's name (a blend names both threads).
+function colourDoneName(entry){
+  if(!entry)return'';
+  var nm=entry.type==='blend'&&entry.threads&&entry.threads.length>1?entry.threads[0].name+'+'+entry.threads[1].name:entry.name;
+  return threadLabel(entry)+(nm?' '+nm:'');
+}
+// The question and the explanation for the confirmation dialog. n is the exact number of stitches that will change.
+// `lines` words it for backstitch lines instead of stitches.
+function colourDoneConfirmText(name,n,md,inArea,lines){
+  var count=Number(n).toLocaleString('en-GB'),one=lines?'backstitch line':'stitch',many=lines?'backstitch lines':'stitches';
+  var what=(n===1?'Mark 1 '+one:'Mark all '+count+' '+many)+' of '+name+(inArea?' in this work area':'')+(md?' as done?':' as not done?');
+  var note=md?'You can undo this straight afterwards.':(n===1?'It comes':'They come')+' off your progress. You can undo this straight afterwards.';
+  return{title:md?'Mark all as done?':'Mark all as not done?',message:what+'\n\n'+note,confirmLabel:lines?(md?'Mark all lines done':'Mark all lines not done'):(md?'Mark all done':'Mark all not done')};
+}
 if(typeof window!=='undefined'){
   window.THREAD_BRANDS=THREAD_BRANDS;
   window.normaliseThreadBrand=normaliseThreadBrand;
@@ -2349,6 +2377,9 @@ if(typeof window!=='undefined'){
   window.threadCatalogue=threadCatalogue;
   window.loadThreadBrand=loadThreadBrand;
   window.threadLabel=threadLabel;
+  window.colourDoneChanges=colourDoneChanges;
+  window.colourDoneName=colourDoneName;
+  window.colourDoneConfirmText=colourDoneConfirmText;
   window.libraryThreadBrand=libraryThreadBrand;
   window.libraryThreadKey=libraryThreadKey;
   window.threadBrandForSave=threadBrandForSave;

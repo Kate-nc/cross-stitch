@@ -15,7 +15,7 @@
 
 // Module-scope hoisted values (regex / style objects).
 var EXPORT_UNSAFE_FILENAME_CHARS = /[^\w\-]+/g;
-var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius:'var(--radius-lg)', border: "1.5px solid #CFC4AC", background: "var(--surface)", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap:'var(--s-1)' };
+var EXPORT_PRESET_CARD_BASE = { flex: 1, padding: 14, borderRadius:'var(--radius-lg)', borderWidth: 1.5, borderStyle: "solid", borderColor: "var(--border)", background: "var(--surface)", cursor: "pointer", textAlign: "left", display: "flex", flexDirection: "column", gap:'var(--s-1)' };
 var EXPORT_PRESET_CARD_ACTIVE = { background: "var(--accent)", color: "var(--surface)", borderColor: "var(--accent)" };
 var EXPORT_CTA_STYLE = { padding: "14px 22px", fontSize:'var(--text-xl)', borderRadius:'var(--radius-lg)', border: "none", background: "var(--accent)", color: "var(--surface)", cursor: "pointer", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,0.1)" };
 var EXPORT_DISABLED_CTA = Object.assign({}, EXPORT_CTA_STYLE, { background: "var(--text-tertiary)", cursor: "not-allowed" });
@@ -27,7 +27,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var h = React.createElement;
 
   var UP = window.UserPrefs;
-  function readPref(k, fallback) { return UP ? UP.get(k) : fallback; }
+  function readPref(k, fallback) { var v = UP ? UP.get(k) : undefined; return v == null ? fallback : v; }
   function writePref(k, v) { try { UP && UP.set(k, v); } catch (_) {} }
 
   var presetState  = React.useState(readPref("exportPreset",          "patternKeeper"));
@@ -42,6 +42,12 @@ window.CreatorExportTab = function CreatorExportTab() {
   var includeCover = React.useState(readPref("exportIncludeCover",    true));
   var includeInfo  = React.useState(readPref("exportIncludeInfo",     true));
   var includeIndex = React.useState(readPref("exportIncludeIndex",    true));
+  var includeLegend = React.useState(readPref("exportIncludeLegend", true));
+  var includeBranding = React.useState(readPref("exportIncludeBranding", true));
+  var namedPresets = React.useState(function () { return UP.namedExportPresets(); });
+  var selectedPreset = React.useState("");
+  var presetName = React.useState("");
+  var previewPage = React.useState(0);
   var miniLegend   = React.useState(readPref("exportMiniLegend",      true));
   var workshopTheme = React.useState(readPref("creator.pdfWorkshopTheme", false));
   var settingsOpen = React.useState(false);
@@ -49,7 +55,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var exportFormat = React.useState("pdf"); // "pdf" | "png"
 
   function bind(pair, prefKey) {
-    return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); };
+    return function (v) { pair[1](v); if (prefKey) writePref(prefKey, v); if (prefKey && prefKey !== "exportPreset" && setPreset) setPreset("custom"); };
   }
   var setPreset       = bind(presetState,  "exportPreset");
   var setPageSize     = bind(pageSize,     "exportPageSize");
@@ -63,6 +69,8 @@ window.CreatorExportTab = function CreatorExportTab() {
   var setIncludeCover = bind(includeCover, "exportIncludeCover");
   var setIncludeInfo  = bind(includeInfo,  "exportIncludeInfo");
   var setIncludeIndex = bind(includeIndex, "exportIncludeIndex");
+  var setIncludeLegend = bind(includeLegend, "exportIncludeLegend");
+  var setIncludeBranding = bind(includeBranding, "exportIncludeBranding");
   var setMiniLegend   = bind(miniLegend,   "exportMiniLegend");
   var setWorkshopTheme = bind(workshopTheme, "creator.pdfWorkshopTheme");
   var setSettingsOpen = settingsOpen[1];
@@ -75,7 +83,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var runningRef = React.useRef(null);
 
   function applyPreset(name) {
-    setPreset(name);
+    exportFormat[1]("pdf");
     var src = name === "homePrinting" ? window.PdfExport.presetHomePrinting()
                                       : window.PdfExport.presetPatternKeeper();
     setPageSize(src.pageSize); setMarginsMm(src.marginsMm);
@@ -87,34 +95,112 @@ window.CreatorExportTab = function CreatorExportTab() {
     setIncludeInfo(!!src.includeInfo);
     setIncludeIndex(!!src.includeIndex);
     setMiniLegend(!!src.miniLegend);
+    setIncludeLegend(true); setIncludeBranding(true); setWorkshopTheme(false);
+    setCustomCols(60); setCustomRows(70); selectedPreset[1](""); setPreset(name);
   }
 
-  // Page-count preview
-  var pageGeom = null, paged = null;
-  if (ctx && ctx.pat && ctx.sW && ctx.sH) {
+  var presetPairs = {
+    exportPageSize: pageSize, exportMarginsMm: marginsMm, exportStitchesPerPage: stPerPg,
+    exportCustomCols: customCols, exportCustomRows: customRows, exportChartModeBw: modeBw,
+    exportChartModeColour: modeColour, exportOverlap: overlap, exportIncludeCover: includeCover,
+    exportIncludeInfo: includeInfo, exportIncludeIndex: includeIndex, exportIncludeLegend: includeLegend,
+    exportMiniLegend: miniLegend, exportIncludeBranding: includeBranding, "creator.pdfWorkshopTheme": workshopTheme
+  };
+  function savePreset(edit) {
     try {
-      pageGeom = window.PdfChartLayout.computePageGeometry({
-        pageSize: pageSize[0], marginsMm: marginsMm[0],
-        stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
-        locale: navigator.language,
-      });
-      paged = window.PdfChartLayout.paginate({
-        patternW: ctx.sW, patternH: ctx.sH,
-        colsPerPage: pageGeom.colsPerPage, rowsPerPage: pageGeom.rowsPerPage,
-        overlap: overlap[0],
-      });
-    } catch (_) {}
+      var settings = {};
+      Object.keys(presetPairs).forEach(function(k) { settings[k] = presetPairs[k][0]; });
+      var item = UP.saveExportPreset(presetName[0], settings, edit ? selectedPreset[0] : null);
+      namedPresets[1](UP.namedExportPresets()); selectedPreset[1](item.name); setError(null);
+    } catch (err) { setError(err.message); }
+  }
+  function applyNamedPreset(name) {
+    var item = UP.namedExportPresets().find(function(p) { return p.name === name; });
+    if (!item) { setError("This preset was removed. Choose another preset."); namedPresets[1](UP.namedExportPresets()); return; }
+    Object.keys(presetPairs).forEach(function(k) { bind(presetPairs[k], k)(item.settings[k]); });
+    selectedPreset[1](item.name); presetName[1](item.name); exportFormat[1]("pdf"); setPreset("custom"); setError(null);
+  }
+  function deletePreset() {
+    try {
+      UP.deleteExportPreset(selectedPreset[0]); namedPresets[1](UP.namedExportPresets());
+      selectedPreset[1](""); presetName[1](""); setError(null);
+    } catch (err) { setError(err.message); }
+  }
+  function chartOnly() {
+    exportFormat[1]("pdf");
+    setIncludeCover(false); setIncludeInfo(false); setIncludeIndex(false);
+    setIncludeLegend(false); setMiniLegend(false); setPreset("custom");
   }
   var modesArr = [];
   if (modeBw[0]) modesArr.push("bw");
   if (modeColour[0]) modesArr.push("colour");
-  var totalPagesPreview = (paged ? paged.length * Math.max(1, modesArr.length) : 0)
-    + (includeCover[0] ? 1 : 0)
-    + (includeInfo[0] ? 1 : 0)
-    + (includeIndex[0] && paged && paged.length > 1 ? 1 : 0)
-    + (ctx && ctx.pal ? Math.max(1, Math.ceil(ctx.pal.length / 32)) : 0);
+  function currentOptions() {
+    var branding = window.PdfExport.readBranding();
+    if (app.projectDesigner) branding = Object.assign({}, branding, {designerName: app.projectDesigner});
+    return {
+      pageSize: pageSize[0], marginsMm: marginsMm[0], stitchesPerPage: stPerPg[0],
+      customCols: customCols[0], customRows: customRows[0], chartModes: modesArr, overlap: overlap[0],
+      includeCover: includeCover[0], includeInfo: includeInfo[0], includeIndex: includeIndex[0],
+      includeLegend: includeLegend[0], miniLegend: miniLegend[0], includeBranding: includeBranding[0],
+      branding: includeBranding[0] ? branding : {}, locale: navigator.language || "en-GB",
+      theme: workshopTheme[0] ? "workshop" : "pk"
+    };
+  }
+  var pageGeom = null, paged = null, plan = null, validationError = null;
+  var exportProject = React.useMemo(function () { return ctx && ctx.pat ? window.PdfExport.buildExportProject(Object.assign({}, ctx, {
+    projectName: app.projectName, projectDesigner: app.projectDesigner, projectDescription: app.projectDescription
+  })) : null; }, [ctx, app.projectName, app.projectDesigner, app.projectDescription]);
+  if (exportProject) {
+    try {
+      if ((ctx.specialtyStitches || []).length) throw new Error("PDF export does not support petite or long stitches.");
+      plan = window.PdfChartLayout.planExport(exportProject, currentOptions());
+      window.PdfChartLayout.buildCodepointMap(exportProject.palette, window.SYMBOL_FONT_SPEC,
+        window.PdfChartLayout.usedThreadCounts(exportProject));
+      pageGeom = plan.geom; paged = plan.pages;
+    } catch (err) { validationError = err.message; plan = null; pageGeom = null; paged = null; }
+  }
+  var totalPagesPreview = plan ? plan.totalPages : 0;
+  var previewImage = React.useMemo(function () {
+    return ctx && ctx.pat ? window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches) : null;
+  }, [ctx && ctx.pat, ctx && ctx.sW, ctx && ctx.sH, ctx && ctx.partialStitches]);
+  function layoutPreview() {
+    if (!plan) return h("p", {role: "alert"}, validationError);
+    var g = plan.geom, pageIndex = Math.min(previewPage[0], plan.pages.length - 1), seg = plan.pages[pageIndex];
+    var chartX = g.marginMm + 6, chartY = g.marginMm + g.chartHeaderMm;
+    var cw = (seg.x1 - seg.x0) * g.cellMm, ch = (seg.y1 - seg.y0) * g.cellMm;
+    return h("figure", {style: {margin: 0}, "aria-label": "PDF layout preview"},
+      h("figcaption", null, plan.totalPages + " pages: " + plan.chartPages + " chart, " + plan.legendPages +
+        " thread legend, " + (includeCover[0] ? 1 : 0) + " cover, " + (includeInfo[0] ? 1 : 0) + " info, " + plan.indexPages + " index."),
+      h("p", null, g.pageWmm + " × " + g.pageHmm + " mm; margins " + g.marginMm + " mm. " +
+        g.colsPerPage + " × " + g.rowsPerPage + " stitches per page; " + g.cellMm.toFixed(2) + " mm cells. " +
+        (overlap[0] ? "Adjacent pages repeat 2 rows/columns." : "No overlap.") +
+        (miniLegend[0] ? " Mini-legend on chart pages." : " No mini-legend.")),
+      h("label", {style: {display: "block", marginBottom: 8}}, "Preview chart page ",
+        h("select", {style: {minHeight: 44, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--surface)", color: "var(--text-primary)"}, "aria-label": "Preview chart page", value: pageIndex, onChange: function(e) { previewPage[1](Number(e.target.value)); }},
+          plan.pages.map(function(p) { return h("option", {key: p.pageIndex, value: p.pageIndex}, (p.pageIndex + 1) + " of " + plan.pages.length); }))),
+      h("svg", {viewBox: "0 0 " + g.pageWmm + " " + g.pageHmm, width: 210, role: "img", "aria-label": "Chart page " + (pageIndex+1) + ", to scale", style: {maxWidth: "100%", border: "1px solid var(--border)", background: "var(--surface)"}},
+        h("rect", {x: g.marginMm, y: g.marginMm, width: g.contentWmm, height: g.contentHmm, fill: "none", stroke: "var(--border)", strokeDasharray: "2 2"}),
+        h("text", {x: g.marginMm, y: g.marginMm + 6, fontSize: 4, fill: "var(--text-primary)"}, "Chart page " + (pageIndex+1)),
+        h("svg", {x: chartX, y: chartY, width: cw, height: ch, viewBox: seg.x0 + " " + seg.y0 + " " + (seg.x1-seg.x0) + " " + (seg.y1-seg.y0), preserveAspectRatio: "none"},
+          previewImage && h("image", {href: previewImage, width: ctx.sW, height: ctx.sH, preserveAspectRatio: "none"})),
+        seg.overlapLeft > 0 && h("rect", {x: chartX, y: chartY, width: seg.overlapLeft*g.cellMm, height: ch, fill: "var(--text-primary)", opacity: 0.15}),
+        seg.overlapTop > 0 && h("rect", {x: chartX, y: chartY, width: cw, height: seg.overlapTop*g.cellMm, fill: "var(--text-primary)", opacity: 0.15}),
+        Array.from({length: seg.x1-seg.x0}, function(_,i) {return (seg.x0+i+1)%10 === 0 && h("line", {key: "x"+i, x1: chartX+(i+1)*g.cellMm, x2: chartX+(i+1)*g.cellMm, y1: chartY, y2: chartY+ch, stroke: "var(--text-primary)", strokeWidth: 0.2});}),
+        Array.from({length: seg.y1-seg.y0}, function(_,i) {return (seg.y0+i+1)%10 === 0 && h("line", {key: "y"+i, x1: chartX, x2: chartX+cw, y1: chartY+(i+1)*g.cellMm, y2: chartY+(i+1)*g.cellMm, stroke: "var(--text-primary)", strokeWidth: 0.2});}),
+        h("rect", {x: chartX, y: chartY, width: cw, height: ch, fill: "none", stroke: "var(--text-primary)", strokeWidth: 0.4}),
+        miniLegend[0] && h("text", {x: chartX, y: g.pageHmm-g.marginMm-10, fontSize: 4, fill: "var(--text-primary)"}, "Mini-legend")),
+      workshopTheme[0] && h("p", {role: "note"}, "Workshop print theme is selected. Use the standard black-grid output for Pattern Keeper; choose For Pattern Keeper to reset the theme."),
+      h("p", null, "Layout illustration: chart colours and bounds; symbols and text are rendered in the PDF. " +
+        (includeBranding[0] ? "Current profile branding is used on cover/info pages; the project designer takes precedence." : "Profile branding is excluded.") +
+        " Chart pages do not print profile branding."),
+      h("p", null, "Chart page regions (each selected mode uses this layout): " + paged.slice(0, 12).map(function(p) {
+        return (p.pageIndex + 1) + ": cols " + (p.x0+1) + "–" + p.x1 + ", rows " + (p.y0+1) + "–" + p.y1;
+      }).join("; ") + (paged.length > 12 ? "; plus " + (paged.length-12) + " more." : ""))
+    );
+  }
 
   function doExport() {
+    if (validationError) { setError(validationError); return; }
     if((ctx.specialtyStitches||[]).length){setError("PDF export does not support petite or long stitches. Use native JSON or PNG; OXS supports petites and reports omitted long stitches.");return;}
     setError(null);
     if (!modesArr.length) { setError("Pick at least one chart mode (B&W or Colour)."); return; }
@@ -127,19 +213,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     var project = window.PdfExport.buildExportProject(exportCtx);
     if (!project) { setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
-    var branding = window.PdfExport.readBranding();
-    // Per-project designer overrides global designer branding when set.
-    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
-    var opts = {
-      pageSize: pageSize[0], marginsMm: marginsMm[0],
-      stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
-      chartModes: modesArr, overlap: overlap[0],
-      includeCover: includeCover[0], includeInfo: includeInfo[0],
-      includeIndex: includeIndex[0], miniLegend: miniLegend[0],
-      branding: branding,
-      locale: navigator.language || "en-GB",
-      theme: workshopTheme[0] ? "workshop" : "pk",
-    };
+    var opts = currentOptions();
     setProgress({ stage: "init", current: 0, total: totalPagesPreview || 1 });
     var tag = {};
     runningRef.current = tag;
@@ -303,18 +377,8 @@ window.CreatorExportTab = function CreatorExportTab() {
     var project = window.PdfExport.buildExportProject(exportCtx);
     if (!project) { setBundleState(null); setError("Nothing to export yet — create or open a pattern first."); return; }
     project.coverPreviewJpeg = window.generatePatternThumbnail(ctx.pat, ctx.sW, ctx.sH, ctx.partialStitches);
-    var branding = window.PdfExport.readBranding();
-    if (app.projectDesigner) branding = Object.assign({}, branding, { designerName: app.projectDesigner });
-    var pdfOpts = {
-      pageSize: pageSize[0], marginsMm: marginsMm[0],
-      stitchesPerPage: stPerPg[0], customCols: customCols[0], customRows: customRows[0],
-      chartModes: modesArr.length ? modesArr : ["bw", "colour"], overlap: overlap[0],
-      includeCover: includeCover[0], includeInfo: includeInfo[0],
-      includeIndex: includeIndex[0], miniLegend: miniLegend[0],
-      branding: branding,
-      locale: navigator.language || "en-GB",
-      theme: workshopTheme[0] ? "workshop" : "pk",
-    };
+    if (validationError) { setError(validationError); setBundleState(null); return; }
+    var pdfOpts = currentOptions();
 
     setBundleState({ stage: "pdf", msg: "Rendering PDF…" });
     var pdfPromise = window.PdfExport.runExport(project, pdfOpts).catch(function (err) {
@@ -405,6 +469,7 @@ window.CreatorExportTab = function CreatorExportTab() {
   var ctaStyle = EXPORT_CTA_STYLE;
   var disabledCta = EXPORT_DISABLED_CTA;
   var sectionToggle = EXPORT_SECTION_TOGGLE;
+  var savedControl = {minHeight: 44, padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--surface)", color: "var(--text-primary)", fontSize: "var(--text-sm)", maxWidth: "100%"};
 
   return h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
     app.copied && h("div", { style: { background: "var(--success-soft)", border: "1px solid var(--success-soft)", borderRadius:'var(--radius-md)', padding: "8px 14px", fontSize:'var(--text-sm)', color: "var(--success)", fontWeight: 600 } }, "Copied!"),
@@ -418,14 +483,14 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("h3", { style: { margin: "0 0 8px", fontSize:'var(--text-lg)', color: "var(--text-primary)" } }, "Quick presets"),
       h("div", { style: { display: "flex", gap: 10 } },
         h("button", { onClick: function () { applyPreset("patternKeeper"); },
-          style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" ? presetCardActive : {}) },
+          style: Object.assign({}, presetCardBase, presetState[0] === "patternKeeper" && !selectedPreset[0] && stPerPg[0] === "medium" && includeLegend[0] && includeCover[0] && !workshopTheme[0] ? presetCardActive : {}) },
           h("strong", { style: { fontSize:'var(--text-lg)' } }, "For Pattern Keeper"),
           h("span", { style: { display: "inline-block", fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", background: "var(--success)", color: "#fff", borderRadius: 3, padding: "1px 5px", marginBottom: 2, alignSelf: "flex-start" } }, "PK Compatible"),
           h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Symbols + colour, medium print, 2-row overlap, cover page on. Customers can highlight and track stitches in Pattern Keeper.")
         ),
         h("button", { onClick: function () { applyPreset("homePrinting"); },
-          style: Object.assign({}, presetCardBase, presetState[0] === "homePrinting" ? presetCardActive : {}) },
+          style: Object.assign({}, presetCardBase, presetState[0] === "homePrinting" && !selectedPreset[0] && stPerPg[0] === "large" && includeLegend[0] && !includeCover[0] && !workshopTheme[0] ? presetCardActive : {}) },
           h("strong", { style: { fontSize:'var(--text-lg)' } }, "For printing (home)"),
           h("span", { style: { fontSize:'var(--text-xs)', opacity: 0.85 } },
             "Colour + B&W charts, large print, no overlap, cover page off. Easier on the eyes when stitching from paper.")
@@ -433,6 +498,22 @@ window.CreatorExportTab = function CreatorExportTab() {
       )
     ),
 
+    h("section", {"aria-label": "Reusable export presets", style: {background: "var(--surface-secondary)", padding: 14, borderRadius: "var(--radius-md)", border: "1px solid var(--border)"}},
+      h("h3", null, "Saved export presets"),
+      h("p", null, "Global on this browser, shared by all projects. Full backups preserve presets; project JSON and sync do not. Branding choices refer to your current profile; project names and designers are not saved in presets."),
+      h("div", {style: {display: "flex", gap: 8, flexWrap: "wrap"}},
+      h("select", {style: savedControl, "aria-label": "Saved export preset", value: selectedPreset[0], onChange: function(e) { selectedPreset[1](e.target.value); presetName[1](e.target.value); }},
+        h("option", {value: ""}, "Choose a preset"), namedPresets[0].map(function(p) { return h("option", {key: p.name, value: p.name}, p.name); })),
+      h("button", {style: savedControl, disabled: !selectedPreset[0], onClick: function() { applyNamedPreset(selectedPreset[0]); }}, "Apply preset"),
+      h("label", null, "Preset name ", h("input", {style: savedControl, "aria-label": "Preset name", maxLength: 80, value: presetName[0], onChange: function(e) { presetName[1](e.target.value); }})),
+      h("button", {style: savedControl, onClick: function() { savePreset(false); }}, "Save as new preset"),
+      h("button", {style: savedControl, disabled: !selectedPreset[0], onClick: function() { savePreset(true); }}, "Update selected preset"),
+      h("button", {style: savedControl, disabled: !selectedPreset[0], onClick: deletePreset}, "Delete preset")),
+      h("p", null, "Adjust Format & settings below, then update the selected preset to save edits. Deleting a preset keeps the current export settings."),
+      h("button", {style: savedControl, onClick: chartOnly}, "Chart only"),
+      h("p", null, "Chart only removes cover, info, index, thread legend and mini-legends. Select chart modes below; include a thread legend when recipients need a key.")
+    ),
+    h("section", {"aria-label": "Layout preview", style: {fontSize: "var(--text-sm)", color: "var(--text-secondary)"}}, layoutPreview()),
     app.trackerFieldsRef && app.trackerFieldsRef.current && (app.trackerFieldsRef.current.beads || []).length > 0 && h("p", { role: "note" }, "PDF and PNG exports omit beads. OXS preserves bead appearance and position, but omits completion and object IDs. Use project saves or backups to retain bead progress."),
     h("div", null,
       h("button", { "aria-expanded":settingsOpen[0], onClick: function () { setSettingsOpen(!settingsOpen[0]); }, style: sectionToggle },
@@ -512,6 +593,8 @@ window.CreatorExportTab = function CreatorExportTab() {
             "Mini-legend strip on each page")
         ),
 
+        h("label", null, h("input", {type: "checkbox", checked: includeLegend[0], onChange: function(e) { setIncludeLegend(e.target.checked); }}), "Thread legend pages"),
+        h("label", null, h("input", {type: "checkbox", checked: includeBranding[0], onChange: function(e) { setIncludeBranding(e.target.checked); }}), "Use current profile branding on cover/info pages"),
         h("div", { style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" } },
           h("label", { style: { display: "inline-flex", alignItems: "center", gap:'var(--s-2)', minHeight: 44, fontSize:'var(--text-sm)', cursor: "pointer", fontWeight: 600, color: "var(--text-primary)" } },
             h("input", {
@@ -534,7 +617,7 @@ window.CreatorExportTab = function CreatorExportTab() {
     h("div", { style: { background: "var(--surface-secondary)", border: "1px solid var(--border)", borderRadius:'var(--radius-md)', padding: "10px 14px", fontSize:'var(--text-sm)', color: "var(--text-secondary)" } },
       "Designer branding (name, logo, copyright) is now in ",
       h("strong", null, "File > Preferences > Profile & branding"),
-      ". Settings there apply to every PDF you export."
+      ". Enable profile branding above to include it on cover/info pages. Project designer overrides the profile name."
     ),
 
     progressState[0] ? h("div", { style: { background: "var(--surface-tertiary)", border: "1px solid #CFC4AC", borderRadius:'var(--radius-lg)', padding:'var(--s-4)' } },
@@ -548,8 +631,8 @@ window.CreatorExportTab = function CreatorExportTab() {
       h("button", { onClick: cancelExport, style: { padding: "8px 18px", fontSize:'var(--text-md)', borderRadius:'var(--radius-md)', border: "1px solid var(--danger-soft)", background: "var(--surface)", color: "var(--danger)", cursor: "pointer", fontWeight: 600 } }, "Cancel")
     ) : h("button", {
       onClick: exportFormat[0] === "png" ? doExportPng : doExport,
-      style: (exportFormat[0] === "pdf" && modesArr.length === 0) ? disabledCta : ctaStyle,
-      disabled: exportFormat[0] === "pdf" && modesArr.length === 0,
+      style: (exportFormat[0] === "pdf" && !!validationError) ? disabledCta : ctaStyle,
+      disabled: exportFormat[0] === "pdf" && !!validationError,
     }, exportFormat[0] === "png" ? "Export PNG" : "Export PDF"),
 
     // OXS export — standalone button for Open X-Stitch interop.

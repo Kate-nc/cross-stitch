@@ -2077,23 +2077,7 @@ useEffect(()=>{
   }
   return()=>{document.body.classList.remove("cs-focus");if(focusFadeTimerRef.current)clearTimeout(focusFadeTimerRef.current);};
 },[focusMode,resetFocusFade]);
-useEffect(()=>{
-  const onKey=e=>{
-    // Ignore when typing in inputs / contenteditable.
-    const t=e.target;
-    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT"||t.isContentEditable))return;
-    if(e.metaKey||e.ctrlKey||e.altKey)return;
-    if(e.key==="f"||e.key==="F"){
-      e.preventDefault();
-      setFocusMode(v=>!v);
-    }else if(e.key==="Escape"&&focusMode){
-      e.preventDefault();
-      setFocusMode(false);
-    }
-  };
-  window.addEventListener("keydown",onKey);
-  return()=>window.removeEventListener("keydown",onKey);
-},[focusMode]);
+// F and Esc for focus mode are registered shortcuts (tracker.focusMode, and the end of tracker.esc), so the keys have one owner.
 
 const [importDialog, setImportDialog] = useState(null);
 const [importImage, setImportImage] = useState(null);
@@ -2153,7 +2137,7 @@ useEffect(()=>{const h=()=>setEditDetailsOpen(true);window.addEventListener('cs:
 const G=28;
 const[tOverflowOpen,setTOverflowOpen]=useState(false);
 const[tStripCollapsed,setTStripCollapsed]=useState({view:false,stitch:false});
-const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'F'},{id:'half',label:'Half Stitch',key:'H'},{id:'backstitch',label:'Backstitch',key:'B'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'K'},{id:'long_stitch',label:'Long Stitch',key:null}];
+const STITCH_LAYERS=[{id:'full',label:'Full Cross',key:'Shift+F'},{id:'half',label:'Half Stitch',key:'Shift+H'},{id:'backstitch',label:'Backstitch',key:'Shift+L'},{id:'quarter',label:'Quarter',key:null},{id:'petite',label:'Petite',key:null},{id:'french_knot',label:'French Knot',key:'Shift+K'},{id:'long_stitch',label:'Long Stitch',key:null}];
 const ALL_LAYERS_VISIBLE={full:true,half:true,backstitch:true,quarter:true,petite:true,french_knot:true,long_stitch:true};
 const[layerVis,setLayerVis]=useState(ALL_LAYERS_VISIBLE);
 const[soloPreState,setSoloPreState]=useState(null);
@@ -2315,6 +2299,8 @@ useEffect(()=>{
   setFocusColour(next?next.id:null);
 },[areaColourCounts,focusColour,pal]);
 const layerCounts=useMemo(()=>({full:totalStitchable,half:halfStitchCounts.total,backstitch:bsLines.length,quarter:quarterCounts.total,petite:specialtyCounts.petite.total,french_knot:knots.length,long_stitch:specialtyCounts.long_stitch.total}),[totalStitchable,halfStitchCounts.total,bsLines.length,knots.length,quarterCounts.total,specialtyCounts]);
+// Shows every hidden layer again (the "hidden" chip's one click). The chip unmounts, so keyboard focus goes back to the chart.
+const showHiddenLayers=()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.current;if(c&&c.focus)c.focus();};
 // PERF: the palette legend tile list (rendered below) used to be rebuilt and
 // re-sorted from `pal` on every single render of this component — including
 // re-renders triggered by unrelated state (drag-preview updates, hover, etc.)
@@ -2360,6 +2346,13 @@ const legendRows=useMemo(()=>{
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
 },[pal,colourDoneCounts,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
+// The key under the progress bar: the chart's own pale and done looks for one colour, and whether any thread is pale
+// enough to look grey once stitched. Only changes with the palette or the selected colour, not with every stitch.
+const stitchKey=useMemo(()=>{
+  if(!pal||!pal.length)return null;
+  const sample=(focusColour&&cmap&&cmap[focusColour])||pal[0];
+  return{pend:pendingStitchLook(sample.rgb,0.5).fill,done:doneStitchLook(sample.rgb).fill,pale:pal.some(p=>lum709(p.rgb)>DONE_MAX_LUM)};
+},[pal,cmap,focusColour]);
 // After recomputeAllCounts has run post-load, snap prevAutoCountRef to the real
 // counts so the auto-detect effect below never sees a spurious delta.
 useEffect(()=>{if(justLoadedRef.current){prevAutoCountRef.current={done:doneCountRef.current,halfDone:(halfStitchCounts&&halfStitchCounts.done)||0};justLoadedRef.current=false;}},[countsVer]);
@@ -3087,10 +3080,55 @@ function deleteSessionById(id){
   return applySessionHistoryChange(deleteSessionRun(statsSessions,id,combinedTotal),n>1?'Session deleted (it spanned '+n+' days)':'Session deleted');
 }
 function mergeSessionWithNext(id){return applySessionHistoryChange(mergeSessionRecords(statsSessions,id,combinedTotal),'Sessions merged');}
-function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;let changes=[];let nd=new Uint8Array(cur);
-  // In a work area "all" means all of this colour inside the area.
-  const _a=areaOn?workArea:null;
-  for(let i=0;i<pat.length;i++)if(pat[i].id===cid&&(!_a||window.WorkArea.containsIndex(_a,i,sW))){if(nd[i]!==(md?1:0))changes.push({idx:i,oldVal:nd[i]});nd[i]=md?1:0;}if(changes.length>0){pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}doneRef.current=nd;setDone(nd);}
+// Styled confirmation, never window.confirm. Resolves true to go ahead; if the dialog is unavailable it resolves false, so a
+// destructive step never runs unasked.
+function askConfirm(opts){
+  if(window.ConfirmDialog&&window.ConfirmDialog.show)return window.ConfirmDialog.show(opts);
+  return Promise.resolve(false);
+}
+// An Undo toast for one history step. The step is bound to the toast: the message goes as soon as that step is no longer the
+// newest (see the trackHistory effect), and its button reverses exactly that step, the same as the Undo button.
+function offerStepUndo(entry,message,undoLabel,staleMessage){
+  if(!entry||!window.Toast||!window.Toast.show)return;
+  if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
+  bulkToastEntryRef.current=entry;
+  bulkUndoToastRef.current=window.Toast.show({
+    message:message,type:'info',duration:8000,undoLabel:undoLabel||'Undo',
+    undoAction:function(){
+      const h=trackHistoryRef.current;
+      if(h[h.length-1]!==entry){
+        window.Toast.show({message:staleMessage||"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
+        return false;
+      }
+      if(bulkUndoRef.current)bulkUndoRef.current();
+    }
+  });
+}
+// In a work area "all" means all of this colour inside the area.
+function colourAreaFilter(){const a=areaOn?workArea:null;return a?(i=>window.WorkArea.containsIndex(a,i,sW)):null;}
+// One history step, however many stitches it covers, so Undo (or the toast's button) reverses the whole colour at once.
+function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cur)return;
+  const changes=colourDoneChanges(pat,cur,cid,md,colourAreaFilter());
+  const nd=new Uint8Array(cur);for(let k=0;k<changes.length;k++)nd[changes[k].idx]=md?1:0;
+  if(changes.length>0){
+    const n=changes.length,count=n===1?"1 stitch":n.toLocaleString('en-GB')+" stitches",name=colourDoneName(cmap&&cmap[cid]||{id:cid});
+    offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);   // `changes` is the history step
+    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}
+  doneRef.current=nd;setDone(nd);}
+// The chip on a colour row: always ask first, with the colour and the exact number of stitches, then go through the usual
+// catch-up or today question (requestMarkColourDone) when marking.
+function confirmAndMarkColour(p,md){
+  if(!pat||!doneRef.current)return;
+  const name=colourDoneName(p);
+  const n=colourDoneChanges(pat,doneRef.current,p.id,md,colourAreaFilter()).length;
+  if(n===0){
+    // Only full stitches are changed here; half stitches, knots and backstitch are marked on the chart (or by their own chip).
+    if(window.Toast&&window.Toast.show)window.Toast.show({message:(md?"Every full stitch of ":"No full stitch of ")+name+(areaOn?" in this work area":"")+(md?" is already marked done.":" is marked done."),type:'info',duration:4000});
+    return;
+  }
+  const t=colourDoneConfirmText(name,n,md,areaOn);
+  askConfirm({title:t.title,message:t.message,confirmLabel:t.confirmLabel,danger:!md}).then(ok=>{if(ok)requestMarkColourDone(p.id,md);});
+}
 // Whole-colour Done: unmarking goes straight through; marking uses the remembered choice, or asks once.
 function requestMarkColourDone(cid,md){
   if(!md){markColourDone(cid,false);return;}
@@ -3429,7 +3467,9 @@ function applyUndo() {
 }
 
 function handleRevertToOriginal(){
-  if(!confirm("Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost."))return;
+  askConfirm({title:"Revert to the original import?",message:"Revert all symbol assignments to the original PDF import? Your tracking progress will be kept, but all colour corrections will be lost.",confirmLabel:"Revert",danger:true}).then(ok=>{if(ok)revertToOriginal();});
+}
+function revertToOriginal(){
   const previousPal=originalPaletteState;
   const previousMap={};
   previousPal.forEach(p=>{previousMap[p.symbol]=p;});
@@ -6487,15 +6527,26 @@ function toggleParkAt(gx,gy){
 // (markers added / removed) rather than a snapshot, so undoing cannot bring
 // back markers that changed some other way since (sync, load pruning).
 function sameParkMarker(a,b){return a.x===b.x&&a.y===b.y&&a.colorId===b.colorId&&(a.corner||"BL")===(b.corner||"BL");}
-function commitParkMarkers(prev,next){
+function commitParkMarkers(prev,next,extra){
   const added=next.filter(m=>!prev.some(o=>sameParkMarker(o,m)));
   const removed=prev.filter(m=>!next.some(o=>sameParkMarker(o,m)));
   if(!added.length&&!removed.length)return;
   // Ahead of the render, so a second toggle in the same frame sees this one.
   parkMarkersRef.current=next;
   setParkMarkers(next);
-  setTrackHistory(h=>{let n=[...h,{type:"PARK",added,removed}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry=Object.assign({type:"PARK",added,removed},extra);
+  setTrackHistory(h=>{let n=[...h,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
+  return entry;
+}
+// Clear every park marker: asks first, and the step can be undone from the toast or the Undo button.
+function clearAllParkMarkers(){
+  const n0=parkMarkersRef.current.length;if(!n0)return;
+  askConfirm({title:"Clear all park markers?",message:"Remove all "+(n0===1?"1 park marker":n0.toLocaleString('en-GB')+" park markers")+" from the chart?\n\nYou can undo this straight afterwards.",confirmLabel:"Clear all",danger:true}).then(ok=>{
+    if(!ok)return;
+    const entry=commitParkMarkers(parkMarkersRef.current,[],{layersBefore:Object.assign({},parkLayersRef.current)});setParkLayers({});
+    if(entry)offerStepUndo(entry,(entry.removed.length===1?"1 park marker":entry.removed.length.toLocaleString('en-GB')+" park markers")+" cleared","Undo");
+  });
 }
 // Apply a PARK history entry forwards (redo) or backwards (undo).
 function applyParkEntry(entry,forward){
@@ -6504,6 +6555,8 @@ function applyParkEntry(entry,forward){
   const next=cur.filter(m=>!drop.some(o=>sameParkMarker(o,m))).concat(add.filter(m=>!cur.some(o=>sameParkMarker(o,m))));
   parkMarkersRef.current=next;
   setParkMarkers(next);
+  // A step that also reset the layer visibility (Clear all) remembers what it was: Undo puts it back, redo clears it again.
+  if(entry.layersBefore)setParkLayers(forward?{}:Object.assign({},entry.layersBefore));
 }
 
 // Desktop secondary clicks select a colour; Shift parks / unparks instead.
@@ -7358,6 +7411,9 @@ function goToParkedThread(colorId){
   centreOnCell(m.x,m.y);
 }
 
+// Single letters are type-ahead in a focused <select>, so F and the Shift+letter layer keys leave it alone (as the old raw
+// focus-mode listener did).
+const notInSelect=e=>!(e&&e.target&&e.target.tagName==="SELECT");
 // Built every render, so each entry's run() sees this render's state.
 const trackerShortcuts=!isActive ? [] : [
   // Esc cascade — preserves original priority order. Listed hidden because
@@ -7379,6 +7435,8 @@ const trackerShortcuts=!isActive ? [] : [
       if(leftSidebarOpen&&typeof window!=="undefined"&&window.matchMedia&&window.matchMedia("(max-width:1023px)").matches){setLeftSidebarOpen(false);return;}
       // Last: Esc clears the guide crosshair (in Navigate mode, or when the keyboard has taken it in Mark mode).
       if((stitchMode==="navigate"||kbGuideRef.current)&&hlRow>=0&&hlCol>=0){clearGuide();return;}
+      // Nothing else open: Esc leaves focus mode (the Exit focus button says so).
+      if(focusMode){setFocusMode(false);return;}
     } },
 
   // History / save (modified — fire from inputs by default).
@@ -7434,18 +7492,29 @@ const trackerShortcuts=!isActive ? [] : [
       }
     } },
 
-  // Layer toggles. Backstitch moved B→L; all-layers moved A→Shift+A.
-  { id: "tracker.layer.full",   keys: "f", scope: "tracker.notedit",
+  // Focus mode owns the bare F (the toolbar button's title says so). It works in edit mode too, hence scope "tracker".
+  { id: "tracker.focusMode", keys: "f", scope: "tracker",
+    description: "Enter or leave focus mode",
+    when: notInSelect,
+    run: () => setFocusMode(v=>!v) },
+
+  // Layer toggles are Shift+letter so that one slip of the finger cannot blank the chart. Backstitch is L (B chooses a line);
+  // all-layers is Shift+A.
+  { id: "tracker.layer.full",   keys: "shift+f", scope: "tracker.notedit",
     description: "Toggle full-stitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,full:!v.full})) },
-  { id: "tracker.layer.half",   keys: "h", scope: "tracker.notedit",
+  { id: "tracker.layer.half",   keys: "shift+h", scope: "tracker.notedit",
     description: "Toggle half-stitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,half:!v.half})) },
-  { id: "tracker.layer.knot",   keys: "k", scope: "tracker.notedit",
+  { id: "tracker.layer.knot",   keys: "shift+k", scope: "tracker.notedit",
     description: "Toggle French-knot layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,french_knot:!v.french_knot})) },
-  { id: "tracker.layer.bs",     keys: "l", scope: "tracker.notedit",
+  { id: "tracker.layer.bs",     keys: "shift+l", scope: "tracker.notedit",
     description: "Toggle backstitch layer",
+    when: notInSelect,
     run: () => setLayerVis(v=>({...v,backstitch:!v.backstitch})) },
   { id: "tracker.layer.all",    keys: "shift+a", scope: "tracker.notedit",
     description: "Toggle all layers on/off",
@@ -7488,8 +7557,7 @@ const trackerShortcuts=!isActive ? [] : [
   { id: "tracker.counting", keys: "c", scope: "tracker",
     description: "Toggle counting aids",
     run: () => setCountingAidsEnabled(v=>!v) },
-  // S for Section spotlight. Was F, which tracker.layer.full (a more
-  // specific scope) shadowed, so this could never fire.
+  // S for Section spotlight.
   { id: "tracker.focus.toggle", keys: "s", scope: "tracker",
     description: "Toggle section spotlight",
     run: () => {
@@ -7730,25 +7798,9 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // A stroke or rectangle that marked (or unmarked) a good many stitches at once offers a way back, because a stray
   // swipe is easy to make and hard to untangle later. Undo is the ordinary one (this was one history step).
   const _bulkMin=(window.TouchConstants&&window.TouchConstants.BULK_UNDO_MIN)||5;
-  if(changes.length>_bulkMin&&window.Toast&&window.Toast.show){
-    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
-    const n=changes.length;
-    const strokeEntry=lastBulkEntryRef.current;
-    bulkToastEntryRef.current=strokeEntry;
-    bulkUndoToastRef.current=window.Toast.show({
-      message:n.toLocaleString('en-GB')+' stitches '+(want===1?'marked':'unmarked'),
-      type:'info',duration:8000,
-      undoLabel:'Undo '+n.toLocaleString('en-GB')+' stitches',
-      undoAction:function(){
-        // Only this stroke: if anything has been marked, parked or undone since, the newest step is not it.
-        const h=trackHistoryRef.current;
-        if(!strokeEntry||h[h.length-1]!==strokeEntry){
-          window.Toast.show({message:"That stroke can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});
-          return false;
-        }
-        if(bulkUndoRef.current)bulkUndoRef.current();
-      }
-    });
+  if(changes.length>_bulkMin){
+    const n=changes.length.toLocaleString('en-GB');
+    offerStepUndo(lastBulkEntryRef.current,n+' stitches '+(want===1?'marked':'unmarked'),'Undo '+n+' stitches',"That stroke can no longer be undone on its own. Use Undo to step back.");
   }
   return true;   // something was marked or unmarked (false: nothing changed, or the "mark all as" question is open)
 },[pat,focusColour,_pulseCells,recordAutoActivity,halfStitchCounts,layerVis.full]);
@@ -7944,8 +7996,10 @@ function paintBsKeys(keys){
 function pushBsHistory(keys,on,colourId){
   if(!keys.length)return;
   if(colourId!=null)pendingColoursRef.current.add(colourId);
-  setTrackHistory(prev=>{let n=[...prev,{type:"BS",keys,on}];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
+  const entry={type:"BS",keys,on};
+  setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
+  return entry;
 }
 // One line, tapped or chosen at the keyboard: flip it.
 function toggleBsLine(i){
@@ -7955,9 +8009,10 @@ function toggleBsLine(i){
   pushBsHistory([k],on,bsLines[i]&&bsLines[i].colorId);
 }
 // Every line of one colour (the legend's "mark all backstitch"): all done if any is not, otherwise all unmarked.
-function markAllBsOfColour(colour){
-  if(!window.Backstitch)return;
+// The backstitch lines of one colour a whole-colour change would flip (all pending -> done, otherwise done -> not done).
+function bsPlanForColour(colour){
   const keys=[];let anyPending=false;
+  if(!window.Backstitch)return{changed:[],anyPending:false};
   bsLines.forEach((ln,i)=>{
     if(!window.Backstitch.wellFormed(ln)||window.Backstitch.colourOf(ln)!==colour)return;
     if(areaOn&&!window.WorkArea.contains(workArea,Math.max(0,Math.min(sW-1,Math.floor(Math.min(ln.x1,ln.x2)))),Math.max(0,Math.min(sH-1,Math.floor(Math.min(ln.y1,ln.y2))))))return;
@@ -7965,10 +8020,26 @@ function markAllBsOfColour(colour){
     if(keys.indexOf(k)===-1)keys.push(k);
     if(!bsDoneSetRef.current.has(k))anyPending=true;
   });
-  const changed=keys.filter(k=>bsDoneSetRef.current.has(k)!==anyPending);
-  if(!changed.length)return;
-  setBsKeysDone(changed,anyPending);
-  pushBsHistory(changed,anyPending,colour);
+  return{changed:keys.filter(k=>bsDoneSetRef.current.has(k)!==anyPending),anyPending};
+}
+function markAllBsOfColour(colour){
+  const plan=bsPlanForColour(colour);
+  if(!plan.changed.length)return null;
+  setBsKeysDone(plan.changed,plan.anyPending);
+  return pushBsHistory(plan.changed,plan.anyPending,colour);
+}
+// The Lines chip on a colour row follows the same rules as the stitch chip: ask first with the exact count, then an Undo toast.
+function confirmAndMarkBsOfColour(p){
+  const colour=String(p.id),name=colourDoneName(p),plan=bsPlanForColour(colour);
+  if(!plan.changed.length)return;
+  const md=plan.anyPending,t=colourDoneConfirmText(name,plan.changed.length,md,areaOn,true);
+  askConfirm({title:t.title,message:t.message,confirmLabel:t.confirmLabel,danger:!md}).then(ok=>{
+    if(!ok)return;
+    const entry=markAllBsOfColour(colour);
+    if(!entry)return;
+    const n=entry.keys.length,count=n===1?"1 line":n.toLocaleString('en-GB')+" lines";
+    offerStepUndo(entry,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);
+  });
 }
 // B at the keyboard guide: the lines touching the guide's cell, in drawing order, one per press.
 function selectBsAtGuide(){
@@ -8039,18 +8110,7 @@ function unpickArea(cells){
   if(p.stitches>0)entry.activity=recordAutoActivity(0,p.stitches,0,p.units,0,'frog');
   setTrackHistory(prev=>{let n=[...prev,entry];if(n.length>TRACK_HISTORY_MAX)n=n.slice(n.length-TRACK_HISTORY_MAX);return n;});
   setRedoStack([]);
-  if(window.Toast&&window.Toast.show){
-    if(bulkUndoToastRef.current&&window.Toast.dismiss){try{window.Toast.dismiss(bulkUndoToastRef.current);}catch(_){}}
-    const msg="Unpicked "+p.stitches.toLocaleString('en-GB')+(p.stitches===1?" stitch":" stitches")+(p.counts.backstitch?" and "+p.counts.backstitch+" backstitch line"+(p.counts.backstitch===1?"":"s"):"");
-    bulkUndoToastRef.current=window.Toast.show({
-      message:msg,type:'info',duration:8000,undoLabel:'Undo',
-      undoAction:function(){
-        const h=trackHistoryRef.current;
-        if(h[h.length-1]!==entry){window.Toast.show({message:"That can no longer be undone on its own. Use Undo to step back.",type:'warning',duration:4000});return false;}
-        if(bulkUndoRef.current)bulkUndoRef.current();
-      }
-    });
-  }
+  offerStepUndo(entry,"Unpicked "+p.stitches.toLocaleString('en-GB')+(p.stitches===1?" stitch":" stitches")+(p.counts.backstitch?" and "+p.counts.backstitch+" backstitch line"+(p.counts.backstitch===1?"":"s"):""),"Undo");
   return true;
 }
 unpickAreaRef.current=unpickArea;
@@ -8245,7 +8305,7 @@ return(
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
     and would grey out every file in the Files picker. */}
 <input ref={loadRef} type="file" accept={window.Platform ? window.Platform.fileAccept(".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf") : ".json,.pat,.oxs,.xsd,.xml,.png,.jpg,.jpeg,.gif,.bmp,.webp,.pdf"} onChange={loadProject} style={{display:"none"}}/>
-<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{if(confirm("Start fresh? Your current project is auto-saved.")){if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}}}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
+<Header page="tracker" onOpen={()=>loadRef.current.click()} onSave={pat?saveProject:null} onExportPDF={pat?()=>setModal('pdf_export'):null} onExportOxs={pat?doExportOxs:null} onNewProject={pat?()=>{askConfirm({title:"Start fresh?",message:"Your current project is auto-saved.",confirmLabel:"Start fresh"}).then(ok=>{if(!ok)return;if(typeof ProjectStorage!=='undefined')ProjectStorage.clearActiveProject();else localStorage.removeItem("crossstitch_active_project");if(onGoHome){onGoHome();}else{window.location.href='home.html';}});}:null} onOpenProject={typeof ProjectStorage!=='undefined'?()=>{ProjectStorage.listProjects().then(list=>{setProjectPickerList(list||[]);setProjectPickerOpen(true);}).catch(()=>{setProjectPickerList([]);setProjectPickerOpen(true);});}:undefined} onPreferences={typeof window.PreferencesModal!=='undefined'?()=>setPreferencesOpen(true):undefined} setModal={setModal} projectName={pat&&pal?(projectName || (sW + '×' + sH + ' pattern')):undefined} projectPct={pat&&pal&&combinedTotal>0?progAll.percent:undefined} onNameChange={pat&&pal?(n=>{nameAutoGeneratedRef.current=false;setProjectName(n);}):undefined} showAutosaved={!!(pat&&pal)} saveStatus={saveStatus} savedAt={savedAt} saveError={saveError} onRetrySave={retrySave} />
 {projectPickerOpen&&<TrackerProjectPicker
   list={projectPickerList}
   currentId={projectIdRef.current}
@@ -8327,6 +8387,7 @@ return(
     <button type="button" className="info-strip-pct info-strip-open" aria-label="Open session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}>{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</button>
     {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(progShown.remainingUnits)} to go</span>}
     {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
+    {window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers})}
     {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
   </div>
 </div>
@@ -8618,6 +8679,11 @@ return(
               {Icons.play?Icons.play():null}{" "}Start timer
             </button>}
         </div>
+        {stitchKey&&<div className="ppal-key" role="group" aria-label="Key to stitch colours">
+          <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:stitchKey.pend}} aria-hidden="true"/>To stitch</span>
+          <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:doneStyle==="tick"?stitchKey.pend:stitchKey.done}} aria-hidden="true">{doneStyle==="tick"&&<span className="ppal-key-tick"/>}</span>Stitched{doneStyle==="tick"?" (corner tick)":""}</span>
+          {stitchKey.pale&&doneStyle!=="tick"&&<span className="ppal-key-note">Very pale threads such as white and ecru look light grey once stitched. For a corner tick instead, choose Corner tick in More &gt; View.</span>}
+        </div>}
       </div>
       {/* ─ Sort row ─ */}
       <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
@@ -8674,7 +8740,7 @@ return(
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
                   <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
-                  <div className="ppal-tile-actions">
+                  <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
                       onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
@@ -8684,17 +8750,18 @@ return(
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     {bsc&&bsc.total>0&&<button
                       className="ppal-tile-done-btn ppal-tile-bs-btn"
-                      onClick={e=>{e.stopPropagation();markAllBsOfColour(String(p.id));}}
+                      onClick={e=>{e.stopPropagation();confirmAndMarkBsOfColour(p);}}
                       style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
-                      title={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                      aria-label={(bsc.done>=bsc.total?"Mark all backstitch of ":"Mark all backstitch of ")+threadLabel(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                    >{bsc.done>=bsc.total?<>{Icons.undo?Icons.undo():null}{" Lines"}</>:<>{Icons.check?Icons.check():null}{" Lines"}</>}</button>}
+                      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsc.done>=bsc.total?" as not done":" as done")}
+                      aria-label={(bsc.done>=bsc.total?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
+                    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
                     {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
                       className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();if(!complete){const u=dc.total-dc.done;if(u>50&&!confirm("Mark all "+u+" stitches of "+threadLabel(p)+(areaOn?" in this work area":"")+" as done?"))return;}requestMarkColourDone(p.id,!complete);}}
+                      onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
                       style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-                      aria-label={(complete?"Mark as not done: ":"Mark all as done: ")+threadLabel(p)} title={complete?"Mark as not done":"Mark all as done"}
-                    >{complete?<>{Icons.undo?Icons.undo():null}{" Undo"}</>:<>{Icons.check?Icons.check():null}{" Done"}</>}</button>}
+                      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
+                      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
+                    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
                   </div>
                 </div>
               </div>
@@ -9185,7 +9252,7 @@ return(
         {leftSidebarTab==="layers"&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
           {window.SpecialtyStitchPanel&&<window.SpecialtyStitchPanel tracking objects={specialtyStitches} done={specialtyDone} visible={layerVis} accept={specialtyAvailable} disabled={!_dragMarkActive} onSelect={setSpecialtySelected} onToggle={toggleSpecialtyDone}/>}
           {STITCH_LAYERS.map(layer=>
-            <label key={layer.id} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
+            <label key={layer.id} title={layer.key?"Shortcut: "+layer.key:undefined} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
               <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
               <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({layerCounts[layer.id]})</span>
             </label>
@@ -9204,7 +9271,7 @@ return(
                 <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{p.id} ({parkCountsByColour[p.id]})</span>
               </label>
             )}
-            <button onClick={()=>{commitParkMarkers(parkMarkersRef.current,[]);setParkLayers({});}} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
+            <button onClick={clearAllParkMarkers} style={{marginTop:4,padding:"5px 10px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",alignSelf:"flex-start"}}>Clear all</button>
           </>}
         </div>}
 
@@ -9789,9 +9856,8 @@ return(
 
           {!isEmpty && (
             <button onClick={()=>{
-              if(confirm(`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`)){
-                handleStitchRemoval(cellEditPopover.idx);
-              }
+              const rmIdx=cellEditPopover.idx;
+              askConfirm({title:"Remove this stitch?",message:`Remove stitch at Row ${cellEditPopover.row}, Col ${cellEditPopover.col}? It will be marked as empty.`,confirmLabel:"Remove stitch",danger:true}).then(ok=>{if(ok)handleStitchRemoval(rmIdx);});
             }} style={{padding:"9px 16px",borderRadius:'var(--radius-md)',border:"1px solid var(--danger-soft)",background:"var(--danger-soft)",color:"var(--danger)",cursor:"pointer",fontWeight:600,fontSize:'var(--text-md)',textAlign:"left"}}>
               Remove Stitch
             </button>
@@ -9892,6 +9958,8 @@ return(
   <span className="cs-focus-progress__fill" style={{width:Math.min(100,Math.max(0,progressPct))+"%"}}/>
   <span className="cs-focus-progress__text">{progressPct>=100?"Complete":progressPct.toFixed(1)+"%"+(effectiveCombinedTotal>0?" \u00b7 "+ProgressUnits.formatUnits(progShown.remainingUnits)+" to go":"")}</span>
 </div>}
+{/* The strip is hidden in focus mode, so a hidden layer is signposted by a pill above the bar (the bar itself has no room on a phone). */}
+{focusMode&&window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers,className:"tracker-layers-chip--float"})}
 {focusMode&&<div
   ref={focusBarRef}
   className={"cs-focus-bar"+(focusBarFaded?" cs-focus-bar--faded":"")}

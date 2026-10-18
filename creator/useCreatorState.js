@@ -432,12 +432,11 @@ if (typeof window !== 'undefined') {
 function isFinePointerNow() {
   try { return !window.matchMedia || window.matchMedia("(pointer: fine)").matches; } catch (_) { return true; }
 }
-// Navigate / Draw starting mode: the last choice on this device, else Draw
-// for a mouse or trackpad and Navigate for touch (audit DRAW-01).
+// Navigate / Draw starting mode: always Navigate, on every device, so a stray
+// click or tap on a freshly opened pattern edits nothing (audit UX-009). Choosing
+// a tool or a colour switches to Draw; the choice is not carried to the next visit.
 function initialDrawMode() {
-  var saved = loadUserPref("creator.drawMode", null);
-  if (saved === true || saved === false) return saved;
-  return isFinePointerNow();
+  return false;
 }
 // Highest Creator zoom. Touch screens get 4 (80px cells) for precise
 // placement (audit DRAW-03) where the device can hold that canvas: the chart
@@ -859,8 +858,8 @@ window.useCreatorState = function useCreatorState() {
   // Draw / Navigate (audit DRAW-01). In Navigate the chosen tool is
   // remembered but inactive: everything outside this hook sees activeTool and
   // partialStitchTool as null, so one finger (or a mouse drag) pans and a
-  // long-press opens the stitch menu. Touch screens start in Navigate, mouse
-  // users in Draw; the last choice is remembered per device.
+  // long-press opens the stitch menu. Every device starts in Navigate until a
+  // tool or colour is chosen (audit UX-009).
   var _penNav = useState(function() { return loadUserPref("creator.penNavigation", false) === true; });
   var penNavigation = _penNav[0], penNavigationRef = useRef(penNavigation);
   function setPenNavigation(v) {
@@ -875,7 +874,6 @@ window.useCreatorState = function useCreatorState() {
     if (drawModeRef.current === v) return;
     drawModeRef.current = v;
     _drawMode[1](v);
-    try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.drawMode", v); } catch (_) {}
   }, []);
   // Touch placement aids (audit DRAW-03). The loupe defaults to on for
   // touch screens; the precision cursor is opt-in.
@@ -1027,6 +1025,8 @@ window.useCreatorState = function useCreatorState() {
   // Cleanup diff state
   var _cleanupDiff      = useState(null);  var cleanupDiff      = _cleanupDiff[0],      setCleanupDiff      = _cleanupDiff[1];
   var _showCleanupDiff  = useState(false); var showCleanupDiff  = _showCleanupDiff[0],  setShowCleanupDiff  = _showCleanupDiff[1];
+  // "Show stitched" overlay on the Edit canvas: tints the cells marked done (UX-006).
+  var _showStitched     = useState(false); var showStitched     = _showStitched[0],     setShowStitched     = _showStitched[1];
   // Disambiguation result from last generation (null = not run or not enabled)
   var _disambigData     = useState(null);  var disambigData     = _disambigData[0],     setDisambigData     = _disambigData[1];
 
@@ -1316,6 +1316,29 @@ window.useCreatorState = function useCreatorState() {
     return c;
   }, [pat, done]);
 
+  // Progress guard (UX-006). An edit that changes the colour or type of a cell
+  // marked done sets that cell back to not done, so `done` never claims a
+  // stitch in a thread the user did not stitch. Edit sites call this with the
+  // history `changes` and the new pattern, then keep the returned cell list on
+  // their history entry as `doneReset`; useEditHistory restores or re-applies
+  // it with the rest of that undo step. Returns undefined when nothing reset.
+  var doneRef = useRef(done); doneRef.current = done;
+  // Set by CreatorApp: undoes the newest edit if it still carries these cells.
+  var undoGuardRef = useRef(null);
+  var guardStitchedEdit = useCallback(function(changes, newPat) {
+    var SE = window.StitchedEdits, cur = doneRef.current;
+    if (!SE || !cur) return undefined;
+    var idxs = SE.stitchedResets(cur, changes, newPat);
+    if (!idxs.length) return undefined;
+    var next = SE.clearDone(cur, idxs);
+    doneRef.current = next;
+    setDone(next);
+    addToast(SE.resetMessage(idxs.length), { type: "info", duration: 6000, action: { label: "Undo", onClick: function() {
+      if (undoGuardRef.current) undoGuardRef.current(idxs);
+    } } });
+    return idxs;
+  }, []);
+
   // What the rest of the Creator sees: no tool while in Navigate.
   var effActiveTool = drawMode ? activeTool : null;
   var effPartialStitchTool = drawMode ? partialStitchTool : null;
@@ -1593,6 +1616,8 @@ window.useCreatorState = function useCreatorState() {
     setImg({ src: null, w: gw, h: gh });
     prevSW.current = gw; prevSH.current = gh;
     initBlankGrid(gw, gh);
+    // "Start drawing" is the choice to edit, so this one opens in Draw.
+    setDrawMode(true);
     setPatternCreatedThisVisit(true);
     // Scratch mode bypasses Create → go straight to Edit
     setAppMode("edit");
@@ -1924,7 +1949,7 @@ window.useCreatorState = function useCreatorState() {
         var _ovr = overrides;
         window.ConfirmDialog.show({
           title: "Regenerate will clear your progress",
-          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (Project \u203a Backup) before continuing.\n\nContinue anyway?",
+          message: "This project has stitched progress and/or park markers. Generating a new pattern will reset all stitches to unstitched and remove every park marker. Consider exporting a backup (File > Export Backup) before continuing.\n\nContinue anyway?",
           confirmLabel: "Regenerate (clear progress)",
           danger: true
         }).then(function(ok) {
@@ -2298,6 +2323,7 @@ window.useCreatorState = function useCreatorState() {
     setRedoHistory: setRedoHistory, EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     setPat: setPat, setPal: setPal, setCmap: setCmap,
     addToast: addToast,
+    guardStitchedEdit: guardStitchedEdit,
     buildPaletteWithScratch: buildPaletteWithScratch,
   });
   // Keep wandClearRef updated each render so resetAll() can call it
@@ -2326,6 +2352,7 @@ window.useCreatorState = function useCreatorState() {
     editHistory: editHistory, setEditHistory: setEditHistory,
     setRedoHistory: setRedoHistory,
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
+    guardStitchedEdit: guardStitchedEdit,
   };
   var move = useMoveSelection(_moveStateProxy);
 
@@ -2346,6 +2373,7 @@ window.useCreatorState = function useCreatorState() {
     EDIT_HISTORY_MAX: EDIT_HISTORY_MAX,
     moveFloatActive: move.floatActive,
     deleteSelection: wand.deleteSelection,
+    guardStitchedEdit: guardStitchedEdit,
     addToast: addToast
   });
 
@@ -2449,7 +2477,7 @@ window.useCreatorState = function useCreatorState() {
     exportPage, setExportPage, pageMode, setPageMode,
     pdfDisplayMode, setPdfDisplayMode, pdfCellSize, setPdfCellSize,
     pdfSinglePage, setPdfSinglePage,
-    done, setDone, isScratchMode, setIsScratchMode,
+    done, setDone, guardStitchedEdit, undoGuardRef, isScratchMode, setIsScratchMode,
     scratchPalette, setScratchPalette, dmcSearch, setDmcSearch,
     colPickerOpen, setColPickerOpen, parkMarkers, setParkMarkers,
     hlRow, setHlRow, hlCol, setHlCol, totalTime, setTotalTime,
@@ -2486,7 +2514,7 @@ window.useCreatorState = function useCreatorState() {
     saveError, setSaveError,
     nameModalReason, setNameModalReason,
     preferencesOpen, setPreferencesOpen,
-    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff,
+    cleanupDiff, setCleanupDiff, showCleanupDiff, setShowCleanupDiff, showStitched, setShowStitched,
     disambigData, setDisambigData,
     cleanupTargetColorId, setCleanupTargetColorId,
     cleanupTolerance, setCleanupTolerance,

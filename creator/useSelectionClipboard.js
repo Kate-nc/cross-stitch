@@ -146,9 +146,10 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
     var d = T.diffForHistory(f.orig, r);
     if (!d.empty) {
       var MAX = s.EDIT_HISTORY_MAX;
+      var placeReset = s.guardStitchedEdit && s.guardStitchedEdit(d.changes, r.pat);
       s.setEditHistory(function (prev) {
         var n = prev.concat([{ type: "move", op: f.origin, changes: d.changes, psChanges: d.psChanges, bsLines: d.bsLines, knots: d.knots,
-          prevMask: f.orig.mask || null, nextMask: r.mask }]);
+          prevMask: f.orig.mask || null, nextMask: r.mask, doneReset: placeReset }]);
         if (n.length > MAX) n = n.slice(n.length - MAX);
         return n;
       });

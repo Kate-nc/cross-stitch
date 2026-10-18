@@ -18,22 +18,25 @@ function env(pointer, saved) {
   };
 }
 
-describe('drawMode default', () => {
+describe('drawMode default (UX-009)', () => {
   test('touch screens start in Navigate', () => {
     expect(loadInitialDrawMode(env('coarse', null))()).toBe(false);
   });
-  test('mouse and trackpad start in Draw', () => {
-    expect(loadInitialDrawMode(env('fine', null))()).toBe(true);
+  test('mouse and trackpad start in Navigate too', () => {
+    expect(loadInitialDrawMode(env('fine', null))()).toBe(false);
   });
-  test('the last choice on this device wins', () => {
-    expect(loadInitialDrawMode(env('coarse', true))()).toBe(true);
-    expect(loadInitialDrawMode(env('fine', false))()).toBe(false);
+  test('an old saved choice no longer changes the starting mode', () => {
+    expect(loadInitialDrawMode(env('coarse', true))()).toBe(false);
+    expect(loadInitialDrawMode(env('fine', true))()).toBe(false);
   });
-  test('no matchMedia means Draw', () => {
-    expect(loadInitialDrawMode({ window: {}, UserPrefs: { get: () => null } })()).toBe(true);
+  test('no matchMedia means Navigate', () => {
+    expect(loadInitialDrawMode({ window: {}, UserPrefs: { get: () => null } })()).toBe(false);
   });
-  test('the preference key is declared with an automatic default', () => {
+  test('the retired preference key stays declared so older backups still restore', () => {
     expect(loadSource('user-prefs.js')).toMatch(/"creator\.drawMode": null,/);
+  });
+  test('a blank design started from the New design sheet opens in Draw', () => {
+    expect(stateSrc).toMatch(/initBlankGrid\(gw, gh\);[\s\S]{0,160}setDrawMode\(true\);/);
   });
 });
 
@@ -44,8 +47,11 @@ describe('Navigate hides the tool from the rest of the Creator', () => {
     expect(stateSrc).toMatch(/setBrushAndActivate: chooseBrush, setTool: chooseTool/);
     expect(stateSrc).toMatch(/function chooseActiveTool\(v\) \{\s*if \(v === "hand"\) \{ setDrawMode\(false\); return; \}\s*if \(v\) setDrawMode\(true\);/);
   });
-  test('the choice is saved per device', () => {
-    expect(stateSrc).toMatch(/UserPrefs\.set\("creator\.drawMode", v\)/);
+  test('the mode is not saved: every visit starts in Navigate', () => {
+    expect(stateSrc).not.toMatch(/UserPrefs\.set\("creator\.drawMode"/);
+  });
+  test('picking a colour swatch in the tool strip switches to Draw', () => {
+    expect(loadSource('creator/ToolStrip.js')).toMatch(/cv\.selectedColorId !== p\.id && cv\.setDrawMode && !cv\.drawMode\) cv\.setDrawMode\(true\);/);
   });
 });
 

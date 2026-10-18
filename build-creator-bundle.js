@@ -46,6 +46,8 @@ const ORDER = [
   'RealisticCanvas.js',
   // Pure colour-replace helpers used by useMagicWand + ColourReplaceModal.
   'colourReplace.js',
+  // Keeps stitching progress consistent when cells are edited.
+  'stitchedEdits.js',
   'useMagicWand.js',
   'useLassoSelect.js',
   'useMoveSelection.js',

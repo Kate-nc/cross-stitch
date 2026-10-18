@@ -101,6 +101,21 @@ describe('shortcuts.js — registry', () => {
     expect(ran).toEqual([]);
   });
 
+  it('does not fire for a key pressed inside an open modal dialog', () => {
+    const ran = [];
+    window.Shortcuts.register([{ id: 't.z', keys: 'Ctrl+z', scope: 'global', run: () => ran.push('z') }]);
+    // The event's target is inside an aria-modal="true" dialog (a confirmation, a modal overlay).
+    const inDialog = makeKeyEvent({ key: 'z', ctrl: true });
+    inDialog.target = { closest: (sel) => (sel === '[aria-modal="true"]' ? {} : null) };
+    window.Shortcuts._dispatch(inDialog);
+    expect(ran).toEqual([]);
+    // The same key anywhere else, including inside a non-modal dialog such as the help drawer, still fires.
+    const outside = makeKeyEvent({ key: 'z', ctrl: true });
+    outside.target = { closest: () => null };
+    window.Shortcuts._dispatch(outside);
+    expect(ran).toEqual(['z']);
+  });
+
   it('does fire when focus is on a BUTTON (not a text input)', () => {
     const ran = [];
     window.Shortcuts.register([{ id: 't.a', keys: 'a', scope: 'global', run: () => ran.push('a') }]);

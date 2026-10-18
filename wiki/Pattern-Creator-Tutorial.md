@@ -329,6 +329,22 @@ and counts. Multiple source colours can map to the same thread. Preview and
 Generate use the same native-resolution conversion. Resized variation galleries
 require leaving exact mode.
 
+## Editing a pattern you have already stitched
+
+Every pattern opens in **Navigate**, on a computer as well as a touch screen, so
+a stray click edits nothing. Choosing a tool or a colour swatch switches to
+**Draw**. A new blank design (**Start drawing**) opens in Draw.
+
+When the project has stitching progress, the Edit tab says so (for example
+"This project is 34% stitched"). Changing the colour or stitch type of a cell
+you have marked done (painting, filling, erasing, replacing a colour, cleanup,
+moving or pasting over it) sets that cell back to not done, so your progress
+never counts a stitch in the wrong thread. A toast tells you how many cells were
+reset and has an **Undo** button; Undo and Redo in the toolbar bring the marks
+back, or clear them again, together with the edit. Choose **Show stitched** in
+the note to tint the cells marked done on the chart. Before regenerating from a
+picture, which clears progress, export a backup with **File > Export Backup**.
+
 ## Tablet pen and finger rules
 
 Enable **More tools > Pen draws; fingers navigate** for devices that reliably
@@ -348,3 +364,15 @@ A cancelled pointer, lost capture, hidden page, blur or viewport resize ends the
 gesture. Interrupted brush strokes retain one Undo step. Unfinished shapes and
 selection drags are cancelled without clearing the existing selection. Rotate,
 resize or zoom, then start a fresh gesture after the canvas settles.
+
+### Reusable PDF export presets
+
+In **Materials & Output > Export**, choose a saved preset and **Apply preset**, or name the current settings and **Save as new preset**. Change the existing Format & settings controls, then **Update selected preset** to save edits or a new name. **Delete preset** keeps the active settings. Names are unique (ignoring case), up to 80 characters; up to 50 presets are supported.
+
+Presets are **global preferences on this browser**, shared by all projects. Full backups restore them; project JSON, project bundles and sync do not carry them. Opening older projects uses current global export settings. Presets include page size, margins, density/custom rows and columns, chart modes, overlap, optional pages, legends, profile branding inclusion and print theme. They do not capture project metadata or a copy of the profile branding. Enabled branding uses the current Profile & branding preferences; a project designer takes precedence. Branding appears on cover/info pages, not chart pages.
+
+**Chart only** disables cover, info, index, thread legend pages and mini-legends while preserving paper size, density and chart modes. Enable **Thread legend pages** if the recipient needs a key. Mini-legends are independent summaries of colours used on a chart page.
+
+The live layout illustration shows the first chart page to scale, resolved paper dimensions, margins, cell size, chart regions and a page count from the export pagination plan. It illustrates bounds and colours; PDF symbols and typography are rendered during export. Auto resolves from the exporting browser locale, so choose A4 or Letter for a fixed paper size. Custom density accepts 10–200 stitches, rounded down to tens as shown in the preview; margins allow whole millimetres from 10–30. Branding lines shrink to fit, down to 6 pt; longer lines stop export with an explanation. Overlap repeats two rows/columns on adjacent pages. Unused palette entries do not add legend pages.
+
+All presets use the existing worker and its 112-symbol limit, missing-glyph and unsupported-stitch checks. Use the standard print theme for Pattern Keeper. Actual Pattern Keeper import remains a manual device check.
