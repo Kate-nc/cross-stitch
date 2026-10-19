@@ -28,6 +28,7 @@ const TARGET_FILES = [
   "tracker-app.js",
   "creator-main.js",
   "home-screen.js",
+  "home-app.js",
   "header.js",
   "modals.js",
   "components.js",
@@ -95,6 +96,7 @@ const PLAIN_TERMS = [
   { bad: "orphans", re: /\borphans?\b/i, good: "confetti stitches", note: "Say 'Reduce confetti', not 'orphans'." },
   { bad: "Confetti Cleanup", re: /\bConfetti Cleanup\b/, good: "Reduce confetti", note: "The Convert setting and the tool are both 'Reduce confetti'." },
   { bad: "single stitches", re: /\bsingle stitches\b(?! of a colour on their own)/i, good: "confetti stitches", note: "Say 'confetti stitches'; define them once as 'single stitches of a colour on their own; slow to stitch'." },
+  { bad: "kitted", re: /\bkitted\b/i, good: "ready to start", note: "'Fully kitted' is jargon; say 'ready to start' or 'all threads in stash'." },
   { bad: "Allow blended threads", re: /\bAllow blended threads\b/i, good: "Allow two-thread blends", note: "The Convert setting is 'Allow two-thread blends'." }
 ];
 

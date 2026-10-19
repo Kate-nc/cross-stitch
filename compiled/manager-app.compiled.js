@@ -80,6 +80,7 @@ function StashAlertPanel({
   id,
   title,
   count,
+  countLabel,
   icon,
   tone = "",
   preferenceKey,
@@ -118,7 +119,7 @@ function StashAlertPanel({
     className: "stash-alert-title"
   }, title, " ", /*#__PURE__*/React.createElement("span", {
     className: "stash-alert-count"
-  }, "(", count, ")")), /*#__PURE__*/React.createElement("span", {
+  }, "(", countLabel != null ? countLabel : count, ")")), /*#__PURE__*/React.createElement("span", {
     className: "stash-alert-chevron",
     "aria-hidden": "true"
   }, collapsed ? Icons.chevronRight() : Icons.chevronDown()))), /*#__PURE__*/React.createElement("div", {
@@ -209,6 +210,8 @@ function ManagerApp() {
   const [expandedThread, setExpandedThread] = useState(null);
   const [selectedThread, setSelectedThread] = useState(null);
   const [conflicts, setConflicts] = useState(null);
+  // What the stash is short of: { projects, total, shopping } from StashBridge.getToBuy().
+  const [toBuy, setToBuy] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
   // Plan B Phase 2: Stash info chip + popover.
@@ -849,6 +852,7 @@ function ManagerApp() {
   useEffect(() => {
     if (typeof StashBridge === "undefined") return;
     StashBridge.detectConflicts().then(setConflicts).catch(e => console.warn('detectConflicts failed:', e));
+    refreshToBuy();
     StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
     // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
     // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
@@ -872,6 +876,36 @@ function ManagerApp() {
     alerts.sort((a, b) => a.min_stock - a.owned - (b.min_stock - b.owned));
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
+
+  // Latest-wins: a slow read must not overwrite a newer one.
+  const toBuyReadRef = useRef(0);
+  function refreshToBuy() {
+    if (typeof StashBridge === "undefined") return Promise.resolve();
+    const read = ++toBuyReadRef.current;
+    return StashBridge.getToBuy().then(result => {
+      if (read === toBuyReadRef.current) setToBuy(result);
+    }).catch(e => console.warn('getToBuy failed:', e));
+  }
+  function addToShoppingList(project) {
+    const rows = project.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy));
+    if (!rows.length) return;
+    const qtyMap = {};
+    rows.forEach(t => {
+      qtyMap[t.key] = t.toBuy;
+    });
+    StashBridge.markManyToBuy(rows.map(t => t.key), true, qtyMap).then(changed => {
+      refreshToBuy();
+      if (window.Toast) window.Toast.show({
+        message: changed > 0 ? plural(changed, 'thread') + ' added to your shopping list' : 'Already on your shopping list',
+        type: 'success'
+      });
+    }).catch(() => {
+      if (window.Toast) window.Toast.show({
+        message: 'Could not update your shopping list',
+        type: 'error'
+      });
+    });
+  }
   function extractBrandAndId(compositeKey) {
     if (compositeKey.indexOf(':') < 0) return {
       brand: 'dmc',
@@ -1306,7 +1340,7 @@ function ManagerApp() {
       marginTop: 4,
       color: "var(--text-secondary)"
     }
-  }, backupStatus.summary.projectCount, " projects, ", backupStatus.summary.threadCount, " owned threads, ", backupStatus.summary.patternCount, " patterns"), backupStatus.type === "confirm" && /*#__PURE__*/React.createElement("div", {
+  }, plural(backupStatus.summary.projectCount, 'project'), ", ", plural(backupStatus.summary.threadCount, 'owned thread'), ", ", plural(backupStatus.summary.patternCount, 'pattern')), backupStatus.type === "confirm" && /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -1568,11 +1602,13 @@ function ManagerApp() {
     const statusRows = [];
     if (lowNeeded > 0) statusRows.push(['Low stock (needed)', lowNeeded]);
     if (lowNotNeeded > 0) statusRows.push(['Low stock (other)', lowNotNeeded]);
+    const toBuyCount = toBuy && toBuy.shopping.length || 0;
+    if (toBuyCount > 0) statusRows.push(['To buy', plural(toBuyCount, 'thread')]);
     if (conflictCount > 0) statusRows.push(['Conflicts', conflictCount]);
     if (readyCount > 0) statusRows.push(['Ready to start', readyCount]);
     const badges = [];
     if (conflictCount > 0) badges.push({
-      label: conflictCount + ' conflicts',
+      label: plural(conflictCount, 'conflict'),
       kind: 'danger'
     });
     if (lowNeeded > 0) badges.push({
@@ -1616,10 +1652,96 @@ function ManagerApp() {
     className: "mgr-main"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mgr-content"
-  }, conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
+  }, toBuy && toBuy.projects.map(p => {
+    const unflagged = p.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy)).length;
+    return /*#__PURE__*/React.createElement(StashAlertPanel, {
+      key: p.id,
+      id: "stash-tobuy-" + p.id.replace(/[^A-Za-z0-9_-]/g, "_"),
+      title: "To buy for " + (p.title || "Untitled"),
+      count: p.threads.length,
+      countLabel: plural(p.threads.length, 'thread'),
+      icon: Icons.cart(),
+      preferenceKey: "stashToBuyCollapsed"
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--text-secondary)",
+        marginBottom: 10
+      }
+    }, "Threads this pattern needs that your stash doesn't cover.", toBuy.projects.length > 1 && " Your whole shopping list is " + plural(toBuy.shopping.length, 'thread') + "."), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        maxHeight: 200,
+        overflow: "auto"
+      }
+    }, p.threads.map(t => /*#__PURE__*/React.createElement("div", {
+      key: t.key,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 6,
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        cursor: "pointer"
+      },
+      title: "Open thread card for " + formatBrandLabel(t.brand) + " " + t.id,
+      onClick: () => {
+        setTab("inventory");
+        setThreadFilter("all");
+        setBrandFilter("all");
+        setSearchQuery("");
+        setSelectedThread(t.key);
+        setPanelOpen(true);
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 14,
+        height: 14,
+        borderRadius: 3,
+        background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`,
+        border: "1px solid var(--border)",
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600,
+        fontSize: 12
+      }
+    }, formatBrandLabel(t.brand), " ", t.id), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-secondary)",
+        flex: 1
+      }
+    }, t.name), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: "var(--text-secondary)",
+        fontWeight: 600
+      }
+    }, "own ", t.owned, ", need ", t.need)))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 10
+      }
+    }, unflagged > 0 ? /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "g-btn",
+      onClick: () => addToShoppingList(p)
+    }, Icons.cart(), " Add to shopping list") : /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        color: "var(--text-secondary)"
+      }
+    }, "All of these are on your shopping list.")));
+  }), conflicts && conflicts.length > 0 && /*#__PURE__*/React.createElement(StashAlertPanel, {
     id: "stash-conflicts",
     title: "Thread Conflicts",
     count: conflicts.length,
+    countLabel: plural(conflicts.length, 'thread'),
     icon: Icons.warning(),
     tone: "danger",
     preferenceKey: "stashConflictsCollapsed"
@@ -1629,7 +1751,7 @@ function ManagerApp() {
       color: "var(--text-secondary)",
       marginBottom: 10
     }
-  }, "These threads are needed by multiple patterns but you don't have enough."), /*#__PURE__*/React.createElement("div", {
+  }, "More than one pattern needs these threads, and your stash can't cover them all."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -1638,7 +1760,7 @@ function ManagerApp() {
       overflow: "auto"
     }
   }, conflicts.map(c => /*#__PURE__*/React.createElement("div", {
-    key: c.id,
+    key: c.key,
     style: {
       display: "flex",
       alignItems: "center",
@@ -2135,11 +2257,11 @@ function ManagerApp() {
     className: "stat"
   }, Icons.clipboard(), " ", /*#__PURE__*/React.createElement("span", {
     className: "val"
-  }, patterns.length), " patterns"), /*#__PURE__*/React.createElement("div", {
+  }, patterns.length), " ", patterns.length === 1 ? 'pattern' : 'patterns'), /*#__PURE__*/React.createElement("div", {
     className: "stat"
   }, Icons.check(), " ", /*#__PURE__*/React.createElement("span", {
     className: "val"
-  }, readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0), " fully kitted")), /*#__PURE__*/React.createElement("div", {
+  }, readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0), " ready to start")), /*#__PURE__*/React.createElement("div", {
     className: "mgr-main"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mgr-content"
@@ -2319,7 +2441,7 @@ function ManagerApp() {
           gap: 4
         },
         title: "All required threads are in your stash"
-      }, Icons.check(), " Fully kitted") : /*#__PURE__*/React.createElement("span", {
+      }, Icons.check(), " Ready to start") : /*#__PURE__*/React.createElement("span", {
         onClick: e => {
           e.stopPropagation();
           setViewingPattern(pat);
@@ -2334,7 +2456,7 @@ function ManagerApp() {
           cursor: "pointer"
         },
         title: "Missing: " + missing.map(t => t.id).join(", ")
-      }, missing.length, " threads needed")), pat.linkedProjectId && /*#__PURE__*/React.createElement("button", {
+      }, plural(missing.length, 'thread'), " needed")), pat.linkedProjectId && /*#__PURE__*/React.createElement("button", {
         type: "button",
         onClick: e => {
           e.stopPropagation();
@@ -2410,7 +2532,7 @@ function ManagerApp() {
       color: "var(--text-secondary)",
       marginBottom: 10
     }
-  }, "Patterns you can fully kit from your current stash."), /*#__PURE__*/React.createElement("div", {
+  }, "Patterns you can start now with the threads in your stash."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       flexDirection: "column",
@@ -2454,7 +2576,7 @@ function ManagerApp() {
       background: "var(--success-soft)",
       color: "#4F7D3F"
     }
-  }, "100% kitted") : /*#__PURE__*/React.createElement("span", {
+  }, "All threads in stash") : /*#__PURE__*/React.createElement("span", {
     style: {
       padding: "3px 10px",
       borderRadius: 12,

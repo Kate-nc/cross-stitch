@@ -1920,7 +1920,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
         (() => {
           const full = readyToStart.filter(p => p.pct === 100);
           const nearly = readyToStart.filter(p => p.pct >= 80 && p.pct < 100);
-          if (full.length === 0 && !readyExpanded) return h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, "Nothing fully kitted yet. Check individual patterns to see what's missing");
+          if (full.length === 0 && !readyExpanded) return h('div', { style: { fontSize:'var(--text-md)', color: 'var(--text-secondary)' } }, "Nothing is ready to start yet. Check individual patterns to see what's missing");
           const shown = readyExpanded ? readyToStart : full.slice(0, 3);
           return h('div', null,
             shown.map(p => h('div', { key: p.id, onClick: () => navigateToProject(p.id), style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontSize:'var(--text-md)' } },

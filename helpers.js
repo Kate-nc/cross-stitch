@@ -13,6 +13,8 @@ function drawCk(ctx,x,y,s){
 function fmtTime(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);return h>0?`${h}h ${m}m`:`${m}m`;}
 function fmtTimeL(s){let h=Math.floor(s/3600),m=Math.floor((s%3600)/60);if(h>0)return`${h} hr${h>1?"s":""} ${m} min`;return`${m} min`;}
 function fmtNum(n){return(n||0).toLocaleString('en-GB');}
+// "1 pattern", "3 patterns": the count with its noun. Pass `many` when the plural isn't just +s.
+function plural(n,one,many){return fmtNum(n)+' '+(n===1?one:(many||one+'s'));}
 // threadKm: 14ct cross stitch ≈ 4mm of thread per stitch (0.004 m). Result in km, 1 d.p.
 function threadKm(stitches){return Math.round((stitches||0)*0.004/1000*10)/10;}
 

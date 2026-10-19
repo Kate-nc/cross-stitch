@@ -165,6 +165,7 @@
     stashLowStockThreshold:   1,
     // Independent alert visibility; never reset when alert counts reach zero.
     stashConflictsCollapsed:          false,
+    stashToBuyCollapsed:              false,
     stashLowStockNeededCollapsed:     false,
     stashLowStockNotNeededCollapsed:  false,
     stitchStrandsUsed:        2,
