@@ -1099,7 +1099,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       title:"More tools", "aria-label":"More tools",
       "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
     }, compact
-      ? (window.Icons.more ? window.Icons.more() : "More")
+      ? [window.Icons.more ? window.Icons.more() : null, h("span", {key:"l", className:"creator-rail__label"}, "More")]
       : ["More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null]),
     morePanelContent
   );
@@ -1110,13 +1110,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   if (compact) {
     // ── Bottom tool rail (phones and portrait tablets) ──
     var selCol = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
-    var railBtn = function(key, label, icon, on, onClick, extra) {
+    // Icon over a short word (the Tracker rail's pattern): icon-only was a guessing game, and the fill icon looked like a jar.
+    var railBtn = function(key, label, text, icon, on, onClick, extra) {
       return h("button", Object.assign({
         key:key, type:"button",
         className:"creator-rail__btn" + (on ? " creator-rail__btn--on" : ""),
         "aria-label":label, title:label, "aria-pressed": on ? "true" : "false",
         onClick:onClick
-      }, extra || {}), icon);
+      }, extra || {}), icon, h("span", {className:"creator-rail__label"}, text));
     };
     var railToggle = window.ModeToggle ? h(window.ModeToggle, {
       compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
@@ -1136,16 +1137,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       denoiseRow,
       h("div", {className:"creator-rail__row"},
         railToggle,
-        railBtn("paint", "Paint tool", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
-        railBtn("fill", "Fill tool", window.Icons.bucket(), fillOn, function(){ pickBrush("fill", fillOn); }),
-        railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        railBtn("paint", "Paint tool", "Paint", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
+        railBtn("fill", "Fill tool", "Fill", window.Icons.bucketPour(), fillOn, function(){ pickBrush("fill", fillOn); }),
+        railBtn("erase", "Erase tool", "Erase", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
           "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
           title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
-        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
-        railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
+          h("span", {className:"creator-rail__label"}, "Colour")),
+        railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
         morePanelWrap
       )
     );

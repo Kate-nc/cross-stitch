@@ -8,7 +8,7 @@ exports[`Icons object used icon set matches snapshot 1`] = `
   "barChart",
   "box",
   "brush",
-  "bucket",
+  "bucketPour",
   "camera",
   "canvasResize",
   "cart",

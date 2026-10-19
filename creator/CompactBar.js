@@ -81,8 +81,7 @@
 
     var status = saveStatusIcon(props.saveStatus, props.savedAt, Icons);
 
-    // Convert / Edit / Materials — icon segmented control with labels for
-    // screen readers (visible labels sit in the More sheet's heading).
+    // Convert / Edit / Materials — an icon over its word, so the three steps are named on screen.
     var modes = [
       sourceTab === "convert" ? { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
         disabled: !props.hasImage && !hasPat,
@@ -104,7 +103,7 @@
           "aria-label": m.label, title: m.label,
           disabled: m.disabled,
           onClick: m.onClick
-        }, m.icon ? m.icon() : m.label);
+        }, m.icon ? m.icon() : null, h("span", { className: "cc-mode__label" }, m.label));
       })
     );
 

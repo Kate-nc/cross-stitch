@@ -52,7 +52,7 @@ describe('compact chrome CSS', () => {
   });
 
   test('rail and top-bar controls are at least 44px', () => {
-    expect(css).toMatch(/\.creator-rail__btn\{[^}]*min-width:44px;min-height:44px;/);
+    expect(css).toMatch(/\.creator-rail__btn\{[^}]*min-width:44px;[^}]*min-height:44px;/);
     expect(css).toMatch(/\.cc-btn\{[^}]*min-width:44px;min-height:44px;/);
   });
 
