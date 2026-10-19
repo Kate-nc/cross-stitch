@@ -214,6 +214,69 @@ function _drawMarchingAnts(ctx2d, offX, offY, dW, dH, cSz, gut, pat, sW, sH, hiI
   ctx2d.restore();
 }
 
+// ─── Rulers ───────────────────────────────────────────────────────────────────
+// Numbered the way the Tracker and a paper chart are: the first column or row
+// is 1, then every tenth (10, 20, 30...), on the cell just before the heavy
+// 10-line. `off` is the pattern index of the first drawn cell, so a cropped
+// view still shows the pattern's own numbers.
+
+/** 0-based drawn indices (of `count` cells starting at pattern index `off`) that carry a ruler label. */
+function chartRulerLabelCells(off, count) {
+  var out = [];
+  for (var i = 0; i < count; i++) {
+    var n = off + i + 1;
+    if (n === 1 || n % 10 === 0) out.push(i);
+  }
+  return out;
+}
+
+// The gutter is the fabric colour, not the theme surface, so the ink is picked
+// against the fabric: --text-tertiary (light, 6F6757) when it clears AA there,
+// else its dark-theme value (9D9383), else black or white. Mirrors styles.css
+// (tests/chartRulers.test.js keeps them in step).
+var RULER_INK_LIGHT = "#6F6757", RULER_INK_DARK = "#9D9383";
+
+function _rulerLum(hex) {
+  var c = _hexToRgbArr(hex).map(function (v) {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function _rulerContrast(a, b) {
+  var x = _rulerLum(a), y = _rulerLum(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** Ruler text colour with at least 4.5:1 against `fabric` (#RRGGBB) where any colour can manage it. */
+function chartRulerInk(fabric) {
+  if (/^#[0-9a-fA-F]{3}$/.test(fabric)) fabric = "#" + fabric.slice(1).replace(/./g, "$&$&");
+  if (!/^#[0-9a-fA-F]{6}$/.test(fabric)) return RULER_INK_LIGHT;
+  var picks = [RULER_INK_LIGHT, RULER_INK_DARK, "#000000", "#ffffff"], best = picks[0], bestC = 0;
+  for (var i = 0; i < picks.length; i++) {
+    var c = _rulerContrast(picks[i], fabric);
+    if (c >= 4.5) return picks[i];
+    if (c > bestC) { bestC = c; best = picks[i]; }
+  }
+  return best;
+}
+
+function _drawChartRulers(ctx2d, offX, offY, dW, dH, cSz, gut, fabricFill) {
+  ctx2d.fillStyle = chartRulerInk(fabricFill);
+  ctx2d.font = "600 " + Math.max(9, Math.min(11, cSz * 0.5)) + "px system-ui";
+  ctx2d.textAlign = "center";
+  ctx2d.textBaseline = "middle";
+  chartRulerLabelCells(offX, dW).forEach(function (x) {
+    ctx2d.fillText(String(offX + x + 1), gut + x * cSz + cSz / 2, gut / 2);
+  });
+  ctx2d.textAlign = "right";
+  chartRulerLabelCells(offY, dH).forEach(function (y) {
+    ctx2d.fillText(String(offY + y + 1), gut - 3, gut + y * cSz + cSz / 2);
+  });
+}
+window.chartRulerLabelCells = chartRulerLabelCells;
+window.chartRulerInk = chartRulerInk;
+
 /**
  * Draw the cross-stitch pattern onto a 2D canvas context.
  *
@@ -283,17 +346,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
     ctx2d.globalAlpha = 1.0;
   }
 
-  ctx2d.fillStyle = "#A89E89";
-  ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
-  ctx2d.textAlign = "center";
-  ctx2d.textBaseline = "middle";
-  for (var x = 0; x < dW; x += 10) {
-    ctx2d.fillText(String(offX + x + 1), gut + x * cSz + cSz / 2, gut / 2);
-  }
-  ctx2d.textAlign = "right";
-  for (var y = 0; y < dH; y += 10) {
-    ctx2d.fillText(String(offY + y + 1), gut - 3, gut + y * cSz + cSz / 2);
-  }
+  _drawChartRulers(ctx2d, offX, offY, dW, dH, cSz, gut, fabricFill);
 
   for (var y2 = 0; y2 < dH; y2++) {
     for (var x2 = 0; x2 < dW; x2++) {
@@ -637,17 +690,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
   }
 
   if (doFrame) {
-  ctx2d.fillStyle = "#A89E89";
-  ctx2d.font = Math.max(7, Math.min(11, cSz * 0.5)) + "px system-ui";
-  ctx2d.textAlign = "center";
-  ctx2d.textBaseline = "middle";
-  for (var x = 0; x < dW; x += 10) {
-    ctx2d.fillText(String(offX + x + 1), gut + x * cSz + cSz / 2, gut / 2);
-  }
-  ctx2d.textAlign = "right";
-  for (var y = 0; y < dH; y += 10) {
-    ctx2d.fillText(String(offY + y + 1), gut - 3, gut + y * cSz + cSz / 2);
-  }
+  _drawChartRulers(ctx2d, offX, offY, dW, dH, cSz, gut, fabricFill);
   }
 
   // Which stitches to draw: all of them, or only `cells` ({x0, y0, x1, y1},
