@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "048259fb3dd7f97b1f220ef26288df304999cb95bdc1a828270f86e223cf7e3b";
+var BUILD_ID = "4284cf019dc79a4ae2af7a4171db1328dff2acd0521e3fe6a5f4c3ac1e91064c";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -461,7 +461,7 @@ var BUILD_ASSETS = {
     "sha256": "ba933c94c9e019aa88602e5ef2276c1db47917cb77786e011c9f5113b0088ec6"
   },
   "./compiled/manager-app.compiled.js": {
-    "sha256": "4104c3329266dba0a8de0f5a79e4951e3b37978dd91f175e5b8d41d78a66687c"
+    "sha256": "590c7cb1d4bcdfa6e39555ea1c2993aa39a38167462b74d2a366858a5c652926"
   },
   "./compiled/embroidery.compiled.js": {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
@@ -548,7 +548,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "d3c4eff55a4e7916d1f3beb1316d4ae6fcbc28a419a03bf98f5a46dbe98e68ea"
+    "sha256": "c380ce88a783c3019596e3d49ad1e9e6ed5a4d2ef84a3d1cbe2b6510129599cc"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

@@ -1229,10 +1229,10 @@ function ManagerApp() {
 
             {/* Smart Hub: To buy. A pattern's own shortfall is a neutral shopping
                 list, not a conflict; one panel per pattern that is short. */}
-            {toBuy && toBuy.projects.map(p => {
+            {toBuy && toBuy.projects.map((p, i) => {
               const unflagged = p.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy)).length;
               return (
-                <StashAlertPanel key={p.id} id={"stash-tobuy-" + p.id.replace(/[^A-Za-z0-9_-]/g, "_")} title={"To buy for " + (p.title || "Untitled")} count={p.threads.length} countLabel={plural(p.threads.length, 'thread')} icon={Icons.cart()} preferenceKey="stashToBuyCollapsed">
+                <StashAlertPanel key={p.id} id={"stash-tobuy-" + i} title={"To buy for " + (p.title || "Untitled")} count={p.threads.length} countLabel={plural(p.threads.length, 'thread')} icon={Icons.cart()} preferenceKey="stashToBuyCollapsed">
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
                     Threads this pattern needs that your stash doesn't cover.
                     {toBuy.projects.length > 1 && " Your whole shopping list is " + plural(toBuy.shopping.length, 'thread') + "."}
@@ -1240,11 +1240,11 @@ function ManagerApp() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                     {p.threads.map(t => (
                       <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--border)", cursor: "pointer" }}
-                        title={"Open thread card for " + formatBrandLabel(t.brand) + " " + t.id}
+                        title={"Open thread card for " + formatThread(t, { variant: 'title' })}
                         onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(t.key); setPanelOpen(true); }}>
                         <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid var(--border)", flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(t.brand)} {t.id}</span>
-                        <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{t.name}</span>
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{formatThread(t, { variant: 'short' })}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{formatThread(t, { variant: 'name' })}</span>
                         <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>own {t.owned}, need {t.need}</span>
                       </div>
                     ))}
@@ -1265,11 +1265,11 @@ function ManagerApp() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
                     <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--danger-soft)", cursor: "pointer" }}
-                      title={"Open thread card for " + formatBrandLabel(c.brand) + " " + c.id}
+                      title={"Open thread card for " + formatThread(c, { variant: 'title' })}
                       onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid var(--border)", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(c.brand)} {c.id}</span>
-                      <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{c.name}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatThread(c, { variant: 'short' })}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{formatThread(c, { variant: 'name' })}</span>
                       <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
                       <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{c.patterns.map(p => p.title).join(", ")}</span>
                     </div>

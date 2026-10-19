@@ -1652,11 +1652,11 @@ function ManagerApp() {
     className: "mgr-main"
   }, /*#__PURE__*/React.createElement("div", {
     className: "mgr-content"
-  }, toBuy && toBuy.projects.map(p => {
+  }, toBuy && toBuy.projects.map((p, i) => {
     const unflagged = p.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy)).length;
     return /*#__PURE__*/React.createElement(StashAlertPanel, {
       key: p.id,
-      id: "stash-tobuy-" + p.id.replace(/[^A-Za-z0-9_-]/g, "_"),
+      id: "stash-tobuy-" + i,
       title: "To buy for " + (p.title || "Untitled"),
       count: p.threads.length,
       countLabel: plural(p.threads.length, 'thread'),
@@ -1688,7 +1688,9 @@ function ManagerApp() {
         border: "1px solid var(--border)",
         cursor: "pointer"
       },
-      title: "Open thread card for " + formatBrandLabel(t.brand) + " " + t.id,
+      title: "Open thread card for " + formatThread(t, {
+        variant: 'title'
+      }),
       onClick: () => {
         setTab("inventory");
         setThreadFilter("all");
@@ -1711,13 +1713,17 @@ function ManagerApp() {
         fontWeight: 600,
         fontSize: 12
       }
-    }, formatBrandLabel(t.brand), " ", t.id), /*#__PURE__*/React.createElement("span", {
+    }, formatThread(t, {
+      variant: 'short'
+    })), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
         color: "var(--text-secondary)",
         flex: 1
       }
-    }, t.name), /*#__PURE__*/React.createElement("span", {
+    }, formatThread(t, {
+      variant: 'name'
+    })), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 11,
         color: "var(--text-secondary)",
@@ -1771,7 +1777,9 @@ function ManagerApp() {
       border: "1px solid var(--danger-soft)",
       cursor: "pointer"
     },
-    title: "Open thread card for " + formatBrandLabel(c.brand) + " " + c.id,
+    title: "Open thread card for " + formatThread(c, {
+      variant: 'title'
+    }),
     onClick: () => {
       setTab("inventory");
       setThreadFilter("all");
@@ -1794,13 +1802,17 @@ function ManagerApp() {
       fontWeight: 600,
       fontSize: 12
     }
-  }, formatBrandLabel(c.brand), " ", c.id), /*#__PURE__*/React.createElement("span", {
+  }, formatThread(c, {
+    variant: 'short'
+  })), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: "var(--text-secondary)",
       flex: 1
     }
-  }, c.name), /*#__PURE__*/React.createElement("span", {
+  }, formatThread(c, {
+    variant: 'name'
+  })), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: "var(--danger)",
