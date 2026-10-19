@@ -2464,7 +2464,7 @@ const rulerStep=scs<6?10:scs<14?5:1;
 const colRuler=useMemo(()=>Array.from({length:sW},(_,x)=>{
   const show=((x+1)%rulerStep===0||x===0), is10=(x+1)%10===0, is5=(x+1)%5===0;
   return (
-    <div key={x} style={{ width: scs, flexShrink: 0, height: G, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-muted)', fontFamily: 'monospace' }}>
+    <div key={x} style={{ width: scs, flexShrink: 0, height: G, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-tertiary)', fontFamily: 'monospace' }}>
       {show ? (x + 1) : ''}
     </div>
   );
@@ -2472,7 +2472,7 @@ const colRuler=useMemo(()=>Array.from({length:sW},(_,x)=>{
 const rowRuler=useMemo(()=>Array.from({length:sH},(_,y)=>{
   const show=((y+1)%rulerStep===0||y===0), is10=(y+1)%10===0, is5=(y+1)%5===0;
   return (
-    <div key={y} style={{ height: scs, flexShrink: 0, width: G, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-muted)', fontFamily: 'monospace' }}>
+    <div key={y} style={{ height: scs, flexShrink: 0, width: G, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, fontSize: Math.max(9, Math.min(11, scs * 0.6)), fontWeight: is10 ? 'bold' : is5 ? 600 : 400, color: is10 ? 'var(--text-primary)' : is5 ? 'var(--text-secondary)' : 'var(--text-tertiary)', fontFamily: 'monospace' }}>
       {show ? (y + 1) : ''}
     </div>
   );
@@ -5132,14 +5132,14 @@ useEffect(() => {
 }, [done, halfDone, knotsDone, beadsDone, bsDone, partialDone, specialtyDone]);
 useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimerRef.current); }, []);
 
-// ── Zoom-adaptive tier helpers ──
-// Compute rendering tier (1–4) from cell size with hysteresis.
-// Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
 // Counting aids (block counts, run-length badges, ninja stars) are drawn in this neutral
 // style: a light fill with a dark outline and dark text, so they read on any thread colour in either theme.
 const COUNTING_AIDS_INK="#1B1814",COUNTING_AIDS_FILL="rgba(255,255,255,0.94)";
 // Smallest cell (px) at which they are drawn: a badge is 11 px tall, so on smaller cells they pile up.
 const COUNTING_AIDS_MIN_CELL=12;
+// ── Zoom-adaptive tier helpers ──
+// Compute rendering tier (1–4) from cell size with hysteresis.
+// Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
 function computeDetailTier(cSz,cur){
   let t=cur;
   for(let i=0;i<4;i++){let n=t;if(t===1){if(cSz>=5)n=2;}else if(t===2){if(cSz<3)n=1;else if(cSz>=13)n=3;}else if(t===3){if(cSz<10)n=2;else if(cSz>=26)n=4;}else{if(cSz<22)n=3;}if(n===t)break;t=n;}

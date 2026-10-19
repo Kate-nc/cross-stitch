@@ -158,7 +158,9 @@ describe('Tracker counting aids', () => {
     // the gate comes before anything is drawn
     expect(effect.indexOf('scs<COUNTING_AIDS_MIN_CELL')).toBeLessThan(effect.indexOf('const draw=()=>'));
     // a badge is 11 px tall; the minimum must leave room for one per row
-    expect(12).toBeGreaterThanOrEqual(11);
+    const min = Number(/const COUNTING_AIDS_MIN_CELL=(\d+);/.exec(tracker)[1]);
+    const badgeH = Number(/drawBadge\(label,bpx-tw,bpy,tw,(\d+)\)/.exec(effect)[1]);
+    expect(min).toBeGreaterThanOrEqual(badgeH);
   });
 
   test('badges, counts and stars use the neutral dark-outline, light-fill style', () => {
@@ -199,6 +201,15 @@ describe('Highlight hint banner', () => {
     const rules = css.match(/\.tracker-hint-banner[^{]*\{[^}]*\}/g).join('\n');
     expect(rules).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
     expect(rules).not.toMatch(/rgba?\(/);
+  });
+});
+
+describe('Tracker ruler digits', () => {
+  test('the small numbers use --text-tertiary, which clears 4.5:1, not --text-muted', () => {
+    const i = tracker.indexOf('const colRuler=useMemo');
+    const block = tracker.slice(i, tracker.indexOf('const skeinData=useMemo', i));
+    expect(block).not.toMatch(/text-muted/);
+    expect((block.match(/'var\(--text-tertiary\)'/g) || []).length).toBe(2);
   });
 });
 
