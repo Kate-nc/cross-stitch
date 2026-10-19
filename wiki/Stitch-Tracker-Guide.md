@@ -94,6 +94,8 @@ The fade level, tint colour and Spotlight dimming are set in **Preferences > Sti
 
 **C** toggles a 10×10 grid overlay that matches the bold lines on printed charts.
 
+In Highlight view with a colour selected, counting aids also show the stitches of that colour left in each block, the length of each run, and a star on confetti stitches (a stitch with no neighbour of the same colour). They are drawn as dark-outlined light badges so they read on any thread colour, in light or dark mode, and they are hidden when the cells are smaller than 12 px, where they would overlap. Counting aids are off for new users; your choice is remembered.
+
 ## Work Areas
 
 On a large pattern, a work area shows just the part you're stitching.
