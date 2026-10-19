@@ -82,8 +82,7 @@
 
   function fmtHours(h) {
     if (h == null) return "";
-    if (h < 1) return "under 1 hr";
-    return "about " + Math.round(h) + " hr" + (Math.round(h) === 1 ? "" : "s");
+    return typeof window.estFormatHours === "function" ? window.estFormatHours(h) : "about " + Math.round(h) + " hours";
   }
 
   window.CreatorCompareStrip = function CreatorCompareStrip(props) {

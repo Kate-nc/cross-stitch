@@ -8435,7 +8435,7 @@ return(
       timeRows.push(['Speed' + (timeEst ? ' (estimated)' : ''), `${speedPerHour.toLocaleString('en-GB')} st/hr`]);
       const leftAll = Math.max(0, combinedTotal - combinedDone);
       if (leftAll > 0) {
-        timeRows.push(['Time remaining', fmtL(Math.round(leftAll/speedPerHour*3600))]);
+        timeRows.push(['Time remaining', estimateText(leftAll/speedPerHour, completionEstimate&&completionEstimate.enough?completionEstimate.calendarDaysRemaining:0)]);
       }
     }
     // One estimate for the finish date, with what it is based on (the same one the Stats pages use).

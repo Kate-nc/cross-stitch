@@ -7132,7 +7132,7 @@ window.useCreatorState = function useCreatorState() {
     return typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0;
   });
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
-  var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
+  var _stitchSpeed = useState(typeof DEFAULT_STITCH_SPEED !== "undefined" ? DEFAULT_STITCH_SPEED : 40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
   // Polish 13 step 4a — snapshot of source values at the time of last
   // successful generation. Used by the Dimensions / Palette tabs to show
@@ -15020,8 +15020,7 @@ window.usePreview = function usePreview(state) {
 
   function fmtHours(h) {
     if (h == null) return "";
-    if (h < 1) return "under 1 hr";
-    return "about " + Math.round(h) + " hr" + (Math.round(h) === 1 ? "" : "s");
+    return typeof window.estFormatHours === "function" ? window.estFormatHours(h) : "about " + Math.round(h) + " hours";
   }
 
   window.CreatorCompareStrip = function CreatorCompareStrip(props) {
@@ -22304,7 +22303,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 /* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
    Depends on: Section, SliderRow (components.js),
-               fmtTimeL, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
+               fmtTimeL, estimateText, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
@@ -22341,13 +22340,13 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           h("div", null,
             h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
             h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}},
-              fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
+              estimateText(ctx.totalStitchable / ctx.stitchSpeed)
             )
           ),
           h("div", null,
             h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"var(--success)":"var(--accent)"}},
-              ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
+              ctx.doneCount >= ctx.totalStitchable ? "Done!" : estimateText((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed)
             )
           )
         ),
@@ -22871,7 +22870,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   var stitchable = (typeof props.totalStitchable === "number") ? props.totalStitchable : null;
   var doneCount = (typeof props.doneCount === "number") ? props.doneCount : 0;
   var stitchSpeed = (typeof props.stitchSpeed === "number" && props.stitchSpeed > 0) ? props.stitchSpeed : 30;
-  var fmt = (typeof window.fmtTimeL === "function") ? window.fmtTimeL : function(s) { return Math.round(s/3600) + "h"; };
+  // The one time-estimate wording (helpers.js estimateText): "about 424 hours".
+  var fmtEst = (typeof window.estimateText === "function") ? window.estimateText : function(hrs) { return "about " + Math.round(hrs) + " hours"; };
 
   function row(label, value) {
     return [
@@ -22907,11 +22907,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var estimateRows = [];
   if (stitchable != null) {
-    var totalSeconds = Math.round(stitchable / stitchSpeed * 3600);
-    estimateRows.push.apply(estimateRows, row("Time @ " + stitchSpeed + "/hr", fmt(totalSeconds)));
+    estimateRows.push.apply(estimateRows, row("Time @ " + stitchSpeed + "/hr", fmtEst(stitchable / stitchSpeed)));
     if (doneCount > 0 && doneCount < stitchable) {
-      var remainSeconds = Math.round((stitchable - doneCount) / stitchSpeed * 3600);
-      estimateRows.push.apply(estimateRows, row("Remaining", fmt(remainSeconds)));
+      estimateRows.push.apply(estimateRows, row("Remaining", fmtEst((stitchable - doneCount) / stitchSpeed)));
     }
   }
 

@@ -20,7 +20,7 @@
     var useState = R.useState;
 
     const[skeinPrice,setSkeinPrice]=useState(typeof DEFAULT_SKEIN_PRICE!=='undefined'?DEFAULT_SKEIN_PRICE:0.95);
-    const[stitchSpeed,setStitchSpeed]=useState(40);
+    const[stitchSpeed,setStitchSpeed]=useState(typeof DEFAULT_STITCH_SPEED!=='undefined'?DEFAULT_STITCH_SPEED:40);
     const[statsSettings,setStatsSettings]=useState({dailyGoal:null,weeklyGoal:null,monthlyGoal:null,targetDate:null,dayEndHour:0,stitchingSpeedOverride:null,useActiveDays:true});
 
     return { skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed, statsSettings, setStatsSettings };

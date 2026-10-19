@@ -1673,23 +1673,12 @@ const ProjectStorage = (() => {
       }
     },
 
-    // Return lifetime stitch count across all projects from stitchLog.
-    // Falls back to statsSessions for projects that were last saved before
-    // stitchLog derivation was added to the tracker's buildSnapshot.
+    // Lifetime stitch count: the stitches marked across all projects, in units, summed from each project's own
+    // progress row (the figure its Tracker, Home card and Library card show). It used to add up finished session
+    // records, which left a project with marks but no finished session at 0 beside "16,934 left".
     async getLifetimeStitches() {
       try {
-        const projects = await this.listProjects();
-        let total = 0;
-        for (const meta of projects) {
-          const proj = await this.get(meta.id);
-          if (!proj) continue;
-          if (proj.stitchLog && proj.stitchLog.length > 0) {
-            for (const entry of proj.stitchLog) total += entry.count;
-          } else if (proj.statsSessions && proj.statsSessions.length > 0) {
-            for (const s of proj.statsSessions) total += ProgressUnits.sessionNet(s) || 0;
-          }
-        }
-        return total;
+        return ProgressUnits.sumRows(await this.listProjects()).doneUnits;
       } catch (e) { return 0; }
     },
 

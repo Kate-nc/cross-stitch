@@ -229,7 +229,7 @@ var OverviewCards=React.memo(function OverviewCards({statsSessions, totalComplet
         ? [
             React.createElement("span", {key:"v", className:"stats-value"}, estFormatDate(stats.estimate.finishDate)),
             React.createElement("span", {key:"r", className:"stats-sublabel"}, stats.estimate.rangeText),
-            stats.hoursRemaining != null && React.createElement("span", {key:"h", className:"stats-sublabel"}, (stats.hoursRemaining < 1 ? '< 1' : '~' + Math.ceil(stats.hoursRemaining)) + (Math.ceil(stats.hoursRemaining) === 1 ? ' hr' : ' hrs') + ' stitching'),
+            stats.hoursRemaining != null && React.createElement("span", {key:"h", className:"stats-sublabel"}, estFormatHours(stats.hoursRemaining) + ' of stitching'),
             React.createElement("span", {key:"b", className:"stats-sublabel stats-estimate-basis"}, stats.estimate.basis)
           ]
         : React.createElement("span", {className:"stats-value"}, stats.estimate ? stats.estimate.text : '\u2014')),

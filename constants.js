@@ -8,6 +8,9 @@ function fabricShortLabel(ct){return ct+"ct"+(stitchOverFor(ct)===2?" over 2":""
 if(typeof window!=="undefined"){window.stitchOverFor=stitchOverFor;window.fabricShortLabel=fabricShortLabel;}
 // Default DMC skein price in GBP
 const DEFAULT_SKEIN_PRICE=0.95;
+// Default stitching speed in stitches per hour: the Creator and Tracker sliders start here, and a time estimate with no
+// stitching history of its own (a Library card for a project not started yet) uses it too, so they agree.
+const DEFAULT_STITCH_SPEED=40;
 
 const A4W=50,A4H=75;
 const CK=4;

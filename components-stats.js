@@ -1771,14 +1771,18 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
   }, [projectSummaries]);
 
   var lifetimeTotals = React.useMemo(function() {
-    var totalStitches = allSessions.reduce(function(s, sess) { return s + (ProgressUnits.sessionAdded(sess) || 0); }, 0);
+    // "Total stitches" is what is marked on the charts now, summed from each project's own progress, so it agrees with the
+    // Tracker, Home and the project cards. Speed is different: it needs the stitches added in recorded sessions to go with
+    // their time, so that figure still comes from the session records.
+    var sessionStitches = allSessions.reduce(function(s, sess) { return s + (ProgressUnits.sessionAdded(sess) || 0); }, 0);
+    var totalStitches = ProgressUnits.sumRows(projectSummaries).doneUnits;
     var totalSeconds = allSessions.reduce(function(s, sess) { return s + getSessionSeconds(sess); }, 0);
     var totalHours = totalSeconds / 3600;
     var activeDays = new Set(allSessions.filter(ProgressUnits.sessionActive).map(function(s) { return s.date; }).filter(Boolean)).size;
-    var speed = totalHours > 0 ? Math.round(totalStitches / totalHours) : 0;
+    var speed = totalHours > 0 ? Math.round(sessionStitches / totalHours) : 0;
     var complete = projectSummaries.filter(function(p) { return p.isComplete; }).length;
     var total = projectSummaries.length;
-    return {totalStitches: totalStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total, estimated: sessionsTimeIsEstimated(allSessions)};
+    return {totalStitches: totalStitches, sessionStitches: sessionStitches, totalSeconds: totalSeconds, activeDays: activeDays, speed: speed, complete: complete, total: total, estimated: sessionsTimeIsEstimated(allSessions)};
   }, [allSessions, projectSummaries]);
 
   var mot = useMotivationPrefs();     // streaks, goals and celebrations on or off (Preferences)
@@ -1922,7 +1926,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
     React.createElement('div', {className: 'bento-cell bento-cell--xl'},
       React.createElement('h3', {className: 'gsd-section-label'}, 'All time'),
       React.createElement('div', {className: 'gsd-metrics'},
-        React.createElement(MetricCard, {label: 'Total stitches', value: lifetimeTotals.totalStitches.toLocaleString('en-GB'), sub: 'across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
+        React.createElement(MetricCard, {label: 'Total stitches', value: ProgressUnits.formatUnits(lifetimeTotals.totalStitches), sub: 'marked across ' + lifetimeTotals.total + ' project' + (lifetimeTotals.total !== 1 ? 's' : '')}),
         React.createElement(MetricCard, {label: 'Time stitching' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: formatDurationCompact(lifetimeTotals.totalSeconds), sub: lifetimeTotals.activeDays + ' active days'}),
         React.createElement(MetricCard, {label: 'Average speed' + (lifetimeTotals.estimated ? ' (estimated)' : ''), value: lifetimeTotals.speed, sub: 'stitches / hour'}),
         recentPace && recentPace.activeDays > 0 && React.createElement(MetricCard, {label: 'Recent pace', value: Math.round(recentPace.pacePerDay).toLocaleString('en-GB'), sub: 'stitches / stitching day'}),
@@ -1984,7 +1988,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
         statsSessions: allSessions,
         totalCompleted: allSessions.reduce(function(s, x) { return s + (ProgressUnits.sessionNet(x) || 0); }, 0),
         totalStitches: projectSummaries.reduce(function(s, p) { return s + p.totalStitches; }, 0),
-        overviewStats: computeOverviewStats(allSessions, lifetimeTotals.totalStitches, lifetimeTotals.totalStitches, true),
+        overviewStats: computeOverviewStats(allSessions, lifetimeTotals.sessionStitches, lifetimeTotals.sessionStitches, true),
         onUpdateSettings: updateGlobalGoals
       })
     ),

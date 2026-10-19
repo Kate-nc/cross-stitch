@@ -10,4 +10,8 @@ Examples: 2,499 / 2,500 displays 99.9%, incomplete. One done full and one pendin
 
 Full-stitch marks use existing incremental counters. Half-mark invalidation updates half counts without rescanning the full pattern. Structural changes, loads and undo may rebuild counters.
 
+Totals across projects (Stats "Total stitches" and "Lifetime") are the marked units summed from each project's progress row with `ProgressUnits.sumRows`, so they agree with that project's Tracker, Home and Library figures and count marks straight away. They are not summed from finished session records: a session is recorded only when it ends, so a project with marks but no finished session would read 0. Speed and time stay session-based, because they need the stitches added in recorded time. Each Library card shows progress once (a bar with its percentage; the counts are its hover text).
+
+Time estimates use one wording, from `estimateText` in helpers.js: stitching hours, then, when there is a recent pace, calendar time ("about 424 hours, about 4 weeks at your pace"). With no history, hours use `DEFAULT_STITCH_SPEED` (40 stitches an hour), the same default as the Creator and Tracker sliders.
+
 Petite crosses and long stitches are independent `specialtyStitches` objects, marked by stable ID in `specialtyDone`. Petite = 0.25 units; long stitch = 0.5 units per whole segment, independent of length. They count in project and colour completion, including over an occupied full-cross cell, and use the same synchronous session accounting and causal unmark semantics. See [lifecycle and compatibility](petite-long-lifecycle.md).

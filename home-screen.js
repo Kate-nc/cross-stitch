@@ -128,20 +128,30 @@ function getProjectState(proj, overrides) {
   return inferProjectState(proj);
 }
 
-// Estimate remaining hours for a project.
+// Estimate remaining hours for a project. A project with no stitching history yet uses the default speed, the one the
+// Creator and Tracker start with, so a card and the Creator give the same figure for the same chart.
 function estimateRemainingHours(proj) {
   var remaining = (proj.totalStitches || 0) - (proj.completedStitches || 0);
   if (remaining <= 0) return 0;
-  var speed = proj.stitchesPerHour > 0 ? proj.stitchesPerHour : 100;
+  var fallback = typeof DEFAULT_STITCH_SPEED !== 'undefined' ? DEFAULT_STITCH_SPEED : 40;
+  var speed = proj.stitchesPerHour > 0 ? proj.stitchesPerHour : fallback;
   return remaining / speed;
 }
 
-function fmtHours(h) {
-  if (h < 1) return '<1 hr';
-  if (h < 100) return Math.round(h) + ' hrs';
-  var days = Math.round(h / 6); // assume ~6hr/day
-  if (days < 30) return '\u2248' + days + ' days';
-  return '\u2248' + Math.round(days / 7) + ' weeks';
+// The card's estimate in the one wording (helpers.js estimateText): "about 424 hours, about 4 weeks at your pace". The
+// calendar part needs the project's recent pace (paceDaily on its row), so it is left out until there is some.
+function estimateRemainingText(proj) {
+  var hours = estimateRemainingHours(proj);
+  if (!(hours > 0)) return '';
+  var days = 0;
+  if (proj.paceDaily && typeof estimateFromPace === 'function' && typeof paceFromDaily === 'function') {
+    var today = getStitchingDate(new Date(), getDayEndHour());
+    var pace = paceFromDaily(proj.paceDaily, proj.firstActiveDate, today, proj.activeDaysTotal);
+    var remaining = (proj.totalStitches || 0) - (proj.completedStitches || 0);
+    var est = estimateFromPace(pace, remaining, { today: today, percent: ProgressUnits.percent(proj.completedStitches || 0, proj.totalStitches || 0) });
+    if (est.enough) days = est.calendarDaysRemaining;
+  }
+  return estimateText(hours, days);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -202,7 +212,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
   var pct = ts > 0 ? ProgressUnits.percent(cs, ts) : 0;
   var days = daysBetween(proj.lastSessionDate || proj.updatedAt);
   var isNeglected = days != null && days >= 13;
-  var remHours = estimateRemainingHours(proj);
+  var remText = estimateRemainingText(proj);
   var weekSt = proj.stitchesThisWeek || 0;
   var weekSess = 0; // not stored in meta, skip for now
   var dim = proj.dimensions ? (proj.dimensions.width + '\u00D7' + proj.dimensions.height) : '';
@@ -346,9 +356,6 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         h('div', { className: 'mpd-card-name', onClick: nameClick },
           proj.name || 'Untitled'
         ),
-        h('div', { className: 'mpd-card-pct' + (pct >= 100 ? ' mpd-card-pct--done' : '') },
-          pct + '%'
-        )
       ),
       // Stash-Manager-only badge — surfaced on entries that exist in the
       // Manager pattern library but have no linked Creator/Tracker project.
@@ -369,9 +376,13 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       // Optional per-card extras supplied by the parent (e.g. Manager
       // shopping-list checkbox + missing-thread badge).
       cardExtras ? h('div', { className: 'mpd-card-extras', style: { marginBottom:'var(--s-2)' } }, cardExtras(proj)) : null,
-      // Progress bar
-      h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100 },
-        h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
+      // Progress, shown once: the bar with its percentage beside it (the stitch counts are the hover text). A manager-only
+      // entry has no tracked stitches, so it has no progress to show.
+      ts > 0 && h('div', { className: 'mpd-card-progress', title: ProgressUnits.formatUnits(cs) + ' of ' + ProgressUnits.formatUnits(ts) + ' stitches' },
+        h('div', { className: 'mpd-card-progress-track', role: 'progressbar', 'aria-label': 'Progress', 'aria-valuenow': pct, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuetext': pct + '% stitched' },
+          h('div', { className: 'mpd-card-progress-fill', style: { width: Math.min(100, pct) + '%' } })
+        ),
+        h('span', { className: 'mpd-card-pct' + (pct >= 100 ? ' mpd-card-pct--done' : ''), 'aria-hidden': 'true' }, pct + '%')
       ),
       // Metadata row
       (dim || fabricCt || threadCount > 0) ? h('div', { className: 'mpd-card-meta' },
@@ -398,8 +409,8 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
         'This week: ' + weekSt.toLocaleString('en-GB') + ' stitches'
       ),
       // Time estimate
-      remHours > 0 && h('div', { className: 'mpd-card-estimate' },
-        'Est. remaining: ' + fmtHours(remHours)
+      remText && h('div', { className: 'mpd-card-estimate' },
+        'Est. remaining: ' + remText
       ),
       // Footer row: stash + continue
       h('div', { className: 'mpd-card-footer' },
@@ -448,7 +459,7 @@ function CompactProjectRow({ proj, state, onOpen, onChangeState }) {
   } else if (state === 'complete') {
     var completedAt = proj.updatedAt;
     detail = completedAt ? 'Completed ' + new Date(completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Completed';
-    if (proj.totalMinutes > 0) detail += ' \u00B7 ' + Math.round(proj.totalMinutes / 60) + ' hrs';
+    if (proj.totalMinutes > 0) detail += ' \u00B7 ' + (typeof fmtTimeL === 'function' ? fmtTimeL(proj.totalMinutes * 60) : Math.round(proj.totalMinutes / 60) + ' hours');
   } else {
     detail = dim;
   }
@@ -2492,5 +2503,5 @@ if (typeof window !== 'undefined') {
   window.ProjectCard = ProjectCard;
   window.CompactProjectRow = CompactProjectRow;
   window.StateChangeMenu = StateChangeMenu;
-  window.HomeProjectHelpers = { daysBetween, inferProjectState, getProjectState, estimateRemainingHours, fmtHours, getSuggestion };
+  window.HomeProjectHelpers = { daysBetween, inferProjectState, getProjectState, estimateRemainingHours, estimateRemainingText, getSuggestion };
 }
