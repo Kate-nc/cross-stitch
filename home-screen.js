@@ -355,7 +355,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
       h('div', { className: 'mpd-card-top' },
         h('div', { className: 'mpd-card-name', onClick: nameClick },
           proj.name || 'Untitled'
-        ),
+        )
       ),
       // Stash-Manager-only badge — surfaced on entries that exist in the
       // Manager pattern library but have no linked Creator/Tracker project.

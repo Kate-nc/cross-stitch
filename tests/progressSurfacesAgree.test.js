@@ -155,6 +155,8 @@ describe('one time-estimate wording', () => {
   test('estFormatHours and estimateText', () => {
     expect(estFormatHours(0)).toBe('');
     expect(estFormatHours(0.4)).toBe('under an hour');
+    expect(estFormatHours(Infinity)).toBe('');   // a speed of 0 gives no figure, not "about Infinity hours"
+    expect(estFormatHours(NaN)).toBe('');
     expect(estFormatHours(1)).toBe('about 1 hour');
     expect(estFormatHours(423.35)).toBe('about 423 hours');
     expect(estFormatHours(1234.6)).toBe('about 1,235 hours');

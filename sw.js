@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "a39cce2c4f37109704a61408c4392cd2a928400c1630695e666c5bbad3b1559b";
+var BUILD_ID = "8531e67b0a9b76a49fea9d417feea7c26b4f6f01c68597cfe3b556f8fdcaf4f6";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -341,7 +341,7 @@ var BUILD_ASSETS = {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "37191a8b77df5ec8eea6e07e1ec0c98f9b644d77565cca14e0e3d11e284d14a3"
+    "sha256": "b23f361c57f1379bd7910caace40cc0853fe1dc8543405db11247d314b5799fd"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -428,7 +428,7 @@ var BUILD_ASSETS = {
     "sha256": "ff0a0bd69e9fdd321b35d9fd04670413f3aa6c2a2e00fa2ba7f999bbfc7805e3"
   },
   "./home-screen.js": {
-    "sha256": "dcd032958e2f02e05482a37c0918ada4a3b4fd26dc18b67aa646767e552e6e20"
+    "sha256": "85883f91eaccd9aad3042dc212e85e9feb7669442be07c206b40a328b7e0987c"
   },
   "./home-app.js": {
     "sha256": "2fce8b04b4acdeaf7f3586783e2885f8ade34ac498652f69a37cb9b3b7c51dc2"

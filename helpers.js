@@ -1425,7 +1425,7 @@ function estFormatDays(n) {
 // The one way a time-to-finish figure reads everywhere (Creator, Tracker, Home, Library): stitching hours first, then,
 // where there is a pace to say it, calendar time. "about 424 hours, about 4 weeks at your pace".
 function estFormatHours(hours) {
-  if (!(hours > 0)) return '';
+  if (!(hours > 0) || !isFinite(hours)) return '';   // no hours, or a speed of 0
   if (hours < 1) return 'under an hour';
   var n = Math.round(hours);
   return 'about ' + n.toLocaleString('en-GB') + (n === 1 ? ' hour' : ' hours');
