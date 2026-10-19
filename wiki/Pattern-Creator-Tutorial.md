@@ -291,7 +291,7 @@ The **Project** page estimates this from your own stitching speed.
 | **22-count** | Very small | 4.5 inches |
 | **28-count linen (over two)** | Same as 14-count | 7.1 inches |
 
-Set the fabric count before exporting so the finished size and thread estimates are right.
+Set the fabric count before exporting so the finished size and thread estimates are right. You change it in **Convert > Size & fabric** or **Edit > Project > Fabric**; they are the same setting. **Materials** shows the count read-only with an **Edit** link back to Edit > Project > Fabric.
 
 ## Next Steps
 
