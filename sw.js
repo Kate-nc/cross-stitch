@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "bb175c530266d33cabeecdd74f5ee8f4a2597e187cffd6eee8028a7016b0c3c5";
+var BUILD_ID = "e973a1928e14c4ad5fbea73817980a9d19d328133ac2ecfac1e2ad44a175a695";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -308,7 +308,7 @@ var BUILD_ASSETS = {
     "sha256": "b09eeccd19842038e180a5a3fcc8d155988f172eb8434717d396a73dc3d87e63"
   },
   "./version.js": {
-    "sha256": "133d8e5a30fad8ba5032ef9f177d9cdd11743c23247bf07d932b475bbb39e444"
+    "sha256": "d5e83bb7e372cefeb00e8b2d604b5bd1aeb647a6d7b9c293404fabe4845729ae"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -434,7 +434,7 @@ var BUILD_ASSETS = {
     "sha256": "89b377cb88fee53d7d14c92db9b33f59588e95389d000e3b34f8a5ff00defb19"
   },
   "./palette-swap.js": {
-    "sha256": "6ad95e6570ea633686aa0f96139eff3b9c1046745dd9d661901a5e813c21fcdb"
+    "sha256": "cad04f317b4e9456ff7e1f04614098f9fa26db0d1819e2a4a759b9fdabad0b86"
   },
   "./user-prefs.js": {
     "sha256": "2d10cc906dd3afa2abc0824f110d99b8acdbc024c05f28ba2bec29d3218b129c"
@@ -443,7 +443,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "00cd7d3e49acf8accf3297e5b8ab4afbafe889164c1a71e503ee6c00ccba077e"
+    "sha256": "17af6136ab6eb6d8f894b16e41a539c65dd1068f5725aab9a4127fcce861853d"
   },
   "./creator/extras-bundle.js": {
     "sha256": "1fa8fd53d572d294c1848c5060753241414001effd17f11f75ba43e996a55bce"
@@ -548,7 +548,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "76a0f8c2db0e692f02ba92f7926fd1ec1852ce77b90952e5b6c1fb756cea4593"
+    "sha256": "1f21271e528588c1c3b3d05f366eab026d782b4516f71c4c5687faf4241834b5"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
