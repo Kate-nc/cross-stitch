@@ -3809,7 +3809,8 @@ function PatternDetailsModal({
       }, {
         fabricCount: settings.fabricCount,
         strandsUsed: settings.strandsUsed,
-        wasteFactor: settings.wasteFactor
+        wasteFactor: settings.wasteFactor,
+        skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0
       }) : null;
       return {
         ...t,

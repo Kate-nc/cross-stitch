@@ -216,9 +216,19 @@ function rtThreadUsage(pattern, done, fabricCount, prefs) {
 // the key rows added up.
 const KEY_WASTE_FACTOR = 0.20;
 
+// A brand's skein length in metres (BRAND_SKEIN_LENGTH, matched without regard to case: "madeira" and "Madeira"),
+// or the 8 m default for a brand it does not list.
+function skeinLengthForBrand(brand) {
+  const want = String(brand == null ? '' : brand).toLowerCase();
+  const key = Object.keys(BRAND_SKEIN_LENGTH).find(function (k) { return k.toLowerCase() === want; });
+  return key ? BRAND_SKEIN_LENGTH[key] : 8.0;
+}
+
 // entry: a palette entry ({ count, type, blendRatio? }) or a library thread
 // ({ qty... } is not read; pass count). opts: { fabricCount, strandsUsed,
-// wasteFactor }. Returns { isBlend, count, strands: [n] | [a, b],
+// wasteFactor, skeinLengthM }. The skein length is opts.skeinLengthM when
+// given (the Manager passes its own), else the entry's brand's (a Madeira
+// skein is 10 m), else 8 m. Returns { isBlend, count, strands: [n] | [a, b],
 // skeins: [exact] | [a, b], toBuy: [whole skeins, at least 1 once stitched] }.
 function threadKeyUsage(entry, opts) {
   opts = opts || {};
@@ -227,6 +237,7 @@ function threadKeyUsage(entry, opts) {
   const strandsUsed = Number.isFinite(opts.strandsUsed) && opts.strandsUsed > 0 ? opts.strandsUsed : BASE_STRANDS;
   const wasteFactor = opts.wasteFactor == null ? KEY_WASTE_FACTOR : opts.wasteFactor;
   const count = Number.isFinite(Number(e.count)) && Number(e.count) > 0 ? Number(e.count) : 0;
+  const skeinLengthM = Number.isFinite(opts.skeinLengthM) && opts.skeinLengthM > 0 ? opts.skeinLengthM : skeinLengthForBrand(e.brand);
   const isBlend = e.type === 'blend' || !!e.is_blended || (typeof e.id === 'string' && e.id.indexOf('+') > 0);
   let strands;
   if (isBlend) {
@@ -237,7 +248,7 @@ function threadKeyUsage(entry, opts) {
   }
   // A symbol with any stitches never reads as exactly zero skeins, however few (stitchesToSkeins rounds a tiny amount to 0).
   const skeins = strands.map(function (n) {
-    const exact = stitchesToSkeins({ stitchCount: count, fabricCount: fabricCount, strandsUsed: n, wasteFactor: wasteFactor }).skeinsExact;
+    const exact = stitchesToSkeins({ stitchCount: count, fabricCount: fabricCount, strandsUsed: n, wasteFactor: wasteFactor, skeinLengthM: skeinLengthM }).skeinsExact;
     return count > 0 ? Math.max(exact, 0.001) : exact;
   });
   const toBuy = skeins.map(function (x) { return count > 0 ? Math.max(1, Math.ceil(x)) : 0; });
@@ -306,6 +317,7 @@ if (typeof module !== 'undefined' && module.exports) {
         threadCostPerStitch,
         rtThreadUsage,
         KEY_WASTE_FACTOR,
+        skeinLengthForBrand,
         threadKeyUsage,
         formatSkeins,
         threadUsageParts,

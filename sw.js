@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "e4afa9acf0723df40d056009705c12583e304387cb8e5d29ec01be28d2b35ed4";
+var BUILD_ID = "aed22724ea638db3551bb6171f6ecf6111864ef5177834d9f823af6e8a27e58e";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -392,7 +392,7 @@ var BUILD_ASSETS = {
     "sha256": "a381bdbe7ae62bcfb0ded02dc59c8f3ef81509cb150b3da4f7ee0f9f3e74b546"
   },
   "./threadCalc.js": {
-    "sha256": "42c0116f69088df1b8f9990805902d5657ad3c8e7a1646817b21603dc1d18706"
+    "sha256": "3d2e9bd03b3a2b7d30e4d62ce999de8b19d40818e5535a6834b5d30cb9312762"
   },
   "./pattern-size-calc.js": {
     "sha256": "f8d743b60550770510ef77b0e06f5eb333ed0479e057e425a2ad826cef8c8d91"
@@ -461,7 +461,7 @@ var BUILD_ASSETS = {
     "sha256": "ba933c94c9e019aa88602e5ef2276c1db47917cb77786e011c9f5113b0088ec6"
   },
   "./compiled/manager-app.compiled.js": {
-    "sha256": "6027b6e17d30a4b46fb6c04a808091de1cd90ff4304ecb84ef2c52a92d1c1b49"
+    "sha256": "942867e93660d316b2af58c4e66baf094c87c2ee3cb23ffbe48c0831c8b23b41"
   },
   "./compiled/embroidery.compiled.js": {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"

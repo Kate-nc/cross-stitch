@@ -83,6 +83,25 @@ describe('threadKeyUsage: the strands and skeins a symbol takes', () => {
     expect(calc.threadKeyUsage({ count: 900 }, { fabricCount: 11 }).skeins[0]).toBeGreaterThan(0.8);
   });
 
+  test('a brand\'s own skein length is used: a 10 m Madeira skein goes further than an 8 m DMC one', () => {
+    const dmc = calc.threadKeyUsage({ count: 900, brand: 'dmc' }, { fabricCount: 14, wasteFactor: 0.2 });
+    const madeira = calc.threadKeyUsage({ count: 900, brand: 'Madeira' }, { fabricCount: 14, wasteFactor: 0.2 });
+    expect(dmc.skeins).toEqual([0.8]);
+    expect(madeira.skeins).toEqual([0.64]);
+    expect(calc.threadKeyUsage({ count: 900, brand: 'madeira' }, { fabricCount: 14 }).skeins).toEqual([0.64]);
+    expect(calc.threadKeyUsage({ count: 900, brand: 'anchor' }, { fabricCount: 14 }).skeins).toEqual([0.8]);
+    // An explicit length wins, as the Manager passes its own.
+    expect(calc.threadKeyUsage({ count: 900, brand: 'dmc' }, { fabricCount: 14, skeinLengthM: 10 }).skeins).toEqual([0.64]);
+    expect(calc.threadKeyUsage({ count: 900, type: 'blend', brand: 'Madeira' }, { fabricCount: 14 }).skeins).toEqual([0.32, 0.32]);
+    expect(calc.skeinLengthForBrand('Cosmo')).toBe(8);
+    expect(calc.skeinLengthForBrand('unknown')).toBe(8);
+    expect(calc.skeinLengthForBrand(undefined)).toBe(8);
+  });
+
+  test('the Manager hands its brand skein length to the key usage', () => {
+    expect(/skeinLengthM: BRAND_SKEIN_LENGTH\[t\.brand \|\| settings\.threadBrand\] \|\| 8\.0 \}\)\s*: null;/.test(read('manager-app.js'))).toBe(true);
+  });
+
   test('an uneven blend ratio sets the strands of each thread', () => {
     const u = calc.threadKeyUsage({ count: 900, type: 'blend', blendRatio: [1, 2] }, { fabricCount: 14 });
     expect(u.strands).toEqual([1, 2]);

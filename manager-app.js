@@ -2247,7 +2247,7 @@ function PatternDetailsModal({ pattern, onClose, onEdit, inventoryThreads, userP
        // The strands and skeins each thread takes, as the Creator and Tracker keys show them (UX-014). A project's blend
        // arrives as one combined id ("341+826") without the is_blended fields.
        const keyUsage = t.unit === "stitches" && typeof threadKeyUsage === "function"
-         ? threadKeyUsage({ ...t, count: t.qty }, { fabricCount: settings.fabricCount, strandsUsed: settings.strandsUsed, wasteFactor: settings.wasteFactor })
+         ? threadKeyUsage({ ...t, count: t.qty }, { fabricCount: settings.fabricCount, strandsUsed: settings.strandsUsed, wasteFactor: settings.wasteFactor, skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0 })
          : null;
 
        return {
