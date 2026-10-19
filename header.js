@@ -673,7 +673,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         var s = check.summary;
         var when = s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : 'unknown date';
         var msg = 'Restore backup from ' + when + '?\n\n'
-          + s.projectCount + ' projects \u00b7 ' + s.threadCount + ' owned threads \u00b7 ' + s.patternCount + ' patterns'
+          + plural(s.projectCount, 'project') + ' \u00b7 ' + plural(s.threadCount, 'owned thread') + ' \u00b7 ' + plural(s.patternCount, 'pattern')
           + '\n\n' + s.completeness + '. Existing projects are retained. Identical records are skipped; conflicting IDs stop the import. Portable settings in this file replace your current choices. Reload after restoring.';
         window.ConfirmDialog.show({
           title: 'Restore from backup?',

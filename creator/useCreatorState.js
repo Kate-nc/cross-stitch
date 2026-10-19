@@ -329,9 +329,10 @@ function creatorThreadCounts(pal) {
   return { threads: threads, symbols: symbols, blends: blends };
 }
 
-function _threadPlural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+function _threadPlural(n, one, many) { return n.toLocaleString('en-GB') + ' ' + (n === 1 ? one : many); }
 // "24 threads, 40 chart symbols (16 are blends of two threads)", or
-// "24 threads" when there are no blends.
+// "24 threads" when there are no blends. Callers put it in running text, never
+// inside another pair of brackets.
 function threadCountsSentence(c) {
   var s = _threadPlural(c.threads, 'thread', 'threads');
   if (!c.blends) return s;
@@ -1890,7 +1891,7 @@ window.useCreatorState = function useCreatorState() {
     var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
       ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
       : null;
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
+    addToast("Pattern generated and saved \u2014 now editing at " + sW + "\u00D7" + sH + " with " + counts + ". Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});

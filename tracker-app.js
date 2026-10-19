@@ -9265,7 +9265,7 @@ return(
           {STITCH_LAYERS.map(layer=>
             <label key={layer.id} title={layer.key?"Shortcut: "+layer.key:undefined} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
               <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
-              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({layerCounts[layer.id]})</span>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({fmtNum(layerCounts[layer.id])})</span>
             </label>
           )}
           <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
