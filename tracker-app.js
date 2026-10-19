@@ -5135,6 +5135,11 @@ useEffect(() => () => { if (progressTimerRef.current) clearTimeout(progressTimer
 // ── Zoom-adaptive tier helpers ──
 // Compute rendering tier (1–4) from cell size with hysteresis.
 // Thresholds — appear/disappear: T1↔T2 5px/3px, T2↔T3 13px/10px, T3↔T4 26px/22px
+// Counting aids (block counts, run-length badges, ninja stars) are drawn in this neutral
+// style: a light fill with a dark outline and dark text, so they read on any thread colour in either theme.
+const COUNTING_AIDS_INK="#1B1814",COUNTING_AIDS_FILL="rgba(255,255,255,0.94)";
+// Smallest cell (px) at which they are drawn: a badge is 11 px tall, so on smaller cells they pile up.
+const COUNTING_AIDS_MIN_CELL=12;
 function computeDetailTier(cSz,cur){
   let t=cur;
   for(let i=0;i<4;i++){let n=t;if(t===1){if(cSz>=5)n=2;}else if(t===2){if(cSz<3)n=1;else if(cSz>=13)n=3;}else if(t===3){if(cSz<10)n=2;else if(cSz>=26)n=4;}else{if(cSz<22)n=3;}if(n===t)break;t=n;}
@@ -6095,8 +6100,9 @@ useEffect(()=>{
     clearWholeChartCanvas(canvas);
     return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};
   }
-  const tier=lockDetailLevel?3:tierRef.current;
-  if(tier<2){const p0=prepareOverlayTile(canvas);if(p0)clearOverlayTile(p0.ctx,p0.tile);return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};}
+  // Below this cell size the badges and counts stack on top of each other, so
+  // draw none (the sidebar says to zoom in).
+  if(scs<COUNTING_AIDS_MIN_CELL){const p0=prepareOverlayTile(canvas);if(p0)clearOverlayTile(p0.ctx,p0.tile);return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};}
   const draw=()=>{
     const prep=prepareOverlayTile(canvas);
     if(!prep)return;
@@ -6121,8 +6127,17 @@ useEffect(()=>{
         ctx.lineTo(cx+Math.cos(innerAngle)*ir,cy+Math.sin(innerAngle)*ir);
       }
       ctx.closePath();
-      ctx.fillStyle="rgba(234,88,12,0.85)";ctx.fill();
-      ctx.strokeStyle="rgba(234,88,12,1)";ctx.lineWidth=0.5;ctx.stroke();
+      ctx.fillStyle=COUNTING_AIDS_FILL;ctx.fill();
+      ctx.strokeStyle=COUNTING_AIDS_INK;ctx.lineWidth=1.2;ctx.lineJoin="round";ctx.stroke();
+    }
+    // A badge: light fill, dark outline and dark text, so it reads on any thread colour in either theme.
+    function drawBadge(label,x,y,w,h){
+      ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(x,y,w,h,5);else ctx.rect(x,y,w,h);
+      ctx.fillStyle=COUNTING_AIDS_FILL;ctx.fill();
+      ctx.strokeStyle=COUNTING_AIDS_INK;ctx.lineWidth=1;ctx.stroke();
+      ctx.fillStyle=COUNTING_AIDS_INK;ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(label,x+w/2,y+h/2+0.5);
     }
     const ps=analysisResult&&analysisResult.perStitch;
     // Per-block counts + ninja detection
@@ -6145,29 +6160,31 @@ useEffect(()=>{
         // Draw a small checkmark using canvas strokes (matches Icons.check
         // glyph) instead of rendering the "✓" character — keeps the canvas
         // overlay font-independent and consistent with the SVG icon library.
-        ctx.strokeStyle="#B85C38";
-        ctx.lineWidth=1.4;
         ctx.lineCap="round";
         ctx.lineJoin="round";
         ctx.beginPath();
         ctx.moveTo(px+1,py+5);
         ctx.lineTo(px+3.4,py+7.4);
         ctx.lineTo(px+8,py+2);
-        ctx.stroke();
+        ctx.strokeStyle=COUNTING_AIDS_FILL;ctx.lineWidth=3.6;ctx.stroke();
+        ctx.strokeStyle=COUNTING_AIDS_INK;ctx.lineWidth=1.4;ctx.stroke();
       }else if(isActive){
         const label=String(remaining);
         ctx.font="bold 10px sans-serif";
         ctx.textAlign="left";ctx.textBaseline="top";
         const tw=ctx.measureText(label).width;
-        ctx.fillStyle="rgba(184, 92, 56,0.15)";
         ctx.beginPath();
         if(ctx.roundRect)ctx.roundRect(px-2,py-1,tw+6,13,3);else ctx.rect(px-2,py-1,tw+6,13);
-        ctx.fill();
-        ctx.fillStyle="#B85C38";ctx.fillText(label,px,py);
+        ctx.fillStyle=COUNTING_AIDS_FILL;ctx.fill();
+        ctx.strokeStyle=COUNTING_AIDS_INK;ctx.lineWidth=1;ctx.stroke();
+        ctx.fillStyle=COUNTING_AIDS_INK;ctx.fillText(label,px,py);
       }else{
-        ctx.fillStyle="rgba(0,0,0,0.3)";ctx.font="8px sans-serif";
+        // Other blocks: dark digits with a light halo (the old 30% black was under 3:1 on most threads).
+        ctx.font="bold 9px sans-serif";
         ctx.textAlign="left";ctx.textBaseline="top";
-        ctx.fillText(String(remaining),px,py);
+        ctx.lineJoin="round";ctx.lineWidth=3;ctx.strokeStyle=COUNTING_AIDS_FILL;
+        ctx.strokeText(String(remaining),px,py);
+        ctx.fillStyle=COUNTING_AIDS_INK;ctx.fillText(String(remaining),px,py);
       }
     }}
     // Run-length badges
@@ -6190,12 +6207,7 @@ useEffect(()=>{
                   const label=String(runLen);
                   ctx.font="bold 8px monospace";
                   const tw=Math.max(ctx.measureText(label).width+6,14);
-                  ctx.fillStyle="#B85C38";
-                  ctx.beginPath();
-                  if(ctx.roundRect)ctx.roundRect(bpx-tw,bpy,tw,11,5);else ctx.rect(bpx-tw,bpy,tw,11);
-                  ctx.fill();
-                  ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="top";
-                  ctx.fillText(label,bpx-tw/2,bpy+1.5);
+                  drawBadge(label,bpx-tw,bpy,tw,11);
                 }
                 runStart=-1;runLen=0;
               }
@@ -6217,12 +6229,7 @@ useEffect(()=>{
                   const label=String(runLen);
                   ctx.font="bold 8px monospace";
                   const tw=Math.max(ctx.measureText(label).width+6,14);
-                  ctx.fillStyle="#7c3aed";
-                  ctx.beginPath();
-                  if(ctx.roundRect)ctx.roundRect(bpx,bpy,tw,11,5);else ctx.rect(bpx,bpy,tw,11);
-                  ctx.fill();
-                  ctx.fillStyle="#fff";ctx.textAlign="center";ctx.textBaseline="top";
-                  ctx.fillText(label,bpx+tw/2,bpy+1.5);
+                  drawBadge(label,bpx,bpy,tw,11);
                 }
                 runStart=-1;runLen=0;
               }
@@ -8495,9 +8502,9 @@ return(
       :<span className="completion-projection-text completion-projection-text--none">Estimated finish: {completionEstimate.text}</span>}
   </div>
 )}
-{hlIntroBannerVisible&&!isEditMode&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--surface-secondary)",border:"1px solid var(--accent-light)",borderRadius:'var(--radius-sm)',padding:"6px 10px",fontSize:'var(--text-xs)',color:"var(--accent-text)",marginBottom:'var(--s-1)',gap:'var(--s-2)'}}>
-  <span>Highlight mode — press <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>1</kbd>–<kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>4</kbd> to change style, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>C</kbd> for counting aids, <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>[</kbd> <kbd style={{fontSize:10,padding:"0 3px",border:"1px solid var(--accent-light)",borderRadius:3,background:"var(--surface)"}}>]</kbd> to cycle colours</span>
-  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" className="tracker-dismiss-btn" style={{background:"none",border:"none",cursor:"pointer",color:"var(--accent-light)",flexShrink:0,padding:0,lineHeight:1,display:'inline-flex'}}>{Icons.x?Icons.x():null}</button>
+{hlIntroBannerVisible&&!isEditMode&&<div className={"tracker-hint-banner"+(leftSidebarMode==="open"?" tracker-hint-banner--palette-open":"")}>
+  <span className="tracker-hint-banner__text">Highlight mode — press <kbd>1</kbd>–<kbd>4</kbd> to change style, <kbd>C</kbd> for counting aids, <kbd>[</kbd> <kbd>]</kbd> to cycle colours</span>
+  <button onClick={()=>{setHlIntroBannerVisible(false);clearTimeout(hlIntroTimerRef.current);}} aria-label="Dismiss" className="tracker-dismiss-btn tracker-hint-banner__close">{Icons.x?Icons.x():null}</button>
 </div>}
 {/* The one-time "sessions are tracked" hint is a floating toast (see the
     session-onboarding effect), not a banner here: a banner appeared on the
@@ -9123,6 +9130,7 @@ return(
             <input type="checkbox" checked={countingAidsEnabled} onChange={e=>setCountingAidsEnabled(e.target.checked)} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Counting aids</span>
           </label>
+          {countingAidsEnabled&&scs<COUNTING_AIDS_MIN_CELL&&<div role="status" style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:-8}}>Zoom in to see counting aids. They are hidden when the cells are this small.</div>}
           <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
             <input type="checkbox" checked={!!highlightSkipDone} onChange={e=>setHighlightSkipDone(e.target.checked)} className="ppal-check"/>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Skip done stitches</span>

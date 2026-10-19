@@ -2781,6 +2781,17 @@ body.tracker-mobile .colour-quick-backdrop{display:block;}
 .info-strip-timer{font-size:11px;font-weight:500;color:var(--text-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;margin-left:auto;background:none;border:0;padding:0;font-family:inherit;cursor:pointer;}
 @media (pointer: coarse){.info-strip-timer{min-height:44px;padding:0 6px;}}
 /* Completion projection bar — shown below the info-strip when pace data is available */
+/* The one-time Highlight hint. It sits above .cs-main, so while the docked
+   palette (320px, from 1024px up) is open it needs that offset (plus the 16px
+   gutter) as .cs-main--palette-open has, or its start slides under the panel. */
+.tracker-hint-banner{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);box-sizing:border-box;margin:0 16px var(--s-1);padding:6px 10px;background:var(--surface-secondary);border:1px solid var(--accent-light);border-radius:var(--radius-sm);font-size:var(--text-xs);color:var(--accent-text);}
+.tracker-hint-banner__text{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;}
+.tracker-hint-banner kbd{font-size:10px;padding:0 3px;border:1px solid var(--accent-light);border-radius:3px;background:var(--surface);}
+.tracker-hint-banner__close{flex-shrink:0;padding:0;line-height:1;display:inline-flex;background:none;border:none;cursor:pointer;color:var(--accent-text);}
+@media(min-width:1024px){
+  .tracker-hint-banner{transition:margin-left var(--motion,0.18s ease);}
+  .tracker-hint-banner--palette-open{margin-left:336px;}
+}
 .completion-projection-bar{display:flex;align-items:center;gap:12px;padding:3px 16px 4px;background:var(--surface-secondary);border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;}
 .completion-projection-text{font-size:11px;font-weight:500;color:var(--accent);}
 .completion-projection-speed{font-size:11px;color:var(--text-tertiary);}
