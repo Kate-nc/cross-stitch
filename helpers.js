@@ -241,7 +241,7 @@ function calcDifficulty(palLen,blendCount,totalSt,opts){
   // ── Factor breakdown for UI ────────────────────────────────────────────────
   var factors=[
     {label:'Colour complexity',weight:0.25,score:colScore},
-    {label:'Confetti density', weight:0.28,score:confScore},
+    {label:'Confetti stitches', weight:0.28,score:confScore},
     {label:'Colour changes',   weight:0.17,score:chgScore},
     {label:'Size & duration',  weight:0.15,score:sizeScore},
     {label:'Technique load',   weight:0.15,score:techScore},
@@ -2335,11 +2335,127 @@ function stashEntryFor(stash,t){
   var b=normaliseThreadBrand(t.brand);
   return stash[b+':'+t.id]||(b==='dmc'?stash[t.id]:undefined);
 }
-// "DMC 310" / "Anchor 403" for a cell or palette entry.
-// In memory an entry without `brand` is DMC.
-function threadLabel(entry){
-  if(!entry)return'';
-  return threadBrandLabel(entry.brand)+' '+entry.id;
+// ═══ One thread label (UX-013) ══════════════════════════════════════════════
+// Every surface (Creator palette and chips, Tracker colour list and active
+// tile, status bar, Manager, Home) writes a thread through formatThread, so
+// the same thread reads the same everywhere:
+//   full   "DMC 3799 Pewter Very Dark"   solid
+//          "DMC 341 + 826 (blend)"       blend
+//   short  "DMC 3799" / "DMC 341 + 826"  tight spaces (id only)
+//   name   "Pewter Very Dark" / "Blue Violet Medium + Blue Medium"
+//   title  the full name for a tooltip or screen reader; a blend names both threads
+// It reads a palette entry or cell ({id, type, name, brand, threads?}) and a
+// Stash Manager library thread ({id, name, brand, is_blended, blend_id,
+// blend_name, blend_ratio}). In memory an entry without `brand` is DMC.
+
+// The catalogues abbreviate shade words ("Pewter VDk", "Antq Mauve Md",
+// "Christmas Red Br"); a name is spelled out for display. The catalogue data
+// itself is unchanged.
+var THREAD_NAME_WORDS=Object.assign(Object.create(null),{
+  Lt:'Light',Dk:'Dark',Med:'Medium',Md:'Medium',M:'Medium',VDk:'Very Dark',VD:'Very Dark',VLt:'Very Light',
+  UVLt:'Ultra Very Light',UVDk:'Ultra Very Dark',UDk:'Ultra Dark',ULt:'Ultra Light',MLt:'Medium Light',MDk:'Medium Dark',
+  MVLt:'Medium Very Light',ExDk:'Extra Dark',UPale:'Ultra Pale',Grn:'Green',Brn:'Brown',Antq:'Antique',Yel:'Yellow',
+  Snd:'Sand',Bl:'Blue',Br:'Bright',Turq:'Turquoise',Org:'Orange',Elec:'Electric',Blk:'Black'
+});
+function threadFullName(name){
+  if(name==null)return'';
+  var s=String(name).trim();
+  if(!s)return'';
+  return s.split(/\s+/).map(function(w){
+    return w.split('-').map(function(part){return THREAD_NAME_WORDS[part]||part;}).join('-');
+  }).join(' ');
+}
+// The name for one thread: the entry's own, else the catalogue's. A name that
+// is only the id (a blend's, or an unnamed scratch colour) is no name.
+function _threadNameFor(brand,id,name){
+  var n=name!=null?String(name).trim():'';
+  if(!n||n===String(id)){
+    var cat=typeof findThreadInCatalog==='function'?findThreadInCatalog(brand,id):null;
+    n=cat&&cat.name?String(cat.name).trim():'';
+  }
+  return n===String(id)?'':threadFullName(n);
+}
+// An entry broken into what the formats need: { brand, brandLabel, isBlend,
+// ids, names, ratio, id, name }. `id` is "3799" or "341 + 826"; `name` is
+// "Pewter Very Dark" or "Blue Violet Medium + Blue Medium" ('' when unnamed).
+function threadParts(entry){
+  if(!entry)return null;
+  var brand=normaliseThreadBrand(entry.brand);
+  var src=null;
+  if(entry.is_blended&&entry.blend_id!=null){
+    src=[{id:entry.id,name:entry.name},{id:entry.blend_id,name:entry.blend_name}];
+  }else if(entry.type==='blend'||(typeof entry.id==='string'&&entry.id.indexOf('+')>0)){
+    var list=entry.threads&&entry.threads.length>1?entry.threads:splitBlendId(String(entry.id)).map(function(i){return{id:i};});
+    if(list.length>1)src=list;
+  }
+  if(src){
+    // The same blend is stored either way round ("469+3346" in the Creator, "3346+469" once saved), so an even blend is
+    // always written lowest number first; an uneven one keeps its order, which says which thread has the extra strand.
+    var rt=Array.isArray(entry.blend_ratio)?entry.blend_ratio:(Array.isArray(entry.blendRatio)?entry.blendRatio:null);
+    if(!rt||rt[0]===rt[1]){
+      src=src.slice().sort(function(a,b){
+        var x=String(a.id),y=String(b.id),nx=/^\d+$/.test(x),ny=/^\d+$/.test(y);
+        return nx&&ny?Number(x)-Number(y):(nx?-1:(ny?1:(x<y?-1:(x>y?1:0))));
+      });
+    }
+    var ids=src.map(function(t){return String(t.id);});
+    var names=src.map(function(t,i){return _threadNameFor(normaliseThreadBrand(t.brand||entry.brand),ids[i],t.name);});
+    return{brand:brand,brandLabel:threadBrandLabel(brand),isBlend:true,ids:ids,names:names,
+      ratio:Array.isArray(entry.blend_ratio)?entry.blend_ratio:(Array.isArray(entry.blendRatio)?entry.blendRatio:null),
+      id:ids.join(' + '),name:names.every(Boolean)?names.join(' + '):''};
+  }
+  var id=String(entry.id==null?'':entry.id),nm=_threadNameFor(brand,id,entry.name);
+  return{brand:brand,brandLabel:threadBrandLabel(brand),isBlend:false,ids:[id],names:[nm],ratio:null,id:id,name:nm};
+}
+function formatThread(entry,opts){
+  var p=threadParts(entry);
+  if(!p)return'';
+  var v=(opts&&opts.variant)||'full',head=p.brandLabel+' '+p.id;
+  if(v==='short')return head;
+  if(v==='name')return p.name;
+  if(v==='title'){
+    if(!p.isBlend)return head+(p.name?' '+p.name:'');
+    var each=p.ids.map(function(id,i){return p.brandLabel+' '+id+(p.names[i]?' '+p.names[i]:'');}).join(' + ');
+    return each+' (blend: '+blendStrandsPhrase(p.ratio)+')';
+  }
+  return p.isBlend?head+' (blend)':head+(p.name?' '+p.name:'');
+}
+// "one strand of each thread", or "1 strand of the first thread and 2 of the second" for an uneven ratio.
+function blendStrandsPhrase(ratio){
+  if(!ratio||ratio.length<2||ratio[0]===ratio[1])return ratio&&ratio[0]>1?ratio[0]+' strands of each thread':'one strand of each thread';
+  return ratio[0]+(ratio[0]===1?' strand':' strands')+' of the first thread and '+ratio[1]+' of the second';
+}
+// "DMC 310" / "Anchor 403" for a cell or palette entry: the short format.
+function threadLabel(entry){return formatThread(entry,{variant:'short'});}
+// One key row (the Creator Palette tab, the Tracker colour list, the Materials
+// thread list, the Manager pattern's threads) as plain strings, so every
+// surface prints the same words: { label, id, name, isBlend, title, usage,
+// usageTitle }. `usage` is "2 strands · 1.3 skeins" (threadCalc.js; empty on a
+// page without it). opts: { fabricCount, strandsUsed, wasteFactor }.
+function threadKeyRow(entry,opts){
+  var p=threadParts(entry);
+  if(!p)return null;
+  var u=typeof threadKeyUsage==='function'?threadKeyUsage(entry,opts):null;
+  return{label:formatThread(entry),id:formatThread(entry,{variant:'short'}),name:p.name,isBlend:p.isBlend,
+    title:formatThread(entry,{variant:'title'}),
+    usage:u?threadUsageText(u):'',usageTitle:u?threadUsageTitle(u):''};
+}
+// The plain-language explanations, written once. The Creator key, the Tracker
+// key, the Convert panel and the Help glossary all say these things.
+var BLEND_HELP={
+  title:"What's a blend?",
+  summary:'A blend is one chart symbol worked with two threads together in the same needle.',
+  body:'Put one strand of each thread in the needle, so the needle holds the same two strands as a normal stitch, and stitch as usual. The two colours mix into the in-between shade. Each thread gives only one strand, so a blend uses half as much of each thread as a plain stitch of that colour.',
+  setting:'Turn off Allow two-thread blends in Convert to use single threads only. The chart then needs more care to look smooth, but there is no mixing of threads.'
+};
+var CONFETTI_HELP={
+  term:'confetti stitches',
+  definition:'single stitches of a colour on their own; slow to stitch',
+  action:'Reduce confetti merges them into the colour around them.'
+};
+// Opens the Help glossary at the blend entry (the key's "What's a blend?" link and the Convert result toast).
+function openBlendHelp(){
+  try{if(typeof window!=='undefined'&&window.HelpDrawer&&window.HelpDrawer.open)window.HelpDrawer.open({topic:'glossary',section:'Blends and confetti'});}catch(_){}
 }
 // ── Whole-colour Done / Not done (Stitch Tracker colour list) ──
 // Which full stitches of one colour a whole-colour change would flip, as history entries ({idx, oldVal}). `inArea` is
@@ -2355,11 +2471,9 @@ function colourDoneChanges(pat,done,cid,md,inArea){
   }
   return changes;
 }
-// "DMC 05 Light Driftwood": the brand and id, then the thread's name (a blend names both threads).
+// "DMC 05 Light Driftwood" / "DMC 341 + 826 (blend)": the same label the colour list shows.
 function colourDoneName(entry){
-  if(!entry)return'';
-  var nm=entry.type==='blend'&&entry.threads&&entry.threads.length>1?entry.threads[0].name+'+'+entry.threads[1].name:entry.name;
-  return threadLabel(entry)+(nm?' '+nm:'');
+  return formatThread(entry);
 }
 // The question and the explanation for the confirmation dialog. n is the exact number of stitches that will change.
 // `lines` words it for backstitch lines instead of stitches.
@@ -2377,6 +2491,14 @@ if(typeof window!=='undefined'){
   window.threadCatalogue=threadCatalogue;
   window.loadThreadBrand=loadThreadBrand;
   window.threadLabel=threadLabel;
+  window.formatThread=formatThread;
+  window.threadParts=threadParts;
+  window.threadKeyRow=threadKeyRow;
+  window.threadFullName=threadFullName;
+  window.blendStrandsPhrase=blendStrandsPhrase;
+  window.BLEND_HELP=BLEND_HELP;
+  window.CONFETTI_HELP=CONFETTI_HELP;
+  window.openBlendHelp=openBlendHelp;
   window.colourDoneChanges=colourDoneChanges;
   window.colourDoneName=colourDoneName;
   window.colourDoneConfirmText=colourDoneConfirmText;

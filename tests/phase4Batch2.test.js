@@ -23,6 +23,6 @@ describe('the controls strip is named as it appears', () => {
   test('help and Preferences call the strip button "Nav", and the Colours button names the current colour', () => {
     expect(read('help-drawer.js')).toMatch(/\(Colours, Mark, Nav, Fit, Area, Undo, More\)/);
     expect(read('preferences-modal.js')).toMatch(/the Mark, Nav and Undo buttons/);
-    expect(read('tracker-app.js')).toMatch(/\(current colour "\+threadLabel\(cmap\[focusColour\]\)\+"\)"/);
+    expect(read('tracker-app.js')).toMatch(/\(current colour "\+formatThread\(cmap\[focusColour\]\)\+"\)"/);
   });
 });

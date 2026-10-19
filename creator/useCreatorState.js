@@ -222,7 +222,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 var CONVERSION_STATE_KEYS = [
   'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
-  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans', // terminology-lint-allow (a state key, not UI text)
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
   'fabricCt', 'exactPixelArt',
@@ -394,7 +394,7 @@ var GENERATE_STAGES = {
   mapping:        { label: 'Matching colours\u2026',              pct: 45 },
   dithering:      { label: 'Matching colours\u2026',              pct: 45 },
   rarity:         { label: 'Matching colours\u2026',              pct: 60 },
-  cleanup:        { label: 'Cleaning up stray stitches\u2026',    pct: 70 },
+  cleanup:        { label: 'Reducing confetti\u2026',            pct: 70 },
   disambiguating: { label: 'Separating similar neighbours\u2026', pct: 85 },
   finalizing:     { label: 'Building the chart\u2026',            pct: 95 }
 };
@@ -1242,28 +1242,24 @@ window.useCreatorState = function useCreatorState() {
 
   // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
   // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
+  // The confetti count is confettiSummary (colour-utils.js), the same count Ready to stitch shows, so Pattern info
+  // and Ready to stitch always agree (UX-012).
   var difficultyMetrics = useMemo(function() {
     if (!pat || !sW || !sH || totalStitchable < 1) return {};
-    var isolated = 0, changePairs = 0, totalPairs = 0;
+    var changePairs = 0, totalPairs = 0;
     for (var y = 0; y < sH; y++) {
       for (var x = 0; x < sW; x++) {
-        var i = y * sW + x;
-        var cell = pat[i];
+        var cell = pat[y * sW + x];
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-        var id = cell.id;
-        var iso = true;
-        var nx, nid;
-        if (x > 0)     { nid = pat[y*sW+(x-1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && x+1 < sW)  { nid = pat[y*sW+(x+1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && y > 0)     { nid = pat[(y-1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && y+1 < sH)  { nid = pat[(y+1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso) isolated++;
+        var id = cell.id, nx;
         if (x+1 < sW) { nx = pat[y*sW+(x+1)]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
         if (y+1 < sH) { nx = pat[(y+1)*sW+x]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
       }
     }
+    var confetti = typeof confettiSummary === 'function' ? confettiSummary(pat, sW, sH) : null;
     return {
-      confettiScore: isolated / totalStitchable,
+      confettiScore: confetti ? confetti.stitches / totalStitchable : undefined,
+      confetti: confetti,
       changeScore: totalPairs > 0 ? changePairs / totalPairs : 0,
     };
   }, [pat, sW, sH, totalStitchable]);
@@ -1878,7 +1874,11 @@ window.useCreatorState = function useCreatorState() {
     // two threads (audit IMG-02).
     var tc = creatorThreadCounts(result.pal);
     var counts = threadCountsSentence(tc);
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // A pattern with blends says what a blend is, one click away (UX-013).
+    var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
+      ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
+      : null;
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
@@ -2572,7 +2572,7 @@ window.useCreatorState = function useCreatorState() {
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, requestFitZoom, chartFitH, pxX, pxY, totPg,
-    skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
+    skeinData, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
 

@@ -3604,19 +3604,24 @@ function PatternModal({
       }
     }), /*#__PURE__*/React.createElement("div", {
       style: {
-        fontWeight: 700,
-        fontSize: 13
-      }
-    }, t.id), /*#__PURE__*/React.createElement("div", {
-      style: {
         flex: 1,
-        fontSize: 12,
-        color: "var(--text-secondary)",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis"
+        minWidth: 0,
+        fontSize: 13,
+        fontWeight: 600,
+        overflowWrap: "anywhere"
+      },
+      title: formatThread(t, {
+        variant: "title"
+      })
+    }, formatThread(t), t.is_blended && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 400,
+        color: "var(--text-secondary)"
       }
-    }, t.is_blended ? `${t.name || info?.name || ""} + ${t.blend_name || t.blend_id} [${t.blend_ratio ? t.blend_ratio.join(':') : '1:1'}]` : t.name || info?.name || ""), /*#__PURE__*/React.createElement("div", {
+    }, formatThread(t, {
+      variant: "name"
+    }), " ", "\u00B7", " ", blendStrandsPhrase(t.blend_ratio))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         alignItems: "center",
@@ -3795,9 +3800,21 @@ function PatternDetailsModal({
         skToBuy = t.qty;
         skExact = t.qty;
       }
+
+      // The strands and skeins each thread takes, as the Creator and Tracker keys show them (UX-014). A project's blend
+      // arrives as one combined id ("341+826") without the is_blended fields.
+      const keyUsage = t.unit === "stitches" && typeof threadKeyUsage === "function" ? threadKeyUsage({
+        ...t,
+        count: t.qty
+      }, {
+        fabricCount: settings.fabricCount,
+        strandsUsed: settings.strandsUsed,
+        wasteFactor: settings.wasteFactor
+      }) : null;
       return {
         ...t,
         name: t.name || info?.name || "Unknown",
+        keyUsage,
         rgb: info ? info.rgb : [128, 128, 128],
         skExact,
         skToBuy,
@@ -3983,32 +4000,16 @@ function PatternDetailsModal({
       padding: "10px 0"
     }
   }, "No threads specified.") : derivedThreads.map((t, idx) => {
-    let text = "";
+    // The one thread label (helpers.js), then the amount. A blend says how to stitch it.
+    const label = formatThread(t);
+    const isBlendRow = threadParts(t).isBlend;
+    const amount = t.unit === "stitches" ? `${t.qty.toLocaleString('en-GB')} stitches` : t.unit === "skeins" && t.isApprox && !isBlendRow ? `${t.qty} skein(s) (~${t.stApprox.toLocaleString('en-GB')} stitches)` : `${t.qty} skein(s)`;
+    const text = `${label} \u2014 ${amount}`;
     let subtext = "";
-    if (t.is_blended) {
-      const rA = t.blend_ratio ? t.blend_ratio[0] : 1;
-      const rB = t.blend_ratio ? t.blend_ratio[1] : 1;
-      text = `DMC ${t.id} + DMC ${t.blend_id} [${rA}:${rB}] — ${t.unit === "stitches" ? t.qty + " stitches" : t.qty + " skeins"}`;
-      if (t.unit === "stitches") {
-        if (rA === rB) {
-          subtext = `~${t.skToBuy} skein(s) each`;
-        } else {
-          subtext = `DMC ${t.id}: ~${t.skToBuy} skeins · DMC ${t.blend_id}: ~${t.skBToBuy} skeins`;
-        }
-      } else {
-        subtext = `Stitch estimate not available for blended entries stored as skeins.`;
-      }
-    } else {
-      if (t.unit === "stitches") {
-        text = `DMC ${t.id} (${t.name}) — ${t.qty.toLocaleString('en-GB')} stitches (~${t.skToBuy} skeins)`;
-      } else {
-        // Is skeins or fallback
-        if (t.unit === "skeins" && t.isApprox) {
-          text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s) (~${t.stApprox.toLocaleString('en-GB')} stitches)`;
-        } else {
-          text = `DMC ${t.id} (${t.name}) — ${t.qty} skein(s)`;
-        }
-      }
+    if (t.keyUsage) {
+      subtext = threadUsageText(t.keyUsage);
+    } else if (isBlendRow) {
+      subtext = `Stitch estimate not available for blended entries stored as skeins.`;
     }
     const settingsUsed = t.settings;
     const isOverride = !!pattern.project_overrides;

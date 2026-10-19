@@ -168,8 +168,10 @@ describe('suggestions and swatches', () => {
     expect(PT.swatchInk([252, 251, 248])).toBe('black');
   });
 
-  test('the long-press label reads "DMC 310 · Black · 1,204 stitches"', () => {
-    expect(PT.swatchLabel(pal[0])).toBe('DMC 310 · Black · 1,204 stitches');
-    expect(PT.swatchLabel({ id: '550', name: 'Violet VDk', count: 1 })).toBe('DMC 550 · Violet VDk · 1 stitch');
+  test('the long-press label is the shared thread label, then the stitch count', () => {
+    // helpers.js is a global in every test (tests/setup/progress-units.js), as on the pages.
+    expect(PT.swatchLabel(pal[0])).toBe('DMC 310 Black · 1,204 stitches');
+    expect(PT.swatchLabel({ id: '550', name: 'Violet VDk', count: 1 })).toBe('DMC 550 Violet Very Dark · 1 stitch');
+    expect(PT.swatchLabel({ id: '341+826', type: 'blend', name: '341+826', count: 2 })).toBe('DMC 341 + 826 (blend) · 2 stitches');
   });
 });

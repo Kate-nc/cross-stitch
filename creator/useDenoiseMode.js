@@ -137,7 +137,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       worker = new Worker('noise-cleanup-worker.js');
     } catch (e) {
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (e && e.message || String(e)));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (e && e.message || String(e)));
       return;
     }
     workerRef.current = worker;
@@ -184,13 +184,13 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       } else if (msg.type === 'error') {
         releaseWorker(worker);
         state.setDenoiseAutoRunning(false);
-        state.setDenoiseAutoError(msg.message || 'Could not look for stray stitches');
+        state.setDenoiseAutoError(msg.message || 'Could not look for confetti');
       }
     };
     worker.onerror = function(ev) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (ev.message || 'unknown error'));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (ev.message || 'unknown error'));
     };
 
     try {
@@ -212,7 +212,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     } catch (postErr) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (postErr && postErr.message || String(postErr)));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (postErr && postErr.message || String(postErr)));
     }
   }, [state]);
 
@@ -522,7 +522,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     // Unused-colour notice (mirrors cleanup mode behaviour)
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
+        var label = formatThread(p);
         state.addToast(label + ' is no longer used \u2014 remove from palette?', {
           type: 'info',
           duration: 8000,

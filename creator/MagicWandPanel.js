@@ -171,7 +171,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     style: { padding: "10px 14px", background: "var(--warning-soft)", borderBottom: "1px solid var(--border)",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "var(--text-primary)" } }, "Confetti Cleanup in Selection"),
+    h("strong", { style: { color: "var(--text-primary)" } }, "Reduce confetti in selection"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Min cluster size:",
       h("input", {

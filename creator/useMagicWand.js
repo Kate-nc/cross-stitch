@@ -161,7 +161,7 @@ window.useMagicWand = function useMagicWand(state) {
     var newCount = 0;
     for (var i = 0; i < merged.length; i++) if (merged[i]) newCount++;
     var entry = cmap[cell.id];
-    var label = entry ? threadLabel(entry) + (entry.name ? " (" + entry.name + ")" : "") : cell.id;
+    var label = entry ? formatThread(entry) : cell.id;
     if (state.addToast) state.addToast(
       newCount.toLocaleString() + " stitch" + (newCount !== 1 ? "es" : "") + " selected \u2014 " + label,
       {type:"success", duration:2000}

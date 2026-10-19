@@ -146,7 +146,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower confetti cleanup level."),
+        h("span", null, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
@@ -265,7 +265,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
-          parts.push(threadLabel(info) + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+          parts.push(formatThread(info) + " (" + (info.count || 0) + " st)");
         }
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},

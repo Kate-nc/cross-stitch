@@ -519,17 +519,20 @@ function SwatchDetailPopover(props) {
     { label: 'Black Aida',    bg: '#1A1A1A' }
   ];
   var Icons = window.Icons || {};
+  // The one thread label (helpers.js): "DMC 3799" and "Pewter Very Dark", or "DMC 341 + 826" and both names for a blend.
+  var hasLabel = typeof window.formatThread === 'function' && thread.id != null;
+  var isBlend = hasLabel && window.threadParts(thread).isBlend;
 
   var content = h('div', {
     ref: popoverRef,
     className: 'swatch-detail-popover',
     style: { top: pos.top, left: pos.left, visibility: pos.ready ? 'visible' : 'hidden' },
     role: 'dialog',
-    'aria-label': 'Colour details for ' + (thread.id || '')
+    'aria-label': 'Colour details for ' + (hasLabel ? window.formatThread(thread, { variant: 'title' }) : (thread.id || ''))
   },
     h('div', { className: 'sdp-header' },
-      h('span', { className: 'sdp-code' }, String(thread.id || '')),
-      h('span', { className: 'sdp-name' }, thread.name || ''),
+      h('span', { className: 'sdp-code' }, hasLabel ? window.formatThread(thread, { variant: 'short' }) : String(thread.id || '')),
+      h('span', { className: 'sdp-name' }, hasLabel ? window.formatThread(thread, { variant: 'name' }) : (thread.name || '')),
       h('button', {
         className: 'sdp-close',
         onClick: onClose,
@@ -558,6 +561,7 @@ function SwatchDetailPopover(props) {
       Icons.info ? h('span', { className: 'sdp-note-icon', 'aria-hidden': 'true' }, Icons.info()) : null,
       ' Code is the authoritative reference \u2014 screen colours are approximations.'
     ),
+    isBlend && window.BLEND_HELP && h('p', { className: 'sdp-note' }, window.BLEND_HELP.summary + ' Put one strand of each thread in the needle.'),
     thread.similarThread && h('p', { className: 'sdp-similar' },
       'Similar to ' + thread.similarThread.id + ' (' + (thread.similarThread.name || '') + ', \u0394E\u2080\u2080 ' + thread.similarThread.dE.toFixed(1) + ') \u2014 ' + thread.similarThread.descriptor
     )
@@ -642,3 +646,41 @@ function SimilarColourComparator(props) {
 window.SimilarColourComparator = SimilarColourComparator;
 
 
+
+// "What's a blend?" under a colour key (UX-013): a short plain-language note that opens in place, with a link on to the
+// Help glossary. The words live in helpers.js (BLEND_HELP) so the key, the Convert panel and the glossary agree.
+// Shown by the Creator Palette tab and the Tracker colour list when the pattern has blends.
+function BlendHelpNote(props) {
+  var h = React.createElement;
+  var st = React.useState(false), open = st[0], setOpen = st[1];
+  var help = window.BLEND_HELP;
+  if (!help) return null;
+  return h("div", { className: "blend-help" },
+    h("button", {
+      type: "button", className: "blend-help__toggle", "aria-expanded": open,
+      onClick: function () { setOpen(!open); }
+    }, window.Icons && window.Icons.info ? h("span", { "aria-hidden": "true", style: { display: "inline-flex" } }, window.Icons.info()) : null, help.title),
+    open && h("div", { className: "blend-help__body", role: "note" },
+      h("p", null, help.summary + " " + help.body),
+      props && props.showSetting && h("p", null, help.setting),
+      h("button", { type: "button", className: "blend-help__more", onClick: function () { if (window.openBlendHelp) window.openBlendHelp(); } }, "More in Help")
+    )
+  );
+}
+window.BlendHelpNote = BlendHelpNote;
+
+// The text of one colour-key row (UX-013, UX-014): the thread label, its blend tag, its full name (which wraps, never
+// cut short) and the strands and skeins it takes. The Creator Palette tab and the Stitch Tracker colour list both render
+// it, each with its own class names, so the words are the same on both. `row` is helpers.js threadKeyRow().
+//   classes: { wrap, id, tag, name, use }
+function ThreadKeyLabel(props) {
+  var h = React.createElement;
+  var row = props.row, c = props.classes || {};
+  if (!row) return null;
+  return h("span", { className: c.wrap },
+    h("span", { className: c.id }, row.id, row.isBlend && " ", row.isBlend && h("span", { className: c.tag }, "blend")),
+    row.name && h("span", { className: c.name }, row.name),
+    row.usage && h("span", { className: c.use, title: row.usageTitle }, row.usage)
+  );
+}
+window.ThreadKeyLabel = ThreadKeyLabel;

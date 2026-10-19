@@ -69,7 +69,7 @@ Screen colours are approximations; check physical threads when choosing material
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 
-A blend stitches two threads together in one stitch and gets its own chart symbol, so a chart can have more symbols than threads. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
+A blend stitches two threads together in one needle (one strand of each) and gets its own chart symbol, so a chart can have more symbols than threads. In the key a blend reads, for example, "DMC 341 + 826 (blend)", and **Allow two-thread blends** in Convert turns them on or off. Counts say which they mean: "24 threads, 40 chart symbols (16 are blends of two threads)" is 24 threads to buy and 40 symbols to follow. No two threads on a chart share a symbol, and the symbols on screen are the same shapes the PDF prints. A chart needing more than 112 symbols shows a warning after converting.
 
 | Threads | Use case |
 |---------|----------|
@@ -85,12 +85,12 @@ A blend stitches two threads together in one stitch and gets its own chart symbo
 | Setting | Effect | When to use |
 |---------|--------|------------|
 | **Off** | Each area takes its closest thread | Logos, simple graphics |
-| **Smooth blend — Subtle** | Gentle blending, few single stitches | Soft gradients |
+| **Smooth blend — Subtle** | Gentle blending, few confetti stitches | Soft gradients |
 | **Smooth blend — Balanced** | Smooth gradients in clean colour zones | Most photos |
 | **Smooth blend — Strong** | Richest gradients, more scattered stitches | Detailed photos |
 | **Pattern blend — Coarse / Medium / Fine** | A regular geometric blending pattern | A deliberate textured look |
 
-With Smooth blend, **Fewer single stitches in blends** keeps the mix in small clumps. The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
+With Smooth blend, **Fewer confetti stitches in shading** keeps the mix in small clumps. The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
 **Min stitches per colour** — colours used fewer times than this are dropped.
 **Confetti Cleanup** — merges isolated stitches into the surrounding colour (0–3).
@@ -141,7 +141,7 @@ Choose a colour in the **Palette** tab, then a tool:
 | Hand | `H` | Pan without painting |
 | Replace colour | `R` | Click a stitch to replace every stitch of its colour |
 
-**More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), **Fix outline colours** and **Tidy stray stitches**.
+**More tools** in the tool strip holds Move (drag a selection, or nudge it with the arrow keys), **Fix outline colours** and **Reduce confetti**.
 
 ### Shapes and mirror drawing
 
@@ -203,7 +203,7 @@ Colours with no stitches show a remove button in the palette; **Remove unused (N
 ### Cleaning up
 
 - **Fix outline colours** (More tools) — removes dark border lines left over from line-art images. **How strict** (Gentle, Balanced, Strong) widens or narrows the selection.
-- **Tidy stray stitches** (More tools) — merges threads that are almost the same, removes speckle, and smooths colour fringes. Nothing changes until you press **Apply**.
+- **Reduce confetti** (More tools) — merges confetti stitches (single stitches of a colour on their own; slow to stitch) and threads that are almost the same, and smooths colour fringes. Nothing changes until you press **Apply**.
 
 ### Split pane
 
@@ -260,9 +260,9 @@ Your pattern saves **automatically** on this device and appears in **Home > Proj
 | **Logo** | Sharp, defined | Excellent for cross-stitch; little or no smoothing or shading |
 | **Digital art** | Depends on style | Flat colours convert more cleanly than painted textures |
 
-### Too many isolated stitches?
+### Too many confetti stitches?
 
-Raise **Confetti Cleanup** or **Min stitches per colour**, use less shading, or run **Tidy stray stitches** on the finished pattern. Compare the current chart and representative regions in Ready to stitch before applying cleanup: isolated details can be intentional.
+Raise **Reduce confetti** or **Min stitches per colour**, use less shading, or run **Reduce confetti** (More tools) on the finished pattern. Compare the current chart and representative regions in Ready to stitch before applying it: single stitches can be intentional detail.
 
 ### Stitching time
 

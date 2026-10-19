@@ -1525,7 +1525,7 @@ function renderHoverBar(){
   let text="—";
   if(c){
     text="Row: "+(c.row+1)+"   Col: "+(c.col+1);
-    if(info&&info.row===c.row+1&&info.col===c.col+1)text+="  —   "+threadLabel((cmap&&cmap[info.id])||info)+" "+info.name;
+    if(info&&info.row===c.row+1&&info.col===c.col+1)text+="  —   "+formatThread((cmap&&cmap[info.id])||info);
   }else{
     // Nothing under the pointer (always the case on touch): describe the
     // guide crosshair, if there is one.
@@ -1538,14 +1538,12 @@ function renderHoverBar(){
   }
   if(el.textContent!==text)el.textContent=text;
 }
-// "DMC 310 Black" (or "Anchor 403 ...") for a stitch, or "" for an empty /
-// skipped cell.
+// "DMC 310 Black" (or "Anchor 403 ...", or "DMC 341 + 826 (blend)") for a stitch, or "" for an empty /
+// skipped cell. The same label as the colour list.
 function cellThreadLabel(idx){
   const cell=pat&&pat[idx];
   if(!cell||cell.id==="__skip__"||cell.id==="__empty__")return "";
-  if(cell.type==="blend"&&cell.threads)return threadLabel(cell)+" "+cell.threads[0].name+"+"+cell.threads[1].name;
-  const ci=cmap&&cmap[cell.id];
-  return threadLabel(cell)+(ci&&ci.name?" "+ci.name:"");
+  return formatThread((cmap&&cmap[cell.id])||cell);
 }
 function setHoverInfo(info){
   const prev=hoverInfoRef.current;
@@ -2307,6 +2305,8 @@ const showHiddenLayers=()=>{setLayerVis(ALL_LAYERS_VISIBLE);const c=stitchRef.cu
 // while marking stitches. `colourDoneCountsRef.current` is mutated in place
 // (see the T-5 counts invariant), so `countsVer` — not `colourDoneCounts`
 // itself — is the correct "did the counts actually change" signal here.
+// Class names for the colour list's key text (components.js ThreadKeyLabel; the Creator palette uses its own).
+const TILE_KEY_CLASSES={wrap:"ppal-tile-text",id:"ppal-tile-id",tag:"ppal-tile-tag",name:"ppal-tile-name",use:"ppal-tile-use"};
 // A legend row's count line. The whole-stitch figure is left out for a colour with no whole stitches but other kinds
 // (so a colour used only in quarter stitches or knots never reads "0/0").
 function legendCountText(dc,kn,qt,bsc){
@@ -2429,8 +2429,7 @@ useEffect(()=>{
     });
     if(nextColor){
       setFocusColour(nextColor.id);
-      const label=nextColor.type==="blend"?(nextColor.threads[0].name+"+"+nextColor.threads[1].name):nextColor.name;
-      setAdvanceToast(`${threadLabel(nextColor)} — ${label}`);
+      setAdvanceToast(formatThread(nextColor));
       setTimeout(()=>setAdvanceToast(null),2500);
       return;
     }
@@ -2686,7 +2685,7 @@ useEffect(()=>{
       rtLowToastedRef.current.add(d.key);
       if(typeof window.Toast!=='undefined'&&window.Toast.show){
         window.Toast.show({
-          message:'Low thread: '+threadLabel(d)+(d.name?' \u2014 '+d.name:'')+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
+          message:'Low thread: '+formatThread(d)+'. Only '+curr.skeinsRemaining.toFixed(2)+' skeins remaining.',
           type:'warning',duration:10000
         });
       }
@@ -6703,7 +6702,7 @@ useEffect(()=>{
     const position=cell?"Guide at row "+(hlRow+1)+", column "+(hlCol+1)+(label?", "+label:"")+", "+state+". ":"No guide. ";
     const selected=focusColour&&cmap&&cmap[focusColour];
     const text=position+ProgressUnits.formatUnits(effectiveCombinedDone)+" of "+ProgressUnits.formatUnits(effectiveCombinedTotal)+" stitch units done"+(statsCountMode==='visible'?" in visible layers":" across all layers")+". "+
-      (selected?"Selected "+threadLabel(selected)+". ":"")+Math.round(stitchZoom*100)+" percent zoom."+
+      (selected?"Selected "+formatThread(selected)+". ":"")+Math.round(stitchZoom*100)+" percent zoom."+
       (layerVis.full===false?" Full crosses hidden.":"");
     if(live.textContent!==text)live.textContent=text;
   },250);
@@ -6921,13 +6920,8 @@ function handleStitchMouseMove(e){
       // Only update state if the hovered cell actually changed
       const hi=hoverInfoRef.current;
       if(!hi || hi.row!==gc.gy+1 || hi.col!==gc.gx+1){
-        let name="";
-        if(cell.type==="blend"){
-          name=cell.threads[0].name+"+"+cell.threads[1].name;
-        }else{
-          let ci=cmap&&cmap[cell.id]; name=ci?ci.name:"";
-        }
-        setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:name});
+        // The hover bar writes the thread through formatThread (the cell, or its palette entry for the name).
+        setHoverInfo({row:gc.gy+1, col:gc.gx+1, id:cell.id, name:formatThread((cmap&&cmap[cell.id])||cell,{variant:"name"})});
       }
     } else {
       setHoverInfo(null);
@@ -7296,7 +7290,7 @@ function jumpToNextStitch(){
     }
   }
   if(foundX<0||foundY<0){
-    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for "+threadLabel((cmap&&cmap[target])||{id:target})+(areaOn?" in this work area":""),type:"info"});}catch(_){}
+    try{if(window.Toast&&window.Toast.show)window.Toast.show({message:"No remaining stitches for "+formatThread((cmap&&cmap[target])||{id:target})+(areaOn?" in this work area":""),type:"info"});}catch(_){}
     return;
   }
   setHlRow(foundY);setHlCol(foundX);
@@ -7403,7 +7397,7 @@ function goToParkedThread(colorId){
   if(areaOn&&workArea&&window.WorkArea&&!window.WorkArea.contains(workArea,m.x,m.y)){
     const vb=viewBoundsRef.current;
     if(!vb||m.x<vb.x0||m.x>=vb.x1||m.y<vb.y0||m.y>=vb.y1){
-      try{if(window.Toast&&window.Toast.show)window.Toast.show({message:threadLabel((cmap&&cmap[colorId])||{id:colorId})+" is parked outside this work area, at row "+(m.y+1)+", column "+(m.x+1)+".",type:"info",duration:4000});}catch(_){}
+      try{if(window.Toast&&window.Toast.show)window.Toast.show({message:formatThread((cmap&&cmap[colorId])||{id:colorId})+" is parked outside this work area, at row "+(m.y+1)+", column "+(m.x+1)+".",type:"info",duration:4000});}catch(_){}
       return;
     }
   }
@@ -8628,8 +8622,8 @@ return(
             className="lpanel-rail-swatch"
             style={{background:"rgb("+selEntry.rgb.join(",")+")"}}
             onClick={()=>{setLeftSidebarTab("highlight");setLeftSidebarMode("open");}}
-            aria-label={"Highlighted colour: "+(selEntry.name||selEntry.id)}
-            title={selEntry.name||selEntry.id}
+            aria-label={"Highlighted colour: "+formatThread(selEntry)}
+            title={formatThread(selEntry,{variant:"title"})}
           />;
         })()}
         <button
@@ -8687,10 +8681,12 @@ return(
       </div>
       {/* ─ Sort row ─ */}
       <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
-        {[["count","Remaining"],["done","% done"],["id",threadBrandLabel(threadBrand)+" ID"]].map(([k,l])=>
+        {[["count","Remaining"],["done","% done"],["id","Number"]].map(([k,l])=>
           <button key={k} className={"ppal-sort-btn"+(legendSort===k?" ppal-sort-btn--on":"")} onClick={()=>setLegendSort(k)} aria-pressed={legendSort===k}>{l}</button>
         )}
       </div>
+      {pal&&pal.length>0&&<p className="ppal-use-note">Each colour shows the strands in the needle and the skeins it takes.</p>}
+      {pal&&window.BlendHelpNote&&pal.some(p=>p.type==="blend")&&<div className="ppal-blend-note">{React.createElement(window.BlendHelpNote)}</div>}
       {/* ─ Active colour tile ─ */}
       {focusColour&&cmap&&cmap[focusColour]&&(!areaColourCounts||((scopedColourCounts[focusColour]||{}).total+(scopedColourCounts[focusColour]||{}).halfTotal>0))?(()=>{
         const fc=cmap[focusColour];
@@ -8707,11 +8703,11 @@ return(
               :<span className="ppal-active-swatch" style={{background:swRgb}}/>}
           </div>
           <div className="ppal-active-info">
-            <span className="ppal-active-id">{threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}</span>
-            <span className="ppal-active-name">{fc.type==="blend"?fc.threads[0].name+"+"+fc.threads[1].name:fc.name}</span>
+            <span className="ppal-active-id" title={formatThread(fc,{variant:"title"})}>{formatThread(fc,{variant:"short"})}{fc.type==="blend"&&<span className="ppal-tile-tag">blend</span>}</span>
+            <span className="ppal-active-name">{formatThread(fc,{variant:"name"})}</span>
             <span className="ppal-active-count">{dc.done}/{dc.total} · {pct}%</span>
           </div>
-          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of "+threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}>{Icons.magnify()}</button>
+          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of "+formatThread((cmap&&cmap[focusColour])||{id:focusColour})}>{Icons.magnify()}</button>
         </div>;
       })()
       :<div className="ppal-active-none">{Icons.pointing?Icons.pointing():null}{" Tap a colour below to select it"}</div>}
@@ -8722,19 +8718,20 @@ return(
           return rows.map(({p,dc,kn,qt,bsc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
+            // The one thread label, then the strands and skeins this symbol takes (UX-013, UX-014).
+            const kr=threadKeyRow(p,{fabricCount:fabricCt});
             return <div key={p.id} role="listitem"
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
               onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
               <button type="button" className="ppal-tile-swatch" style={{background:swRgb}}
-                aria-label={"View "+threadLabel(p)+" detail"}
-                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,name:p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
+                aria-label={"View "+kr.title+" detail"}
+                onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,type:p.type,brand:p.brand,threads:p.threads,name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});}}
               />
               <div className="ppal-tile-body">
-                <button type="button" className="ppal-tile-id-row ppal-tile-select"
-                  aria-pressed={isFocused} aria-label={"Select "+threadLabel(p)+", "+(p.name||"")+", "+pct+" percent complete"}
+                <button type="button" className="ppal-tile-id-row ppal-tile-select" title={kr.title}
+                  aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
                   onClick={e=>{e.stopPropagation();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
-                  <span className="ppal-tile-id">{p.id}</span>
-                  <span className="ppal-tile-name">{p.type==="blend"?p.threads[0].name+"+"+p.threads[1].name:p.name}</span>
+                  <ThreadKeyLabel row={kr} classes={TILE_KEY_CLASSES}/>
                   <span className="ppal-tile-pct">{pct}%</span>
                 </button>
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
@@ -8744,8 +8741,8 @@ return(
                     {parkCountsByColour[p.id]>0&&<button
                       className="ppal-tile-park-btn"
                       onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
-                      title={"Go to where "+threadLabel(p)+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
-                      aria-label={"Go to where "+threadLabel(p)+" is parked"}
+                      title={"Go to where "+kr.label+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
+                      aria-label={"Go to where "+kr.label+" is parked"}
                       style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
                     >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
                     {bsc&&bsc.total>0&&<button
@@ -9018,7 +9015,7 @@ return(
     {pal&&focusColour&&cmap&&cmap[focusColour]
       ?<button className="ppal-phone-chip" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
           <span className="ppal-phone-chip-sw" style={{background:"rgb("+cmap[focusColour].rgb+")"}}/>
-          <span>{threadLabel((cmap&&cmap[focusColour])||{id:focusColour})}</span>
+          <span title={formatThread((cmap&&cmap[focusColour])||{id:focusColour},{variant:"title"})}>{formatThread((cmap&&cmap[focusColour])||{id:focusColour},{variant:"short"})}</span>
         </button>
       :<button className="ppal-phone-chip ppal-phone-chip--empty" onClick={cycleLeftSidebar} aria-label="Open colour palette panel">
           {Icons.menu?Icons.menu():null}{" Palette"}
@@ -9027,7 +9024,7 @@ return(
 
     {/* ─ Mode strip ─ */}
     <div className={"toolbar-row"+(isEditMode?" toolbar-row--edit":"")+" ppal-mode-strip"} role="toolbar" aria-label="Canvas controls">
-      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={(leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode")+((pal&&focusColour&&cmap&&cmap[focusColour])?" (current colour "+threadLabel(cmap[focusColour])+")":"")} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
+      <button className={"ppal-mode-btn"+(leftSidebarMode==="open"?" ppal-mode-btn--on":"")} onClick={cycleLeftSidebar} aria-label={(leftSidebarMode==="hidden"?"Open colour palette":"Cycle colour palette mode")+((pal&&focusColour&&cmap&&cmap[focusColour])?" (current colour "+formatThread(cmap[focusColour])+")":"")} aria-pressed={leftSidebarMode==="open"} title="Toggle colour palette">
         {(()=>{
           const cur=pal&&focusColour&&cmap&&cmap[focusColour];
           return <>
@@ -9778,7 +9775,7 @@ return(
               return React.createElement('tr',{key:d.id,style:{borderTop:'1px solid var(--border)'}},
                 React.createElement('td',{style:{padding:'5px 10px',display:'flex',alignItems:'center',gap:6}},
                   React.createElement('span',{style:{width:10,height:10,borderRadius:'50%',background:'rgb('+(d.rgb||[128,128,128]).join(',')+')',display:'inline-block',flexShrink:0}}),
-                  threadLabel(d)+(d.name?' \u2014 '+d.name:'')
+                  formatThread(d)
                 ),
                 React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},c.skeinsConsumed.toFixed(2)),
                 React.createElement('td',{style:{padding:'5px 10px',textAlign:'right',fontVariantNumeric:'tabular-nums'}},remText)
@@ -9828,8 +9825,7 @@ return(
             <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',marginBottom:'var(--s-3)',border:"1px solid var(--accent-border)"}}>
               <span style={{width:22,height:22,borderRadius:4,background:`rgb(${currentEntry.rgb[0]},${currentEntry.rgb[1]},${currentEntry.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
               <span style={{fontFamily:"var(--font-symbol)",fontWeight:700,fontSize:'var(--text-xl)'}}>{currentEntry.symbol}</span>
-              <span style={{fontWeight:600,fontSize:'var(--text-md)'}}>{threadLabel(currentEntry)}</span>
-              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1}}>{currentEntry.name}</span>
+              <span style={{fontWeight:600,fontSize:'var(--text-md)',flex:1,minWidth:0,overflowWrap:"anywhere"}}>{formatThread(currentEntry)}</span>
               <span style={{fontSize:'var(--text-xs)',color:"var(--accent-text)",fontWeight:600}}>Current</span>
             </div>
           ) : null}
@@ -9845,8 +9841,7 @@ return(
                     opacity:isCurrent?0.6:1}}>
                   <span style={{width:20,height:20,borderRadius:4,background:`rgb(${p.rgb[0]},${p.rgb[1]},${p.rgb[2]})`,border:"1px solid var(--border)",flexShrink:0}}/>
                   <span style={{fontFamily:"var(--font-symbol)",fontWeight:700,fontSize:'var(--text-lg)',width:18,textAlign:"center"}}>{p.symbol}</span>
-                  <span style={{fontWeight:600,fontSize:'var(--text-md)',minWidth:52}}>{threadLabel(p)}</span>
-                  <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+                  <span style={{fontWeight:600,fontSize:'var(--text-md)',flex:1,minWidth:0,overflowWrap:"anywhere"}}>{formatThread(p)}</span>
                   <span style={{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}>{p.count} st</span>
                   {isCurrent&&<span style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--accent-text)",background:"var(--accent-light)",padding:"2px 8px",borderRadius:'var(--radius-lg)'}}>Current</span>}
                 </div>
@@ -9971,7 +9966,7 @@ return(
   {(()=>{
     const selEntry=selectedColorId&&pal?pal.find(p=>p.id===selectedColorId):null;
     if(!selEntry||!selEntry.rgb)return null;
-    return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={selEntry.name||selEntry.id}/>;
+    return <span className="cs-focus-swatch" style={{background:"rgb("+selEntry.rgb.join(",")+")"}} title={formatThread(selEntry,{variant:"title"})}/>;
   })()}
   <button type="button" onClick={()=>{if(typeof undoTrack==='function')undoTrack();}} aria-label="Undo" title="Undo">{Icons.undo&&Icons.undo()}</button>
   <button type="button" onClick={()=>setStitchZoom(z=>Math.max(MIN_STITCH_ZOOM,+(z-0.25).toFixed(2)))} aria-label="Zoom out" title="Zoom out">{Icons.minus&&Icons.minus()}</button>

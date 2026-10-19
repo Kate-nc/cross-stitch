@@ -26,7 +26,7 @@ The first time you open the Tracker, a short welcome tour explains Mark and Navi
 ### What you'll see
 
 - **Chart** — your pattern in symbols, colours, or a highlight view.
-- **Palette** — every colour with its progress. Tap a colour to focus on it.
+- **Palette** — every colour with its progress, its brand, number and full name, and the strands and skeins it takes. Sort by Remaining, % done or Number. Tap a colour to focus on it. A blend reads, for example, DMC 341 + 826 (blend); **What's a blend?** above the list explains how to stitch one.
 - **Mode buttons** — **Mark**, **Navigate** and **More controls**.
 - **Session chip** — the current session's time and stitches, once you start marking.
 

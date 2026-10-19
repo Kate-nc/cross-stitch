@@ -13,12 +13,12 @@ function grab(name) {
   if (!m) throw new Error('Could not extract ' + name + ' from helpers.js');
   return m[0];
 }
-// threadLabel needs the brand table, so it is stubbed to what it returns for a DMC entry.
+// colourDoneName uses the shared thread label; helpers.js is a global in every test, as on the pages.
 const api = new Function(
-  'function threadLabel(e){ return e ? "DMC " + e.id : ""; }\n' +
+  'formatThread',
   grab('colourDoneChanges') + '\n' + grab('colourDoneName') + '\n' + grab('colourDoneConfirmText') + '\n' +
   'return { colourDoneChanges, colourDoneName, colourDoneConfirmText };'
-)();
+)(globalThis.formatThread);
 
 function makePattern() {
   // 10 cells: 05 at 0,1,2,5,6; 310 at 3,4,7; the rest skipped.
@@ -75,9 +75,9 @@ describe('colourDoneName and colourDoneConfirmText', () => {
     expect(api.colourDoneName({ id: '05', name: 'Light Driftwood' })).toBe('DMC 05 Light Driftwood');
   });
 
-  test('a blend names both threads', () => {
-    const e = { id: '310+415', type: 'blend', threads: [{ name: 'Black' }, { name: 'Pearl Grey' }] };
-    expect(api.colourDoneName(e)).toBe('DMC 310+415 Black+Pearl Grey');
+  test('a blend is named as the colour list names it', () => {
+    const e = { id: '310+415', type: 'blend', threads: [{ id: '310', name: 'Black' }, { id: '415', name: 'Pearl Gray' }] };
+    expect(api.colourDoneName(e)).toBe('DMC 310 + 415 (blend)');
   });
 
   test('the confirmation quotes the colour and the exact count', () => {

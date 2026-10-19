@@ -459,7 +459,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // now at zero stitch count get a toast with a one-click "Remove" action.
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
+        var label = formatThread(p);
         state.addToast(label + ' is no longer used — remove from palette?', {
           type: 'info',
           duration: 8000,

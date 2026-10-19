@@ -1056,7 +1056,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
           var res=state.applyGlobalColourReplacement(src.srcId,dstThread.id,{scope:opts&&opts.scope==='selection'?'selection':'all',alsoIds:swap?[]:alsoIds,swap:swap});
           state.setColourReplaceModal(null);
           if(!res||!state.addToast)return;
-          var srcLbl=threadLabel((state.cmap&&state.cmap[src.srcId])||(res.src)||{id:src.srcId}),dstLbl=threadLabel(res.dst);
+          var srcLbl=formatThread((state.cmap&&state.cmap[src.srcId])||(res.src)||{id:src.srcId}),dstLbl=formatThread(res.dst);
           state.addToast((swap?"Swapped "+srcLbl+" and "+dstLbl:"Replaced "+srcLbl+(alsoIds.length?" and "+alsoIds.length+" similar shade"+(alsoIds.length===1?"":"s"):"")+" with "+dstLbl)+" ("+(window.ColourReplace&&res.counts?window.ColourReplace.describeCounts(res.counts):res.count.toLocaleString()+" stitches")+(opts&&opts.scope==='selection'?" in selection":"")+")",{
             type:"success", duration:6000,
             action:{label:"Undo", onClick:function(){
@@ -1231,6 +1231,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
+        confetti={state.confettiStats}
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
       />}
@@ -1242,6 +1243,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         skeinEstimate={state.totalSkeins}
         totalStitchable={state.totalStitchable}
         difficulty={state.difficulty}
+        confetti={state.confettiStats}
         stitchSpeed={state.stitchSpeed}
         doneCount={state.doneCount}
         appMode={state.appMode}
@@ -1390,7 +1392,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   </div>
                   {state.previewStats.confettiPct!=null&&(()=>{
                     const t=confettiTier(state.previewStats.confettiPct);
-                    const tips={"Excellent":"Great stitch flow","Good":"Low confetti — pleasant to stitch","Moderate":"Some isolated stitches — try the Remove Orphans slider","Challenging":"High confetti — reduce colours or use Remove Orphans","High confetti":"Very tedious — strongly consider removing orphans"};
+                    const tips={"Excellent":"Great stitch flow","Good":"Few confetti stitches — pleasant to stitch","Moderate":"Some confetti stitches — try Reduce confetti","Challenging":"Lots of confetti — lower Threads (max) or use Reduce confetti","High confetti":"Very tedious — strongly consider Reduce confetti"};
                     return(
                       <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid var(--line)"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
@@ -1401,9 +1403,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                           <div style={{flex:1,height:5,background:"var(--line)",borderRadius:3,overflow:"hidden"}}>
                             <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
                           </div>
-                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({state.previewStats.confettiPct.toFixed(1)}%)</span>
+                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({(state.previewStats.confettiSinglesPct!=null?state.previewStats.confettiSinglesPct:state.previewStats.confettiPct).toFixed(1)}%)</span>
                         </div>
-                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup`:""}</div>
+                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after Reduce confetti`:""}</div>
+                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-tertiary)",marginTop:2}}>Confetti stitches are {window.CONFETTI_HELP.definition}.</div>
                       </div>
                     );
                   })()}

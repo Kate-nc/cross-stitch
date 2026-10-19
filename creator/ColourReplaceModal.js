@@ -102,6 +102,7 @@
     // The pattern's thread brand (P4-5): replacements come from its catalogue.
     var brandName = window.threadBrandLabel ? window.threadBrandLabel(props.threadBrand) : 'DMC';
     var lbl = function (t) { return window.threadLabel ? window.threadLabel(t) : 'DMC ' + t.id; };
+    var fullLbl = function (t) { return window.formatThread ? window.formatThread(t) : 'DMC ' + t.id + (t.name ? ' ' + t.name : ''); };
     var dmcList = window.projectThreadList ? window.projectThreadList(props.threadBrand) : (typeof DMC !== 'undefined' ? DMC : []);
 
     // Colours already in the pattern (excluding the source). Picking one
@@ -271,8 +272,9 @@
     };
 
     var srcEntry = (pal || []).find(function (p) { return p && p.id === srcId; });
-    var srcLabel = (window.threadLabel ? window.threadLabel(srcEntry || { id: srcId || '' }) : 'DMC ' + (srcId || '')) +
-      (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
+    var srcLabel = window.formatThread
+      ? window.formatThread(srcEntry || { id: srcId || '', name: modal && modal.srcName })
+      : 'DMC ' + (srcId || '') + (modal && modal.srcName && modal.srcName !== srcId ? ' ' + modal.srcName : '');
     var countText = affected == null ? null
       : (affected === 0 ? 'nothing to change'
         : describe(scope === 'selection' ? counts.sel : counts.all) + ' will change');
@@ -556,7 +558,7 @@
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
           }),
           h('span', null,
-            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, lbl(picked) + ' ' + picked.name) : 'Pick a thread',
+            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, fullLbl(picked)) : 'Pick a thread',
             countText ? ' \u00B7 ' + countText : '')
         ),
         mergeNote,

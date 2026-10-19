@@ -312,7 +312,7 @@
           h("input", { type: "color", "aria-label": "Default fabric colour for new patterns", value: /^#[0-9a-fA-F]{6}$/.test(fabColour[0] || "") ? fabColour[0] : "#FFFFFF",
             onChange: function (e) { fabColour[1](e.target.value.toUpperCase()); }, style: { width: 48, height: 32, padding: 0, border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface)" } })
         ),
-        h(Row, { label: "Allow blended threads", desc: "Lets the Creator combine two threads in one stitch for richer colour. Used when the picture type isn't guessed." },
+        h(Row, { label: "Allow two-thread blends", desc: "Lets the Creator put one strand of each of two threads in the needle for an in-between shade. Smoother shading, but more chart symbols to follow. Used when the picture type isn't guessed." },
           h(Switch, { checked: allowBlend[0], onChange: allowBlend[1] })
         ),
         h(Row, { last: true, label: "Use only threads from my stash", desc: "Restricts the palette to threads marked as owned in the Stash Manager." },
@@ -327,7 +327,7 @@
             { value: "balanced", label: "Balanced" }, { value: "strong", label: "Strong" }
           ]})
         ),
-        h(Row, { label: "Fewer single stitches in blends", desc: "Keeps shading in small clumps instead of scattered single stitches." },
+        h(Row, { label: "Fewer confetti stitches in shading", desc: "Keeps shading in small clumps instead of scattered confetti stitches." },
           h(Switch, { checked: smooth[0], onChange: smooth[1] })
         ),
         h(Row, { last: true, label: "Reference image opacity", desc: "How visible your source photo is when overlaid on the chart." },
@@ -337,10 +337,10 @@
       ),
 
       h(Section, { title: "Tidying up the pattern" },
-        h(Row, { label: "Tidy stray stitches", desc: "Removes lone stitches that don't form a recognisable shape." },
+        h(Row, { label: "Reduce confetti", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them." },
           h(Switch, { checked: cleanup[0], onChange: cleanup[1] })
         ),
-        h(Row, { label: "How aggressively to remove strays", desc: "0 keeps everything. 3 removes most isolated stitches." },
+        h(Row, { label: "How strongly to reduce confetti", desc: "0 keeps everything. 3 merges the most confetti stitches." },
           h("input", { type: "range", min: 0, max: 3, value: orphan[0], onChange: function (e) { orphan[1](parseInt(e.target.value, 10)); }, style: { width: 120 } }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),

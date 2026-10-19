@@ -105,7 +105,7 @@ describe('progress', () => {
   test('the brief\'s wording, and the bar only moves forward', () => {
     const g = stages.GENERATE_STAGES;
     expect(g.mapping.label).toBe('Matching colours…');
-    expect(g.cleanup.label).toBe('Cleaning up stray stitches…');
+    expect(g.cleanup.label).toBe('Reducing confetti…');
     expect(g.finalizing.label).toBe('Building the chart…');
     const order = ['preparing', 'smoothing', 'quantizing', 'mapping', 'rarity', 'cleanup', 'disambiguating', 'finalizing'];
     for (let i = 1; i < order.length; i++) expect(g[order[i]].pct).toBeGreaterThan(g[order[i - 1]].pct);

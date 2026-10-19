@@ -90,8 +90,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       var name = (p.type === "blend" && p.threads)
         ? p.threads[0].name + " + " + p.threads[1].name
         : (p.name || p.id);
-      var confettiCount = (app.confettiData && app.confettiData.clean && app.confettiData.clean.colorConfetti)
-        ? app.confettiData.clean.colorConfetti[p.id] : null;
+      // Confetti stitches of this symbol: single stitches only, the same meaning as everywhere else (UX-012).
+      var confettiCount = (app.confettiData && app.confettiData.clean && app.confettiData.clean.colorSingles)
+        ? app.confettiData.clean.colorSingles[p.id] : null;
       var dc = (ctx.colourDoneCounts && ctx.colourDoneCounts[p.id]) || {total: 0, done: 0};
       return {p: p, owned: owned, needed: needed, status: status, name: name, confettiCount: confettiCount, dc: dc};
     });
@@ -241,9 +242,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-      lines.push(mark + " " + threadLabel(r.p) + " \u2014 " + r.name + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
+      lines.push(mark + " " + formatThread(r.p, {variant: "title"}) + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
     });
-    lines.push("", "Total: " + ownedColours + "/" + totalColours + " colours owned");
+    lines.push("", "Total: " + ownedColours + "/" + totalColours + " threads owned");
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(lines.join("\n")).then(function() {
         setCopied(true); setTimeout(function() { setCopied(false); }, 2000);
@@ -258,7 +259,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       if (r.status !== "owned") {
         var diff = Math.max(0, r.needed - r.owned);
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-        lines.push(threadLabel(r.p) + " " + r.name + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
+        lines.push(formatThread(r.p, {variant: "title"}) + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
       }
     });
     navigator.share({title:"Cross Stitch Shopping List", text:lines.join("\n")}).catch(function() {});
@@ -293,11 +294,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       border:"0.5px solid " + (allOwned ? "var(--success-soft)" : "var(--border)")
     }},
       h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
-        totalColours + " colour" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
+        totalColours + " thread" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
       ),
       hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)", display:"inline-flex", alignItems:"center", gap:4}},
         allOwned
-          ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "All colours in stash!"]
+          ? [window.Icons && window.Icons.check ? h("span", {key:"i", "aria-hidden":"true", style:{display:"inline-flex"}}, window.Icons.check()) : null, "All threads in stash!"]
           : "Stash: " + ownedColours + "/" + totalColours + " owned"
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
@@ -390,10 +391,11 @@ window.CreatorLegendTab = function CreatorLegendTab() {
               h("tr", null,
                 h("th", {style:thSt("left")}, "Sym"),
                 h("th", {style:thSt("left")}, ""),
-                h("th", {style:thSt("left")}, brandLabel),
+                h("th", {style:thSt("left")}, "Thread"),
                 h("th", {style:thSt("left")}, "Name"),
                 h("th", {style:thSt("left")}, "Type"),
                 h("th", {style:thSt("right")}, "Stitches"),
+                h("th", {style:thSt("left")}, "Strands"),
                 h("th", {style:thSt("right")}, "Skeins"),
                 hasStash && h("th", {style:thSt("right")}, "In stash"),
                 hasStash && h("th", {style:thSt("left")}, "Status"),
@@ -403,6 +405,9 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             h("tbody", null,
               sortedRows.map(function(r, i) {
                 var p    = r.p;
+                // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
+                var keyRow = window.threadKeyRow(p, { fabricCount: fabricCt });
+                var usage  = window.threadUsageParts(window.threadKeyUsage(p, { fabricCount: fabricCt }));
                 var isHi = cv.hiId === p.id;
                 var rowBg = isHi ? "#F8EFD8"
                   : (hasStash && r.status === "owned") ? "var(--success-soft)"
@@ -421,7 +426,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     }
                   }
                 }
-                var colSpan = 7 + (hasStash ? 2 : 0) + (ctx.done ? 1 : 0);
+                var colSpan = 8 + (hasStash ? 2 : 0) + (ctx.done ? 1 : 0);
                 return h(React.Fragment, { key: p.id },
                   h("tr", {
                   onClick: function() { cv.setHiId(isHi ? null : p.id); app.setTab("pattern"); },
@@ -433,7 +438,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       className: "colour-swatch",
                       role: "button",
                       tabIndex: 0,
-                      "aria-label": "Show colour details for " + p.id,
+                      "aria-label": "Show colour details for " + keyRow.title,
                       title: "Click for colour details",
                       onClick: function(ev) {
                         ev.stopPropagation();
@@ -442,7 +447,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                           ? window.findNearestSimilarThread(p, ctx.pal, 8)
                           : null;
                         setPopoverThread({
-                          id: p.id, name: p.name || r.name, rgb: p.rgb,
+                          id: p.id, type: p.type, brand: p.brand, threads: p.threads, name: p.name, rgb: p.rgb,
                           similarThread: nearest,
                           anchorRect: rect
                         });
@@ -455,7 +460,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                             ? window.findNearestSimilarThread(p, ctx.pal, 8)
                             : null;
                           setPopoverThread({
-                            id: p.id, name: p.name || r.name, rgb: p.rgb,
+                            id: p.id, type: p.type, brand: p.brand, threads: p.threads, name: p.name, rgb: p.rgb,
                             similarThread: nearest,
                             anchorRect: rect
                           });
@@ -471,14 +476,14 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                       ? h("span", {className:"thread-placeholder-swatch", title:"No thread yet", style:{width:20, height:20}}, window.Icons && window.Icons.help ? window.Icons.help() : null)
                       : null)
                   ),
-                  h("td", {style:{padding:"5px 10px", fontWeight:600}}, p.id),
-                  h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", whiteSpace:"nowrap"}},
-                    r.name,
+                  h("td", {style:{padding:"5px 10px", fontWeight:600}, title:keyRow.title}, keyRow.id),
+                  h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)", overflowWrap:"anywhere"}},
+                    keyRow.name,
                     // French knots in this thread (their thread is in the counts).
                     p.knots ? h("div", {className:"legend-knots", style:{fontSize:"var(--text-xs)", color:"var(--text-tertiary)"}},
                       "French knots: " + p.knots.toLocaleString()) : null,
                     r.confettiCount ? h("span", {
-                      title: r.confettiCount + " isolated stitch" + (r.confettiCount !== 1 ? "es" : ""),
+                      title: r.confettiCount + " confetti stitch" + (r.confettiCount !== 1 ? "es" : "") + ": " + window.CONFETTI_HELP.definition,
                       style:{marginLeft:5, color:"var(--danger)", fontSize:10, fontWeight:600, cursor:"default"}
                     }, "\u25cf " + r.confettiCount) : null,
                     similarPairs[p.id] ? h("span", {
@@ -509,7 +514,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
                     }}, p.type === "blend" ? "Blend" : "Solid")
                   ),
                   h("td", {style:{padding:"5px 10px", textAlign:"right"}}, p.count.toLocaleString()),
-                  h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}}, r.needed),
+                  h("td", {style:{padding:"5px 10px", color:"var(--text-secondary)"}}, usage.strands),
+                  h("td", {style:{padding:"5px 10px", textAlign:"right", fontWeight:600}, title:keyRow.usageTitle}, usage.skeins),
                   hasStash && h("td", {style:{padding:"5px 10px", textAlign:"right",
                                               color: r.owned > 0 ? "var(--success)" : "var(--text-tertiary)"}},
                     r.owned > 0 ? r.owned : "\u2014"

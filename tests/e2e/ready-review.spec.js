@@ -113,7 +113,7 @@ test('bug hunting: manual erase and undo refresh metrics, preview and materials 
   await expect(review).toContainText('36 full-cross cells');
   await review.getByRole('button',{name:'Open adjustment and cleanup tools'}).click();
   await expect(page.getByRole('button',{name:'Fix outline colours',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Tidy stray stitches',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Reduce confetti',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Erase tool',exact:true}).click();
   const point=await page.locator('.canvas-area canvas').first().evaluate(c=>{
     const b=c.getBoundingClientRect(),cell=(b.width-30)/48;
@@ -126,7 +126,7 @@ test('bug hunting: manual erase and undo refresh metrics, preview and materials 
   await page.getByRole('button',{name:'Undo',exact:true}).first().click();
   await page.getByRole('tab',{name:'Materials',exact:true}).click();
   await expect(review).toContainText('36 full-cross cells');
-  await expect(review).toContainText('36 isolated full crosses');
+  await expect(review).toContainText('36 confetti stitches');
 });
 
 test('bug hunting: dark phone layout, enlarged samples and keyboard review tabs stay usable', async ({page}) => {

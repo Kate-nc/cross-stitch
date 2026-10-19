@@ -203,6 +203,95 @@ function rtThreadUsage(pattern, done, fabricCount, prefs) {
   return out;
 }
 
+// ── Key rows: what a stitcher needs for one chart symbol (UX-014) ─────────────
+// The Creator Palette tab, the Tracker colour list and the Materials thread
+// list all show the same two figures for a symbol: the strands in the needle
+// and the skeins of thread it takes. They come from stitchesToSkeins, with the
+// 20 % allowance skeinEst() and the shopping list use.
+//
+// A blend stitch puts one strand of each of its two threads in the needle, so
+// each thread costs half what a two-strand stitch of it would. That is why a
+// blend row shows the skeins for EACH thread, not a total. The shopping list
+// adds blends to the solids that share a thread, so it needs fewer skeins than
+// the key rows added up.
+const KEY_WASTE_FACTOR = 0.20;
+
+// entry: a palette entry ({ count, type, blendRatio? }) or a library thread
+// ({ qty... } is not read; pass count). opts: { fabricCount, strandsUsed,
+// wasteFactor }. Returns { isBlend, count, strands: [n] | [a, b],
+// skeins: [exact] | [a, b], toBuy: [whole skeins, at least 1 once stitched] }.
+function threadKeyUsage(entry, opts) {
+  opts = opts || {};
+  const e = entry || {};
+  const fabricCount = Number.isFinite(opts.fabricCount) && opts.fabricCount > 0 ? opts.fabricCount : 14;
+  const strandsUsed = Number.isFinite(opts.strandsUsed) && opts.strandsUsed > 0 ? opts.strandsUsed : BASE_STRANDS;
+  const wasteFactor = opts.wasteFactor == null ? KEY_WASTE_FACTOR : opts.wasteFactor;
+  const count = Number.isFinite(Number(e.count)) && Number(e.count) > 0 ? Number(e.count) : 0;
+  const isBlend = e.type === 'blend' || !!e.is_blended || (typeof e.id === 'string' && e.id.indexOf('+') > 0);
+  let strands;
+  if (isBlend) {
+    const r = e.blendRatio || e.blend_ratio;
+    strands = Array.isArray(r) && r.length >= 2 && r[0] > 0 && r[1] > 0 ? [r[0], r[1]] : [strandsUsed / 2, strandsUsed / 2];
+  } else {
+    strands = [strandsUsed];
+  }
+  // A symbol with any stitches never reads as exactly zero skeins, however few (stitchesToSkeins rounds a tiny amount to 0).
+  const skeins = strands.map(function (n) {
+    const exact = stitchesToSkeins({ stitchCount: count, fabricCount: fabricCount, strandsUsed: n, wasteFactor: wasteFactor }).skeinsExact;
+    return count > 0 ? Math.max(exact, 0.001) : exact;
+  });
+  const toBuy = skeins.map(function (x) { return count > 0 ? Math.max(1, Math.ceil(x)) : 0; });
+  return { isBlend: isBlend, count: count, strands: strands, skeins: skeins, toBuy: toBuy };
+}
+
+// "1.3 skeins", "1 skein", "under 0.1 skein", "0 skeins".
+function formatSkeins(n) {
+  if (!Number.isFinite(n) || n <= 0) return '0 skeins';
+  if (n < 0.05) return 'under 0.1 skein';
+  const r = Math.round(n * 10) / 10;
+  return r + (r === 1 ? ' skein' : ' skeins');
+}
+
+function _strandsWord(n) { return n + (n === 1 ? ' strand' : ' strands'); }
+
+// The two halves of a key row's usage line, for a table with a column for each:
+// { strands: "2 strands" | "1 strand of each" | "1 + 2 strands",
+//   skeins: "1.3 skeins" | "0.4 skeins each" | "0.4 skeins and 0.8 skeins" }.
+function threadUsageParts(u) {
+  if (!u) return { strands: '', skeins: '' };
+  if (!u.isBlend) return { strands: _strandsWord(u.strands[0]), skeins: formatSkeins(u.skeins[0]) };
+  const even = u.strands[0] === u.strands[1];
+  return {
+    strands: even ? _strandsWord(u.strands[0]) + ' of each' : u.strands[0] + ' + ' + u.strands[1] + ' strands',
+    skeins: u.skeins[0] === u.skeins[1] ? formatSkeins(u.skeins[0]) + ' each' : formatSkeins(u.skeins[0]) + ' and ' + formatSkeins(u.skeins[1])
+  };
+}
+
+// The key row's usage line: "2 strands · 1.3 skeins" for a solid,
+// "1 strand of each · 0.4 skeins each" for a blend.
+function threadUsageText(u) {
+  if (!u) return '';
+  const p = threadUsageParts(u);
+  return p.strands + ' \u00B7 ' + p.skeins;
+}
+
+// "about 1.3 skeins", but "under 0.1 skein" rather than "about under 0.1 skein".
+function _aboutSkeins(n) { return n < 0.05 && n > 0 ? formatSkeins(n) : 'about ' + formatSkeins(n); }
+
+// The same figures in full, for a tooltip or screen reader.
+function threadUsageTitle(u) {
+  if (!u) return '';
+  if (!u.isBlend) {
+    return _strandsWord(u.strands[0]) + ' in the needle; ' + _aboutSkeins(u.skeins[0]) + ' of thread' + (u.toBuy[0] ? ' (buy ' + u.toBuy[0] + ')' : '');
+  }
+  const even = u.strands[0] === u.strands[1];
+  const st = even ? 'One strand of each thread in the needle' : u.strands[0] + ' and ' + u.strands[1] + ' strands in the needle';
+  const sk = u.skeins[0] === u.skeins[1]
+    ? _aboutSkeins(u.skeins[0]) + ' of each thread'
+    : _aboutSkeins(u.skeins[0]) + ' and ' + formatSkeins(u.skeins[1]) + ' of the two threads';
+  return st + '; ' + sk;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BASE_THREAD_PER_STITCH_IN,
@@ -215,6 +304,12 @@ if (typeof module !== 'undefined' && module.exports) {
         stitchesToSkeins,
         skeinsToStitches,
         threadCostPerStitch,
-        rtThreadUsage
+        rtThreadUsage,
+        KEY_WASTE_FACTOR,
+        threadKeyUsage,
+        formatSkeins,
+        threadUsageParts,
+        threadUsageText,
+        threadUsageTitle
     };
 }

@@ -1741,10 +1741,10 @@ function CreatorApp({
       });
       state.setColourReplaceModal(null);
       if (!res || !state.addToast) return;
-      var srcLbl = threadLabel(state.cmap && state.cmap[src.srcId] || res.src || {
+      var srcLbl = formatThread(state.cmap && state.cmap[src.srcId] || res.src || {
           id: src.srcId
         }),
-        dstLbl = threadLabel(res.dst);
+        dstLbl = formatThread(res.dst);
       state.addToast((swap ? "Swapped " + srcLbl + " and " + dstLbl : "Replaced " + srcLbl + (alsoIds.length ? " and " + alsoIds.length + " similar shade" + (alsoIds.length === 1 ? "" : "s") : "") + " with " + dstLbl) + " (" + (window.ColourReplace && res.counts ? window.ColourReplace.describeCounts(res.counts) : res.count.toLocaleString() + " stitches") + (opts && opts.scope === 'selection' ? " in selection" : "") + ")", {
         type: "success",
         duration: 6000,
@@ -1962,6 +1962,7 @@ function CreatorApp({
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,
+    confetti: state.confettiStats,
     stitchSpeed: state.stitchSpeed,
     doneCount: state.doneCount
   }), !_compact && window.CreatorActionBar && /*#__PURE__*/React.createElement(window.CreatorActionBar, {
@@ -1974,6 +1975,7 @@ function CreatorApp({
     skeinEstimate: state.totalSkeins,
     totalStitchable: state.totalStitchable,
     difficulty: state.difficulty,
+    confetti: state.confettiStats,
     stitchSpeed: state.stitchSpeed,
     doneCount: state.doneCount,
     appMode: state.appMode,
@@ -2413,10 +2415,10 @@ function CreatorApp({
     const t = confettiTier(state.previewStats.confettiPct);
     const tips = {
       "Excellent": "Great stitch flow",
-      "Good": "Low confetti — pleasant to stitch",
-      "Moderate": "Some isolated stitches — try the Remove Orphans slider",
-      "Challenging": "High confetti — reduce colours or use Remove Orphans",
-      "High confetti": "Very tedious — strongly consider removing orphans"
+      "Good": "Few confetti stitches — pleasant to stitch",
+      "Moderate": "Some confetti stitches — try Reduce confetti",
+      "Challenging": "Lots of confetti — lower Threads (max) or use Reduce confetti",
+      "High confetti": "Very tedious — strongly consider Reduce confetti"
     };
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2476,13 +2478,19 @@ function CreatorApp({
         color: t.color,
         flexShrink: 0
       }
-    }, state.previewStats.confettiSingles.toLocaleString('en-GB'), " (", state.previewStats.confettiPct.toFixed(1), "%)")), /*#__PURE__*/React.createElement("div", {
+    }, state.previewStats.confettiSingles.toLocaleString('en-GB'), " (", (state.previewStats.confettiSinglesPct != null ? state.previewStats.confettiSinglesPct : state.previewStats.confettiPct).toFixed(1), "%)")), /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: "var(--text-xs)",
         color: "var(--text-secondary)",
         marginTop: 4
       }
-    }, tips[t.label] || "", state.previewStats.confettiCleanSingles != null && state.previewStats.confettiCleanSingles < state.previewStats.confettiSingles ? ` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after cleanup` : ""));
+    }, tips[t.label] || "", state.previewStats.confettiCleanSingles != null && state.previewStats.confettiCleanSingles < state.previewStats.confettiSingles ? ` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after Reduce confetti` : ""), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: "var(--text-xs)",
+        color: "var(--text-tertiary)",
+        marginTop: 2
+      }
+    }, "Confetti stitches are ", window.CONFETTI_HELP.definition, "."));
   })(), state.exactPixelArt && state.previewStats.exactMappings && /*#__PURE__*/React.createElement("details", {
     style: {
       maxHeight: 240,

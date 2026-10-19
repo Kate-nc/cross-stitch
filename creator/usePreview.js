@@ -147,6 +147,7 @@ window.usePreview = function usePreview(state) {
         estSkeins: estSkeins,
         confettiPct: confettiRaw.pct,
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
+        confettiSinglesPct: confettiRaw.singlesPct,
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
         stashUsage: stashUsage,
         exactMappings: exactResult ? exactResult.mappings : null,
