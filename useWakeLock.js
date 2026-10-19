@@ -111,7 +111,7 @@
         if(!localStorage.getItem('cs_wakelock_told')){
           localStorage.setItem('cs_wakelock_told','1');
           if(window.Toast&&window.Toast.show)window.Toast.show({
-            message:"Keeping the screen on while you stitch.", type:"info", duration:9000,
+            message:"Keeping the screen on while you stitch.", type:"info", duration:9000, priority:0,
             actions:[{label:"Turn off",onClick:()=>{releaseWakeLock();try{window.UserPrefs.set('trackerWakeLock','never');}catch(_){}}}]
           });
         }

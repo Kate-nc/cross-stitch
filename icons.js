@@ -151,6 +151,16 @@ window.Icons = (function() {
         l(6,14,18,14)
       );
     },
+    // Paint bucket, tipped, with a drop falling from it — the Fill tool. The upright bucket above read as a
+    // jar on a phone rail; the tilt and the drop say "pour paint in".
+    bucketPour: function() {
+      return svg16(
+        p('M10.5 4L18 11.5L10.5 19L3 11.5Z'),
+        p('M3 11.5H18'),
+        p('M10.5 4L8 1.5'),
+        p('M20 14.5C20 14.5 17.8 16.9 17.8 18.3a2.2 2.2 0 0 0 4.4 0C22.2 16.9 20 14.5 20 14.5Z')
+      );
+    },
     // Magic wand — replaces ✨ (select similar)
     wand: function() {
       return svg(l(3,21,10,14), p('M14 5l5 5-9.5 9.5-5-5L14 5z'), l(17,4,21,4), l(19,2,19,6));

@@ -102,7 +102,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
-    item([Icons.bucket(), " Switch to fill tool"], function() {
+    item([Icons.bucketPour(), " Switch to fill tool"], function() {
       cv.selectStitchType("cross");
       cv.setBrushAndActivate("fill");
     }, {disabled: !cv.selectedColorId, k: 'fill'}),

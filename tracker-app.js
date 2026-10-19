@@ -5861,7 +5861,7 @@ useEffect(()=>{
   try{
     if(window.Toast&&window.Toast.show)window.Toast.show({
       message:"Sessions are tracked automatically as you stitch, so their time is an estimate. For an exact time, use Start timer in the Session panel.",
-      type:"info",duration:8000,
+      type:"info",duration:8000,priority:0,   // a first-run notice: on a phone it waits behind the feedback for what the stitcher just did
       action:()=>{setLeftSidebarTab("session");setMorePanelOpen(true);},actionLabel:"Open",
     });
   }catch(_){}

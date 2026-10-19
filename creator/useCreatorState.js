@@ -1149,6 +1149,7 @@ window.useCreatorState = function useCreatorState() {
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
+  var toastsRef = useRef([]);          // the same list, readable from a callback without a stale closure
   var addToast = useCallback(function(message, opts) {
     opts = opts || {};
     var id = ++toastIdRef.current;
@@ -1156,13 +1157,24 @@ window.useCreatorState = function useCreatorState() {
       ? { label: opts.action.label || "Action", onClick: opts.action.onClick }
       : null;
     var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500, action: action };
+    // On a phone only one toast shows at a time (creator/Toast.js), so a later one must not run out its clock
+    // while it waits: it is dismissed after the ones ahead of it have had their turn.
+    var wait = 0;
+    try {
+      if (window.matchMedia && window.matchMedia(window.CREATOR_COMPACT_QUERY || "(max-width: 899px)").matches) {
+        toastsRef.current.forEach(function(t) { wait += t.duration; });
+      }
+    } catch (_) {}
+    toastsRef.current = toastsRef.current.concat([toast]);
     setToasts(function(prev) { return prev.concat([toast]); });
     setTimeout(function() {
+      toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
       setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
-    }, toast.duration);
+    }, wait + toast.duration);
     return id;
   }, []);
   var dismissToast = useCallback(function(id) {
+    toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
     setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
   }, []);
 

@@ -7718,6 +7718,7 @@ window.useCreatorState = function useCreatorState() {
   // Toast notifications
   var _toasts = useState([]);        var toasts = _toasts[0], setToasts = _toasts[1];
   var toastIdRef = useRef(0);
+  var toastsRef = useRef([]);          // the same list, readable from a callback without a stale closure
   var addToast = useCallback(function(message, opts) {
     opts = opts || {};
     var id = ++toastIdRef.current;
@@ -7725,13 +7726,24 @@ window.useCreatorState = function useCreatorState() {
       ? { label: opts.action.label || "Action", onClick: opts.action.onClick }
       : null;
     var toast = { id: id, message: message, type: opts.type || "info", duration: opts.duration || 2500, action: action };
+    // On a phone only one toast shows at a time (creator/Toast.js), so a later one must not run out its clock
+    // while it waits: it is dismissed after the ones ahead of it have had their turn.
+    var wait = 0;
+    try {
+      if (window.matchMedia && window.matchMedia(window.CREATOR_COMPACT_QUERY || "(max-width: 899px)").matches) {
+        toastsRef.current.forEach(function(t) { wait += t.duration; });
+      }
+    } catch (_) {}
+    toastsRef.current = toastsRef.current.concat([toast]);
     setToasts(function(prev) { return prev.concat([toast]); });
     setTimeout(function() {
+      toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
       setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
-    }, toast.duration);
+    }, wait + toast.duration);
     return id;
   }, []);
   var dismissToast = useCallback(function(id) {
+    toastsRef.current = toastsRef.current.filter(function(t) { return t.id !== id; });
     setToasts(function(prev) { return prev.filter(function(t) { return t.id !== id; }); });
   }, []);
 
@@ -16629,8 +16641,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
 
     var status = saveStatusIcon(props.saveStatus, props.savedAt, Icons);
 
-    // Convert / Edit / Materials — icon segmented control with labels for
-    // screen readers (visible labels sit in the More sheet's heading).
+    // Convert / Edit / Materials — an icon over its word, so the three steps are named on screen.
     var modes = [
       sourceTab === "convert" ? { id: "convert", label: "Convert", icon: Icons.image, active: appMode === "create",
         disabled: !props.hasImage && !hasPat,
@@ -16652,7 +16663,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           "aria-label": m.label, title: m.label,
           disabled: m.disabled,
           onClick: m.onClick
-        }, m.icon ? m.icon() : m.label);
+        }, m.icon ? m.icon() : null, h("span", { className: "cc-mode__label" }, m.label));
       })
     );
 
@@ -17893,7 +17904,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       title:"More tools", "aria-label":"More tools",
       "aria-expanded":morePanelOpen?"true":"false", "aria-haspopup":"dialog"
     }, compact
-      ? (window.Icons.more ? window.Icons.more() : "More")
+      ? [window.Icons.more ? window.Icons.more() : null, h("span", {key:"l", className:"creator-rail__label"}, "More")]
       : ["More ", window.Icons&&window.Icons.chevronDown?window.Icons.chevronDown():null]),
     morePanelContent
   );
@@ -17904,13 +17915,14 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   if (compact) {
     // ── Bottom tool rail (phones and portrait tablets) ──
     var selCol = cv.selectedColorId && ctx.cmap ? ctx.cmap[cv.selectedColorId] : null;
-    var railBtn = function(key, label, icon, on, onClick, extra) {
+    // Icon over a short word (the Tracker rail's pattern): icon-only was a guessing game, and the fill icon looked like a jar.
+    var railBtn = function(key, label, text, icon, on, onClick, extra) {
       return h("button", Object.assign({
         key:key, type:"button",
         className:"creator-rail__btn" + (on ? " creator-rail__btn--on" : ""),
         "aria-label":label, title:label, "aria-pressed": on ? "true" : "false",
         onClick:onClick
-      }, extra || {}), icon);
+      }, extra || {}), icon, h("span", {className:"creator-rail__label"}, text));
     };
     var railToggle = window.ModeToggle ? h(window.ModeToggle, {
       compact:true, className:"tb-mode-toggle creator-rail__mode", ariaLabel:"Chart mode",
@@ -17930,16 +17942,17 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       denoiseRow,
       h("div", {className:"creator-rail__row"},
         railToggle,
-        railBtn("paint", "Paint tool", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
-        railBtn("fill", "Fill tool", window.Icons.bucket(), fillOn, function(){ pickBrush("fill", fillOn); }),
-        railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
+        railBtn("paint", "Paint tool", "Paint", window.Icons.brush(), paintOn, function(){ pickBrush("paint", paintOn); }),
+        railBtn("fill", "Fill tool", "Fill", window.Icons.bucketPour(), fillOn, function(){ pickBrush("fill", fillOn); }),
+        railBtn("erase", "Erase tool", "Erase", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
           "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
           title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
-        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
-        railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
+        }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}}),
+          h("span", {className:"creator-rail__label"}, "Colour")),
+        railBtn("undo", "Undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
         morePanelWrap
       )
     );
@@ -21775,7 +21788,26 @@ window.CreatorSidebar = function CreatorSidebar() {
 window.CreatorToastContainer = function CreatorToastContainer() {
   var app = window.useApp();
   var h = React.createElement;
-  if (!app.toasts || app.toasts.length === 0) return null;
+  // Phones (under 900px, the compact layout): one full-width banner at a time, the rest wait their turn
+  // (errors, then warnings, then the rest), and a coachmark waits for it (coaching.js).
+  var compact = window.useCreatorCompact ? window.useCreatorCompact() : false;
+  var list = app.toasts || [];
+  var shown = list;
+  if (compact && list.length) {
+    var pick = 0;
+    var errAt = -1, warnAt = -1;
+    list.forEach(function(t, i) { if (t.type === "error" && errAt < 0) errAt = i; else if (t.type === "warning" && warnAt < 0) warnAt = i; });
+    pick = errAt >= 0 ? errAt : warnAt >= 0 ? warnAt : 0;
+    shown = [list[pick]];
+  }
+  var banner = compact && shown.length > 0;
+  React.useEffect(function() {
+    if (!banner) return undefined;
+    var C = window.Coaching;
+    if (C && C.overlayOpened) C.overlayOpened();
+    return function() { if (C && C.overlayClosed) C.overlayClosed(); };
+  }, [banner]);
+  if (list.length === 0) return null;
 
   var typeStyles = {
     info:    { bg: "var(--accent-light)", border: "var(--accent-border)", color: "var(--accent-hover)", icon: Icons.info },
@@ -21785,48 +21817,55 @@ window.CreatorToastContainer = function CreatorToastContainer() {
   };
 
   return h("div", {
-    className: "creator-toast-container",
-    style: {
+    className: "creator-toast-container" + (compact ? " creator-toast-container--phone" : ""),
+    role: "status", "aria-live": "polite",
+    style: compact ? {
+      position: "fixed", bottom: 20, left: 0, right: 0, padding: "0 8px", zIndex: 10000,
+      display: "flex", flexDirection: "column", gap:'var(--s-2)',
+      pointerEvents: "none"
+    } : {
       position: "fixed", bottom: 20, right: 20, zIndex: 10000,
       display: "flex", flexDirection: "column-reverse", gap:'var(--s-2)',
       pointerEvents: "none", maxWidth: 340
     }
   },
-    app.toasts.map(function(toast) {
+    shown.map(function(toast) {
       var ts = typeStyles[toast.type] || typeStyles.info;
+      var touchBtn = compact ? { minWidth: 44, minHeight: 44 } : null;
       return h("div", {
         key: toast.id,
         style: {
           pointerEvents: "auto",
           display: "flex", alignItems: "center", gap:'var(--s-2)',
-          padding: "8px 14px", borderRadius:'var(--radius-lg)',
+          padding: compact ? "4px 4px 4px 14px" : "8px 14px", borderRadius:'var(--radius-lg)',
           background: ts.bg, border: "1px solid " + ts.border,
           color: ts.color, fontSize:'var(--text-sm)', fontWeight: 500,
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
           animation: "toast-in 0.25s ease-out",
-          fontFamily: "inherit", lineHeight: 1.4, maxWidth: 340
+          fontFamily: "inherit", lineHeight: 1.4, maxWidth: compact ? 560 : 340,
+          width: compact ? "100%" : undefined, margin: compact ? "0 auto" : undefined, boxSizing: "border-box"
         }
       },
         h("span", { style: { fontSize:'var(--text-lg)', flexShrink: 0 } }, ts.icon()),
-        h("span", { style: { flex: 1 } }, toast.message),
+        h("span", { style: { flex: 1, minWidth: 0, overflowWrap: "anywhere", padding: compact ? "6px 0" : 0 } }, toast.message),
         toast.action && h("button", {
           onClick: function() {
             try { toast.action.onClick(); } finally { app.dismissToast(toast.id); }
           },
-          style: {
+          style: Object.assign({
             background: "none", border: "none", cursor: "pointer",
-            color: ts.color, fontWeight: 600, padding: "0 2px",
+            color: ts.color, fontWeight: 600, padding: compact ? "0 10px" : "0 2px",
             fontSize: "inherit", fontFamily: "inherit", flexShrink: 0
-          }
+          }, touchBtn)
         }, toast.action.label),
         h("button", {
           onClick: function() { app.dismissToast(toast.id); },
           "aria-label": "Dismiss toast",
-          style: {
+          style: Object.assign({
             background: "none", border: "none", cursor: "pointer",
             color: ts.color, opacity: 0.6, display:"inline-flex", alignItems:"center", justifyContent:"center", padding: 0,
             lineHeight: 1, flexShrink: 0
-          }
+          }, touchBtn)
         }, Icons.x())
       );
     })
@@ -21939,7 +21978,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     }, {disabled: !hasCellColour, k: 'pick'}),
 
     // Fill from here — switch to fill tool so user can click the area
-    item([Icons.bucket(), " Switch to fill tool"], function() {
+    item([Icons.bucketPour(), " Switch to fill tool"], function() {
       cv.selectStitchType("cross");
       cv.setBrushAndActivate("fill");
     }, {disabled: !cv.selectedColorId, k: 'fill'}),

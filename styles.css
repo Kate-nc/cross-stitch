@@ -8322,7 +8322,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
    closed and opens ABOVE the rail, so the two never overlap; the rail's
    colour swatch and More › Panels open it. Desktop and tablet landscape
    (900px and wider) are unchanged. */
-:root{--creator-rail-h:56px;}
+:root{--creator-rail-h:56px;--creator-status-h:72px;}
 body.creator-compact .tb-topbar,
 body.creator-compact .creator-actionbar,
 body.creator-compact .cc-hide-compact{display:none!important;}
@@ -8340,7 +8340,9 @@ body.creator-compact .cc-hide-compact{display:none!important;}
 .cc-save--ok{color:var(--success);}
 .cc-save--danger{color:var(--danger);}
 .cc-modes{display:inline-flex;flex-shrink:0;border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;}
-.cc-mode{border-radius:0;min-width:40px;}
+.cc-mode{flex-direction:column;gap:1px;border-radius:0;min-width:44px;padding:0 4px;font-size:10px;font-weight:600;line-height:1;}
+.cc-mode svg{width:18px;height:18px;}
+.cc-mode__label{white-space:nowrap;}
 .cc-mode + .cc-mode{border-left:1px solid var(--line);}
 .cc-mode--on{background:var(--accent);color:var(--surface);}
 .cc-sheet-backdrop{position:fixed;inset:0;z-index:1090;background:var(--text-primary);opacity:0.3;}
@@ -8359,18 +8361,22 @@ body.creator-compact .cc-hide-compact{display:none!important;}
 .cc-sheet__link{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);border-radius:var(--radius-md);color:var(--text-primary);text-decoration:none;font-size:var(--text-sm);}
 /* Bottom rail */
 .creator-rail{position:fixed;left:0;right:0;bottom:0;z-index:510;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -2px 10px rgba(0,0,0,0.06);}
-.creator-rail__row{display:flex;align-items:center;justify-content:space-between;gap:2px;height:var(--creator-rail-h);padding:0 6px;}
-.creator-rail__btn{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);cursor:pointer;flex-shrink:0;}
+.creator-rail__row{display:flex;align-items:center;justify-content:space-between;gap:0;height:var(--creator-rail-h);padding:0 1px;overflow-x:auto;scrollbar-width:none;}
+.creator-rail__row::-webkit-scrollbar{display:none;}
+.creator-rail__btn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1 1 44px;min-width:44px;max-width:72px;min-height:44px;padding:0;border:none;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);font:inherit;cursor:pointer;}
+.creator-rail__label{font-size:10px;font-weight:600;line-height:1;white-space:nowrap;}
 .creator-rail__btn svg{width:22px;height:22px;}
 .creator-rail__btn--on{background:var(--accent-soft);color:var(--accent);}
 .creator-rail__btn:disabled{opacity:0.35;cursor:default;}
-.creator-rail__swatch{display:block;width:28px;height:28px;border-radius:6px;border:2px solid var(--line);}
-.creator-rail__mode .mode-toggle__btn{padding:0 10px;}
-.creator-rail .tb-overflow-wrap{position:static;}
-.creator-rail .tb-overflow-wrap > .tb-btn{min-width:44px;min-height:44px;padding:0;justify-content:center;}
+.creator-rail__swatch{display:block;width:22px;height:22px;border-radius:6px;border:2px solid var(--line);}
+.creator-rail__mode{flex:2 1 88px;min-width:88px;max-width:144px;}
+.creator-rail__mode .mode-toggle__btn{flex:1 1 0;flex-direction:column;gap:2px;min-width:44px;padding:0 2px;font-size:10px;font-weight:600;line-height:1;}
+.creator-rail .tb-overflow-wrap{position:static;display:flex;flex:1 1 44px;min-width:44px;max-width:72px;}
+.creator-rail .tb-overflow-wrap > .tb-btn{flex:1;flex-direction:column;gap:2px;min-width:44px;min-height:44px;padding:0;justify-content:center;font-size:10px;}
 .creator-rail .tb-overflow-wrap > .tb-btn svg{width:22px;height:22px;}
 .creator-rail .swatch-strip-row{border-top:none;border-bottom:1px solid var(--line);}
 .mode-toggle--compact .mode-toggle__label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+.creator-rail__mode.mode-toggle--compact .mode-toggle__label{position:static;width:auto;height:auto;overflow:visible;clip:auto;}
 .tb-more-check{display:flex;align-items:center;gap:8px;min-height:44px;font-size:var(--text-sm);color:var(--text-primary);cursor:pointer;}
 body.creator-compact .tb-more-panel{position:fixed;left:0;right:0;top:auto;bottom:calc(var(--creator-rail-h) + env(safe-area-inset-bottom,0px));max-height:60dvh;overflow-y:auto;border-radius:16px 16px 0 0;z-index:520;}
 /* Leave room under the chart for the rail. */
@@ -8384,15 +8390,22 @@ body.creator-compact .rpanel.rpanel--edit.rpanel--open{max-height:calc(100dvh - 
 .cc-generate:disabled{opacity:0.6;cursor:default;}
 /* The chart fills the space between the top bar and the rail, leaving two
    lines for the status text under it. */
-body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - 72px)!important;max-height:none!important;min-height:0!important;}
+body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - var(--creator-status-h))!important;max-height:none!important;min-height:0!important;}
 body.creator-compact .cs-page-content{padding-top:4px;}
-/* Toasts sit above the rail. */
+/* The hint under the chart wraps rather than clipping; the coordinates and colour readout drop to a line of their own. */
+body.creator-compact .tb-status{padding:6px 12px;font-size:12px;line-height:1.35;overflow-wrap:anywhere;}
+body.creator-compact .tb-status > span:first-child{flex:1 1 100%;min-width:0;}
+/* Toasts sit above the rail. A phone's one-line banner also clears the hint, so a notice never hides it. */
 body.creator-compact .creator-toast-container,body.creator-compact [data-toast-container]{bottom:calc(var(--creator-rail-h) + env(safe-area-inset-bottom,0px) + 8px)!important;}
+body.creator-compact .creator-toast-container--phone,body.creator-compact [data-toast-container][data-toast-phone="1"]{bottom:calc(var(--creator-rail-h) + env(safe-area-inset-bottom,0px) + var(--creator-status-h))!important;}
+/* The Tracker's Focus bar floats 16px up and is 62px tall: the phone banner sits above it. */
+body.cs-focus [data-toast-container][data-toast-phone="1"]{bottom:calc(max(16px, env(safe-area-inset-bottom, 0px)) + 62px + 8px)!important;}
 /* Phone landscape: the chart takes everything between the bars; the status
    line is dropped (the Navigate | Draw switch in the rail says the mode). */
 @media (max-height: 500px) {
-  body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - 8px)!important;}
-  body.creator-compact .tb-status{display:none;}
+  body.creator-compact .cs-chart-scroll{height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - var(--creator-rail-h) - env(safe-area-inset-bottom,0px) - 24px)!important;}   /* 4px above the chart, the 8px strip under it and the rail's own 8px of padding */
+  body.creator-compact .tb-status{display:none!important;}   /* the bar sets display inline, so only !important wins */
+  body.creator-compact{--creator-status-h:8px;}
 }
 .creator-rail .tb-overflow-wrap > .tb-btn{position:relative;z-index:301;background:var(--surface);}
 
