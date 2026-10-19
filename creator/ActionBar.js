@@ -29,6 +29,7 @@
  *   skeinEstimate    — pre-computed skein estimate (popover only)
  *   totalStitchable  — stitch count (popover only)
  *   difficulty       — { stars, color, label } object (popover only)
+ *   confetti         — { stitches, groups, pct } confetti count (popover only)
  *   solidPct         — stitchability percentage (popover only)
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
@@ -289,6 +290,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           skeinEstimate: props.skeinEstimate,
           totalStitchable: props.totalStitchable,
           difficulty: props.difficulty,
+          confetti: props.confetti,
           solidPct: props.solidPct,
           stitchSpeed: props.stitchSpeed,
           doneCount: props.doneCount

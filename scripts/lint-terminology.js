@@ -85,6 +85,19 @@ const JARGON = [
   { bad: "Atkinson", re: /\bAtkinson\b/, good: "Smooth blend", note: "The error-diffusion dither is 'Smooth blend'." }
 ];
 
+// One user-facing term for each idea (audit UX-012, UX-013). Matched only inside
+// string literals, in every linted file. Confetti stitches are "single stitches
+// of a colour on their own; slow to stitch" and nothing else; the Convert
+// setting that lets the Creator mix two threads is "Allow two-thread blends".
+const PLAIN_TERMS = [
+  { bad: "stray stitches", re: /\bstray stitch(es)?\b/i, good: "confetti stitches", note: "'Confetti stitches' is the one term; see TERMINOLOGY.md 'Confetti stitches'." },
+  { bad: "isolated stitches", re: /\bisolated (single |full )?(stitch(es)?|crosses)\b/i, good: "confetti stitches", note: "'Confetti stitches' is the one term; see TERMINOLOGY.md 'Confetti stitches'." },
+  { bad: "orphans", re: /\borphans?\b/i, good: "confetti stitches", note: "Say 'Reduce confetti', not 'orphans'." },
+  { bad: "Confetti Cleanup", re: /\bConfetti Cleanup\b/, good: "Reduce confetti", note: "The Convert setting and the tool are both 'Reduce confetti'." },
+  { bad: "single stitches", re: /\bsingle stitches\b(?! of a colour on their own)/i, good: "confetti stitches", note: "Say 'confetti stitches'; define them once as 'single stitches of a colour on their own; slow to stitch'." },
+  { bad: "Allow blended threads", re: /\bAllow blended threads\b/i, good: "Allow two-thread blends", note: "The Convert setting is 'Allow two-thread blends'." }
+];
+
 // The jargon rules cover the Creator and the text that explains it; the
 // Stash Manager's thread-substitution cards still show the colour difference
 // in its usual units.
@@ -119,7 +132,13 @@ function scanFile(rel) {
         hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
       }
     });
-    const strs = jargonApplies(rel) ? stringsOn(line) : [];
+    const allStrs = stringsOn(line);
+    PLAIN_TERMS.forEach(rule => {
+      if (allStrs.some(str => rule.re.test(str))) {
+        hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
+      }
+    });
+    const strs = jargonApplies(rel) ? allStrs : [];
     JARGON.forEach(rule => {
       if (strs.some(str => rule.re.test(str))) {
         hits.push({ file: rel, line: i + 1, term: rule.bad, suggested: rule.good, note: rule.note, snippet: line.trim().slice(0, 200) });
@@ -152,4 +171,4 @@ if (require.main === module) {
   process.exit(hits.length === 0 ? 0 : 1);
 }
 
-module.exports = { lintAll, scanFile, FORBIDDEN, JARGON, TARGET_FILES };
+module.exports = { lintAll, scanFile, FORBIDDEN, JARGON, PLAIN_TERMS, TARGET_FILES };

@@ -1,19 +1,19 @@
 const fs = require('fs');
-const { analyzeConfetti } = require('../colour-utils');
+const { confettiSummary } = require('../colour-utils');
 const window = {};
-new Function('window', 'React', 'analyzeConfetti', 'stitchOverFor', fs.readFileSync('creator/ReadyReview.js', 'utf8'))(
-  window, {createElement() {}}, analyzeConfetti, ct => [25, 28, 32].includes(ct) ? 2 : 1);
+new Function('window', 'React', 'confettiSummary', 'stitchOverFor', fs.readFileSync('creator/ReadyReview.js', 'utf8'))(
+  window, {createElement() {}}, confettiSummary, ct => [25, 28, 32].includes(ct) ? 2 : 1);
 const review = window.ReadyReview;
 const cell = id => ({id, type: 'solid', rgb: [0, 0, 0]});
 
 test('metrics reflect the current sparse chart, exclude null/empty, preserve intentional details and refresh after edits', () => {
   const pat = [cell('310'), null, cell('321'), cell('310'), cell('__skip__'), cell('__empty__')];
   const original = JSON.stringify(pat);
-  expect(review.metrics(pat, 3, 2)).toMatchObject({total: 3, confetti: {singles: 1, smallClusters: 2}});
+  expect(review.metrics(pat, 3, 2)).toMatchObject({total: 3, confetti: {stitches: 1, groups: 2}});
   expect(review.metrics(pat, 3, 2).rare.map(p => [p.id, p.count])).toEqual([['310', 2], ['321', 1]]);
   expect(JSON.stringify(pat)).toBe(original);
   pat[2] = cell('__empty__');
-  expect(review.metrics(pat, 3, 2)).toMatchObject({total: 2, confetti: {singles: 0}});
+  expect(review.metrics(pat, 3, 2)).toMatchObject({total: 2, confetti: {stitches: 0}});
 });
 
 test('sample clamps to chart edges and exports a row-major region without modifying the source', () => {
@@ -64,5 +64,5 @@ test('project source restore clears missing/corrupt sources and ignores an older
 
 test('equal numeric thread IDs from different brands remain distinct effort metrics', () => {
   const m=review.metrics([{...cell('310'),brand:'dmc'},{...cell('310'),brand:'anchor'}],2,1);
-  expect(m.pal).toHaveLength(2);expect(m.confetti.singles).toBe(2);
+  expect(m.pal).toHaveLength(2);expect(m.confetti.stitches).toBe(2);
 });

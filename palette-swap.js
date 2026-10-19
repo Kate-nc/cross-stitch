@@ -1432,7 +1432,7 @@ function usePaletteSwap(props) {
       },
         "\u26A0 ",
         collisions.map(function(c) {
-          return "DMC " + c.dmcId + " (" + c.sourceIds.length + " sources)";
+          return threadLabel({ id: c.dmcId }) + " (" + c.sourceIds.length + " sources)";
         }).join(", "),
         " \u2014 same thread collision. Pattern may lose detail."
       ),
@@ -1779,7 +1779,7 @@ function usePaletteSwap(props) {
       style: { background: "#FAF5E1", border: "1px solid #E5C97D", borderRadius: 6, padding: "6px 10px", fontSize: 11, color: "#A06F2D", marginBottom: 8 }
     },
       "\u26A0 Collision: ",
-      collisions.map(function(c) { return "DMC " + c.dmcId + " (" + c.sourceIds.length + " sources)"; }).join(", "),
+      collisions.map(function(c) { return threadLabel({ id: c.dmcId }) + " (" + c.sourceIds.length + " sources)"; }).join(", "),
       " \u2014 multiple source colours map to the same thread."
     ),
 

@@ -1,5 +1,5 @@
 // tests/toolStrictness.test.js — "How strict" for Fix outline colours and
-// Tidy stray stitches (P2-9) maps three levels onto the tools' stored
+// Reduce confetti (P2-9) maps three levels onto the tools' stored
 // numbers. The level shown must always agree with the number the tool uses.
 
 const fs = require("fs");

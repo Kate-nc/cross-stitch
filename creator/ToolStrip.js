@@ -3,7 +3,7 @@
    Loaded as a plain <script> before the main Babel script.
    Depends on: CreatorContext, GenerationContext (context.js) */
 
-// "How strict" for Fix outline colours and Tidy stray stitches (audit
+// "How strict" for Fix outline colours and Reduce confetti (audit
 // COMMON-09): three steps mapped onto the tools' existing values (outline
 // tolerance 0-100, default 40; stray-stitch colour distance 1-30, default 5),
 // so no colour-science numbers are shown.
@@ -213,7 +213,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
         },
-        title: "Target: " + threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        title: "Target: " + formatThread((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
         "aria-haspopup": "listbox",
@@ -246,8 +246,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             role: "option",
             "aria-selected": isTgt,
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
-            title: threadLabel(p) + (p.name ? " \xB7 " + p.name : ""),
-            "aria-label": "Set cleanup target to " + threadLabel(p) + (p.name ? " " + p.name : ""),
+            title: formatThread(p),
+            "aria-label": "Set cleanup target to " + formatThread(p),
             style:{
               width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
               background:"rgb("+p.rgb+")",
@@ -368,7 +368,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
       role: 'group',
-      'aria-label': 'Tidy stray stitches controls',
+      'aria-label': 'Reduce confetti controls',
       style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
     },
       // ── Dither warning banner ────────────────────────────────────────────
@@ -397,8 +397,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
         h('input', { type:'checkbox', checked: !!dnOps.speckle,
           onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
-          'aria-label': 'Enable speckle removal' }),
-        'Speckle'
+          'aria-label': 'Enable confetti reduction' }),
+        'Confetti'
       ),
       h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
         h('input', { type:'checkbox', checked: !!dnOps.fringe,
@@ -409,7 +409,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       // ── Palette threshold stepper (when Palette op is on) ──────────────
       // +/− buttons instead of a range input to avoid toolbar layout jitter.
       dnOps.palette && h(React.Fragment, null,
-        toolStrictnessControl(h, TOOL_STRICTNESS.tidy, cv.denoiseThreshold || 5, function (v) { if (cv.setDenoiseThreshold) cv.setDenoiseThreshold(v); }, "Tidy stray stitches"),
+        toolStrictnessControl(h, TOOL_STRICTNESS.tidy, cv.denoiseThreshold || 5, function (v) { if (cv.setDenoiseThreshold) cv.setDenoiseThreshold(v); }, "Reduce confetti"),
         // UX-fix — the raw colour-distance number is abstract on its own; show the concrete
         // effect (how many colours this threshold would merge away) so the
         // slider stops requiring guesswork. While auto-running, the hint stays
@@ -475,7 +475,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
       },
         (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
-        (dnReport.speckleCount > 0 ? 'Speckle: ' + dnReport.speckleCount + '  ' : '') +
+        (dnReport.speckleCount > 0 ? 'Confetti: ' + dnReport.speckleCount + '  ' : '') +
         (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
       ),
       // ── Auto-error notice ────────────────────────────────────────────────
@@ -504,8 +504,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (cv.cancelDenoise) cv.cancelDenoise();
           if (cv.exitDenoise) cv.exitDenoise();
         },
-        title:'Stop tidying stray stitches',
-        'aria-label':'Stop tidying stray stitches',
+        title:'Stop reducing confetti',
+        'aria-label':'Stop reducing confetti',
         style:{marginLeft:4}
       }, 'Cancel')
     );
@@ -555,10 +555,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
               else { if (cv.enterDenoise) cv.enterDenoise(); }
             },
-            title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads",
-            "aria-label":"Tidy stray stitches",
+            title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads",
+            "aria-label":"Reduce confetti",
             "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
-          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Tidy stray stitches"),
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Reduce confetti"),
           // Zoom
           createZoomGrp
         )
@@ -673,12 +673,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
-      title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflowWrap:"anywhere"},
+      title: formatThread(ctx.cmap[cv.selectedColorId], {variant:"title"})
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"short"})),
+      formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"}) ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,minWidth:0,overflowWrap:"anywhere"}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"})) : null
     ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
@@ -704,7 +704,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onPointerLeave: swatchPressEnd,
           onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
           title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
-          "aria-label": "Select " + threadLabel(p) + (p.name ? " " + p.name : ""),
+          "aria-label": "Select " + formatThread(p),
           "aria-pressed": isSel,
           style:{
             width:40, height:40, flexShrink:0,
@@ -796,7 +796,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = null;
   }
   var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
-    ? (" \u2014 " + threadLabel(ctx.cmap[cv.selectedColorId]) + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    ? (" \u2014 " + formatThread(ctx.cmap[cv.selectedColorId]))
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
@@ -1039,10 +1039,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
           setMorePanelOpen(false);
         },
-        title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads", "aria-label":"Tidy stray stitches",
+        title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads", "aria-label":"Reduce confetti",
         "aria-pressed": cv.activeTool==="denoise"?"true":"false",
         style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Tidy stray stitches")
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Reduce confetti")
     ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},
@@ -1141,8 +1141,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
-          "aria-label": selCol ? ("Colour " + threadLabel(selCol) + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
-          title: selCol ? (threadLabel(selCol) + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
+          "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
+          title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
         railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),

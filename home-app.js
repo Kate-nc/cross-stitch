@@ -489,7 +489,8 @@
   // Deliberately memory-only: practice never enters project, session, sync or stash storage.
   function SampleProject() {
     var rows = ['..AA....', '.ABBA...', '.ABBA...', '..AA....', '...C..C.', '.C.C.C..', '..CCC...', '...C....'];
-    var colours = { A: '321 Red', B: '444 Lemon', C: '700 Green' };
+    var colours = { A: { id: '321', name: 'Red' }, B: { id: '444', name: 'Lemon' }, C: { id: '700', name: 'Green' } };
+    var threadName = function (t) { return window.formatThread ? window.formatThread(t) : 'DMC ' + t.id + ' ' + t.name; };
     var doneState = React.useState([]), done = doneState[0], setDone = doneState[1];
     var historyState = React.useState([]), history = historyState[0], setHistory = historyState[1];
     var selectedState = React.useState('A'), selected = selectedState[0], setSelected = selectedState[1];
@@ -507,14 +508,14 @@
       h('div', { className: 'home-sample__threads', role: 'group', 'aria-label': 'Sample threads' },
         Object.keys(colours).map(function (key) {
           return h('button', { key: key, type: 'button', className: 'btn', 'aria-pressed': selected === key,
-            onClick: function () { setSelected(key); } }, key + ' · DMC ' + colours[key]);
+            onClick: function () { setSelected(key); } }, key + ' · ' + threadName(colours[key]));
         })),
       h('div', { className: 'home-sample__chart', role: 'group', 'aria-label': 'Sample chart, 8 by 8 stitches' },
         cells.map(function (c, i) {
           var marked = done.indexOf(i) >= 0;
           if (c === '.') return h('span', { key: i, 'aria-hidden': 'true' });
           return h('button', { key: i, type: 'button', className: 'home-sample__cell home-sample__cell--' + c,
-            'aria-label': 'Row ' + (Math.floor(i / 8) + 1) + ', column ' + (i % 8 + 1) + ', DMC ' + colours[c],
+            'aria-label': 'Row ' + (Math.floor(i / 8) + 1) + ', column ' + (i % 8 + 1) + ', ' + threadName(colours[c]),
             'aria-pressed': marked, disabled: c !== selected,
             onClick: function () { mark(i); } }, marked ? h('span', { 'aria-hidden': 'true' }, window.Icons.check()) : c);
         })),
@@ -950,8 +951,8 @@
                         'aria-hidden': 'true'
                       }),
                       h('span', { className: 'home-stash-list__name' },
-                        (row.brand && row.brand !== 'dmc' ? row.brand.toUpperCase() + ' ' : 'DMC ') + row.id +
-                        (row.name && row.name !== row.id ? ' — ' + row.name : '')
+                        window.formatThread ? window.formatThread(row) : (row.brand && row.brand !== 'dmc' ? row.brand.toUpperCase() + ' ' : 'DMC ') + row.id +
+                        (row.name && row.name !== row.id ? ' ' + row.name : '')
                       ),
                       row.tobuyQty > 0
                         ? h('span', { className: 'home-stash-list__qty' }, '×' + row.tobuyQty)
@@ -960,7 +961,7 @@
                   })
                 ),
                 h('p', { className: 'home-stash-card__foot' },
-                  shopping.length + (shopping.length === 1 ? ' colour' : ' colours') +
+                  shopping.length + (shopping.length === 1 ? ' thread' : ' threads') +
                   (shoppingMore > 0 ? ' · +' + shoppingMore + ' more' : '')
                 )
               )

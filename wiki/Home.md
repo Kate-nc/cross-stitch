@@ -44,7 +44,7 @@ You can also go straight to a tool:
 
 ### Pattern Creator
 
-- Convert images with 2–100 colours, optional shading (Smooth blend or Pattern blend), background removal and cleanup of isolated stitches
+- Convert images with 2–100 colours, optional shading (Smooth blend or Pattern blend), background removal and Reduce confetti (merging single stitches of a colour on their own)
 - Restrict colours to threads you own
 - Paint, fill, erase, Magic Wand and Lasso selection; quarter, half, three-quarter and backstitch
 - Replace a colour, shift the whole palette, or adapt the pattern to your stash or another brand
@@ -92,7 +92,7 @@ Project Stats has **Overview** and **Visuals** views. Colours uses wrapping name
 | **Pattern** | The chart itself |
 | **Stash** | Your physical thread collection |
 | **Skein** | One bundle of thread (315 inches / 8 m by default) |
-| **Blend** | Two threads in one needle for an in-between colour |
+| **Blend** | Two threads in one needle (one strand of each) for an in-between colour; the key reads, for example, DMC 341 + 826 (blend) |
 | **Save** | Write to the app's storage on this device (automatic) |
 | **Download / Export** | Write a file to your device (PDF, `.json`, `.oxs`, backup…) |
 | **Open / Import** | Read a file into the app |

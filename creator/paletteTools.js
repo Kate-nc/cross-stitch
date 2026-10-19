@@ -8,7 +8,7 @@
  *   PaletteTools.colourFamily(lab)               "reds", "blues", "neutrals"…
  *   PaletteTools.nearestThreads(lab, list, n, exclude)
  *   PaletteTools.swatchInk(rgb)                  "black" or "white" for text
- *   PaletteTools.swatchLabel(entry)              "DMC 310 · Black · 1,204 stitches"
+ *   PaletteTools.swatchLabel(entry)              "DMC 310 Black · 1,204 stitches"
  *
  * Symbols live on the pattern's cells (buildPalette in colour-utils.js reads
  * them), so a changed symbol survives every palette rebuild. The project
@@ -111,9 +111,15 @@
 
   function swatchLabel(p) {
     if (!p) return "";
-    var brand = typeof threadBrandLabel === "function" ? threadBrandLabel(p.brand) : "DMC";
-    var parts = [(p.type === "blend" ? "Blend " : brand + " ") + p.id];
-    if (p.name && p.name !== p.id) parts.push(p.name);
+    // The one thread label (helpers.js formatThread): "DMC 3799 Pewter Very Dark",
+    // "DMC 341 + 826 (blend)".
+    var parts;
+    if (typeof formatThread === "function") {
+      parts = [formatThread(p)];
+    } else {
+      var brand = typeof threadBrandLabel === "function" ? threadBrandLabel(p.brand) : "DMC";
+      parts = [brand + " " + p.id + (p.name && p.name !== p.id ? " " + p.name : "")];
+    }
     if (p.count != null) {
       var n = Number(p.count) || 0;
       parts.push(n.toLocaleString("en-GB") + (n === 1 ? " stitch" : " stitches"));

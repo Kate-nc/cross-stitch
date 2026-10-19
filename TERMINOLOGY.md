@@ -64,6 +64,48 @@ Counts say which they mean, never "colours":
 `{ threads, symbols, blends }`; `threadCountsSentence` and
 `threadCountsShort` format it. The terminology lint flags "Max colours".
 
+### One thread label
+Every surface writes a thread through `formatThread` in `helpers.js`, so the
+same thread reads the same on the Creator Palette tab and chips, the Tracker
+colour list, active tile and status bar, the Stash Manager and Home:
+
+| Format | Solid | Blend |
+|---|---|---|
+| full (default) | **DMC 3799 Pewter Very Dark** | **DMC 341 + 826 (blend)** |
+| short (tight spaces: id only) | DMC 3799 | DMC 341 + 826 |
+| name | Pewter Very Dark | Blue Violet Light + Blue Medium |
+| title (tooltip, accessible name) | DMC 3799 Pewter Very Dark | DMC 341 Blue Violet Light + DMC 826 Blue Medium (blend: one strand of each thread) |
+
+The brand is always written with the number (Anchor 403). Catalogue
+abbreviations are spelled out for display (`VDk` is Very Dark, `Antq` is
+Antique); the catalogue data keeps the short forms. A name wraps; it is never
+cut short. The Tracker sort by thread number is called **Number**, not "DMC ID".
+
+A key row also says what the symbol takes: **2 strands · 1.3 skeins** for a
+solid, **1 strand of each · 0.4 skeins each** for a blend (`threadKeyRow` in
+`helpers.js`, `threadKeyUsage` in `threadCalc.js`: the fabric count on the
+project, 2 strands and the 20 % allowance the shopping list uses).
+
+### Blends
+A **blend** is one chart symbol worked with two threads together in the same
+needle: one strand of each. The needle still holds two strands, so a blend uses
+half as much of each thread as a plain stitch. The Convert setting is **Allow
+two-thread blends**. The wording lives in `BLEND_HELP` (`helpers.js`) and the
+Help glossary entry *What's a blend?*; the Palette tab, the Tracker colour list
+and the Convert result toast link to it.
+
+### Confetti stitches
+**Confetti stitches** are single stitches of a colour on their own; slow to
+stitch. Define the term where it first appears (`CONFETTI_HELP` in
+`helpers.js`). Always say "confetti stitches", never "stray stitches", "isolated
+stitches/crosses", "orphans" or "single stitches". The count is one number:
+full crosses with no same-colour neighbour above, below, left or right
+(`confettiSummary` in `colour-utils.js`), and Ready to stitch, Pattern info and
+the Convert preview all show it. Crosses in small connected groups of two or
+three are counted separately as "small groups". The Convert slider and the
+tool are both **Reduce confetti**. The terminology lint flags the old names in
+string literals.
+
 ### Plain names for the settings
 Settings and tools are named for what they do to the pattern, not for the
 algorithm behind them. The technical name may appear only inside an
@@ -73,13 +115,15 @@ algorithm behind them. The technical name may appear only inside an
 |---|---|---|
 | Convert section | **Clean-up** | Quality |
 | Dither setting | **Shading**: Off, **Smooth blend** (Subtle, Balanced, Strong), **Pattern blend** (Coarse, Medium, Fine) | Dithering, Atkinson, Bayer, 2×2/4×4/8×8 |
-| Smooth-dither clean-up | **Fewer single stitches in blends** | Smooth dithering |
+| Smooth-dither clean-up | **Fewer confetti stitches in shading** | Fewer single stitches in blends, Smooth dithering |
 | Pre-smoothing | **Soften grainy photos** | Smooth, Median, Gaussian |
 | Pre-sharpening | **Sharpen details** | Pre-sharpen, luminance, chroma |
 | Symbol separation | **Keep look-alike colours apart**, **How strict** | Separate similar neighbours, Separation strength |
 | Colour distance | **Difference** | ΔE, delta-E, dE |
 | Line-art clean-up tool | **Fix outline colours** | Cleanup mode |
-| Denoise tool | **Tidy stray stitches** | Denoise mode |
+| Denoise tool | **Reduce confetti** | Tidy stray stitches, Denoise mode |
+| Convert orphan-removal slider (and the tool inside a selection) | **Reduce confetti** | Confetti Cleanup, Remove orphans, Orphans |
+| Two-thread mixing in Convert | **Allow two-thread blends** | Allow blended threads |
 | Tool thresholds | **How strict**: Gentle, Balanced, Strong | Tol, Thr, ΔE values |
 
 The terminology lint flags ΔE (and its source escape), luminance, chroma,
@@ -150,6 +194,8 @@ opts in once per device.
 | File (when you mean an entry in storage) | Project / Pattern |
 | Convert (without context) | Convert palette / Convert to Anchor |
 | Max colours, "N colours" for a palette count | Threads (max); "N threads · M symbols" |
+| Stray stitches, isolated stitches/crosses, orphans, single stitches | Confetti stitches |
+| "DMC ID" (a sort button), "3799  Pewter…", "341+826 · 341+826" | The one thread label: "DMC 3799 Pewter Very Dark", "DMC 341 + 826 (blend)" |
 | ΔE, luminance, chroma, Gaussian, Bayer, Atkinson | Plain names (see "Plain names for the settings") |
 
 ---

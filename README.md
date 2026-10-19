@@ -21,8 +21,8 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 **Palette controls**
 - Maximum number of colours: 2–100.
-- Minimum stitches per colour, Confetti Cleanup (merges isolated stitches) and Stitch Cleanup.
-- Smart two-thread blends where a pair of DMC threads matches noticeably better than any single thread.
+- Minimum stitches per colour, Reduce confetti (merges confetti stitches: single stitches of a colour on their own, which are slow to stitch) and Stitch Cleanup.
+- Allow two-thread blends: where a pair of DMC threads matches noticeably better than any single thread, one chart symbol is worked with one strand of each (the key reads, for example, DMC 341 + 826 (blend)).
 - Use only stash threads: restrict matching to the DMC and Anchor threads you own.
 - Shift Colours (hue rotation) and Palette Presets (themes, harmonies, your saved palettes).
 
@@ -37,8 +37,8 @@ Convert images into stitchable charts, or design patterns from scratch.
 
 **Materials & Output**
 
-- **Ready to stitch** compares source, current chart and a stitch-data simulation; review finished size, fabric and material assumptions, isolated stitches and rarely used colours before buying. Inspect and export a chosen sample region. Screen colours and estimates are approximate; no quality score is implied.
-- Threads: per-colour stitch counts, skein estimates and cost.
+- **Ready to stitch** compares source, current chart and a stitch-data simulation; review finished size, fabric and material assumptions, confetti stitches and rarely used symbols before buying. Inspect and export a chosen sample region. Screen colours and estimates are approximate; no quality score is implied.
+- Threads: per-thread stitch counts, strands, skein estimates and cost. The Palette tab and the Tracker colour list show the same label, strands and skeins for each symbol.
 - Stash status: what you own, what is low, what you need to buy.
 - Export: PDF, PNG, `.oxs` and a `.zip` bundle (see [Export & Sharing](#export--sharing)).
 - Adapt to my stash / Adapt to brand: make a copy of the pattern that uses threads you own, or another brand.

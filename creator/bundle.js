@@ -3901,7 +3901,7 @@ window.useMagicWand = function useMagicWand(state) {
     var newCount = 0;
     for (var i = 0; i < merged.length; i++) if (merged[i]) newCount++;
     var entry = cmap[cell.id];
-    var label = entry ? threadLabel(entry) + (entry.name ? " (" + entry.name + ")" : "") : cell.id;
+    var label = entry ? formatThread(entry) : cell.id;
     if (state.addToast) state.addToast(
       newCount.toLocaleString() + " stitch" + (newCount !== 1 ? "es" : "") + " selected \u2014 " + label,
       {type:"success", duration:2000}
@@ -6748,7 +6748,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 var CONVERSION_STATE_KEYS = [
   'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt',
-  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans', // terminology-lint-allow (a state key, not UI text)
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
   'fabricCt', 'exactPixelArt',
@@ -6920,7 +6920,7 @@ var GENERATE_STAGES = {
   mapping:        { label: 'Matching colours\u2026',              pct: 45 },
   dithering:      { label: 'Matching colours\u2026',              pct: 45 },
   rarity:         { label: 'Matching colours\u2026',              pct: 60 },
-  cleanup:        { label: 'Cleaning up stray stitches\u2026',    pct: 70 },
+  cleanup:        { label: 'Reducing confetti\u2026',            pct: 70 },
   disambiguating: { label: 'Separating similar neighbours\u2026', pct: 85 },
   finalizing:     { label: 'Building the chart\u2026',            pct: 95 }
 };
@@ -7768,28 +7768,24 @@ window.useCreatorState = function useCreatorState() {
 
   // Scan the pattern once to derive confetti and change-rate scores for the difficulty model.
   // O(w×h) but cached; only reruns when pat/sW/sH/totalStitchable changes.
+  // The confetti count is confettiSummary (colour-utils.js), the same count Ready to stitch shows, so Pattern info
+  // and Ready to stitch always agree (UX-012).
   var difficultyMetrics = useMemo(function() {
     if (!pat || !sW || !sH || totalStitchable < 1) return {};
-    var isolated = 0, changePairs = 0, totalPairs = 0;
+    var changePairs = 0, totalPairs = 0;
     for (var y = 0; y < sH; y++) {
       for (var x = 0; x < sW; x++) {
-        var i = y * sW + x;
-        var cell = pat[i];
+        var cell = pat[y * sW + x];
         if (!cell || cell.id === '__skip__' || cell.id === '__empty__') continue;
-        var id = cell.id;
-        var iso = true;
-        var nx, nid;
-        if (x > 0)     { nid = pat[y*sW+(x-1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && x+1 < sW)  { nid = pat[y*sW+(x+1)]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && y > 0)     { nid = pat[(y-1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso && y+1 < sH)  { nid = pat[(y+1)*sW+x]; if (nid && nid.id !== '__skip__' && nid.id !== '__empty__' && nid.id === id) iso = false; }
-        if (iso) isolated++;
+        var id = cell.id, nx;
         if (x+1 < sW) { nx = pat[y*sW+(x+1)]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
         if (y+1 < sH) { nx = pat[(y+1)*sW+x]; if (nx && nx.id !== '__skip__' && nx.id !== '__empty__') { totalPairs++; if (nx.id !== id) changePairs++; } }
       }
     }
+    var confetti = typeof confettiSummary === 'function' ? confettiSummary(pat, sW, sH) : null;
     return {
-      confettiScore: isolated / totalStitchable,
+      confettiScore: confetti ? confetti.stitches / totalStitchable : undefined,
+      confetti: confetti,
       changeScore: totalPairs > 0 ? changePairs / totalPairs : 0,
     };
   }, [pat, sW, sH, totalStitchable]);
@@ -8404,7 +8400,11 @@ window.useCreatorState = function useCreatorState() {
     // two threads (audit IMG-02).
     var tc = creatorThreadCounts(result.pal);
     var counts = threadCountsSentence(tc);
-    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration:5000});
+    // A pattern with blends says what a blend is, one click away (UX-013).
+    var blendAction = tc.blends > 0 && typeof openBlendHelp === "function"
+      ? { label: window.BLEND_HELP.title, onClick: openBlendHelp }
+      : null;
+    addToast("Pattern generated and saved \u2014 now editing (" + sW + "\u00D7" + sH + ", " + counts + "). Use the Convert tab to change the picture, size or threads.", {type:"success", duration: blendAction ? 9000 : 5000, action: blendAction});
     // More symbols than the printed chart has (audit UX-005): say so now, not at export.
     var limitMsg = symbolLimitWarning(tc);
     if (limitMsg) addToast(limitMsg, {type:"warning", duration:12000});
@@ -9098,7 +9098,7 @@ window.useCreatorState = function useCreatorState() {
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, requestFitZoom, chartFitH, pxX, pxY, totPg,
-    skeinData, totalSkeins, blendCount, difficulty, doneCount, dmcFiltered,
+    skeinData, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
 
@@ -10230,7 +10230,7 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     // now at zero stitch count get a toast with a one-click "Remove" action.
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
+        var label = formatThread(p);
         state.addToast(label + ' is no longer used — remove from palette?', {
           type: 'info',
           duration: 8000,
@@ -10436,7 +10436,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       worker = new Worker('noise-cleanup-worker.js');
     } catch (e) {
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (e && e.message || String(e)));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (e && e.message || String(e)));
       return;
     }
     workerRef.current = worker;
@@ -10483,13 +10483,13 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
       } else if (msg.type === 'error') {
         releaseWorker(worker);
         state.setDenoiseAutoRunning(false);
-        state.setDenoiseAutoError(msg.message || 'Could not look for stray stitches');
+        state.setDenoiseAutoError(msg.message || 'Could not look for confetti');
       }
     };
     worker.onerror = function(ev) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (ev.message || 'unknown error'));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (ev.message || 'unknown error'));
     };
 
     try {
@@ -10511,7 +10511,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     } catch (postErr) {
       releaseWorker(worker);
       state.setDenoiseAutoRunning(false);
-      state.setDenoiseAutoError('Could not look for stray stitches: ' + (postErr && postErr.message || String(postErr)));
+      state.setDenoiseAutoError('Could not look for confetti: ' + (postErr && postErr.message || String(postErr)));
     }
   }, [state]);
 
@@ -10821,7 +10821,7 @@ window.useDenoiseMode = function useDenoiseMode(state, history) {
     // Unused-colour notice (mirrors cleanup mode behaviour)
     if (zeroed.length && state.addToast) {
       zeroed.forEach(function(p) {
-        var label = threadLabel(p) + (p.name ? ' \xb7 ' + p.name : '');
+        var label = formatThread(p);
         state.addToast(label + ' is no longer used \u2014 remove from palette?', {
           type: 'info',
           duration: 8000,
@@ -10890,7 +10890,7 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
  *   PaletteTools.colourFamily(lab)               "reds", "blues", "neutrals"…
  *   PaletteTools.nearestThreads(lab, list, n, exclude)
  *   PaletteTools.swatchInk(rgb)                  "black" or "white" for text
- *   PaletteTools.swatchLabel(entry)              "DMC 310 · Black · 1,204 stitches"
+ *   PaletteTools.swatchLabel(entry)              "DMC 310 Black · 1,204 stitches"
  *
  * Symbols live on the pattern's cells (buildPalette in colour-utils.js reads
  * them), so a changed symbol survives every palette rebuild. The project
@@ -10993,9 +10993,15 @@ window.DENOISE_DITHER_WARN_RATIO = DENOISE_DITHER_WARN_RATIO;
 
   function swatchLabel(p) {
     if (!p) return "";
-    var brand = typeof threadBrandLabel === "function" ? threadBrandLabel(p.brand) : "DMC";
-    var parts = [(p.type === "blend" ? "Blend " : brand + " ") + p.id];
-    if (p.name && p.name !== p.id) parts.push(p.name);
+    // The one thread label (helpers.js formatThread): "DMC 3799 Pewter Very Dark",
+    // "DMC 341 + 826 (blend)".
+    var parts;
+    if (typeof formatThread === "function") {
+      parts = [formatThread(p)];
+    } else {
+      var brand = typeof threadBrandLabel === "function" ? threadBrandLabel(p.brand) : "DMC";
+      parts = [brand + " " + p.id + (p.name && p.name !== p.id ? " " + p.name : "")];
+    }
     if (p.count != null) {
       var n = Number(p.count) || 0;
       parts.push(n.toLocaleString("en-GB") + (n === 1 ? " stitch" : " stitches"));
@@ -14656,6 +14662,7 @@ window.usePreview = function usePreview(state) {
         estSkeins: estSkeins,
         confettiPct: confettiRaw.pct,
         confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
+        confettiSinglesPct: confettiRaw.singlesPct,
         confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
         stashUsage: stashUsage,
         exactMappings: exactResult ? exactResult.mappings : null,
@@ -16685,7 +16692,7 @@ window.CreatorSplitPane = function CreatorSplitPane() {
           triggerRef: moreBtnRef,
           sW: props.sW, sH: props.sH, fabricCt: props.fabricCt,
           colourCount: props.colourCount, threadCounts: props.threadCounts, skeinEstimate: props.skeinEstimate,
-          totalStitchable: props.totalStitchable, difficulty: props.difficulty,
+          totalStitchable: props.totalStitchable, difficulty: props.difficulty, confetti: props.confetti,
           solidPct: props.solidPct, stitchSpeed: props.stitchSpeed, doneCount: props.doneCount
         })
       : null;
@@ -16748,7 +16755,7 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
    Loaded as a plain <script> before the main Babel script.
    Depends on: CreatorContext, GenerationContext (context.js) */
 
-// "How strict" for Fix outline colours and Tidy stray stitches (audit
+// "How strict" for Fix outline colours and Reduce confetti (audit
 // COMMON-09): three steps mapped onto the tools' existing values (outline
 // tolerance 0-100, default 40; stray-stitch colour distance 1-30, default 5),
 // so no colour-science numbers are shown.
@@ -16958,7 +16965,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           e.stopPropagation();
           setOpenDrop(function(v) { return v === 'cleanup-target' ? null : 'cleanup-target'; });
         },
-        title: "Target: " + threadLabel((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + (clTgtEntry && clTgtEntry.name ? " " + clTgtEntry.name : "") + " — click to change",
+        title: "Target: " + formatThread((ctx.cmap && ctx.cmap[cv.cleanupTargetColorId]) || { id: cv.cleanupTargetColorId || "" }) + " — click to change",
         "aria-label": "Change cleanup target colour",
         "aria-expanded": openDrop === 'cleanup-target' ? "true" : "false",
         "aria-haspopup": "listbox",
@@ -16991,8 +16998,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
             role: "option",
             "aria-selected": isTgt,
             onClick: function(e) { e.stopPropagation(); cv.setCleanupTargetColorId(p.id); setOpenDrop(null); },
-            title: threadLabel(p) + (p.name ? " \xB7 " + p.name : ""),
-            "aria-label": "Set cleanup target to " + threadLabel(p) + (p.name ? " " + p.name : ""),
+            title: formatThread(p),
+            "aria-label": "Set cleanup target to " + formatThread(p),
             style:{
               width:18, height:18, flexShrink:0, borderRadius:3, cursor:"pointer", padding:0,
               background:"rgb("+p.rgb+")",
@@ -17113,7 +17120,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     denoiseRow = h('div', {
       className: 'swatch-strip-row',
       role: 'group',
-      'aria-label': 'Tidy stray stitches controls',
+      'aria-label': 'Reduce confetti controls',
       style: { gap: 'var(--s-2)', paddingTop: 'var(--s-1)', alignItems: 'center', flexWrap: 'wrap' }
     },
       // ── Dither warning banner ────────────────────────────────────────────
@@ -17142,8 +17149,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
         h('input', { type:'checkbox', checked: !!dnOps.speckle,
           onChange: function(e){ cv.setDenoiseOps && cv.setDenoiseOps(Object.assign({}, dnOps, { speckle: e.target.checked })); },
-          'aria-label': 'Enable speckle removal' }),
-        'Speckle'
+          'aria-label': 'Enable confetti reduction' }),
+        'Confetti'
       ),
       h('label', { style:{display:'flex',alignItems:'center',gap:3,fontSize:11,cursor:'pointer',userSelect:'none'} },
         h('input', { type:'checkbox', checked: !!dnOps.fringe,
@@ -17154,7 +17161,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
       // ── Palette threshold stepper (when Palette op is on) ──────────────
       // +/− buttons instead of a range input to avoid toolbar layout jitter.
       dnOps.palette && h(React.Fragment, null,
-        toolStrictnessControl(h, TOOL_STRICTNESS.tidy, cv.denoiseThreshold || 5, function (v) { if (cv.setDenoiseThreshold) cv.setDenoiseThreshold(v); }, "Tidy stray stitches"),
+        toolStrictnessControl(h, TOOL_STRICTNESS.tidy, cv.denoiseThreshold || 5, function (v) { if (cv.setDenoiseThreshold) cv.setDenoiseThreshold(v); }, "Reduce confetti"),
         // UX-fix — the raw colour-distance number is abstract on its own; show the concrete
         // effect (how many colours this threshold would merge away) so the
         // slider stops requiring guesswork. While auto-running, the hint stays
@@ -17220,7 +17227,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         style:{fontSize:10,color:'var(--text-tertiary)',marginLeft:4}
       },
         (dnReport.paletteCount > 0 ? 'Palette: ' + dnReport.paletteCount + '  ' : '') +
-        (dnReport.speckleCount > 0 ? 'Speckle: ' + dnReport.speckleCount + '  ' : '') +
+        (dnReport.speckleCount > 0 ? 'Confetti: ' + dnReport.speckleCount + '  ' : '') +
         (dnReport.fringeCount  > 0 ? 'Fringe: '  + dnReport.fringeCount        : '')
       ),
       // ── Auto-error notice ────────────────────────────────────────────────
@@ -17249,8 +17256,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           if (cv.cancelDenoise) cv.cancelDenoise();
           if (cv.exitDenoise) cv.exitDenoise();
         },
-        title:'Stop tidying stray stitches',
-        'aria-label':'Stop tidying stray stitches',
+        title:'Stop reducing confetti',
+        'aria-label':'Stop reducing confetti',
         style:{marginLeft:4}
       }, 'Cancel')
     );
@@ -17300,10 +17307,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
               if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
               else { if (cv.enterDenoise) cv.enterDenoise(); }
             },
-            title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads",
-            "aria-label":"Tidy stray stitches",
+            title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads",
+            "aria-label":"Reduce confetti",
             "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
-          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Tidy stray stitches"),
+          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Reduce confetti"),
           // Zoom
           createZoomGrp
         )
@@ -17418,12 +17425,12 @@ window.CreatorToolStrip = function CreatorToolStrip() {
   var swatchRow = showSwatchRow ? h("div", {className:"swatch-strip-row"},
     h("span", {style:{fontSize:10,color:"var(--text-tertiary)",fontWeight:600,textTransform:"uppercase",marginRight:'var(--s-1)',flexShrink:0,letterSpacing:0.5}}, "Colour"),
     cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId] ? h("span", {
-      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
-      title: ctx.cmap[cv.selectedColorId].name || cv.selectedColorId
+      style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-xs)',padding:"1px 7px 1px 3px",borderRadius:'var(--radius-lg)',background:"var(--accent-light)",border:"1px solid var(--accent-border)",marginRight:6,flexShrink:0,maxWidth:"40vw",overflowWrap:"anywhere"},
+      title: formatThread(ctx.cmap[cv.selectedColorId], {variant:"title"})
     },
       h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+ctx.cmap[cv.selectedColorId].rgb+")",border:"1px solid var(--border)",display:"inline-block",flexShrink:0}}),
-      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, cv.selectedColorId),
-      ctx.cmap[cv.selectedColorId].name ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, "\u00B7 " + ctx.cmap[cv.selectedColorId].name) : null
+      h("span", {style:{fontWeight:600,color:"var(--accent)",flexShrink:0}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"short"})),
+      formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"}) ? h("span", {style:{color:"var(--accent-hover)",fontWeight:400,minWidth:0,overflowWrap:"anywhere"}}, formatThread(ctx.cmap[cv.selectedColorId], {variant:"name"})) : null
     ) : h("span", {style:{fontSize:10,color:"var(--text-tertiary)",marginRight:6,flexShrink:0}}, "none selected"),
     palData.length > 5 && h("button", {
       className:"tb-swatch-scroll-btn",
@@ -17449,7 +17456,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           onPointerLeave: swatchPressEnd,
           onContextMenu: function(e) { if (swatchPressRef.current && swatchPressRef.current.fired) e.preventDefault(); },
           title: window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
-          "aria-label": "Select " + threadLabel(p) + (p.name ? " " + p.name : ""),
+          "aria-label": "Select " + formatThread(p),
           "aria-pressed": isSel,
           style:{
             width:40, height:40, flexShrink:0,
@@ -17541,7 +17548,7 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     badgeLabel = null;
   }
   var badgeColourTip = (cv.selectedColorId && ctx.cmap && ctx.cmap[cv.selectedColorId])
-    ? (" \u2014 " + threadLabel(ctx.cmap[cv.selectedColorId]) + (ctx.cmap[cv.selectedColorId].name ? " " + ctx.cmap[cv.selectedColorId].name : ""))
+    ? (" \u2014 " + formatThread(ctx.cmap[cv.selectedColorId]))
     : "";
   var toolBadge = badgeLabel ? h("span", {
     title: badgeLabel + badgeColourTip,
@@ -17784,10 +17791,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
           else { cv.setBsStart(null); ctx.setPartialStitchTool(null); if (cv.cancelLasso) cv.cancelLasso(); if (cv.enterDenoise) cv.enterDenoise(); }
           setMorePanelOpen(false);
         },
-        title:"Tidy stray stitches: remove specks, ragged edges and near-duplicate threads", "aria-label":"Tidy stray stitches",
+        title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads", "aria-label":"Reduce confetti",
         "aria-pressed": cv.activeTool==="denoise"?"true":"false",
         style:{width:"100%",justifyContent:"flex-start"}
-      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Tidy stray stitches")
+      }, window.Icons&&window.Icons.sparkles?window.Icons.sparkles():null, " Reduce confetti")
     ),
     // ── Stitch type ──
     h("div", {className:"tb-more-panel__section"},
@@ -17886,8 +17893,8 @@ window.CreatorToolStrip = function CreatorToolStrip() {
         railBtn("erase", "Erase tool", window.Icons.eraser(), eraseOn, function(){ if (eraseOn) cv.setDrawMode(false); else cv.selectStitchType("erase"); }),
         h("button", {
           key:"colour", type:"button", className:"creator-rail__btn creator-rail__colour",
-          "aria-label": selCol ? ("Colour " + threadLabel(selCol) + (selCol.name ? " " + selCol.name : "") + " — open the palette") : "Choose a colour",
-          title: selCol ? (threadLabel(selCol) + (selCol.name ? " · " + selCol.name : "")) : "Choose a colour",
+          "aria-label": selCol ? ("Colour " + formatThread(selCol) + " — open the palette") : "Choose a colour",
+          title: selCol ? formatThread(selCol, {variant: "title"}) : "Choose a colour",
           onClick:function(){ if (app.setSidebarTab) app.setSidebarTab("palette"); if (app.setPanelOpen) app.setPanelOpen(true); }
         }, h("span", {className:"creator-rail__swatch", style:{background: selCol ? "rgb(" + selCol.rgb + ")" : "var(--surface-tertiary)"}})),
         railBtn("undo", "Undo", window.Icons.undo(), false, cv.undoEdit, {disabled:!cv.editHistory.length, "aria-pressed":undefined}),
@@ -18093,7 +18100,7 @@ window.MagicWandPanel = function MagicWandPanel() {
     style: { padding: "10px 14px", background: "var(--warning-soft)", borderBottom: "1px solid var(--border)",
       display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 11 }
   },
-    h("strong", { style: { color: "var(--text-primary)" } }, "Confetti Cleanup in Selection"),
+    h("strong", { style: { color: "var(--text-primary)" } }, "Reduce confetti in selection"),
     h("label", { style: { display: "flex", alignItems: "center", gap: 4 } },
       "Min cluster size:",
       h("input", {
@@ -19321,22 +19328,22 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any confetti cleanup may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Reducing confetti may destroy fine details. Consider turning it off or increasing grid size."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Confetti cleanup level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"Reduce confetti at level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
     }
     if (area <= 2500 && orphans >= 3) {
-      return {level:"warning",message:"Level 3 cleanup on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
+      return {level:"warning",message:"Reduce confetti at level 3 on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
     }
     if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
       var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
       var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
       if (pctRemoved > 20) {
-        return {level:"danger",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider reducing the cleanup level."};
+        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider a lower Reduce confetti level."};
       }
       if (pctRemoved > 10) {
-        return {level:"warning",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
+        return {level:"warning",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
       }
     }
     return null;
@@ -19382,10 +19389,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
     var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
-    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
+    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + formatThread(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
-        h("span", {className: "pal-symbols__title"}, "Symbol for " + threadLabel(entry)),
+        h("span", {className: "pal-symbols__title"}, "Symbol for " + formatThread(entry)),
         h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close", onClick: function() { setSymbolPickerFor(null); }}, Icons.x())
       ),
       free.length
@@ -19402,6 +19409,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
+  var PAL_ROW_CLASSES = {wrap: "pal-row__label", id: "pal-row__id", tag: "pal-row__tag", name: "pal-row__name", use: "pal-row__use"};
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
     var symbolLimitMsg = window.symbolLimitWarning ? window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) : "";
@@ -19478,6 +19486,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       var countText = (Number(p.count) || 0).toLocaleString("en-GB");
       var ink = window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black";
+      // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
+      var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
         if (isPaintMode) {
           cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
@@ -19490,7 +19500,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         role: "button",
         tabIndex: 0,
         "aria-pressed": ips || ihs,
-        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
+        "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
+        title: keyRow ? keyRow.title : undefined,
         className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
@@ -19502,8 +19513,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         (window.isPlaceholderThread && window.isPlaceholderThread(p.id))
           ? h("span", {className: "pal-row__swatch thread-placeholder-swatch", title: "No thread yet: use the swap button to choose one"}, Icons.help())
           : h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
-        h("span", {className: "pal-row__id"}, p.id),
-        h("span", {className: "pal-row__name"}, p.name && p.name !== p.id ? p.name : ""),
+        // The name wraps rather than being cut short; the strands and skeins sit on their own line.
+        keyRow
+          ? h(window.ThreadKeyLabel, {row: keyRow, classes: PAL_ROW_CLASSES})
+          : h("span", {className: "pal-row__label"}, h("span", {className: "pal-row__id"}, threadLabel(p))),
         h("span", {className: "pal-row__count", title: countText + " stitches"}, countText),
         // Brief D — stash status dot. Hidden when stash empty.
         stashStatus && h("span", {
@@ -19516,7 +19529,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
-          "aria-label": "Change symbol for " + threadLabel(p),
+          "aria-label": "Change symbol for " + formatThread(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
         }, Icons.symbols ? Icons.symbols() : null),
@@ -19525,8 +19538,8 @@ window.CreatorSidebar = function CreatorSidebar() {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
-          title: "Replace " + threadLabel(p) + " with another colour",
-          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          title: "Replace " + (keyRow ? keyRow.label : threadLabel(p)) + " with another colour",
+          "aria-label": "Replace " + (keyRow ? keyRow.label : threadLabel(p)) + " with another colour",
           onClick: function(e) {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
@@ -19536,7 +19549,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Remove from palette",
-          "aria-label": "Remove " + threadLabel(p) + " from the palette",
+          "aria-label": "Remove " + formatThread(p) + " from the palette",
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); }
         }, Icons.x())
       );
@@ -19580,6 +19593,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
+      // What the strands and skeins on each row mean, and what a blend is (UX-013, UX-014).
+      displayPal.length > 0 && h("p", {className:"convert-first-use pal-key-note"}, "Strands and skeins are for each symbol on its own. Materials adds up the threads that several symbols share."),
+      window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -19663,8 +19679,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         selInfo
           ? h(React.Fragment, null,
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo)),
-              h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}, title: formatThread(selInfo, {variant:"title"})}, formatThread(selInfo, {variant:"short"})),
+              h("span", {style:{color:"var(--text-secondary)",flex:1,minWidth:0,overflowWrap:"anywhere"}}, formatThread(selInfo, {variant:"name"})),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
@@ -19835,14 +19851,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": clash ? (threadLabel(d) + " " + d.name + ": this pattern already has " + threadLabel(inPal))
-        : (inPal ? "In this pattern: " : "Add ") + threadLabel(d) + " " + d.name,
+      "aria-label": clash ? (formatThread(d) + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + formatThread(d),
       title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
       h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),
       h("span", {className: "pal-pick-row__id"}, d.id),
-      h("span", {className: "pal-pick-row__name"}, d.name),
+      h("span", {className: "pal-pick-row__name"}, threadFullName(d.name)),
       h("span", {className: "pal-pick-row__mark", "aria-hidden": "true"}, inPal ? Icons.check() : Icons.plus())
     );
   }
@@ -19871,7 +19887,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     pickTab === "stash" && threadList(ownedThreads, "No " + brandName + " threads in your stash yet. Add them in the Stash Manager."),
     pickTab === "suggested" && h(React.Fragment, null,
       suggestBase
-        ? h("div", {className: "pal-pick-note"}, "Closest to " + threadLabel(suggestBase) + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        ? h("div", {className: "pal-pick-note"}, "Closest to " + formatThread(suggestBase))
         : null,
       threadList(suggested, "Select a colour in the pattern to see threads close to it.")
     ),
@@ -20096,9 +20112,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
-      h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " colours in a single stitch for smoother gradients", width:220})
+      h("span", null, "Allow two-thread blends"),
+      h(InfoIcon, {text:"A blend puts one strand of each of two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads in the needle to make an in-between shade, for smoother gradients.", width:220})
     ),
+    // What the setting does to the chart, in words (UX-013).
+    h("div", {className:"convert-blend-effect", style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.45,marginBottom:'var(--s-2)'}},
+      gen.allowBlends
+        ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
+        : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser."
+    ),
+    window.BlendHelpNote && h(window.BlendHelpNote, {showSetting:false}),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
@@ -20157,7 +20180,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           }),
           (function(){
             var dmc = findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim());
-            return dmc ? h(Tooltip, {text:threadLabel({ id: dmc.id, brand: gen.convertBrand }) + " \u2014 " + dmc.name, width:160},
+            return dmc ? h(Tooltip, {text:formatThread({ id: dmc.id, name: dmc.name, brand: gen.convertBrand }), width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
@@ -20305,9 +20328,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures."},
     ];
     var atkinsonLevels = [
-      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few single stitches."},
+      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few confetti stitches."},
       {id:"balanced", label:"Balanced", tip:"Smooth gradients in tidy patches of colour."},
-      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more single stitches."},
+      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more confetti stitches."},
     ];
     var bayerSizes = [
       {id:"bayer2", label:"Coarse", tip:"A bold, chequered pattern."},
@@ -20342,7 +20365,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
-          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more single stitches.", width:240})
+          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
         ),
         // Off | Smooth blend | Pattern blend
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
@@ -20367,8 +20390,8 @@ window.CreatorSidebar = function CreatorSidebar() {
           h(Toggle, {
             checked:sc2.smoothDithering,
             onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
-            label:"Fewer single stitches in blends",
-            help:"Keeps Smooth blend from scattering single stitches. Cleaner gradients, though colours may shift slightly."
+            label:"Fewer confetti stitches in shading",
+            help:"Keeps Smooth blend from scattering confetti stitches. Cleaner gradients, though colours may shift slightly."
           }),
           !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
             dithAlgo === "bayer" ? "Not used with Pattern blend." : "Only used with Smooth blend."
@@ -20390,25 +20413,25 @@ window.CreatorSidebar = function CreatorSidebar() {
           helpTopic:"palette"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+        h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated single stitches",
-          inlineHint:"Confetti stitches are single isolated stitches surrounded by different colours \u2014 each one forces a separate thread change. Removing them can dramatically cut stitching time.",
+          helpText:"Merges confetti stitches into the colour around them",
+          inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
           helpTopic:"confetti"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {
-            desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
+            desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets groups of exactly 1 stitch.");
           } else if (gen.orphans === 2) {
-            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20132 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
           } else {
-            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20133 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
           }
           return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
         })()
       ),
       gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
         " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
       ),
       ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
@@ -20463,11 +20486,11 @@ window.CreatorSidebar = function CreatorSidebar() {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
           label:"Stitch Cleanup",
-          help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
+          help:"Automatically merges confetti stitches that are hard to sew. Turn off if you want to keep the full shaded detail."
         }),
         sc2.enabled && h(React.Fragment, null,
           h("div", {style:{marginBottom:10,padding:"8px 10px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:500}},
-            "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
+            "Merges confetti stitches (" + window.CONFETTI_HELP.definition + ") that are impractical to sew \u2014 especially in shaded areas and gradients."
           ),
           h("div", {style:{marginTop:'var(--s-1)',marginBottom:10}},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
@@ -21559,7 +21582,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
           borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
-      }, "Tidy stray stitches")
+      }, "Reduce confetti")
     ),
     h("button", {
       onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },
@@ -21855,7 +21878,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
     },
       h("span", {style:{width:10,height:10,borderRadius:2,display:"inline-block",border:"1px solid var(--border)",
         background:"rgb("+cellInfo.rgb+")"}}),
-      threadLabel(cellInfo) + (cellInfo.name ? " \xB7 " + cellInfo.name : "")
+      formatThread(cellInfo)
     ),
     !hasCellColour && h("div", {
       style:{padding:"5px 12px 4px",fontSize:'var(--text-xs)',color:"var(--text-tertiary)",borderBottom:"1px solid var(--surface-tertiary)",marginBottom:2}
@@ -22083,7 +22106,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
       return h("div", {
         style:{padding:"8px 12px",background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',color:"var(--danger)",marginBottom:'var(--s-2)',display:"flex",justifyContent:"space-between",alignItems:"center"}
       },
-        h("span", null, Icons.warning(), " Cleanup removed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to regenerate with a lower confetti cleanup level."),
+        h("span", null, Icons.warning(), " Reduce confetti changed ", removed.toLocaleString(), " stitches (", pctOfTotal.toFixed(1), "% of pattern). You may want to convert again with a lower Reduce confetti level."),
         h("button", {
           onClick:function(){setConfettiBannerDismissed(true);},
           style:{background:"none",border:"none",color:"var(--danger)",cursor:"pointer",fontSize:'var(--text-lg)',flexShrink:0,marginLeft:'var(--s-2)'}
@@ -22202,7 +22225,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
         var hCell = ctx.pat[hIdx];
         if (hCell && hCell.id !== "__skip__" && hCell.id !== "__empty__" && ctx.cmap && ctx.cmap[hCell.id]) {
           var info = ctx.cmap[hCell.id];
-          parts.push(threadLabel(info) + (info.name ? " " + info.name : "") + " (" + (info.count || 0) + " st)");
+          parts.push(formatThread(info) + " (" + (info.count || 0) + " st)");
         }
       }
       return h("div", {className:"tb-status", style:{display:"flex",gap:'var(--s-3)',alignItems:"center",flexWrap:"wrap",justifyContent:"space-between"}},
@@ -22512,8 +22535,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                 border:"1px solid "+(isOwned?"var(--success-soft)":"var(--surface-tertiary)")}
             },
               h("span", {style:{width:16,height:16,borderRadius:3,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',minWidth:44}}, threadLabel(d)),
-              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontWeight:700,fontSize:'var(--text-md)',flex:1,minWidth:0,overflowWrap:"anywhere"}}, formatThread(d)),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",flexShrink:0}}, d.skeins+"sk"),
               h("button", {
                 onClick:function(){ctx.toggleOwned(d.id);},
@@ -22545,8 +22567,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
                     alts.map(function(a) {
                       return h("span", {key:a.id, style:{display:"inline-flex",alignItems:"center",gap:'var(--s-1)',padding:"2px 8px",borderRadius:'var(--radius-lg)',background:"#f0f0ff",border:"1px solid #e0e7ff"}},
                         h("span", {style:{width:10,height:10,borderRadius:2,background:"rgb("+a.rgb[0]+","+a.rgb[1]+","+a.rgb[2]+")",border:"1px solid var(--border)"}}),
-                        h("span", {style:{fontWeight:600}}, threadLabel(a)),
-                        h("span", {style:{color:"var(--text-secondary)"}}, a.name),
+                        h("span", {style:{fontWeight:600}}, formatThread(a)),
                         h("span", {style:{color:"var(--text-tertiary)"}}, "Difference "+a.deltaE),
                         h("span", {style:{color:"#4338ca"}}, a.owned+"sk")
                       );
@@ -22650,14 +22671,14 @@ window.CreatorProjectTab = function CreatorProjectTab() {
       h("div", {style:{display:"flex",gap:6,marginTop:10}},
         h("button", {
           onClick:function(){
-            var txt=ctx.toBuyList.map(function(d){return threadLabel(d)+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
+            var txt=ctx.toBuyList.map(function(d){return formatThread(d)+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "shopping");
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"none",background:"var(--accent)",color:"var(--surface)",cursor:"pointer",fontWeight:600}
         }, "Copy To-Buy List"),
         h("button", {
           onClick:function(){
-            var txt=ctx.skeinData.map(function(d){return threadLabel(d)+" "+d.name+" \xD7 "+d.skeins;}).join("\n");
+            var txt=ctx.skeinData.map(function(d){return formatThread(d)+" \xD7 "+d.skeins;}).join("\n");
             app.copyText(txt, "full");
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"0.5px solid var(--border)",background:"var(--surface)",cursor:"pointer",fontWeight:500}
@@ -22758,6 +22779,7 @@ window.CreatorProjectTab = function CreatorProjectTab() {
  *   skeinEstimate   — pre-computed skein count (number, may be null)
  *   totalStitchable — stitch count used for progress / time
  *   difficulty      — { stars, color, label } object from useCreatorState
+ *   confetti        — { stitches, groups, pct } from confettiSummary (colour-utils.js)
  *   solidPct        — stitchability percentage (e.g. 92.4)
  *   stitchSpeed     — stitches/hr (defaults to 30 if absent)
  *   doneCount       — stitches completed (for "remaining" estimate)
@@ -22825,6 +22847,16 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     }
   }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
+  // Confetti stitches: the same count Ready to stitch shows (colour-utils.js confettiSummary), with the one definition.
+  var confetti = (props.confetti && typeof props.confetti.stitches === "number") ? props.confetti : null;
+  var confettiDefinition = window.CONFETTI_HELP ? window.CONFETTI_HELP.definition : "single stitches of a colour on their own; slow to stitch";
+  if (confetti) {
+    patternRows.push(
+      h("div", { className: "creator-popover-info__label", key: "Confetti-k", title: "Confetti stitches are " + confettiDefinition }, "Confetti stitches"),
+      h("div", { className: "creator-popover-info__value", key: "Confetti-v", title: "Confetti stitches are " + confettiDefinition },
+        confetti.stitches.toLocaleString("en-GB") + " (" + confetti.pct.toFixed(1) + "%)")
+    );
+  }
   // Threads and chart symbols, not "colours" (audit IMG-02).
   if (props.threadCounts && typeof window.threadCountsShort === "function") patternRows.push.apply(patternRows, row("Threads", window.threadCountsShort(props.threadCounts)));
   else if (hasColours) patternRows.push.apply(patternRows, row("Symbols", String(props.colourCount)));
@@ -22924,8 +22956,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var children = [
     h("h3", { key: "p-title", className: "creator-popover-info__title" }, "Pattern"),
-    h("div", { key: "p-grid", className: "creator-popover-info__grid" }, patternRows)
-  ];
+    h("div", { key: "p-grid", className: "creator-popover-info__grid" }, patternRows),
+    confetti ? h("p", { key: "p-confetti", className: "creator-popover-info__note" }, "Confetti stitches are " + confettiDefinition + ".") : null
+  ].filter(Boolean);
   if (estimateRows.length) {
     children.push(h("hr", { key: "d1", className: "creator-popover-info__divider" }));
     children.push(h("h3", { key: "e-title", className: "creator-popover-info__title" }, "Estimates"));
@@ -23060,6 +23093,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     // The pattern's thread brand (P4-5): replacements come from its catalogue.
     var brandName = window.threadBrandLabel ? window.threadBrandLabel(props.threadBrand) : 'DMC';
     var lbl = function (t) { return window.threadLabel ? window.threadLabel(t) : 'DMC ' + t.id; };
+    var fullLbl = function (t) { return window.formatThread ? window.formatThread(t) : 'DMC ' + t.id + (t.name ? ' ' + t.name : ''); };
     var dmcList = window.projectThreadList ? window.projectThreadList(props.threadBrand) : (typeof DMC !== 'undefined' ? DMC : []);
 
     // Colours already in the pattern (excluding the source). Picking one
@@ -23229,8 +23263,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     };
 
     var srcEntry = (pal || []).find(function (p) { return p && p.id === srcId; });
-    var srcLabel = (window.threadLabel ? window.threadLabel(srcEntry || { id: srcId || '' }) : 'DMC ' + (srcId || '')) +
-      (modal && modal.srcName && modal.srcName !== srcId ? ' · ' + modal.srcName : '');
+    var srcLabel = window.formatThread
+      ? window.formatThread(srcEntry || { id: srcId || '', name: modal && modal.srcName })
+      : 'DMC ' + (srcId || '') + (modal && modal.srcName && modal.srcName !== srcId ? ' ' + modal.srcName : '');
     var countText = affected == null ? null
       : (affected === 0 ? 'nothing to change'
         : describe(scope === 'selection' ? counts.sel : counts.all) + ' will change');
@@ -23514,7 +23549,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
             style: { width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: 'inline-block', border: '1px dashed var(--text-tertiary)' }
           }),
           h('span', null,
-            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, lbl(picked) + ' ' + picked.name) : 'Pick a thread',
+            picked ? h('strong', { style: { color: 'var(--text-primary)', fontWeight: 600 } }, fullLbl(picked)) : 'Pick a thread',
             countText ? ' \u00B7 ' + countText : '')
         ),
         mergeNote,
@@ -24230,6 +24265,7 @@ window.ResizeCanvasModal = function ResizeCanvasModal(props) {
  *   skeinEstimate    — pre-computed skein estimate (popover only)
  *   totalStitchable  — stitch count (popover only)
  *   difficulty       — { stars, color, label } object (popover only)
+ *   confetti         — { stitches, groups, pct } confetti count (popover only)
  *   solidPct         — stitchability percentage (popover only)
  *   stitchSpeed      — stitches/hr (popover only)
  *   doneCount        — stitches completed (popover only)
@@ -24490,6 +24526,7 @@ window.CreatorActionBar = function CreatorActionBar(props) {
           skeinEstimate: props.skeinEstimate,
           totalStitchable: props.totalStitchable,
           difficulty: props.difficulty,
+          confetti: props.confetti,
           solidPct: props.solidPct,
           stitchSpeed: props.stitchSpeed,
           doneCount: props.doneCount

@@ -96,7 +96,7 @@ function SessionTimeline({sessions, statsSettings, onEditNote, palette, canEdit,
         var chips = session.coloursWorked.slice(0, 14).map(function(cid) {
           var cm = colourMap[cid];
           var rgb = cm ? cm.rgb : [128, 128, 128];
-          return React.createElement("span", {key:cid, title:threadLabel(cm || {id: cid}), style:{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0}});
+          return React.createElement("span", {key:cid, title:formatThread(cm || {id: cid}, {variant:"title"}), style:{display:'inline-block',width:10,height:10,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0}});
         });
         contentChildren.push(React.createElement("div", {key:"chips", style:{display:'flex',gap:3,flexWrap:'wrap',marginTop:'var(--s-1)'}}, chips));
       }
@@ -798,9 +798,9 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       React.createElement("div", {className:"stats-colour-summary"},
         React.createElement("span", null, coloursComplete + " / " + totalColours + " colour" + (totalColours !== 1 ? "s" : "") + " complete"),
         mostRemaining && React.createElement("span", null,
-          "Most remaining: " + threadLabel(mostRemaining) + " (" + mostRemaining.remaining.toLocaleString('en-GB') + " stitches)"),
+          "Most remaining: " + formatThread(mostRemaining) + " (" + mostRemaining.remaining.toLocaleString('en-GB') + " stitches)"),
         leastRemaining && leastRemaining !== mostRemaining && React.createElement("span", null,
-          "Least remaining: " + threadLabel(leastRemaining) + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
+          "Least remaining: " + formatThread(leastRemaining) + " (" + leastRemaining.remaining.toLocaleString('en-GB') + " left)")
       ),
       React.createElement("div", {className:"stats-colour-controls"},
         React.createElement("label", null, "Show ",
@@ -814,7 +814,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
       shown.length === 0 ? React.createElement("p", {className:"stats-empty"}, "No colours match this filter.") : null,
       React.createElement("div", {className:"stats-colour-list", tabIndex:0, role:"region", "aria-label":"Colour progress list"},
         shown.map(function(c){
-          var nameStr = c.type === 'blend' && c.threads ? c.threads[0].name + '+' + c.threads[1].name : c.name;
+          var nameStr = formatThread(c, {variant:'name'});
           var rgb = c.rgb || [128,128,128];
           var halfLeft = c.halfTotal - c.halfDone;
           var tl = c.tl;
@@ -829,7 +829,7 @@ function ColourProgress({palette, colourDoneCounts, sessions}){
             React.createElement("span", {className:"colour-swatch", style:{background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'}}),
             React.createElement("div", {className:"colour-info"},
               React.createElement("div", {className:"colour-info-main"},
-                React.createElement("span", {className:"colour-id"}, threadLabel(c)),
+                React.createElement("span", {className:"colour-id", title:formatThread(c, {variant:"title"})}, formatThread(c, {variant:"short"}), c.type === 'blend' ? React.createElement("span", {className:"ppal-tile-tag"}, "blend") : null),
                 React.createElement("span", {className:"colour-name"}, nameStr)),
               detail ? React.createElement("span", {className:"colour-detail"}, detail) : null),
             React.createElement("div", {className:"colour-bar", role:"img", "aria-label":c.pct + "% done"},
@@ -965,12 +965,11 @@ function SectionGrid({sections, statsSettings, onUpdateSettings, pat, done, sW, 
             sectionThreads.map(function(t){
               var cm=colourMap[t.id];
               var rgb=(cm&&cm.rgb)||[128,128,128];
-              var name=cm?cm.name:threadLabel(t);
               var remaining=t.total-t.doneCount;
               var pct=ProgressUnits.percent(t.doneCount,t.total);
               return React.createElement("div",{key:t.id,style:{display:'flex',alignItems:'center',gap:6}},
                 React.createElement("span",{style:{width:12,height:12,borderRadius:2,background:'rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')',border:'1px solid rgba(0,0,0,0.15)',flexShrink:0,display:'inline-block'}}),
-                React.createElement("span",{style:{fontSize:'var(--text-xs)',color:'var(--text-secondary)',minWidth:32,flexShrink:0}},"#"+t.id),
+                React.createElement("span",{title:formatThread(cm||t,{variant:"title"}),style:{fontSize:'var(--text-xs)',color:'var(--text-secondary)',minWidth:32,flexShrink:0}},formatThread(cm||t,{variant:"short"})),
                 React.createElement("div",{style:{flex:1,height:6,background:'var(--border)',borderRadius:3,overflow:'hidden'}},
                   React.createElement("div",{style:{width:pct+'%',height:'100%',background:t.doneCount===t.total?'var(--success)':'var(--accent)',borderRadius:3}})
                 ),

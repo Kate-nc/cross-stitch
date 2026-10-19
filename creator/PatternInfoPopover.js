@@ -20,6 +20,7 @@
  *   skeinEstimate   — pre-computed skein count (number, may be null)
  *   totalStitchable — stitch count used for progress / time
  *   difficulty      — { stars, color, label } object from useCreatorState
+ *   confetti        — { stitches, groups, pct } from confettiSummary (colour-utils.js)
  *   solidPct        — stitchability percentage (e.g. 92.4)
  *   stitchSpeed     — stitches/hr (defaults to 30 if absent)
  *   doneCount       — stitches completed (for "remaining" estimate)
@@ -87,6 +88,16 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
     }
   }
   if (stitchable != null) patternRows.push.apply(patternRows, row("Stitchable", stitchable.toLocaleString()));
+  // Confetti stitches: the same count Ready to stitch shows (colour-utils.js confettiSummary), with the one definition.
+  var confetti = (props.confetti && typeof props.confetti.stitches === "number") ? props.confetti : null;
+  var confettiDefinition = window.CONFETTI_HELP ? window.CONFETTI_HELP.definition : "single stitches of a colour on their own; slow to stitch";
+  if (confetti) {
+    patternRows.push(
+      h("div", { className: "creator-popover-info__label", key: "Confetti-k", title: "Confetti stitches are " + confettiDefinition }, "Confetti stitches"),
+      h("div", { className: "creator-popover-info__value", key: "Confetti-v", title: "Confetti stitches are " + confettiDefinition },
+        confetti.stitches.toLocaleString("en-GB") + " (" + confetti.pct.toFixed(1) + "%)")
+    );
+  }
   // Threads and chart symbols, not "colours" (audit IMG-02).
   if (props.threadCounts && typeof window.threadCountsShort === "function") patternRows.push.apply(patternRows, row("Threads", window.threadCountsShort(props.threadCounts)));
   else if (hasColours) patternRows.push.apply(patternRows, row("Symbols", String(props.colourCount)));
@@ -186,8 +197,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var children = [
     h("h3", { key: "p-title", className: "creator-popover-info__title" }, "Pattern"),
-    h("div", { key: "p-grid", className: "creator-popover-info__grid" }, patternRows)
-  ];
+    h("div", { key: "p-grid", className: "creator-popover-info__grid" }, patternRows),
+    confetti ? h("p", { key: "p-confetti", className: "creator-popover-info__note" }, "Confetti stitches are " + confettiDefinition + ".") : null
+  ].filter(Boolean);
   if (estimateRows.length) {
     children.push(h("hr", { key: "d1", className: "creator-popover-info__divider" }));
     children.push(h("h3", { key: "e-title", className: "creator-popover-info__title" }, "Estimates"));

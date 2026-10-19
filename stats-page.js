@@ -2105,13 +2105,13 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
           h('div', null,
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Used a lot but not stocked'),
             colourFingerprint.usedNotOwned.length > 0
-              ? colourFingerprint.usedNotOwned.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), 'DMC ' + t.id + (t.name ? ' \u2014 ' + t.name : '')))
+              ? colourFingerprint.usedNotOwned.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), formatThread(t)))
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Stocked everything you use')
           ),
           h('div', null,
             h('div', { style: { fontSize:'var(--text-xs)', color: 'var(--text-tertiary)', marginBottom: 4 } }, 'Stocked but saving for later'),
             colourFingerprint.ownedNotUsed.length > 0
-              ? colourFingerprint.ownedNotUsed.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), 'DMC ' + t.id + (t.name ? ' \u2014 ' + t.name : '')))
+              ? colourFingerprint.ownedNotUsed.map(t => h('div', { key: t.id, style: { display: 'flex', alignItems: 'center', gap:'var(--s-2)', fontSize:'var(--text-sm)', color: 'var(--text-primary)', marginBottom: 3 } }, h(Swatch, { rgb: t.rgb, size: 16 }), formatThread(t)))
               : h('div', { style: { fontSize:'var(--text-sm)', color: 'var(--text-tertiary)' } }, 'Everything earns its place')
           )
         )

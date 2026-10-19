@@ -59,7 +59,7 @@ Your project saves itself as you work — there is no Save button to remember.
 - **Paint and fill** — pick a colour in the **Palette** tab, then use Paint (`P`) or Fill (`F`).
 - **Part stitches and backstitch** — quarter, half and three-quarter stitches, and backstitch lines, from the tool strip.
 - **Replace a colour** — right-click a stitch and choose Replace this colour, or press `R`.
-- **Clean up** — Confetti Cleanup, Fix outline colours and Tidy stray stitches remove stray stitches.
+- **Clean up** — Reduce confetti and Fix outline colours tidy a converted pattern. Confetti stitches are single stitches of a colour on their own; they are slow to stitch.
 - **Export** — **Materials & Output > Export > Format & settings** includes **Stitches per page > Custom** for PDF density and produces a PDF chart, PNG, `.oxs` file or a `.zip` bundle.
 
 See the **[Pattern Creator Tutorial](Pattern-Creator-Tutorial.md)** for details.

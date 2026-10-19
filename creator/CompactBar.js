@@ -186,7 +186,7 @@
           triggerRef: moreBtnRef,
           sW: props.sW, sH: props.sH, fabricCt: props.fabricCt,
           colourCount: props.colourCount, threadCounts: props.threadCounts, skeinEstimate: props.skeinEstimate,
-          totalStitchable: props.totalStitchable, difficulty: props.difficulty,
+          totalStitchable: props.totalStitchable, difficulty: props.difficulty, confetti: props.confetti,
           solidPct: props.solidPct, stitchSpeed: props.stitchSpeed, doneCount: props.doneCount
         })
       : null;

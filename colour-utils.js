@@ -1934,17 +1934,20 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
 // "Confetti" = isolated stitches with no same-colour neighbours (component size 1) or tiny
 // clusters of 2-3 stitches. These are tedious to stitch because they require a separate thread pass.
 //
-// Returns: { singles, smallClusters, total, pct, colorConfetti }
-//   singles       — stitches in components of exactly 1 cell
+// Returns: { singles, smallClusters, total, pct, singlesPct, colorConfetti, colorSingles }
+//   singles       — stitches in components of exactly 1 cell (the app's "confetti stitches")
 //   smallClusters — stitches in components of 2-3 cells
 //   total         — singles + smallClusters
 //   pct           — total / totalStitchable * 100
-//   colorConfetti — { [colorId]: count } mapping of confetti stitches per colour
+//   singlesPct    — singles / totalStitchable * 100
+//   colorConfetti — { [colorId]: count } singles and small-cluster stitches per colour
+//   colorSingles  — { [colorId]: count } singles only per colour
 function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
   let totalStitchable = 0;
   let singles = 0;
   let smallClusters = 0;
   const colorConfetti = {};
+  const colorSingles = {};
 
   // ─── Fast path: use pre-labelled components ──────────────────────────────────
   if (precomputedLabels) {
@@ -1952,6 +1955,7 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
       totalStitchable += comp.size;
       if (comp.size === 1) {
         singles++;
+        colorSingles[comp.id] = (colorSingles[comp.id] || 0) + 1;
         colorConfetti[comp.id] = (colorConfetti[comp.id] || 0) + 1;
       } else if (comp.size <= 3) {
         smallClusters += comp.size;
@@ -1959,7 +1963,8 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
       }
     }
     const total = singles + smallClusters;
-    return { singles, smallClusters, total, pct: totalStitchable > 0 ? (total / totalStitchable * 100) : 0, colorConfetti };
+    return { singles, smallClusters, total, pct: totalStitchable > 0 ? (total / totalStitchable * 100) : 0,
+      singlesPct: totalStitchable > 0 ? (singles / totalStitchable * 100) : 0, colorConfetti, colorSingles };
   }
 
   const len = mapped.length;
@@ -1990,6 +1995,7 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
     const compSize = tail; // tail == cells added == component size
     if (compSize === 1) {
       singles++;
+      colorSingles[tid] = (colorSingles[tid] || 0) + 1;
       colorConfetti[tid] = (colorConfetti[tid] || 0) + 1;
     } else if (compSize <= 3) {
       smallClusters += compSize;
@@ -1999,7 +2005,31 @@ function analyzeConfetti(mapped, w, h, precomputedLabels = null) {
 
   const total = singles + smallClusters;
   const pct = totalStitchable > 0 ? (total / totalStitchable * 100) : 0;
-  return { singles, smallClusters, total, pct, colorConfetti };
+  const singlesPct = totalStitchable > 0 ? (singles / totalStitchable * 100) : 0;
+  return { singles, smallClusters, total, pct, singlesPct, colorConfetti, colorSingles };
+}
+
+// The one confetti count the app shows (UX-012): Ready to stitch, Pattern info and the Convert panel all say
+// "confetti stitches" and mean this: full crosses of a colour with no same-colour neighbour above, below, left or
+// right ("single stitches of a colour on their own; slow to stitch"). `groups` counts the crosses in connected groups
+// of 2-3: slow too, but not confetti. pct is of all full crosses. `pat` is a chart's cells (skip and empty cells are
+// not stitches); colours are told apart by brand and number.
+function confettiSummary(pat, w, h) {
+  const n = w * h;
+  const safe = new Array(n);
+  const empty = { id: '__empty__' };
+  let stitchable = 0;
+  for (let i = 0; i < n; i++) {
+    const p = pat && pat[i];
+    if (p && p.id && String(p.id).indexOf('__') !== 0) {
+      safe[i] = { id: (p.brand || 'dmc') + ':' + p.id };
+      stitchable++;
+    } else {
+      safe[i] = empty;
+    }
+  }
+  const a = analyzeConfetti(safe, w, h);
+  return { stitches: a.singles, groups: a.smallClusters, stitchable, pct: stitchable > 0 ? a.singles / stitchable * 100 : 0 };
 }
 
 // module.exports is placed at the end of the file so that dE2000 and
@@ -2469,4 +2499,4 @@ _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP }; }

@@ -1,5 +1,5 @@
 /* ReadyReview — inspect the saved chart before committing to materials.
-   Uses the editor chart renderer, realistic stitch renderer, confetti analyser
+   Uses the editor chart renderer, realistic stitch renderer, confetti count (confettiSummary)
    and Threads shopping calculation. No conversion-thumbnail metrics or score. */
 (function () {
   var h = React.createElement;
@@ -21,18 +21,18 @@
   function metrics(pat, w, hgt) {
     // Derive counts afresh from the actual chart, including manual edits.
     var counts = Object.create(null), total = 0;
-    var safe = Array.from({ length: w * hgt }, function (_, i) {
+    for (var i = 0; i < w * hgt; i++) {
       var p = pat[i];
-      if (!occupied(p)) return { id: '__empty__' };
+      if (!occupied(p)) continue;
       total++;
       var key = (p.brand || 'dmc') + ':' + p.id;
       if (!counts[key]) counts[key] = Object.assign({}, p, { count: 0 });
       counts[key].count++;
-      return Object.assign({}, p, { id: key });
-    });
+    }
     var pal = Object.values(counts);
+    // The one confetti count (colour-utils.js confettiSummary), the same as Pattern info shows.
     return { total: total, pal: pal, rare: pal.filter(function (p) { return p.count <= 5; }),
-      confetti: analyzeConfetti(safe, w, hgt) };
+      confetti: confettiSummary(pat, w, hgt) };
   }
   function size(w, hgt, ct) {
     var effective = ct / stitchOverFor(ct);
@@ -162,16 +162,16 @@
           h('p', null, 'Finished size covers the whole grid, including empty cells. Add your own framing and finishing margins.'),
           h('label', null, 'Fabric count', h('select', { 'aria-label': 'Fabric count', value: ctx.fabricCt, onChange: function (e) { ctx.setFabricCt(Number(e.target.value)); } }, FABRIC_COUNTS.map(function (f) { return h('option', { key: f.ct, value: f.ct }, f.label); }))),
           h('p', null, assumptions + '. Equal strand shares assumed for blends; confirm unusual blend ratios.'),
-          h('p', null, m.pal.length + ' used chart colours / symbols; ' + rows.length + ' constituent thread colours. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
+          h('p', null, window.threadCountsShort({ threads: rows.length, symbols: m.pal.length }) + '. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
           button('Inspect threads and estimates', function () { go('threads'); }), button('Check stash', function () { go('stash'); })),
         h('div', null, h('h3', null, 'Stitching effort and detail'),
           h('p', null, m.total + ' full-cross cells (' + (m.total / (ctx.sW * ctx.sH) * 100).toFixed(1) + '% of the grid). Empty fabric can be intentional.'),
-          h('p', null, m.confetti.singles + ' isolated full crosses have no same-colour neighbour above, below, left or right. ' + m.confetti.smallClusters + ' crosses are in connected groups of 2–3. These counts indicate thread changes, not colour fidelity or retained detail.'),
-          h('p', null, m.rare.length + ' rarely used chart colours appear in 5 or fewer full crosses. They may be intentional highlights, eyes, text or outlines. Compare before simplifying.'),
-          m.rare.length ? h('details', null, h('summary', null, 'Inspect rarely used colours'), h('ul', null, m.rare.map(function (p) { return h('li', { key: (p.brand || 'dmc') + ':' + p.id }, (p.brand || 'dmc').toUpperCase() + ' ' + p.id + ': ' + p.count + ' crosses'); }))) : null,
+          h('p', { 'data-testid': 'ready-confetti' }, m.confetti.stitches.toLocaleString('en-GB') + ' confetti stitches (' + m.confetti.pct.toFixed(1) + '% of the chart). Confetti stitches are ' + window.CONFETTI_HELP.definition + ': a cross with no same-colour neighbour above, below, left or right. A further ' + m.confetti.groups.toLocaleString('en-GB') + ' crosses sit in small groups of 2–3. These counts indicate thread changes, not colour fidelity or retained detail.'),
+          h('p', null, m.rare.length + ' rarely used symbols appear in 5 or fewer full crosses. They may be intentional highlights, eyes, text or outlines. Compare before simplifying.'),
+          m.rare.length ? h('details', null, h('summary', null, 'Inspect rarely used symbols'), h('ul', null, m.rare.map(function (p) { return h('li', { key: (p.brand || 'dmc') + ':' + p.id }, (p.brand || 'dmc').toUpperCase() + ' ' + p.id + ': ' + p.count + ' crosses'); }))) : null,
           button('Open adjustment and cleanup tools', controls),
           source && !ctx.isScratchMode ? button('Review conversion settings', adjustments) : null,
-          h('p', null, 'In Edit > Tools, inspect Fix outline colours or Tidy stray stitches, preview proposed changes and use Undo if needed. Cleanup can remove meaningful detail. Conversion settings include grid size, colour limit, dithering and cleanup; regenerating may replace edits.'))),
+          h('p', null, 'In Edit > Tools, inspect Fix outline colours or Reduce confetti, preview proposed changes and use Undo if needed. Cleanup can remove meaningful detail. Conversion settings include grid size, colour limit, dithering and cleanup; regenerating may replace edits.'))),
       h('h3', null, 'Inspect a representative sample'),
       h('p', null, 'Choose a region with an important face, edge, small detail or blend. Compare several regions; one sample cannot establish the quality of the whole design. Coordinates start at 1.'),
       h('div', { className: 'ready-review-fields' }, field('x', 'First column', r.x, ctx.sW, 1), field('y', 'First row', r.y, ctx.sH, 1),

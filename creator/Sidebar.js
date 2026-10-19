@@ -47,22 +47,22 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Any confetti cleanup may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Reducing confetti may destroy fine details. Consider turning it off or increasing grid size."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Confetti cleanup level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"Reduce confetti at level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
     }
     if (area <= 2500 && orphans >= 3) {
-      return {level:"warning",message:"Level 3 cleanup on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
+      return {level:"warning",message:"Reduce confetti at level 3 on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
     }
     if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
       var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
       var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
       if (pctRemoved > 20) {
-        return {level:"danger",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider reducing the cleanup level."};
+        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider a lower Reduce confetti level."};
       }
       if (pctRemoved > 10) {
-        return {level:"warning",message:"Cleanup would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
+        return {level:"warning",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
       }
     }
     return null;
@@ -108,10 +108,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     var entry = (list || []).find(function(p) { return p.id === symbolPickerFor; });
     if (!entry) return null;
     var free = window.PaletteTools.unusedSymbols(ctx.pal || list, window.SymbolGlyphs.pool());
-    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + threadLabel(entry)},
+    return h("div", {className: "pal-symbols", role: "group", "aria-label": "Choose a symbol for " + formatThread(entry)},
       h("div", {className: "pal-symbols__head"},
         h("span", {className: "pal-row__swatch pal-row__swatch--" + window.PaletteTools.swatchInk(entry.rgb), style: {background: "rgb(" + entry.rgb + ")"}, "aria-hidden": "true"}, entry.symbol),
-        h("span", {className: "pal-symbols__title"}, "Symbol for " + threadLabel(entry)),
+        h("span", {className: "pal-symbols__title"}, "Symbol for " + formatThread(entry)),
         h("button", {type: "button", className: "pal-row__btn", "aria-label": "Close", title: "Close", onClick: function() { setSymbolPickerFor(null); }}, Icons.x())
       ),
       free.length
@@ -128,6 +128,7 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   // ── Palette chips (top of right panel, when pattern loaded) ─────────────────
+  var PAL_ROW_CLASSES = {wrap: "pal-row__label", id: "pal-row__id", tag: "pal-row__tag", name: "pal-row__name", use: "pal-row__use"};
   var palChipsSection = (ctx.pat && ctx.pal) ? (function() {
     var displayPal = ctx.displayPal || ctx.pal || [];
     var symbolLimitMsg = window.symbolLimitWarning ? window.symbolLimitWarning(window.creatorThreadCounts(displayPal)) : "";
@@ -204,6 +205,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       var countText = (Number(p.count) || 0).toLocaleString("en-GB");
       var ink = window.PaletteTools ? window.PaletteTools.swatchInk(p.rgb) : "black";
+      // The one thread label and the strands and skeins this symbol takes (UX-013, UX-014).
+      var keyRow = window.threadKeyRow ? window.threadKeyRow(p, { fabricCount: fabricCtForStash }) : null;
       function choose() {
         if (isPaintMode) {
           cv.setSelectedColorId(cv.selectedColorId === p.id ? null : p.id);
@@ -216,7 +219,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         role: "button",
         tabIndex: 0,
         "aria-pressed": ips || ihs,
-        "aria-label": window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p),
+        "aria-label": (window.PaletteTools ? window.PaletteTools.swatchLabel(p) : threadLabel(p)) + (keyRow && keyRow.usageTitle ? ". " + keyRow.usageTitle : ""),
+        title: keyRow ? keyRow.title : undefined,
         className: "pal-row" + (ips ? " pal-row--selected" : ihs ? " pal-row--hi" : "") + (isUnused ? " pal-row--unused" : ""),
         "data-colour-id": p.id,
         onClick: choose,
@@ -228,8 +232,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         (window.isPlaceholderThread && window.isPlaceholderThread(p.id))
           ? h("span", {className: "pal-row__swatch thread-placeholder-swatch", title: "No thread yet: use the swap button to choose one"}, Icons.help())
           : h("span", {className: "pal-row__swatch pal-row__swatch--" + ink, style: {background: "rgb(" + p.rgb + ")"}, "aria-hidden": "true"}, p.symbol),
-        h("span", {className: "pal-row__id"}, p.id),
-        h("span", {className: "pal-row__name"}, p.name && p.name !== p.id ? p.name : ""),
+        // The name wraps rather than being cut short; the strands and skeins sit on their own line.
+        keyRow
+          ? h(window.ThreadKeyLabel, {row: keyRow, classes: PAL_ROW_CLASSES})
+          : h("span", {className: "pal-row__label"}, h("span", {className: "pal-row__id"}, threadLabel(p))),
         h("span", {className: "pal-row__count", title: countText + " stitches"}, countText),
         // Brief D — stash status dot. Hidden when stash empty.
         stashStatus && h("span", {
@@ -242,7 +248,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Change symbol",
-          "aria-label": "Change symbol for " + threadLabel(p),
+          "aria-label": "Change symbol for " + formatThread(p),
           "aria-expanded": symbolPickerFor === p.id ? "true" : "false",
           onClick: function(e) { e.stopPropagation(); setSymbolPickerFor(symbolPickerFor === p.id ? null : p.id); }
         }, Icons.symbols ? Icons.symbols() : null),
@@ -251,8 +257,8 @@ window.CreatorSidebar = function CreatorSidebar() {
           key: "swap-" + p.id,
           type: "button",
           className: "pal-row__btn pal-chip-swap",
-          title: "Replace " + threadLabel(p) + " with another colour",
-          "aria-label": "Replace " + (p.name || p.id) + " with another colour",
+          title: "Replace " + (keyRow ? keyRow.label : threadLabel(p)) + " with another colour",
+          "aria-label": "Replace " + (keyRow ? keyRow.label : threadLabel(p)) + " with another colour",
           onClick: function(e) {
             e.stopPropagation();
             cv.setColourReplaceModal({ srcId: p.id, srcName: p.name || p.id, srcRgb: p.rgb });
@@ -262,7 +268,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           type: "button",
           className: "pal-row__btn",
           title: "Remove from palette",
-          "aria-label": "Remove " + threadLabel(p) + " from the palette",
+          "aria-label": "Remove " + formatThread(p) + " from the palette",
           onClick: function(e) { e.stopPropagation(); ctx.removeScratchColour(p.id); }
         }, Icons.x())
       );
@@ -306,6 +312,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       palChipsOpen && h("div", {style:{padding:"0 12px 12px"}},
       app.appMode === "edit" && h("p", {className:"convert-first-use"}, "Use Change symbol beside a thread to choose a different chart symbol."),
+      // What the strands and skeins on each row mean, and what a blend is (UX-013, UX-014).
+      displayPal.length > 0 && h("p", {className:"convert-first-use pal-key-note"}, "Strands and skeins are for each symbol on its own. Materials adds up the threads that several symbols share."),
+      window.BlendHelpNote && window.creatorThreadCounts(displayPal).blends > 0 && h(window.BlendHelpNote, null),
       // Brief D — stash filter toggle + "Need to buy" button (only when stash has data)
       stashHas && h("div", {
         style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:'var(--s-2)',fontSize:'var(--text-xs)',color:"var(--text-secondary)",flexWrap:"wrap"}
@@ -389,8 +398,8 @@ window.CreatorSidebar = function CreatorSidebar() {
         selInfo
           ? h(React.Fragment, null,
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+selInfo.rgb+")",border:"1px solid var(--border)"}}),
-              h("span", {style:{fontWeight:600,color:"var(--accent)"}}, threadLabel(selInfo)),
-              h("span", {style:{color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, selInfo.name || ""),
+              h("span", {style:{fontWeight:600,color:"var(--accent)"}, title: formatThread(selInfo, {variant:"title"})}, formatThread(selInfo, {variant:"short"})),
+              h("span", {style:{color:"var(--text-secondary)",flex:1,minWidth:0,overflowWrap:"anywhere"}}, formatThread(selInfo, {variant:"name"})),
               h("button", {
                 onClick:function(){cv.setSelectedColorId(null);},
                 title:"Clear selection",
@@ -561,14 +570,14 @@ window.CreatorSidebar = function CreatorSidebar() {
     return h("button", {
       key: d.id, type: "button",
       className: "pal-pick-row" + (inPal ? " pal-pick-row--in" : ""),
-      "aria-label": clash ? (threadLabel(d) + " " + d.name + ": this pattern already has " + threadLabel(inPal))
-        : (inPal ? "In this pattern: " : "Add ") + threadLabel(d) + " " + d.name,
+      "aria-label": clash ? (formatThread(d) + ": this pattern already has " + threadLabel(inPal))
+        : (inPal ? "In this pattern: " : "Add ") + formatThread(d),
       title: clash ? (threadLabel(inPal) + " already uses this number") : inPal ? "Already in this pattern" : "Add to this pattern",
       onClick: function() { if (!inPal) ctx.addScratchColour(d); }
     },
       h("span", {className: "pal-pick-row__swatch", style: {background: "rgb(" + d.rgb[0] + "," + d.rgb[1] + "," + d.rgb[2] + ")"}}),
       h("span", {className: "pal-pick-row__id"}, d.id),
-      h("span", {className: "pal-pick-row__name"}, d.name),
+      h("span", {className: "pal-pick-row__name"}, threadFullName(d.name)),
       h("span", {className: "pal-pick-row__mark", "aria-hidden": "true"}, inPal ? Icons.check() : Icons.plus())
     );
   }
@@ -597,7 +606,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     pickTab === "stash" && threadList(ownedThreads, "No " + brandName + " threads in your stash yet. Add them in the Stash Manager."),
     pickTab === "suggested" && h(React.Fragment, null,
       suggestBase
-        ? h("div", {className: "pal-pick-note"}, "Closest to " + threadLabel(suggestBase) + (suggestBase.name && suggestBase.name !== suggestBase.id ? " " + suggestBase.name : ""))
+        ? h("div", {className: "pal-pick-note"}, "Closest to " + formatThread(suggestBase))
         : null,
       threadList(suggested, "Select a colour in the pattern to see threads close to it.")
     ),
@@ -822,9 +831,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
-      h("span", null, "Allow blended threads"),
-      h(InfoIcon, {text:"Allow the algorithm to blend two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " colours in a single stitch for smoother gradients", width:220})
+      h("span", null, "Allow two-thread blends"),
+      h(InfoIcon, {text:"A blend puts one strand of each of two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads in the needle to make an in-between shade, for smoother gradients.", width:220})
     ),
+    // What the setting does to the chart, in words (UX-013).
+    h("div", {className:"convert-blend-effect", style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.45,marginBottom:'var(--s-2)'}},
+      gen.allowBlends
+        ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
+        : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser."
+    ),
+    window.BlendHelpNote && h(window.BlendHelpNote, {showSetting:false}),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
     ),
@@ -883,7 +899,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           }),
           (function(){
             var dmc = findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim());
-            return dmc ? h(Tooltip, {text:threadLabel({ id: dmc.id, brand: gen.convertBrand }) + " \u2014 " + dmc.name, width:160},
+            return dmc ? h(Tooltip, {text:formatThread({ id: dmc.id, name: dmc.name, brand: gen.convertBrand }), width:160},
               h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
             ) : null;
           })(),
@@ -1031,9 +1047,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures."},
     ];
     var atkinsonLevels = [
-      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few single stitches."},
+      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few confetti stitches."},
       {id:"balanced", label:"Balanced", tip:"Smooth gradients in tidy patches of colour."},
-      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more single stitches."},
+      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more confetti stitches."},
     ];
     var bayerSizes = [
       {id:"bayer2", label:"Coarse", tip:"A bold, chequered pattern."},
@@ -1068,7 +1084,7 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("div", {style:{marginTop:'var(--s-2)'}},
         h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
           h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
-          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more single stitches.", width:240})
+          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
         ),
         // Off | Smooth blend | Pattern blend
         h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
@@ -1093,8 +1109,8 @@ window.CreatorSidebar = function CreatorSidebar() {
           h(Toggle, {
             checked:sc2.smoothDithering,
             onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
-            label:"Fewer single stitches in blends",
-            help:"Keeps Smooth blend from scattering single stitches. Cleaner gradients, though colours may shift slightly."
+            label:"Fewer confetti stitches in shading",
+            help:"Keeps Smooth blend from scattering confetti stitches. Cleaner gradients, though colours may shift slightly."
           }),
           !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
             dithAlgo === "bayer" ? "Not used with Pattern blend." : "Only used with Smooth blend."
@@ -1116,25 +1132,25 @@ window.CreatorSidebar = function CreatorSidebar() {
           helpTopic:"palette"})
       ),
       h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Confetti Cleanup", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+        h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
           format:function(v){return v===0?"Off":String(v);},
-          helpText:"Removes isolated single stitches",
-          inlineHint:"Confetti stitches are single isolated stitches surrounded by different colours \u2014 each one forces a separate thread change. Removing them can dramatically cut stitching time.",
+          helpText:"Merges confetti stitches into the colour around them",
+          inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
           helpTopic:"confetti"}),  
         gen.orphans > 0 && (function() {
           var desc;
           if (gen.orphans === 1) {
-            desc = h("span", null, "Removes ", h("strong", null, "isolated single stitches"), " \u2014 cells with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets clusters of exactly 1 stitch.");
+            desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets groups of exactly 1 stitch.");
           } else if (gen.orphans === 2) {
-            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20132 stitches"), " that are isolated from their colour group. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20132 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
           } else {
-            desc = h("span", null, "Removes clusters of ", h("strong", null, "1\u20133 stitches"), " that are isolated. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20133 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
           }
           return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
         })()
       ),
       gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " isolated stitches",
+        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
         " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
       ),
       ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
@@ -1189,11 +1205,11 @@ window.CreatorSidebar = function CreatorSidebar() {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
           label:"Stitch Cleanup",
-          help:"Automatically removes scattered single stitches that are hard to sew. Turn off if you want to keep the full dithered detail."
+          help:"Automatically merges confetti stitches that are hard to sew. Turn off if you want to keep the full shaded detail."
         }),
         sc2.enabled && h(React.Fragment, null,
           h("div", {style:{marginBottom:10,padding:"8px 10px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:500}},
-            "Removes scattered single stitches (confetti) that are impractical to sew \u2014 especially in dithered areas and gradients."
+            "Merges confetti stitches (" + window.CONFETTI_HELP.definition + ") that are impractical to sew \u2014 especially in shaded areas and gradients."
           ),
           h("div", {style:{marginTop:'var(--s-1)',marginBottom:10}},
             h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
@@ -2285,7 +2301,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           color:cv.activeTool==="denoise"?"var(--accent)":"var(--text-secondary)",
           borderRadius:'var(--radius-sm)',cursor:"pointer",fontFamily:"inherit"
         }
-      }, "Tidy stray stitches")
+      }, "Reduce confetti")
     ),
     h("button", {
       onClick:function(){ if (app&&app.openResizeCanvas) app.openResizeCanvas(); },

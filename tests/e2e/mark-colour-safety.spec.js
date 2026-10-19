@@ -49,7 +49,7 @@ async function openPalette(page) {
   }
   await page.waitForTimeout(500);
 }
-const tile = (page, id) => page.locator('.ppal-tile', { has: page.locator('.ppal-tile-id', { hasText: new RegExp('^' + id + '$') }) });
+const tile = (page, id) => page.locator('.ppal-tile', { has: page.locator('.ppal-tile-id', { hasText: new RegExp('^DMC ' + id + '$') }) });
 const count = async (page, id) => (await tile(page, id).locator('.ppal-tile-count').textContent()).trim();
 const dialog = (page) => page.getByRole('dialog');
 

@@ -555,7 +555,7 @@
       var DITH_OPTS = [
         { value: 'off',       label: 'Off' },
         { value: 'atkinson',  label: 'Smooth blend (default)' },
-        { value: 'riemersma', label: 'Curved blend (fewer single stitches)' },
+        { value: 'riemersma', label: 'Curved blend (fewer confetti stitches)' },
         { value: 'bayer',     label: 'Pattern blend' },
       ];
       function setDithAlgo(v) { wizard.setSettings(Object.assign({}, s, { dithAlgo: v })); }
@@ -619,8 +619,8 @@
       var paletteText = p.mode === "dmc" ? "Full DMC"
                       : p.mode === "stash" ? "From stash"
                       : "Limited (" + p.maxColours + ")";
-      var confettiHelpText = "“Confetti” stitches are isolated single cells or tiny 2–3 cell clusters. "
-                           + "They're accurate to the source image but tedious to stitch because each needs its own thread pass. Lower is easier to stitch.";
+      var confettiHelpText = "Confetti stitches are " + window.CONFETTI_HELP.definition + ". "
+                           + "They can be accurate to the source image but are tedious to stitch because each needs its own thread pass. Fewer is easier to stitch.";
       return h("div", { className: "iw-step iw-step-confirm" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 5 of 5: Confirm"),
         h("p", { className: "iw-step-desc" }, "Check the details, then generate your pattern."),
@@ -652,10 +652,10 @@
                   width: 240
                 }, h("span", { className: "iw-info-icon", "aria-hidden": "true" }, Icons.info ? Icons.info() : "?")) : null
               ),
-              h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% isolated stitches") : "" },
+              h("dd", { title: stitchStats.pct != null ? (stitchStats.pct.toFixed(1) + "% confetti stitches") : "" },
                 stitchStats.label + (stitchStats.pct != null ? " (" + stitchStats.pct.toFixed(1) + "% confetti)" : ""),
                 (stitchStats.label === "Fair" || stitchStats.label === "Needs cleanup") ? h("div", { className: "iw-stitchability-hint" },
-                  "You'll be able to smooth stray stitches out with the Cleanup tool after generating."
+                  "You'll be able to reduce confetti with the Reduce confetti tool after generating."
                 ) : null)
             ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
               h("dt", null, "Stitchability"),
