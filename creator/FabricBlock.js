@@ -7,10 +7,15 @@
  *   - finished size and a suggested cut size (5 cm / 2 in each side), in
  *     both unit systems with the preferred one first (pattern-size-calc.js).
  *
- * Used in Convert › Size & fabric, the Canvas tab and Edit › Project.
+ * Used in Convert › Size & fabric, the Canvas tab and Edit › Project. All of
+ * them are this one component on the one project setting, so they cannot
+ * disagree. Materials (Ready to stitch, Threads) only reads the count:
+ * window.CreatorFabricSummary shows it with an Edit link that opens
+ * Edit › Project › Fabric (UX-032).
  *
  * window.CreatorFabricBlock(props): fabricCt, setFabricCt, fabricColour,
  * setFabricColour, sW, sH, showSizes (default true).
+ * window.CreatorFabricSummary(props): fabricCt, app (the useApp() context).
  *
  * Loaded as a plain <script> (concatenated into creator/bundle.js).
  */
@@ -29,6 +34,33 @@
     var u = String(hex || "").toUpperCase();
     return FABRIC_COLOURS.some(function (f) { return f.hex.toUpperCase() === u; });
   }
+
+  // Edit › Project › Fabric, the one place the count is edited once a pattern
+  // exists. The drawer opens on phones.
+  window.creatorOpenFabricSettings = function (app) {
+    if (!app) return;
+    app.setTab("pattern");
+    app.setAppMode("edit");
+    app.setSidebarTab("project");
+    app.setSidebarOpen(true);
+    if (app.setPanelOpen) app.setPanelOpen(true);
+  };
+
+  // The count as read-only text, with a link to where it is edited.
+  window.CreatorFabricSummary = function CreatorFabricSummary(props) {
+    var h = React.createElement;
+    var ct = props.fabricCt || 14;
+    var label = typeof window.fabricShortLabel === "function" ? window.fabricShortLabel(ct) : ct + "ct";
+    return h("div", { className: "fabric-summary" },
+      h("span", { className: "fabric-summary__label" }, "Fabric count"),
+      h("strong", { className: "fabric-summary__value", "data-fabric-count": "" }, label),
+      h("button", {
+        type: "button", className: "fabric-summary__edit",
+        "aria-label": "Edit fabric count in Edit, Project",
+        onClick: function () { window.creatorOpenFabricSettings(props.app); }
+      }, "Edit")
+    );
+  };
 
   window.CreatorFabricBlock = function CreatorFabricBlock(props) {
     var h = React.createElement;

@@ -261,7 +261,22 @@ function projectNameFromFile(fileName){
   base=base.replace(/\s+/g," ").trim().slice(0,60).trim();
   return base||UNTITLED_DESIGN_NAME;
 }
-if(typeof window!=='undefined'){window.projectNameFromFile=projectNameFromFile;window.UNTITLED_DESIGN_NAME=UNTITLED_DESIGN_NAME;}
+// Is this still a name the app made up, not one worth keeping? Blank, "Untitled
+// design", the "80\u00D780 pattern" fallback, or a file name nobody chose
+// ("IMG_2041", "Screenshot 2026-10-19 at 10.23.45", "image (3)").
+var _DEFAULT_NAME_RE=/^(untitled( (design|pattern|project))?|\d+\s*[\u00D7x]\s*\d+ pattern|(img|dsc|dscn|dscf|pxl|mvimg|image|photo|picture|pic|screenshot|screen shot|scan|download|whatsapp image|signal)[\s_\-.()\d]*(at [\d.:\s]*([ap]m)?)?[\s_\-.()\d]*)$/i;
+function isDefaultProjectName(name){
+  var n=String(name==null?"":name).replace(/\s+/g," ").trim();
+  return !n||_DEFAULT_NAME_RE.test(n);
+}
+// Should the Creator offer to name the pattern before an export or the Tracker
+// hand-off? Only while the name is still a default, and only once per project.
+function needsNamePrompt(name,auto,shown){
+  if(shown)return false;
+  if(!String(name==null?"":name).trim())return true;
+  return !!auto&&isDefaultProjectName(name);
+}
+if(typeof window!=='undefined'){window.projectNameFromFile=projectNameFromFile;window.UNTITLED_DESIGN_NAME=UNTITLED_DESIGN_NAME;window.isDefaultProjectName=isDefaultProjectName;window.needsNamePrompt=needsNamePrompt;}
 
 // IndexedDB utility functions
 const DB_NAME = "CrossStitchDB";

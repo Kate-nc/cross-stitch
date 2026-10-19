@@ -58,7 +58,7 @@ describe('name prompt is shown once per project', () => {
 
   test('the export-time prompt checks it', () => {
     const main = read('creator-main.js');
-    expect(main).toMatch(/if \(auto && !shown && state\.pat && state\.pal\)/);
+    expect(main).toMatch(/if \(needsNamePrompt\(state\.projectName, auto, shown\) && state\.pat && state\.pal\)/);
   });
 
   test('opening the prompt sets it', () => {

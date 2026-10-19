@@ -9265,7 +9265,7 @@ return(
           {STITCH_LAYERS.map(layer=>
             <label key={layer.id} title={layer.key?"Shortcut: "+layer.key:undefined} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none"}}>
               <input type="checkbox" checked={layerVis[layer.id]!==false} onChange={e=>setLayerVis(v=>({...v,[layer.id]:e.target.checked}))} className="ppal-check"/>
-              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({layerCounts[layer.id]})</span>
+              <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>{layer.label} ({fmtNum(layerCounts[layer.id])})</span>
             </label>
           )}
           <hr style={{border:"none",borderTop:"1px solid var(--border)",margin:"4px 0"}}/>
@@ -9330,7 +9330,7 @@ return(
             onClick={()=>window.dispatchEvent(new Event("cs:openShortcuts"))}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
           >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
-          <button onClick={()=>openConsumptionHistory()}>Thread consumption history</button>
+          <button type="button" className="btn" onClick={()=>openConsumptionHistory()}>Thread consumption history</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Use up stash thread as I stitch</span>

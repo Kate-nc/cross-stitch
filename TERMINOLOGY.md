@@ -56,8 +56,12 @@ caps distinct threads, blends included.
 
 Counts say which they mean, never "colours":
 
-- success toast: "24 threads, 40 chart symbols (16 are blends of two
-  threads)", or "24 threads" when there are no blends;
+- success toast: "... now editing at 130×130 with 24 threads, 40 chart
+  symbols (16 are blends of two threads). Use the Convert tab ...", or "with
+  24 threads." when there are no blends. The counts sentence is never wrapped
+  in another pair of brackets;
+- counts are formatted with thousands separators (`fmtNum`, `plural` in
+  `helpers.js`) and agree in number: "1 pattern", "16,950 full-cross cells";
 - Palette header and summaries: "24 threads · 40 symbols".
 
 `creatorThreadCounts(pal)` in `creator/useCreatorState.js` returns

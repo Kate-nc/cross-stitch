@@ -2921,15 +2921,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           padding:"10px 12px", background:"var(--surface-secondary)", border:"0.5px solid var(--border)",
           borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:'var(--s-2)'
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
-            "Count:",
-            h("select", {
-              value: ctx.fabricCt,
-              onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)",
-                     fontSize:'var(--text-sm)', background:"var(--surface)"}
-            }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
-          ),
+          // Read-only here; the count is edited in Edit > Project > Fabric (UX-032).
+          h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
           h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Margin:",
             h("input", {
@@ -4681,15 +4674,15 @@ window.CreatorExportTab = function CreatorExportTab() {
         h('div', null, h('h3', null, 'Size and materials'),
           h('p', null, ctx.sW + ' × ' + ctx.sH + ' stitches; finished ' + size(ctx.sW, ctx.sH, ctx.fabricCt) + '.'),
           h('p', null, 'Finished size covers the whole grid, including empty cells. Add your own framing and finishing margins.'),
-          h('label', null, 'Fabric count', h('select', { 'aria-label': 'Fabric count', value: ctx.fabricCt, onChange: function (e) { ctx.setFabricCt(Number(e.target.value)); } }, FABRIC_COUNTS.map(function (f) { return h('option', { key: f.ct, value: f.ct }, f.label); }))),
+          h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
           h('p', null, assumptions + '. Equal strand shares assumed for blends; confirm unusual blend ratios.'),
           h('p', null, window.threadCountsShort({ threads: rows.length, symbols: m.pal.length }) + '. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
           button('Inspect threads and estimates', function () { go('threads'); }), button('Check stash', function () { go('stash'); })),
         h('div', null, h('h3', null, 'Stitching effort and detail'),
-          h('p', null, m.total + ' full-cross cells (' + (m.total / (ctx.sW * ctx.sH) * 100).toFixed(1) + '% of the grid). Empty fabric can be intentional.'),
+          h('p', null, plural(m.total, 'full-cross cell') + ' (' + (m.total / (ctx.sW * ctx.sH) * 100).toFixed(1) + '% of the grid). Empty fabric can be intentional.'),
           h('p', { 'data-testid': 'ready-confetti' }, m.confetti.stitches.toLocaleString('en-GB') + ' confetti stitches (' + m.confetti.pct.toFixed(1) + '% of the chart). Confetti stitches are ' + window.CONFETTI_HELP.definition + ': a cross with no same-colour neighbour above, below, left or right. A further ' + m.confetti.groups.toLocaleString('en-GB') + ' crosses sit in small groups of 2–3. These counts indicate thread changes, not colour fidelity or retained detail.'),
-          h('p', null, m.rare.length + ' rarely used symbols appear in 5 or fewer full crosses. They may be intentional highlights, eyes, text or outlines. Compare before simplifying.'),
-          m.rare.length ? h('details', null, h('summary', null, 'Inspect rarely used symbols'), h('ul', null, m.rare.map(function (p) { return h('li', { key: (p.brand || 'dmc') + ':' + p.id }, (p.brand || 'dmc').toUpperCase() + ' ' + p.id + ': ' + p.count + ' crosses'); }))) : null,
+          h('p', null, plural(m.rare.length, 'rarely used symbol') + (m.rare.length === 1 ? ' appears' : ' appear') + ' in 5 or fewer full crosses. They may be intentional highlights, eyes, text or outlines. Compare before simplifying.'),
+          m.rare.length ? h('details', null, h('summary', null, 'Inspect rarely used symbols'), h('ul', null, m.rare.map(function (p) { return h('li', { key: (p.brand || 'dmc') + ':' + p.id }, (p.brand || 'dmc').toUpperCase() + ' ' + p.id + ': ' + plural(p.count, 'cross', 'crosses')); }))) : null,
           button('Open adjustment and cleanup tools', controls),
           source && !ctx.isScratchMode ? button('Review conversion settings', adjustments) : null,
           h('p', null, 'In Edit > Tools, inspect Fix outline colours or Reduce confetti, preview proposed changes and use Undo if needed. Cleanup can remove meaningful detail. Conversion settings include grid size, colour limit, dithering and cleanup; regenerating may replace edits.'))),

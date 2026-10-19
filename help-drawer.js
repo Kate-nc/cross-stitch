@@ -456,7 +456,7 @@
           bullets: [
             ["Active project", "The project you most recently opened. It is the one the Creator and Tracker open by default."],
             ["Switching projects", "Use Home > Projects, or File > Switch Project… from any page."],
-            ["Renaming", "Click the project name in the top bar to rename it. On a phone, tap the project button at the top left and choose Rename."],
+            ["Renaming", "Click the project name in the top bar to rename it. On a phone, tap the project button at the top left and choose Rename. A pattern still called Untitled design, 80×80 pattern or a camera file name such as IMG_2041 is offered a name, once, the first time you print or export it or open it in the Tracker. A name you chose, or a file name worth keeping, is never questioned."],
             ["Deleting", "Delete projects from the Stash Manager's Pattern Library (one at a time, or select several). An Undo button appears for a few seconds; after that, a deleted project can only be recovered from a backup."]
           ]
         }
@@ -476,7 +476,7 @@
             ["Symbol", "A mark on the chart. A solid stitch's symbol stands for one thread; a blend's symbol stands for two threads stitched together, so a chart can have more symbols than threads. No two threads or blends on a chart share a symbol, and the symbols match the printed PDF."],
             ["Active project", "The project you most recently opened; the Creator and Tracker open it by default."],
             ["Ready to stitch", "The review in Materials compares the source, chart, full-cross simulation, finished size and material assumptions before buying."],
-            ["Fabric count", "Stitches per inch of fabric. Common values: 11 count (large stitches), 14 count (standard — 14 stitches ≈ 1 inch), 18 count (fine), 28 count (very fine, usually worked over two threads)."],
+            ["Fabric count", "Stitches per inch of fabric. Common values: 11 count (large stitches), 14 count (standard — 14 stitches ≈ 1 inch), 18 count (fine), 28 count (very fine, usually worked over two threads). Change it in Convert > Size & fabric (before you generate) or Edit > Project > Fabric; Materials shows it with an Edit link to the same setting, so there is only one value."],
             ["Difference", "How different two colours look — lower means a closer match. Shown when matching picture colours to threads and when suggesting replacement threads."]
           ]
         },

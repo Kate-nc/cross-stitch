@@ -107,7 +107,7 @@ function Section({title,children,isOpen,onToggle,defaultOpen=true,badge=null}){
     }
   };
 
-  return React.createElement("div", {style:{borderRadius:'var(--radius-xl)',border:"0.5px solid var(--border)",background:"var(--surface)",overflow:"hidden"}},
+  return React.createElement("div", {style:{borderRadius:'var(--radius-xl)',border:"0.5px solid var(--border)",background:"var(--surface)",overflow:"hidden",flexShrink:0}},
     React.createElement("button", {type:"button","aria-expanded":currentOpen,onClick:handleToggle, style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"none",border:"none",cursor:"pointer",fontSize:'var(--text-md)',fontWeight:600,color:"var(--text-primary)",gap:'var(--s-2)'}},
       React.createElement("span", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)'}}, title, badge),
       React.createElement("span", {style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,color:"var(--text-tertiary)",transform:currentOpen?"rotate(180deg)":"rotate(0deg)"},"aria-hidden":"true"}, window.Icons && window.Icons.chevronDown ? window.Icons.chevronDown() : null)

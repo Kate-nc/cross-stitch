@@ -1842,18 +1842,18 @@ function EditProjectDetailsModal({ projectId, name: initName, designer: initDesi
 
     if (conflict.type === 'stitch') {
       subjectText = 'Project: ' + conflict.projectName;
-      subjectSub = conflict.disagreeCount + (conflict.disagreeCount === 1 ? ' stitch' : ' stitches') + ' in disagreement';
+      subjectSub = plural(conflict.disagreeCount, 'stitch', 'stitches') + ' in disagreement';
       localLabel = 'This device';
       remoteLabel = 'Synced from ' + deviceName;
-      localContent = conflict.localStitchCount + ' stitches done';
-      remoteContent = conflict.remoteStitchCount + ' stitches done';
+      localContent = plural(conflict.localStitchCount, 'stitch', 'stitches') + ' done';
+      remoteContent = plural(conflict.remoteStitchCount, 'stitch', 'stitches') + ' done';
     } else if (conflict.type === 'chart') {
       subjectText = 'Project: ' + conflict.projectName;
       subjectSub = 'Pattern layout differs';
       localLabel = 'This device';
       remoteLabel = 'Synced from ' + deviceName;
-      localContent = conflict.localStitchCount + ' stitches done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString('en-GB') : '');
-      remoteContent = conflict.remoteStitchCount + ' stitches done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString('en-GB') : '');
+      localContent = plural(conflict.localStitchCount, 'stitch', 'stitches') + ' done' + (conflict.localUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.localUpdatedAt).toLocaleDateString('en-GB') : '');
+      remoteContent = plural(conflict.remoteStitchCount, 'stitch', 'stitches') + ' done' + (conflict.remoteUpdatedAt ? ' \u00b7 edited ' + new Date(conflict.remoteUpdatedAt).toLocaleDateString('en-GB') : '');
     } else if (conflict.type === 'stash') {
       subjectText = conflict.id === 'stash:inventory' ? 'Stash and accounting' : 'Thread: DMC ' + conflict.threadId;
       subjectSub = conflict.id === 'stash:inventory' ? 'Choose the inventory baseline; consumption history is retained' : 'Owned count differs';
