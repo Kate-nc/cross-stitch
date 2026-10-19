@@ -32,7 +32,7 @@ function PartialGauge({ status }) {
 }
 
 // Presentation only: stable preference keys survive empty alert sets and tab visits.
-function StashAlertPanel({ id, title, count, icon, tone = "", preferenceKey, children }) {
+function StashAlertPanel({ id, title, count, countLabel, icon, tone = "", preferenceKey, children }) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return window.UserPrefs && window.UserPrefs.get(preferenceKey) === true; }
     catch (_) { return false; }
@@ -47,7 +47,7 @@ function StashAlertPanel({ id, title, count, icon, tone = "", preferenceKey, chi
       <h3 id={id + "-heading"} className="stash-alert-heading">
         <button type="button" className="stash-alert-toggle" aria-expanded={!collapsed} aria-controls={id + "-body"} onClick={toggle}>
           <span className="stash-alert-icon" aria-hidden="true">{icon}</span>
-          <span className="stash-alert-title">{title} <span className="stash-alert-count">({count})</span></span>
+          <span className="stash-alert-title">{title} <span className="stash-alert-count">({countLabel != null ? countLabel : count})</span></span>
           <span className="stash-alert-chevron" aria-hidden="true">{collapsed ? Icons.chevronRight() : Icons.chevronDown()}</span>
         </button>
       </h3>
@@ -115,6 +115,8 @@ function ManagerApp() {
   const [expandedThread, setExpandedThread] = useState(null);
   const [selectedThread, setSelectedThread] = useState(null);
   const [conflicts, setConflicts] = useState(null);
+  // What the stash is short of: { projects, total, shopping } from StashBridge.getToBuy().
+  const [toBuy, setToBuy] = useState(null);
   const [readyToStart, setReadyToStart] = useState(null);
   const [lowStockAlerts, setLowStockAlerts] = useState(null);
   // Plan B Phase 2: Stash info chip + popover.
@@ -658,6 +660,7 @@ function ManagerApp() {
   useEffect(() => {
     if (typeof StashBridge === "undefined") return;
     StashBridge.detectConflicts().then(setConflicts).catch(e => console.warn('detectConflicts failed:', e));
+    refreshToBuy();
     StashBridge.whatCanIStart().then(setReadyToStart).catch(e => console.warn('whatCanIStart failed:', e));
     // Low-stock: threads where owned > 0 but below min_stock (explicit), or below the
     // global lowStockThreshold (1 skein) when no per-thread minimum has been set.
@@ -673,6 +676,29 @@ function ManagerApp() {
     alerts.sort((a, b) => (a.min_stock - a.owned) - (b.min_stock - b.owned));
     setLowStockAlerts(alerts);
   }, [threads, patterns]);
+
+  // Latest-wins: a slow read must not overwrite a newer one.
+  const toBuyReadRef = useRef(0);
+  function refreshToBuy() {
+    if (typeof StashBridge === "undefined") return Promise.resolve();
+    const read = ++toBuyReadRef.current;
+    return StashBridge.getToBuy()
+      .then(result => { if (read === toBuyReadRef.current) setToBuy(result); })
+      .catch(e => console.warn('getToBuy failed:', e));
+  }
+
+  function addToShoppingList(project) {
+    const rows = project.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy));
+    if (!rows.length) return;
+    const qtyMap = {};
+    rows.forEach(t => { qtyMap[t.key] = t.toBuy; });
+    StashBridge.markManyToBuy(rows.map(t => t.key), true, qtyMap).then(changed => {
+      refreshToBuy();
+      if (window.Toast) window.Toast.show({ message: changed > 0 ? plural(changed, 'thread') + ' added to your shopping list' : 'Already on your shopping list', type: 'success' });
+    }).catch(() => {
+      if (window.Toast) window.Toast.show({ message: 'Could not update your shopping list', type: 'error' });
+    });
+  }
 
   function extractBrandAndId(compositeKey) {
     if (compositeKey.indexOf(':') < 0) return { brand: 'dmc', bareId: compositeKey };
@@ -1013,7 +1039,7 @@ function ManagerApp() {
             <div>{backupStatus.message}</div>
             {backupStatus.summary && (
               <div style={{ fontSize: 11, marginTop: 4, color: "var(--text-secondary)" }}>
-                {backupStatus.summary.projectCount} projects, {backupStatus.summary.threadCount} owned threads, {backupStatus.summary.patternCount} patterns
+                {plural(backupStatus.summary.projectCount, 'project')}, {plural(backupStatus.summary.threadCount, 'owned thread')}, {plural(backupStatus.summary.patternCount, 'pattern')}
               </div>
             )}
             {backupStatus.type === "confirm" && (
@@ -1165,10 +1191,12 @@ function ManagerApp() {
               const statusRows = [];
               if (lowNeeded > 0) statusRows.push(['Low stock (needed)', lowNeeded]);
               if (lowNotNeeded > 0) statusRows.push(['Low stock (other)', lowNotNeeded]);
+              const toBuyCount = (toBuy && toBuy.shopping.length) || 0;
+              if (toBuyCount > 0) statusRows.push(['To buy', plural(toBuyCount, 'thread')]);
               if (conflictCount > 0) statusRows.push(['Conflicts', conflictCount]);
               if (readyCount > 0) statusRows.push(['Ready to start', readyCount]);
               const badges = [];
-              if (conflictCount > 0) badges.push({ label: conflictCount + ' conflicts', kind: 'danger' });
+              if (conflictCount > 0) badges.push({ label: plural(conflictCount, 'conflict'), kind: 'danger' });
               if (lowNeeded > 0) badges.push({ label: lowNeeded + ' low', kind: 'warning' });
               if (readyCount > 0) badges.push({ label: readyCount + ' ready', kind: 'success' });
               const children = [
@@ -1199,18 +1227,49 @@ function ManagerApp() {
       {tab === "inventory" && (
         <div className="mgr-main"><div className="mgr-content">
 
+            {/* Smart Hub: To buy. A pattern's own shortfall is a neutral shopping
+                list, not a conflict; one panel per pattern that is short. */}
+            {toBuy && toBuy.projects.map((p, i) => {
+              const unflagged = p.threads.filter(t => !(threads[t.key] && threads[t.key].tobuy)).length;
+              return (
+                <StashAlertPanel key={p.id} id={"stash-tobuy-" + i} title={"To buy for " + (p.title || "Untitled")} count={p.threads.length} countLabel={plural(p.threads.length, 'thread')} icon={Icons.cart()} preferenceKey="stashToBuyCollapsed">
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
+                    Threads this pattern needs that your stash doesn't cover.
+                    {toBuy.projects.length > 1 && " Your whole shopping list is " + plural(toBuy.shopping.length, 'thread') + "."}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
+                    {p.threads.map(t => (
+                      <div key={t.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--border)", cursor: "pointer" }}
+                        title={"Open thread card for " + formatThread(t, { variant: 'title' })}
+                        onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(t.key); setPanelOpen(true); }}>
+                        <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${t.rgb[0]},${t.rgb[1]},${t.rgb[2]})`, border: "1px solid var(--border)", flexShrink: 0 }} />
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{formatThread(t, { variant: 'short' })}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{formatThread(t, { variant: 'name' })}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>own {t.owned}, need {t.need}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    {unflagged > 0
+                      ? <button type="button" className="g-btn" onClick={() => addToShoppingList(p)}>{Icons.cart()} Add to shopping list</button>
+                      : <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>All of these are on your shopping list.</span>}
+                  </div>
+                </StashAlertPanel>
+              );
+            })}
+
             {/* Smart Hub: Conflicts */}
             {conflicts && conflicts.length > 0 && (
-              <StashAlertPanel id="stash-conflicts" title="Thread Conflicts" count={conflicts.length} icon={Icons.warning()} tone="danger" preferenceKey="stashConflictsCollapsed">
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>These threads are needed by multiple patterns but you don't have enough.</div>
+              <StashAlertPanel id="stash-conflicts" title="Thread Conflicts" count={conflicts.length} countLabel={plural(conflicts.length, 'thread')} icon={Icons.warning()} tone="danger" preferenceKey="stashConflictsCollapsed">
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>More than one pattern needs these threads, and your stash can't cover them all.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflow: "auto" }}>
                   {conflicts.map(c => (
-                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--danger-soft)", cursor: "pointer" }}
-                      title={"Open thread card for " + formatBrandLabel(c.brand) + " " + c.id}
+                    <div key={c.key} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--danger-soft)", cursor: "pointer" }}
+                      title={"Open thread card for " + formatThread(c, { variant: 'title' })}
                       onClick={() => { setTab("inventory"); setThreadFilter("all"); setBrandFilter("all"); setSearchQuery(""); setSelectedThread(c.key); setPanelOpen(true); }}>
                       <span style={{ width: 14, height: 14, borderRadius: 3, background: `rgb(${c.rgb[0]},${c.rgb[1]},${c.rgb[2]})`, border: "1px solid var(--border)", flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatBrandLabel(c.brand)} {c.id}</span>
-                      <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{c.name}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatThread(c, { variant: 'short' })}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1 }}>{formatThread(c, { variant: 'name' })}</span>
                       <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 600 }}>own {c.owned}, need {c.totalNeeded}</span>
                       <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{c.patterns.map(p => p.title).join(", ")}</span>
                     </div>
@@ -1442,8 +1501,8 @@ function ManagerApp() {
             </select>
           </div>
           <div className="mgr-stats-strip">
-            <div className="stat">{Icons.clipboard()} <span className="val">{patterns.length}</span> patterns</div>
-            <div className="stat">{Icons.check()} <span className="val">{readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0}</span> fully kitted</div>
+            <div className="stat">{Icons.clipboard()} <span className="val">{patterns.length}</span> {patterns.length === 1 ? 'pattern' : 'patterns'}</div>
+            <div className="stat">{Icons.check()} <span className="val">{readyToStart ? readyToStart.filter(r => r.pct === 100).length : 0}</span> ready to start</div>
           </div>
           <div className="mgr-main"><div className="mgr-content">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -1534,12 +1593,12 @@ function ManagerApp() {
                         )}
                         {reqThreads.length > 0 && (
                           missing.length === 0
-                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }} title="All required threads are in your stash">{Icons.check()} Fully kitted</span>
+                            ? <span style={{ padding: "2px 8px", borderRadius: 12, background: "var(--success-soft)", color: "var(--success)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }} title="All required threads are in your stash">{Icons.check()} Ready to start</span>
                             : <span
                                 onClick={e => { e.stopPropagation(); setViewingPattern(pat); setPanelOpen(true); }}
                                 style={{ padding: "2px 8px", borderRadius: 12, background: "var(--warning-soft)", color: "#c2410c", fontWeight: 700, cursor: "pointer" }}
                                 title={"Missing: " + missing.map(t => t.id).join(", ")}
-                              >{missing.length} threads needed</span>
+                              >{plural(missing.length, 'thread')} needed</span>
                         )}
                         {pat.linkedProjectId && (
                           <button
@@ -1577,7 +1636,7 @@ function ManagerApp() {
             {readyToStart && readyToStart.length > 0 && (
               <div style={{ background: "var(--success-soft)", border: "1px solid #C4DCB6", borderRadius: 10, padding: "14px 16px" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#4F7D3F", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>{Icons.check()} Ready to Start</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Patterns you can fully kit from your current stash.</div>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>Patterns you can start now with the threads in your stash.</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 200, overflow: "auto" }}>
                   {readyToStart.map(r => (
                     <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "var(--surface)", border: "1px solid " + (r.pct === 100 ? "#C4DCB6" : "var(--border)") }}>
@@ -1586,7 +1645,7 @@ function ManagerApp() {
                         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{r.totalThreads} threads, {r.coveredThreads} covered ({r.pct}%)</div>
                       </div>
                       {r.pct === 100 ? (
-                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "var(--success-soft)", color: "#4F7D3F" }}>100% kitted</span>
+                        <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: "var(--success-soft)", color: "#4F7D3F" }}>All threads in stash</span>
                       ) : (
                         <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: "var(--warning-soft)", color: "var(--accent-ink)" }}>{r.pct}% — {r.missing.length} missing</span>
                       )}

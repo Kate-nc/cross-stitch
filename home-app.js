@@ -102,7 +102,7 @@
     window.location.href = 'create.html?from=home&id=' + encodeURIComponent(id);
   }
 
-  // fmtNum and threadKm are shared globals from helpers.js
+  // fmtNum, plural and threadKm are shared globals from helpers.js
 
   // Build the points string for a 120×32 sparkline from a daily-stitch
   // log array ([{date:'YYYY-MM-DD', count:n}, ...]). Missing days = 0.
@@ -922,7 +922,7 @@
         ),
         h('div', { className: 'home-kpi' },
           h('span', { className: 'home-kpi__num' }, fmtNum(s.uniqueThreads || 0)),
-          h('span', { className: 'home-kpi__lbl' }, 'Colours')
+          h('span', { className: 'home-kpi__lbl' }, (s.uniqueThreads === 1 ? 'Thread' : 'Threads'))
         ),
         h('div', { className: 'home-kpi' },
           h('span', { className: 'home-kpi__num' }, fmtNum(s.patternCount || 0)),
@@ -961,7 +961,7 @@
                   })
                 ),
                 h('p', { className: 'home-stash-card__foot' },
-                  shopping.length + (shopping.length === 1 ? ' thread' : ' threads') +
+                  plural(shopping.length, 'thread') +
                   (shoppingMore > 0 ? ' · +' + shoppingMore + ' more' : '')
                 )
               )
@@ -974,7 +974,7 @@
             ? h('p', { className: 'home-stash-card__empty' }, 'No patterns are fully covered by your stash yet.')
             : h(React.Fragment, null,
                 h('p', { className: 'home-stash-card__lead' },
-                  h('strong', null, fmtNum(ready.length) + (ready.length === 1 ? ' pattern' : ' patterns')),
+                  h('strong', null, plural(ready.length, 'pattern')),
                   ' in your library can be stitched entirely from your current stash.'
                 ),
                 h('ul', { className: 'home-stash-chips' },

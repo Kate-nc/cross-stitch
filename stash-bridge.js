@@ -146,6 +146,30 @@ const StashBridge = (() => {
     } catch (_) { /* swallow */ }
   }
 
+  // Reads the stash threads and the pattern library in one transaction. Both
+  // requests are queued synchronously inside a single Promise so no await ever
+  // yields while the transaction is open (Safari auto-commits on yield).
+  async function _readThreadsAndPatterns() {
+    await migrateSchemaToV2();
+    const db = await openManagerDB();
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction("manager_state", "readonly");
+        const store = tx.objectStore("manager_state");
+        let threads = null, patterns = null, settled = 0;
+        function check() { if (++settled === 2) resolve([threads, patterns]); }
+        const q1 = store.get("threads");
+        q1.onsuccess = () => { threads = q1.result || {}; check(); };
+        q1.onerror = () => reject(q1.error);
+        const q2 = store.get("patterns");
+        q2.onsuccess = () => { patterns = q2.result || []; check(); };
+        q2.onerror = () => reject(q2.error);
+      });
+    } finally {
+      try { db.close(); } catch (_) { /* swallow */ }
+    }
+  }
+
   // Pure helper: builds the sorted shopping-list rows from a raw threads dict.
   // Exposed for unit tests via window.StashBridge._buildShoppingListRows.
   // infoLookup(brand, id) -> { name, rgb } | null. Defaults to a stub when
@@ -175,17 +199,139 @@ const StashBridge = (() => {
         tobuyAddedAt: entry.tobuy_added_at || null,
       });
     }
-    rows.sort(function(a, b) {
-      // Most recently added first; ties broken by brand then numeric id.
-      const at = a.tobuyAddedAt || '';
-      const bt = b.tobuyAddedAt || '';
-      if (at !== bt) return bt.localeCompare(at);
-      if (a.brand !== b.brand) return a.brand.localeCompare(b.brand);
-      const an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
-      const bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
-      if (an !== bn) return an - bn;
-      return String(a.id).localeCompare(String(b.id));
+    rows.sort(_compareShoppingRows);
+    return rows;
+  }
+
+  // Most recently added first; ties broken by brand then numeric id.
+  function _compareShoppingRows(a, b) {
+    const at = a.tobuyAddedAt || '';
+    const bt = b.tobuyAddedAt || '';
+    if (at !== bt) return bt.localeCompare(at);
+    return _compareThreadRows(a, b);
+  }
+
+  function _compareThreadRows(a, b) {
+    if (a.brand !== b.brand) return a.brand.localeCompare(b.brand);
+    const an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
+    const bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
+    if (an !== bn) return an - bn;
+    return String(a.id).localeCompare(String(b.id));
+  }
+
+  // ── Demand, conflicts and "to buy" ──────────────────────────────────────────
+  // One demand table feeds both views, so they cannot disagree:
+  //   conflicts  two or more active patterns competing for the same thread
+  //              that the stash cannot cover together;
+  //   to buy     what the stash is short of, for each pattern on its own and
+  //              for all active patterns together (Home's shopping list).
+  // A shortfall for a single pattern is a to-buy item, never a conflict.
+
+  // Skeins a pattern's thread row asks for.
+  function _skeinsNeeded(t, fabricCt) {
+    if (t.unit === "stitches") {
+      return typeof skeinEst === "function" ? skeinEst(t.qty, fabricCt) : Math.ceil(t.qty / 200);
+    }
+    return t.qty;
+  }
+
+  // { [threadKey]: { total, patterns: [{ id, title, qty }] } } across active
+  // (not completed) patterns. A pattern that lists a thread twice is one
+  // pattern; two patterns sharing a title are still two.
+  function _buildDemand(patternsData) {
+    const demand = {};
+    const active = (Array.isArray(patternsData) ? patternsData : []).filter(function(p) { return p && p.status !== "completed"; });
+    active.forEach(function(pat, index) {
+      if (!Array.isArray(pat.threads)) return;
+      const pid = pat.id != null ? String(pat.id) : "#" + index;
+      const fc = pat.fabricCt || 14;
+      for (const t of pat.threads) {
+        const skeins = Number(_skeinsNeeded(t, fc)) || 0;
+        const key = _libraryKey(t);
+        const d = demand[key] || (demand[key] = { total: 0, patterns: [] });
+        d.total += skeins;
+        const share = d.patterns.find(function(p) { return p.id === pid; });
+        if (share) share.qty += skeins;
+        else d.patterns.push({ id: pid, title: pat.title, qty: skeins });
+      }
     });
+    return demand;
+  }
+
+  function _threadRow(key, threadsData) {
+    const parsed = _parseThreadKey(key);
+    const info = _getThreadInfoByKey(key);
+    return {
+      key: key,
+      brand: parsed.brand,
+      id: parsed.id,
+      name: info ? info.name : parsed.id,
+      rgb: info ? info.rgb : [128, 128, 128],
+      owned: _getOwnedCount(threadsData, key, parsed.id)
+    };
+  }
+
+  // Whole skeins missing, rounding a part-skein shortfall up.
+  function _wholeShortfall(need, owned) {
+    return Math.max(0, Math.ceil(need - owned - 1e-9));
+  }
+
+  function _findConflicts(demand, threadsData) {
+    const conflicts = [];
+    for (const key of Object.keys(demand)) {
+      const d = demand[key];
+      if (d.patterns.length < 2) continue;
+      const row = _threadRow(key, threadsData);
+      if (d.total > row.owned) {
+        conflicts.push(Object.assign(row, { totalNeeded: d.total, deficit: d.total - row.owned, patterns: d.patterns }));
+      }
+    }
+    conflicts.sort(function(a, b) { return b.deficit - a.deficit; });
+    return conflicts;
+  }
+
+  // { projects: [{ id, title, threads: [row] }], total: [row] }; a row is a
+  // thread with { need, owned, toBuy }. Each project is measured against the
+  // stash on its own, so its list is what it would take to stitch it alone;
+  // the total is measured against the combined demand, so a thread two
+  // patterns share appears once, at the combined shortfall.
+  function _buildToBuy(demand, threadsData) {
+    const total = [];
+    const byProject = new Map();
+    for (const key of Object.keys(demand)) {
+      const d = demand[key];
+      const row = _threadRow(key, threadsData);
+      const short = _wholeShortfall(d.total, row.owned);
+      if (short > 0) total.push(Object.assign({}, row, { need: d.total, toBuy: short }));
+      for (const share of d.patterns) {
+        const own = _wholeShortfall(share.qty, row.owned);
+        if (own <= 0) continue;
+        if (!byProject.has(share.id)) byProject.set(share.id, { id: share.id, title: share.title, threads: [] });
+        byProject.get(share.id).threads.push(Object.assign({}, row, { need: share.qty, toBuy: own }));
+      }
+    }
+    total.sort(_compareThreadRows);
+    const projects = Array.from(byProject.values());
+    projects.forEach(function(p) { p.threads.sort(_compareThreadRows); });
+    return { projects: projects, total: total };
+  }
+
+  // The shopping list: threads flagged by hand plus everything the active
+  // patterns leave the stash short of. A thread on both keeps the larger quantity.
+  function _mergeShoppingList(threadsData, toBuyTotal) {
+    const rows = _buildShoppingListRows(threadsData);
+    const byKey = new Map(rows.map(function(r) { return [r.key, r]; }));
+    for (const t of toBuyTotal) {
+      const flagged = byKey.get(t.key);
+      if (flagged) {
+        flagged.tobuyQty = Math.max(flagged.tobuyQty, t.toBuy);
+      } else {
+        const row = { key: t.key, brand: t.brand, id: t.id, name: t.name, rgb: t.rgb, owned: t.owned, tobuyQty: t.toBuy, tobuyAddedAt: null };
+        rows.push(row);
+        byKey.set(t.key, row);
+      }
+    }
+    rows.sort(_compareShoppingRows);
     return rows;
   }
 
@@ -940,55 +1086,35 @@ const StashBridge = (() => {
       }
     },
 
-    // Detects conflicts: threads where total demand across active patterns > owned supply.
-    // Returns [ { id, name, rgb, owned, totalNeeded, patterns: [{title, qty}] } ]
+    // Detects conflicts: threads two or more active patterns need that the
+    // stash cannot cover between them. One pattern's shortfall is not a
+    // conflict; see getToBuy().
+    // Returns [ { key, brand, id, name, rgb, owned, totalNeeded, deficit,
+    //             patterns: [{ id, title, qty }] } ], biggest deficit first.
     async detectConflicts() {
       try {
-        const db = await openManagerDB();
-        // Both IDB requests are queued synchronously inside a single Promise so no
-        // await ever yields while the transaction is open (Safari auto-commits on yield).
-        const [threadsData, patternsData] = await new Promise((resolve, reject) => {
-          const tx = db.transaction("manager_state", "readonly");
-          const store = tx.objectStore("manager_state");
-          let threads = null, patterns = null, settled = 0;
-          function check() { if (++settled === 2) resolve([threads, patterns]); }
-          const q1 = store.get("threads");
-          q1.onsuccess = () => { threads = q1.result || {}; check(); };
-          q1.onerror = () => reject(q1.error);
-          const q2 = store.get("patterns");
-          q2.onsuccess = () => { patterns = q2.result || []; check(); };
-          q2.onerror = () => reject(q2.error);
-        });
-        // Only consider active patterns (owned, inprogress, wishlist — exclude completed)
-        const active = patternsData.filter(p => p.status !== "completed");
-        const demand = {}; // { threadKey: { total, patterns: [{title, qty}] } }
-        for (const pat of active) {
-          if (!pat.threads) continue;
-          const fc = pat.fabricCt || 14;
-          for (const t of pat.threads) {
-            const key = _libraryKey(t);
-            if (!demand[key]) demand[key] = { total: 0, patterns: [] };
-            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
-            demand[key].total += skeins;
-            demand[key].patterns.push({ title: pat.title, qty: skeins });
-          }
-        }
-        const conflicts = [];
-        for (const [key, d] of Object.entries(demand)) {
-          const parsed = _parseThreadKey(key);
-          const brand = parsed.brand;
-          const id = parsed.id;
-          const owned = _getOwnedCount(threadsData, key, id);
-          if (d.total > owned) {
-            const info = _getThreadInfoByKey(key);
-            conflicts.push({ key, brand, id, name: info ? info.name : id, rgb: info ? info.rgb : [128,128,128], owned, totalNeeded: d.total, deficit: d.total - owned, patterns: d.patterns });
-          }
-        }
-        conflicts.sort((a, b) => b.deficit - a.deficit);
-        return conflicts;
+        const [threadsData, patternsData] = await _readThreadsAndPatterns();
+        return _findConflicts(_buildDemand(patternsData), threadsData);
       } catch (e) {
         console.error("StashBridge.detectConflicts failed:", e);
         return [];
+      }
+    },
+
+    // What the stash is short of for the active patterns: per project (each on
+    // its own) and in total. Rows are threads with { need, owned, toBuy }.
+    // `shopping` is the shopping list (getShoppingList()), so callers that
+    // already hold this result need not read the stash twice.
+    // Returns { projects: [{ id, title, threads }], total, shopping }.
+    async getToBuy() {
+      try {
+        const [threadsData, patternsData] = await _readThreadsAndPatterns();
+        const toBuy = _buildToBuy(_buildDemand(patternsData), threadsData);
+        toBuy.shopping = _mergeShoppingList(threadsData, toBuy.total);
+        return toBuy;
+      } catch (e) {
+        console.error("StashBridge.getToBuy failed:", e);
+        return { projects: [], total: [], shopping: [] };
       }
     },
 
@@ -1348,12 +1474,12 @@ const StashBridge = (() => {
     },
 
     // Schema v4 (Shopping List rebuild) — returns the user's current shopping
-    // list as sorted rows. Reads the live stash and uses _buildShoppingListRows
-    // for the pure shaping/sort (testable without IndexedDB).
+    // list as sorted rows: threads flagged by hand plus everything the active
+    // patterns leave the stash short of (getToBuy().shopping), so Home and the
+    // Stash Manager read one list.
     async getShoppingList() {
       try {
-        const stash = await StashBridge.getGlobalStash();
-        return _buildShoppingListRows(stash);
+        return (await StashBridge.getToBuy()).shopping;
       } catch (e) {
         console.error("StashBridge.getShoppingList failed:", e);
         return [];

@@ -74,7 +74,12 @@ describe('Schema v4 — Shopping List bridge', () => {
   });
 
   describe('_buildShoppingListRows (pure)', () => {
-    const buildRows = extractMethod(SRC, 'function _buildShoppingListRows(threadsDict, infoLookup)', ['threadsDict', 'infoLookup']);
+    // The row builder sorts with two shared comparators; hand it the real ones.
+    const compareThreadRows = extractMethod(SRC, 'function _compareThreadRows(a, b)', ['a', 'b']);
+    const compareShoppingRows = extractMethod(SRC, 'function _compareShoppingRows(a, b)', ['a', 'b', '_compareThreadRows']);
+    const buildRowsRaw = extractMethod(SRC, 'function _buildShoppingListRows(threadsDict, infoLookup)', ['threadsDict', 'infoLookup', '_compareShoppingRows']);
+    const compare = (a, b) => compareShoppingRows(a, b, compareThreadRows);
+    const buildRows = (dict, lookup) => buildRowsRaw(dict, lookup, compare);
 
     test('returns [] for empty / missing input', () => {
       expect(buildRows({}, function() { return null; })).toEqual([]);

@@ -63,7 +63,8 @@ You can also go straight to a tool:
 ### Stash Manager
 
 - DMC and Anchor threads with skein counts, part-used status and low-stock alerts
-- **Alert panels:** Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
+- **To buy and conflicts:** a pattern whose threads your stash doesn't cover gets a To buy panel with an Add to shopping list action. Thread Conflicts appears only when two or more active patterns need the same thread and the stash can't cover them together. Home's Shopping list shows the same threads.
+- **Alert panels:** To buy, Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
 - Bulk add from a list or a starter kit
 - A Pattern Library that fills itself from your projects, showing which threads you already own
 
