@@ -115,7 +115,7 @@ test('the ants redraw after returning from Stats', async ({ page }) => {
   await openWithHighlight(page, 'outline');
   await page.evaluate(() => window.__openTrackerStats());
   await expect(page.locator('.stats-container')).toBeVisible();
-  await page.getByRole('button', { name: /Back to grid/ }).click();
+  await page.getByRole('button', { name: /Back to (projects|chart)/ }).click();
   const foreground = page.locator('svg.tracker-ants path').nth(1);
   await expect(foreground).toBeVisible();
   await expect.poll(async () => foreground.getAttribute('d')).not.toBe('');

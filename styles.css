@@ -795,12 +795,17 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 
 /* ═══ STAGE 3: UNIFIED NAVIGATION ═══ */
 /* App-section tabs (Create / Track / Stash) — Figma-style underline indicator */
-.tb-app-nav{display:flex;align-items:center;gap:2px;margin-left:4px;flex-shrink:0;}
-.tb-app-tab{font-size:13px;font-weight:500;color:var(--text-tertiary);text-decoration:none;padding:6px 14px;border-radius:var(--radius-md);border:none;background:transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all 0.12s;position:relative;}
-@media (hover: hover){.tb-app-tab:hover{background:var(--surface-tertiary);color:var(--text-secondary);filter:none;}}
-.tb-app-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-.tb-app-tab--active{background:transparent;color:var(--accent-text);font-weight:600;}
-.tb-app-tab--active::after{content:'';position:absolute;bottom:-14px;left:12px;right:12px;height:2px;background:var(--accent);border-radius:2px;}
+/* The tab row is as tall as the bar so the active underline sits on the bar's edge at any size.
+   The rules are written .tb-app-nav .tb-app-tab (two classes) on purpose: the tabs are <a>, and the
+   dark theme's `html.pref-dark a { color: var(--accent) }` out-ranked a single class and painted every
+   tab in the accent colour, so the active one could not be told apart. Inactive tabs are
+   --text-secondary and the active one is accent text with the underline, in both themes. */
+.tb-app-nav{display:flex;align-items:stretch;align-self:stretch;gap:2px;margin-left:4px;flex-shrink:0;}
+.tb-app-nav .tb-app-tab{display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--text-secondary);text-decoration:none;padding:0 14px;border-radius:var(--radius-md);border:none;background:transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all 0.12s;position:relative;}
+@media (hover: hover){.tb-app-nav .tb-app-tab:hover{background:var(--surface-tertiary);color:var(--text-primary);filter:none;}}
+.tb-app-nav .tb-app-tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.tb-app-nav .tb-app-tab--active{background:transparent;color:var(--accent-text);font-weight:600;}
+.tb-app-nav .tb-app-tab--active::after{content:'';position:absolute;bottom:0;left:12px;right:12px;height:2px;background:var(--accent);border-radius:2px;}
 /* Portrait tablets (iPad Mini is 768px): the top bar measures ~856px, and
    left alone it widened the layout viewport past the screen, so the
    Creator's fixed bottom drawer sat below the visible area. Use the same
@@ -811,6 +816,12 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
   .tb-topbar-inner{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
   .tb-topbar-inner::-webkit-scrollbar{display:none;}
   .tb-topbar-inner > *{flex-shrink:0;}
+  /* The row has to fit 768px with the File menu on screen: tighter tabs, an icon-only Help, and the
+     logo's gap closed up. (It scrolls as a last resort, but it should never need to.) */
+  .tb-topbar-inner{padding:0 12px;}
+  .tb-logo{margin-right:4px;}
+  .tb-app-nav .tb-app-tab{padding:0 10px;}
+  .tb-help-btn-label{display:none;}
   .tb-topbar .tb-proj-switcher__menu{position:fixed;left:8px;right:8px;top:calc(var(--app-header-height, 48px) + 6px);max-width:none;width:auto;}
   .tb-page-dropdown{position:fixed;top:calc(var(--app-header-height, 48px) + 6px);}
   .tb-topbar .sync-popover{position:fixed;top:calc(var(--app-header-height, 48px) + 8px);right:8px;}
@@ -819,8 +830,8 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 @media (max-width: 599px) {
   .tb-app-nav{gap:0;margin-left:2px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
   .tb-app-nav::-webkit-scrollbar{display:none;}
-  .tb-app-tab{font-size:11px;padding:6px 8px;}
-  .tb-app-tab--active::after{left:6px;right:6px;}
+  .tb-app-nav .tb-app-tab{font-size:11px;padding:0 8px;}
+  .tb-app-nav .tb-app-tab--active::after{left:6px;right:6px;}
   /* The row's contents intrinsically measure ~640px at 393px wide. It used to
      be clipped by .tb-topbar{overflow:hidden} below, which silently put the
      tail of the row — the File menu, and part of Help — permanently
@@ -848,7 +859,7 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
   .mgr-filter-bar input{max-width:100%;}
 }
 @media (max-width: 399px) {
-  .tb-app-tab{font-size:10px;padding:5px 6px;}
+  .tb-app-nav .tb-app-tab{font-size:10px;padding:0 6px;}
   .tb-logo{display:none;}
 }
 /* Sidebar action bar: always visible above mobile drawer */
@@ -4154,7 +4165,7 @@ kbd {
   .tb-status, .tb-ovf-lbl, .tb-proj-badge-name, .tb-proj-badge-pct {
     font-size: 13px;
   }
-  .tb-btn, .rp-tab, .tb-fit-btn, .tb-app-tab, .tb-page-btn { font-size: 13px; }
+  .tb-btn, .rp-tab, .tb-fit-btn, .tb-app-tab, .tb-app-nav .tb-app-tab, .tb-page-btn { font-size: 13px; }
 }
 
 /* ------------------------- Touch press feedback (WU-11) -------------------------
@@ -5827,6 +5838,17 @@ details[open] .creator-popover-difficulty__summary::before {
   opacity: 0.6;
   color: var(--text-secondary);
 }
+/* Tablet widths (the header passes `status`): the switcher, the progress figure and the save state are ONE
+   capsule, so nothing clips and the File menu stays on screen at 768 and 1024. The save label is spoken, not
+   shown; a problem is never reduced to an icon (same rule as the phone block). */
+.tb-proj-switcher--merged{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-pill, 999px);padding-right:8px;gap:2px;}
+.tb-proj-switcher--merged .tb-proj-switcher__btn{border:0;background:transparent;border-radius:var(--radius-pill, 999px);max-width:160px;min-width:0;}
+.tb-proj-switcher--merged .tb-proj-switcher__name{max-width:96px;}
+.tb-proj-switcher__status{position:relative;display:inline-flex;align-items:center;gap:4px;flex-shrink:0;}
+.tb-proj-switcher__status .tb-proj-badge-saved{padding:0 2px;}
+.tb-proj-switcher__status .tb-proj-badge-saved svg{width:16px;height:16px;}
+.tb-proj-switcher__status .tb-save-label{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0;}
+.tb-proj-switcher__status .tb-proj-badge-saved--error .tb-save-label{position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;}
 .tb-proj-switcher__menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -7935,7 +7957,7 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 @media (pointer: coarse){
   .tb-nav-link{ min-width:44px; min-height:44px; justify-content:center;
                 display:inline-flex; align-items:center; touch-action:manipulation; }
-  .tb-app-tab{ min-width:44px; min-height:44px; display:inline-flex;
+  .tb-app-nav .tb-app-tab{ min-width:44px; min-height:44px; display:inline-flex;
                align-items:center; justify-content:center; }
   .mgr-chip,
   .ppal-utility-chip,

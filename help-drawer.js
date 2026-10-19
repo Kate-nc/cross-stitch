@@ -47,6 +47,7 @@
           heading: "Starting a pattern",
           body: "Start from Home > Create new, or the three entry paths on an empty Home. Convert a picture takes a picture (JPG, PNG, GIF, WebP or BMP) and chooses the threads for you. Draw a pattern asks first for the size (Small motif 30 × 30, Card 50 × 70, Medium 100 × 100, Large 150 × 150 or your own), the fabric, and optionally a picture to trace over, then opens an empty grid to design stitch by stitch. Stitch an existing chart opens a PDF, .oxs or supported .xsd chart, or a saved .json project. If you pick a file that suits a different tile, you're asked whether to use that one instead. You can also drop a file onto the Create new tab, or use File > Open… inside the Creator.",
           bullets: [
+            ["The top bar and the Creator's steps", "The top bar tabs are the tools: Create, Track, Stash and Stats. Convert, Edit and Materials are steps inside the Creator, so they sit in the Creator's own bar, and the top bar stays on Create through all of them. From another tool, Create opens the project you have open in the Creator, or Home's Create tab when no project is open."],
             ["Practice and recovery", "Try a sample project opens a small practice chart on Home. Choose a thread, mark or unmark stitches, and undo. The practice is held only in page memory: it never writes a project, inventory, progress or a session, and starts fresh on reload. Home tabs support browser Back. Projects lists saved projects and conversion drafts. File > Export Backup protects saved projects and stash; conversion drafts are local only and excluded from backups. Convert chooses colours from a photograph or artwork; it does not read a printed chart grid or thread key from an image file. Use the original PDF or supported chart file for an existing chart."],
             ["Exact pixel-art import", "In Convert, enable Exact pixel-art import for sources up to 500 by 500 pixels. Each source pixel becomes one stitch at the original dimensions. No resizing, smoothing, image adjustments, colour-limit reduction, dithering or cleanup is applied. Alpha below 128 is empty; other pixels keep their uncomposited colour before matching the nearest solid thread in the selected brand or stash. Opaque background pixels remain stitched. Expand Source colours mapped to threads in the preview to review every source RGB, matched thread RGB and pixel count. Different source colours may share a thread. The ordinary Pixel art preset remains editable and is not exact mode."],
             ["What kind of picture is this?", "The first Convert setting picks good starting values for the picture. Graphic or logo uses up to 8 threads, no shading and no blends, and leaves a plain border background unstitched. Photo uses up to 20 threads, subtle shading, blends and balanced cleanup. Pixel art uses the picture's own colours (up to 30) at its own size, one stitch per pixel, for pictures up to 500 pixels across. The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows Custom. To start every picture from your own defaults instead, turn off Guess the picture type in Preferences > Pattern Creator."],
@@ -699,7 +700,7 @@
     {
       id: "shortcuts",
       heading: "Learn the shortcuts",
-      body: "Press ? anytime to open this drawer on the Shortcuts tab. Most tools have a single-letter shortcut, and undo / redo / save use the standard Ctrl (or ⌘) combinations.",
+      body: "Press ? anytime to open this drawer on the Shortcuts tab, at the section for the tool you are in (the other sections are collapsed until you open them). Most tools have a single-letter shortcut, and undo / redo / save use the standard Ctrl (or ⌘) combinations.",
       action: null
     }
   ];
@@ -836,6 +837,28 @@
     try { localStorage.setItem(TAB_KEY, v); } catch (_) {}
   }
 
+  // The tool the user is in: 'creator' | 'tracker' | 'manager', or null (Home, Stats), where no tool
+  // section applies. window.__csActiveTool is set by the unified page (index.html) as it switches between
+  // the Creator and the Tracker; __csPageKind is what each page declares.
+  function currentTool() {
+    var k = window.__csActiveTool || window.__csPageKind;
+    if (k === "creator" || k === "tracker" || k === "manager") return k;
+    if (k === "home" || k === "stats") return null;
+    try {
+      var b = document.body;
+      if (b && b.classList.contains("page-creator")) return "creator";
+      if (b && b.classList.contains("page-tracker")) return "tracker";
+      if (b && b.classList.contains("page-manager")) return "manager";
+    } catch (_) {}
+    try {
+      var p = (window.location && window.location.pathname || "").toLowerCase();
+      if (p.indexOf("stitch") !== -1) return "tracker";
+      if (p.indexOf("manager") !== -1) return "manager";
+      if (p.indexOf("create") !== -1 || p.indexOf("index") !== -1) return "creator";
+    } catch (_) {}
+    return null;
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────
   function open(opts) {
     opts = opts || {};
@@ -851,6 +874,9 @@
     }
     var ctx = (opts.context === "creator" || opts.context === "tracker" || opts.context === "manager")
       ? opts.context : null;
+    // Opened on Shortcuts without a context (the header's keyboard button): use the current tool's, so
+    // "?" in the Tracker never starts on the Pattern Creator's keys.
+    if (!ctx && tab === "shortcuts") ctx = currentTool();
     setState({
       open: true,
       tab: tab,
@@ -881,6 +907,7 @@
     close: close,
     toggle: toggle,
     isOpen: isOpen,
+    _currentTool: currentTool,
     _filter: filterItems,
     _expandAliases: expandAliases,
     _SPELLING_ALIASES: SPELLING_ALIASES,
@@ -975,15 +1002,24 @@
     items.forEach(function (it) {
       (groups[it.scope] = groups[it.scope] || []).push(it);
     });
+    var searching = !!(props.query && String(props.query).trim());
     return h("div", null, order.filter(function (s) { return groups[s] && groups[s].length; }).map(function (scope) {
-      return h("div", { key: scope, style: { marginBottom: 18 } },
-        h("div", {
+      // The current tool's section is open and the rest are collapsed (each opens on a click). Off a tool
+      // page (Home) Global is the open one. A search opens every section that has a match.
+      var expanded = searching || (contextScope ? scope === contextScope : scope === "global");
+      return h("details", {
+        key: scope + ":" + props.openSeq + (searching ? ":q" : ""),
+        className: "cs-help-shortcut-group",
+        open: expanded,
+        style: { marginBottom: 12 }
+      },
+        h("summary", {
           style: {
             fontSize:'var(--text-xs)', textTransform: "uppercase", letterSpacing: 0.5,
-            color: "var(--text-tertiary)", fontWeight: 700, marginBottom:'var(--s-2)',
-            paddingBottom: 4, borderBottom: "1px solid var(--border)"
+            color: "var(--text-secondary)", fontWeight: 700, marginBottom:'var(--s-2)',
+            paddingBottom: 4, borderBottom: "1px solid var(--border)", cursor: "pointer"
           }
-        }, SCOPE_LABEL[scope] || scope),
+        }, (SCOPE_LABEL[scope] || scope) + " (" + groups[scope].length + ")"),
         groups[scope].map(function (s) {
           return h("div", {
             key: s.id,
@@ -1486,7 +1522,7 @@
                   )
               )
             : state.tab === "shortcuts"
-              ? h(ShortcutsSection, { items: shortcutsFiltered, context: state.context })
+              ? h(ShortcutsSection, { items: shortcutsFiltered, context: state.context, query: state.query, openSeq: state.openSeq })
               : h(GettingStartedSection, null)
         )
       )
@@ -1513,23 +1549,7 @@
   }
 
   // ── Event bridges (preserve existing dispatchers) ──────────────────────
-  function pageContextFromBody() {
-    try {
-      var b = document.body;
-      if (!b) return null;
-      if (b.classList.contains("page-creator")) return "creator";
-      if (b.classList.contains("page-tracker")) return "tracker";
-      if (b.classList.contains("page-manager")) return "manager";
-    } catch (_) {}
-    // Best-effort fallback by URL.
-    try {
-      var p = (window.location && window.location.pathname || "").toLowerCase();
-      if (p.indexOf("stitch") !== -1) return "tracker";
-      if (p.indexOf("manager") !== -1) return "manager";
-      return "creator";
-    } catch (_) {}
-    return null;
-  }
+  function pageContextFromBody() { return currentTool(); }
   window.addEventListener("cs:openHelp", function () { open({ tab: "help", context: pageContextFromBody() }); });
   window.addEventListener("cs:openHelpDesign", function () { open({ tab: "help", context: "creator" }); });
   window.addEventListener("cs:openShortcuts", function () { open({ tab: "shortcuts", context: pageContextFromBody() }); });

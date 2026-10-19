@@ -73,7 +73,7 @@ test('a new person starts calm: no streaks, no goals, and the choice stays when 
   await page.locator('details.stats-accordion summary', { hasText: 'Settings' }).click();
   await expect(page.getByLabel('Day ends at')).toBeVisible();
   // a first session does not turn it on
-  await page.getByRole('button', { name: /Back to grid|Close/ }).first().click().catch(() => {});
+  await page.getByRole('button', { name: /Back to (projects|chart)|Close/ }).first().click().catch(() => {});
   expect(await stored(page, 'showStreaksAndGoals')).toBe(false);
 });
 

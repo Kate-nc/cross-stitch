@@ -2846,6 +2846,15 @@ function UnifiedApp() {
     // screen is retired. Always navigate to the canonical /home landing.
     window.location.href = 'home.html';
   }, []);
+
+  // index.html hosts the Creator, the Tracker and Stats in one page, so __csPageKind ('creator') stops being
+  // the current tool once Track is open. The help drawer reads this to open Shortcuts on the right section.
+  React.useEffect(() => {
+    window.__csActiveTool = mode === 'track' ? 'tracker' : mode === 'stats' ? 'stats' : 'creator';
+    return () => {
+      delete window.__csActiveTool;
+    };
+  }, [mode]);
   React.useEffect(() => {
     window.__switchToTrack = switchToTrack;
     window.__switchToDesign = switchToDesign;
