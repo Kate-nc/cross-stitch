@@ -213,7 +213,7 @@ Yes, with sync. Set up folder sync (desktop Chrome or Edge) or move `.csync` fil
 
 ### Can I change the pattern while tracking?
 
-Open the project in the Pattern Creator — **Edit** in the top bar, or **Edit** on Home. Your progress is kept.
+Open the project in the Pattern Creator — **Create** in the top bar (it opens the project you have open), or **Edit** on Home. Your progress is kept.
 
 ## Other Guides
 

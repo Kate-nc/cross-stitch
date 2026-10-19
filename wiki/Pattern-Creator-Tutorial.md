@@ -112,7 +112,7 @@ Press **Generate pattern** in the action bar. Generation runs in the background;
 
 ## The Pattern Creator Layout
 
-The top bar has three page tabs:
+The top bar lists the tools (**Create**, **Track**, **Stash** and **Stats**) and stays on **Create** while you convert, edit and prepare materials: those are steps inside the Creator, not top-bar tabs. Its page menu has three pages:
 
 | Page | Contents |
 |---|---|
