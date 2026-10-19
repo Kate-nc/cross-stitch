@@ -9330,7 +9330,7 @@ return(
             onClick={()=>window.dispatchEvent(new Event("cs:openShortcuts"))}
             style={{padding:"8px 12px",borderRadius:"var(--radius-sm)",border:"1px solid var(--border)",background:"var(--surface)",fontSize:'var(--text-sm)',cursor:"pointer",color:"var(--text-secondary)",textAlign:"left",display:"flex",alignItems:"center",gap:8}}
           >{Icons.keyboard?Icons.keyboard():null}{" Keyboard shortcuts"}</button>
-          <button onClick={()=>openConsumptionHistory()}>Thread consumption history</button>
+          <button type="button" className="btn" onClick={()=>openConsumptionHistory()}>Thread consumption history</button>
           {/* RT live tracking toggle */}
           <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,cursor:"pointer",userSelect:"none"}}>
             <span style={{fontSize:'var(--text-sm)',color:"var(--text-secondary)"}}>Use up stash thread as I stitch</span>

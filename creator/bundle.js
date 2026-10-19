@@ -22212,7 +22212,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
     h(window.MagicWandPanel, null),
 
     ctx.pat && h("div", {className:"cc-hide-compact ready-review-note", style:{marginBottom:"var(--s-2)",padding:"var(--s-2)"}},
-      h("button", {type:"button", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
+      h("button", {type:"button", className:"btn btn-sm", onClick:function(){app.setMaterialsTab("review");app.setTab("materials");}}, "Ready to stitch review"),
       h("span", {style:{marginLeft:"var(--s-2)",color:"var(--text-secondary)"}}, "Compare the current chart, stitch preview, size and material assumptions before buying.")),
 
     gen.disambig && (function() {
