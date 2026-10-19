@@ -69,7 +69,8 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   var stitchable = (typeof props.totalStitchable === "number") ? props.totalStitchable : null;
   var doneCount = (typeof props.doneCount === "number") ? props.doneCount : 0;
   var stitchSpeed = (typeof props.stitchSpeed === "number" && props.stitchSpeed > 0) ? props.stitchSpeed : 30;
-  var fmt = (typeof window.fmtTimeL === "function") ? window.fmtTimeL : function(s) { return Math.round(s/3600) + "h"; };
+  // The one time-estimate wording (helpers.js estimateText): "about 424 hours".
+  var fmtEst = (typeof window.estimateText === "function") ? window.estimateText : function(hrs) { return "about " + Math.round(hrs) + " hours"; };
 
   function row(label, value) {
     return [
@@ -105,11 +106,9 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
 
   var estimateRows = [];
   if (stitchable != null) {
-    var totalSeconds = Math.round(stitchable / stitchSpeed * 3600);
-    estimateRows.push.apply(estimateRows, row("Time @ " + stitchSpeed + "/hr", fmt(totalSeconds)));
+    estimateRows.push.apply(estimateRows, row("Time @ " + stitchSpeed + "/hr", fmtEst(stitchable / stitchSpeed)));
     if (doneCount > 0 && doneCount < stitchable) {
-      var remainSeconds = Math.round((stitchable - doneCount) / stitchSpeed * 3600);
-      estimateRows.push.apply(estimateRows, row("Remaining", fmt(remainSeconds)));
+      estimateRows.push.apply(estimateRows, row("Remaining", fmtEst((stitchable - doneCount) / stitchSpeed)));
     }
   }
 

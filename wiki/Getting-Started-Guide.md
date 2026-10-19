@@ -42,7 +42,7 @@ A summary of your threads: how many you own, patterns you could start with what 
 
 ### Stats
 
-Lifetime stitches, recent activity and your oldest work in progress. The full **Stats** page is in the top bar.
+Lifetime stitches (the stitches marked across all your charts), recent activity and your oldest work in progress. The full **Stats** page is in the top bar.
 
 ## Creating Your First Pattern
 

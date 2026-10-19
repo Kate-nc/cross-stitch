@@ -4008,8 +4008,9 @@ kbd {
 @media (hover: hover){.mpd-card-name:hover { color: var(--accent); }}
 .mpd-card-pct { font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 .mpd-card-pct--done { color: var(--success); }
+.mpd-card-progress { display: flex; align-items: center; gap: 8px; }
 .mpd-card-progress-track {
-  height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
+  flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
 }
 .mpd-card-progress-fill {
   height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s;

@@ -151,15 +151,17 @@
     return m + ' months ago';
   }
 
-  // Estimated finish for a project row, from the one estimator (helpers.js): "Est. about 3 weeks" or "Est. Nov 2026".
+  // Estimated finish for a project row, from the one estimator (helpers.js), worded as everywhere else (estimateText):
+  // "Est. about 424 hours, about 4 weeks at your pace".
   // The row carries what it needs (paceDaily, firstActiveDate, activeDaysTotal); rows saved before that have none
   // until the next refresh and show nothing. Returns null when there is not enough history to say.
   function etaLabel(p) {
     if (!p || !p.paceDaily || typeof estimateFromPace !== 'function') return null;
     var today = getStitchingDate(new Date(), getDayEndHour());
     var pace = paceFromDaily(p.paceDaily, p.firstActiveDate, today, p.activeDaysTotal);
-    var est = estimateFromPace(pace, (p.totalStitches || 0) - (p.completedStitches || 0), { today: today, percent: p.pct });
-    return est.enough ? 'Est. ' + estFormatShort(est) : null;
+    var remaining = (p.totalStitches || 0) - (p.completedStitches || 0);
+    var est = estimateFromPace(pace, remaining, { today: today, percent: p.pct });
+    return est.enough ? 'Est. ' + estimateText(p.stitchesPerHour > 0 ? remaining / p.stitchesPerHour : 0, est.calendarDaysRemaining) : null;
   }
 
   function rgbCss(rgb) {
@@ -242,7 +244,7 @@
       if (!(p.statsSessions && (p.pattern || p.p)) || typeof estimateCompletion !== 'function') return null;
       var r = ProgressUnits.fromProject(p);
       var est = estimateCompletion(p.statsSessions, r.remainingUnits, { percent: r.percent });
-      return est.enough ? 'Est. ' + estFormatShort(est) : null;
+      return est.enough ? 'Est. ' + estimateText(est.hoursRemaining, est.calendarDaysRemaining) : null;
     }, [p.id, p.updatedAt, p.statsSessions, p.pattern, p.p, p.done]);
     var metaParts = [
       dim || null,

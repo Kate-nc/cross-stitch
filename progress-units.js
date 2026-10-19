@@ -415,10 +415,20 @@
 
   function fromProject(p, opts) { return progressUnits(countsFromProject(p), opts); }
 
+  // Stitches marked across several stored projects, summed from their summary or metadata rows (completedStitches and
+  // totalStitches are exact units, see the contract). This is the one total the global Stats page and the Lifetime figure
+  // use, so they agree with each project's own Tracker, Home and Library figure; finished session records are not
+  // involved, so marks in a session still open count straight away.
+  function sumRows(rows) {
+    var done = 0, total = 0, count = 0;
+    (rows || []).forEach(function(r) { if (!r) return; done += num(r.completedStitches); total += num(r.totalStitches); count++; });
+    return { doneUnits: done, totalUnits: total, remainingUnits: Math.max(0, total - done), percent: percent(done, total), count: count };
+  }
+
   var api = {
     specialty: specialty,
     partialWithoutLegacyHalves: partialWithoutLegacyHalves,
-    percent: percent, colourProgress: colourProgress, coloursFromProject: coloursFromProject, WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, countsFromProject: countsFromProject,
+    percent: percent, colourProgress: colourProgress, coloursFromProject: coloursFromProject, WEIGHTS: WEIGHTS, progressUnits: progressUnits, fromProject: fromProject, sumRows: sumRows, countsFromProject: countsFromProject,
     sessionUnits: sessionUnits, sessionNet: sessionNet, liveSessionNet: liveSessionNet,
     sessionAdded: sessionAdded, sessionUnpicked: sessionUnpicked, sessionCatchUp: sessionCatchUp, sessionBasis: sessionBasis, sessionActive: sessionActive, liveAddedOn: liveAddedOn, liveAddedFrom: liveAddedFrom, liveSessionAdded: liveSessionAdded, formatUnits: formatUnits, roundUnits: roundUnits, remainingWhole: remainingWhole,
     breakdownText: breakdownText

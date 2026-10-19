@@ -266,8 +266,8 @@ describe('Pattern info popover (Option 2)', () => {
     expect(renderedColor).toBe(false);
   });
 
-  test('uses fmtTimeL for time estimates', () => {
-    expect(POPOVER_SRC).toMatch(/window\.fmtTimeL/);
+  test('uses the shared estimateText for time estimates', () => {
+    expect(POPOVER_SRC).toMatch(/window\.estimateText/);
   });
 
   test('mobile bottom-sheet variant exists in CSS', () => {

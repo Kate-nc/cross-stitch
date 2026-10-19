@@ -1,7 +1,7 @@
 /* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
    Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
    Depends on: Section, SliderRow (components.js),
-               fmtTimeL, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
+               fmtTimeL, estimateText, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */
 
 window.CreatorProjectTab = function CreatorProjectTab() {
@@ -38,13 +38,13 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           h("div", null,
             h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Total estimate"),
             h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:"var(--text-primary)"}},
-              fmtTimeL(Math.round(ctx.totalStitchable / ctx.stitchSpeed * 3600))
+              estimateText(ctx.totalStitchable / ctx.stitchSpeed)
             )
           ),
           h("div", null,
             h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textTransform:"uppercase",fontWeight:600,marginBottom:2}}, "Remaining"),
             h("div", {style:{fontSize:'var(--text-xl)',fontWeight:700,color:ctx.doneCount>=ctx.totalStitchable?"var(--success)":"var(--accent)"}},
-              ctx.doneCount >= ctx.totalStitchable ? "Done!" : fmtTimeL(Math.round((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed * 3600))
+              ctx.doneCount >= ctx.totalStitchable ? "Done!" : estimateText((ctx.totalStitchable - ctx.doneCount) / ctx.stitchSpeed)
             )
           )
         ),

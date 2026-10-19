@@ -563,7 +563,7 @@ window.useCreatorState = function useCreatorState() {
     return typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 1.0;
   });
   var skeinPrice = _skeinPrice[0], setSkeinPrice = _skeinPrice[1];
-  var _stitchSpeed = useState(40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
+  var _stitchSpeed = useState(typeof DEFAULT_STITCH_SPEED !== "undefined" ? DEFAULT_STITCH_SPEED : 40);    var stitchSpeed = _stitchSpeed[0], setStitchSpeed = _stitchSpeed[1];
 
   // Polish 13 step 4a — snapshot of source values at the time of last
   // successful generation. Used by the Dimensions / Palette tabs to show

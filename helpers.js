@@ -1422,6 +1422,21 @@ function estFormatDays(n) {
   return 'about ' + Math.round(n / 30) + ' months';
 }
 
+// The one way a time-to-finish figure reads everywhere (Creator, Tracker, Home, Library): stitching hours first, then,
+// where there is a pace to say it, calendar time. "about 424 hours, about 4 weeks at your pace".
+function estFormatHours(hours) {
+  if (!(hours > 0) || !isFinite(hours)) return '';   // no hours, or a speed of 0
+  if (hours < 1) return 'under an hour';
+  var n = Math.round(hours);
+  return 'about ' + n.toLocaleString('en-GB') + (n === 1 ? ' hour' : ' hours');
+}
+function estimateText(hours, calendarDays) {
+  var h = estFormatHours(hours);
+  if (!(calendarDays >= 1)) return h;
+  var d = estFormatDays(calendarDays) + ' at your pace';
+  return h ? h + ', ' + d : d;
+}
+
 // remaining: units left. ctx: { today (stitching date), percent (done, 0-100), speed (units per active hour) }.
 function estimateFromPace(pace, remaining, ctx) {
   ctx = ctx || {};
@@ -1890,9 +1905,7 @@ function generateShareText(projectName, stats, sessions, totalCompleted, totalSt
     // The one estimate, with its range and what it is based on.
     var etaLine = 'Est. finish: ' + stats.estimate.text;
     if (stats.hoursRemaining != null) {
-      var hr = stats.hoursRemaining;
-      var hrStr = hr < 1 ? '< 1' : '~' + Math.ceil(hr);
-      etaLine += ' (' + hrStr + (Math.ceil(hr) === 1 ? ' hr' : ' hrs') + ' stitching remaining)';
+      etaLine += ' (' + estFormatHours(stats.hoursRemaining) + ' of stitching remaining)';
     }
     lines.push(etaLine);
     lines.push(stats.estimate.rangeText + '. ' + stats.estimate.basis + '.');

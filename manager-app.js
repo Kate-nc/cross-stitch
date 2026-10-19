@@ -1563,11 +1563,7 @@ function ManagerApp() {
                     const meta = pat.linkedProjectId
                       ? storedProjects.find(s => s.id === pat.linkedProjectId)
                       : null;
-                    const total = (meta && meta.totalStitches) || pat.totalStitches || 0;
-                    const completed = (meta && meta.completedStitches) || pat.completedStitches || 0;
-                    const pct = total > 0 ? ProgressUnits.percent(completed,total) : null;
-                    const pctBg = pct === null ? null : (pct >= 100 ? "var(--success-soft)" : pct > 0 ? "#dbeafe" : "#EFE7D6");
-                    const pctFg = pct === null ? null : (pct >= 100 ? "var(--success)" : pct > 0 ? "var(--accent)" : "var(--text-tertiary)");
+                    // Progress is not repeated here: the card itself shows it once, as the bar and its percentage.
                     // 7-day sparkline (oldest ? newest, ending today). Only
                     // rendered when there's actual activity to show.
                     const weekly = (meta && Array.isArray(meta.weeklyStitches)) ? meta.weeklyStitches : null;
@@ -1576,9 +1572,6 @@ function ManagerApp() {
                     const SPARK_W = 56, SPARK_H = 16, BAR_W = 6, GAP = 2;
                     return (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11 }}>
-                        {pct !== null && (
-                          <span style={{ padding: "2px 8px", borderRadius: 12, background: pctBg, color: pctFg, fontWeight: 700 }} title={completed.toLocaleString('en-GB') + " of " + total.toLocaleString('en-GB') + " stitches"}>{pct}% stitched</span>
-                        )}
                         {weekly && weeklyTotal > 0 && (
                           <span
                             title={"Last 7 days: " + weeklyTotal.toLocaleString('en-GB') + " stitches"}
