@@ -33,6 +33,18 @@ async function seed(page, kind) {
   await expect(page.locator('.ready-review canvas')).toHaveCount(4);
   await expect.poll(() => page.locator('.ready-review canvas').evaluateAll(cs => cs.every(c => c.width > 0 && c.height > 0))).toBe(true);
 }
+// The count is edited in one place, Edit > Project > Fabric; Ready to stitch shows it
+// read-only with an Edit link there (UX-032).
+async function setFabricCount(page, review, ct) {
+  await expect(review.getByLabel('Fabric count',{exact:true})).toHaveCount(0);
+  await review.getByRole('button',{name:'Edit fabric count in Edit, Project'}).click();
+  await expect(page.locator('.creator-sidebar-tab[data-tab-id="project"]')).toHaveAttribute('aria-selected','true');
+  await page.locator('.fabric-block__select').selectOption(String(ct));
+  // On a phone the settings open as a drawer over the page; tap outside to close it.
+  if (await page.locator('.rpanel-backdrop').count()) await page.locator('.rpanel-backdrop').click({position:{x:5,y:5}});
+  await page.getByRole('tab',{name:'Materials',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Ready to stitch',exact:true})).toBeVisible();
+}
 function screenshotPath(name) { const dir=path.resolve('reports/ready-to-stitch');fs.mkdirSync(dir,{recursive:true});return path.join(dir,name); }
 
 for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
@@ -43,12 +55,13 @@ for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
     await expect(review).toContainText('No source image.');
     await expect(review).toContainText('48 × 40 stitches; finished 3.4 × 2.9 in (8.7 × 7.3 cm)');
     const before = await page.evaluate(async()=>JSON.stringify((await ProjectStorage.get('proj_review')).pattern));
+    // Leaving for Edit and coming back resets the sample fields, so change the count first.
+    await setFabricCount(page, review, 28);
     await review.getByLabel('First column',{exact:true}).fill('6');
     await review.getByLabel('First row',{exact:true}).fill('8');
     await review.getByLabel('Width (stitches)',{exact:true}).fill('8');
     await review.getByLabel('Height (stitches)',{exact:true}).fill('6');
     await expect(page.getByTestId('sample-bounds')).toContainText('Columns 6–13, rows 8–13');
-    await review.getByLabel('Fabric count',{exact:true}).selectOption('28');
     await expect(review).toContainText('28 count, over 2; 2 strands; 20% waste; 8 m skeins');
     await expect(review).toContainText('48 × 40 stitches; finished 3.4 × 2.9 in');
     const downloadEvent=page.waitForEvent('download');
@@ -61,7 +74,7 @@ for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
     expect(dims.w).toBe(186); expect(dims.h).toBe(146);
     const c=createCanvas(img.width,img.height),g=c.getContext('2d');g.drawImage(img,0,0);
     expect(Array.from(g.getImageData(0,100,dims.w,dims.h).data)).toEqual(dims.data);
-    await review.getByLabel('Fabric count',{exact:true}).selectOption('18');
+    await setFabricCount(page, review, 18);
     await expect(review).toContainText('48 × 40 stitches; finished 2.7 × 2.2 in (6.8 × 5.6 cm)');
     if (kind==='blends'||kind==='no-source') {
       await review.scrollIntoViewIfNeeded();

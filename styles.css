@@ -8175,6 +8175,17 @@ body.cs-focus .stitch-area { flex: 1 1 auto !important; height: 100% !important;
 .fabric-block__sizes dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
 .fabric-block__note { color: var(--text-tertiary); font-size: var(--text-xs); }
 
+/* Read-only fabric count with an Edit link (Materials; creator/FabricBlock.js). */
+.fabric-summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: var(--text-sm); }
+.fabric-summary__label { color: var(--text-tertiary); }
+.fabric-summary__value { color: var(--text-primary); font-weight: 600; }
+.fabric-summary__edit {
+  padding: 0; border: none; background: none; cursor: pointer; font: inherit;
+  color: var(--accent-text, var(--accent)); text-decoration: underline;
+}
+@media (pointer: coarse) { .fabric-summary__edit { min-height: 44px; padding: 0 8px; } }
+.fabric-summary__edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+
 /* ═══ Palette tab: pattern colours, symbols, Add colour (audit DRAW-05) ═══
    creator/Sidebar.js. Swatch ink is black or white by the thread's own
    luminance, so it does not follow the theme. */

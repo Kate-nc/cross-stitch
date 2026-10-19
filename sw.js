@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "f643c15a08fd4762693a3f9bc3a6b0eaf9d6bee7e10ca99df59d63dfcf86407d";
+var BUILD_ID = "7442083cff46ed49c0866031ec45e3572028641cec763818d6f7c780df467173";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -305,10 +305,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "d982a369b670d1d932e47275ddacb7f56dcb3b25af4b7b94877184677997bb6d"
+    "sha256": "2907e65965e1fab09a87c2866e72de07f99567bb61942b6c0abb33c517114a29"
   },
   "./version.js": {
-    "sha256": "3e06205bbd0291ca25d7a9133f15e72d6e0fb868b8726f031cbc8c2d406b68da"
+    "sha256": "5b70c4fe25dc04838d49f8c9bf07abda1bdb9dd423558c3a63920202e4234729"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -377,7 +377,7 @@ var BUILD_ASSETS = {
     "sha256": "d31e150d933f08b59fff58ac8d75b986d73742b10be4d6df8e66dc040038241a"
   },
   "./components.js": {
-    "sha256": "7761d8b77e6417eba785d880ab64bf4402b45689df816ebcdd0895e5aa6f1283"
+    "sha256": "518ea6ed516284381dad51bf819dc0f546f00311501a8d042dd0c740f05e13ec"
   },
   "./components-stats.js": {
     "sha256": "79bb8fabc308d500fc1a5a332f2000228a867bc8030bdf2e2b6a81aa173c3473"
@@ -443,10 +443,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "c6eeb6496b76850abcf4a37d75888fab0a94777e6f943ed415d095c71ccaa1a0"
+    "sha256": "fc93306e75d947709e3634733ea202a8caf02be39a7b8ebfc5248a382235167e"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "c036faebd55790a1bfa4efb274c1b8ecd9185cb15262fcb6aa351a3bdf0a8116"
+    "sha256": "224c8159caf7d90d283635f21eb1646f320934c32bf0f67a220cf78e42dd77d9"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "4f6b4f3ae2df73abf31f4b978350b29fa42f13b510e8a9e2c4303c0ad6f79712"
@@ -548,7 +548,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "3a1a09c44b016cff5c760c1f063729d4def3426f1a2b7c57cfd43d0b432bb90a"
+    "sha256": "8184923c49e249a23b63833864cd0ccb41ec97fbd5e2c0dd3372bb7a8d2a2101"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

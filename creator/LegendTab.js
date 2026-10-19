@@ -558,15 +558,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           padding:"10px 12px", background:"var(--surface-secondary)", border:"0.5px solid var(--border)",
           borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:'var(--s-2)'
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
-            "Count:",
-            h("select", {
-              value: ctx.fabricCt,
-              onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)",
-                     fontSize:'var(--text-sm)', background:"var(--surface)"}
-            }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
-          ),
+          // Read-only here; the count is edited in Edit > Project > Fabric (UX-032).
+          h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
           h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Margin:",
             h("input", {

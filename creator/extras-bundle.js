@@ -2921,15 +2921,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
           padding:"10px 12px", background:"var(--surface-secondary)", border:"0.5px solid var(--border)",
           borderRadius:"8px 8px 0 0", display:"flex", flexDirection:"column", gap:'var(--s-2)'
         }},
-          h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
-            "Count:",
-            h("select", {
-              value: ctx.fabricCt,
-              onChange: function(e) { ctx.setFabricCt(Number(e.target.value)); },
-              style:{flex:1, padding:"3px 8px", borderRadius:'var(--radius-sm)', border:"0.5px solid var(--border)",
-                     fontSize:'var(--text-sm)', background:"var(--surface)"}
-            }, fabCounts.map(function(f) { return h("option", {key:f.ct, value:f.ct}, f.label); }))
-          ),
+          // Read-only here; the count is edited in Edit > Project > Fabric (UX-032).
+          h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
           h("label", {style:{display:"flex", alignItems:"center", gap:6, fontSize:'var(--text-sm)', color:"var(--text-secondary)"}},
             "Margin:",
             h("input", {
@@ -4681,7 +4674,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         h('div', null, h('h3', null, 'Size and materials'),
           h('p', null, ctx.sW + ' × ' + ctx.sH + ' stitches; finished ' + size(ctx.sW, ctx.sH, ctx.fabricCt) + '.'),
           h('p', null, 'Finished size covers the whole grid, including empty cells. Add your own framing and finishing margins.'),
-          h('label', null, 'Fabric count', h('select', { 'aria-label': 'Fabric count', value: ctx.fabricCt, onChange: function (e) { ctx.setFabricCt(Number(e.target.value)); } }, FABRIC_COUNTS.map(function (f) { return h('option', { key: f.ct, value: f.ct }, f.label); }))),
+          h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
           h('p', null, assumptions + '. Equal strand shares assumed for blends; confirm unusual blend ratios.'),
           h('p', null, window.threadCountsShort({ threads: rows.length, symbols: m.pal.length }) + '. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
           button('Inspect threads and estimates', function () { go('threads'); }), button('Check stash', function () { go('stash'); })),
