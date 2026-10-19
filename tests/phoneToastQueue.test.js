@@ -195,9 +195,21 @@ describe('queue order', () => {
     s.close();
   });
 
+  test('a notice that stays until dismissed does not hold everything else back', () => {
+    const s = setup();
+    s.show({ message: 'Reload this page', duration: 0 });
+    s.show({ message: 'Saved' });
+    expect(s.shown()).toEqual(['Saved']);         // feedback takes the banner for its few seconds
+    jest.advanceTimersByTime(4000);
+    expect(s.shown()).toEqual(['Reload this page']);   // and the notice comes back, still there
+    jest.advanceTimersByTime(60000);
+    expect(s.shown()).toEqual(['Reload this page']);
+    s.close();
+  });
+
   test('feedback that waited too long is not shown late', () => {
     const s = setup();
-    s.show({ message: 'Long', duration: 0 });
+    s.show({ message: 'Slow error', type: 'error', duration: 60000 });
     s.show({ message: 'Stale' });
     jest.advanceTimersByTime(20000);
     s.w.Toast.dismiss(s.container().querySelector('[data-toast-id]').getAttribute('data-toast-id'));

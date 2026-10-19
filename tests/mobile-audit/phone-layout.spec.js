@@ -21,14 +21,13 @@ const PHONES = SIZES.filter(s => s.width <= 393 || s.height <= 393);
 
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
 
-async function quiet(page, extra) {
-  await page.addInitScript((extra) => {
+async function quiet(page) {
+  await page.addInitScript(() => {
     try {
       ['tracker', 'creator', 'manager', 'home'].forEach(k => localStorage.setItem('cs_welcome_' + k + '_done', '1'));
       ['firstStitch_creator', 'toolsTab_unlocked', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true'));
-      (extra || []).forEach(f => f());
     } catch (e) {}
-  }, []);
+  });
 }
 
 async function openCreatorEdit(page) {

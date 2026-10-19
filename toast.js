@@ -234,7 +234,7 @@
     el.appendChild(msgSpan);
 
     var entry = { id: id, el: el, timer: null, _removed: false, phone: phone,
-      rank: info.rank, keep: !!(info.keep || undoAction || duration <= 0), item: info.item };
+      rank: info.rank, keep: !!(info.keep || undoAction || duration <= 0), persistent: duration <= 0, item: info.item };
 
     // Phones keep the buttons beside the message when they fit and drop them to the next row when they do not.
     var actionHost = el;
@@ -382,12 +382,14 @@
       if (queue[i].plain && queue[i].message === message && queue[i].type === type) return queue[i].id;
     }
     var rank = rankOf(opts, type);
+    var persistent = typeof opts.duration === "number" && opts.duration <= 0;
     var item = { id: id, opts: opts, message: message, type: type, rank: rank, plain: plain, at: Date.now(),
       keep: typeof opts.undoAction === "function" || (typeof opts.duration === "number" && opts.duration <= 0) };
     if (!cur) {
       showItem(item);
-    } else if (rank > cur.rank) {
-      // Something more important than what is showing. Put back what must not be lost.
+    } else if (rank > cur.rank || (cur.persistent && !persistent)) {
+      // Something more important than what is showing, or a notice that stays until dismissed (it would otherwise
+      // hold everything else back for good). Put back what must not be lost.
       removeToast(cur, true, true);
       if (cur.keep || cur.rank === RANK_FIRST_RUN) queue.unshift(cur.item);
       showItem(item);
