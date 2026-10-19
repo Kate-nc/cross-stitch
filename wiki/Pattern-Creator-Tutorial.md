@@ -93,7 +93,7 @@ A blend stitches two threads together in one needle (one strand of each) and get
 With Smooth blend, **Fewer confetti stitches in shading** keeps the mix in small clumps. The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
 **Min stitches per colour** — colours used fewer times than this are dropped.
-**Confetti Cleanup** — merges isolated stitches into the surrounding colour (0–3).
+**Reduce confetti** — merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the surrounding colour (0–3).
 **Stitch Cleanup** — tidies small regions, with options to protect fine details and **Keep look-alike colours apart** (with **How strict**).
 
 ### Compare options
@@ -220,7 +220,7 @@ When **Convert to brand** moves every colour to Anchor, the copy is an **Anchor 
 
 ## Materials & Output
 
-Start with **Ready to stitch**. Compare the source image (if present), actual chart and a full-cross stitch simulation. Check recognisable details and colour relationships yourself; screen thread colours are approximate and do not calibrate physical materials. Review finished dimensions (including blank cells, excluding finishing margins), fabric count and over-two settings, two-strand and 20% waste assumptions, colour/symbol counts and the existing Threads estimates. Isolated crosses and colours used in five or fewer crosses describe effort; they can also be intentional highlights. Links open existing adjustment and cleanup controls without applying changes.
+Start with **Ready to stitch**. Compare the source image (if present), actual chart and a full-cross stitch simulation. Check recognisable details and colour relationships yourself; screen thread colours are approximate and do not calibrate physical materials. Review finished dimensions (including blank cells, excluding finishing margins), fabric count and over-two settings, two-strand and 20% waste assumptions, colour/symbol counts and the existing Threads estimates. Confetti stitches and symbols used in five or fewer crosses describe effort; they can also be intentional highlights. Links open existing adjustment and cleanup controls without applying changes.
 
 Choose the first column/row and sample width/height (up to 80 stitches each). The sample chart and stitches use the selected cells. **Export sample chart PNG** includes the exact region, coordinates, symbol key, current fabric assumptions and sample finished size. Try several meaningful regions and stitch a sample if colour or detail matters. The simulation shows full crosses only; inspect other stitch types in the chart. Drawn charts and projects with no source image remain reviewable.
 

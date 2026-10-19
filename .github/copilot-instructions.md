@@ -71,7 +71,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `constants.js` | Fabric counts, skein length (`SKEIN_LENGTH_IN = 315` inches), default price (`DEFAULT_SKEIN_PRICE = 0.95` GBP), canvas checkerboard size (`CK = 4`) |
 | `dmc-data.js` / `anchor-data.js` | Thread catalogues — `DMC` is an array of `{id, name, rgb, lab}` |
 | `colour-utils.js` | Quantisation, Atkinson / Bayer dithering, CIEDE2000, colour matching (`findSolid`, `findBest`), image filters |
-| `helpers.js` | Shared utilities (`fmtTime`, `skeinEst`, `gridCoord`…), pattern serialisation (`stripCellForSave`, `serializePattern`; the matching `restoreStitch` is in `colour-utils.js`), DB openers (`getDB`, `openManagerDB`) |
+| `helpers.js` | Shared utilities (`fmtTime`, `skeinEst`, `gridCoord`…), the one thread label (`formatThread`, `threadKeyRow`: write every thread through it, see TERMINOLOGY.md), pattern serialisation (`stripCellForSave`, `serializePattern`; the matching `restoreStitch` is in `colour-utils.js`), DB openers (`getDB`, `openManagerDB`) |
 | `project-storage.js` | Multi-project storage — `ProjectStorage` singleton (`save`, `get`, `listProjects`, `delete`, `getActiveProject`, …) |
 | `stash-bridge.js` | Reads/writes the Stash Manager's `stitch_manager_db` from any page |
 | `sync-engine.js` | `.csync` export/import, folder watching, merge and conflict review |
@@ -80,7 +80,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `manager-app.js` | Stash Manager React tree |
 | `home-app.js` | Home page |
 | `import-formats.js`, `import-engine/`, `pdf-importer.js` | Import parsers (`.oxs`, `.json`, images, PDF charts) |
-| `threadCalc.js` | `stitchesToSkeins()` |
+| `threadCalc.js` | `stitchesToSkeins()`, and `threadKeyUsage()` (the strands and skeins a colour-key row shows) |
 | `backup-restore.js` | Full backup (`.csb` compressed, or `.json`) and restore |
 | `header.js` | Top bar, File menu, sync status popover |
 | `help-drawer.js` | **All in-app help content**: topics, shortcut list, Getting Started |

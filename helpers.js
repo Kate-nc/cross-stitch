@@ -2342,7 +2342,7 @@ function stashEntryFor(stash,t){
 //   full   "DMC 3799 Pewter Very Dark"   solid
 //          "DMC 341 + 826 (blend)"       blend
 //   short  "DMC 3799" / "DMC 341 + 826"  tight spaces (id only)
-//   name   "Pewter Very Dark" / "Blue Violet Medium + Blue Medium"
+//   name   "Pewter Very Dark" / "Blue Violet Light + Blue Medium"
 //   title  the full name for a tooltip or screen reader; a blend names both threads
 // It reads a palette entry or cell ({id, type, name, brand, threads?}) and a
 // Stash Manager library thread ({id, name, brand, is_blended, blend_id,
@@ -2377,7 +2377,7 @@ function _threadNameFor(brand,id,name){
 }
 // An entry broken into what the formats need: { brand, brandLabel, isBlend,
 // ids, names, ratio, id, name }. `id` is "3799" or "341 + 826"; `name` is
-// "Pewter Very Dark" or "Blue Violet Medium + Blue Medium" ('' when unnamed).
+// "Pewter Very Dark" or "Blue Violet Light + Blue Medium" ('' when unnamed).
 function threadParts(entry){
   if(!entry)return null;
   var brand=normaliseThreadBrand(entry.brand);

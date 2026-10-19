@@ -2346,6 +2346,13 @@ const legendRows=useMemo(()=>{
   else rows.sort((a,b)=>{const ai=String(a.p.id),bi=String(b.p.id);const an=parseInt(ai,10),bn=parseInt(bi,10);if(isFinite(an)&&isFinite(bn)&&String(an)===ai&&String(bn)===bi)return an-bn;return ai.localeCompare(bi);});
   return rows;
 },[pal,colourDoneCounts,countsVer,legendSort,areaColourCounts,knotsByThread,quartersByThread,bsByColour]);
+// The colour list's key rows (UX-013, UX-014): the one thread label, then the strands and skeins each symbol takes.
+// They change with the palette or the fabric count, not with every stitch marked, so they are built once here.
+const keyRowsById=useMemo(()=>{
+  const out={};
+  if(pal)pal.forEach(p=>{out[p.id]=threadKeyRow(p,{fabricCount:fabricCt});});
+  return out;
+},[pal,fabricCt]);
 // The key under the progress bar: the chart's own pale and done looks for one colour, and whether any thread is pale
 // enough to look grey once stitched. Only changes with the palette or the selected colour, not with every stitch.
 const stitchKey=useMemo(()=>{
@@ -8718,8 +8725,7 @@ return(
           return rows.map(({p,dc,kn,qt,bsc,pct,complete})=>{
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
-            // The one thread label, then the strands and skeins this symbol takes (UX-013, UX-014).
-            const kr=threadKeyRow(p,{fabricCount:fabricCt});
+            const kr=keyRowsById[p.id]||threadKeyRow(p,{fabricCount:fabricCt});
             return <div key={p.id} role="listitem"
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
               onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
