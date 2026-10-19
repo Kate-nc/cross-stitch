@@ -70,7 +70,8 @@ Live stash deductions record durable events for full and fractional stitches, kn
 Thread inventory and pattern library.
 
 - **Thread Stash:** DMC and Anchor threads with skein counts, part-used status (Mostly full / About half / Remnant / Used up), per-thread minimum stock and low-stock alerts. Stash status shows in the Creator and Tracker in real time.
-- **Alert panels:** Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
+- **To buy and conflicts:** a pattern whose threads your stash doesn't cover gets a neutral To buy panel ("To buy for Meadow (12 threads)") with an Add to shopping list action. Thread Conflicts is reserved for real conflicts: two or more active patterns that need the same thread when the stash can't cover them together, naming the patterns. Completed patterns are left out. Both come from `StashBridge.getToBuy()` / `detectConflicts()`, and Home's Shopping list reads the same `getToBuy()` data (threads flagged by hand plus everything the active patterns leave the stash short of), so Home and the Manager always agree.
+- **Alert panels:** To buy, Thread Conflicts, Low Stock — Needed and Low stash — not currently needed collapse independently. Tap a heading, or focus it and press Enter or Space. The current count stays visible while the description and list are hidden. Each choice is remembered on this device across reloads and visits, even if alerts disappear and return. Collapsing does not dismiss alerts or change inventory.
 - **Bulk Add:** paste a list of thread numbers, or add a preset starter kit.
 - **Pattern Library:** every project saved in the Creator or Tracker appears automatically, plus patterns you add by hand. Shows how many of each pattern's threads you own. Projects are deleted from here (with a short Undo).
 - **Shopping and cost:** shopping lists and stash value at your skein price.
@@ -83,7 +84,7 @@ The default landing page and project hub.
 
 - **Projects:** greeting, the active project card (progress, last edited), and every other project with Track, Edit and Export actions.
 - **Create new:** Stitch an existing chart (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), Convert a picture, or Draw a pattern. Empty Home shows these paths immediately. Converting an image chooses thread colours; it does not read a photograph of a printed chart. Try a sample project offers memory-only marking and undo without changing real progress or inventory.
-- **Stash:** thread ownership summary and shopping list, linking to the Stash Manager.
+- **Stash:** skeins, threads and patterns in your stash, a Shopping list that matches the Stash Manager's To buy panels, and the patterns ready to start, linking to the Stash Manager.
 - **Stats:** lifetime stitches, recent activity and your oldest work in progress, linking to the Stats page.
 - Refreshes live on `cs:projectsChanged`, `cs:backupRestored`, `cs:stashChanged` and `visibilitychange`, so changes made in another tab show up.
 
