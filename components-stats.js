@@ -1444,6 +1444,15 @@ function StatsAccordion(props){
   );
 }
 
+// The button that leaves Stats. From the Stats page it returns to your projects; inside the Tracker it
+// closes the overlay back onto the chart, so it says that instead of promising a list it does not show.
+function statsBackLabel() {
+  var inTracker = window.__csActiveTool === 'tracker' || (!window.__csActiveTool && window.__csPageKind === 'tracker');
+  return React.createElement(React.Fragment, null,
+    window.Icons && window.Icons.chevronLeft ? React.createElement('span', {'aria-hidden': 'true', style: {display: 'inline-flex', verticalAlign: 'middle', marginRight: 4}}, window.Icons.chevronLeft()) : null,
+    inTracker ? 'Back to chart' : 'Back to projects');
+}
+
 function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStitches, halfStitchCounts, onEditNote, onEditSession, onDeleteSession, onMergeSession, onUpdateSettings, onClose, projectName, onShareProgress, onExportCSV, palette, colourDoneCounts, achievedMilestones, done, pat, sW, sH, doneSnapshots, setDoneSnapshots, sections, currentProjectId, onOpenProject, canEdit}){
   if(canEdit==null)canEdit=true;
   var chartSt = React.useState('cumulative');
@@ -1545,7 +1554,7 @@ function StatsDashboard({statsSessions, statsSettings, totalCompleted, totalStit
       React.createElement("h2", {style:{fontSize:20, fontWeight:700, color:'var(--text-primary)', margin:0, display:'flex', alignItems:'center', gap:'8px'}}, Icons.barChart(), "Stats"),
       React.createElement("div", {style:{display:'flex', gap:'var(--s-2)', flexWrap:'wrap'}},
         hasMultiProjects && React.createElement("button", {type:"button",onClick:function(){setShowComparison(true);}, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--accent-border)', background:'var(--accent-light)', cursor:'pointer', color:'var(--accent)', fontWeight:600, display:'flex', alignItems:'center', gap:'6px'}}, Icons.barChart(), "Compare projects"),
-        React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, "\u2190 Back to grid")
+        React.createElement("button", {type:"button",onClick:onClose, style:{fontSize:'var(--text-md)', padding:'4px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface-secondary)', cursor:'pointer', color:'var(--text-secondary)'}}, statsBackLabel())
       )
     ),
     React.createElement("div", {className:"stats-viewtabs", role:"tablist", "aria-label":"Stats view"},
@@ -1915,7 +1924,7 @@ function GlobalStatsDashboard({onClose, onViewProject, currentProjectId, statsSe
             window.__flushProjectToIDB().then(doRefresh).catch(doRefresh);
           } else { doRefresh(); }
         }, style: {fontSize:'var(--text-md)', padding: '4px 12px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '↻ Refresh'),
-        React.createElement('button', {onClick: onClose, style: {fontSize:'var(--text-md)', padding: '4px 14px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, '\u2190 Back to grid')
+        React.createElement('button', {onClick: onClose, style: {fontSize:'var(--text-md)', padding: '4px 14px', borderRadius:'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--text-secondary)'}}, statsBackLabel())
       )
     ),
 

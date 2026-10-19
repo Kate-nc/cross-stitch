@@ -151,6 +151,21 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
   );
 }
 
+// True while the media query matches; re-renders when it flips (header chip, tablet widths).
+function useMatchMedia(query) {
+  var get = function () { return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches; };
+  var st = React.useState(get);
+  React.useEffect(function () {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    var mq = window.matchMedia(query);
+    var on = function () { st[1](mq.matches); };
+    on();
+    if (mq.addEventListener) mq.addEventListener('change', on); else mq.addListener(on);
+    return function () { if (mq.removeEventListener) mq.removeEventListener('change', on); else mq.removeListener(on); };
+  }, [query]);
+  return st[0];
+}
+
 // ─── HeaderProjectSwitcher (UX-12 Phase 6 PR #10) ───────────────────────
 // Compact button + dropdown showing the active project plus the five
 // most recently updated projects, with a fall-through to the existing
@@ -158,7 +173,7 @@ function ContextBar({ name, dimensions, palette, pct, page, onEdit, onTrack, onS
 // state stores. Mirrors the focus / ARIA pattern from
 // creator/ActionBar.js (Escape, click-outside, ArrowUp/Down/Home/End
 // roving focus, auto-focus first menuitem on open).
-function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRename }) {
+function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRename, status }) {
   var h = React.createElement;
   var Icons = window.Icons || {};
   var openState = React.useState(false);
@@ -249,7 +264,8 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRenam
     return r.totalUnits > 0 ? r.percent : null;
   }
 
-  var label = projectName || (activeProject && activeProject.name) || 'No project';
+  var projectLabel = projectName || (activeProject && activeProject.name) || '';
+  var label = projectLabel || 'No project';
   var activeId = (activeProject && activeProject.id) || (typeof window.ProjectStorage !== 'undefined'
     && window.ProjectStorage.getActiveProjectId ? window.ProjectStorage.getActiveProjectId() : null);
   var recents = list.filter(function (p) { return p && p.id !== activeId; }).slice(0, 5);
@@ -266,7 +282,7 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRenam
     window.location.href = 'stitch.html?id=' + encodeURIComponent(id);
   }
 
-  return h('div', { className: 'tb-proj-switcher', ref: wrapRef },
+  return h('div', { className: 'tb-proj-switcher' + (status ? ' tb-proj-switcher--merged' : ''), ref: wrapRef },
     h('button', {
       ref: btnRef,
       type: 'button',
@@ -276,11 +292,14 @@ function HeaderProjectSwitcher({ activeProject, projectName, onOpenAll, canRenam
       'aria-label': 'Switch project',
       onClick: function () { setOpen(function (o) { return !o; }); }
     },
-      h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(label)),
+      // With no project the chip just says so: initials of "No project" ("NP") would read as a name.
+      projectLabel && h('span', { className: 'tb-proj-switcher__avatar', 'aria-hidden': 'true' }, initials(label)),
       h('span', { className: 'tb-proj-switcher__name' }, label),
       h('span', { className: 'tb-proj-switcher__chev', 'aria-hidden': 'true' },
         Icons.chevronDown ? Icons.chevronDown() : null)
     ),
+    // Sits beside the button, not inside it: a failed save carries a Retry button.
+    status && h('span', { className: 'tb-proj-switcher__status' }, status),
     open && h('div', {
       ref: menuRef,
       className: 'tb-proj-switcher__menu',
@@ -690,13 +709,24 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   ];
   const activeLabel = (creatorPages.find(p => p[0] === tab) || (tab === 'prepare' || tab === 'legend' || tab === 'export' ? ['materials','Materials & Output'] : null) || ['pattern', 'Pattern'])[1];
 
-  // App-section nav tabs — include Edit between Create and Track.
+  // Navigation model: the header names the TOOL; the sub-tabs inside a tool
+  // are STEPS. Create, Track, Stash and Stats are tools. Convert, Edit and
+  // Materials are steps inside the Creator (its own action bar), so they are
+  // not header tabs: a header "Edit" duplicated the Creator's Edit step and made
+  // the highlight jump from "Create" (while converting) to "Edit" (after
+  // Generate). The Creator keeps one highlight, "Create", through every step,
+  // because the header answers "which tool am I in?", not "which step?".
+  //
+  // Clicking Create from another tool opens the Creator on the project that is
+  // already open (so Track > Create is the way back to editing it), or Home's
+  // Create tab when there is no project. Clicking it inside the Creator does
+  // nothing: the steps are the Creator's own tabs.
   // Hrefs are project-safe fallbacks (right-click / JS-disabled). The click
   // handler always delegates to NavigationAPI first so the active project is
   // saved / handed off correctly before any cross-page navigation fires.
+  const inCreatorTool = page === 'creator' || page === 'editor';
   const appSections = [
-    { id: 'creator', label: 'Create', href: 'home.html?tab=create' },
-    { id: 'editor', label: 'Edit', href: 'create.html?from=home' },
+    { id: 'creator', label: 'Create', title: 'Pattern Creator: convert, edit and prepare a pattern' },
     { id: 'tracker', label: 'Track',  href: 'stitch.html?from=home' },
     { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
@@ -728,6 +758,19 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         ? `${projSummary.settings.sW}×${projSummary.settings.sH}`
         : 'Project'))
     : null;
+
+  // Where the Create tab goes from another tool: the open project in the Creator,
+  // or Home's Create tab when there is none (see the navigation model above).
+  const openProjectId = (projSummary && projSummary.id)
+    || (typeof ProjectStorage !== 'undefined' && ProjectStorage.getActiveProjectId ? ProjectStorage.getActiveProjectId() : null);
+  const createTarget = openProjectId ? 'editor' : 'creator';
+
+  // Tablet widths: one chip carries the project name, progress and save state, so
+  // nothing clips and the File menu stays on screen. Phones keep their own
+  // icon-only treatment (styles.css), wide screens keep the separate badge.
+  const compactChip = useMatchMedia('(min-width: 600px) and (max-width: 1199px)');
+  const shownName = propProjectName || projName;
+  const shownPct = propProjectPct !== undefined && propProjectPct !== null ? propProjectPct : pct;
 
   // --app-header-height is the anchor every sticky offset below the header
   // is calculated from (the tracker info-strip, most visibly). It was a hard
@@ -781,22 +824,26 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
         // home.html has its own in-page tab bar (HomeTabBar in home-app.js)
         // covering the same destinations. Shown on all other pages as before.
         page !== 'home' && React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
-          appSections.map(({ id, label, href }) => {
+          appSections.map(({ id, label, href, title }) => {
             // Map section id to NavigationAPI target ('manager' has no in-page
             // handler so it maps to 'stash' which falls through to cross-page).
-            const navTargetMap = { creator: 'creator', editor: 'editor', tracker: 'tracker', manager: 'stash', stats: 'stats' };
+            const navTargetMap = { creator: createTarget, tracker: 'tracker', manager: 'stash', stats: 'stats' };
             const navTarget = navTargetMap[id];
+            const isActive = id === 'creator' ? inCreatorTool : page === id;
             return React.createElement('a', {
               key: id,
-              href,
-              className: 'tb-app-tab' + (page === id ? ' tb-app-tab--active' : ''),
+              href: id === 'creator' ? (createTarget === 'editor' ? 'create.html?from=home' : 'home.html?tab=create') : href,
+              className: 'tb-app-tab' + (isActive ? ' tb-app-tab--active' : ''),
+              title: title,
               onClick: navTarget ? (e) => {
+                // Already in the Creator: Convert / Edit / Materials are its own tabs.
+                if (id === 'creator' && inCreatorTool) { e.preventDefault(); return; }
                 if (window.NavigationAPI && typeof window.NavigationAPI.navigateTo === 'function') {
                   e.preventDefault();
                   window.NavigationAPI.navigateTo(navTarget);
                 }
               } : undefined,
-              ...(page === id ? { 'aria-current': 'page' } : {}),
+              ...(isActive ? { 'aria-current': 'page' } : {}),
             }, label);
           })
         ),
@@ -830,11 +877,16 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           activeProject: projSummary,
           projectName: propProjectName || projName,
           onOpenAll: onOpenProject || undefined,
-          canRename: !!onNameChange
+          canRename: !!onNameChange,
+          status: compactChip && shownName && (shownPct !== null || showAutosaved) ? React.createElement(React.Fragment, null,
+            shownPct !== null && React.createElement('span', { className: 'tb-proj-badge-pct' }, shownPct + '%'),
+            showAutosaved && React.createElement(SaveStatusBadge, { status: saveStatus, savedAt: savedAt, error: saveError, onRetry: onRetrySave })
+          ) : null
         }),
 
-        // Active project badge — editable when onNameChange is provided
-        (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
+        // Active project badge — editable when onNameChange is provided. At tablet
+        // widths its progress and save state move into the switcher chip instead.
+        !compactChip && (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
           onNameChange
             ? (editingName
               ? React.createElement('input', {

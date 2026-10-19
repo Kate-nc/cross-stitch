@@ -30,6 +30,10 @@ The Workshop visual direction (UX-12) is the only theme — see [AGENTS.md](../A
 - `/home` ([home.html](../home.html) + [home-app.js](../home-app.js)) is the default landing. `create.html`, `index.html`, `stitch.html`, and `manager.html` URLs still work and skip the landing.
 - The Pattern Keeper-compatible PDF export path is bit-stable. The Workshop print theme is opt-in via the `creator.pdfWorkshopTheme` user preference (a checkbox on the Export tab). Do **not** modify [pdf-export-worker.js](../pdf-export-worker.js), [creator/pdfChartLayout.js](../creator/pdfChartLayout.js), or [creator/pdfExport.js](../creator/pdfExport.js) without an explicit PK-compat regression check.
 
+## Navigation model
+
+The header names the **tool**; sub-tabs inside a tool are **steps**. Header tabs are Create, Track, Stash and Stats ([header.js](../header.js), `appSections`). Convert, Edit and Materials are steps inside the Creator, so they are not header tabs and the header stays on Create through all of them. Do not add a step as a header tab. Tab colours live in `.tb-app-nav .tb-app-tab` (two classes, to out-rank `html.pref-dark a`). The help drawer opens Shortcuts on the current tool (`window.__csActiveTool`, else `__csPageKind`).
+
 ## Architecture
 
 ### HTML entry points
