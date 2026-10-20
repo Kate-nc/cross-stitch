@@ -18,6 +18,7 @@ node build-creator-bundle.js
 node build-import-bundle.js
 node build-runtime-js.js --check
 node build-sw.js --check
+node scripts/check-generated-bundles.js  # read-only Creator/import verification
 # Generators must leave the committed outputs unchanged:
 git diff --exit-code -- creator/bundle.js creator/extras-bundle.js creator/import-wizard-bundle.js import-engine/bundle.js compiled/ sw.js
 E2E_FRESH_SERVER=1 E2E_LOCAL_CDN=1 npm run test:e2e -- --workers=2
@@ -27,7 +28,7 @@ The explicit worker count keeps Jest parallel even on this two-CPU environment,
 where its default resolves to one worker. Do not use `--runInBand` for the
 baseline. CSS token lint currently reports advisory findings and exits successfully; a successful exit
 does not mean there are no findings. CI (`.github/workflows/ci.yml`) uses Node 22,
-`npm ci`, the creator generator, SW fingerprint check and full Jest. The checks
+`npm ci`, isolated Creator/import bundle verification, SW fingerprint check and full Jest. The checks
 above deliberately also cover the import bundle, runtime output and both lints.
 `npm run build` does not generate the import bundle. Do not regenerate stale
 outputs merely to hide a discrepancy; investigate the source first.

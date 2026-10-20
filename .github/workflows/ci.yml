@@ -36,19 +36,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify creator bundle is up to date
-        # `node build-creator-bundle.js` is idempotent (writes only when
-        # content differs). If the committed bundle drifts from the
-        # creator/ source files this step will leave a dirty working
-        # tree and the next step fails with a clear message.
-        run: |
-          node build-creator-bundle.js
-          if ! git diff --quiet -- creator/bundle.js creator/import-wizard-bundle.js; then
-            echo "::error::creator/bundle.js or creator/import-wizard-bundle.js is out of date."
-            echo "Run 'node build-creator-bundle.js' locally and commit the result."
-            git diff --stat -- creator/bundle.js creator/import-wizard-bundle.js
-            exit 1
-          fi
+      - name: Verify generated bundles are up to date
+        # Compare all Creator and import outputs without writing into the checkout.
+        run: node scripts/check-generated-bundles.js
 
       - name: Check service-worker build fingerprints
         run: node build-sw.js --check
