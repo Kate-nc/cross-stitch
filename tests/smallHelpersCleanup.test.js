@@ -53,12 +53,30 @@ describe('cleanup entry lookup through applyCleanup', () => {
     act(() => hook.applyCleanup());
     expect(state.setPat.mock.calls[0][0][4]).toBe(old);
   });
-  test('selecting every cell cannot make rewritten cells influence later votes', () => {
+  test('selecting every cell preserves its original entry when no voting neighbours remain', () => {
     const pat = Array.from({ length: 9 }, (_, i) => ({ id: i % 2 ? '310' : '666', rgb: [i, 0, 0] }));
     const state = mount(pat, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
     act(() => hook.applyCleanup());
     const result = state.setPat.mock.calls[0][0];
     result.forEach((cell, i) => expect(cell).toBe(pat[i]));
+  });
+  test('adjacent replacements look up entries in the original snapshot even when the first match is replaced', () => {
+    const first = { id: '403', brand: 'anchor', rgb: [12, 34, 56], custom: 'first' };
+    const later = { ...first, custom: 'later' };
+    const black = { id: '310', rgb: [0, 0, 0] };
+    const old = { id: '666', rgb: [200, 0, 0] };
+    const pat = [first, old, later, black, black, later, { id: '__empty__' }, later, later];
+    const state = mount(pat, [0, 1]);
+    act(() => hook.applyCleanup());
+    const result = state.setPat.mock.calls[0][0];
+    expect(result[0]).toBe(black);
+    // The wider-neighbourhood tie-break chooses 403 for cell 1. Its first
+    // original entry is cell 0, even though cell 0 itself is being changed.
+    expect(result[1]).toBe(first);
+    expect(pat[0]).toBe(first); expect(pat[1]).toBe(old);
+    expect(state.setEditHistory.mock.calls[0][0]([])[0].changes).toEqual([
+      { idx: 0, old: first }, { idx: 1, old }
+    ]);
   });
   test('public lookup skips null cells, returns the first match or null, and honours ignoreBlend', () => {
     const blend = { id: '310+550', type: 'blend', rgb: [1, 2, 3] };

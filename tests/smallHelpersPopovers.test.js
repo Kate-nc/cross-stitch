@@ -42,7 +42,10 @@ describe.each([
   }
   test('inside and trigger descendants are ignored; outside mousedown dismisses once', () => {
     render();
-    down(host.querySelector('[role="dialog"]'));
+    const dialog = host.querySelector('[role="dialog"]');
+    down(dialog);
+    expect(dialog.firstElementChild).not.toBeNull();
+    down(dialog.firstElementChild);
     down(trigger.firstChild);
     key('Enter');
     expect(onClose).not.toHaveBeenCalled();

@@ -1,6 +1,10 @@
 const FDBFactory = require('fake-indexeddb/lib/FDBFactory');
 const { browserScripts } = require('./_helpers/browserScripts');
 
+// Observe settlement after queued Promise continuations, without depending on
+// a fixed number of internal await steps in the bridge or migration wrapper.
+const nextTurn = () => new Promise(resolve => setImmediate(resolve));
+
 describe('duplicate readonly Stash queries through public methods', () => {
   let scope, indexedDB, connections;
   const threads = { 'dmc:310': { owned: 2 }, 'anchor:403': { owned: 1 } };
@@ -51,11 +55,18 @@ describe('duplicate readonly Stash queries through public methods', () => {
   function controlledRead() {
     const requests = {};
     const order = [];
+    let signalStarted;
+    const started = new Promise(resolve => { signalStarted = resolve; });
     const store = { get: jest.fn(key => { order.push(key); return (requests[key] = {}); }) };
     const tx = { objectStore: jest.fn(() => store) };
-    const db = { transaction: jest.fn(() => tx), close: jest.fn(() => order.push('close')) };
+    const db = { transaction: jest.fn(() => {
+      // Capture the very first yield after transaction creation. Both requests
+      // must already be queued; observing them several microtasks later misses it.
+      Promise.resolve().then(() => signalStarted(order.slice()));
+      return tx;
+    }), close: jest.fn(() => order.push('close')) };
     scope.openManagerDB = jest.fn(() => Promise.resolve(db));
-    return { db, tx, requests, order, success(key, result) {
+    return { db, tx, requests, order, started, success(key, result) {
       requests[key].result = result;
       requests[key].onsuccess();
     } };
@@ -65,12 +76,11 @@ describe('duplicate readonly Stash queries through public methods', () => {
       const c = controlledRead();
       let settled = false;
       const pending = scope.StashBridge[method]().then(value => { settled = true; return value; });
-      // Public getToBuy also awaits its already-completed migration.
-      for (let i = 0; i < 8; i++) await Promise.resolve();
+      expect(await c.started).toEqual(['threads', 'patterns']);
       expect(c.db.transaction).toHaveBeenCalledWith('manager_state', 'readonly');
       expect(c.order).toEqual(['threads', 'patterns']);
       c.success(first, first === 'threads' ? threads : patterns);
-      await Promise.resolve();
+      await nextTurn();
       expect(settled).toBe(false);
       c.success(second, second === 'threads' ? threads : patterns);
       const value = await pending;
@@ -87,7 +97,7 @@ describe('duplicate readonly Stash queries through public methods', () => {
     test.each(['threads', 'patterns'])('%s request failure logs and returns its public empty fallback', async key => {
       const c = controlledRead();
       const pending = scope.StashBridge[method]();
-      for (let i = 0; i < 8; i++) await Promise.resolve();
+      expect(await c.started).toEqual(['threads', 'patterns']);
       const failure = new Error('readonly request failed');
       c.requests[key].error = failure;
       c.requests[key].onerror();
@@ -98,7 +108,7 @@ describe('duplicate readonly Stash queries through public methods', () => {
     test('missing stored rows use empty defaults', async () => {
       const c = controlledRead();
       const pending = scope.StashBridge[method]();
-      for (let i = 0; i < 8; i++) await Promise.resolve();
+      expect(await c.started).toEqual(['threads', 'patterns']);
       c.success('threads', undefined); c.success('patterns', undefined);
       expect(await pending).toEqual(method === 'getToBuy' ? { projects: [], total: [], shopping: [] } : []);
     });
@@ -140,17 +150,17 @@ describe('duplicate readonly Stash queries through public methods', () => {
     // Drive both the automatic startup and this public migration to settlement.
     let settled = false;
     const pending = isolated.StashBridge.migrateToLatest().then(() => { settled = true; });
-    for (let i = 0; i < 8; i++) await Promise.resolve();
+    await nextTurn();
     expect(transactions).toHaveLength(2);
     transactions.forEach(({ requests }) => {
       requests.schema_version.result = 3; requests.schema_version.onsuccess();
       requests.threads.result = threads; requests.threads.onsuccess();
     });
-    for (let i = 0; i < 8; i++) await Promise.resolve();
+    await nextTurn();
     expect(settled).toBe(false);
     const failure = new Error('migration ' + outcome);
     transactions.forEach(({ tx }) => {
-      tx.error = failure;
+      tx.error = outcome === 'complete' ? null : failure;
       tx['on' + outcome]();
     });
     await pending;

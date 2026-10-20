@@ -30,8 +30,8 @@ describe('partial-stitch serialisation through Creator save boundaries', () => {
       React, document, Blob, console, localStorage, sessionStorage,
       setTimeout, clearTimeout, setInterval, clearInterval,
       __pendingCreatorAction: 'scratch',
-      addEventListener: window.addEventListener.bind(window),
-      removeEventListener: window.removeEventListener.bind(window),
+      addEventListener: jest.fn(window.addEventListener.bind(window)),
+      removeEventListener: jest.fn(window.removeEventListener.bind(window)),
       URL: { createObjectURL: jest.fn(blob => { download = blob; return 'blob:test'; }), revokeObjectURL: jest.fn() },
       ProjectStorage: { save, setActiveProject: jest.fn(), newId: () => 'project-test' },
       saveProjectToDB: jest.fn(() => Promise.resolve())
@@ -61,14 +61,21 @@ describe('partial-stitch serialisation through Creator save boundaries', () => {
     await scope.render();
   });
   afterEach(() => {
-    act(() => root.unmount());
-    jest.runAllTicks();
-    expect(jest.getTimerCount()).toBe(0);
-    host.remove();
-    localStorage.clear(); sessionStorage.clear();
-    jest.useRealTimers(); jest.restoreAllMocks();
-    if (previousAct === undefined) delete global.IS_REACT_ACT_ENVIRONMENT;
-    else global.IS_REACT_ACT_ENVIRONMENT = previousAct;
+    try {
+      act(() => root.unmount());
+      jest.runAllTicks();
+      expect(jest.getTimerCount()).toBe(0);
+      expect(scope.removeEventListener).toHaveBeenCalledTimes(scope.addEventListener.mock.calls.length);
+      scope.addEventListener.mock.calls.forEach(args => expect(scope.removeEventListener).toHaveBeenCalledWith(...args));
+    } finally {
+      // A failed lifecycle assertion must still leave the next case isolated.
+      scope.addEventListener.mock.calls.forEach(args => window.removeEventListener(...args));
+      host.remove();
+      localStorage.clear(); sessionStorage.clear();
+      jest.clearAllTimers(); jest.useRealTimers(); jest.restoreAllMocks();
+      if (previousAct === undefined) delete global.IS_REACT_ACT_ENVIRONMENT;
+      else global.IS_REACT_ACT_ENVIRONMENT = previousAct;
+    }
   });
   function assertRecord(record) {
     expect(record.partialStitches).toEqual(expected);
