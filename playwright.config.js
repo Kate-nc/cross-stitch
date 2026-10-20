@@ -98,7 +98,8 @@ module.exports = defineConfig({
   webServer: {
     command: 'node serve.js 8000',
     url: 'http://127.0.0.1:8000',
-    reuseExistingServer: true,
+    // Baseline runs must own their server so a stale checkout cannot pass them.
+    reuseExistingServer: process.env.E2E_FRESH_SERVER !== '1',
     timeout: 120000,
   },
 });

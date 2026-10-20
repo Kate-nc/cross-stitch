@@ -233,7 +233,7 @@ Requires Node.js 22 or later.
 ### Testing
 
 ```bash
-npm test                         # Jest, parallel (~240 suites, a few seconds)
+npm test                         # Jest (worker count depends on available CPUs)
 npm test -- --runInBand          # serial, for debugging cross-suite state
 npm test -- --coverage
 
@@ -249,6 +249,9 @@ npm run lint:css-tokens          # raw hex / removed --ws-* aliases in CSS
 ```
 
 Tests are CommonJS and mostly load browser source with `fs.readFileSync` + `new Function`/`eval`, since the app has no module system.
+
+For the Node 22 validation commands, fresh-server browser runs, current results
+and known limitations, see the [validation baseline](docs/validation-baseline.md).
 
 ### Build steps
 

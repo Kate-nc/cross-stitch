@@ -14,7 +14,7 @@ async function openPaletteTab(page) {
 }
 
 async function legendSymbol(page, id) {
-  const row = page.locator('tr').filter({ has: page.locator('td', { hasText: new RegExp('^' + id + '$') }) }).first();
+  const row = page.locator('tr').filter({ has: page.locator('td', { hasText: new RegExp('^DMC ' + id + '$') }) }).first();
   return (await row.locator('td').first().textContent()).trim();
 }
 
@@ -116,7 +116,7 @@ test.describe('Swatch symbols on Pixel 5', function() {
     const cdp = await page.context().newCDPSession(page);
     const pt = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [pt] });
-    await expect(page.getByRole('tooltip')).toHaveText(/^DMC \S+ · .+ · [\d,]+ stitch(es)?$/, { timeout: 2000 });
+    await expect(page.getByRole('tooltip')).toHaveText(/^DMC \S+ .+ · [\d,]+ stitch(es)?$/, { timeout: 2000 });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     // The long-press didn't also select the colour.
     await page.waitForTimeout(300);
