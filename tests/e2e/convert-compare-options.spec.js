@@ -19,7 +19,7 @@ test.describe('Compare options on desktop', function() {
     await expect(strip(page).locator('.compare-strip__option img')).toHaveCount(3, { timeout: 3000 + 500 });
     await expect(option(page, 'current')).toContainText('100 × 100');
     await expect(option(page, 'plus')).toContainText(/[\d,]+ stitches \(125 × 125\)/);
-    await expect(option(page, 'plus')).toContainText(/\d+ threads? · (about \d+ hrs?|under 1 hr)/);
+    await expect(option(page, 'plus')).toContainText(/\d+ threads? · (about [\d,]+ hours?|under an hour)/);
     await expect(option(page, 'plus')).toContainText(/Confetti: \w+/);
     await option(page, 'plus').click();
     await expect(page.locator('.size-field').getByLabel('Width in stitches')).toHaveValue('125');

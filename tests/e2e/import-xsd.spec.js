@@ -44,7 +44,8 @@ test('Tracker file open reaches the same XSD verification review',async({page})=
   });
   await page.goto('/stitch.html');
   await page.waitForFunction(()=>window.ImportEngine && window.ImportEngine.importAndReview);
-  await page.locator('input[type="file"][accept*=".xsd"]').setInputFiles({name:'tracker.xsd',mimeType:'application/octet-stream',buffer:chart().bytes});
+  // iOS deliberately omits accept; use the Tracker's file input on every device.
+  await page.locator('input[type="file"]').first().setInputFiles({name:'tracker.xsd',mimeType:'application/octet-stream',buffer:chart().bytes});
   await expect(page.getByText('Review imported pattern').first()).toBeVisible();
   await expect(page.getByText('Usable import with limitations').first()).toBeVisible();
   const existing=await page.evaluate(()=>window.ProjectStorage.get('existing-xsd-control'));
