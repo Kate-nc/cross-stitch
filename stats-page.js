@@ -154,33 +154,6 @@ function SableChart({ data }) {
   ));
 }
 
-function HueWheel({ bins, neutral }) {
-  const R = 70, CX = 90, CY = 90, IR = 35;
-  const total = bins.reduce((s, b) => s + b, 0) + neutral;
-  if (total === 0) return null;
-  const hueColors = ['#f87171','#fb923c','#fbbf24','#a3e635','#4ade80','#34d399','#22d3ee','#38bdf8','#818cf8','var(--accent-light)','#e879f9','#fb7185'];
-  const paths = [];
-  let angle = -Math.PI / 2;
-  for (let i = 0; i < 12; i++) {
-    const pct = total > 0 ? bins[i] / total : 0;
-    const sweep = pct * 2 * Math.PI;
-    if (sweep < 0.001) { angle += sweep; continue; }
-    const x1 = CX + R * Math.cos(angle), y1 = CY + R * Math.sin(angle);
-    const x2 = CX + R * Math.cos(angle + sweep), y2 = CY + R * Math.sin(angle + sweep);
-    const ix1 = CX + IR * Math.cos(angle), iy1 = CY + IR * Math.sin(angle);
-    const ix2 = CX + IR * Math.cos(angle + sweep), iy2 = CY + IR * Math.sin(angle + sweep);
-    const large = sweep > Math.PI ? 1 : 0;
-    paths.push(h('path', { key: i, d: `M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${IR},${IR} 0 ${large},0 ${ix1},${iy1}`, fill: hueColors[i], opacity: 0.85 }));
-    angle += sweep;
-  }
-  return h('svg', { viewBox: '0 0 180 180', style: { width: '100%', maxWidth: 240, height: 'auto', display: 'block', margin: '0 auto' }, 'aria-label': 'Stash colour composition' },
-    paths,
-    neutral > 0 && h('circle', { cx: CX, cy: CY, r: IR - 4, fill: 'var(--text-tertiary)', opacity: 0.6 }),
-    h('text', { x: CX, y: CY + 4, textAnchor: 'middle', fontSize:'var(--text-xs)', fill: 'var(--text-secondary)', fontWeight: 600 }, fmtNum(total)),
-    h('text', { x: CX, y: CY + 16, textAnchor: 'middle', fontSize: 9, fill: 'var(--text-tertiary)' }, 'threads')
-  );
-}
-
 function AgeBar({ data }) {
   const buckets = [
     { key: 'bucketUnder1Yr', label: '<1 yr', color: '#34d399' },

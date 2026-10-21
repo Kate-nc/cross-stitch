@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "1c995cf80ccab1839539b3ec1524b137d2ec87af440c3e1169bde871e47e8dd6";
+var BUILD_ID = "683d07594e6fc40419a489752b394cdcccdd4de2b2e03ed02d4ec4e4ce684166";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -308,7 +308,7 @@ var BUILD_ASSETS = {
     "sha256": "2907e65965e1fab09a87c2866e72de07f99567bb61942b6c0abb33c517114a29"
   },
   "./version.js": {
-    "sha256": "1e4e82146df341637589cb6066b132d546677eeb1accbd0ae05d7865493426cc"
+    "sha256": "c0501b95bdda39dbee8a7f975d1c22c0a26b86da005519ecec11dcec52249ea1"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -443,10 +443,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "8f0a5f9f43c1e34addebdd8a4316f67ab6d17d6287c52e8f2ce29310be012c19"
+    "sha256": "b40dde1502cd5b202ec0bbb669e81209b42d89dbd0ba298eabea0ed987ed60c3"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "4b3a876007ecdeaeafca24e12893d76c5af1fd8458e4b3660e38d19df76f0e0b"
+    "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "4f6b4f3ae2df73abf31f4b978350b29fa42f13b510e8a9e2c4303c0ad6f79712"
@@ -479,7 +479,7 @@ var BUILD_ASSETS = {
     "sha256": "23ed854586fbd814a7ab9886fbd019f9b278a8a71f0a85ecb7d1acbad4e116bc"
   },
   "./stats-page.js": {
-    "sha256": "af1edc955f907f3022f40b911584de0b42820f73f53d25e3716f19c5ccc0048a"
+    "sha256": "e19b192cb82986627896f0284958e99e0df84e3ccd3b991622374d3f6211afe3"
   },
   "./analysis-worker.js": {
     "sha256": "a0d3b9526ec89bef46ff8d716915854502b25aab8885583811080e37cf04ef7b"
@@ -611,7 +611,7 @@ var BUILD_ASSETS = {
     "sha256": "6902c67b153f0ad0cfb4e02d4a18a5386580d6d18bd5cfcb4946e87e037324e5"
   },
   "./command-palette.js": {
-    "sha256": "8dc10cf65cc4cac5838ac62e1dd52b4ea79f2bc844767f77e7dd72d7005761e4"
+    "sha256": "939ac378ce06c86a18c8e42cefc4907ec8c065edf51cb898eaead75db24a8ae7"
   },
   "./preferences-modal.js": {
     "sha256": "c24ca143de3a385ae354bd2209336b1774821ede4f3cb8f9da05e8d159992045"

@@ -59,22 +59,6 @@ function extractVar(src, name) {
   return m ? `var ${name} = ${m[1]};` : '';
 }
 
-// Helper: extract a named var-function or named function from source
-function extractFn(src, name) {
-  // Try "function name(" form
-  let idx = src.indexOf(`\nfunction ${name}(`);
-  if (idx === -1) idx = src.indexOf(`function ${name}(`);
-  if (idx !== -1) {
-    let depth = 0, i = idx;
-    while (i < src.length) {
-      if (src[i] === '{') depth++;
-      else if (src[i] === '}') { if (--depth === 0) return src.slice(idx, i + 1); }
-      i++;
-    }
-  }
-  return '';
-}
-
 // Extract _neighbourVote — it's an inner function inside useCleanupMode
 const nvMatch = hookSrc.match(/function _neighbourVote\s*\([^)]*\)\s*\{/);
 if (!nvMatch) throw new Error('Could not find _neighbourVote in useCleanupMode.js');
@@ -86,14 +70,10 @@ for (let i = nvStart; i < hookSrc.length; i++) {
 }
 const neighbourVoteSrc = hookSrc.slice(nvStart, nvEnd + 1);
 
-// Extract _findEntry
-const feSrc = extractFn(hookSrc, '_findEntry');
-
 // Evaluate constants + helper functions in a Node-compatible way
 const hookPreamble = `
 ${extractVar(hookSrc, 'CLEANUP_TOLERANCE_MAX_DE')}
 ${extractVar(hookSrc, 'CLEANUP_WIDE_NEIGHBOURHOOD_RADIUS')}
-${feSrc}
 ${neighbourVoteSrc}
 
 function toleranceDe(sliderVal) {
