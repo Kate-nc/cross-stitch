@@ -2245,20 +2245,13 @@ const totalParkedColours=useMemo(()=>Object.keys(parkCountsByColour).length,[par
 const liveParkMarkers=useMemo(()=>(parkMarkers||[]).filter(pm=>parkLayers[pm.colorId]!==false&&!isParkSpent(pm,done)),[parkMarkers,parkLayers,done,sW]);
 const liveParkKey=liveParkMarkers.map(pm=>pm.x+","+pm.y+","+(pm.corner||"BL")).join(";");
 const liveParkMarkersRef=useRef(liveParkMarkers);liveParkMarkersRef.current=liveParkMarkers;
-const allParkLayersHidden=useMemo(()=>{
+// Keep this hook in sequence; its result has no consumers.
+useMemo(()=>{
   if(totalParkedColours===0)return false;
   for(const id in parkCountsByColour){if(parkLayers[id]!==false)return false;}
   return true;
 },[parkCountsByColour,parkLayers,totalParkedColours]);
 function toggleParkLayer(cid){setParkLayers(prev=>{const next=Object.assign({},prev);next[cid]=!(next[cid]!==false);if(next[cid])delete next[cid];return next;});}
-function setAllParkLayersVisible(visible){
-  setParkLayers(prev=>{
-    if(visible)return{};
-    const next=Object.assign({},prev);
-    for(const id in parkCountsByColour)next[id]=false;
-    return next;
-  });
-}
 const weekStitchesForChip=useMemo(()=>{if(!statsSessions)return 0;const deh=getDayEndHour(statsSettings);return getStatsThisWeekStitches(statsSessions,deh)+getLiveWeekStitches(currentAutoSessionRef.current,deh);},[statsSessions,liveAutoStitches,statsSettings]);
 const todayBarPct=effectiveCombinedTotal>0?Math.min((todayStitchesForBar/effectiveCombinedTotal)*100,Math.min(progressPct,100)):0;
 // Completion projection — derived from InsightsEngine when available.
