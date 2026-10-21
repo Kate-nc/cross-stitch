@@ -5,7 +5,7 @@ const { browserScripts } = require('./_helpers/browserScripts');
 // a fixed number of internal await steps in the bridge or migration wrapper.
 const nextTurn = () => new Promise(resolve => setImmediate(resolve));
 
-describe('duplicate readonly Stash queries through public methods', () => {
+describe('shared readonly Stash queries through public methods', () => {
   let scope, indexedDB, connections;
   const threads = { 'dmc:310': { owned: 2 }, 'anchor:403': { owned: 1 } };
   const patterns = [
@@ -90,7 +90,10 @@ describe('duplicate readonly Stash queries through public methods', () => {
       if (method === 'getToBuy') {
         expect(value.total[0].toBuy).toBe(2);
         expect(c.order).toEqual(['threads', 'patterns', 'close']);
-      } else expect(value.map(p => p.id)).toEqual(['ready', 'short']);
+      } else {
+        expect(value.map(p => p.id)).toEqual(['ready', 'short']);
+        expect(c.db.close).not.toHaveBeenCalled();
+      }
       if (c.tx.oncomplete) c.tx.oncomplete();
       expect(await pending).toBe(value);
     });
@@ -103,7 +106,7 @@ describe('duplicate readonly Stash queries through public methods', () => {
       c.requests[key].onerror();
       expect(await pending).toEqual(method === 'getToBuy' ? { projects: [], total: [], shopping: [] } : []);
       expect(scope.console.error).toHaveBeenCalledWith('StashBridge.' + method + ' failed:', failure);
-      if (method === 'getToBuy') expect(c.db.close).toHaveBeenCalledTimes(1);
+      expect(c.db.close).toHaveBeenCalledTimes(method === 'getToBuy' ? 1 : 0);
     });
     test('missing stored rows use empty defaults', async () => {
       const c = controlledRead();
@@ -111,6 +114,43 @@ describe('duplicate readonly Stash queries through public methods', () => {
       expect(await c.started).toEqual(['threads', 'patterns']);
       c.success('threads', undefined); c.success('patterns', undefined);
       expect(await pending).toEqual(method === 'getToBuy' ? { projects: [], total: [], shopping: [] } : []);
+    });
+    test.each(['complete', 'abort', 'error'])('transaction %s alone does not settle the read', async event => {
+      const c = controlledRead();
+      let settled = false;
+      const pending = scope.StashBridge[method]().then(value => { settled = true; return value; });
+      await c.started;
+      if (c.tx['on' + event]) c.tx['on' + event]();
+      await nextTurn();
+      expect(settled).toBe(false);
+      c.success('threads', threads);
+      c.success('patterns', patterns);
+      await pending;
+      expect(c.db.close).toHaveBeenCalledTimes(method === 'getToBuy' ? 1 : 0);
+    });
+    test.each([[true, false], [false, true], [false, false]])('real stored rows: threads=%s patterns=%s', async (hasThreads, hasPatterns) => {
+      // Use a fresh connection: the seed connection has already been closed.
+      const live = await scope.openManagerDB();
+      await new Promise(resolve => {
+        const tx = live.transaction('manager_state', 'readwrite');
+        const store = tx.objectStore('manager_state');
+        if (!hasThreads) store.delete('threads');
+        if (!hasPatterns) store.delete('patterns');
+        tx.oncomplete = resolve;
+      });
+      live.close();
+      const result = await scope.StashBridge[method]();
+      if (!hasPatterns) expect(result).toEqual(method === 'getToBuy' ? { projects: [], total: [], shopping: [] } : []);
+      else if (method === 'whatCanIStart') expect(result.map(p => p.coveredThreads)).toEqual([0, 0]);
+      else expect(result.total.map(t => t.toBuy)).toEqual([3, 2]);
+    });
+    test('transaction creation failure preserves close ownership and public fallback', async () => {
+      const c = controlledRead();
+      const failure = new Error('cannot create readonly transaction');
+      c.db.transaction.mockImplementation(() => { throw failure; });
+      expect(await scope.StashBridge[method]()).toEqual(method === 'getToBuy' ? { projects: [], total: [], shopping: [] } : []);
+      expect(scope.console.error).toHaveBeenCalledWith('StashBridge.' + method + ' failed:', failure);
+      expect(c.db.close).toHaveBeenCalledTimes(method === 'getToBuy' ? 1 : 0);
     });
     test('open failure is logged and returns the same empty fallback', async () => {
       const error = new Error('cannot open stash');
