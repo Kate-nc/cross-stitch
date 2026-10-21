@@ -155,13 +155,14 @@ describe('the hidden-layers chip', () => {
 
 describe('wiring', () => {
   test('the chip is in the progress strip and in the focus bar, and Show restores every layer', () => {
-    const uses = trackerSrc.match(/React\.createElement\(window\.TrackerHiddenLayersChip,\{layerVis,counts:layerCounts,onShow:showHiddenLayers/g) || [];
-    expect(uses.length).toBe(2);
+    // The strip's chip lives in tracker-progress-strip.js (extracted from TrackerApp); the focus bar's stays in tracker-app.js.
+    const stripSrc = read('tracker-progress-strip.js');
+    expect(trackerSrc).toContain('React.createElement(window.TrackerProgressStrip,{progress:progShown,prevBarPct,todayBarPct,bsCounts,layerVis,layerCounts,onShowHiddenLayers:showHiddenLayers');
+    expect(stripSrc).toMatch(/window\.TrackerHiddenLayersChip && h\(window\.TrackerHiddenLayersChip, \{ layerVis: layerVis, counts: props\.layerCounts, onShow: props\.onShowHiddenLayers \}\)/);
+    expect(stripSrc.indexOf('info-strip-row')).toBeLessThan(stripSrc.indexOf('TrackerHiddenLayersChip, {'));
     expect(trackerSrc).toMatch(/const showHiddenLayers=\(\)=>\{setLayerVis\(ALL_LAYERS_VISIBLE\);/);
     expect(trackerSrc).toMatch(/focusMode&&window\.TrackerHiddenLayersChip&&React\.createElement\(window\.TrackerHiddenLayersChip,\{[^}]*tracker-layers-chip--float/);
-    const stripAt = trackerSrc.indexOf('className="info-strip-wrap"');
-    const chipAt = trackerSrc.indexOf('TrackerHiddenLayersChip', stripAt);
-    expect(chipAt - stripAt).toBeLessThan(3000);
+    expect(trackerSrc.indexOf('className="info-strip-wrap"')).toBeLessThan(trackerSrc.indexOf('window.TrackerProgressStrip'));
   });
   test('stitch.html and index.html load the chip before tracker-app.js, and the service worker precaches it', () => {
     ['stitch.html', 'index.html'].forEach(f => expect(read(f)).toContain('<script src="tracker-layer-chip.js"></script>'));
