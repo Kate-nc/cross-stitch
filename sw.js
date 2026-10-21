@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "1314595f3e6ea43e15ae6fde206132780168826c4beb76865d1a36f9ad7eeb9f";
+var BUILD_ID = "e056c58752b4235a4a1ef814264021d73805b695e6b2df597d38be71783d313e";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -308,7 +308,7 @@ var BUILD_ASSETS = {
     "sha256": "2907e65965e1fab09a87c2866e72de07f99567bb61942b6c0abb33c517114a29"
   },
   "./version.js": {
-    "sha256": "6a16972a576dae25761ddc32880b244e8689881dfd9b2da00735a4d912fb12ed"
+    "sha256": "fba038d6d82144089e6f2d272cd27fec85f65a07e15533fda46adc54dce4cee3"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -422,7 +422,7 @@ var BUILD_ASSETS = {
     "sha256": "94b76336b443ed31e4662f3b8fc4fc7a1a69fc94cfddbc388e7ca0d06802612c"
   },
   "./stash-bridge.js": {
-    "sha256": "5333a27e505e114d4f5bb5eb74bc22b07790a60ca6c6028eff025b108604dc69"
+    "sha256": "83374a36146cb2dd161e516f4f4c782ed9d9808b5c8bfa8d1bfbc490f8c37c7d"
   },
   "./thread-catalogues.js": {
     "sha256": "ff0a0bd69e9fdd321b35d9fd04670413f3aa6c2a2e00fa2ba7f999bbfc7805e3"
