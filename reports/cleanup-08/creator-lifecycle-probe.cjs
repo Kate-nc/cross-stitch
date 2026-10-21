@@ -3,6 +3,7 @@
  * Needs `node serve.js <PORT>` running (PORT env, default 8011). */
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const repo = process.argv[2];
 const label = process.argv[3];
 const override = process.argv[4];
@@ -26,10 +27,10 @@ const base = 'http://127.0.0.1:' + (process.env.PORT || 8011);
     ['firstStitch_tracker', 'rectSelect_tracker', 'import', 'undo', 'progress', 'save'].forEach(k => localStorage.setItem('cs_pref_onboarding.coached.' + k, 'true'));
     sessionStorage.setItem('cs_eviction_warned', '1');
   });
-  // Attribute window/document listeners, intervals and timeouts to creator-main by stack.
+  // Attribute window/document listeners and intervals to creator-main by stack.
   await context.addInitScript(() => {
     const own = () => /compiled\/creator-main/.test((new Error().stack.split('\n')[3] || '') + (new Error().stack.split('\n')[2] || ''));
-    window.__lc = { roots: [], listeners: [], intervals: new Set(), timeouts: [] };
+    window.__lc = { roots: [], listeners: [], intervals: new Set() };
     Object.defineProperty(window, 'ReactDOM', { configurable: true,
       get() { return this.__rd; },
       set(value) {
@@ -55,10 +56,11 @@ const base = 'http://127.0.0.1:' + (process.env.PORT || 8011);
     const si = window.setInterval, ci = window.clearInterval;
     window.setInterval = function (fn, d, ...a) { const id = si.call(window, fn, d, ...a); if (own()) window.__lc.intervals.add(id); return id; };
     window.clearInterval = function (id) { window.__lc.intervals.delete(id); return ci.call(window, id); };
-    const st = window.setTimeout;
-    window.setTimeout = function (fn, d, ...a) { if (own()) window.__lc.timeouts.push(d || 0); return st.call(window, fn, d, ...a); };
   });
 
+  // Record which creator-main script the browser really received, so a route override that silently fails to apply cannot make two runs look alike.
+  const served = [];
+  context.on('response', r => { if (/compiled\/creator-main\.compiled\.js/.test(r.url())) r.body().then(b => served.push(crypto.createHash('sha256').update(b).digest('hex'))).catch(() => {}); });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message)));
@@ -94,7 +96,6 @@ const base = 'http://127.0.0.1:' + (process.env.PORT || 8011);
   });
   if (!snap) throw new Error('UnifiedApp fiber not found');
 
-  const ids = new WeakMap(); // function identity ids live in the page
   await page.evaluate(() => { window.__fnId = (() => { const m = new WeakMap(); let n = 0; return f => { if (typeof f !== 'function') return null; if (!m.has(f)) m.set(f, ++n); return m.get(f); }; })(); });
 
   async function state(step) {
@@ -147,9 +148,9 @@ const base = 'http://127.0.0.1:' + (process.env.PORT || 8011);
   }));
   steps.push({ step: 'unmounted', ...after });
 
-  // Normalise function ids to first-seen order so base/head are comparable.
-  const out = { label, errors, steps };
+  // Function ids are first-seen order within the page, so runs of the same code are comparable.
+  const out = { label, scriptSha256: served.slice(-1)[0] || null, errors, steps };
   fs.writeFileSync(process.env.OUT || (label + '.json'), JSON.stringify(out, null, 1));
-  console.log(label, 'steps', steps.length, 'errors', errors.length, 'hooks@mount', steps[0].hookCount);
+  console.log(label, 'sha', (out.scriptSha256 || 'none').slice(0, 12), 'steps', steps.length, 'errors', errors.length, 'hooks@mount', steps[0].hookCount);
   await browser.close();
 })().catch(e => { console.error(e); process.exit(1); });
