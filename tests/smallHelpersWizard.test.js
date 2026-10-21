@@ -70,6 +70,56 @@ describe('wizard field setters and their component callers', () => {
     expect(node).not.toBeNull();
     act(() => Simulate.change(node, { target: { value } }));
   }
+  test('retained setters use the latest state and persist every updater before the next', () => {
+    mountHook();
+    const retained = wizard;
+    act(() => wizard.setName('First'));
+    const observed = [];
+    act(() => {
+      retained.setName(previous => {
+        observed.push([previous, JSON.parse(localStorage.getItem('cs_import_wizard_draft')).name]);
+        return previous + ' second';
+      });
+      retained.setName(previous => {
+        observed.push([previous, JSON.parse(localStorage.getItem('cs_import_wizard_draft')).name]);
+        return previous + ' third';
+      });
+    });
+    expect(observed).toEqual([['First', 'First'], ['First second', 'First second']]);
+    expect(wizard.name).toBe('First second third');
+    expect(wizard.setName).not.toBe(retained.setName);
+    expect(Object.keys(wizard)).toEqual(Object.keys(retained));
+  });
+  test('draft reopens with all fields, confirmation returns exact arguments and discard clears it', () => {
+    mountHook();
+    act(() => {
+      wizard.setCrop({ rotate: 90, flipH: true, flipV: false, aspect: '1:1' });
+      wizard.setPalette({ mode: 'limited', maxColours: 12, allowBlends: false });
+      wizard.setSize({ w: 64, h: 32, lock: true, fabricCt: 18 });
+      wizard.setSettings({ dithAlgo: 'off', contrast: 10, saliency: false, skipBg: true, bgThreshold: 20, preSmooth: true });
+      wizard.setName('  Rose garden  ');
+      wizard.goto(5);
+    });
+    const draft = JSON.parse(localStorage.getItem('cs_import_wizard_draft'));
+    const generated = jest.fn(), closed = jest.fn();
+    act(() => root.render(React.createElement(scope.ImportWizard, { image, baseName: 'Rose', onGenerate: generated, onClose: closed })));
+    expect(host.querySelector('#iw-step-heading').textContent).toMatch(/Step 5/);
+    expect(JSON.parse(localStorage.getItem('cs_import_wizard_draft'))).toEqual(draft);
+    const click = label => act(() => Array.from(host.querySelectorAll('button')).find(b => b.textContent === label).click());
+    click('Cancel'); click('Keep editing');
+    expect(closed).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('cs_import_wizard_draft'))).toEqual(draft);
+    click('Generate pattern');
+    expect(generated.mock.calls).toEqual([[{
+      name: 'Rose garden', maxWidth: 64, maxHeight: 32, maxColours: 12,
+      skipWhiteBg: true, bgThreshold: 20, fabricCt: 18,
+      crop: draft.crop, palette: draft.palette, settings: draft.settings
+    }]]);
+    expect(localStorage.getItem('cs_import_wizard_draft')).toBeNull();
+    click('Back'); click('Cancel'); click('Discard');
+    expect(closed).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('cs_import_wizard_draft')).toBeNull();
+  });
   function next() {
     const button = Array.from(host.querySelectorAll('button')).find(b => /Next/.test(b.textContent));
     expect(button).toBeDefined(); act(() => button.click());
