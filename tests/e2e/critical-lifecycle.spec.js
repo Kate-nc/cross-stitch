@@ -72,11 +72,37 @@ test('Tracker load, mark, undo, save, reopen, active update and unmount release 
   await page.evaluate(()=>__flushProjectToIDB());
   const before=await activeListeners(page);
   expect(before).toContain('beforeunload');expect(before).toContain('cs:prefchange');
+  // Read committed hooks to check refs and memoised callbacks across real updates.
+  const hooks=async compare=>page.evaluate(compare=>{
+    const pending=[__lifecycle.roots[0]._internalRoot.current];let tracker;
+    while(pending.length){const f=pending.pop();if(!f)continue;
+      if(f.type===TrackerApp){tracker=f;break;}pending.push(f.child,f.sibling);}
+    if(!tracker)throw new Error('Tracker fibre not found');
+    const values=[];for(let h=tracker.memoizedState;h;h=h.next)values.push(h.memoizedState);
+    const signature=values.map(v=>v&&typeof v==='object'&&'create' in v&&'deps' in v?'effect':
+      v&&typeof v==='object'&&Object.keys(v).length===1&&'current' in v?'ref':
+      Array.isArray(v)&&v.length===2&&Array.isArray(v[1])&&typeof v[0]==='function'?'callback':'other');
+    const changed=[];
+    if(compare)values.forEach((v,i)=>{
+      const old=window.__trackerHookValues[i];
+      if(signature[i]==='ref'&&v!==old)changed.push(i);
+      if(signature[i]==='callback'&&old&&v[1].length===old[1].length&&v[1].every((x,j)=>Object.is(x,old[1][j]))&&v[0]!==old[0])changed.push(i);
+    });
+    window.__trackerHookValues=values;
+    return{signature,changed};
+  },compare);
+  const mounted=await hooks(false);
+  expect(mounted.signature.filter(x=>x==='ref').length).toBeGreaterThan(0);
+  expect(mounted.signature.filter(x=>x==='callback').length).toBeGreaterThan(0);
+  await page.evaluate(()=>UserPrefs.set('trackerAutomaticSnapshots',true));
+  await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
+  expect(await hooks(true)).toEqual(mounted);
   await page.evaluate(()=>{__lifecycle.roots[0].render(React.createElement(TrackerApp,{isActive:false}));});
   await expect.poll(()=>page.evaluate(()=>document.querySelectorAll('canvas[role=application]').length)).toBeGreaterThan(0);
   await page.evaluate(()=>{__lifecycle.roots[0].render(React.createElement(TrackerApp,{isActive:true}));});
   await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
   expect(await activeListeners(page)).toEqual(before);
+  expect(await hooks(true)).toEqual(mounted);
   await page.evaluate(()=>__lifecycle.roots[0].unmount());
   expect(await activeListeners(page)).toEqual([]);
   expect(await page.evaluate(()=>__lifecycle.channels.length)).toBeGreaterThan(0);
@@ -86,6 +112,10 @@ test('Tracker load, mark, undo, save, reopen, active update and unmount release 
   expect(await page.evaluate(()=>typeof __flushProjectToIDB)).toBe('function');
   const fallback=await page.evaluate(async()=>{await __flushProjectToIDB();return ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));});
   expect(fallback.done.flatMap((v,i)=>v?[i]:[])).toEqual([first]);
+  await page.goto('/home.html');
+  await expect(page.locator('#root button').first()).toBeVisible();
+  await page.goto('/stitch.html?from=home');await page.locator(GRID).waitFor();
+  await expect.poll(()=>page.locator('.info-strip-counts').innerText()).toMatch(/^1 done/);
   expect(errors).toEqual([]);
 });
 
