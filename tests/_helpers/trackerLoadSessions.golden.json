@@ -1,0 +1,246 @@
+{
+ "v11 sessions that already carry every field": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"sess_b\",\"date\":\"2026-03-02\",\"startTime\":\"2026-03-02T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":25,\"totalAtEnd\":45,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"sess_b\",\"date\":\"2026-03-02\",\"startTime\":\"2026-03-02T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":25,\"totalAtEnd\":45,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   true
+  ]
+ },
+ "v11 sessions missing totalAtEnd are rebuilt chronologically and clamped to the stitch count": {
+  "result": "[{\"id\":\"s3\",\"date\":\"2026-03-03\",\"startTime\":\"2026-03-03T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":6,\"totalAtEnd\":1,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s1\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":4,\"totalAtEnd\":4,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s2\",\"date\":\"2026-03-02\",\"startTime\":\"2026-03-02T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":-9,\"totalAtEnd\":0,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s4\",\"date\":\"2026-03-04\",\"startTime\":\"2026-03-04T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":50,\"totalAtEnd\":10,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s5\",\"date\":\"2026-03-05\",\"startTime\":\"2026-03-05T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":7,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"s3\",\"date\":\"2026-03-03\",\"startTime\":\"2026-03-03T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":6,\"totalAtEnd\":1,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s1\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":4,\"totalAtEnd\":4,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s2\",\"date\":\"2026-03-02\",\"startTime\":\"2026-03-02T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":-9,\"totalAtEnd\":0,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s4\",\"date\":\"2026-03-04\",\"startTime\":\"2026-03-04T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":50,\"totalAtEnd\":10,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"s5\",\"date\":\"2026-03-05\",\"startTime\":\"2026-03-05T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":7,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "sessions with unparseable start times fall back to string order": {
+  "result": "[{\"id\":\"x2\",\"date\":\"2026-03-02\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":2,\"totalAtEnd\":5,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"x1\",\"date\":\"2026-03-01\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":1,\"totalAtEnd\":4,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"x0\",\"date\":\"<undefined>\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":3,\"totalAtEnd\":3,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"x2\",\"date\":\"2026-03-02\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":2,\"totalAtEnd\":5,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"x1\",\"date\":\"2026-03-01\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":1,\"totalAtEnd\":4,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"x0\",\"date\":\"<undefined>\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":3,\"totalAtEnd\":3,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   true,
+   true
+  ]
+ },
+ "durationMinutes-only sessions get durationSeconds; sessions with neither stay as they are": {
+  "result": "[{\"id\":\"m1\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":720,\"durationMinutes\":12,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"m2\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":\"<undefined>\",\"durationMinutes\":\"<undefined>\",\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"m3\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":0,\"durationMinutes\":5,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"m1\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":720,\"durationMinutes\":12,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"m2\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":\"<undefined>\",\"durationMinutes\":\"<undefined>\",\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"m3\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":0,\"durationMinutes\":5,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   true,
+   true
+  ]
+ },
+ "null, bad-date and date-only sessions": {
+  "result": "[{\"id\":\"dateonly\",\"date\":\"2026-03-01\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"neither\",\"date\":\"<undefined>\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"ok\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[null,{\"id\":\"bad\",\"date\":\"2026-03-01\",\"startTime\":\"not a date\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"dateonly\",\"date\":\"2026-03-01\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"neither\",\"date\":\"<undefined>\",\"startTime\":\"<undefined>\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"ok\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   true,
+   true
+  ]
+ },
+ "legacy v8 total time becomes one synthetic session dated from createdAt": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2025-12-24\",\"startTime\":\"2025-12-24T12:00:00.000Z\",\"endTime\":\"2026-01-02T12:00:00.000Z\",\"durationSeconds\":5400,\"durationMinutes\":90,\"stitchesCompleted\":3,\"stitchesUndone\":0,\"netStitches\":3,\"totalAtEnd\":3,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"id\":\"proj_old\",\"name\":\"Old\",\"w\":4,\"h\":3,\"totalTime\":5400,\"createdAt\":\"2025-12-24T12:00:00.000Z\",\"updatedAt\":\"2026-01-02T12:00:00.000Z\",\"done\":[1,0,1,1,0,0,0,0,0,0,0,0]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "legacy total time with a createdAt of today is moved back a day": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2026-05-19\",\"startTime\":\"2026-05-20T10:00:00.000Z\",\"endTime\":\"2026-05-20T11:00:00.000Z\",\"durationSeconds\":61,\"durationMinutes\":1,\"stitchesCompleted\":0,\"stitchesUndone\":0,\"netStitches\":0,\"totalAtEnd\":0,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"id\":\"proj_today\",\"w\":4,\"h\":3,\"totalTime\":61,\"createdAt\":\"2026-05-20T10:00:00.000Z\",\"updatedAt\":\"2026-05-20T11:00:00.000Z\"}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "legacy total time with numeric, padded and digit-string timestamps": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2025-11-02\",\"startTime\":\"2025-11-02T12:00:00.000Z\",\"endTime\":\"2026-01-02T12:00:00.000Z\",\"durationSeconds\":120,\"durationMinutes\":2,\"stitchesCompleted\":0,\"stitchesUndone\":0,\"netStitches\":0,\"totalAtEnd\":0,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"id\":\"proj_num\",\"w\":2,\"h\":2,\"totalTime\":120,\"createdAt\":1762084800000,\"updatedAt\":\" 1767355200000 \"}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "legacy total time with only updatedAt": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2025-10-10\",\"startTime\":\"2025-10-10T12:00:00.000Z\",\"endTime\":\"2025-10-10T12:00:00.000Z\",\"durationSeconds\":120,\"durationMinutes\":2,\"stitchesCompleted\":0,\"stitchesUndone\":0,\"netStitches\":0,\"totalAtEnd\":0,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"id\":\"proj_upd\",\"w\":2,\"h\":2,\"totalTime\":120,\"updatedAt\":\"2025-10-10T12:00:00.000Z\"}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "legacy total time with unusable dates falls back to yesterday": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2026-05-19\",\"startTime\":\"2026-05-19T12:00:00.000Z\",\"endTime\":\"2026-05-19T12:00:00.000Z\",\"durationSeconds\":120,\"durationMinutes\":2,\"stitchesCompleted\":0,\"stitchesUndone\":0,\"netStitches\":0,\"totalAtEnd\":0,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"id\":\"proj_nodate\",\"w\":2,\"h\":2,\"totalTime\":120,\"createdAt\":\"garbage\",\"updatedAt\":{}}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "legacy compact pattern with total time and no id": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2026-01-05\",\"startTime\":\"2026-01-05T12:00:00.000Z\",\"endTime\":\"2026-01-05T12:00:00.000Z\",\"durationSeconds\":30,\"durationMinutes\":1,\"stitchesCompleted\":0,\"stitchesUndone\":0,\"netStitches\":0,\"totalAtEnd\":0,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":8,\"p\":[[\"310\"],[\"311\",\"b\"],[\"\",\"k\"]],\"w\":3,\"h\":1,\"totalTime\":30,\"createdAt\":\"2026-01-05T12:00:00.000Z\"}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "deleted session ids stop the legacy session being invented": {
+  "result": "[]",
+  "projectAfter": "{\"v\":9,\"id\":\"proj_del\",\"w\":2,\"h\":2,\"totalTime\":600,\"deletedSessionIds\":[\"sess_legacy\"],\"createdAt\":\"2026-01-05T12:00:00.000Z\"}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": []
+ },
+ "an empty deletedSessionIds list does not stop it": {
+  "result": "[{\"id\":\"sess_legacy\",\"date\":\"2026-01-05\",\"startTime\":\"2026-01-05T12:00:00.000Z\",\"endTime\":\"2026-01-05T12:00:00.000Z\",\"durationSeconds\":600,\"durationMinutes\":10,\"stitchesCompleted\":4,\"stitchesUndone\":0,\"netStitches\":4,\"totalAtEnd\":4,\"percentAtEnd\":0,\"note\":\"Migrated from legacy total time\",\"coloursWorked\":[]}]",
+  "projectAfter": "{\"v\":9,\"id\":\"proj_del0\",\"w\":2,\"h\":2,\"totalTime\":600,\"deletedSessionIds\":[],\"createdAt\":\"2026-01-05T12:00:00.000Z\",\"done\":[1,1,1,1]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "no sessions and no total time": {
+  "result": "[]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": []
+ },
+ "statsSessions absent altogether": {
+  "result": "[]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{}}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": []
+ },
+ "a recovered pending session is appended": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"pend\",\"date\":\"2026-03-09\",\"startTime\":\"2026-03-09T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   false
+  ]
+ },
+ "a single pending object (not an array) is accepted": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"pend1\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   false
+  ]
+ },
+ "a pending session with a higher correction revision replaces the stored one": {
+  "result": "[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"historyCorrectionRevision\":2,\"historyCorrectedAt\":2000000000000,\"note\":\"pending\"}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"historyCorrectionRevision\":1,\"note\":\"stored\"}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   false
+  ]
+ },
+ "an edit made after the correction wins over a pending one": {
+  "result": "[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"historyCorrectionRevision\":1,\"editedAt\":\"2033-05-18T03:33:20.000Z\",\"note\":\"stored\"}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"historyCorrectionRevision\":1,\"editedAt\":\"2033-05-18T03:33:20.000Z\",\"note\":\"stored\"}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true
+  ]
+ },
+ "a pending copy that is not newer leaves the stored session alone": {
+  "result": "[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"note\":\"stored\"}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"edit\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"],\"note\":\"stored\"}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true
+  ]
+ },
+ "pending entries without an id, null entries and non-objects are skipped": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"kept\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   false
+  ]
+ },
+ "pending sessions join the totalAtEnd backfill because they are merged after it": {
+  "result": "[{\"id\":\"a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":2,\"totalAtEnd\":2,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"pend\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":4,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":2,\"totalAtEnd\":2,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   false
+  ]
+ },
+ "pending data that is not JSON is ignored": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true
+  ]
+ },
+ "a project without an id looks for the unkeyed pending entry": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]},{\"id\":\"orphan\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":20,\"totalAtEnd\":20,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true,
+   false
+  ]
+ },
+ "blends, custom colours, half and partial stitches and progress do not change the sessions": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":3,\"totalAtEnd\":3,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,1,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[1,{\"fwd\":{\"id\":\"310+550\"},\"bck\":{\"id\":\"CUSTOM-1\",\"rgb\":[1,2,3]}}]],\"halfDone\":[[\"1\",{\"fwd\":true}]],\"partialStitches\":[[4,{\"tl\":{\"id\":\"666\"},\"br\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":3,\"totalAtEnd\":3,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}],\"partialDone\":[[4,[\"tl\"]]],\"symbols\":{\"310\":\"A\"},\"knots\":[{\"x\":1,\"y\":1,\"id\":\"310\"}],\"knotsDone\":[\"1,1\"],\"beads\":[]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true
+  ]
+ },
+ "only skip and empty cells, so a backfill is clamped to zero": {
+  "result": "[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":8,\"totalAtEnd\":0,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]",
+  "projectAfter": "{\"version\":11,\"id\":\"proj_1\",\"page\":\"tracker\",\"name\":\"Current\",\"createdAt\":\"2026-02-01T12:00:00.000Z\",\"updatedAt\":\"2026-03-02T12:00:00.000Z\",\"settings\":{\"sW\":4,\"sH\":3,\"fabricCt\":14},\"bsLines\":[],\"done\":[1,1,0,0,0,0,0,0,0,0,0,0],\"halfStitches\":[[2,{\"fwd\":{\"id\":\"310\"}}]],\"halfDone\":[[2,{\"fwd\":true}]],\"partialStitches\":[[3,{\"tl\":{\"id\":\"310+550\"}}]],\"parkMarkers\":[],\"sessions\":[],\"threadOwned\":{},\"statsSessions\":[{\"id\":\"sess_a\",\"date\":\"2026-03-01\",\"startTime\":\"2026-03-01T09:00:00.000Z\",\"endTime\":\"2026-03-01T10:00:00.000Z\",\"durationSeconds\":3600,\"durationMinutes\":60,\"stitchesCompleted\":20,\"stitchesUndone\":0,\"netStitches\":8,\"totalAtEnd\":0,\"percentAtEnd\":5,\"coloursWorked\":[\"310\"]}]}",
+  "patternUnchanged": true,
+  "resultIsInputArray": false,
+  "sameObjectAsInput": [
+   true
+  ]
+ }
+}
