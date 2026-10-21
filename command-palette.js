@@ -58,13 +58,6 @@
   var PAGE_ACTIONS = { creator: [], tracker: [], manager: [] };
   var EXTRA_ACTIONS = [];
 
-  function _navigate(href, sameDocFn) {
-    if (typeof sameDocFn === 'function' && location.pathname.toLowerCase().indexOf('index.html') !== -1) {
-      try { sameDocFn(); return; } catch (_) { console.warn('CommandPalette: same-doc nav failed, falling back to full nav', _); }
-    }
-    location.href = href;
-  }
-
   // Build the static action set. We construct it lazily per-open so action
   // availability (e.g. `condition`) reflects current state.
   function buildStaticActions() {
@@ -273,7 +266,6 @@
   var overlayEl = null;
   var inputEl = null;
   var listEl = null;
-  var hintEl = null;
   var currentResults = [];
   var highlightIdx = 0;
   var loadingRecent = false;
@@ -362,7 +354,6 @@
     overlayEl = overlay;
     inputEl = input;
     listEl = list;
-    hintEl = hint;
   }
 
   function onInputKey(e) {

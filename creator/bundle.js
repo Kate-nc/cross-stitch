@@ -10206,11 +10206,6 @@ window.useCleanupMode = function useCleanupMode(state, history) {
     return result !== null ? result : prePat[idx];
   }
 
-  // Thin wrapper retained so internal callers (applyCleanup, tie-break) keep working.
-  function _findEntry(prePat, id) {
-    return window.cleanupFindEntry(prePat, id);
-  }
-
   // ── Apply cleanup ─────────────────────────────────────────────────────────
   var applyCleanup = useCallback(function() {
     var pat  = state.pat;
