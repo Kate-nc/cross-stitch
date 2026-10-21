@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-creator-bundle.js — Concatenates creator/ files in dependency order
 // Run: node build-creator-bundle.js
-// Outputs: creator/bundle.js
+// Outputs: creator/bundle.js, creator/extras-bundle.js, creator/import-wizard-bundle.js
 //
 const fs = require('fs');
 const path = require('path');

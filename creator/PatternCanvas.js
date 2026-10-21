@@ -1,6 +1,6 @@
 /* creator/PatternCanvas.js — The interactive pattern canvas component.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: drawPatternBaseOnCanvas, drawPatternOverlayOnCanvas (canvasRenderer.js),
                CreatorContext, GenerationContext (context.js) */
 

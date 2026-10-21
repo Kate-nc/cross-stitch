@@ -802,36 +802,18 @@ class PatternKeeperImporter {
       pages.push(alternates.keep);
     }
 
-    // Initial naive layout: just put them in a row
-    // A more advanced heuristic: Check text items for overlapping row/col numbers
-    // For now, we'll try to guess based on standard width.
-    // Usually, charts with many pages form a grid. Let's find overlapping symbols.
+    // Fallback strip, used when no rulers say where the pages go: place the
+    // pages one after another along a single row in page order, each starting
+    // where the previous page's columns end. Nothing is trimmed here, so rows
+    // or columns a publisher repeats at a page break are still counted twice at
+    // this point. The caller reports this layout as 'sequential', then tries
+    // guessPageArrangement() (page sizes and edge matching, which also measures
+    // that overlap); the stitcher can still arrange the pages by hand in the
+    // import review.
 
     let currentCol = 0;
     let currentRow = 0;
     const maxWidthPerPage = pages[0].grid.columns;
-
-    // Pattern Keeper PDFs typically have some margin overlap, e.g., 3 cells.
-    // Instead of doing full symbol matching which is error-prone before we normalize viewport coords,
-    // we'll place pages sequentially, wrapping when we detect page labels or when a page doesn't seem to have overlap to the left.
-    // For a robust implementation without complex symbol matching, we'll arrange them in a single row if we can't detect a multi-row structure.
-
-    // As a better heuristic: assume a 2D layout based on standard page sizes.
-    // If a page has overlap on top, it's a new row.
-
-    // Let's implement a simpler approach: we just concatenate horizontally, and if we see a page that is the same size as the first one, it might be a new column. But we don't know the rows.
-    // Actually, Pattern Keeper often provides page maps.
-    // Let's use a very basic sequential layout for now, assuming no overlap, wrapped at some column limit if we had one.
-    // Without full overlap detection, let's just arrange them sequentially horizontally.
-    // Wait, the user specifically mentioned:
-    // "Pattern Keeper PDFs split large charts across multiple pages with overlapping rows/columns at the edges
-    // Detect overlap regions by comparing symbols in the margin areas of adjacent pages"
-
-    // To do this right, we need to extract symbols FIRST, then stitch.
-    // But our architecture extracts symbols AFTER layout.
-    // Let's just do sequential placement without overlap for the *layout* pass,
-    // and if we want overlap, we can do it after extracting symbols.
-    // For now, let's just pack them horizontally without the arbitrary 50 limit.
 
     pages[0].globalOffsetCol = 0;
     pages[0].globalOffsetRow = 0;
@@ -839,7 +821,7 @@ class PatternKeeperImporter {
     let currentX = pages[0].grid.columns;
 
     for (let i = 1; i < pages.length; i++) {
-        // Just stack them horizontally for now, using the actual grid columns
+        // Stack the pages horizontally, using each page's actual grid width.
         pages[i].globalOffsetCol = currentX;
         pages[i].globalOffsetRow = 0;
         currentX += pages[i].grid.columns;

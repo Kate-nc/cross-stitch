@@ -603,9 +603,10 @@ function ManagerApp() {
         tx.objectStore("manager_state").put(userProfile, "userProfile");
       } catch (err) { console.error("Profile auto-save failed:", err); }
       // VER-EL-SCR-031-01-01: mirror profile fields to UserPrefs so Creator's
-      // defaults (which read from cs_pref_*) stay in sync. Dispatch
-      // cs:prefsChanged per the convention in user-prefs.js so any live
-      // listeners react without requiring a reload.
+      // defaults (which read from cs_pref_*) stay in sync. UserPrefs.set
+      // already dispatches cs:prefchange; cs:prefsChanged is dispatched as well
+      // (as preferences-modal.js does) so its live listeners react without
+      // requiring a reload.
       try {
         if (window.UserPrefs && typeof window.UserPrefs.set === "function") {
           const map = {

@@ -23,12 +23,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-<!-- React + pako only. /home does NOT need Babel Standalone (~330 KB transfer,
-     ~1.4 MB parse): home-app.js and every other script loaded here use
-     React.createElement directly with no JSX. Verified Apr 2026; the per-tool
-     pages (index/create/manager/stitch) still load Babel for tracker /
-     creator / manager apps. Cross-page browser-cache benefit is preserved
-     once the user navigates to one of those tools. -->
+<!-- React + pako only. No page in the app loads Babel in the browser: the JSX
+     entry files (tracker-app.js, creator-main.js, manager-app.js, embroidery.js)
+     are precompiled to compiled/*.compiled.js by build-runtime-js.js, and the
+     tool pages (index/create/stitch/manager/embroidery) fetch those through
+     window.loadScript. /home loads none of them: home-app.js and every other
+     script loaded here use React.createElement directly with no JSX. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-rNlaE5fs9dGIjmxWDALQh/RBAaGRYT5ChrzHo6tRfgrZ36iRFAiquP5g41Jsv+0j" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -60,9 +60,11 @@
 <script src="runtime-loaders.js"></script>
 <script src="lazy-modules.js"></script>
 <script src="modals.js"></script>
-<!-- Not deferred: the compiled app (loaded dynamically below) reads
-     window.WelcomeWizard when it first renders, and a deferred script
-     could run after it, silently skipping first-visit walkthroughs. -->
+<!-- Not deferred, matching the tool pages: there the compiled app reads
+     window.WelcomeWizard when it first renders, and a deferred script could
+     run after it, silently skipping first-visit walkthroughs. home-app.js
+     does not reference it; here only preferences-modal.js (deferred) calls
+     its reset helpers, guarded by a presence check. -->
 <script src="onboarding-wizard.js"></script>
 <script src="cross-tab-coord.js"></script>
 <script src="cross-tab-resolution.js"></script>

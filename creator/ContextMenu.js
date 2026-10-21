@@ -1,5 +1,5 @@
 /* creator/ContextMenu.js — Right-click context menu for the pattern canvas.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext. Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: CreatorContext (context.js) */
 
 window.CreatorContextMenu = function CreatorContextMenu() {

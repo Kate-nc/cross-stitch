@@ -263,13 +263,13 @@ The app runs without a bundler, but some files are generated and committed:
 | `node build-runtime-js.js` (`npm run build:runtime-js`) | `compiled/*.compiled.js` | After editing `tracker-app.js`, `creator-main.js`, `manager-app.js` or `embroidery.js` (JSX, precompiled so there is no in-browser Babel) |
 | `node build-import-bundle.js` | `import-engine/bundle.js` | After editing anything in `import-engine/` |
 | `node build-symbol-font.js` | `assets/fonts/CrossStitchSymbols.ttf` (+ base64) | After changing the PDF symbol set |
-| `npm run build` | creator bundle + runtime JS | — |
+| `npm run build` | creator bundle + runtime JS + service-worker fingerprints (`build-sw.js`); not the import bundle or the symbol font | — |
 
 Never edit generated files by hand. `npm test` and the pre-commit hook fail when `compiled/` is stale (`node build-runtime-js.js --check` says which file).
 
 ### Git hooks
 
-`npm install` points Git at `.husky/`. The pre-commit hook runs the terminology lint and, when runtime entry files are staged, the `compiled/` staleness check.
+`npm install` points Git at `.husky/`. When a `.js`, `.jsx`, `.md` or `.html` file is staged, the pre-commit hook runs the terminology lint, the `compiled/` staleness check (only if a runtime entry file or `compiled/` is staged) and `node build-sw.js --check`.
 
 ### Versioning
 
@@ -325,7 +325,8 @@ Pages communicate through `CustomEvent`s on `window` (and `BroadcastChannel` for
 | `cs:backupRestored` | A backup was restored |
 | `cs:stashChanged` | Thread inventory changed |
 | `cs:patternsChanged` | Pattern library changed |
-| `cs:prefsChanged` | A user preference changed |
+| `cs:prefchange` | `UserPrefs` wrote a preference. `detail.key` is the preference key, `null` after `UserPrefs.reset()`, or `"trackerAutomaticSnapshots"` after a portable-preference restore |
+| `cs:prefsChanged` | Dispatched by callers (Preferences panel, header theme toggle, coachmarks, Manager profile, sync merge) after they change a preference. `detail` is usually `{ key, value }`; the sync merge sends none. `UserPrefs` does not dispatch it. The UI callers write through `UserPrefs.set` and so fire both events; the sync merge writes storage directly and fires only this one |
 | `cs:syncStatusChanged` | Sync state changed (drives the cloud icon) |
 | `cs:openHelp`, `cs:openShortcuts`, `cs:openPreferences` | Open the Help drawer / shortcuts / Preferences |
 | `cs:showWelcome` | Replay a page's welcome walkthrough |
