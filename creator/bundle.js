@@ -13233,6 +13233,19 @@ function creatorKnotsForSave(knots, projectBrand) {
   return window.Knots && window.Knots.forSave ? window.Knots.forSave(knots, projectBrand) : knots.map(function (k) { return Object.assign({}, k); });
 }
 
+// Quarter stitches as saved by the download, Tracker hand-off and auto-save
+// flows: [[cellIndex, { TL?, TR?, BL?, BR? }]] in Map order, each quadrant
+// { id, rgb } plus a brand only when it differs from the project's. `state` is
+// read for threadBrand at each quadrant, exactly where the flows used to.
+function creatorPartialStitchesForSave(partialStitches, state) {
+  var psArr = [];
+  partialStitches.forEach(function(v, k) {
+    var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
+    psArr.push([k, e]);
+  });
+  return psArr;
+}
+
 window.useProjectIO = function useProjectIO(state, history, options) {
   // The Convert draft this tab is working on: { id, blob, name, type,
   // createdAt, restore } (restore = settings to apply once the picture loads).
@@ -13298,11 +13311,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (!pat || !pal) return;
     if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
-    var psArr = [];
-    partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
-      psArr.push([k, e]);
-    });
+    var psArr = creatorPartialStitchesForSave(partialStitches, state);
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: state.projectIdRef.current, page: "creator", name: finalName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
@@ -13369,11 +13378,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
     if (!pat || !pal) return;
     if (!projectIdRef.current) projectIdRef.current = ProjectStorage.newId();
-    var psArr = [];
-    partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
-      psArr.push([k, e]);
-    });
+    var psArr = creatorPartialStitchesForSave(partialStitches, state);
     var project = Object.assign({}, state.trackerFieldsRef.current, {
       version: 11, id: projectIdRef.current, page: "creator", name: projectName,
       designer: state.projectDesigner || "", description: state.projectDescription || "",
@@ -14322,11 +14327,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
   React.useEffect(function() {
     var pat = state.pat, pal = state.pal;
     if (!pat || !pal) return;
-    var psArr = [];
-    state.partialStitches.forEach(function(v, k) {
-      var e = {}; ["TL","TR","BL","BR"].forEach(function(q) { if (v[q]) { e[q] = { id: v[q].id, rgb: v[q].rgb }; var qb = window.cellBrandForSave ? window.cellBrandForSave(v[q], state.threadBrand) : undefined; if (qb) e[q].brand = qb; } });
-      psArr.push([k, e]);
-    });
+    var psArr = creatorPartialStitchesForSave(state.partialStitches, state);
     if (!state.projectIdRef.current) state.projectIdRef.current = ProjectStorage.newId();
     if (!state.createdAtRef.current) state.createdAtRef.current = new Date().toISOString();
     // Write the active-project pointer SYNCHRONOUSLY before kicking off the
