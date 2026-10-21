@@ -15309,7 +15309,7 @@ window.CreatorGenerateProgress = function CreatorGenerateProgress(props) {
 /* ─── PatternCanvas.js ─── */
 /* creator/PatternCanvas.js — The interactive pattern canvas component.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: drawPatternBaseOnCanvas, drawPatternOverlayOnCanvas (canvasRenderer.js),
                CreatorContext, GenerationContext (context.js) */
 
@@ -16801,7 +16801,7 @@ window.SpecialtyStitchPanel = function SpecialtyStitchPanel(p) {
 /* ─── ToolStrip.js ─── */
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: CreatorContext, GenerationContext (context.js) */
 
 // "How strict" for Fix outline colours and Reduce confetti (audit
@@ -19364,7 +19364,7 @@ window.CropModal = function CropModal() {
 /* ─── Sidebar.js ─── */
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {
@@ -21903,7 +21903,7 @@ window.CreatorToastContainer = function CreatorToastContainer() {
 
 /* ─── ContextMenu.js ─── */
 /* creator/ContextMenu.js — Right-click context menu for the pattern canvas.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext. Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: CreatorContext (context.js) */
 
 window.CreatorContextMenu = function CreatorContextMenu() {
@@ -22069,7 +22069,7 @@ window.CreatorContextMenu = function CreatorContextMenu() {
 /* ─── PatternTab.js ─── */
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js),
                CreatorContext, GenerationContext (context.js) */
 
@@ -22368,7 +22368,7 @@ window.CreatorPatternTab = function CreatorPatternTab() {
 
 /* ─── ProjectTab.js ─── */
 /* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext. Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: Section, SliderRow (components.js),
                fmtTimeL, estimateText, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */

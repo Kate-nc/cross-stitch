@@ -134,7 +134,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "c56fea41542662c8160260e9dd2680c7bfbd68aa9589550d4800675f596cbf84";
+var BUILD_ID = "683d07594e6fc40419a489752b394cdcccdd4de2b2e03ed02d4ec4e4ce684166";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -275,13 +275,13 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "24c72248d2cc96b7cd6d3784b25f0634ab20e86a443e548a947c29972a816b29"
+    "sha256": "9055db46d7f24c96df3690de3632291cf1e1ee115aa94575748a8fc718f21730"
   },
   "./index.html": {
-    "sha256": "1fa029b9e197344b28ca2a29a45720eb65d239e3b2bf1bf47651916b0847ed15"
+    "sha256": "93c6102b6ac59879626330273defd7737ad047563a0fdd760f9cb468d55e0159"
   },
   "./create.html": {
-    "sha256": "648ce260d86f69fe0f9b1a5b1fbd3f82561df233c6439cff29a7a0eb815fe795"
+    "sha256": "ae22905cafa31a8e3c2816d61db182ddee1a0af02a6287842fbf7d88a475389b"
   },
   "./stitch.html": {
     "sha256": "d272366a54fd47eb71b30332acec1aee1f6f390bfc82fb98842236651435819d"
@@ -371,7 +371,7 @@ var BUILD_ASSETS = {
     "sha256": "90287c017c37e47311f1e0e3b13ddb6ede89c9707c4683e9da7a5fd6c608ba35"
   },
   "./icons.js": {
-    "sha256": "bf05a07640770bd97eecfefef9dd4040195d0fb870a7c22fdbcba66f4d89a361"
+    "sha256": "c0a0b4ac8b56a2ea8cae0f14e6e0c805473c8f6107a208aa54aa96b902ffedc0"
   },
   "./import-formats.js": {
     "sha256": "d31e150d933f08b59fff58ac8d75b986d73742b10be4d6df8e66dc040038241a"
@@ -443,10 +443,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "78688602e1fa12492398eb5f6f2b5a224b758bbd4ec2f9e8499abe052599ca52"
+    "sha256": "b40dde1502cd5b202ec0bbb669e81209b42d89dbd0ba298eabea0ed987ed60c3"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "d4bc30fed96f06e21dbe49bbe5c4d86c0f3d9ed70d4841b45b79e0fc68a5655a"
+    "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "4f6b4f3ae2df73abf31f4b978350b29fa42f13b510e8a9e2c4303c0ad6f79712"
@@ -461,25 +461,25 @@ var BUILD_ASSETS = {
     "sha256": "ba933c94c9e019aa88602e5ef2276c1db47917cb77786e011c9f5113b0088ec6"
   },
   "./compiled/manager-app.compiled.js": {
-    "sha256": "8e0f1074ad2e3ea7f634e40357eb73a90f65b08540f46051899ff94743b4b842"
+    "sha256": "d6a5b4a6f2d858410332694a3473a2179ab89ae3f0f5824733286beb7ee3b2f0"
   },
   "./compiled/embroidery.compiled.js": {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "1efb21632ef469e519c421441124096cb49d27453bead53aeae334b6fa9dd3bf"
+    "sha256": "9dc6960d7450860bf24bc9e311ffaf63a642ef877f7083e397d2e2fbb0289328"
   },
   "./compiled/tracker-app.compiled.js": {
     "sha256": "bd6e7c8315a061666c0eda4d8629a9d24e0021a6dec34cd84cb2fddfed63538e"
   },
   "./stats-activity.js": {
-    "sha256": "3f05b3da0477cb23b1084e4f298a97fc79456f1b53e949da1f0a967e905f203b"
+    "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
   },
   "./stats-insights.js": {
     "sha256": "23ed854586fbd814a7ab9886fbd019f9b278a8a71f0a85ecb7d1acbad4e116bc"
   },
   "./stats-page.js": {
-    "sha256": "993396b4e91cf65905170bd94893b912bfb2220a03657e11ffa0d0a9eda51c27"
+    "sha256": "e19b192cb82986627896f0284958e99e0df84e3ccd3b991622374d3f6211afe3"
   },
   "./analysis-worker.js": {
     "sha256": "a0d3b9526ec89bef46ff8d716915854502b25aab8885583811080e37cf04ef7b"
@@ -542,7 +542,7 @@ var BUILD_ASSETS = {
     "sha256": "524d936a439d9395a7d93a77e6addc9c2224e3a46076f7aeb702985b740c4713"
   },
   "./pdf-importer.js": {
-    "sha256": "c437b4e471e64461850631c12fa32d58e2a9ddc23b0f3a8f6791948bb7bc4c85"
+    "sha256": "16efd4a61bb6f53e055a134e2f7bd7dee8e5d4d412c1c1ede878189e6fea390c"
   },
   "./backup-restore.js": {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"

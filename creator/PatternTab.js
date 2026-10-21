@@ -1,6 +1,6 @@
 /* creator/PatternTab.js — The pattern view tab (canvas area + palette chips).
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: PatternCanvas (PatternCanvas.js), Tooltip (components.js),
                CreatorContext, GenerationContext (context.js) */
 

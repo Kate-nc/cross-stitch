@@ -1,6 +1,6 @@
 /* creator/Sidebar.js — Settings sidebar for the Creator app.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
 window.CreatorSidebar = function CreatorSidebar() {

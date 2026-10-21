@@ -1,5 +1,5 @@
 /* creator/ProjectTab.js — Project planning: time estimate, finished size, cost, thread organiser.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext. Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: Section, SliderRow (components.js),
                fmtTimeL, estimateText, skeinEst (helpers.js), FABRIC_COUNTS (constants.js),
                StashBridge (stash-bridge.js, optional), CreatorContext (context.js) */

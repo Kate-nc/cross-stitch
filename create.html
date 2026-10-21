@@ -87,7 +87,7 @@
   } catch (_) { /* prefetch is an optimisation; never let it break the page */ }
 }());
 </script>
-<!-- Flag set before any Babel scripts so TrackerApp's guard fires correctly -->
+<!-- Flag set before the tracker bundle loads so TrackerApp's guard (the `if(!window.__UNIFIED__)` mount at the end of tracker-app.js) skips its standalone mount -->
 <script>
 window.__UNIFIED__=true;
 window.onerror=function(m,s,l,c,e){var d=document.getElementById('root');if(d){d.innerHTML='<pre style="color:red;padding:20px;font:14px monospace;white-space:pre-wrap">ERROR: '+m+'\nSource: '+s+'\nLine: '+l+':'+c+'\n'+(e&&e.stack?e.stack:'')+'</pre>';}};
@@ -245,8 +245,9 @@ window.loadCreatorMain = function() {
   });
   return window.__creatorMainLoadPromise;
 };/* stats-activity.js / stats-insights.js / stats-page.js are pure
-   React.createElement (no JSX), so they're injected as plain <script src>
-   without Babel.transform. SW + HTTP cache handle freshness. */
+   React.createElement (no JSX), so they need no compile step and are injected
+   as plain <script src> via window.loadScript. SW + HTTP cache handle
+   freshness. */
 window.loadStatsActivity = function() {
   if (window.__statsActivityLoading || window.__statsActivityLoaded) return window.__statsActivityLoadPromise || Promise.resolve();
   window.__statsActivityLoading = true;

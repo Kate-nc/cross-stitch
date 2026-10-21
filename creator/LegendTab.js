@@ -1,5 +1,5 @@
 /* creator/LegendTab.js — Materials tab: thread legend + fabric calculator.
-   Reads from CreatorContext. Loaded as a plain <script> before the main Babel script.
+   Reads from CreatorContext. Concatenated into creator/extras-bundle.js (loaded with defer), so callers check for the global first.
    Depends on: skeinEst (helpers.js), stitchesToSkeins (threadCalc.js),
                FABRIC_COUNTS (constants.js), StashBridge (stash-bridge.js),
                CreatorContext (context.js) */

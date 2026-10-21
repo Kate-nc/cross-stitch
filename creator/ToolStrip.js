@@ -1,6 +1,6 @@
 /* creator/ToolStrip.js — The main tool strip bar above the pattern canvas.
    Reads from CreatorContext and GenerationContext.
-   Loaded as a plain <script> before the main Babel script.
+   Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: CreatorContext, GenerationContext (context.js) */
 
 // "How strict" for Fix outline colours and Reduce confetti (audit

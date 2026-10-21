@@ -1,5 +1,5 @@
 /* icons.js — Inline SVG icon components for the cross-stitch app.
-   Loaded as a plain <script> after React, before any Babel/JSX scripts.
+   Loaded as a plain <script> after React, before the app scripts that call window.Icons.
    Defines window.Icons with functions that return React SVG elements.
    All icons are 1em × 1em, stroke-based lineart using currentColor. */
 

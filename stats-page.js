@@ -1,6 +1,6 @@
 // stats-page.js — Tier A Stats Page
 // Exposes window.StatsPage as the main component.
-// Uses h = React.createElement convention, compiled via Babel at runtime.
+// Uses h = React.createElement convention, a plain script with no JSX, so there is no compile step.
 // Wrapped in a function so its top-level names (useState, h, ymd, ...) stay private: two plain scripts
 // that both declared them failed with "Identifier has already been declared" when loaded on one page.
 (function () {

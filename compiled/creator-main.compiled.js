@@ -2764,7 +2764,7 @@ function UnifiedApp() {
   const pendingTrackerProject = React.useRef(null);
   React.useEffect(() => {
     if (trackerReady) return;
-    // loadTrackerApp is defined by index.html but Babel-compiled async, so the typeof guard avoids a race on first mode switch.
+    // loadTrackerApp is defined by an inline script in create.html / index.html and fetches the tracker bundle on demand; the typeof guard covers a page that does not define it.
     if ((mode === 'track' || mode === 'stats') && typeof window.loadTrackerApp === 'function') window.loadTrackerApp();
     const poll = setInterval(() => {
       if (typeof window.TrackerApp !== 'undefined') {
@@ -2777,7 +2777,7 @@ function UnifiedApp() {
 
   // Poll for StatsPage readiness whenever we enter stats mode.
   // Without this, the first click shows GlobalStatsDashboard (old view) because
-  // Babel compiles stats-page.js asynchronously after mode is already set to 'stats'.
+  // stats-page.js is fetched on demand (loadStatsPage), so it may not have loaded yet when mode is first set to 'stats'.
   React.useEffect(() => {
     if (mode !== 'stats' || statsPageReady) return;
     if (typeof window.loadStatsPage === 'function') window.loadStatsPage();
