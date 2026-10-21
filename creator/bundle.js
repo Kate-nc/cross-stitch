@@ -1372,6 +1372,38 @@ function _drawCellHighlight(ctx2d, px, py, cSz, rgb, hl) {
 }
 
 /**
+ * Draw a cell's quarter, half and three-quarter stitches over its base fill.
+ * Shared by the full and base draw pipelines; each caller looks up the cell's
+ * partial-stitch entry and skips this call when there is none. The helpers
+ * called here set their own fill, stroke, line and font state, so a caller
+ * that caches those must treat them as unknown afterwards.
+ */
+function _drawPartialStitches(ctx2d, px, py, cSz, psEntry, m, cmap, dimAlpha, view) {
+  var instr = analysePartialStitches(psEntry, m);
+  for (var i = 0; i < instr.length; i++) {
+    var inst = instr[i];
+    var si = cmap ? cmap[inst.colour.id] : null;
+    var sym = si ? si.symbol : null;
+    switch (inst.type) {
+      case "three-quarter":
+        drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, sym);
+        break;
+      case "quarter":
+        drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, sym);
+        break;
+      case "half":
+        drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
+        if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
+        if (cSz >= 10 && sym && (view === "symbol" || view === "both")) {
+          drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, sym,
+            view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
+        }
+        break;
+    }
+  }
+}
+
+/**
  * Draw marching-ants boundary for "outline" mode.
  * Scans the visible grid for boundary edges (selected → non-selected)
  * and draws animated dashed lines along them.
@@ -1664,27 +1696,7 @@ window.drawPatternOnCanvas = function drawPatternOnCanvas(ctx2d, offX, offY, dW,
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        var _instr = analysePartialStitches(psEntry, m);
-        _instr.forEach(function(inst) {
-          var _si = cmap ? cmap[inst.colour.id] : null;
-          var _sym = _si ? _si.symbol : null;
-          switch (inst.type) {
-            case "three-quarter":
-              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
-              break;
-            case "quarter":
-              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
-              break;
-            case "half":
-              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
-              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
-              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
-                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
-                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
-              }
-              break;
-          }
-        });
+        _drawPartialStitches(ctx2d, px, py, cSz, psEntry, m, cmap, dimAlpha, view);
       }
     }
   }
@@ -2041,27 +2053,7 @@ window.drawPatternBaseOnCanvas = function drawPatternBaseOnCanvas(ctx2d, offX, o
 
       var psEntry = partialStitches.get(idx);
       if (psEntry) {
-        var _instr = analysePartialStitches(psEntry, m);
-        _instr.forEach(function(inst) {
-          var _si = cmap ? cmap[inst.colour.id] : null;
-          var _sym = _si ? _si.symbol : null;
-          switch (inst.type) {
-            case "three-quarter":
-              drawThreeQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.emptyCorner, dimAlpha, view, _sym);
-              break;
-            case "quarter":
-              drawQuarterStitch(ctx2d, px, py, cSz, inst.colour, inst.corner, dimAlpha, view, _sym);
-              break;
-            case "half":
-              drawHalfTriangle(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha);
-              if (cSz >= 5) drawHalfLine(ctx2d, px, py, cSz, inst.direction, inst.colour.rgb, dimAlpha, Math.max(1, cSz * 0.12));
-              if (cSz >= 10 && _sym && (view === "symbol" || view === "both")) {
-                drawHalfSymbol(ctx2d, px, py, cSz, inst.direction, _sym,
-                  view === "both" ? (luminance(inst.colour.rgb) < 128 ? "#fff" : "#000") : "#333");
-              }
-              break;
-          }
-        });
+        _drawPartialStitches(ctx2d, px, py, cSz, psEntry, m, cmap, dimAlpha, view);
         stylesChanged();
       }
     }
