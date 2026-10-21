@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -96,6 +96,8 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
     if (!prevPreviewRef.current || prevPreviewRef.current === previewSrc) { prevPreviewRef.current = previewSrc; return; }
     var prevSrc = prevPreviewRef.current;
     prevPreviewRef.current = previewSrc;
+    // The old overlay describes the previous update; never draw it on the new picture.
+    setDiffUrl(null);
     var cancelled = false;
     var imgA = new Image(), imgB = new Image();
     var loaded = 0;
@@ -126,13 +128,6 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
     return function() { cancelled = true; };
   }, [previewSrc]);
 
-  useEffect(function() {
-    if (!diffUrl) return;
-    setShowDiff(true);
-    var t = setTimeout(function() { setShowDiff(false); }, 1500);
-    return function() { clearTimeout(t); };
-  }, [diffUrl]);
-
   function handlePointerMove(e) {
     if ((altHeld.current || zoomLocked) && containerRef.current) {
       var rect = containerRef.current.getBoundingClientRect();
@@ -144,11 +139,17 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }
 
   var LENS = 140, ZOOM = 2.5;
+  // Skipped cells are transparent in the preview picture. Behind the preview they
+  // must read as the fabric the finished pattern leaves there, not as the original.
+  var fabricBg = fabricColour || "var(--surface)";
+  // Shape the box from the picture on screen, not the size just typed in: for a
+  // moment after a size change the two differ, and the picture would stretch.
+  var shownW = previewPw || width, shownH = previewPh || height;
 
   return (
     <div>
-      <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+      <div ref={containerRef} data-testid="cmp-box"
+        style={{position:"relative",width:"100%",aspectRatio:`${shownW}/${shownH}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -178,10 +179,12 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
         }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
         <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
-        <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
+        <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
           <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
-        {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
+        {showDiff&&diffUrl&&<div data-testid="cmp-diff" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,pointerEvents:"none",zIndex:4}} aria-hidden="true">
+          <img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt=""/>
+        </div>}
         {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div
@@ -224,7 +227,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           return (
             <div style={{position:"absolute",left:lensL,top:lensT,width:LENS,height:LENS,borderRadius:"50%",overflow:"hidden",border:"2px solid #fff",boxShadow:"0 2px 12px rgba(0,0,0,0.4)",zIndex:10,pointerEvents:"none"}}>
               <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,backgroundImage:`url('${originalSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat"}}/>
-              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitInLensPct}%)`,backgroundImage:`url('${previewSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat",imageRendering:"pixelated"}}/>
+              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitInLensPct}%)`,backgroundColor:fabricBg,backgroundImage:`url('${previewSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat",imageRendering:"pixelated"}}/>
             </div>
           );
         })()}
@@ -239,9 +242,9 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
           {Icons.magnify()} Magnifier
         </button>
-        {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
+        {(diffUrl||showDiff)&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
-          {showDiff?"Hide changes":"Show changes"}
+          {showDiff?"Hide what changed":"Show what changed"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
@@ -1371,7 +1374,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                                 </div>}
                   </div>
                   <div style={{padding:"0 14px 10px"}}>
-                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
+                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph} fabricColour={state.fabricColour}/>
                   </div>
                 </div>}
                 {/* Compare options (audit IMG-05): neighbouring sizes or thread

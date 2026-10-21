@@ -162,12 +162,14 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
 
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
+// Test for the property itself: assigning to a context that lacks `filter`
+// just creates an ordinary property that reads back what was written, so a
+// write-then-read check passes everywhere.
 var _canvasFilterSupported = (function() {
   try {
     var _fc = document.createElement('canvas');
     var _fx = _fc.getContext('2d');
-    _fx.filter = 'brightness(1)';
-    return _fx.filter !== '';
+    return !!_fx && 'filter' in _fx && typeof _fx.filter === 'string';
   } catch (_) { return false; }
 })();
 

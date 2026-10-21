@@ -12,7 +12,10 @@ window.usePreview = function usePreview(state) {
     if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
     var img = state.img;
     var settings = state.conversionSettings;
-    if (!settings) return;
+    // Every early return clears the loading flag the scheduling effect set, so
+    // the spinner can't be left running with nothing pending.
+    function stopLoading() { if (state.setPreviewLoading) state.setPreviewLoading(false); }
+    if (!settings) { stopLoading(); return; }
     // Local aliases for the geometric/cache step (these are pure image-prep
     // values, not pipeline values).
     var sW = settings.sW, sH = settings.sH;
@@ -27,7 +30,7 @@ window.usePreview = function usePreview(state) {
     var dith = settings.dith;
     var showCleanupDiff = state.showCleanupDiff;
 
-    if (!img || !img.src) return;
+    if (!img || !img.src) { stopLoading(); return; }
     var MAX_PREVIEW_AREA = 40000;
     var pw = sW, ph = sH;
     if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
@@ -40,7 +43,7 @@ window.usePreview = function usePreview(state) {
       try { exactResult = runExactPixelPipeline(img, settings); }
       catch (err) {
         state.setPreviewUrl(null); state.setPreviewStats(null);
-        if (state.setPreviewLoading) state.setPreviewLoading(false);
+        stopLoading();
         return;
       }
     }
@@ -101,7 +104,12 @@ window.usePreview = function usePreview(state) {
         // (see C4 in reports/preview-3-diagnosis.md).
         dith: false, stitchCleanup: null, orphans: 0,
       }));
-      if (fastResult) state.setPreviewUrl(renderUrl(fastResult.mapped));
+      if (fastResult) {
+        // The size travels with the picture: the slider shapes itself from
+        // previewDims, so a new-size frame must not be paired with old dims.
+        state.setPreviewDims({ pw: pw, ph: ph });
+        state.setPreviewUrl(renderUrl(fastResult.mapped));
+      }
       fullPassTimerRef.current = setTimeout(runFull, 0);
       return;
     }
@@ -110,7 +118,7 @@ window.usePreview = function usePreview(state) {
     function runFull() {
       fullPassTimerRef.current = null;
       var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
-      if (!pipelineResult) { if (state.setPreviewLoading) state.setPreviewLoading(false); return; }
+      if (!pipelineResult) { stopLoading(); return; }
       var mapped = pipelineResult.mapped;
       var confettiRaw = pipelineResult.confettiRaw;
       var confettiClean = pipelineResult.confettiClean;
@@ -199,7 +207,7 @@ window.usePreview = function usePreview(state) {
       } else {
         state.setPreviewHeatmap(null);
       }
-      if (state.setPreviewLoading) state.setPreviewLoading(false);
+      stopLoading();
     }
   }, [
     state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
@@ -221,6 +229,10 @@ window.usePreview = function usePreview(state) {
     }, 400);
     return function() {
       if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);
+      // A full pass queued by the previous settings must not land after they
+      // changed: it would commit a stale picture and drop the spinner while
+      // the new pass is still waiting out its debounce.
+      if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
     };
   }, [generatePreview]); // eslint-disable-line react-hooks/exhaustive-deps
 
