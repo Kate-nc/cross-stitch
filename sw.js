@@ -97,6 +97,7 @@ var PRECACHE_URLS = [
   './useDragMark.js',
   './tracker-minimap.js',
   './tracker-layer-chip.js',
+  './tracker-progress-strip.js',
   './work-area.js',
   './components/WorkAreaPicker.js',
   './components/ModeToggle.js',
@@ -134,7 +135,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "1ee261f10c9087efe83f24c22032d04b72993af2f5486935144fe6f1f42455eb";
+var BUILD_ID = "efefc8f6591e152c654b6bd8aebc249053021f5bcac5b01cbf25c9b7c571cec5";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -219,6 +220,7 @@ var REQUIRED_URLS = [
   "./useDragMark.js",
   "./tracker-minimap.js",
   "./tracker-layer-chip.js",
+  "./tracker-progress-strip.js",
   "./work-area.js",
   "./components/WorkAreaPicker.js",
   "./components/ModeToggle.js",
@@ -278,13 +280,13 @@ var BUILD_ASSETS = {
     "sha256": "9055db46d7f24c96df3690de3632291cf1e1ee115aa94575748a8fc718f21730"
   },
   "./index.html": {
-    "sha256": "93c6102b6ac59879626330273defd7737ad047563a0fdd760f9cb468d55e0159"
+    "sha256": "dc46749698b657a64d833a8c230a9d4f9fb071cc439c3e66b677dff141a93994"
   },
   "./create.html": {
-    "sha256": "ae22905cafa31a8e3c2816d61db182ddee1a0af02a6287842fbf7d88a475389b"
+    "sha256": "0d56da347bb4ef883897d6f52a7fc701f868c34bea45e5a6954b71bbbe83e7a5"
   },
   "./stitch.html": {
-    "sha256": "d272366a54fd47eb71b30332acec1aee1f6f390bfc82fb98842236651435819d"
+    "sha256": "e18ee95c205acf7d7a9daeeeebb0e64667cf91b13b16e111db70ba61059e0087"
   },
   "./manager.html": {
     "sha256": "989e0b2beffd3b70adca85692a2a0067302bacada96cfc69863d65bac4a816f3"
@@ -470,7 +472,7 @@ var BUILD_ASSETS = {
     "sha256": "a18204821ebfe4f317a0d7c71b205cb72fdcab3122d3014e4a6d4b13b9646cec"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "9ebc84690f53ef2f2ed1b36a336b8e6c8bf2c5e733f7a961bf12e7acff9b3c30"
+    "sha256": "c71a7e499fb044f63ed463036757dc18a1e28c418a6d5b4b9bc6434591b1a17e"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -522,6 +524,9 @@ var BUILD_ASSETS = {
   },
   "./tracker-layer-chip.js": {
     "sha256": "5c3bcd3183fa5b087e392aee182d721eb87e67fb307cb24924c09fbe7dff7e85"
+  },
+  "./tracker-progress-strip.js": {
+    "sha256": "60473afa7426c23fe3a848cbf3b2ba0d51ccfe895b4cc3ced352cac952374e09"
   },
   "./work-area.js": {
     "sha256": "907f38a428eb2075c7d8bf5ebb4f66b825bd695348e879db3ab2e62f4eef02aa"

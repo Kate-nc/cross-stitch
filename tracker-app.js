@@ -8378,20 +8378,7 @@ return(
   </div>}
 </section>}
 {!isEditMode&&<div className="info-strip-wrap">
-<div className="info-strip">
-  <div className="info-strip-bar">
-    {progressPct>=100&&<div className="info-strip-fill info-strip-fill--done" style={{width:"100%"}}/>}
-    {progressPct<100&&prevBarPct>0&&<div className="info-strip-fill" style={{width:prevBarPct+"%"}}/>}
-    {progressPct<100&&todayBarPct>0&&<div className="info-strip-fill info-strip-today" style={{width:todayBarPct+"%"}}/>}
-  </div>
-  <div className="info-strip-row">
-    <button type="button" className="info-strip-pct info-strip-open" aria-label="Open session controls" onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}>{progressPct>=100?<>Complete! {Icons.star()}</>:<>{progressPct.toFixed(1)}%</>}</button>
-    {progressPct<100&&effectiveCombinedTotal>0&&<span className="info-strip-counts">{ProgressUnits.formatUnits(effectiveCombinedDone)} done &middot; {ProgressUnits.formatUnits(progShown.remainingUnits)} to go</span>}
-    {progressPct<100&&effectiveCombinedTotal>0&&(function(){var bt=ProgressUnits.breakdownText(progShown);if(bsCounts.total>0&&layerVis.backstitch!==false)bt=(bt?bt+", ":"")+bsCounts.done+"/"+bsCounts.total+" backstitch lines";return bt?<span className="info-strip-breakdown" title="Half stitches count as half a stitch, quarters a quarter; backstitch is counted on its own, in lines">{bt}</span>:null;})()}
-    {window.TrackerHiddenLayersChip&&React.createElement(window.TrackerHiddenLayersChip,{layerVis,counts:layerCounts,onShow:showHiddenLayers})}
-    {liveSessionOpen&&<button type="button" className="info-strip-timer" title="Open Session controls" aria-live="off" aria-label={(liveIsTimer?"Timer":"Session")+(liveAutoIsPaused||manuallyPaused?", paused":"")+". Open session controls"} onClick={()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}}><span className="info-strip-timer-icon" aria-hidden="true">{liveAutoIsPaused||manuallyPaused?(Icons.pause?Icons.pause():null):(Icons.play?Icons.play():null)}</span> <span aria-hidden="true"><LiveElapsed store={elapsedStore}/> &middot; {liveIsTimer?'Timer':formatTimingModeShortLabel(currentTimingMode)}</span></button>}
-  </div>
-</div>
+{window.TrackerProgressStrip&&React.createElement(window.TrackerProgressStrip,{progress:progShown,prevBarPct,todayBarPct,bsCounts,layerVis,layerCounts,onShowHiddenLayers:showHiddenLayers,session:{open:liveSessionOpen,isTimer:liveIsTimer,paused:liveAutoIsPaused||manuallyPaused,timingLabel:formatTimingModeShortLabel(currentTimingMode),elapsedStore},LiveElapsed,onOpenSession:()=>{setLeftSidebarTab("session");setMorePanelOpen(true);}})}
 <div className="app-info-chip-wrap info-strip-chip-wrap">
   <button
     ref={progressChipRef}
