@@ -1607,7 +1607,8 @@ function UnifiedApp(){
     else if(prev==='design'){window.history.replaceState({},'',window.location.pathname);setMode('design');}
     else{window.location.href='home.html';}
   },[]);
-  const switchToShowcase=React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
+  // Nothing reads this callback; the bare hook call keeps the hook order unchanged.
+  React.useCallback(()=>switchToStats({tab:'showcase'}),[]);
   const switchToStats=React.useCallback((params)=>{
     if(modeRef.current==='stats'&&!params){closeStats();return;}
     // When switching from track mode, open per-project stats inline inside the tracker
@@ -1647,7 +1648,9 @@ function UnifiedApp(){
     return()=>{delete window.__switchToTrack;delete window.__switchToDesign;delete window.__switchToCreate;delete window.__switchToEdit;delete window.__switchToStats;delete window.__goHome;};
   },[switchToTrack,switchToDesign,switchToCreate,switchToEdit,switchToStats,goHome]);
 
-  const handleHomeOpenCreatorWithImage=React.useCallback((file)=>{
+  // Legacy in-Creator Home handlers (that screen is retired, see the mode initialiser).
+  // Nothing reads their results; the bare hook calls keep the hook order and deps unchanged.
+  React.useCallback((file)=>{
     window.__pendingCreatorFile=file;
     if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     setCreatorResetKey(k=>k+1);
@@ -1655,7 +1658,7 @@ function UnifiedApp(){
     setMode('design');
   },[]);
 
-  const handleHomeOpenCreatorBlank=React.useCallback(()=>{
+  React.useCallback(()=>{
     window.__pendingCreatorAction='scratch';
     if(typeof ProjectStorage!=='undefined') ProjectStorage.clearActiveProject();
     setCreatorResetKey(k=>k+1);
@@ -1665,7 +1668,7 @@ function UnifiedApp(){
     setTimeout(()=>{if(window.__setCreatorAppMode) window.__setCreatorAppMode('edit');},0);
   },[]);
 
-  const handleHomeOpenFile=React.useCallback((file)=>{
+  React.useCallback((file)=>{
     const ext=file.name.split('.').pop().toLowerCase();
     if(ext==='json'){
       window.__pendingCreatorJsonFile=file;
@@ -1687,7 +1690,7 @@ function UnifiedApp(){
     }
   },[]);
 
-  const handleHomeImportPattern=React.useCallback((file)=>{
+  React.useCallback((file)=>{
     window.__pendingTrackerImportFile=file;
     if(typeof window.loadTrackerApp==='function') window.loadTrackerApp();
     setTrackerMounted(true);
@@ -1695,7 +1698,7 @@ function UnifiedApp(){
     setMode('track');
   },[]);
 
-  const handleHomeOpenProject=React.useCallback((projectMeta, targetMode)=>{
+  React.useCallback((projectMeta, targetMode)=>{
     if(!projectMeta||!projectMeta.id) return;
     ProjectStorage.setActiveProject(projectMeta.id);
     if(targetMode==='tracker'){
@@ -1711,7 +1714,7 @@ function UnifiedApp(){
     }
   },[switchToTrack]);
 
-  const handleHomeNavigateToStash=React.useCallback(()=>{
+  React.useCallback(()=>{
     window.location.href='manager.html';
   },[]);
 
@@ -1814,7 +1817,7 @@ function CreatorNoProjectRedirect(){
         try { ProjectStorage.clearActiveProject(); } catch (_) {}
       }
       window.__pendingCreatorAction = 'scratch';
-      // Match handleHomeOpenCreatorBlank: scratch defaults to Edit, not Create.
+      // Match UnifiedApp's legacy Home blank handler: scratch defaults to Edit, not Create.
       setTimeout(function(){ if (window.__setCreatorAppMode) window.__setCreatorAppMode('edit'); }, 0);
     } else if (act === 'home-image-pending' || hasPendingImage) {
       // Do NOT call clearActiveProject() here: if a SW reload triggers
