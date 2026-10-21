@@ -22904,28 +22904,7 @@ window.CreatorPatternInfoPopover = function CreatorPatternInfoPopover(props) {
   var formulaExpanded = formulaState[0];
   var setFormulaExpanded = formulaState[1];
 
-  React.useEffect(function() {
-    if (!props || !props.open) return undefined;
-    function onDoc(e) {
-      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
-      if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.contains(e.target)) return;
-      if (typeof props.onClose === "function") props.onClose();
-    }
-    function onKey(e) {
-      if (e.key === "Escape") {
-        if (typeof props.onClose === "function") props.onClose();
-        if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.focus) {
-          props.triggerRef.current.focus();
-        }
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return function() {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [props && props.open, props && props.onClose, props && props.triggerRef]);
+  window.useInfoPopoverDismiss(props, popoverRef);
 
   if (!props || !props.open) return null;
 
