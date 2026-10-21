@@ -93,6 +93,8 @@ describe('Ready to stitch and Pattern info show the same count', () => {
 
   function patternInfo(props) {
     const window = { CONFETTI_HELP: global.CONFETTI_HELP, threadCountsShort: () => '', finishedSizeText: () => '' };
+    // Server-side rendering runs no effects, so the shared dismissal hook (components.js) can be inert here.
+    window.useInfoPopoverDismiss = () => {};
     new Function('window', 'React', read('creator/PatternInfoPopover.js'))(window, React);
     return renderToStaticMarkup(React.createElement(window.CreatorPatternInfoPopover, Object.assign({ open: true, onClose() {} }, props)));
   }

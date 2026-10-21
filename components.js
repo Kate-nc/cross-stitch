@@ -276,6 +276,39 @@ function EmptyState(props) {
 }
 window.EmptyState = EmptyState;
 
+/* Dismissal for the two info popovers (AppInfoPopover here, and
+   CreatorPatternInfoPopover in creator/PatternInfoPopover.js, which loads
+   after this file on every page that carries it): while props.open, a
+   mousedown outside both the popover and props.triggerRef calls props.onClose,
+   and Escape calls props.onClose then returns focus to the trigger. The
+   listeners live on document and are re-registered whenever open, onClose or
+   triggerRef change. Call it unconditionally, before any early return. */
+function useInfoPopoverDismiss(props, popoverRef) {
+  React.useEffect(function () {
+    if (!props || !props.open) return undefined;
+    function onDoc(e) {
+      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
+      if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.contains(e.target)) return;
+      if (typeof props.onClose === "function") props.onClose();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        if (typeof props.onClose === "function") props.onClose();
+        if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.focus) {
+          props.triggerRef.current.focus();
+        }
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return function () {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [props && props.open, props && props.onClose, props && props.triggerRef]);
+}
+window.useInfoPopoverDismiss = useInfoPopoverDismiss;
+
 /* ════════════════════════════════════════════════════════════════
    AppInfoPopover — UX-12 Plan B: shared summary chip + popover.
 
@@ -301,28 +334,7 @@ function AppInfoPopover(props) {
   var h = React.createElement;
   var popoverRef = React.useRef(null);
 
-  React.useEffect(function () {
-    if (!props || !props.open) return undefined;
-    function onDoc(e) {
-      if (popoverRef.current && popoverRef.current.contains(e.target)) return;
-      if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.contains(e.target)) return;
-      if (typeof props.onClose === "function") props.onClose();
-    }
-    function onKey(e) {
-      if (e.key === "Escape") {
-        if (typeof props.onClose === "function") props.onClose();
-        if (props.triggerRef && props.triggerRef.current && props.triggerRef.current.focus) {
-          props.triggerRef.current.focus();
-        }
-      }
-    }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return function () {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [props && props.open, props && props.onClose, props && props.triggerRef]);
+  useInfoPopoverDismiss(props, popoverRef);
 
   if (!props || !props.open) return null;
 

@@ -250,9 +250,12 @@ describe('Pattern info popover (Option 2)', () => {
     expect(POPOVER_SRC).toMatch(/!props\.open/);
   });
 
-  test('closes on Escape and outside click', () => {
-    expect(POPOVER_SRC).toMatch(/e\.key\s*===\s*"Escape"/);
-    expect(POPOVER_SRC).toMatch(/document\.addEventListener\(\s*"mousedown"/);
+  test('closes on Escape and outside click through the shared dismissal hook', () => {
+    // Behaviour is exercised in smallHelpersPopovers.test.js; here, only that this popover uses the hook.
+    expect(POPOVER_SRC).toMatch(/window\.useInfoPopoverDismiss\(props,\s*popoverRef\)/);
+    const components = fs.readFileSync(path.join(REPO_ROOT, 'components.js'), 'utf8');
+    expect(components).toMatch(/e\.key\s*===\s*"Escape"/);
+    expect(components).toMatch(/document\.addEventListener\(\s*"mousedown"/);
   });
 
   test('declares dialog role and aria-label', () => {
