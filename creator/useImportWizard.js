@@ -127,9 +127,13 @@
       return latest;
     }
 
-    function _apply(patch) {
+    // Only the five field setters below use this helper. Resolve functional
+    // values inside the state updater, then persist the complete merged state.
+    function _setField(field, v) {
       setState(function (prev) {
-        var next = Object.assign({}, prev, patch);
+        var nv = typeof v === "function" ? v(prev[field]) : v;
+        var next = Object.assign({}, prev);
+        next[field] = nv;
         _writeDraft(next, match);
         return next;
       });
@@ -139,11 +143,11 @@
     function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n, match); return n; }); }
     function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n, match); return n; }); }
 
-    function setCrop(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.crop)     : v; var n = Object.assign({}, prev, { crop: nv });     _writeDraft(n, match); return n; }); }
-    function setPalette(v)  { setState(function (prev) { var nv = typeof v === "function" ? v(prev.palette)  : v; var n = Object.assign({}, prev, { palette: nv });  _writeDraft(n, match); return n; }); }
-    function setSize(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.size)     : v; var n = Object.assign({}, prev, { size: nv });     _writeDraft(n, match); return n; }); }
-    function setSettings(v) { setState(function (prev) { var nv = typeof v === "function" ? v(prev.settings) : v; var n = Object.assign({}, prev, { settings: nv }); _writeDraft(n, match); return n; }); }
-    function setName(v)     { setState(function (prev) { var nv = typeof v === "function" ? v(prev.name)     : v; var n = Object.assign({}, prev, { name: nv });     _writeDraft(n, match); return n; }); }
+    function setCrop(v)     { _setField("crop", v); }
+    function setPalette(v)  { _setField("palette", v); }
+    function setSize(v)     { _setField("size", v); }
+    function setSettings(v) { _setField("settings", v); }
+    function setName(v)     { _setField("name", v); }
 
     function reset() {
       _clearDraft();

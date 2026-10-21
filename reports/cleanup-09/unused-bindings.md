@@ -23,7 +23,7 @@ After the change the same analysis lists only `ymd`, `rgb` and the catch paramet
 ## How "unread" was established
 
 - `grep -w` over every `*.js`, `*.html`, `*.json` and `*.md` outside `node_modules` and `compiled/` finds `hueData` only at its declaration, and `projects` in `stats-page.js` only at its declaration (the other hits are the words "projects" in strings and comments). Tests never name either.
-- `stats-page.js` has no `window[...]`, `eval`, `new Function` or `Reflect` use, so neither name can be reached by a computed or string-built key. Both are function-scoped `const`s inside `GlobalStatsDashboard`, so they cannot be reached from another file; neither is returned, stored in a ref or object, passed as a prop, put in a dependency array, or assigned to `window`. The only public export is `window.StatsPage`.
+- `stats-page.js` has no `window[...]`, `eval`, `new Function` or `Reflect` use, so neither name can be reached by a computed or string-built key. Both are function-scoped `const`s inside `StatsPage`, so they cannot be reached from another file; neither is returned, stored in a ref or object, passed as a prop, put in a dependency array, or assigned to `window`. The only public export is `window.StatsPage`.
 - `setProjects(results[1])` is still called by the load effect, so the state hook keeps receiving the same updates and re-renders exactly as before.
 
 ## What was changed and why it is behaviour-neutral
