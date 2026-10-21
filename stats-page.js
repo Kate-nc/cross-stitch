@@ -946,7 +946,7 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
 
   // Data state
   const [lifetimeStitches, setLifetimeStitches] = useState(0);
-  const [projects, setProjects] = useState([]);
+  const [, setProjects] = useState([]);
   const [stash, setStash] = useState({});
   const [ageData, setAgeData] = useState({});
   const [sableData, setSableData] = useState([]);
@@ -1242,8 +1242,9 @@ function StatsPage({ onClose, onNavigateToProject, onNavigateToStash }) {
     return projectDetails.filter(p => p.finishStatus === 'completed' && p.completedAt && p.completedAt >= yearStart).length;
   }, [projectDetails]);
 
-  // Hue wheel computation
-  const hueData = useMemo(() => {
+  // Hue bins. Nothing reads the result since the hue wheel was retired in favour of familyData, so the hook
+  // is called without a binding; the call stays so the hook sequence and its catalogue lookups are unchanged.
+  useMemo(() => {
     const bins = new Array(12).fill(0);
     let neutral = 0;
     for (const [key, entry] of Object.entries(stash)) {
