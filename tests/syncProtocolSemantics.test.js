@@ -273,3 +273,70 @@ test('informational accounting dates converge while contradictory receipts remai
   const r=json(l);r.receipts['token-a']=r.receipts['token-b'];
   expect(()=>A.merge(l,r)).toThrow('Conflicting consumption receipt');
 });
+
+// Controllable completions characterise the async boundaries without wall-clock waits.
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((a,b) => { resolve=a; reject=b; });
+  return {promise,resolve,reject};
+}
+
+test('snapshot waits for the live flush and records the state committed by it',async()=>{
+  const a=device('snapshot');await a.ProjectStorage.save(project());
+  const gate=deferred(), entered=deferred();
+  a.__flushProjectToIDB=async()=>{entered.resolve();await gate.promise;
+    const p=await a.ProjectStorage.get('proj_shared');p.name='After flush';await a.ProjectStorage.save(p);
+  };
+  const pending=a.SyncEngine.writeSnapshot();await entered.promise;
+  expect(await a.SyncEngine.readSnapshot()).toBeNull();
+  gate.resolve();const snapshot=await pending;
+  expect(snapshot.projects.proj_shared.name).toBe('After flush');
+  expect(json(await a.SyncEngine.readSnapshot())).toEqual(json(snapshot));
+});
+
+test('export propagates a failed flush before reading or delivering a sync file',async()=>{
+  const a=device('flush-error'), gate=deferred(), entered=deferred();
+  a.__flushProjectToIDB=()=>{entered.resolve();return gate.promise;};
+  const list=jest.spyOn(a.ProjectStorage,'listProjects');
+  const delivery=jest.fn();a.Platform={shareOrDownload:delivery};
+  const pending=a.SyncEngine.downloadSync();
+  const rejected=expect(pending).rejects.toThrow('flush refused');
+  await entered.promise;expect(list).not.toHaveBeenCalled();gate.reject(new Error('flush refused'));
+  await rejected;expect(delivery).not.toHaveBeenCalled();
+  expect(a.localStorage.getItem('cs_sync_lastExportAt')).toBeNull();
+});
+
+test.each([false,true])('folder export stamps completion only after close settles (reject=%s)',async(fail)=>{
+  const a=device('close'), gate=deferred(), entered=deferred();
+  await a.ProjectStorage.save(project());
+  const write=jest.fn(async()=>{});
+  const dir={queryPermission:async()=>'granted',getFileHandle:async()=>({createWritable:async()=>({write,close:()=>{entered.resolve();return gate.promise;}})})};
+  const pending=a.SyncEngine.exportToFolder(dir);
+  const settled=fail?expect(pending).rejects.toThrow('close failed'):pending;
+  await entered.promise;expect(write).toHaveBeenCalledTimes(1);
+  expect(a.localStorage.getItem('cs_sync_lastExportAt')).toBeNull();
+  if(fail)gate.reject(new Error('close failed'));else gate.resolve();
+  const result=await settled;
+  expect(a.localStorage.getItem('cs_sync_lastExportAt')).toBe(fail?null:result.syncObj._createdAt);
+  expect(a.SyncEngine.getSyncStatus().exportProtocol.state).toBe(fail?'failed':'completed');
+});
+
+test('cancelled share resolves without advancing the export timestamp or leaking delivery into the file',async()=>{
+  const a=device('cancel'), gate=deferred(), entered=deferred();
+  let bytes;
+  a.Platform={shareOrDownload:blob=>{bytes=blob;entered.resolve();return gate.promise;}};
+  const pending=a.SyncEngine.downloadSync();await entered.promise;
+  expect(a.localStorage.getItem('cs_sync_lastExportAt')).toBeNull();
+  gate.resolve({cancelled:true});const result=await pending;
+  expect(result._delivery).toBe('cancelled');
+  expect(a.SyncEngine.decompress(await bytes.arrayBuffer())._delivery).toBeUndefined();
+  expect(a.localStorage.getItem('cs_sync_lastExportAt')).toBeNull();
+});
+
+test('known behaviour: snapshot still records metadata when the live flush rejects',async()=>{
+  const a=device('snapshot-flush-error');await a.ProjectStorage.save(project());
+  a.__flushProjectToIDB=async()=>{throw new Error('saving paused');};
+  const snapshot=await a.SyncEngine.writeSnapshot();
+  expect(snapshot.projects.proj_shared.name).toBe('Shared');
+  expect(json(await a.SyncEngine.readSnapshot())).toEqual(json(snapshot));
+});
