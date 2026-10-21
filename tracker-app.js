@@ -4135,96 +4135,11 @@ function processLoadedProject(project){
   setWorkArea(window.WorkArea?window.WorkArea.normalise(project.workArea,nextW,nextH):null);
   setStartCorner(project.startCorner || _lsCorner || (window.UserPrefs && window.UserPrefs.get("trackerStartCorner")) || "TL");
   if(project.colourSequence)setColourSequence(project.colourSequence);
-  // Legacy migration: if no statsSessions but totalTime exists, create a synthetic session
-  var rawStatsSessions=(project.statsSessions||[]).filter(function(s){
-    if(!s)return false;
-    if(s.startTime==null&&s.date==null)return true;
-    if(s.startTime!=null){
-      var t=new Date(s.startTime).getTime();
-      if(Number.isNaN(t))return false;
-    }
-    return true;
-  });
-  // (Not when the person has deleted sessions: an empty journal is then what they chose, not an old project.)
-  if(rawStatsSessions.length===0&&project.totalTime>0&&!(project.deletedSessionIds&&project.deletedSessionIds.length)){
-    var legacyDone=project.done?Array.from(project.done).filter(function(v){return v===1;}).length:0;
-    var normaliseSessionTime=(function(value){
-      if(value==null||value==="")return null;
-      var dt;
-      if(typeof value==="number"&&Number.isFinite(value))dt=new Date(value);
-      else if(typeof value==="string"){
-        var trimmed=value.trim();
-        if(!trimmed)return null;
-        if(/^\d+$/.test(trimmed))dt=new Date(Number(trimmed));
-        else dt=new Date(trimmed);
-      }else if(value instanceof Date)dt=value;
-      if(!dt||Number.isNaN(dt.getTime()))return null;
-      return dt.toISOString();
-    });
-    var legacyCreatedAtIso=normaliseSessionTime(project.createdAt);
-    var legacyUpdatedAtIso=normaliseSessionTime(project.updatedAt);
-    // Use createdAt for the legacy session date so historical stitches are never
-    // attributed to today.  Fall back to a date 24h in the past if createdAt is
-    // missing or resolves to today's local date.
-    var legacyDate=(function(){
-      var src=legacyCreatedAtIso||legacyUpdatedAtIso;
-      if(src){
-        var d=src.slice(0,10);
-        // Guard: if that date is today (local), push it back 24h
-        var today=getStitchingDate(new Date(),0);
-        if(d===today){var yest=new Date();yest.setDate(yest.getDate()-1);d=yest.getFullYear()+'-'+('0'+(yest.getMonth()+1)).slice(-2)+'-'+('0'+yest.getDate()).slice(-2);}
-        return d;
-      }
-      var yest=new Date();yest.setDate(yest.getDate()-1);return yest.getFullYear()+'-'+('0'+(yest.getMonth()+1)).slice(-2)+'-'+('0'+yest.getDate()).slice(-2);
-    })();
-    var legacyStart=legacyCreatedAtIso||legacyUpdatedAtIso||(function(){var d=new Date();d.setDate(d.getDate()-1);return d.toISOString();}());
-    rawStatsSessions=[{
-      id:'sess_legacy',
-      date:legacyDate,
-      startTime:legacyStart,
-      endTime:legacyUpdatedAtIso||legacyStart,
-      durationSeconds:project.totalTime,
-      durationMinutes:Math.round(project.totalTime/60),
-      stitchesCompleted:legacyDone,
-      stitchesUndone:0,
-      netStitches:legacyDone,
-      totalAtEnd:legacyDone,
-      percentAtEnd:0,
-      note:'Migrated from legacy total time',
-      coloursWorked:[],
-    }];
-  }
-  // Patch legacy sessions that only have durationMinutes
-  rawStatsSessions.forEach(function(s){if(s.durationSeconds==null&&s.durationMinutes!=null){s.durationSeconds=s.durationMinutes*60;}});
-  // Backfill totalAtEnd for pre-v9 sessions that were saved without it.
-  // Reconstruct as a running cumulative sum of netStitches sorted chronologically.
-  if(rawStatsSessions.some(function(s){return s.totalAtEnd==null;})){
-    var totalStitchCount=restored.filter(function(c){return c&&c.id!=='__skip__'&&c.id!=='__empty__';}).length;
-    var sorted=rawStatsSessions.slice().sort(function(a,b){
-      var aKey=a.startTime||a.date||'';
-      var bKey=b.startTime||b.date||'';
-      var aTime=new Date(aKey).getTime();
-      var bTime=new Date(bKey).getTime();
-      if(!Number.isNaN(aTime)&&!Number.isNaN(bTime)){
-        if(aTime<bTime)return-1;
-        if(aTime>bTime)return 1;
-        return 0;
-      }
-      if(aKey<bKey)return-1;
-      if(aKey>bKey)return 1;
-      return 0;
-    });
-    var running=0;
-    sorted.forEach(function(s){running+=(s.netStitches||0);if(s.totalAtEnd==null)s.totalAtEnd=Math.min(Math.max(0,running),totalStitchCount);});
-  }
-  // Recover any session that was finalised but not yet flushed to IDB (e.g. tab was
-  // closed before the 5-second auto-save timer fired). The localStorage backup is
-  // written by finaliseAutoSession and cleared by the auto-save timer on success.
-  try{
-    var _pk='cs_pending_session_'+(project.id||'');
-    var _pj=localStorage.getItem(_pk);
-    if(_pj){var _pp=JSON.parse(_pj);(Array.isArray(_pp)?_pp:[_pp]).forEach(function(_ps){if(!_ps||!_ps.id)return;const at=rawStatsSessions.findIndex(s=>s.id===_ps.id);if(at<0)rawStatsSessions.push(_ps);else if((_ps.historyCorrectionRevision||0)>(rawStatsSessions[at].historyCorrectionRevision||0)&&(!rawStatsSessions[at].editedAt||_ps.historyCorrectedAt>Date.parse(rawStatsSessions[at].editedAt)))rawStatsSessions[at]=_ps;});/* Retained until a successful full save includes these ids. */}   // kept while a question holds saves; the first save after it clears it
-  }catch(_){}
+  // Legacy migration, duration and totalAtEnd patching and pending-session recovery live in helpers.js. The backup is
+  // read here (it is localStorage) and kept while a question holds saves; the first save after it clears it.
+  var pendingSessions=null;
+  try{pendingSessions=readPendingSessions(localStorage,project.id);}catch(_){}
+  var rawStatsSessions=rebuildLoadedSessions(project,{pattern:restored,pendingSessions:pendingSessions});
   // Sessions the person deleted stay deleted, even if a stale copy comes back (a recovered unsaved session, a restore).
   deletedSessionIdsRef.current=Array.isArray(project.deletedSessionIds)?project.deletedSessionIds.slice():[];
   rawStatsSessions=withoutDeletedSessions(rawStatsSessions,deletedSessionIdsRef.current);

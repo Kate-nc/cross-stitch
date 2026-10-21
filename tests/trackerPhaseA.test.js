@@ -122,12 +122,11 @@ eval(
 );
 
 // ─── Extract the session migration block from processLoadedProject ────────────
-// The block starts with "var rawStatsSessions=" and ends just before
-// "setStatsSessions(rawStatsSessions)".  It references `project`, `restored`,
-// and `getStitchingDate` (provided by the helpers.js eval above), plus
-// `localStorage` (mocked per-test below).
+// The block starts with "var pendingSessions=null;" (the rebuild itself moved to helpers.js as rebuildLoadedSessions,
+// which the helpers.js eval above provides) and ends just before "setStatsSessions(rawStatsSessions)".  It references
+// `project`, `restored`, and the helpers.js functions, plus `localStorage` (mocked per-test below).
 const migrationBlockMatch = trackerSrc.match(
-  /var rawStatsSessions=\(project\.statsSessions\|\|\[\]\)\.filter[\s\S]+?(?=\s*setStatsSessions\(rawStatsSessions\);)/
+  /var pendingSessions=null;[\s\S]+?(?=\s*setStatsSessions\(rawStatsSessions\);)/
 );
 if (!migrationBlockMatch) throw new Error('Could not extract session migration block from tracker-app.js');
 
