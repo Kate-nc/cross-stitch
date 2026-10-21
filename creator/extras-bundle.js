@@ -192,12 +192,6 @@
     return null;
   }
 
-  function _resolveBrand(id) {
-    if (_findThread('dmc', id)) return 'dmc';
-    if (_findThread('anchor', id)) return 'anchor';
-    return 'dmc';
-  }
-
   function _de(a, b) {
     if (!a || !b) return Infinity;
     if (typeof dE2000 === 'function') return dE2000(a, b);
