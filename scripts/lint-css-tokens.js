@@ -2,16 +2,31 @@
 /**
  * scripts/lint-css-tokens.js
  *
- * I13 (audit) — advisory lint for raw colour hex and bare px values inside
- * component CSS rules. Designed to surface drift away from the Workshop
- * design tokens defined at the top of styles.css.
+ * I13 (audit) — advisory lint for raw colour hex values inside component CSS
+ * rules. Designed to surface drift away from the Workshop design tokens
+ * defined at the top of styles.css.
+ *
+ * What it checks (one rule, `no-raw-hex`):
+ *   - Hex colours (#rgb, #rgba, #rrggbb, #rrggbbaa) outside a token block.
+ *
+ * What it does NOT check:
+ *   - Bare px lengths, rgb()/rgba()/hsl() colours and named colours are not
+ *     scanned. AGENTS.md restricts rgba() to box-shadow, but that is a review
+ *     convention, not something this script enforces.
+ *   - Removed --ws-* aliases are not scanned.
  *
  * The lint is intentionally permissive in this first pass:
- *   - Token-definition blocks (:root, [data-theme="dark"]) are exempt.
- *   - rgba()/rgb() values inside box-shadow declarations are exempt
- *     (allowed by AGENTS.md).
- *   - SVG `fill=` / `stroke=` attribute values are exempt (svg literals).
- *   - Lines containing "css-tokens-lint-allow" are exempt.
+ *   - Token-definition blocks (a selector containing :root or [data-theme…])
+ *     are exempt.
+ *   - Any line containing "box-shadow:" is exempt (the whole line, not just
+ *     its colour values).
+ *   - Any line containing a url(data:image/svg…) value is exempt, so inline
+ *     SVG literals may carry their own colours.
+ *   - The fallback hex in var(--token, #hex) is ignored.
+ *   - CSS comment lines are skipped.
+ *   - Lines containing "css-tokens-lint-allow" are exempt. Put it in a trailing
+ *     CSS comment that states why the literal cannot be a token, as in
+ *     "css-tokens-lint-allow: alpha mask stop, the colour is never painted".
  *
  * Usage:
  *   node scripts/lint-css-tokens.js          # human-readable, exit 0
