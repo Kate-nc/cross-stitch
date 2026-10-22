@@ -86,6 +86,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `manager-app.js` | Stash Manager React tree |
 | `home-app.js` | Home page |
 | `import-formats.js`, `import-engine/`, `pdf-importer.js` | Import parsers (`.oxs`, `.json`, images, PDF charts) |
+| `pdf-chart-geometry.js` | Pure ruler-to-grid placement arithmetic (`chartContentBox`, `rulerCellSpan`, `anchorGridToRuler`, `gridFromRuler`, `samplingGrid`) that `pdf-importer.js` delegates to by global name; loaded after `pdf-axis-labels.js` and `pdf-raster-chart.js`, before the importer, by every lazy loader of it |
 | `threadCalc.js` | `stitchesToSkeins()`, and `threadKeyUsage()` (the strands and skeins a colour-key row shows) |
 | `backup-restore.js` | Full backup (`.csb` compressed, or `.json`) and restore |
 | `header.js` | Top bar, File menu, sync status popover |

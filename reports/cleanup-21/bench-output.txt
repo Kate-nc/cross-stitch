@@ -1,0 +1,8 @@
+# run 1
+{"page":{"vectorPaths":120000,"textItems":120000,"labels":70},"outputsIdentical":true,"baseMs":{"median":199.97,"best":187.25},"headMs":{"median":205.28,"best":190.99},"baseHeapMB":{"median":0.11,"best":0.11},"headHeapMB":{"median":0.11,"best":0.11}}
+# run 2
+{"page":{"vectorPaths":120000,"textItems":120000,"labels":70},"outputsIdentical":true,"baseMs":{"median":228.81,"best":194.18},"headMs":{"median":250.31,"best":193.39},"baseHeapMB":{"median":0.11,"best":0.11},"headHeapMB":{"median":0.11,"best":0.11}}
+# run 3
+{"page":{"vectorPaths":120000,"textItems":120000,"labels":70},"outputsIdentical":true,"baseMs":{"median":212.53,"best":190.66},"headMs":{"median":195.01,"best":182.47},"baseHeapMB":{"median":0.11,"best":0.11},"headHeapMB":{"median":0.11,"best":0.11}}
+# run 4
+{"page":{"vectorPaths":120000,"textItems":120000,"labels":70},"outputsIdentical":true,"baseMs":{"median":193.48,"best":186.46},"headMs":{"median":217.73,"best":181.43},"baseHeapMB":{"median":0.11,"best":0.11},"headHeapMB":{"median":0.11,"best":0.11}}

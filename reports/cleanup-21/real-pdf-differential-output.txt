@@ -1,0 +1,10 @@
+SAME  [malformed] empty buffer  ok=false error="Failed to parse PDF: The PDF file is empty, i.e. its size is zero bytes."
+SAME  [malformed] garbage bytes  ok=false error="Failed to parse PDF: Invalid PDF structure."
+SAME  [malformed] truncated gen1.pdf (first 20 KB)  ok=false error="Failed to parse PDF: Invalid PDF structure."
+SAME  [malformed] PDF header only  ok=false error="Failed to parse PDF: Invalid PDF structure."
+SAME  Books and Blossoms.pdf  ok=true dims=226,285 project#c9faf4edc9773bc6 session#b90660cc0be516ea warns=1/1 geometryCalls={"samplingGrid":3}  base=3627ms head=3590ms
+SAME  PAT1968_2.pdf  ok=true dims=103,94 project#c6044e16491cf1de session#b44252dc03710a07 warns=1/1 geometryCalls={"samplingGrid":6}  base=1502ms head=1388ms
+SAME  PAT2171_2.pdf  ok=true dims=73,72 project#909e135b5b1a9478 session#9035b8b83c8ebb8b warns=1/1 geometryCalls={"samplingGrid":3}  base=997ms head=833ms
+SAME  gen-3-extended-pattern-colour.pdf  ok=true dims=309,467 project#826d80e399eb71ea session#cde75e9ec6b574d5 warns=1/1 geometryCalls={"anchorGridToRuler":36,"samplingGrid":108}  base=27615ms head=28765ms
+SAME  gen1.pdf  ok=true dims=256,450 project#876f6db5715564fa session#5fbfba878331a55c warns=1/1 geometryCalls={"anchorGridToRuler":12,"samplingGrid":36}  base=4741ms head=4496ms
+SAME  lord-libidan-pokemon-gen-1-epic-pokemon-extended.pdf  ok=true dims=299,474 project#0c1b16b1569f320f session#80467d83be378d85 warns=1/1 geometryCalls={"anchorGridToRuler":60,"chartContentBox":12,"samplingGrid":216}  base=32232ms head=35697ms

@@ -24,3 +24,6 @@ global.SyncAttachmentCodec = require('../../sync-attachment-codec.js');
 
 // Pages load the export scheduler before the engine, which looks it up when an automatic export is first triggered.
 global.SyncExportScheduler = require('../../sync-export-scheduler.js');
+
+// Pages load the PDF placement geometry before pdf-importer.js, whose ruler/grid methods delegate to it by global name.
+global.PdfChartGeometry = require('../../pdf-chart-geometry.js');

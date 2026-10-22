@@ -197,7 +197,7 @@ window.loadPdfStack = function() {
         return pdfjs;
       })));
   return pdfReady.then(function() {
-      return window.loadScript('pdf-axis-labels.js').then(function() { return window.loadScript('pdf-raster-chart.js'); }).then(function() { return window.loadScript('pdf-importer.js'); });
+      return window.loadScript('pdf-axis-labels.js').then(function() { return window.loadScript('pdf-raster-chart.js'); }).then(function() { return window.loadScript('pdf-chart-geometry.js'); }).then(function() { return window.loadScript('pdf-importer.js'); });
     });
 };
 /* Cat C perf split: ImportWizard + useImportWizard (~30 KB) live in their

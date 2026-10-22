@@ -106,6 +106,7 @@ var PRECACHE_URLS = [
   // Lazy-loaded local assets
   './pdf-axis-labels.js',
   './pdf-raster-chart.js',
+  './pdf-chart-geometry.js',
   './pdf-raster-worker.js',
   './pdf-importer.js',
   // assets/fontkit.umd.min.js is intentionally omitted from PRECACHE_URLS.
@@ -138,7 +139,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "d415a31dbc5fcf7ec579d825785ebe3227a45e8edf44327c469609a01eb4581d";
+var BUILD_ID = "f2ed9d8962394c648b9eb40c48c72e447bf25dcef24755eac851b9da1950180c";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -229,6 +230,7 @@ var REQUIRED_URLS = [
   "./components/ModeToggle.js",
   "./pdf-axis-labels.js",
   "./pdf-raster-chart.js",
+  "./pdf-chart-geometry.js",
   "./pdf-raster-worker.js",
   "./pdf-importer.js",
   "./backup-restore.js",
@@ -286,13 +288,13 @@ var BUILD_ASSETS = {
     "sha256": "201121913b2ad585320cc1b57dcef43291d753390cb5e8f9ac8a02cddb7cc7fa"
   },
   "./index.html": {
-    "sha256": "0ed4c2a76981fe77613df37f87c721e11949bdab3ae3ba512263a7988da12522"
+    "sha256": "40f1776ae850c9f2566a616732cbec48ff7a76ed3768e4bd7e82eeb1c2aa1df5"
   },
   "./create.html": {
-    "sha256": "89070d56ff276b6667ef75a038868d85e0bc593c0d3a844db8934683af0c87d1"
+    "sha256": "94af422db293bb08ced498c3d34bfb53ee4a6a8bb9d7541509dfbee71caee7c9"
   },
   "./stitch.html": {
-    "sha256": "d1277db6eb031ba800a04f3cf3d2a29b1ac7fe144f8230535487facef2e19525"
+    "sha256": "79b7ae70a90db4018fb708cfff1624a805491f4ef31e31a986cc28cede9df88b"
   },
   "./manager.html": {
     "sha256": "29be2d3d2a6e2371a91e6701bdeaf3edfcc66bc5dd675dac7682f33d95ef358e"
@@ -466,7 +468,7 @@ var BUILD_ASSETS = {
     "sha256": "1e130923b21bc32251ce6902d11971903019918ddbcb56ee74d6759b52af812a"
   },
   "./import-engine/bundle.js": {
-    "sha256": "ba933c94c9e019aa88602e5ef2276c1db47917cb77786e011c9f5113b0088ec6"
+    "sha256": "605ae1e75a68247362a29e312a8be4050d7fed1c6ee33d76b889bba3136b132c"
   },
   "./compiled/manager-app.compiled.js": {
     "sha256": "d6a5b4a6f2d858410332694a3473a2179ab89ae3f0f5824733286beb7ee3b2f0"
@@ -549,11 +551,14 @@ var BUILD_ASSETS = {
   "./pdf-raster-chart.js": {
     "sha256": "3c2fe4f670d6419a414d175c12b40922da6435570db6245d8f9ac19a1770d23e"
   },
+  "./pdf-chart-geometry.js": {
+    "sha256": "79ffd3e8081a742a9afe37b2b4d7d94e830637c6b9cbb5d49bafa315631a32f0"
+  },
   "./pdf-raster-worker.js": {
     "sha256": "524d936a439d9395a7d93a77e6addc9c2224e3a46076f7aeb702985b740c4713"
   },
   "./pdf-importer.js": {
-    "sha256": "16efd4a61bb6f53e055a134e2f7bd7dee8e5d4d412c1c1ede878189e6fea390c"
+    "sha256": "5aed7c408b286fb5e988fba35ae867921401ec367a5a59065a53ba631ffb778d"
   },
   "./backup-restore.js": {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
