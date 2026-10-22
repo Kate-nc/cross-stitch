@@ -117,7 +117,8 @@ algorithm behind them. The technical name may appear only inside an
 
 | Control | Plain name | Not |
 |---|---|---|
-| Convert section | **Clean-up** | Quality |
+| Convert section | **Detail and tidiness** | Clean-up, Quality |
+| Detail and tidiness steps | **More detail**, **Balanced**, **Tidier**, **Easiest to stitch**; the individual controls under **Fine-tune** | Style, Quality levels |
 | Dither setting | **Shading**: Off, **Smooth blend** (Subtle, Balanced), **Pattern blend** (Coarse, Medium, Fine) | Dithering, Atkinson, Bayer, 2×2/4×4/8×8, Strong |
 | Clean-up switch and amount | **Stitch Cleanup**, **Reduce confetti** (Off, 1–3) | Cleanup strength, Gentle/Thorough, Fewer confetti stitches in shading, Smooth dithering |
 | Pre-smoothing | **Soften grainy photos** | Smooth, Median, Gaussian |

@@ -493,6 +493,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     maxC: state.maxC, setMaxC: state.setMaxC,
     exactPixelArt: state.exactPixelArt, setExactPixelArt: state.setExactPixelArt,
     pictureType: state.pictureType, pictureInfo: state.pictureInfo, applyPicturePreset: state.applyPicturePreset,
+    stitchStyle: state.stitchStyle, stitchStyleBasis: state.stitchStyleBasis, applyStitchStyle: state.applyStitchStyle,
     bri: state.bri, setBri: state.setBri,
     con: state.con, setCon: state.setCon,
     sat: state.sat, setSat: state.setSat,
@@ -551,7 +552,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
-    state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
+    state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
     state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage,

@@ -64,7 +64,7 @@ test.describe('Picture-type presets on desktop', function() {
     await pictureType(page, 'Photo').click();
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
     const slider = page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
-    await expect(slider).toHaveValue('20');
+    await expect(slider).toHaveValue('24');
     await slider.fill('14');
     await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
     await pictureType(page, 'Graphic or logo').click();
@@ -85,7 +85,7 @@ test.describe('Picture-type presets on desktop', function() {
     await page.keyboard.press('ArrowRight');
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
     await expect(pictureType(page, 'Photo')).toBeFocused();
-    await expect(slider).toHaveValue('20');
+    await expect(slider).toHaveValue('24');
   });
 
   test('a tiny picture is guessed as pixel art and generates at its own size', async function({ page }) {

@@ -147,20 +147,55 @@ test.describe('Convert preview fidelity', function() {
   test('a conversion exception shows recovery and Retry preview produces a complete result', async ({ page }) => {
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await openConvert(page);
+    // The conversion runs in a worker; the step on the page (the picture
+    // shrunk to stitches) is where a failure can be injected.
     await page.evaluate(() => {
-      window.__savedPipeline = window.runCleanupPipeline;
-      window.runCleanupPipeline = () => { throw new Error('injected preview failure'); };
+      window.__savedGridPixels = window.gridPixels;
+      window.gridPixels = () => { throw new Error('injected preview failure'); };
       window.__previewState.setBri(15);
     });
     await expect(page.getByRole('alert').filter({hasText:'Could not update the preview'})).toBeVisible();
     await expect(page.getByRole('status', {name:'Updating preview'})).toHaveCount(0);
     expect(await page.evaluate(() => window.__previewState.previewStats)).toBeNull();
-    await page.evaluate(() => { window.runCleanupPipeline = window.__savedPipeline; });
+    await page.evaluate(() => { window.gridPixels = window.__savedGridPixels; });
     await page.getByRole('button', {name:'Retry preview'}).click();
     await expect(page.getByTestId('cmp-preview-layer')).toBeVisible();
     await expect(page.getByRole('status', {name:'Updating preview'})).toHaveCount(0);
     expect(await page.evaluate(() => window.__previewState.previewError)).toBeNull();
     expect(errors).toEqual([]);
+  });
+
+  // The preview is converted in a worker at the chart's own size, so a chart
+  // bigger than 200 by 200 is previewed stitch for stitch, as Generate makes it.
+  test('a large chart is previewed at its own size and matches the generated chart', async ({ page }) => {
+    await openConvert(page);
+    await page.evaluate(() => { const s = window.__previewState; s.setArLock(false); s.setSW(320); s.setSH(200); });
+    await expect.poll(() => page.evaluate(() => {
+      const s = window.__previewState; return s.previewLoading ? null : s.previewDims;
+    }), {timeout:60000}).toEqual({pw:320, ph:200});
+    expect(await page.evaluate(() => window.__previewState.previewMapped.length)).toBe(64000);
+    const before = await page.evaluate(() => window.__previewState.previewMapped.map(c => c.id));
+    await clickGenerate(page); await waitForEdit(page);
+    expect(await page.evaluate(() => window.__previewState.pat.map(c => c.id))).toEqual(before);
+  });
+
+  // Detail and tidiness: one choice sets shading and tidying together; a
+  // change under Fine-tune shows Custom; the picture type is unaffected.
+  test('the Detail and tidiness choice sets shading and tidying together', async ({ page }) => {
+    await openConvert(page);
+    const step = (name) => page.getByRole('radiogroup', {name:'Detail and tidiness'}).getByRole('radio', {name, exact:true});
+    const type = await page.evaluate(() => window.__previewState.pictureType);
+    await step('Easiest to stitch').click();
+    await expect(step('Easiest to stitch')).toHaveAttribute('aria-checked', 'true');
+    expect(await page.evaluate(() => {
+      const s = window.__previewState; return [s.stitchStyle, s.dithMode, s.stitchCleanup.enabled, s.stitchCleanup.protectDetails];
+    })).toEqual(['easiest', 'off', true, false]);
+    expect(await page.evaluate(() => window.__previewState.pictureType)).toBe(type);
+    await expect(page.getByText(/^In the preview: [\d,]+ confetti stitch/)).toBeVisible({timeout:20000});
+    await page.evaluate(() => window.__previewState.setOrphans(3));
+    await expect(page.getByText(/^Custom: your own mix/)).toBeVisible();
+    await step('Balanced').click();
+    await expect(step('Balanced')).toHaveAttribute('aria-checked', 'true');
   });
 
   // Adjustments are applied to the stitch-sized picture by one formula on

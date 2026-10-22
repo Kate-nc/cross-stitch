@@ -6726,27 +6726,101 @@ var CONVERSION_STATE_KEYS = [
 // sets values; every control stays editable, and once a value differs from
 // what the preset set the control shows Custom. Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
+// `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
-  graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
+  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced', skipBorderBackground: true },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
-  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true },
-  // Stitch Cleanup off: at its own size every pixel of pixel art is deliberate,
-  // and merging small patches changed highlights, shadows and hand dithering.
-  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, cleanup: false, sizeFromSourceMax: 500 }
+  photo:   { label: 'Photo', maxC: 24, allowBlends: true, style: 'balanced' },
+  // More detail: at its own size every pixel of pixel art is deliberate, and
+  // merging small patches changed highlights, shadows and hand dithering.
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, allowBlends: false, style: 'detail', sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 
+// ── Detail and tidiness (the Convert style choice) ───────────────────────────
+// One choice from More detail to Easiest to stitch sets shading and tidying
+// together: [shading mode, Stitch Cleanup on, Reduce confetti level, Protect
+// fine details]. What each step means depends on the picture type, because
+// logos and pixel art are never shaded. Photo steps were measured on ten
+// photos at 100 stitches (scripts/conversion-accuracy; confetti stitches,
+// stitches in patches of 3 or fewer, colour error per stitch):
+//   More detail   9.8%  18.4%  5.28      Tidier            0.13%  5.8%  5.60
+//   Balanced      4.3%   9.1%  5.41      Easiest to stitch 0.11%  1.1%  6.27
+var STITCH_STYLE_ORDER = ['detail', 'balanced', 'tidier', 'easiest'];
+var STITCH_STYLE_LABELS = { detail: 'More detail', balanced: 'Balanced', tidier: 'Tidier', easiest: 'Easiest to stitch' };
+var STITCH_STYLES = {
+  photo: {
+    detail:   ['weak', true, 0, true],
+    balanced: ['weak', true, 2, true],
+    tidier:   ['weak', true, 1, false],
+    easiest:  ['off',  true, 2, false]
+  },
+  graphic: {
+    detail:   ['off', true, 0, true],
+    balanced: ['off', true, 2, true],
+    tidier:   ['off', true, 2, false],
+    easiest:  ['off', true, 3, false]
+  },
+  pixel: {
+    detail:   ['off', false, 0, true],
+    balanced: ['off', true, 0, true],
+    tidier:   ['off', true, 1, true],
+    easiest:  ['off', true, 2, false]
+  }
+};
+var STITCH_STYLE_DESCRIPTIONS = {
+  photo: {
+    detail: 'Keeps every shade the shading makes. The most confetti stitches.',
+    balanced: 'Smooth shading, with most confetti stitches merged and outlines kept.',
+    tidier: 'Keeps the shading but merges nearly every confetti stitch. Fine outlines soften a little.',
+    easiest: 'No shading: large blocks of colour, the quickest to stitch, and the least like the picture.'
+  },
+  graphic: {
+    detail: 'Keeps every small shape. Only the blurry in-between shades along edges are folded away.',
+    balanced: 'Merges confetti stitches, keeping outlines and lettering.',
+    tidier: 'Merges confetti stitches along outlines too.',
+    easiest: 'Merges small groups of stitches as well: the simplest blocks of colour.'
+  },
+  pixel: {
+    detail: 'Keeps every pixel exactly as drawn.',
+    balanced: 'Folds away in-between shades along edges; every other pixel stays.',
+    tidier: 'Also merges single stray pixels, except along outlines.',
+    easiest: 'Merges small groups of pixels too: simpler, but it changes the drawing.'
+  }
+};
+// The settings keys a style sets (useCreatorState setters' names without "set";
+// cleanup and protectDetails are Stitch Cleanup's enabled and protectDetails).
+var STITCH_STYLE_KEYS = ['dithMode', 'cleanup', 'orphans', 'protectDetails']; // terminology-lint-allow (state keys, not UI text)
+// The settings for a step of a picture type's styles (photo when unknown).
+function stitchStyleValues(basis, step) {
+  var t = (STITCH_STYLES[basis] || STITCH_STYLES.photo)[step];
+  return t ? { dithMode: t[0], cleanup: t[1], orphans: t[2], protectDetails: t[3] } : null;
+}
+// Which step `cur` ({ dithMode, cleanup, orphans, protectDetails }) is, or
+// 'custom'. Settings that do nothing are not compared: with Stitch Cleanup off
+// the level and protection, and at level 0 the protection.
+function stitchStyleOf(basis, cur) {
+  for (var i = 0; i < STITCH_STYLE_ORDER.length; i++) {
+    var step = STITCH_STYLE_ORDER[i], t = stitchStyleValues(basis, step);
+    if (cur.dithMode !== t.dithMode || !!cur.cleanup !== t.cleanup) continue;
+    if (!t.cleanup) return step;
+    if ((cur.orphans || 0) !== t.orphans) continue;
+    if (t.orphans > 0 && !!cur.protectDetails !== t.protectDetails) continue;
+    return step;
+  }
+  return 'custom';
+}
+
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set" (cleanup is Stitch Cleanup on or off): maxC, dithMode, allowBlends, cleanup, skipBg, bgCol,
-// sW, sH.
+// without "set": maxC, allowBlends, skipBg, bgCol, sW, sH, plus the starting
+// Detail and tidiness step's dithMode, cleanup, orphans and protectDetails.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
-  var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
+  var v = Object.assign({ allowBlends: p.allowBlends }, stitchStyleValues(id, p.style));
   if (p.maxC) v.maxC = p.maxC;
-  if (p.cleanup != null) v.cleanup = p.cleanup;
   if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
@@ -6920,6 +6994,11 @@ if (typeof window !== 'undefined') {
   window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
   window.PICTURE_PRESETS = PICTURE_PRESETS;
   window.PICTURE_PRESET_ORDER = PICTURE_PRESET_ORDER;
+  window.STITCH_STYLE_ORDER = STITCH_STYLE_ORDER;
+  window.STITCH_STYLE_LABELS = STITCH_STYLE_LABELS;
+  window.STITCH_STYLE_DESCRIPTIONS = STITCH_STYLE_DESCRIPTIONS;
+  window.stitchStyleValues = stitchStyleValues;
+  window.stitchStyleOf = stitchStyleOf;
   window.picturePresetValues = picturePresetValues;
   window.analysePicture = analysePicture;
   window.guessPictureType = guessPictureType;
@@ -7264,15 +7343,15 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
-  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
-  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
-  // Adjust image and Project start collapsed.
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Detail and
+  // tidiness, Background, Adjust image, palette swap, Project. Size, Colours
+  // and Detail and tidiness start open; the rest start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
   var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(false);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -7310,19 +7389,22 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    if (v.orphans != null) setOrphans(v.orphans);
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
   }, []);
+  // The Detail and tidiness step is its own choice: changing it keeps the
+  // picture type, so its keys are not compared here.
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
-      maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanup: !!(stitchCleanup && stitchCleanup.enabled),
+      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
       bgCol: bgCol
     };
     for (var k in v) {
+      if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       // The background colour is an [r, g, b] array: compare by value.
       if (k === 'bgCol') {
         if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
@@ -7332,6 +7414,21 @@ window.useCreatorState = function useCreatorState() {
     }
     return presetApplied.id;
   })();
+  // Detail and tidiness: steps are read in the last picture type chosen
+  // (photo before any), even after another value made the type Custom.
+  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id : 'photo';
+  var stitchStyle = stitchStyleOf(stitchStyleBasis, {
+    dithMode: dithMode, orphans: orphans,
+    cleanup: !!(stitchCleanup && stitchCleanup.enabled),
+    protectDetails: !!(stitchCleanup && stitchCleanup.protectDetails)
+  });
+  var applyStitchStyle = useCallback(function (step) {
+    var v = stitchStyleValues(stitchStyleBasis, step);
+    if (!v) return;
+    setDithMode(v.dithMode);
+    setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    setOrphans(v.orphans);
+  }, [stitchStyleBasis]);
 
   // Crop state
   var _isCrop  = useState(false);    var isCropping = _isCrop[0], setIsCropping = _isCrop[1];
@@ -8064,7 +8161,7 @@ window.useCreatorState = function useCreatorState() {
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setAdjOpen(false);
-    setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
+    setBgOpen(false); setCleanupOpen(true); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
@@ -8964,6 +9061,7 @@ window.useCreatorState = function useCreatorState() {
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
     pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
+    stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
@@ -14509,16 +14607,53 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 
 
 /* ─── usePreview.js ─── */
-/* creator/usePreview.js — Generates a fast preview thumbnail and stats while
+/* creator/usePreview.js — Generates the preview picture and stats while
    the user adjusts settings. Debounced 400 ms.
    Expects state object from useCreatorState. The single source of truth for
    what settings affect the preview is state.conversionSettings (built by
-   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js. */
+   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js.
+
+   The conversion runs in a background worker (generate-worker.js, the one
+   Generate uses) at the chart's own size, so the page never freezes while it
+   works (about 1 s for 40 000 stitches, 3 s for 500 x 333 in Chromium) and
+   the preview is the chart Generate will make, counts and all. Without
+   workers (file://) it runs on the page, at most PREVIEW_PAGE_MAX_AREA
+   stitches, scaled up for the counts. */
+
+// Stitches the preview converts on the page when there is no worker. A
+// bigger chart is previewed smaller, so its counts are estimates.
+var PREVIEW_PAGE_MAX_AREA = 40000;
 
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
   var sourceRef = React.useRef(state.img);
+  // The preview worker: null (not made yet), a Worker, or 'unavailable'.
+  var workerRef = React.useRef(null);
+  var busyRef = React.useRef(false);      // a job is running in the worker
+  var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
+  var failuresRef = React.useRef(0);
+
+  function getWorker() {
+    if (workerRef.current === 'unavailable') return null;
+    if (workerRef.current) return workerRef.current;
+    if (typeof Worker === 'undefined') { workerRef.current = 'unavailable'; return null; }
+    try { workerRef.current = new Worker('generate-worker.js'); }
+    catch (_) { workerRef.current = 'unavailable'; return null; }
+    return workerRef.current;
+  }
+  // Stop the worker (a job for old settings is no longer wanted). Handlers are
+  // detached first so a stopped worker never reaches the page's error handler.
+  function stopWorker() {
+    var w = workerRef.current;
+    if (w && w !== 'unavailable') {
+      w.onmessage = null;
+      w.onerror = function (ev) { if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); };
+      try { w.terminate(); } catch (_) {}
+      workerRef.current = null;
+    }
+    busyRef.current = false;
+  }
 
   function clearDetails() {
     ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight'].forEach(function(key) {
@@ -14546,6 +14681,9 @@ window.usePreview = function usePreview(state) {
       stopLoading();
     }
     if (state.setPreviewError) state.setPreviewError(null);
+    // Any result still on its way is for older settings.
+    var job = ++jobRef.current;
+    if (busyRef.current) stopWorker();
     if (!settings || !img || !img.src) { clearPreview(); stopLoading(); return; }
     if (state.setPreviewLoading) state.setPreviewLoading(true);
     try {
@@ -14563,9 +14701,11 @@ window.usePreview = function usePreview(state) {
       var dith = settings.dith;
       var showCleanupDiff = state.showCleanupDiff;
 
-      var MAX_PREVIEW_AREA = 40000;
+      // The chart's own size in the worker; on the page, at most
+      // PREVIEW_PAGE_MAX_AREA stitches.
+      var worker = settings.exactPixelArt ? null : getWorker();
       var pw = sW, ph = sH;
-      if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+      if (!worker && !settings.exactPixelArt && pw * ph > PREVIEW_PAGE_MAX_AREA) { var scale = Math.sqrt(PREVIEW_PAGE_MAX_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
       if (pw < 1) pw = 1;
       if (ph < 1) ph = 1;
 
@@ -14614,6 +14754,42 @@ window.usePreview = function usePreview(state) {
         pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
       }
 
+      // In the worker: the same job Generate posts, at the chart's size. The
+      // picture shown until it answers is the previous one, with the
+      // Updating preview status.
+      if (worker && !exactResult) {
+        var pixels = new Uint8ClampedArray(raw);   // the cached copy stays here
+        busyRef.current = true;
+        worker.onmessage = function (e) {
+          var msg = e.data || {};
+          if (msg.reqId !== job) return;
+          if (msg.type === 'progress') return;
+          busyRef.current = false;
+          if (job !== jobRef.current) return;
+          if (msg.type === 'error') { failPreview(); return; }
+          try {
+            runFull({
+              mapped: msg.mapped,
+              confettiRaw: msg.confettiData.raw,
+              // The worker reports the raw counts as "clean" when nothing was tidied.
+              confettiClean: msg.preCleanupIds ? msg.confettiData.clean : null,
+              preCleanupIds: msg.preCleanupIds || null
+            });
+          } catch (err) { failPreview(); }
+        };
+        // A worker that fails (a script that didn't load) is handled here; after
+        // two failures the preview runs on the page instead.
+        worker.onerror = function (ev) {
+          if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+          stopWorker();
+          failuresRef.current++;
+          if (failuresRef.current >= 2) workerRef.current = 'unavailable';
+          if (job === jobRef.current) failPreview();
+        };
+        worker.postMessage({ type: 'generate', reqId: job, pixels: pixels.buffer, width: pw, height: ph, settings: pipelineOpts() }, [pixels.buffer]);
+        return;
+      }
+
       // Progressive preview: if dithering is on, show a fast map-only result immediately,
       // then let React commit that frame before running the full dither pass.
       if (dith && !exactResult) {
@@ -14638,9 +14814,9 @@ window.usePreview = function usePreview(state) {
       }
       runFull();
 
-      function runFull() {
+      function runFull(workerResult) {
         fullPassTimerRef.current = null;
-        var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
+        var pipelineResult = workerResult || exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
         if (!pipelineResult) { failPreview(); return; }
         var mapped = pipelineResult.mapped;
         var confettiRaw = pipelineResult.confettiRaw;
@@ -14739,7 +14915,11 @@ window.usePreview = function usePreview(state) {
   ]);
 
   React.useEffect(function() {
-    return function() { if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; } };
+    return function() {
+      if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
+      jobRef.current++;
+      stopWorker();
+    };
   }, []);
 
   React.useEffect(function() {
@@ -14768,8 +14948,11 @@ window.usePreview = function usePreview(state) {
       if (state.previewTimerRef.current) { clearTimeout(state.previewTimerRef.current); state.previewTimerRef.current = null; }
       // A full pass queued by the previous settings must not land after they
       // changed: it would commit a stale picture and drop the spinner while
-      // the new pass is still waiting out its debounce.
+      // the new pass is still waiting out its debounce. The same goes for a
+      // job in the worker: its result is ignored and the worker is stopped.
       if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
+      jobRef.current++;
+      if (busyRef.current) stopWorker();
     };
   }, [generatePreview]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -20091,13 +20274,6 @@ window.CreatorSidebar = function CreatorSidebar() {
   // shown once any value the preset set has been changed.
   var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
     ? h("div", {className:"picture-type"},
-        h("label", null,
-          h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
-            disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
-            onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
-        h("p", {className:"hint"}, gen.exactPixelArt
-          ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, dithering and cleanup are ignored. Review source-to-thread mappings in the preview before Generate."
-          : "Exact mode supports sources up to 500 by 500 pixels without resizing. Colours are mapped to solid threads."),
         h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
           window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
@@ -20122,6 +20298,17 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("button", {type:"button", role:"radio", "aria-checked":gen.pictureType === "custom" ? "true" : "false", disabled:true,
             className:"lp-seg" + (gen.pictureType === "custom" ? " lp-seg--on" : ""), "data-picture-type":"custom",
             title:"Your own settings. Pick a type to start again from its preset."}, "Custom")
+        ),
+        // Exact import is a Pixel art option, so it only shows for pixel art
+        // (or while it is on).
+        (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", {className:"picture-type__exact"},
+          h("label", null,
+            h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
+              disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+              onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+          h("p", {className:"hint"}, gen.exactPixelArt
+            ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, shading and tidying are ignored. Review source-to-thread mappings in the preview before Generate."
+            : "One stitch per pixel, exactly: for pictures up to 500 by 500 pixels. Colours are mapped to solid threads.")
         )
       )
     : null;
@@ -20177,6 +20364,15 @@ window.CreatorSidebar = function CreatorSidebar() {
     window.BlendHelpNote && h(window.BlendHelpNote, {showSetting:false}),
     gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
       "Auto-disabled \u2014 fewer than 6 stash threads"
+    ),
+    // Min stitches per colour is about how many threads to buy, so it lives
+    // with the other thread choices.
+    h("div", {style:{marginTop:'var(--s-2)'}},
+      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
+        format:function(v){return v===0?"Off":v;},
+        helpText:"Minimum stitches before a colour is kept",
+        inlineHint:"Merges every colour used fewer times than this into a similar neighbour, reducing your thread count. Off still folds away stray colours automatically, keeping small bright accents.",
+        helpTopic:"palette"})
     ),
     typeof StashBridge !== "undefined" && h("label", {
       style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-1)'}
@@ -20296,7 +20492,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           },
           style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
         },
-          h("span", {style:{fontSize:9,display:"inline-block",transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, "\u25B6"),
+          h("span", {"aria-hidden":"true", style:{display:"inline-flex",width:12,height:12,transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
           "Explore variations"
         ),
         gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
@@ -20356,17 +20552,50 @@ window.CreatorSidebar = function CreatorSidebar() {
     // it depends on (e.g. "Smooth dithering" only matters when dither is on).
   ) : null;
 
-  // ── Smoothing & cleanup section ─────────────────────────────────────────────
-  // Combines dithering (how colours blend) with the cleanup chain (min-stitches,
-  // orphan removal, stitch cleanup). Previously dithering was buried under a
-  // hidden "▶ Dithering" disclosure inside Colours, which made it hard to
-  // discover — and "Smooth dithering" was a sub-option of Stitch Cleanup
-  // despite being a dithering modifier. Co-locating the two clarifies the
-  // mental model: pick how colours mix → then clean up the result.
+  // ── Detail and tidiness ─────────────────────────────────────────────────────
+  // One choice from More detail to Easiest to stitch sets shading and tidying
+  // together (STITCH_STYLES in useCreatorState.js, steps measured on photos).
+  // The individual controls stay under Fine-tune; changing one there shows
+  // Custom. Min stitches per colour lives in Colours, picture fixes in Adjust image.
   var tidySection = !ctx.isScratchMode ? (function() {
     var sc2 = gen.stitchCleanup;
-    var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled || gen.disambig;
-    var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+    // The dot marks settings changed under Fine-tune (no step matches them).
+    var styleNow = gen.stitchStyle || "custom";
+    var styleBasis = gen.stitchStyleBasis || "photo";
+    var tidyBadge = styleNow === "custom" ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
+    var styleOrder = window.STITCH_STYLE_ORDER || [];
+    var styleDescs = (window.STITCH_STYLE_DESCRIPTIONS || {})[styleBasis] || {};
+    // What the preview chart has now (the worker converts it at full size).
+    var ps = app.previewStats;
+    var confettiNow = ps ? (ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
+    var styleChooser = h("div", {className:"stitch-style"},
+      h("p", {className:"stitch-style__lead"}, "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch."),
+      h("div", {className:"lp-segmented stitch-style__seg", role:"radiogroup", "aria-label":"Detail and tidiness"},
+        styleOrder.map(function(id, i, order) {
+          var on = styleNow === id;
+          var tabbable = on || (styleNow === "custom" && i === 0);
+          return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
+            className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-stitch-style":id,
+            tabIndex: tabbable ? 0 : -1,
+            onClick:function(){ gen.applyStitchStyle(id); },
+            onKeyDown:function(e){
+              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              var next = order[(i + step + order.length) % order.length];
+              gen.applyStitchStyle(next);
+              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-stitch-style="' + next + '"]');
+              if (sib) sib.focus();
+            }}, window.STITCH_STYLE_LABELS[id]);
+        })
+      ),
+      h("p", {className:"stitch-style__desc"}, styleNow === "custom"
+        ? "Custom: your own mix of shading and tidying, set under Fine-tune. Pick a step to start again from it."
+        : styleDescs[styleNow]),
+      confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome"},
+        "In the preview: " + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
+        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches).")
+    );
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
     // Shading (audit COMMON-09): Off, Smooth blend or Pattern blend. The
@@ -20407,175 +20636,171 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       );
     }
-    return h(Section, {title:"Clean-up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
-      // ── Shading subsection ───────────────────────────────────────────────
-      h("div", {style:{marginTop:'var(--s-2)'}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-          h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
-          h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
-        ),
-        // Off | Smooth blend | Pattern blend
-        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-          algoOpts.map(function(o) {
-            var active = dithAlgo === o.id;
-            return h(Tooltip, {key:o.id, text:o.tip, width:240},
-              h("button", {
-                onClick:function(){setAlgoClick(o.id);},
-                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
-                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
-                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
-              }, o.label)
-            );
-          })
-        ),
-        // Sub-option row (contextual)
-        dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
-        dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
-        // The method names, for those who want them.
-        h("details", {className:"convert-advanced"},
-          h("summary", null, "Advanced"),
-          h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
-        )
-      ),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Colour reduction"),
-      h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
-          format:function(v){return v===0?"Off":v;},
-          helpText:"Minimum stitches before a colour is kept",
-          inlineHint:"Merges every colour used fewer times than this into a similar neighbour, reducing your thread count. Off still folds away stray colours automatically, keeping small bright accents.",
-          helpTopic:"palette"})
-      ),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-      h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Cleanup"),
-      h("div", {style:{marginTop:'var(--s-1)'}},
-        // Stitch Cleanup is the on/off switch; Reduce confetti the amount
-        // (colour-utils.js confettiCleanupPlan). They used to be separate
-        // controls, with a Cleanup strength that the confetti slider overrode.
-        h(Toggle, {
-          checked:sc2.enabled,
-          onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
-          label:"Stitch Cleanup",
-          help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched."
-        }),
-        sc2.enabled && h(React.Fragment, null,
-          h("div", {style:{marginTop:'var(--s-2)'}},
-            h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
-              format:function(v){return v===0?"Off":String(v);},
-              helpText:"How much confetti to merge into the colour around it. Off keeps every stitch",
-              inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
-              helpTopic:"confetti"}),
-            gen.orphans > 0 && (function() {
-              // Sizes from confettiCleanupPlan (colour-utils.js): level n merges
-              // patches of up to n stitches, and up to 3n in plain areas.
-              var desc;
-              if (gen.orphans === 1) {
-                desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
-              } else if (gen.orphans === 2) {
-                desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
-              } else {
-                desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
-              }
-              return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
-            })()
-          ),
-          gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-            "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
-            " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
-          ),
-          ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-            h("button", {
-              onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
-              style:{
-                fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-                border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
-                background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
-                color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-                fontWeight:gen.showCleanupDiff?600:400,
-                display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
-              }
-            }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
-          ),
-          gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-            fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-            background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
-            marginTop:'var(--s-1)',lineHeight:1.5
-          }},
-            h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
-            gen.cleanupDiff.count.toLocaleString(), " stitches changed",
-            ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-            Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
-              Object.entries(gen.cleanupDiff.byColour)
-                .sort(function(a,b){return b[1]-a[1];})
-                .slice(0,4)
-                .map(function(e){return "DMC "+e[0]+": "+e[1];})
-                .join(" \xB7 ") +
-                (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
-            )
-          ),
-          (function() {
-            var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-            if (!warning) return null;
-            var isDanger = warning.level === "danger";
-            return h("div", {style:{
-              marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-              background:isDanger?"var(--danger-soft)":"#FAF5E1",
-              border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-              color:isDanger?"var(--danger)":"var(--accent-ink)",
-              display:"flex",alignItems:"flex-start",gap:6
-            }},
-              h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-              h("span", null, warning.message)
-            );
-          })(),
-          h(Toggle, {
-            checked:sc2.protectDetails,
-            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
-            label:"Protect fine details",
-            help:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines. Off gives the tidiest chart, easiest to stitch. Bright accents such as catchlights are kept either way."
-          })
-        )
-      ),
-    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-    h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Legibility"),
-    h("div", {style:{marginTop:'var(--s-1)'}},
-      h(Toggle, {
-        checked:gen.disambig,
-        onChange:gen.setDisambig,
-        label:"Keep look-alike colours apart",
-        help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart, moving them away from their closest thread. Makes skies and skin tones easier to read, at some cost to colour accuracy."
-      }),
-      gen.disambig && h(React.Fragment, null,
+    return h(Section, {title:"Detail and tidiness", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
+      styleChooser,
+      // Every control behind the style choice, for those who want them.
+      h("details", {className:"convert-advanced convert-finetune"},
+        h("summary", null, "Fine-tune"),
+        // ── Shading subsection ───────────────────────────────────────────────
         h("div", {style:{marginTop:'var(--s-2)'}},
           h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-            h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:500}}, "How strict"),
-            h(InfoIcon, {text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
+            h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
+            h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
           ),
+          // Off | Smooth blend | Pattern blend
           h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-            [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
-              var id = pair[0], label = pair[1];
-              var active = (gen.disambigLevel || 'standard') === id;
-              return h("button", {
-                key:id,
-                onClick:function(){gen.setDisambigLevel(id);},
-                style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-                  background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
-                  color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
-                  boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
-              }, label);
+            algoOpts.map(function(o) {
+              var active = dithAlgo === o.id;
+              return h(Tooltip, {key:o.id, text:o.tip, width:240},
+                h("button", {
+                  onClick:function(){setAlgoClick(o.id);},
+                  style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                    background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                    color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                    boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+                }, o.label)
+              );
+            })
+          ),
+          // Sub-option row (contextual)
+          dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
+          dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
+          // The method names, for those who want them.
+          h("details", {className:"convert-advanced"},
+            h("summary", null, "Advanced"),
+            h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
+          )
+        ),
+        h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+        h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Tidying"),
+        h("div", {style:{marginTop:'var(--s-1)'}},
+          // Stitch Cleanup is the on/off switch; Reduce confetti the amount
+          // (colour-utils.js confettiCleanupPlan). They used to be separate
+          // controls, with a Cleanup strength that the confetti slider overrode.
+          h(Toggle, {
+            checked:sc2.enabled,
+            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
+            label:"Stitch Cleanup",
+            help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched."
+          }),
+          sc2.enabled && h(React.Fragment, null,
+            h("div", {style:{marginTop:'var(--s-2)'}},
+              h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+                format:function(v){return v===0?"Off":String(v);},
+                helpText:"How much confetti to merge into the colour around it. Off keeps every stitch",
+                inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
+                helpTopic:"confetti"}),
+              gen.orphans > 0 && (function() {
+                // Sizes from confettiCleanupPlan (colour-utils.js): level n merges
+                // patches of up to n stitches, and up to 3n in plain areas.
+                var desc;
+                if (gen.orphans === 1) {
+                  desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
+                } else if (gen.orphans === 2) {
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+                } else {
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+                }
+                return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
+              })()
+            ),
+            gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
+              "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
+              " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+            ),
+            ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+              h("button", {
+                onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
+                style:{
+                  fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                  border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+                  background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+                  color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
+                  fontWeight:gen.showCleanupDiff?600:400,
+                  display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
+                }
+              }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
+            ),
+            gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
+              fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+              background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+              marginTop:'var(--s-1)',lineHeight:1.5
+            }},
+              h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+              gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+              ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+              Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
+                Object.entries(gen.cleanupDiff.byColour)
+                  .sort(function(a,b){return b[1]-a[1];})
+                  .slice(0,4)
+                  .map(function(e){return "DMC "+e[0]+": "+e[1];})
+                  .join(" \xB7 ") +
+                  (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
+              )
+            ),
+            (function() {
+              var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+              if (!warning) return null;
+              var isDanger = warning.level === "danger";
+              return h("div", {style:{
+                marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+                background:isDanger?"var(--danger-soft)":"#FAF5E1",
+                border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+                color:isDanger?"var(--danger)":"var(--accent-ink)",
+                display:"flex",alignItems:"flex-start",gap:6
+              }},
+                h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+                h("span", null, warning.message)
+              );
+            })(),
+            h(Toggle, {
+              checked:sc2.protectDetails,
+              onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
+              label:"Protect fine details",
+              help:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines. Off gives the tidiest chart, easiest to stitch. Bright accents such as catchlights are kept either way."
             })
           )
         ),
-        gen.disambigData && gen.disambigData.swaps > 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-1)',lineHeight:1.5}},
-          "Last run: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " cells swapped across ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : ""
-        ),
-        gen.disambigData && gen.disambigData.swaps === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--success)",marginTop:'var(--s-1)'}},
-          "No adjacent cells needed correction."
+        h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
+        h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Legibility"),
+        h("div", {style:{marginTop:'var(--s-1)'}},
+          h(Toggle, {
+            checked:gen.disambig,
+            onChange:gen.setDisambig,
+            label:"Keep look-alike colours apart",
+            help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart, moving them away from their closest thread. Makes skies and skin tones easier to read, at some cost to colour accuracy."
+          }),
+          gen.disambig && h(React.Fragment, null,
+            h("div", {style:{marginTop:'var(--s-2)'}},
+              h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
+                h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:500}}, "How strict"),
+                h(InfoIcon, {text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
+              ),
+              h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
+                [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
+                  var id = pair[0], label = pair[1];
+                  var active = (gen.disambigLevel || 'standard') === id;
+                  return h("button", {
+                    key:id,
+                    onClick:function(){gen.setDisambigLevel(id);},
+                    style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
+                      background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
+                      color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
+                      boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
+                  }, label);
+                })
+              )
+            ),
+            gen.disambigData && gen.disambigData.swaps > 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-1)',lineHeight:1.5}},
+              "Last run: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " cells swapped across ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : ""
+            ),
+            gen.disambigData && gen.disambigData.swaps === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--success)",marginTop:'var(--s-1)'}},
+              "No adjacent cells needed correction."
+            )
+          )
         )
       )
-    )
-  );
+    );
   })() : null;
 
   // ── Image section (non-scratch) — source adjustments ───────────────────────
@@ -21168,21 +21393,26 @@ window.CreatorSidebar = function CreatorSidebar() {
       style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
     },
       globalRegenCta,
-      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, then Generate."),
+      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, choose how much detail to keep, then Generate."),
       h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
         app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
         app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
+        // Fine-tune is a plain disclosure inside Detail and tidiness: open it
+        // once the section has rendered.
+        requestAnimationFrame(function(){
+          Array.prototype.forEach.call(document.querySelectorAll(".convert-finetune"), function(d){ d.open = true; });
+        });
       }}, "Show all conversion controls"),
       // 0. What kind of picture is this? (presets)
       pictureTypeSection,
       // 1. Size & fabric (dimensions + fabric)
       dimSection,
-      // 2. Colours
+      // 2. Colours (threads, blends, minimum stitches, stash)
       palSection,
-      // 3. Background
-      bgSection,
-      // 4. Quality (dithering + cleanup)
+      // 3. Detail and tidiness (one style choice; the controls under Fine-tune)
       tidySection,
+      // 4. Background
+      bgSection,
       // 5. Adjust image (collapsed by default)
       adjSection,
       // 6. Palette swap (conditional)

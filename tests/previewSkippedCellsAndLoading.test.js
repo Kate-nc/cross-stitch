@@ -63,6 +63,7 @@ describe('usePreview scheduling', () => {
       }
     };
     global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
+    delete global.Worker;   // the page path unless a test supplies a worker
     global.applyPreSharpenCanvas = (s) => s;
     global.skeinEst = () => 1;
     global.isColorOwned = () => true;
@@ -135,6 +136,80 @@ describe('usePreview scheduling', () => {
     jest.advanceTimersByTime(50);
     expect(setters.setPreviewStats.mock.calls.every(([stats]) => stats === null)).toBe(true);
     expect(setters.setPreviewLoading).not.toHaveBeenCalledWith(false);
+  });
+
+  // ── The preview worker ──────────────────────────────────────────────────
+  // With workers the conversion runs in generate-worker.js at the chart's own
+  // size, so the page never freezes and the preview is the chart Generate makes.
+  function fakeWorkers() {
+    const made = [];
+    global.Worker = function (src) { this.src = src; this.posted = []; this.terminated = false; made.push(this); };
+    global.Worker.prototype.postMessage = function (msg) { this.posted.push(msg); };
+    global.Worker.prototype.terminate = function () { this.terminated = true; };
+    return made;
+  }
+  function answer(w, msg, n) {
+    const mapped = [];
+    for (let i = 0; i < n; i++) mapped.push({ id: '310', rgb: [0, 0, 0] });
+    w.onmessage({ data: { type: 'result', reqId: msg.reqId, mapped, confettiData: { raw: { pct: 1, singles: 2, singlesPct: 1 }, clean: { pct: 1, singles: 2, singlesPct: 1 } }, preCleanupIds: null } });
+  }
+
+  test('with a worker, a large chart is converted there at its own size, not on the page', () => {
+    const made = fakeWorkers();
+    state.conversionSettings = Object.assign({}, state.conversionSettings, { sW: 400, sH: 300 });
+    schedule();
+    jest.advanceTimersByTime(400);
+    expect(made).toHaveLength(1);
+    expect(made[0].src).toBe('generate-worker.js');
+    const msg = made[0].posted[0];
+    expect([msg.type, msg.width, msg.height]).toEqual(['generate', 400, 300]);
+    expect(global.runCleanupPipeline).not.toHaveBeenCalled();
+    expect(setters.setPreviewLoading).toHaveBeenLastCalledWith(true);
+    answer(made[0], msg, 400 * 300);
+    expect(setters.setPreviewDims).toHaveBeenLastCalledWith({ pw: 400, ph: 300 });
+    // Counts are the chart's own, not scaled up from a smaller preview.
+    expect(setters.setPreviewStats.mock.calls.at(-1)[0]).toMatchObject({ stitchable: 120000, confettiCleanSingles: null });
+    expect(setters.setPreviewLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  test('a result for older settings is ignored, and a busy worker is replaced', () => {
+    const made = fakeWorkers();
+    const preview = global.window.usePreview(state);
+    effects[1]();
+    jest.advanceTimersByTime(400);
+    const first = made[0].posted[0];
+    preview.generatePreview();               // settings changed while the first job ran
+    expect(made[0].terminated).toBe(true);
+    expect(made).toHaveLength(2);
+    const urls = setters.setPreviewUrl.mock.calls.length;
+    if (made[0].onmessage) answer(made[0], first, 100);
+    expect(setters.setPreviewUrl.mock.calls.length).toBe(urls);
+    answer(made[1], made[1].posted[0], 100);
+    expect(setters.setPreviewUrl.mock.calls.length).toBe(urls + 1);
+  });
+
+  test('settings changing during the debounce stop a running job', () => {
+    const made = fakeWorkers();
+    const cleanup = schedule();
+    jest.advanceTimersByTime(400);
+    cleanup();
+    expect(made[0].terminated).toBe(true);
+  });
+
+  test('a worker that fails twice hands the preview back to the page', () => {
+    const made = fakeWorkers();
+    const preview = global.window.usePreview(state);
+    effects[1]();
+    jest.advanceTimersByTime(400);
+    made[0].onerror({ preventDefault() {} });
+    expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
+    preview.generatePreview();
+    made[1].onerror({ preventDefault() {} });
+    preview.generatePreview();
+    jest.runAllTimers();
+    expect(made).toHaveLength(2);
+    expect(global.runCleanupPipeline).toHaveBeenCalled();
+    expect(setters.setPreviewError).toHaveBeenLastCalledWith(null);
   });
 
   function expectCleared() {

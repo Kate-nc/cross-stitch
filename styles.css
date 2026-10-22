@@ -8075,6 +8075,16 @@ body.cs-focus [data-toast-container][data-toast-phone="1"]{bottom:calc(max(16px,
 .picture-type__seg .lp-seg{font-size:var(--text-xs);min-height:36px;padding:4px 6px;}
 .picture-type__seg .lp-seg:disabled{cursor:default;}
 .picture-type__seg .lp-seg:disabled:not(.lp-seg--on){color:var(--text-tertiary);}
+.picture-type__exact{margin-top:8px;font-size:var(--text-sm);}
+/* Detail and tidiness: four steps from More detail to Easiest to stitch. */
+.stitch-style{margin-top:var(--s-2);}
+.stitch-style__lead{margin:0 0 6px;font-size:var(--text-xs);line-height:1.45;color:var(--text-secondary);}
+.stitch-style__seg{display:flex;width:100%;}
+.stitch-style__seg .lp-seg{font-size:var(--text-xs);min-height:40px;padding:4px;white-space:normal;line-height:1.2;}
+@media (pointer:coarse){.stitch-style__seg .lp-seg{min-height:44px;}}
+.stitch-style__desc{margin:6px 0 0;font-size:var(--text-xs);line-height:1.45;color:var(--text-secondary);}
+.stitch-style__outcome{margin:4px 0 0;font-size:var(--text-xs);color:var(--text-tertiary);font-variant-numeric:tabular-nums;}
+.convert-finetune{margin-top:var(--s-3);border-top:0.5px solid var(--border);padding-top:var(--s-1);}
 
 /* ── Thread brand for Convert (audit IMG-04) ─────────────────────────────── */
 .thread-brand{margin-top:var(--s-2);}

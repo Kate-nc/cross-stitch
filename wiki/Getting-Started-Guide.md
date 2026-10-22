@@ -48,7 +48,7 @@ Lifetime stitches (the stitches marked across all your charts), recent activity 
 
 1. Go to **Home > Create new** and choose **Convert a picture**.
 2. Pick an image. Simple graphics and photos with clear subjects work best.
-3. The Pattern Creator opens with the image. Start with **Size & fabric** and **Colours**. Expand **Clean-up** or **Adjust image**, or choose **Show all conversion controls** to set the size in stitches, the fabric count and the number of colours (10–20 is a good start). The preview updates as you go.
+3. The Pattern Creator opens with the image. Start with **Size & fabric** and **Colours**, then choose how much detail to keep under **Detail and tidiness**. Expand **Background** or **Adjust image**, or choose **Show all conversion controls** to set the size in stitches, the fabric count and the number of colours (10–20 is a good start). The preview updates as you go.
 4. Generate the pattern.
 5. The **Tools** and **View** tabs unlock so you can edit stitches by hand.
 
