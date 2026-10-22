@@ -18,3 +18,6 @@ global.TrackingSync = require('../../tracking-sync.js');
 
 // Pages load the merge primitives before sync-engine.js, which calls them by global name.
 global.SyncMergeHelpers = require('../../sync-merge-helpers.js');
+
+// Pages load the attachment codec before the engine's narrow verification adapter.
+global.SyncAttachmentCodec = require('../../sync-attachment-codec.js');
