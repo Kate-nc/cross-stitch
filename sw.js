@@ -122,6 +122,7 @@ var PRECACHE_URLS = [
   // has it inside creator/bundle.js.
   './creator/pdfExport.js',
   './sync-merge-helpers.js',
+  './sync-attachment-codec.js',
   './sync-engine.js',
   './webdav-sync.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
@@ -136,7 +137,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "07658569be8204f0717c48c8120ce7b361863f64ea0de9da8032f0c981f07212";
+var BUILD_ID = "0c087e8b8a2de7e5cbadb95c5cb1ed7af46dc82ce029146840910a4436ec3206";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -233,6 +234,7 @@ var REQUIRED_URLS = [
   "./help-drawer.js",
   "./creator/pdfExport.js",
   "./sync-merge-helpers.js",
+  "./sync-attachment-codec.js",
   "./sync-engine.js",
   "./webdav-sync.js",
   "./assets/fonts/CrossStitchSymbols.base64.js",
@@ -279,19 +281,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "f260db9dbeda82000c74cd2b0300c9b6d27bc3d19ae0e6450c98cc14b041878b"
+    "sha256": "d63e4c40818b86b122ed994ef14d97ad1ae628db09c1c6fcb3e94068f988caee"
   },
   "./index.html": {
-    "sha256": "700c04d4b4ed1b8fd7fcc24e63131ccea383bec01bc2fd9e3e8ae0a6607a5a5c"
+    "sha256": "123993737ef5b179bcd6f9a93adca95d5366f853614117f1853c4d04e5d8cdc6"
   },
   "./create.html": {
-    "sha256": "b49d871925d0e1f20b1018cd587d3b446d76ae3c5a1d1ebf50cd41d420051415"
+    "sha256": "e6bc7f986ba7582dfdef5e9a781415611a5f1ca028d6647a90fb80b655e9cc2b"
   },
   "./stitch.html": {
-    "sha256": "27d5538a0c6259b03c425e1fc918cb4f298e031c2bbc8d8864d42091a0240e89"
+    "sha256": "031b067d89de5c762cf1aed9764276a5bf766b327463751fd8e9681cd0b8af2c"
   },
   "./manager.html": {
-    "sha256": "229ba470b505ad59ee7da01267dcf0680d6602a00c0a2c74a30fcf279ced8772"
+    "sha256": "cdb4097076456215f2e187b20acd184c753c718065b297d729550968c9f875aa"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -563,8 +565,11 @@ var BUILD_ASSETS = {
   "./sync-merge-helpers.js": {
     "sha256": "049bac322f42bb1b277d5681d180ac586b49d244223ac5b71a7cebb99ffbfd2c"
   },
+  "./sync-attachment-codec.js": {
+    "sha256": "23c363f05ddb3d40fba2ed31fc546c47201ada20ff7d4ee7e69b2245c5b041fd"
+  },
   "./sync-engine.js": {
-    "sha256": "c2c3769842b5858c624f81b5485c67bfd4726f645e3b63f34877b6941faac65e"
+    "sha256": "65f486111491ee217a4d217e1ba7177be500004cacccf50c529a82fba44a1df2"
   },
   "./webdav-sync.js": {
     "sha256": "eb6cceb9c949c479b79108eeae059db6022221763d97ba454578672be887a39c"
