@@ -860,6 +860,9 @@ function imageImportGeometry(img, crop = {}) {
   return {rotate, width, height, sx:(width-sw)/2, sy:(height-sh)/2, sw, sh};
 }
 
+// parseImagePattern's averaged pixels, one entry per picture element.
+var _importPixelCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+
 function parseImagePattern(img, options = {}) {
   options = imageImportOptions(options);
   const maxWidth    = options.maxWidth    || 200;
@@ -894,43 +897,59 @@ function parseImagePattern(img, options = {}) {
   targetWidth = Math.round(targetWidth);
   targetHeight = Math.round(targetHeight);
   // Shrinking averages the picture as light, like the Creator (gridPixels,
-  // creator/generate.js): the oriented crop is drawn at its own size and
-  // each stitch is the light-correct mean of the pixels under it
-  // (linearAreaDownscale, colour-utils.js). A single scaled drawImage
-  // sampled the picture instead (nearest-neighbour up to 2:1, a few pixels
-  // per stitch beyond), so stitches took the colour of whichever pixel they
-  // hit. Enlarging has nothing to average and keeps crisp, unsmoothed pixels.
-  let drawWidth = targetWidth, drawHeight = targetHeight;
-  const shrink = typeof linearAreaDownscale === 'function' && geometry.sw >= targetWidth && geometry.sh >= targetHeight;
-  if (shrink) {
-    drawWidth = Math.max(targetWidth, Math.round(geometry.sw));
-    drawHeight = Math.max(targetHeight, Math.round(geometry.sh));
-    const MAX_AREA = 4096 * 4096;   // very large pictures: drawn smaller first, far finer than a stitch
-    if (drawWidth * drawHeight > MAX_AREA) {
-      const k = Math.sqrt(MAX_AREA / (drawWidth * drawHeight));
-      drawWidth = Math.max(targetWidth, Math.floor(drawWidth * k));
-      drawHeight = Math.max(targetHeight, Math.floor(drawHeight * k));
-    }
+  // creator/generate.js): each stitch is the light-correct mean of the pixels
+  // under it (linearAreaDownscale, colour-utils.js). A single scaled drawImage
+  // sampled the picture instead (nearest-neighbour up to 2:1, a few pixels per
+  // stitch beyond), so stitches took the colour of whichever pixel they hit.
+  // Each axis is drawn at the crop's own size where it shrinks, to be averaged,
+  // and at the target size where it enlarges, as crisp unsmoothed pixels.
+  const canAverage = typeof linearAreaDownscale === 'function';
+  let drawWidth = canAverage ? Math.max(targetWidth, Math.round(geometry.sw)) : targetWidth;
+  let drawHeight = canAverage ? Math.max(targetHeight, Math.round(geometry.sh)) : targetHeight;
+  let capped = false;
+  const maxArea = typeof LINEAR_SHRINK_MAX_SOURCE_AREA === 'number' ? LINEAR_SHRINK_MAX_SOURCE_AREA : 4096 * 4096;
+  if (drawWidth * drawHeight > maxArea) {
+    // A very large picture is drawn smaller first, far finer than a stitch.
+    const k = Math.sqrt(maxArea / (drawWidth * drawHeight));
+    drawWidth = Math.max(targetWidth, Math.floor(drawWidth * k));
+    drawHeight = Math.max(targetHeight, Math.floor(drawHeight * k));
+    capped = true;
   }
-  const canvas = document.createElement("canvas");
-  canvas.width = drawWidth;
-  canvas.height = drawHeight;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  ctx.imageSmoothingEnabled = shrink;
-  if (shrink && 'imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
-  ctx.save();
-  ctx.scale(drawWidth / geometry.sw, drawHeight / geometry.sh);
-  ctx.translate(-geometry.sx, -geometry.sy);
-  ctx.translate(geometry.width / 2, geometry.height / 2);
-  ctx.rotate(geometry.rotate * Math.PI / 180);
   const crop = options.crop || {};
-  ctx.scale(crop.flipH ? -1 : 1, crop.flipV ? -1 : 1);
-  ctx.drawImage(img, -img.width / 2, -img.height / 2);
-  ctx.restore();
+  // The averaged pixels for this picture, crop, orientation and size, so the
+  // import wizard's live preview doesn't re-read a large photo for every
+  // contrast or palette change. Canvases are never cached (their pixels can change).
+  const cacheKey = [targetWidth, targetHeight, drawWidth, drawHeight, geometry.rotate, geometry.sx, geometry.sy, geometry.sw, geometry.sh, crop.flipH ? 1 : 0, crop.flipV ? 1 : 0].join(',');
+  const cacheable = !!(_importPixelCache && img && typeof img === 'object' && typeof img.getContext !== 'function');
+  const cached = cacheable ? _importPixelCache.get(img) : null;
+  let data;
+  if (cached && cached.key === cacheKey) {
+    data = new Uint8ClampedArray(cached.data);
+  } else {
+    const canvas = document.createElement("canvas");
+    canvas.width = drawWidth;
+    canvas.height = drawHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  let data = ctx.getImageData(0, 0, drawWidth, drawHeight).data;
-  if (drawWidth !== targetWidth || drawHeight !== targetHeight) data = linearAreaDownscale(data, drawWidth, drawHeight, targetWidth, targetHeight);
+    // Smoothing only when the draw itself scales down: a capped large picture,
+    // or (without averaging) the old rule of more than 2:1. At the picture's own
+    // size a fractional crop offset with smoothing would blend every pixel of
+    // pixel art with its neighbour, inventing colours.
+    ctx.imageSmoothingEnabled = capped || (!canAverage && geometry.sw > targetWidth * 2);
+    if (ctx.imageSmoothingEnabled && 'imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+    ctx.save();
+    ctx.scale(drawWidth / geometry.sw, drawHeight / geometry.sh);
+    ctx.translate(-geometry.sx, -geometry.sy);
+    ctx.translate(geometry.width / 2, geometry.height / 2);
+    ctx.rotate(geometry.rotate * Math.PI / 180);
+    ctx.scale(crop.flipH ? -1 : 1, crop.flipV ? -1 : 1);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+
+    data = ctx.getImageData(0, 0, drawWidth, drawHeight).data;
+    if (drawWidth !== targetWidth || drawHeight !== targetHeight) data = linearAreaDownscale(data, drawWidth, drawHeight, targetWidth, targetHeight);
+    if (cacheable) _importPixelCache.set(img, { key: cacheKey, data: new Uint8ClampedArray(data) });
+  }
   const contrast = Math.max(-50, Math.min(50, Number(options.contrast) || 0));
   if (contrast) {
     const factor = 1 + contrast / 100;

@@ -196,20 +196,17 @@ describe('usePreview scheduling', () => {
     expect(made[0].terminated).toBe(true);
   });
 
-  test('a worker that fails twice hands the preview back to the page', () => {
+  test('a worker that fails to run hands the preview to the page straight away', () => {
     const made = fakeWorkers();
-    const preview = global.window.usePreview(state);
+    global.window.usePreview(state);
     effects[1]();
     jest.advanceTimersByTime(400);
     made[0].onerror({ preventDefault() {} });
-    expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
-    preview.generatePreview();
-    made[1].onerror({ preventDefault() {} });
-    preview.generatePreview();
     jest.runAllTimers();
-    expect(made).toHaveLength(2);
-    expect(global.runCleanupPipeline).toHaveBeenCalled();
-    expect(setters.setPreviewError).toHaveBeenLastCalledWith(null);
+    expect(made).toHaveLength(1);                         // no second worker
+    expect(global.runCleanupPipeline).toHaveBeenCalled(); // converted on the page instead
+    expect(setters.setPreviewError).not.toHaveBeenCalledWith(expect.any(String));
+    expect(setters.setPreviewLoading).toHaveBeenLastCalledWith(false);
   });
 
   function expectCleared() {

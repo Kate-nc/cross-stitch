@@ -119,7 +119,8 @@ self.onmessage = function(e) {
     }
 
     var saliencyMap = generateSaliencyMap(raw, width, height);
-    var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+    // Always on in Smooth blend (mirrors runCleanupPipeline).
+    var cdt = dith && dithAlgo === "atkinson" ? 4.0 : 0.0;
     postProgress(dith ? 'dithering' : 'mapping', dith ? 'Dithering colours…' : 'Mapping colours…');
     var mapped;
     if (!dith) {
@@ -171,9 +172,9 @@ self.onmessage = function(e) {
 
     // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
     // (mirrors runCleanupPipeline).
-    if (confettiCleanupPlan(stitchCleanup, settings.orphans)) {
-      postProgress('cleanup', 'Cleaning up stitches…');
-      var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    if (confettiCleanupPlan(stitchCleanup, settings.orphans)) postProgress('cleanup', 'Cleaning up stitches…');
+    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    if (cleaned) {
       mapped = cleaned.mapped;
       preCleanupIds = cleaned.preCleanupIds;
       confettiClean = cleaned.confettiClean;

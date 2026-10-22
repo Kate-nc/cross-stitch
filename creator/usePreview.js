@@ -23,7 +23,6 @@ window.usePreview = function usePreview(state) {
   var workerRef = React.useRef(null);
   var busyRef = React.useRef(false);      // a job is running in the worker
   var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
-  var failuresRef = React.useRef(0);
 
   function getWorker() {
     if (workerRef.current === 'unavailable') return null;
@@ -168,14 +167,14 @@ window.usePreview = function usePreview(state) {
             });
           } catch (err) { failPreview(); }
         };
-        // A worker that fails (a script that didn't load) is handled here; after
-        // two failures the preview runs on the page instead.
+        // A worker that fails to run (a script that didn't load) is no use, so
+        // from now on the preview runs on the page, starting with this one. (A
+        // conversion error inside a working worker arrives as an 'error' message.)
         worker.onerror = function (ev) {
           if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
           stopWorker();
-          failuresRef.current++;
-          if (failuresRef.current >= 2) workerRef.current = 'unavailable';
-          if (job === jobRef.current) failPreview();
+          workerRef.current = 'unavailable';
+          if (job === jobRef.current) setTimeout(function () { generatePreview(); }, 0);
         };
         worker.postMessage({ type: 'generate', reqId: job, pixels: pixels.buffer, width: pw, height: ph, settings: pipelineOpts() }, [pixels.buffer]);
         return;

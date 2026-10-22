@@ -543,8 +543,6 @@ function defaultFabricColour() {
 }
 window.creatorDefaultFabricColour = defaultFabricColour;
 
-// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
-// (e.g. SSR or test environments) never throws during render.
 // A shading mode the Creator offers: "off", "weak", "balanced", "bayer2",
 // "bayer4" or "bayer8". The retired "strong" and any other "on" value become
 // "balanced"; anything falsy is "off".
@@ -555,6 +553,8 @@ function normaliseDithMode(v) {
 }
 window.normaliseDithMode = normaliseDithMode;
 
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
   try {
     if (typeof UserPrefs === "undefined") return fallback;
@@ -910,9 +910,12 @@ window.useCreatorState = function useCreatorState() {
     }
     return presetApplied.id;
   })();
-  // Detail and tidiness: steps are read in the last picture type chosen
-  // (photo before any), even after another value made the type Custom.
-  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id : 'photo';
+  // Detail and tidiness: steps are read in the last picture type chosen, even
+  // after another value made the type Custom. With none chosen (Guess the
+  // picture type off in Preferences), in the type the picture looks like, so
+  // a logo or pixel art is never shaded by choosing a step; photo without a picture.
+  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id
+    : pictureInfo ? guessPictureType(pictureInfo) : 'photo';
   var stitchStyle = stitchStyleOf(stitchStyleBasis, {
     dithMode: dithMode, orphans: orphans,
     cleanup: !!(stitchCleanup && stitchCleanup.enabled),
@@ -2556,7 +2559,7 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,

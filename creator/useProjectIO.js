@@ -24,7 +24,10 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
+  'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand',
+  // The picture type chosen ({ id, values }): restored after the guess made on
+  // reload, so Detail and tidiness keeps following the type the person chose.
+  'presetApplied'
 ];
 function creatorDraftSettings(state) {
   var o = {};
@@ -50,9 +53,6 @@ function creatorHasTrace(state) {
 }
 window.creatorHasTrace = creatorHasTrace;
 
-// A new picture's starting size (audit IMG-03): the long side fitted to 100
-// stitches, never more stitches than the picture has pixels. The Pixel art
-// preset, applied after this, uses the picture's own size instead.
 // A large upload (over 2000 x 2000 or 5 MB) shrunk to w x h for keeping.
 // Halving steps with high-quality smoothing, then the final size: one
 // default-quality drawImage of a 48-megapixel photo sampled one pixel in
@@ -80,6 +80,9 @@ function creatorShrinkUpload(img, w, h) {
 }
 window.creatorShrinkUpload = creatorShrinkUpload;
 
+// A new picture's starting size (audit IMG-03): the long side fitted to 100
+// stitches, never more stitches than the picture has pixels. The Pixel art
+// preset, applied after this, uses the picture's own size instead.
 function creatorInitialSize(w, h) {
   if (typeof window.initialPatternSize === "function") return window.initialPatternSize(w, h);
   return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };

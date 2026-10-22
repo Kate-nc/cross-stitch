@@ -796,21 +796,18 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
-                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA,
                  applyUnsharpMask; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
-// Pictures with more pixels than this are first drawn smaller by the browser.
-// Uploads are already capped at 2000 x 2000; this only guards very large
-// sources, at a scale far finer than a stitch.
-var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
-
-// The averaged picture for the last grid size asked of each picture element,
-// so moving Brightness, Contrast or Saturation, a Compare options batch and
+// The averaged picture for each picture element, for the last few grid sizes
+// asked of it (the chart, Compare options' sizes, the stash gallery), so
+// moving Brightness, Contrast or Saturation, a Compare options batch and
 // Generate don't each read the whole picture again (about 80 ms for a
 // 2000-pixel photo, longer on a phone). Canvases are never cached: their
 // pixels can change under the same object.
 var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
+var GRID_PIXELS_CACHE_SIZES = 6;
 
 /**
  * The picture at grid size: one RGBA pixel per stitch, each the light-correct
@@ -820,8 +817,9 @@ var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
  * browser). The one place that turns a picture into stitch pixels, shared by
  * Generate, the preview, Compare options and the stash gallery so they all
  * see the same thing.
- * Enlarging (grid bigger than the picture) has nothing to average and uses
- * the browser's smooth scaling, as before. DOM-only.
+ * Each axis is averaged where it shrinks; where the grid is bigger than the
+ * picture there is nothing to average and the browser's smooth scaling
+ * enlarges it, as before. DOM-only.
  *
  * @param {HTMLImageElement|HTMLCanvasElement} source
  * @param {number} targetW  Grid width in stitches
@@ -839,15 +837,19 @@ function gridPixels(source, targetW, targetH, opts) {
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
   var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
-  var hit = cacheable ? _gridPixelsCache.get(source) : null;
-  var averaged = hit && hit.key === key ? hit.data : null;
-  var ctx = document.createElement("canvas").getContext("2d");
+  var sizes = cacheable ? _gridPixelsCache.get(source) : null;
+  var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
     averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
-    if (cacheable) _gridPixelsCache.set(source, { key: key, data: averaged });
+    if (cacheable) {
+      if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
+      sizes.set(key, averaged);
+      if (sizes.size > GRID_PIXELS_CACHE_SIZES) sizes.delete(sizes.keys().next().value);   // the oldest size
+    }
   }
-  var out = ctx.createImageData(targetW, targetH);
-  out.data.set(averaged);
+  var out = typeof ImageData === "function"
+    ? new ImageData(new Uint8ClampedArray(averaged), targetW, targetH)
+    : (function () { var id = document.createElement("canvas").getContext("2d").createImageData(targetW, targetH); id.data.set(averaged); return id; })();
   if ((bri !== 0 || con !== 0 || sat !== 0) && typeof _applyImageFilters === "function") _applyImageFilters(out, bri, con, sat);
   return out;
 }
@@ -865,12 +867,16 @@ function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
     cx.drawImage(src, 0, 0, w, h);
     return cx.getImageData(0, 0, w, h).data;
   }
-  if (!sw || !sh || sw < targetW || sh < targetH) return new Uint8ClampedArray(read(targetW, targetH));
-  if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
-    var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
-    sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
+  if (!sw || !sh) return new Uint8ClampedArray(read(targetW, targetH));
+  // Each axis at the picture's own size where it shrinks (to be averaged),
+  // at the grid's size where it enlarges.
+  var dw = Math.max(targetW, sw), dh = Math.max(targetH, sh);
+  if (dw * dh > LINEAR_SHRINK_MAX_SOURCE_AREA) {
+    var k = Math.sqrt(LINEAR_SHRINK_MAX_SOURCE_AREA / (dw * dh));
+    dw = Math.max(targetW, Math.floor(dw * k)); dh = Math.max(targetH, Math.floor(dh * k));
   }
-  return linearAreaDownscale(read(sw, sh), sw, sh, targetW, targetH);
+  var px = read(dw, dh);
+  return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
 }
 
 /**
@@ -956,7 +962,10 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  // The confetti-aware choice in Smooth blend is always on: its own control
+  // ("Fewer confetti stitches in shading") measured no effect and was removed,
+  // so a stored "off" (stitchCleanup.smoothDithering) must not linger unseen.
+  var cdt = dith && dithAlgo === "atkinson" ? 4.0 : 0.0;
   var mapped;
   if (!dith) {
     mapped = doMap(raw, width, height, p, allowBlends);
@@ -7047,8 +7056,6 @@ function defaultFabricColour() {
 }
 window.creatorDefaultFabricColour = defaultFabricColour;
 
-// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
-// (e.g. SSR or test environments) never throws during render.
 // A shading mode the Creator offers: "off", "weak", "balanced", "bayer2",
 // "bayer4" or "bayer8". The retired "strong" and any other "on" value become
 // "balanced"; anything falsy is "off".
@@ -7059,6 +7066,8 @@ function normaliseDithMode(v) {
 }
 window.normaliseDithMode = normaliseDithMode;
 
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
   try {
     if (typeof UserPrefs === "undefined") return fallback;
@@ -7414,9 +7423,12 @@ window.useCreatorState = function useCreatorState() {
     }
     return presetApplied.id;
   })();
-  // Detail and tidiness: steps are read in the last picture type chosen
-  // (photo before any), even after another value made the type Custom.
-  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id : 'photo';
+  // Detail and tidiness: steps are read in the last picture type chosen, even
+  // after another value made the type Custom. With none chosen (Guess the
+  // picture type off in Preferences), in the type the picture looks like, so
+  // a logo or pixel art is never shaded by choosing a step; photo without a picture.
+  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id
+    : pictureInfo ? guessPictureType(pictureInfo) : 'photo';
   var stitchStyle = stitchStyleOf(stitchStyleBasis, {
     dithMode: dithMode, orphans: orphans,
     cleanup: !!(stitchCleanup && stitchCleanup.enabled),
@@ -9060,7 +9072,7 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
     stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
@@ -13209,7 +13221,10 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
   'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
-  'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand'
+  'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand',
+  // The picture type chosen ({ id, values }): restored after the guess made on
+  // reload, so Detail and tidiness keeps following the type the person chose.
+  'presetApplied'
 ];
 function creatorDraftSettings(state) {
   var o = {};
@@ -13235,9 +13250,6 @@ function creatorHasTrace(state) {
 }
 window.creatorHasTrace = creatorHasTrace;
 
-// A new picture's starting size (audit IMG-03): the long side fitted to 100
-// stitches, never more stitches than the picture has pixels. The Pixel art
-// preset, applied after this, uses the picture's own size instead.
 // A large upload (over 2000 x 2000 or 5 MB) shrunk to w x h for keeping.
 // Halving steps with high-quality smoothing, then the final size: one
 // default-quality drawImage of a 48-megapixel photo sampled one pixel in
@@ -13265,6 +13277,9 @@ function creatorShrinkUpload(img, w, h) {
 }
 window.creatorShrinkUpload = creatorShrinkUpload;
 
+// A new picture's starting size (audit IMG-03): the long side fitted to 100
+// stitches, never more stitches than the picture has pixels. The Pixel art
+// preset, applied after this, uses the picture's own size instead.
 function creatorInitialSize(w, h) {
   if (typeof window.initialPatternSize === "function") return window.initialPatternSize(w, h);
   return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };
@@ -14632,7 +14647,6 @@ window.usePreview = function usePreview(state) {
   var workerRef = React.useRef(null);
   var busyRef = React.useRef(false);      // a job is running in the worker
   var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
-  var failuresRef = React.useRef(0);
 
   function getWorker() {
     if (workerRef.current === 'unavailable') return null;
@@ -14777,14 +14791,14 @@ window.usePreview = function usePreview(state) {
             });
           } catch (err) { failPreview(); }
         };
-        // A worker that fails (a script that didn't load) is handled here; after
-        // two failures the preview runs on the page instead.
+        // A worker that fails to run (a script that didn't load) is no use, so
+        // from now on the preview runs on the page, starting with this one. (A
+        // conversion error inside a working worker arrives as an 'error' message.)
         worker.onerror = function (ev) {
           if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
           stopWorker();
-          failuresRef.current++;
-          if (failuresRef.current >= 2) workerRef.current = 'unavailable';
-          if (job === jobRef.current) failPreview();
+          workerRef.current = 'unavailable';
+          if (job === jobRef.current) setTimeout(function () { generatePreview(); }, 0);
         };
         worker.postMessage({ type: 'generate', reqId: job, pixels: pixels.buffer, width: pw, height: ph, settings: pipelineOpts() }, [pixels.buffer]);
         return;
@@ -19564,19 +19578,19 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Reducing confetti may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your pattern is very small ("+sW+"\xD7"+sH+"), so merging confetti stitches may remove fine details. Choose More detail, or make the pattern bigger."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Reduce confetti at level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may lose eyes, lettering or thin lines. Choose More detail, or make the pattern bigger."};
     }
     if (area <= 2500 && orphans >= 3) {
-      return {level:"warning",message:"Reduce confetti at level 3 on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
+      return {level:"warning",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may remove more detail than expected. Try Balanced or More detail."};
     }
     if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
       var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
       var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
       if (pctRemoved > 20) {
-        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider a lower Reduce confetti level."};
+        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Try a step towards More detail."};
       }
       if (pctRemoved > 10) {
         return {level:"warning",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
@@ -20595,6 +20609,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome"},
         "In the preview: " + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
         " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches).")
+      ,
+      // A small grid with heavy tidying can lose eyes and lettering: say so
+      // here, not only under Fine-tune, because a step can set it.
+      sc2.enabled && (function() {
+        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+        if (!warning) return null;
+        var isDanger = warning.level === "danger";
+        return h("div", {role:"note", style:{
+          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+          background:isDanger?"var(--danger-soft)":"var(--warning-soft)",
+          border:"1px solid "+(isDanger?"var(--danger-soft)":"var(--warning-soft)"),
+          color:isDanger?"var(--danger)":"var(--accent-ink)",
+          display:"flex",alignItems:"flex-start",gap:6
+        }},
+          h("span", {"aria-hidden":"true", style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+          h("span", null, warning.message)
+        );
+      })()
     );
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
@@ -20697,9 +20729,9 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (gen.orphans === 1) {
                   desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
                 } else if (gen.orphans === 2) {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
                 } else {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
                 }
                 return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
               })()
@@ -20723,10 +20755,10 @@ window.CreatorSidebar = function CreatorSidebar() {
             ),
             gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
               fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-              background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+              background:"var(--surface-secondary)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',
               marginTop:'var(--s-1)',lineHeight:1.5
             }},
-              h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+              h("span", {"aria-hidden":"true", style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"var(--accent)",marginRight:'var(--s-1)',verticalAlign:"middle"}}),
               gen.cleanupDiff.count.toLocaleString(), " stitches changed",
               ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
               Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
@@ -20738,21 +20770,6 @@ window.CreatorSidebar = function CreatorSidebar() {
                   (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
               )
             ),
-            (function() {
-              var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-              if (!warning) return null;
-              var isDanger = warning.level === "danger";
-              return h("div", {style:{
-                marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-                background:isDanger?"var(--danger-soft)":"#FAF5E1",
-                border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-                color:isDanger?"var(--danger)":"var(--accent-ink)",
-                display:"flex",alignItems:"flex-start",gap:6
-              }},
-                h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-                h("span", null, warning.message)
-              );
-            })(),
             h(Toggle, {
               checked:sc2.protectDetails,
               onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},

@@ -47,19 +47,19 @@ window.CreatorSidebar = function CreatorSidebar() {
     if (orphans === 0) return null;
     var area = sW * sH;
     if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your grid is very small ("+sW+"\xD7"+sH+"). Reducing confetti may destroy fine details. Consider turning it off or increasing grid size."};
+      return {level:"danger",message:"Your pattern is very small ("+sW+"\xD7"+sH+"), so merging confetti stitches may remove fine details. Choose More detail, or make the pattern bigger."};
     }
     if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"Reduce confetti at level "+orphans+" is aggressive for a "+sW+"\xD7"+sH+" grid. Important details like eyes, text, or thin lines may be lost. Consider using level 1 or increasing grid size."};
+      return {level:"danger",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may lose eyes, lettering or thin lines. Choose More detail, or make the pattern bigger."};
     }
     if (area <= 2500 && orphans >= 3) {
-      return {level:"warning",message:"Reduce confetti at level 3 on a "+sW+"\xD7"+sH+" grid may remove more detail than expected. Try level 1 or 2 first."};
+      return {level:"warning",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may remove more detail than expected. Try Balanced or More detail."};
     }
     if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
       var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
       var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
       if (pctRemoved > 20) {
-        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Consider a lower Reduce confetti level."};
+        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Try a step towards More detail."};
       }
       if (pctRemoved > 10) {
         return {level:"warning",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
@@ -1078,6 +1078,24 @@ window.CreatorSidebar = function CreatorSidebar() {
       confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome"},
         "In the preview: " + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
         " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches).")
+      ,
+      // A small grid with heavy tidying can lose eyes and lettering: say so
+      // here, not only under Fine-tune, because a step can set it.
+      sc2.enabled && (function() {
+        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+        if (!warning) return null;
+        var isDanger = warning.level === "danger";
+        return h("div", {role:"note", style:{
+          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+          background:isDanger?"var(--danger-soft)":"var(--warning-soft)",
+          border:"1px solid "+(isDanger?"var(--danger-soft)":"var(--warning-soft)"),
+          color:isDanger?"var(--danger)":"var(--accent-ink)",
+          display:"flex",alignItems:"flex-start",gap:6
+        }},
+          h("span", {"aria-hidden":"true", style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+          h("span", null, warning.message)
+        );
+      })()
     );
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
@@ -1180,9 +1198,9 @@ window.CreatorSidebar = function CreatorSidebar() {
                 if (gen.orphans === 1) {
                   desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
                 } else if (gen.orphans === 2) {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
                 } else {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
                 }
                 return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
               })()
@@ -1206,10 +1224,10 @@ window.CreatorSidebar = function CreatorSidebar() {
             ),
             gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
               fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-              background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+              background:"var(--surface-secondary)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',
               marginTop:'var(--s-1)',lineHeight:1.5
             }},
-              h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+              h("span", {"aria-hidden":"true", style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"var(--accent)",marginRight:'var(--s-1)',verticalAlign:"middle"}}),
               gen.cleanupDiff.count.toLocaleString(), " stitches changed",
               ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
               Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
@@ -1221,21 +1239,6 @@ window.CreatorSidebar = function CreatorSidebar() {
                   (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
               )
             ),
-            (function() {
-              var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-              if (!warning) return null;
-              var isDanger = warning.level === "danger";
-              return h("div", {style:{
-                marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-                background:isDanger?"var(--danger-soft)":"#FAF5E1",
-                border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-                color:isDanger?"var(--danger)":"var(--accent-ink)",
-                display:"flex",alignItems:"flex-start",gap:6
-              }},
-                h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-                h("span", null, warning.message)
-              );
-            })(),
             h(Toggle, {
               checked:sc2.protectDetails,
               onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},

@@ -5,21 +5,18 @@
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
-                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA,
                  applyUnsharpMask; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
-// Pictures with more pixels than this are first drawn smaller by the browser.
-// Uploads are already capped at 2000 x 2000; this only guards very large
-// sources, at a scale far finer than a stitch.
-var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
-
-// The averaged picture for the last grid size asked of each picture element,
-// so moving Brightness, Contrast or Saturation, a Compare options batch and
+// The averaged picture for each picture element, for the last few grid sizes
+// asked of it (the chart, Compare options' sizes, the stash gallery), so
+// moving Brightness, Contrast or Saturation, a Compare options batch and
 // Generate don't each read the whole picture again (about 80 ms for a
 // 2000-pixel photo, longer on a phone). Canvases are never cached: their
 // pixels can change under the same object.
 var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
+var GRID_PIXELS_CACHE_SIZES = 6;
 
 /**
  * The picture at grid size: one RGBA pixel per stitch, each the light-correct
@@ -29,8 +26,9 @@ var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
  * browser). The one place that turns a picture into stitch pixels, shared by
  * Generate, the preview, Compare options and the stash gallery so they all
  * see the same thing.
- * Enlarging (grid bigger than the picture) has nothing to average and uses
- * the browser's smooth scaling, as before. DOM-only.
+ * Each axis is averaged where it shrinks; where the grid is bigger than the
+ * picture there is nothing to average and the browser's smooth scaling
+ * enlarges it, as before. DOM-only.
  *
  * @param {HTMLImageElement|HTMLCanvasElement} source
  * @param {number} targetW  Grid width in stitches
@@ -48,15 +46,19 @@ function gridPixels(source, targetW, targetH, opts) {
   var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
   var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
   var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
-  var hit = cacheable ? _gridPixelsCache.get(source) : null;
-  var averaged = hit && hit.key === key ? hit.data : null;
-  var ctx = document.createElement("canvas").getContext("2d");
+  var sizes = cacheable ? _gridPixelsCache.get(source) : null;
+  var averaged = sizes ? sizes.get(key) : null;
   if (!averaged) {
     averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
-    if (cacheable) _gridPixelsCache.set(source, { key: key, data: averaged });
+    if (cacheable) {
+      if (!sizes) { sizes = new Map(); _gridPixelsCache.set(source, sizes); }
+      sizes.set(key, averaged);
+      if (sizes.size > GRID_PIXELS_CACHE_SIZES) sizes.delete(sizes.keys().next().value);   // the oldest size
+    }
   }
-  var out = ctx.createImageData(targetW, targetH);
-  out.data.set(averaged);
+  var out = typeof ImageData === "function"
+    ? new ImageData(new Uint8ClampedArray(averaged), targetW, targetH)
+    : (function () { var id = document.createElement("canvas").getContext("2d").createImageData(targetW, targetH); id.data.set(averaged); return id; })();
   if ((bri !== 0 || con !== 0 || sat !== 0) && typeof _applyImageFilters === "function") _applyImageFilters(out, bri, con, sat);
   return out;
 }
@@ -74,12 +76,16 @@ function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
     cx.drawImage(src, 0, 0, w, h);
     return cx.getImageData(0, 0, w, h).data;
   }
-  if (!sw || !sh || sw < targetW || sh < targetH) return new Uint8ClampedArray(read(targetW, targetH));
-  if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
-    var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
-    sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
+  if (!sw || !sh) return new Uint8ClampedArray(read(targetW, targetH));
+  // Each axis at the picture's own size where it shrinks (to be averaged),
+  // at the grid's size where it enlarges.
+  var dw = Math.max(targetW, sw), dh = Math.max(targetH, sh);
+  if (dw * dh > LINEAR_SHRINK_MAX_SOURCE_AREA) {
+    var k = Math.sqrt(LINEAR_SHRINK_MAX_SOURCE_AREA / (dw * dh));
+    dw = Math.max(targetW, Math.floor(dw * k)); dh = Math.max(targetH, Math.floor(dh * k));
   }
-  return linearAreaDownscale(read(sw, sh), sw, sh, targetW, targetH);
+  var px = read(dw, dh);
+  return dw === targetW && dh === targetH ? new Uint8ClampedArray(px) : linearAreaDownscale(px, dw, dh, targetW, targetH);
 }
 
 /**
@@ -165,7 +171,10 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
   var saliencyMap = generateSaliencyMap(raw, width, height);
-  var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+  // The confetti-aware choice in Smooth blend is always on: its own control
+  // ("Fewer confetti stitches in shading") measured no effect and was removed,
+  // so a stored "off" (stitchCleanup.smoothDithering) must not linger unseen.
+  var cdt = dith && dithAlgo === "atkinson" ? 4.0 : 0.0;
   var mapped;
   if (!dith) {
     mapped = doMap(raw, width, height, p, allowBlends);
