@@ -1,0 +1,1 @@
+5000 cases (12487 key pages): 0 mismatches (entries, error, page mutation, aliasing, pooled legend, linked cells, match report, input mutation); pooled legends with entries 4672, 50560 legend entries, parseLegend threw 257, linkSymbolsToThreads ran 4743 times
