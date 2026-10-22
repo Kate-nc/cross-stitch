@@ -17,7 +17,9 @@ test('reviewed chart update and rollback preserve project progress and notes',as
  await page.evaluate(async()=>{
    await ProjectStorage.save({id:'proj_smoke',name:'Smoke chart',settings:{sW:2,sH:1},pattern:[{id:'310'},{id:'666'}],done:[1,0],notes:'Retain this note'});
  });
- await page.getByRole('button',{name:'Update chart',exact:true}).click();
+ // Update chart lives in the project's More menu on Home.
+ await page.locator('.home-pcard').getByRole('button',{name:'More actions for Smoke chart'}).click();
+ await page.getByRole('menuitem',{name:/^Update chart/}).click();
  await page.getByRole('heading',{name:'Update chart: Smoke chart'}).waitFor();
  // Stub only the picker result: UI and storage are real browser code.
  await page.evaluate(()=>{window.ImportEngine.openImportPicker=async opts=>opts.onReviewedProject({settings:{sW:3,sH:1},pattern:[{id:'310'},{id:'321'},{id:'550'}],done:[1,1,1]},new File(['source'],'corrected.json',{type:'application/json'}));});

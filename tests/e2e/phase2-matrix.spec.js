@@ -216,7 +216,7 @@ test('legacy project with only totalTime: Home, global Stats and the Tracker sho
 // What Home and the Manager actually display, where the old full-stitches-only count and the shared definition
 // disagree: 100 full stitches (none done) and 100 half-stitch cells (both sides done) is 100 of 200 units, 50%; the
 // old count read 0 of 100, 0%.
-test('Home card, project row and header chip show 50% when only half stitches are done (and so does the Manager)', async ({ page }) => {
+test('Home\'s Continue card and project card show 50% when only half stitches are done (and so does the Manager)', async ({ page }) => {
   await init(page);
   await page.evaluate(async () => {
     const W = 20, H = 10;
@@ -229,8 +229,10 @@ test('Home card, project row and header chip show 50% when only half stitches ar
     ProjectStorage.setActiveProject('proj_m5');
   });
   await page.goto('/home.html');
-  await expect(page.getByText('20×10 · Updated just now · 50% complete')).toBeVisible({ timeout: 15000 });   // the active project's card
-  await expect(page.getByText('50%', { exact: true }).filter({ visible: true }).first()).toBeVisible();     // the project row and the header chip
+  await expect(page.locator('.home-continue').getByText('50%', { exact: true })).toBeVisible({ timeout: 15000 });   // the active project's card
+  const card = page.locator('.home-pcard', { hasText: 'HalvesOnly' });                                                // its project card
+  await expect(card).toContainText('20 × 10');
+  await expect(card).toContainText('50% ·');
   await page.goto('/manager.html?from=home');
   await expect(page.getByText('50%', { exact: true }).filter({ visible: true }).first()).toBeVisible({ timeout: 15000 });
 });
