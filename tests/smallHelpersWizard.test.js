@@ -8,17 +8,21 @@ describe('wizard field setters and their component callers', () => {
   let scope, root, host, wizard, previousAct;
   const image = { width: 120, height: 60 };
   beforeEach(() => {
+    jest.useFakeTimers();
     previousAct = global.IS_REACT_ACT_ENVIRONMENT;
     global.IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
     scope = browserScripts(['creator/useImportWizard.js', 'creator/ImportWizard.js'], {
-      React, localStorage, CONFETTI_HELP: { definition: 'single stitches of a colour on their own' }
+      React, localStorage, document, setTimeout, clearTimeout,
+      parseImagePattern: () => ({width:1,height:1,pattern:[{id:'310',rgb:[0,0,0]}]}),
+      CONFETTI_HELP: { definition: 'single stitches of a colour on their own' }
     });
     host = document.createElement('div'); document.body.appendChild(host);
     root = createRoot(host);
   });
   afterEach(() => {
     act(() => root.unmount()); host.remove(); localStorage.clear();
+    jest.useRealTimers();
     if (previousAct === undefined) delete global.IS_REACT_ACT_ENVIRONMENT;
     else global.IS_REACT_ACT_ENVIRONMENT = previousAct;
   });
@@ -103,6 +107,7 @@ describe('wizard field setters and their component callers', () => {
     const draft = JSON.parse(localStorage.getItem('cs_import_wizard_draft'));
     const generated = jest.fn(), closed = jest.fn();
     act(() => root.render(React.createElement(scope.ImportWizard, { image, baseName: 'Rose', onGenerate: generated, onClose: closed })));
+    act(() => jest.advanceTimersByTime(200));
     expect(host.querySelector('#iw-step-heading').textContent).toMatch(/Step 5/);
     expect(JSON.parse(localStorage.getItem('cs_import_wizard_draft'))).toEqual(draft);
     const click = label => act(() => Array.from(host.querySelectorAll('button')).find(b => b.textContent === label).click());

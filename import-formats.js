@@ -813,20 +813,75 @@ function generateOXS(project) {
   return { xml: lines.join('\n'), warnings: warnings };
 }
 
+// Shared by the guided preview and final import. Legacy callers keep their
+// flat options; guided callers pass the complete wizard settings unchanged.
+function imageImportOptions(options) {
+  const o = Object.assign({}, options || {});
+  const settings = o.settings;
+  if (settings) {
+    o.dithAlgo = settings.dithAlgo || (settings.dither ? 'atkinson' : 'off');
+    o.dither = o.dithAlgo !== 'off';
+    o.preSmooth = !!settings.preSmooth;
+    o.contrast = settings.contrast || 0;
+    o.skipWhiteBg = !!settings.skipBg;
+    o.bgThreshold = settings.bgThreshold == null ? 15 : settings.bgThreshold;
+    o.saliency = !!settings.saliency;
+  }
+  if (o.palette) {
+    o.maxColours = o.palette.maxColours;
+    o.allowBlends = !!o.palette.allowBlends;
+    if (o.palette.mode === 'stash') {
+      const seen = new Set();
+      o.allowedPalette = Object.keys(o.globalStash || {}).reduce((pool, key) => {
+        const id = key.startsWith('dmc:') ? key.slice(4) : key;
+        if (id.includes(':') || seen.has(id)) return pool;
+        const owned = typeof isColorOwned === 'function' && isColorOwned(o.globalStash[key]);
+        const thread = owned && _importDmcById(id);
+        if (thread) { seen.add(id); pool.push(thread); }
+        return pool;
+      }, []);
+      if (!o.allowedPalette.length) throw new Error('Your DMC stash is empty. Add owned threads or choose another palette.');
+    }
+  }
+  return o;
+}
+
+// Geometry in the rotated image's coordinate space. Aspect crops are centred;
+// rotation and mirroring use the same order as the orientation thumbnail.
+function imageImportGeometry(img, crop = {}) {
+  const rotate = ((Number(crop.rotate) || 0) % 360 + 360) % 360;
+  if (![0, 90, 180, 270].includes(rotate)) throw new Error('Choose a rotation in steps of 90 degrees.');
+  const width = rotate % 180 ? img.height : img.width;
+  const height = rotate % 180 ? img.width : img.height;
+  const ratios = { '1:1':1, '4:3':4/3, '3:4':3/4, '16:9':16/9 };
+  const ratio = ratios[crop.aspect];
+  const sw = ratio ? Math.min(width, height * ratio) : width;
+  const sh = ratio ? Math.min(height, width / ratio) : height;
+  return {rotate, width, height, sx:(width-sw)/2, sy:(height-sh)/2, sw, sh};
+}
+
 function parseImagePattern(img, options = {}) {
+  options = imageImportOptions(options);
   const maxWidth    = options.maxWidth    || 200;
   const maxHeight   = options.maxHeight   || 200;
   const maxColours  = options.maxColours  || 30;
   const skipWhiteBg = options.skipWhiteBg || false;
-  const bgThreshold = options.bgThreshold || 15;
+  const bgThreshold = options.bgThreshold == null ? 15 : options.bgThreshold;
   const preSmooth   = !!options.preSmooth;
   const dither      = !!options.dither;
   const dithAlgo    = options.dithAlgo || (dither ? 'atkinson' : 'off');
 
-  let targetWidth = img.width;
-  let targetHeight = img.height;
+  const geometry = imageImportGeometry(img, options.crop);
+  let targetWidth = geometry.sw;
+  let targetHeight = geometry.sh;
 
-  if (targetWidth > maxWidth || targetHeight > maxHeight) {
+  if (options.settings) {
+    // The wizard labels these as finished dimensions, not maximum bounds.
+    targetWidth = Math.round(maxWidth); targetHeight = Math.round(maxHeight);
+    if (!Number.isFinite(targetWidth) || !Number.isFinite(targetHeight) || targetWidth < 10 || targetHeight < 10 || targetWidth > 500 || targetHeight > 500) {
+      throw new Error('Choose dimensions between 10 and 500 stitches.');
+    }
+  } else if (targetWidth > maxWidth || targetHeight > maxHeight) {
     const ratio = Math.min(maxWidth / targetWidth, maxHeight / targetHeight);
     targetWidth = Math.max(10, Math.floor(targetWidth * ratio));
     targetHeight = Math.max(10, Math.floor(targetHeight * ratio));
@@ -835,16 +890,34 @@ function parseImagePattern(img, options = {}) {
     targetHeight = Math.max(10, targetHeight);
   }
 
+  // Aspect crops can have fractional source bounds; output cells cannot.
+  targetWidth = Math.round(targetWidth);
+  targetHeight = Math.round(targetHeight);
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
   canvas.height = targetHeight;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  ctx.imageSmoothingEnabled = (img.width > targetWidth * 2);
-  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+  ctx.imageSmoothingEnabled = (geometry.sw > targetWidth * 2);
+  ctx.save();
+  ctx.scale(targetWidth / geometry.sw, targetHeight / geometry.sh);
+  ctx.translate(-geometry.sx, -geometry.sy);
+  ctx.translate(geometry.width / 2, geometry.height / 2);
+  ctx.rotate(geometry.rotate * Math.PI / 180);
+  const crop = options.crop || {};
+  ctx.scale(crop.flipH ? -1 : 1, crop.flipV ? -1 : 1);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  ctx.restore();
 
   const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
   const data = imgData.data;
+  const contrast = Math.max(-50, Math.min(50, Number(options.contrast) || 0));
+  if (contrast) {
+    const factor = 1 + contrast / 100;
+    for (let i = 0; i < data.length; i += 4) {
+      for (let c = 0; c < 3; c++) data[i+c] = Math.max(0, Math.min(255, (data[i+c] - 127.5) * factor + 127.5));
+    }
+  }
 
   // Apply edge-preserving pre-smooth before quantisation if requested.
   // applyBilateralFilter is defined in colour-utils.js (loaded before this file).
@@ -856,19 +929,21 @@ function parseImagePattern(img, options = {}) {
   // all iterations (no free-space drift then final snap). Falls back to the
   // legacy quantize if the constrained version is not yet loaded.
   const _quantize = (typeof quantizeConstrained === 'function') ? quantizeConstrained : quantize;
-  const pal = _quantize(data, targetWidth, targetHeight, maxColours);
+  const pal = _quantize(data, targetWidth, targetHeight, maxColours, options.allowedPalette);
+  const allowBlends = !!options.allowBlends;
+  const saliencyMap = (dithAlgo !== 'off' || options.saliency) && typeof generateSaliencyMap === 'function'
+    ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
 
   let mapped;
   if (dithAlgo === 'riemersma' && typeof doRiemersma === 'function') {
-    const saliencyMap = typeof generateSaliencyMap === 'function'
-      ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
-    mapped = doRiemersma(data, targetWidth, targetHeight, pal, false, saliencyMap, {});
+    mapped = doRiemersma(data, targetWidth, targetHeight, pal, allowBlends, saliencyMap, {});
+  } else if (dithAlgo === 'bayer' && typeof doBayerDither === 'function') {
+    mapped = doBayerDither(data, targetWidth, targetHeight, pal, allowBlends, 4);
   } else if (dither && typeof doDither === 'function') {
-    const saliencyMap = typeof generateSaliencyMap === 'function'
-      ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
-    mapped = doDither(data, targetWidth, targetHeight, pal, false, saliencyMap, {});
+    mapped = doDither(data, targetWidth, targetHeight, pal, allowBlends, saliencyMap, {});
   } else {
-    mapped = doMap(data, targetWidth, targetHeight, pal);
+    if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+    mapped = doMap(data, targetWidth, targetHeight, pal, allowBlends);
   }
 
   let stitchCount = 0;
@@ -886,7 +961,7 @@ function parseImagePattern(img, options = {}) {
 
       let isSkip = false;
 
-      if (a < 30) {
+      if (a < 128) {
         isSkip = true;
       } else if (skipWhiteBg) {
         const lab = rgbToLab(r, g, b);
@@ -901,14 +976,14 @@ function parseImagePattern(img, options = {}) {
         pattern[idx] = { type: "skip", id: "__skip__", rgb: [255, 255, 255], lab: [100, 0, 0] };
       } else {
         const m = mapped[idx];
-        pattern[idx] = {
-          type: "solid",
+        pattern[idx] = Object.assign({}, m, {
+          type: m.type || "solid",
           id: m.id,
           name: m.name,
           rgb: m.rgb,
           lab: m.lab,
           dist: m.dist || 0
-        };
+        });
         stitchCount++;
       }
     }
@@ -924,6 +999,7 @@ function parseImagePattern(img, options = {}) {
     pattern: pattern,
     bsLines: [],
     stitchCount: stitchCount,
-    paletteSize: pal.length
+    paletteSize: new Set(pattern.filter(m => m.id !== '__skip__').map(m => m.id)).size,
+    saliencyMap: options.saliency ? saliencyMap : null
   };
 }

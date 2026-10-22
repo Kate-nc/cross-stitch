@@ -143,7 +143,23 @@
     function back() { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(prev.step - 1) }); _writeDraft(n, match); return n; }); }
     function goto_(target) { setState(function (prev) { var n = Object.assign({}, prev, { step: _clamp(target) }); _writeDraft(n, match); return n; }); }
 
-    function setCrop(v)     { _setField("crop", v); }
+    function setCrop(v) {
+      setState(function(prev) {
+        var crop = typeof v === 'function' ? v(prev.crop) : v;
+        var next = Object.assign({}, prev, { crop: crop });
+        if (prev.size.lock && image && typeof window.imageImportGeometry === 'function') {
+          var geometry = window.imageImportGeometry(image, crop);
+          var longest = Math.max(prev.size.w, prev.size.h);
+          var scale = longest / Math.max(geometry.sw, geometry.sh);
+          next.size = Object.assign({}, prev.size, {
+            w: Math.max(10, Math.min(500, Math.round(geometry.sw * scale))),
+            h: Math.max(10, Math.min(500, Math.round(geometry.sh * scale)))
+          });
+        }
+        _writeDraft(next, match);
+        return next;
+      });
+    }
     function setPalette(v)  { _setField("palette", v); }
     function setSize(v)     { _setField("size", v); }
     function setSettings(v) { _setField("settings", v); }
@@ -155,9 +171,7 @@
       setState(fresh);
     }
 
-    function commit() {
-      _clearDraft();
-      var s = _peek();
+    function settingsFor(s) {
       var trimmedName = (s.name || "").trim().slice(0, 60);
       // Settings shape compatible with the existing parseImagePattern() call
       // site in tracker-app.js (and the wider generate-worker job message).
@@ -176,7 +190,11 @@
       };
     }
 
+    function commit() { _clearDraft(); return settingsFor(_peek()); }
+    function getSettings() { return settingsFor(state); }
+
     return {
+      getSettings: getSettings,
       step: state.step,
       image: image,
       crop: state.crop,

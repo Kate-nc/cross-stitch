@@ -162,12 +162,14 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
 
 // Feature-detect ctx.filter support (not available on Safari <15).
 // Result is constant per page-load so we compute it once here.
+// Test for the property itself: assigning to a context that lacks `filter`
+// just creates an ordinary property that reads back what was written, so a
+// write-then-read check passes everywhere.
 var _canvasFilterSupported = (function() {
   try {
     var _fc = document.createElement('canvas');
     var _fx = _fc.getContext('2d');
-    _fx.filter = 'brightness(1)';
-    return _fx.filter !== '';
+    return !!_fx && 'filter' in _fx && typeof _fx.filter === 'string';
   } catch (_) { return false; }
 })();
 
@@ -1019,6 +1021,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
+  var _prevError  = useState(null); var previewError = _prevError[0], setPreviewError = _prevError[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -1568,6 +1571,7 @@ window.useCreatorState = function useCreatorState() {
     _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    setPreviewError(null);
     setExactPixelArt(false); setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
@@ -2549,6 +2553,7 @@ window.useCreatorState = function useCreatorState() {
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewLoading, setPreviewLoading,
+    previewError, setPreviewError,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,

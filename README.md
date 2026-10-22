@@ -526,3 +526,7 @@ All presets use the existing worker and its 112-symbol limit, missing-glyph and 
 ### Project material planning
 
 Stash Manager > Project materials reserves thread for saved projects without consuming it. Set fractional skein limits, review per-project shortages and use the combined shopping list to avoid duplicate purchases. JSON export is a portable list snapshot; full backups preserve reservation intent. See [reservation rules and examples](wiki/Project-Materials.md).
+
+### Guided image import (experimental)
+
+The experimental guided image importer (Preferences > Pattern Creator) provides a live processed preview before confirmation. Crop, orientation, palette and stash restrictions, blends, dimensions, shading, smoothing, contrast and background tolerance use the same settings for preview and generation.

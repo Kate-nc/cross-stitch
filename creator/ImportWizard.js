@@ -56,46 +56,64 @@
     var ds = React.useState(false);
     var discardOpen = ds[0], setDiscardOpen = ds[1];
 
-    // Stitchability preview — runs parseImagePattern when the user reaches
-    // Step 5 so we can show confetti rate before they confirm.
-    var _stitchStats = React.useState(null);
-    var stitchStats = _stitchStats[0], setStitchStats = _stitchStats[1];
-    var _statsKey = React.useState(null);
-    var statsKey = _statsKey[0], setStatsKey = _statsKey[1];
+    // One complete settings object feeds both the live preview and Generate.
+    // Object identity invalidates every image-affecting setting, including
+    // background tolerance, crop, blends and stash changes.
+    var previewOptions = React.useMemo(function() {
+      return Object.assign({}, wizard.getSettings(), { globalStash: props.globalStash });
+    }, [wizard.crop, wizard.palette, wizard.size, wizard.settings, props.globalStash]);
+    var _preview = React.useState(null), livePreview = _preview[0], setLivePreview = _preview[1];
+    var _retry = React.useState(0), retry = _retry[0], setRetry = _retry[1];
+    var previewActive = wizard.step >= 4;
+    var currentPreview = livePreview && livePreview.options === previewOptions && livePreview.image === image ? livePreview : null;
+    var previewReady = !!(currentPreview && currentPreview.result);
+    var stitchStats = currentPreview && currentPreview.stats;
 
-    React.useEffect(function () {
-      if (wizard.step !== 5) return;
-      // Build a key from the relevant inputs; skip if already computed for these.
-      var sz = wizard.size, s = wizard.settings, p = wizard.palette;
-      var key = sz.w + ',' + sz.h + ',' + p.maxColours + ',' + (s.dithAlgo || '') + ',' + !!s.preSmooth + ',' + !!s.skipBg;
-      if (key === statsKey) return;
-      setStatsKey(key);
-      setStitchStats(null);
-      try {
-        if (!image || typeof parseImagePattern !== 'function') return;
-        var dithAlgoVal = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
-        var result = parseImagePattern(image, {
-          maxWidth: sz.w, maxHeight: sz.h,
-          maxColours: p.maxColours,
-          skipWhiteBg: !!s.skipBg, bgThreshold: s.bgThreshold || 15,
-          preSmooth: !!s.preSmooth,
-          dither: dithAlgoVal !== 'off',
-          dithAlgo: dithAlgoVal
-        });
-        var stats = null;
-        if (typeof analyzeConfetti === 'function' && result && result.pattern) {
-          var raw = analyzeConfetti(result.pattern, result.width, result.height);
+    React.useEffect(function() {
+      if (!previewActive) return;
+      var cancelled = false;
+      setLivePreview(null);
+      var timer = setTimeout(function() {
+        try {
+          if (!image || typeof parseImagePattern !== 'function') throw new Error('Choose an image to preview.');
+          var result = parseImagePattern(image, previewOptions);
+          var canvas = document.createElement('canvas'); canvas.width = result.width; canvas.height = result.height;
+          var ctx = canvas.getContext('2d'), pixels = ctx.createImageData(result.width, result.height);
+          result.pattern.forEach(function(cell, i) {
+            if (cell.id === '__skip__') return;
+            pixels.data.set([cell.rgb[0], cell.rgb[1], cell.rgb[2], 255], i * 4);
+          });
+          ctx.putImageData(pixels, 0, 0);
+          var url = canvas.toDataURL();
+          var saliencyUrl = null;
+          if (result.saliencyMap) {
+            var overlay = ctx.createImageData(result.width, result.height);
+            result.saliencyMap.forEach(function(value, i) {
+              overlay.data.set([255, 80, 0, Math.round(value * 180)], i * 4);
+            });
+            ctx.putImageData(overlay, 0, 0); saliencyUrl = canvas.toDataURL();
+          }
+          var raw = typeof analyzeConfetti === 'function' ? analyzeConfetti(result.pattern, result.width, result.height) : null;
           var pct = raw && raw.pct != null ? raw.pct : null;
-          var label = pct == null ? null
-            : pct < 2   ? 'Excellent'
-            : pct < 5   ? 'Good'
-            : pct < 10  ? 'Fair'
-            : 'Needs cleanup';
-          stats = { pct: pct, label: label, singles: raw && raw.singles };
+          var stats = pct == null ? null : { pct: pct, singles: raw.singles,
+            label: pct < 2 ? 'Excellent' : pct < 5 ? 'Good' : pct < 10 ? 'Fair' : 'Needs cleanup' };
+          if (!cancelled) setLivePreview({ options: previewOptions, image: image, result: result, url: url, saliencyUrl: saliencyUrl, stats: stats });
+        } catch (err) {
+          if (!cancelled) setLivePreview({ options: previewOptions, image: image, error: err.message || 'Could not update the preview.' });
         }
-        setStitchStats(stats);
-      } catch (_) { setStitchStats(null); }
-    }, [wizard.step, wizard.size, wizard.settings, wizard.palette, image, statsKey]);
+      }, 200);
+      return function() { cancelled = true; clearTimeout(timer); };
+    }, [previewActive, image, previewOptions, retry]);
+
+    function renderLivePreview() {
+      if (!currentPreview) return h('p', { role: 'status' }, 'Updating preview…');
+      if (currentPreview.error) return h('div', null,
+        h('p', { role: 'alert' }, currentPreview.error),
+        h('button', { type: 'button', className: 'iw-btn', onClick: function() { setRetry(function(n) { return n + 1; }); } }, 'Retry preview'));
+      return h('div', { className: 'iw-preview-thumb', style: { position: 'relative', background: props.fabricColour || 'var(--surface)' } },
+        h('img', { src: currentPreview.url, alt: 'Converted pattern preview', style: { width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' } }),
+        currentPreview.saliencyUrl ? h('img', { src: currentPreview.saliencyUrl, alt: 'Detail importance overlay', style: { position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'contain', pointerEvents:'none', imageRendering:'pixelated' } }) : null);
+    }
 
     // Move focus to the active step heading on every step change.
     React.useEffect(function () {
@@ -119,6 +137,7 @@
     }
 
     function onGenerate() {
+      if (!previewReady) return;
       var settings = wizard.commit();
       if (typeof props.onGenerate === "function") props.onGenerate(settings);
     }
@@ -188,7 +207,7 @@
       ];
       return h("div", { className: "iw-step iw-step-crop" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 1 of 5: Crop & orient"),
-        h("p", { className: "iw-step-desc" }, "Rotate or mirror your image, and pick an aspect-ratio guide. The crop is applied when the pattern is generated."),
+        h("p", { className: "iw-step-desc" }, "Rotate or mirror your image, and pick an aspect-ratio guide. The chosen aspect ratio crops the centre after rotation and mirroring; review the result in Preview."),
         image ? h("div", { className: "iw-crop-viewport" },
           h("img", {
             src: image.src,
@@ -270,11 +289,13 @@
 
     function renderStep3() {
       var sz = wizard.size;
+      var geometry = image && typeof imageImportGeometry === 'function' ? imageImportGeometry(image, wizard.crop) : { sw: image && image.width, sh: image && image.height };
       function setW(n) {
         var w = Math.max(10, Math.min(500, n | 0));
         if (sz.lock && image && image.width && image.height) {
-          var ratio = image.height / image.width;
-          wizard.setSize(Object.assign({}, sz, { w: w, h: Math.max(10, Math.round(w * ratio)) }));
+          var ratio = geometry.sh / geometry.sw;
+          if (w * ratio > 500) w = Math.max(10, Math.round(500 / ratio));
+          wizard.setSize(Object.assign({}, sz, { w: w, h: Math.max(10, Math.min(500, Math.round(w * ratio))) }));
         } else {
           wizard.setSize(Object.assign({}, sz, { w: w }));
         }
@@ -282,8 +303,9 @@
       function setH(n) {
         var hh = Math.max(10, Math.min(500, n | 0));
         if (sz.lock && image && image.width && image.height) {
-          var ratio = image.width / image.height;
-          wizard.setSize(Object.assign({}, sz, { h: hh, w: Math.max(10, Math.round(hh * ratio)) }));
+          var ratio = geometry.sw / geometry.sh;
+          if (hh * ratio > 500) hh = Math.max(10, Math.round(500 / ratio));
+          wizard.setSize(Object.assign({}, sz, { h: hh, w: Math.max(10, Math.min(500, Math.round(hh * ratio))) }));
         } else {
           wizard.setSize(Object.assign({}, sz, { h: hh }));
         }
@@ -349,10 +371,8 @@
       var curDithAlgo = s.dithAlgo || (s.dither ? 'atkinson' : 'off');
       return h("div", { className: "iw-step iw-step-preview" },
         h("h2", { id: "iw-step-heading", ref: headingRef, tabIndex: -1, className: "iw-step-title" }, "Step 4 of 5: Preview & tune"),
-        h("p", { className: "iw-step-desc" }, "Live preview is coming in a follow-up. For now, choose how the pixels should be processed."),
-        image ? h("div", { className: "iw-preview-thumb" },
-          h("img", { src: image.src, alt: "Image preview", style: { imageRendering: "pixelated" } })
-        ) : null,
+        h("p", { className: "iw-step-desc" }, "The preview uses the same crop, colours and settings as the generated pattern. Empty cells show the background."),
+        renderLivePreview(),
         h("div", { className: "iw-row" },
           h("label", { className: "iw-field-label", htmlFor: "iw-dith" }, "Shading"),
           h("select", {
@@ -415,9 +435,7 @@
           })
         ),
         h("div", { className: "iw-summary" },
-          image ? h("div", { className: "iw-summary-thumb" },
-            h("img", { src: image.src, alt: "Project thumbnail" })
-          ) : null,
+          renderLivePreview(),
           h("dl", { className: "iw-summary-list" },
             h("dt", null, "Dimensions"), h("dd", null, sz.w + " × " + sz.h + " stitches"),
             h("dt", null, "Fabric count"), h("dd", null, sz.fabricCt + " count"),
@@ -441,7 +459,7 @@
                 ) : null)
             ) : (wizard.step === 5 && !stitchStats ? h(React.Fragment, null,
               h("dt", null, "Stitchability"),
-              h("dd", null, "Calculating…")
+              h("dd", null, currentPreview && currentPreview.error ? "Unavailable" : previewReady ? "Unavailable" : "Calculating…")
             ) : null)
           )
         )
@@ -465,7 +483,7 @@
           "aria-disabled": isFirst ? "true" : "false"
         }, "Back"),
         isLast
-          ? h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: onGenerate }, "Generate pattern")
+          ? h("button", { type: "button", className: "iw-btn iw-btn--primary", disabled: !previewReady, onClick: onGenerate }, "Generate pattern")
           : h("button", { type: "button", className: "iw-btn iw-btn--primary", onClick: function () { wizard.next(); } }, "Next")
       );
     }

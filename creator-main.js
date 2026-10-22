@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -48,6 +48,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
   const prevPreviewRef = useRef(null);
+  const prevOriginalRef = useRef(originalSrc);
   // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
 
@@ -92,6 +93,15 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }, []);
 
   useEffect(function() {
+    if (prevOriginalRef.current !== originalSrc) {
+      prevOriginalRef.current = originalSrc;
+      prevPreviewRef.current = null;
+      setShowDiff(false);
+    }
+    setDiffUrl(null);
+    // The quick pass is an intermediate frame, not the user's previous result.
+    // Retain the last settled frame as the comparison baseline while loading.
+    if (previewLoading) return;
     if (!previewSrc) { prevPreviewRef.current = null; setDiffUrl(null); return; }
     if (!prevPreviewRef.current || prevPreviewRef.current === previewSrc) { prevPreviewRef.current = previewSrc; return; }
     var prevSrc = prevPreviewRef.current;
@@ -104,34 +114,35 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
       if (++loaded < 2) return;
       var w = imgB.naturalWidth, h = imgB.naturalHeight;
       if (!w || !h) return;
-      var ca = document.createElement('canvas'); ca.width = w; ca.height = h;
-      var cxa = ca.getContext('2d'); cxa.drawImage(imgA, 0, 0, w, h);
-      var da = cxa.getImageData(0, 0, w, h).data;
-      var cb = document.createElement('canvas'); cb.width = w; cb.height = h;
-      var cxb = cb.getContext('2d'); cxb.drawImage(imgB, 0, 0, w, h);
-      var db = cxb.getImageData(0, 0, w, h).data;
-      var out = cxb.createImageData(w, h); var od = out.data;
-      for (var i = 0; i < da.length; i += 4) {
-        if (Math.abs(da[i]-db[i]) + Math.abs(da[i+1]-db[i+1]) + Math.abs(da[i+2]-db[i+2]) > 12) {
-          od[i] = 255; od[i+1] = 80; od[i+2] = 0; od[i+3] = 200;
+      try {
+        var ca = document.createElement('canvas'); ca.width = w; ca.height = h;
+        var cxa = ca.getContext('2d'); cxa.imageSmoothingEnabled = false; cxa.drawImage(imgA, 0, 0, w, h);
+        var da = cxa.getImageData(0, 0, w, h).data;
+        var cb = document.createElement('canvas'); cb.width = w; cb.height = h;
+        var cxb = cb.getContext('2d'); cxb.drawImage(imgB, 0, 0, w, h);
+        var db = cxb.getImageData(0, 0, w, h).data;
+        var out = cxb.createImageData(w, h); var od = out.data;
+        for (var i = 0; i < da.length; i += 4) {
+          // Empty -> stitched is a change even for black pixels; RGB hidden in
+          // fully transparent cells must not create a false change.
+          if (da[i+3] !== db[i+3] || (da[i+3] && db[i+3] && Math.abs(da[i]-db[i]) + Math.abs(da[i+1]-db[i+1]) + Math.abs(da[i+2]-db[i+2]) > 12)) {
+            od[i] = 255; od[i+1] = 80; od[i+2] = 0; od[i+3] = 200;
+          }
         }
-      }
-      cxb.putImageData(out, 0, 0);
-      setDiffUrl(cb.toDataURL());
+        cxb.putImageData(out, 0, 0);
+        setDiffUrl(cb.toDataURL());
+      } catch (_) { setDiffUrl(null); }
     }
     imgA.onload = onLoad; imgB.onload = onLoad;
     imgA.onerror = function() { cancelled = true; };
     imgB.onerror = function() { cancelled = true; };
     imgA.src = prevSrc; imgB.src = previewSrc;
     return function() { cancelled = true; };
-  }, [previewSrc]);
+  }, [previewSrc, previewLoading, originalSrc]);
 
   useEffect(function() {
-    if (!diffUrl) return;
-    setShowDiff(true);
-    var t = setTimeout(function() { setShowDiff(false); }, 1500);
-    return function() { clearTimeout(t); };
-  }, [diffUrl]);
+    return function() { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, []);
 
   function handlePointerMove(e) {
     if ((altHeld.current || zoomLocked) && containerRef.current) {
@@ -144,11 +155,17 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   }
 
   var LENS = 140, ZOOM = 2.5;
+  // Skipped cells are transparent in the preview picture. Behind the preview they
+  // must read as the fabric the finished pattern leaves there, not as the original.
+  var fabricBg = fabricColour || "var(--surface)";
+  // Shape the box from the picture on screen, not the size just typed in: for a
+  // moment after a size change the two differ, and the picture would stretch.
+  var shownW = previewPw || width, shownH = previewPh || height;
 
   return (
     <div>
-      <div ref={containerRef}
-        style={{position:"relative",width:"100%",aspectRatio:`${width}/${height}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+      <div ref={containerRef} data-testid="cmp-box"
+        style={{position:"relative",width:"100%",aspectRatio:`${shownW}/${shownH}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -178,12 +195,14 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
         }}
         onPointerLeave={function(){if(!dragging.current)setZoomPos(null);}}>
         <img src={originalSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt="Original"/>
-        <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`}}>
+        <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
           <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
-        {showDiff&&diffUrl&&<img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",pointerEvents:"none",zIndex:4}} alt="" aria-hidden="true"/>}
-        {showHeatmap&&heatmapSrc&&<img src={heatmapSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
-        {highlightSrc&&<img src={highlightSrc} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
+        {!previewLoading&&showDiff&&diffUrl&&<div data-testid="cmp-diff" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,pointerEvents:"none",zIndex:4}} aria-hidden="true">
+          <img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt=""/>
+        </div>}
+        {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
+        {!previewLoading&&highlightSrc&&<img data-testid="cmp-highlight" src={highlightSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div
           role="slider"
           tabIndex={0}
@@ -220,11 +239,11 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           var bgX=-(cx*ZOOM-LENS/2),bgY=-(cy*ZOOM-LENS/2);
           var lensL=Math.max(0,Math.min(W-LENS,cx-LENS/2));
           var lensT=Math.max(0,Math.min(H-LENS,cy-LENS/2));
-          var splitInLensPct=Math.max(0,Math.min(100,((splitPos/100*W)-lensL)/LENS*100));
+          var splitInLensPct=Math.max(0,Math.min(100,(LENS/2+(splitPos/100*W-cx)*ZOOM)/LENS*100));
           return (
             <div style={{position:"absolute",left:lensL,top:lensT,width:LENS,height:LENS,borderRadius:"50%",overflow:"hidden",border:"2px solid #fff",boxShadow:"0 2px 12px rgba(0,0,0,0.4)",zIndex:10,pointerEvents:"none"}}>
               <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,backgroundImage:`url('${originalSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat"}}/>
-              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitInLensPct}%)`,backgroundImage:`url('${previewSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat",imageRendering:"pixelated"}}/>
+              <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitInLensPct}%)`,backgroundColor:fabricBg,backgroundImage:`url('${previewSrc}')`,backgroundSize:`${bgSzW}px ${bgSzH}px`,backgroundPosition:`${bgX}px ${bgY}px`,backgroundRepeat:"no-repeat",imageRendering:"pixelated"}}/>
             </div>
           );
         })()}
@@ -239,9 +258,9 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
           {Icons.magnify()} Magnifier
         </button>
-        {diffUrl&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
+        {(diffUrl||showDiff)&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
-          {showDiff?"Hide changes":"Show changes"}
+          {showDiff?"Hide what changed":"Show what changed"}
         </button>}
         {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
           style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
@@ -307,7 +326,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     window.addEventListener('cs:showWelcome',onShow);
     return()=>window.removeEventListener('cs:showWelcome',onShow);
   },[tourWayIn]);
-  usePreviewHook(state);
+  const preview = usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {isActive: isActive}), history, io);
 
   // Expose setAppMode so UnifiedApp can switch modes
@@ -1343,7 +1362,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
               {/* Right: preview comparison or placeholder */}
               <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
                 {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-secondary)",fontSize:12}}>
-                  Adjust settings and generate a pattern to see a preview here.
+                  {state.previewError ? <><div role="alert">{state.previewError}</div><button type="button" onClick={preview.generatePreview}>Retry preview</button></> : state.previewLoading ? <span role="status" aria-label="Updating preview">Updating preview…</span> : "Choose an image and adjust the settings to see a preview here."}
                 </div>}
                 {state.previewUrl&&<div className="card">
                   {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
@@ -1371,7 +1390,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                                 </div>}
                   </div>
                   <div style={{padding:"0 14px 10px"}}>
-                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph}/>
+                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>
                   </div>
                 </div>}
                 {/* Compare options (audit IMG-05): neighbouring sizes or thread
@@ -1387,7 +1406,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     state.chgW(v.sW);
                     if(!state.arLock)state.chgH(v.sH);
                   }}/>}
-                {state.previewUrl&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
+                {state.previewUrl&&!state.previewLoading&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
                   <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
