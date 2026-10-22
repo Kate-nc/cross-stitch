@@ -1,0 +1,1 @@
+{"iterations":{"chartContentBox":40000,"rulerCellSpan":20000,"anchorGridToRuler":20000,"gridFromRuler":20000,"samplingGrid":20000},"errorsInBase":2980,"nullResultsInBase":24171,"mismatches":0}
