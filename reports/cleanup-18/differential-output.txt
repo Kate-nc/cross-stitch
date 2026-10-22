@@ -1,0 +1,4 @@
+battery cases compared: 107
+fuzz iterations: 4000 (6 call shapes each)
+outcomes (ok/err) on base: {"mergeDoneArrays":{"ok":3265,"err":735},"mergeSessions":{"ok":3711,"err":289},"mergeIndexedPairs":{"ok":4000,"err":0},"mergeStitchLogs":{"ok":4000,"err":0},"mergeTrackingProgress":{"ok":3632,"err":368},"classifyProjects":{"ok":3746,"err":254}}
+base and head agree on every case

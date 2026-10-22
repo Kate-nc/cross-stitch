@@ -1,0 +1,7863 @@
+{
+  "done/both-null": {
+    "result": null,
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "done/both-undefined": {
+    "result": null,
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "done/local-null": {
+    "result": [
+      1,
+      0,
+      1
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 1,
+    "sharedElements": 0
+  },
+  "done/remote-null": {
+    "result": [
+      1,
+      0,
+      1
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 0,
+    "sharedElements": 0
+  },
+  "done/union": {
+    "result": [
+      1,
+      0,
+      1,
+      1
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/length-longer-than-inputs": {
+    "result": [
+      1,
+      1,
+      0,
+      0
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/length-shorter-than-inputs": {
+    "result": [
+      1,
+      1
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/length-zero": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/truthy-strings": {
+    "result": [
+      1,
+      1,
+      0
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/typed-array": {
+    "result": [
+      1,
+      1
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "done/negative-length-throws": {
+    "result": null,
+    "error": {
+      "name": "RangeError",
+      "constructor": "RangeError",
+      "message": "Invalid array length"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "done/fractional-length-throws": {
+    "result": null,
+    "error": {
+      "name": "RangeError",
+      "constructor": "RangeError",
+      "message": "Invalid array length"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "sessions/both-empty": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "sessions/both-undefined": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "sessions/local-empty-keeps-remote-order": {
+    "result": [
+      {
+        "id": "b",
+        "date": "2026-07-01",
+        "start": "2026-07-03T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/remote-empty-keeps-local-order": {
+    "result": [
+      {
+        "id": "b",
+        "date": "2026-07-01",
+        "start": "2026-07-03T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/union-sorted-by-start": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "b",
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "c",
+        "date": "2026-07-01",
+        "start": "2026-07-03T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 3
+  },
+  "sessions/same-id-later-edit-wins": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "remote",
+        "editedAt": "2026-08-02T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/same-id-earlier-edit-loses": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "local",
+        "editedAt": "2026-08-02T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/same-id-never-edited-keeps-local": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "local"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/same-id-remote-edited-vs-unedited-local": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "remote",
+        "editedAt": "2026-08-01T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/unparseable-editedAt-counts-as-oldest": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "remote",
+        "editedAt": "2026-08-01T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/duplicate-in-local-keeps-first": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "first"
+      },
+      {
+        "id": "z",
+        "date": "2026-07-01",
+        "start": "2026-07-09T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/tombstone-removes-both-sides": {
+    "result": [
+      {
+        "id": "b",
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "c",
+        "date": "2026-07-01",
+        "start": "2026-07-03T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/tombstone-all-local-returns-filtered-remote": {
+    "result": [
+      {
+        "id": "r",
+        "date": "2026-07-01",
+        "start": "2026-07-05T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "q",
+        "date": "2026-07-01",
+        "start": "2026-07-04T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/null-and-falsy-entries-dropped": {
+    "result": [
+      {
+        "id": "a",
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      },
+      {
+        "id": "b",
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/id-zero-is-a-real-id": {
+    "result": [
+      {
+        "id": 0,
+        "date": "2026-07-01",
+        "start": "2026-07-01T09:00:00.000Z",
+        "durationMinutes": 10,
+        "netStitches": 20,
+        "note": "remote",
+        "editedAt": "2026-08-01T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/id-zero-tombstoned": {
+    "result": [
+      {
+        "id": 1,
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/numeric-id-tombstone-does-not-match-string-id-types": {
+    "result": [
+      {
+        "id": 8,
+        "date": "2026-07-01",
+        "start": "2026-07-02T00:00:00Z",
+        "durationMinutes": 10,
+        "netStitches": 20
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 1
+  },
+  "sessions/no-id-keyed-by-start": {
+    "result": [
+      {
+        "start": "2026-07-01T00:00:00Z",
+        "note": "l"
+      },
+      {
+        "start": "2026-07-02T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/no-id-no-start-keyed-by-date-minutes-stitches": {
+    "result": [
+      {
+        "date": "2026-07-01",
+        "durationMinutes": 5,
+        "netStitches": 9,
+        "note": "l"
+      },
+      {
+        "date": "2026-07-01",
+        "note": "blank"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 2
+  },
+  "sessions/sort-uses-startTime-then-start-then-date": {
+    "result": [
+      {
+        "id": "d"
+      },
+      {
+        "id": "b",
+        "date": "2026-07-01"
+      },
+      {
+        "id": "c",
+        "start": "2026-07-02T00:00:00Z"
+      },
+      {
+        "id": "a",
+        "startTime": "2026-07-03T00:00:00Z"
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 4
+  },
+  "sessions/non-array-tombstones-throws": {
+    "result": null,
+    "error": {
+      "name": "TypeError",
+      "constructor": "TypeError",
+      "message": "(deletedIds || []).forEach is not a function"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "sessions/non-array-local-throws": {
+    "result": null,
+    "error": {
+      "name": "TypeError",
+      "constructor": "TypeError",
+      "message": "(localSessions || []).filter is not a function"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "sessions/non-array-remote-throws": {
+    "result": null,
+    "error": {
+      "name": "TypeError",
+      "constructor": "TypeError",
+      "message": "(remoteSessions || []).filter is not a function"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "pairs/both-empty-returns-local-array": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 0,
+    "sharedElements": 0
+  },
+  "pairs/both-empty-local-undefined-returns-remote": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 1,
+    "sharedElements": 0
+  },
+  "pairs/both-undefined": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/both-non-array": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/local-only": {
+    "result": [
+      [
+        3,
+        {
+          "fwd": true
+        }
+      ],
+      [
+        1,
+        {
+          "bck": true
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/remote-only": {
+    "result": [
+      [
+        2,
+        {
+          "fwd": true
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/shared-index-fills-missing-subkeys": {
+    "result": [
+      [
+        5,
+        {
+          "TL": "a",
+          "TR": "b",
+          "BL": "c"
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/shared-index-non-object-detail-local-wins": {
+    "result": [
+      [
+        5,
+        1
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/shared-index-null-local-detail": {
+    "result": [
+      [
+        5,
+        null
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/index-types-coerce-to-string-keys": {
+    "result": [
+      [
+        1,
+        {
+          "a": 1,
+          "b": 2
+        }
+      ],
+      [
+        2,
+        {
+          "c": 3
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/malformed-pairs-skipped": {
+    "result": [
+      [
+        7,
+        {
+          "x": 1
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/proto-like-key": {
+    "result": [
+      [
+        "__proto__",
+        {
+          "x": 1,
+          "z": 1
+        }
+      ],
+      [
+        "constructor",
+        {
+          "y": 1
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/nested-detail-is-copied-not-shared": {
+    "result": [
+      [
+        1,
+        {
+          "a": {
+            "deep": [
+              1,
+              2
+            ]
+          }
+        }
+      ],
+      [
+        2,
+        {
+          "b": {
+            "deep": [
+              3
+            ]
+          }
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "pairs/dates-in-detail": {
+    "result": [
+      [
+        1,
+        {
+          "at": "2026-01-01T00:00:00.000Z"
+        }
+      ]
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/both-empty-returns-local-array": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 0,
+    "sharedElements": 0
+  },
+  "log/both-undefined": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/local-undefined-remote-empty": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": 1,
+    "sharedElements": 0
+  },
+  "log/distinct-days-sorted": {
+    "result": [
+      {
+        "date": "2026-07-01",
+        "count": 1
+      },
+      {
+        "date": "2026-07-03",
+        "count": 3
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/shared-day-takes-max": {
+    "result": [
+      {
+        "date": "2026-07-01",
+        "count": 12
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/malformed-entries": {
+    "result": [
+      {
+        "date": "2026-07-01",
+        "count": 0
+      },
+      {
+        "date": "2026-07-02",
+        "count": 0
+      },
+      {
+        "date": "2026-07-03",
+        "count": 0
+      },
+      {
+        "date": "2026-07-04",
+        "count": 0
+      },
+      {
+        "date": "2026-07-05",
+        "count": -3
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/extra-fields-dropped": {
+    "result": [
+      {
+        "date": "2026-07-01",
+        "count": 1
+      }
+    ],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "log/non-array-inputs": {
+    "result": [],
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1,
+    "sharedElements": 0
+  },
+  "progress/journals-both-sides-rebuild-running-totals": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 5,
+          "units": 5,
+          "totalAtEnd": 15,
+          "percentAtEnd": 93.8
+        },
+        {
+          "id": "b2",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T10:00:00Z",
+          "start": "2026-07-02T10:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 3,
+          "units": 3,
+          "totalAtEnd": 16,
+          "percentAtEnd": 100
+        },
+        {
+          "id": "c",
+          "date": "2026-07-03",
+          "startTime": "2026-07-03T09:00:00Z",
+          "start": "2026-07-03T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 7,
+          "units": 7,
+          "totalAtEnd": 16,
+          "percentAtEnd": 100
+        }
+      ],
+      "sessions": [],
+      "totalTime": 1200,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b2": [
+            {
+              "value": {
+                "id": "b2",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T10:00:00Z",
+                "start": "2026-07-02T10:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 3,
+                "units": 3
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_c": [
+            {
+              "value": {
+                "id": "c",
+                "date": "2026-07-03",
+                "startTime": "2026-07-03T09:00:00Z",
+                "start": "2026-07-03T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 7,
+                "units": 7
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/journal-one-side-only-not-rebuilt": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 5,
+          "units": 5,
+          "totalAtEnd": 15,
+          "percentAtEnd": 93.8
+        }
+      ],
+      "sessions": [],
+      "totalTime": 600,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/journals-without-totalAtEnd-no-baseline": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "start": "2026-07-01T09:00:00Z",
+          "netStitches": 3
+        },
+        {
+          "id": "b",
+          "start": "2026-07-02T09:00:00Z",
+          "netStitches": 4
+        }
+      ],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "start": "2026-07-01T09:00:00Z",
+                "netStitches": 3
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "start": "2026-07-02T09:00:00Z",
+                "netStitches": 4
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/baseline-from-remote-when-local-has-none": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "start": "2026-07-01T09:00:00Z",
+          "netStitches": 3,
+          "totalAtEnd": 3,
+          "percentAtEnd": 18.8
+        },
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 5,
+          "units": 5,
+          "totalAtEnd": 8,
+          "percentAtEnd": 50
+        }
+      ],
+      "sessions": [],
+      "totalTime": 300,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            },
+            {
+              "value": {
+                "id": "a",
+                "start": "2026-07-01T09:00:00Z",
+                "netStitches": 3
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/total-is-capped-by-project-size": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 30,
+          "units": 30,
+          "totalAtEnd": 16,
+          "percentAtEnd": 100
+        }
+      ],
+      "sessions": [],
+      "totalTime": 600,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 30,
+                "units": 30
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/units-take-precedence-over-netStitches": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 4,
+          "units": 8,
+          "totalAtEnd": 8,
+          "percentAtEnd": 50
+        },
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 2,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        }
+      ],
+      "sessions": [],
+      "totalTime": 600,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 4,
+                "units": 8
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 2
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/tombstoned-session-excluded-and-totalTime-recomputed": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "c",
+          "date": "2026-07-03",
+          "startTime": "2026-07-03T09:00:00Z",
+          "start": "2026-07-03T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 7,
+          "units": 7,
+          "totalAtEnd": 16,
+          "percentAtEnd": 100
+        }
+      ],
+      "sessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "c",
+          "date": "2026-07-03",
+          "startTime": "2026-07-03T09:00:00Z",
+          "start": "2026-07-03T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 7,
+          "units": 7,
+          "totalAtEnd": 22,
+          "percentAtEnd": 137.5
+        }
+      ],
+      "totalTime": 600,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "deletedSessionIds": [
+        "b"
+      ],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [
+        {
+          "date": "2026-07-01",
+          "count": 10
+        },
+        {
+          "date": "2026-07-03",
+          "count": 7
+        }
+      ],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_sessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_c": [
+            {
+              "value": {
+                "id": "c",
+                "date": "2026-07-03",
+                "startTime": "2026-07-03T09:00:00Z",
+                "start": "2026-07-03T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 7,
+                "units": 7
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_c": [
+            {
+              "value": {
+                "id": "c",
+                "date": "2026-07-03",
+                "startTime": "2026-07-03T09:00:00Z",
+                "start": "2026-07-03T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 7,
+                "units": 7
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/remote-tombstone-only": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        }
+      ],
+      "sessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        }
+      ],
+      "totalTime": 300,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "deletedSessionIds": [
+        "b",
+        "zzz"
+      ],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [
+        {
+          "date": "2026-07-01",
+          "count": 10
+        }
+      ],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_sessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/tombstones-union-dedupe-and-nulls": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "deletedSessionIds": [
+        "x",
+        "y",
+        "z"
+      ],
+      "deletedSnapshotIds": [
+        "p",
+        "q"
+      ],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/stitchLog-rebuilt-from-sessions-after-deletion": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        }
+      ],
+      "sessions": [],
+      "totalTime": 300,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "stitchLog": [
+        {
+          "date": "2026-07-01",
+          "count": 10
+        }
+      ],
+      "deletedSessionIds": [
+        "b"
+      ],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/totalTime-prefers-durationSeconds": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [
+        {
+          "id": "a",
+          "start": "2026-07-01T09:00:00Z",
+          "durationSeconds": 100,
+          "durationMinutes": 9
+        },
+        {
+          "id": "b",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 2
+        }
+      ],
+      "totalTime": 220,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_sessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "start": "2026-07-01T09:00:00Z",
+                "durationSeconds": 100,
+                "durationMinutes": 9
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 2
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/totalTime-ignores-non-finite-and-non-numeric": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [
+        {
+          "id": "a",
+          "start": "2026-07-01T09:00:00Z",
+          "durationSeconds": null,
+          "durationMinutes": 1
+        },
+        {
+          "id": "b",
+          "start": "2026-07-02T09:00:00Z",
+          "durationSeconds": "60"
+        },
+        {
+          "id": "c",
+          "start": "2026-07-03T09:00:00Z",
+          "durationSeconds": null,
+          "durationMinutes": null
+        }
+      ],
+      "totalTime": 60,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_sessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "start": "2026-07-01T09:00:00Z",
+                "durationSeconds": null,
+                "durationMinutes": 1
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "start": "2026-07-02T09:00:00Z",
+                "durationSeconds": "60"
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_c": [
+            {
+              "value": {
+                "id": "c",
+                "start": "2026-07-03T09:00:00Z",
+                "durationSeconds": null,
+                "durationMinutes": null
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/totalTime-takes-largest-of-local-remote-sessions": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 500,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/statsSessions-and-sessions-merge-independently": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [
+        {
+          "id": "a",
+          "date": "2026-07-01",
+          "startTime": "2026-07-01T09:00:00Z",
+          "start": "2026-07-01T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 10,
+          "units": 10,
+          "totalAtEnd": 10,
+          "percentAtEnd": 62.5
+        },
+        {
+          "id": "c",
+          "date": "2026-07-03",
+          "startTime": "2026-07-03T09:00:00Z",
+          "start": "2026-07-03T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 7,
+          "units": 7,
+          "totalAtEnd": 16,
+          "percentAtEnd": 100
+        }
+      ],
+      "sessions": [
+        {
+          "id": "b",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T09:00:00Z",
+          "start": "2026-07-02T09:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 5,
+          "units": 5,
+          "totalAtEnd": 15,
+          "percentAtEnd": 93.8
+        },
+        {
+          "id": "b2",
+          "date": "2026-07-02",
+          "startTime": "2026-07-02T10:00:00Z",
+          "start": "2026-07-02T10:00:00Z",
+          "durationMinutes": 5,
+          "netStitches": 3,
+          "units": 3,
+          "totalAtEnd": 13,
+          "percentAtEnd": 81.3
+        }
+      ],
+      "totalTime": 600,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "journal_sessions_b": [
+            {
+              "value": {
+                "id": "b",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T09:00:00Z",
+                "start": "2026-07-02T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 5,
+                "units": 5
+              },
+              "clock": {}
+            }
+          ],
+          "journal_sessions_b2": [
+            {
+              "value": {
+                "id": "b2",
+                "date": "2026-07-02",
+                "startTime": "2026-07-02T10:00:00Z",
+                "start": "2026-07-02T10:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 3,
+                "units": 3
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_a": [
+            {
+              "value": {
+                "id": "a",
+                "date": "2026-07-01",
+                "startTime": "2026-07-01T09:00:00Z",
+                "start": "2026-07-01T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 10,
+                "units": 10
+              },
+              "clock": {}
+            }
+          ],
+          "journal_statsSessions_c": [
+            {
+              "value": {
+                "id": "c",
+                "date": "2026-07-03",
+                "startTime": "2026-07-03T09:00:00Z",
+                "start": "2026-07-03T09:00:00Z",
+                "durationMinutes": 5,
+                "netStitches": 7,
+                "units": 7
+              },
+              "clock": {}
+            }
+          ],
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/malformed-sessions-throw": {
+    "result": null,
+    "error": {
+      "name": "TypeError",
+      "constructor": "TypeError",
+      "message": "(localSessions || []).filter is not a function"
+    },
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/positioned-union-sorted-by-key": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "y": 1,
+          "colorId": "310",
+          "corner": "BL"
+        },
+        {
+          "x": 3,
+          "y": 1,
+          "colorId": "310",
+          "corner": "TL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/numeric-strings-coerced-and-colour-stringified": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 2,
+          "y": 5,
+          "colorId": "310",
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/duplicate-identity-keeps-lexically-smaller-payload": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "y": 1,
+          "colorId": "310",
+          "rgb": [
+            1,
+            1,
+            1
+          ],
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/legacy-idx-and-cellIdx-share-identity": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "cellIdx": 4,
+          "colorId": "310",
+          "note": "r"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/legacy-corner-defaults-to-BL": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "idx": 4,
+          "colorId": "310",
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/unpositioned-keyed-by-whole-payload": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "colorId": "310",
+          "note": "a"
+        },
+        {
+          "note": "b",
+          "colorId": "310"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/partial-coordinates-are-not-positioned": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "colorId": "310"
+        },
+        {
+          "x": 1,
+          "y": "abc",
+          "colorId": "310"
+        },
+        {
+          "x": null,
+          "y": 2,
+          "colorId": "310"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/non-array-and-malformed-entries-ignored": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "y": 2,
+          "colorId": "5",
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/missing-colourId-becomes-undefined-string": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "y": 2,
+          "colorId": "undefined",
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/parkMarkers/result-is-a-deep-copy": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [
+        {
+          "x": 1,
+          "y": 2,
+          "colorId": "1",
+          "meta": {
+            "deep": [
+              1
+            ]
+          },
+          "corner": "BL"
+        }
+      ],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/newer-setAt-wins": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 3,
+        "y1": 2,
+        "setAt": 9
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/older-remote-loses": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 9
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/tie-keeps-local": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 5
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/remote-null-keeps-local": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 5
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/local-null-takes-remote": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 5
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/both-absent": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": null,
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/non-object-remote-keeps-local": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 5
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/non-object-local-takes-remote": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": 5
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/non-finite-setAt-counts-as-zero": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 2,
+        "y1": 2,
+        "setAt": null
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/workArea/string-setAt-counts-as-zero": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "workArea": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 3,
+        "y1": 2,
+        "setAt": 1
+      },
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/ordinary": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-01T00:00:00Z",
+      "lastTouchedAt": "2026-07-05T00:00:00Z",
+      "completedAt": "2026-07-08T00:00:00Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/ties-keep-local": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-02T00:00:00.000Z",
+      "lastTouchedAt": "2026-07-02T00:00:00.000Z",
+      "completedAt": "2026-07-02T00:00:00.000Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/blank-local": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-01T00:00:00Z",
+      "lastTouchedAt": "2026-07-01T00:00:00Z",
+      "completedAt": "2026-07-01T00:00:00Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/blank-remote": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-01T00:00:00Z",
+      "lastTouchedAt": "2026-07-01T00:00:00Z",
+      "completedAt": "2026-07-01T00:00:00Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/both-blank": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": null,
+      "lastTouchedAt": null,
+      "completedAt": null,
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/unparseable-takes-remote": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-01T00:00:00Z",
+      "lastTouchedAt": "2026-07-01T00:00:00Z",
+      "completedAt": "2026-07-01T00:00:00Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/unparseable-remote-wins-by-comparison-rule": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "garbage",
+      "lastTouchedAt": "garbage",
+      "completedAt": "garbage",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "progress/lifecycle/mixed-formats": {
+    "result": {
+      "id": "proj_1",
+      "name": "Shared",
+      "updatedAt": "2026-08-23T10:00:00.000Z",
+      "settings": {
+        "sW": 4,
+        "sH": 4,
+        "fabricCt": 14
+      },
+      "pattern": [
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        },
+        {
+          "id": "311"
+        },
+        {
+          "id": "312"
+        },
+        {
+          "id": "310"
+        }
+      ],
+      "done": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "statsSessions": [],
+      "sessions": [],
+      "totalTime": 0,
+      "threadOwned": {},
+      "parkMarkers": [],
+      "achievedMilestones": [],
+      "halfDone": [],
+      "startedAt": "2026-07-01",
+      "lastTouchedAt": "2026-07-01T11:30:00Z",
+      "completedAt": "2026-07-01T00:00:00.000Z",
+      "trackingSync": {
+        "version": 1,
+        "marks": {}
+      },
+      "doneSnapshots": [],
+      "halfStitches": [],
+      "partialStitches": [],
+      "stitchLog": [],
+      "workArea": null,
+      "valueSync": {
+        "version": 1,
+        "fields": {
+          "name": [
+            {
+              "value": "Shared",
+              "clock": {}
+            }
+          ],
+          "settings": [
+            {
+              "value": {
+                "sW": 4,
+                "sH": 4,
+                "fabricCt": 14
+              },
+              "clock": {}
+            }
+          ],
+          "threadOwned": [
+            {
+              "value": {},
+              "clock": {}
+            }
+          ]
+        }
+      }
+    },
+    "error": null,
+    "argsUnchanged": true,
+    "returnedArg": -1
+  },
+  "classify/same-markers": {
+    "result": [
+      "identical"
+    ]
+  },
+  "classify/same-markers-different-order": {
+    "result": [
+      "identical"
+    ]
+  },
+  "classify/string-vs-number-coordinates": {
+    "result": [
+      "identical"
+    ]
+  },
+  "classify/different-markers": {
+    "result": [
+      "merge-tracking"
+    ]
+  },
+  "classify/none-vs-some": {
+    "result": [
+      "merge-tracking"
+    ]
+  },
+  "classify/duplicate-collapses": {
+    "result": [
+      "identical"
+    ]
+  },
+  "progress/remerge-is-stable": {
+    "result": {
+      "once": {
+        "id": "proj_1",
+        "name": "Shared",
+        "updatedAt": "2026-08-23T10:00:00.000Z",
+        "settings": {
+          "sW": 4,
+          "sH": 4,
+          "fabricCt": 14
+        },
+        "pattern": [
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          }
+        ],
+        "done": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statsSessions": [
+          {
+            "id": "a",
+            "date": "2026-07-01",
+            "startTime": "2026-07-01T09:00:00Z",
+            "start": "2026-07-01T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 10,
+            "units": 10,
+            "totalAtEnd": 10,
+            "percentAtEnd": 62.5
+          },
+          {
+            "id": "b",
+            "date": "2026-07-02",
+            "startTime": "2026-07-02T09:00:00Z",
+            "start": "2026-07-02T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 5,
+            "units": 5,
+            "totalAtEnd": 15,
+            "percentAtEnd": 93.8
+          },
+          {
+            "id": "c",
+            "date": "2026-07-03",
+            "startTime": "2026-07-03T09:00:00Z",
+            "start": "2026-07-03T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 7,
+            "units": 7,
+            "totalAtEnd": 16,
+            "percentAtEnd": 100
+          }
+        ],
+        "sessions": [
+          {
+            "id": "a",
+            "date": "2026-07-01",
+            "startTime": "2026-07-01T09:00:00Z",
+            "start": "2026-07-01T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 10,
+            "units": 10,
+            "totalAtEnd": 10,
+            "percentAtEnd": 62.5
+          },
+          {
+            "id": "b",
+            "date": "2026-07-02",
+            "startTime": "2026-07-02T09:00:00Z",
+            "start": "2026-07-02T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 5,
+            "units": 5,
+            "totalAtEnd": 15,
+            "percentAtEnd": 93.8
+          },
+          {
+            "id": "c",
+            "date": "2026-07-03",
+            "startTime": "2026-07-03T09:00:00Z",
+            "start": "2026-07-03T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 7,
+            "units": 7,
+            "totalAtEnd": 22,
+            "percentAtEnd": 137.5
+          }
+        ],
+        "totalTime": 1200,
+        "threadOwned": {},
+        "parkMarkers": [
+          {
+            "x": 1,
+            "y": 1,
+            "colorId": "310",
+            "corner": "BL"
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "colorId": "311",
+            "corner": "BL"
+          }
+        ],
+        "achievedMilestones": [],
+        "halfDone": [],
+        "stitchLog": [
+          {
+            "date": "2026-07-01",
+            "count": 10
+          },
+          {
+            "date": "2026-07-03",
+            "count": 7
+          }
+        ],
+        "halfStitches": [
+          [
+            1,
+            {
+              "fwd": true
+            }
+          ],
+          [
+            2,
+            {
+              "bck": true
+            }
+          ]
+        ],
+        "workArea": {
+          "x0": 0,
+          "y0": 0,
+          "x1": 3,
+          "y1": 2,
+          "setAt": 8
+        },
+        "startedAt": "2026-06-30T00:00:00Z",
+        "trackingSync": {
+          "version": 1,
+          "marks": {}
+        },
+        "doneSnapshots": [],
+        "partialStitches": [],
+        "lastTouchedAt": null,
+        "completedAt": null,
+        "valueSync": {
+          "version": 1,
+          "fields": {
+            "journal_sessions_a": [
+              {
+                "value": {
+                  "id": "a",
+                  "date": "2026-07-01",
+                  "startTime": "2026-07-01T09:00:00Z",
+                  "start": "2026-07-01T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 10,
+                  "units": 10
+                },
+                "clock": {}
+              }
+            ],
+            "journal_sessions_b": [
+              {
+                "value": {
+                  "id": "b",
+                  "date": "2026-07-02",
+                  "startTime": "2026-07-02T09:00:00Z",
+                  "start": "2026-07-02T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 5,
+                  "units": 5
+                },
+                "clock": {}
+              }
+            ],
+            "journal_sessions_c": [
+              {
+                "value": {
+                  "id": "c",
+                  "date": "2026-07-03",
+                  "startTime": "2026-07-03T09:00:00Z",
+                  "start": "2026-07-03T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 7,
+                  "units": 7
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_a": [
+              {
+                "value": {
+                  "id": "a",
+                  "date": "2026-07-01",
+                  "startTime": "2026-07-01T09:00:00Z",
+                  "start": "2026-07-01T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 10,
+                  "units": 10
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_b": [
+              {
+                "value": {
+                  "id": "b",
+                  "date": "2026-07-02",
+                  "startTime": "2026-07-02T09:00:00Z",
+                  "start": "2026-07-02T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 5,
+                  "units": 5
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_c": [
+              {
+                "value": {
+                  "id": "c",
+                  "date": "2026-07-03",
+                  "startTime": "2026-07-03T09:00:00Z",
+                  "start": "2026-07-03T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 7,
+                  "units": 7
+                },
+                "clock": {}
+              }
+            ],
+            "name": [
+              {
+                "value": "Shared",
+                "clock": {}
+              }
+            ],
+            "settings": [
+              {
+                "value": {
+                  "sW": 4,
+                  "sH": 4,
+                  "fabricCt": 14
+                },
+                "clock": {}
+              }
+            ],
+            "threadOwned": [
+              {
+                "value": {},
+                "clock": {}
+              }
+            ]
+          }
+        }
+      },
+      "again": {
+        "id": "proj_1",
+        "name": "Shared",
+        "updatedAt": "2026-08-23T10:00:00.000Z",
+        "settings": {
+          "sW": 4,
+          "sH": 4,
+          "fabricCt": 14
+        },
+        "pattern": [
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          },
+          {
+            "id": "311"
+          },
+          {
+            "id": "312"
+          },
+          {
+            "id": "310"
+          }
+        ],
+        "done": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "statsSessions": [
+          {
+            "id": "a",
+            "date": "2026-07-01",
+            "startTime": "2026-07-01T09:00:00Z",
+            "start": "2026-07-01T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 10,
+            "units": 10,
+            "totalAtEnd": 10,
+            "percentAtEnd": 62.5
+          },
+          {
+            "id": "b",
+            "date": "2026-07-02",
+            "startTime": "2026-07-02T09:00:00Z",
+            "start": "2026-07-02T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 5,
+            "units": 5,
+            "totalAtEnd": 15,
+            "percentAtEnd": 93.8
+          },
+          {
+            "id": "c",
+            "date": "2026-07-03",
+            "startTime": "2026-07-03T09:00:00Z",
+            "start": "2026-07-03T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 7,
+            "units": 7,
+            "totalAtEnd": 16,
+            "percentAtEnd": 100
+          }
+        ],
+        "sessions": [
+          {
+            "id": "a",
+            "date": "2026-07-01",
+            "startTime": "2026-07-01T09:00:00Z",
+            "start": "2026-07-01T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 10,
+            "units": 10,
+            "totalAtEnd": 10,
+            "percentAtEnd": 62.5
+          },
+          {
+            "id": "b",
+            "date": "2026-07-02",
+            "startTime": "2026-07-02T09:00:00Z",
+            "start": "2026-07-02T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 5,
+            "units": 5,
+            "totalAtEnd": 15,
+            "percentAtEnd": 93.8
+          },
+          {
+            "id": "c",
+            "date": "2026-07-03",
+            "startTime": "2026-07-03T09:00:00Z",
+            "start": "2026-07-03T09:00:00Z",
+            "durationMinutes": 5,
+            "netStitches": 7,
+            "units": 7,
+            "totalAtEnd": 22,
+            "percentAtEnd": 137.5
+          }
+        ],
+        "totalTime": 1200,
+        "threadOwned": {},
+        "parkMarkers": [
+          {
+            "x": 1,
+            "y": 1,
+            "colorId": "310",
+            "corner": "BL"
+          },
+          {
+            "x": 2,
+            "y": 2,
+            "colorId": "311",
+            "corner": "BL"
+          }
+        ],
+        "achievedMilestones": [],
+        "halfDone": [],
+        "stitchLog": [
+          {
+            "date": "2026-07-01",
+            "count": 10
+          },
+          {
+            "date": "2026-07-03",
+            "count": 7
+          }
+        ],
+        "halfStitches": [
+          [
+            1,
+            {
+              "fwd": true
+            }
+          ],
+          [
+            2,
+            {
+              "bck": true
+            }
+          ]
+        ],
+        "workArea": {
+          "x0": 0,
+          "y0": 0,
+          "x1": 3,
+          "y1": 2,
+          "setAt": 8
+        },
+        "startedAt": "2026-06-30T00:00:00Z",
+        "trackingSync": {
+          "version": 1,
+          "marks": {}
+        },
+        "doneSnapshots": [],
+        "partialStitches": [],
+        "lastTouchedAt": null,
+        "completedAt": null,
+        "valueSync": {
+          "version": 1,
+          "fields": {
+            "journal_sessions_a": [
+              {
+                "value": {
+                  "id": "a",
+                  "date": "2026-07-01",
+                  "startTime": "2026-07-01T09:00:00Z",
+                  "start": "2026-07-01T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 10,
+                  "units": 10
+                },
+                "clock": {}
+              }
+            ],
+            "journal_sessions_b": [
+              {
+                "value": {
+                  "id": "b",
+                  "date": "2026-07-02",
+                  "startTime": "2026-07-02T09:00:00Z",
+                  "start": "2026-07-02T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 5,
+                  "units": 5
+                },
+                "clock": {}
+              }
+            ],
+            "journal_sessions_c": [
+              {
+                "value": {
+                  "id": "c",
+                  "date": "2026-07-03",
+                  "startTime": "2026-07-03T09:00:00Z",
+                  "start": "2026-07-03T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 7,
+                  "units": 7
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_a": [
+              {
+                "value": {
+                  "id": "a",
+                  "date": "2026-07-01",
+                  "startTime": "2026-07-01T09:00:00Z",
+                  "start": "2026-07-01T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 10,
+                  "units": 10
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_b": [
+              {
+                "value": {
+                  "id": "b",
+                  "date": "2026-07-02",
+                  "startTime": "2026-07-02T09:00:00Z",
+                  "start": "2026-07-02T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 5,
+                  "units": 5
+                },
+                "clock": {}
+              }
+            ],
+            "journal_statsSessions_c": [
+              {
+                "value": {
+                  "id": "c",
+                  "date": "2026-07-03",
+                  "startTime": "2026-07-03T09:00:00Z",
+                  "start": "2026-07-03T09:00:00Z",
+                  "durationMinutes": 5,
+                  "netStitches": 7,
+                  "units": 7
+                },
+                "clock": {}
+              }
+            ],
+            "name": [
+              {
+                "value": "Shared",
+                "clock": {}
+              }
+            ],
+            "settings": [
+              {
+                "value": {
+                  "sW": 4,
+                  "sH": 4,
+                  "fabricCt": 14
+                },
+                "clock": {}
+              }
+            ],
+            "threadOwned": [
+              {
+                "value": {},
+                "clock": {}
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

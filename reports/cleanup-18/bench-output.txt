@@ -1,0 +1,6 @@
+base: 401.552 ms per merge
+head: 384.862 ms per merge
+base: 404.362 ms per merge
+head: 394.801 ms per merge
+base: 401.390 ms per merge
+head: 405.809 ms per merge

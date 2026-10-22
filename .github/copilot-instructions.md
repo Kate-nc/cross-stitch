@@ -79,6 +79,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `project-storage.js` | Multi-project storage — `ProjectStorage` singleton (`save`, `get`, `listProjects`, `delete`, `getActiveProject`, …) |
 | `stash-bridge.js` | Reads/writes the Stash Manager's `stitch_manager_db` from any page |
 | `sync-engine.js` | `.csync` export/import, folder watching, merge and conflict review |
+| `sync-merge-helpers.js` | Pure record-merge primitives (sessions, running totals, fractional pairs, stitch log, parking markers, work area) called by `sync-engine.js`; loaded before it on every page that loads it |
 | `tracker-app.js` | Stitch Tracker React tree (shortcuts are the `trackerShortcuts` array) |
 | `creator-main.js` + `creator/` | Pattern Creator — state in `creator/useCreatorState.js`, shortcuts in `creator/useKeyboardShortcuts.js` |
 | `manager-app.js` | Stash Manager React tree |
