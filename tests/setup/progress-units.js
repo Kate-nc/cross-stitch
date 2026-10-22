@@ -15,3 +15,6 @@ try {
 
 // Pages load the causal mark helper before storage and sync.
 global.TrackingSync = require('../../tracking-sync.js');
+
+// Pages load the merge primitives before sync-engine.js, which calls them by global name.
+global.SyncMergeHelpers = require('../../sync-merge-helpers.js');

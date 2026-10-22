@@ -121,6 +121,7 @@ var PRECACHE_URLS = [
   // The Tracker loads the PDF exporter on demand (export-pdf.js); the Creator
   // has it inside creator/bundle.js.
   './creator/pdfExport.js',
+  './sync-merge-helpers.js',
   './sync-engine.js',
   './webdav-sync.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
@@ -135,7 +136,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "9fa27dc81919b5dd67249c53f4ea3607374bb8d8124249da5fbb8fb05b937e66";
+var BUILD_ID = "70929c9f90491d51b0938f643ff7599948e4e23584d2431cdc8f1668ce7a08ba";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -231,6 +232,7 @@ var REQUIRED_URLS = [
   "./backup-restore.js",
   "./help-drawer.js",
   "./creator/pdfExport.js",
+  "./sync-merge-helpers.js",
   "./sync-engine.js",
   "./webdav-sync.js",
   "./assets/fonts/CrossStitchSymbols.base64.js",
@@ -277,19 +279,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "9055db46d7f24c96df3690de3632291cf1e1ee115aa94575748a8fc718f21730"
+    "sha256": "f260db9dbeda82000c74cd2b0300c9b6d27bc3d19ae0e6450c98cc14b041878b"
   },
   "./index.html": {
-    "sha256": "dc46749698b657a64d833a8c230a9d4f9fb071cc439c3e66b677dff141a93994"
+    "sha256": "700c04d4b4ed1b8fd7fcc24e63131ccea383bec01bc2fd9e3e8ae0a6607a5a5c"
   },
   "./create.html": {
-    "sha256": "0d56da347bb4ef883897d6f52a7fc701f868c34bea45e5a6954b71bbbe83e7a5"
+    "sha256": "b49d871925d0e1f20b1018cd587d3b446d76ae3c5a1d1ebf50cd41d420051415"
   },
   "./stitch.html": {
-    "sha256": "e18ee95c205acf7d7a9daeeeebb0e64667cf91b13b16e111db70ba61059e0087"
+    "sha256": "27d5538a0c6259b03c425e1fc918cb4f298e031c2bbc8d8864d42091a0240e89"
   },
   "./manager.html": {
-    "sha256": "989e0b2beffd3b70adca85692a2a0067302bacada96cfc69863d65bac4a816f3"
+    "sha256": "229ba470b505ad59ee7da01267dcf0680d6602a00c0a2c74a30fcf279ced8772"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -558,8 +560,11 @@ var BUILD_ASSETS = {
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
   },
+  "./sync-merge-helpers.js": {
+    "sha256": "049bac322f42bb1b277d5681d180ac586b49d244223ac5b71a7cebb99ffbfd2c"
+  },
   "./sync-engine.js": {
-    "sha256": "80ffe9854239ac05e2bee8231fb6dde361095f54bedb8b6a2f7e1e8a4c5a9812"
+    "sha256": "c2c3769842b5858c624f81b5485c67bfd4726f645e3b63f34877b6941faac65e"
   },
   "./webdav-sync.js": {
     "sha256": "eb6cceb9c949c479b79108eeae059db6022221763d97ba454578672be887a39c"

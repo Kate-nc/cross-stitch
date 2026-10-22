@@ -1,0 +1,6 @@
+home.html    ok  {"helper":"object","engine":"object","helperBeforeEngine":true,"sampleMatches":true} no page errors
+index.html   ok  {"helper":"object","engine":"object","helperBeforeEngine":true,"sampleMatches":true} no page errors
+create.html  ok  {"helper":"object","engine":"object","helperBeforeEngine":true,"sampleMatches":true} no page errors
+stitch.html  ok  {"helper":"object","engine":"object","helperBeforeEngine":true,"sampleMatches":true} no page errors
+manager.html ok  {"helper":"object","engine":"object","helperBeforeEngine":true,"sampleMatches":true} no page errors
+battery in Chromium: 107 cases, 0 differ from the recorded base behaviour []
