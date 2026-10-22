@@ -75,7 +75,9 @@ it('restores ID-only blends from corrected components consistently with matching
   const b = run('restoreStitch({id:"505+783",type:"blend",symbol:"X"})');
   expect(Array.from(b.rgb)).toEqual([129, 138, 67]);
   expect(b.symbol).toBe('X');
-  run('findBest.precomputeBlends([getDmcById("505"),getDmcById("783")]);');
+  // 505 and 783 are too far apart for a new blend to pair them
+  // (BLEND_MAX_PARTNER_DE); lift the limit to compare the composite formula.
+  run('var _lim = BLEND_MAX_PARTNER_DE; BLEND_MAX_PARTNER_DE = Infinity; findBest.precomputeBlends([getDmcById("505"),getDmcById("783")]); BLEND_MAX_PARTNER_DE = _lim;');
   const computed = run('findBest._blends[0]');
   expect(b.rgb).toEqual(computed.rgb);
   expect(b.lab).toEqual(computed.lab);

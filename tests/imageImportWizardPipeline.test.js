@@ -100,12 +100,24 @@ test('fractional aspect crops produce whole cell grids for legacy flat callers',
   expect(r.pattern).toHaveLength(r.width*r.height);
 });
 
+test('a picture entirely in a blended colour keeps both of the blend\'s threads',()=>{
+  // Regression: palette pruning dropped 317 because no pixel had it as its
+  // nearest solid, and the grey became 3799 (ΔE 7) instead of the blend (ΔE 0.2).
+  const c=runtime(), img=source(30,10), x=img.getContext('2d');
+  x.fillStyle='rgb(87,87,87)';x.fillRect(0,0,30,10);
+  const r=c.parseImagePattern(img,{...base,maxWidth:30,maxHeight:10,
+    palette:{mode:'stash',maxColours:2,allowBlends:true},globalStash:{'dmc:3799':{owned:1},'dmc:317':{owned:1}}});
+  expect(new Set(r.pattern.map(cell=>cell.id))).toEqual(new Set(['317+3799']));
+});
+
 test('blend thread metadata survives conversion and project creation',()=>{
   const c=runtime(), img=source(30,10), x=img.getContext('2d');
-  x.fillStyle='black';x.fillRect(0,0,10,10);x.fillStyle='white';x.fillRect(10,0,10,10);
-  x.fillStyle='rgb(120,120,120)';x.fillRect(20,0,10,10);
+  // Two greys close enough to blend (black and white are not: a blend of
+  // threads that far apart reads as a tweed, so it is never offered).
+  x.fillStyle='rgb(66,66,66)';x.fillRect(0,0,10,10);x.fillStyle='rgb(108,108,108)';x.fillRect(10,0,10,10);
+  x.fillStyle='rgb(87,87,87)';x.fillRect(20,0,10,10);
   const r=c.parseImagePattern(img,{...base,maxWidth:30,maxHeight:10,
-    palette:{mode:'stash',maxColours:2,allowBlends:true},globalStash:{'dmc:310':{owned:1},'dmc:B5200':{owned:1}}});
+    palette:{mode:'stash',maxColours:2,allowBlends:true},globalStash:{'dmc:3799':{owned:1},'dmc:317':{owned:1}}});
   const blends=r.pattern.filter(cell=>cell.type==='blend');
   expect(blends.length).toBeGreaterThan(0);
   const saved=c.importResultToProject(r,14,'blend test');

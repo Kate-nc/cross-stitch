@@ -57,6 +57,11 @@ function loadDoDither(flags) {
       "var rgbToLab = extractedFns.rgbToLab;",
       "var dE2 = extractedFns.dE2;",
       extractFn(embSrc, "sobelMag"),
+      ...["SALIENCY_LUM_FLOOR", "SALIENCY_CHROMA_FLOOR", "SALIENCY_NORM_LO", "SALIENCY_NORM_HI"]
+        .map((n) => cuSrc.match(new RegExp(`\\nvar ${n} = [^;]+;`))[0]),
+      extractFn(cuSrc, "_dE2000Core"),
+      extractFn(cuSrc, "_dE2000LightnessBound"),
+      extractFn(cuSrc, "_gradientParts"),
       extractFn(cuSrc, "findSolid"),
       extractFn(cuSrc, "findBest"),
       extractFn(cuSrc, "_gaussianBlur1"),

@@ -50,6 +50,11 @@ eval(extractFn(embSrc, 'cannyEdges'));    // eslint-disable-line no-eval
 
 // Pull Stage 4 functions from colour-utils.js
 const cuSrc = fs.readFileSync('./colour-utils.js', 'utf8');
+const { rgbToLab } = require('../dmc-data.js');
+// Top-level `var NAME = value;` constants the extracted functions read.
+const extractVar = (src, name) => src.match(new RegExp(`\\nvar ${name} = [^;]+;`))[0];
+eval(extractVar(cuSrc, 'CHROMA_EDGE_THRESHOLD')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_gradientParts'));             // eslint-disable-line no-eval
 eval(extractFn(cuSrc, '_dilate3Square'));              // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'generateEdgeMap'));             // eslint-disable-line no-eval
 
