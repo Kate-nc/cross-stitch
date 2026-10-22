@@ -73,6 +73,10 @@ describe('chartContentBox', () => {
     expect(imp.chartContentBox(page({ vectorPaths: [white] }), 10, 10)).toBeNull();
     expect(box(imp.chartContentBox(page({ vectorPaths: [white] }), undefined, undefined))).toEqual([100, 100, 150, 150]);
     expect(box(imp.chartContentBox(page({ vectorPaths: [smallWhite] }), 10, 10))).toEqual([100, 100, 140, 140]);
+    // each dimension is tested on its own: four cells wide but tall, or four cells tall but wide
+    expect(box(imp.chartContentBox(page({ vectorPaths: [rect(100, 100, 40, 60, [255, 255, 255])] }), 10, 10))).toEqual([100, 100, 140, 160]);
+    expect(box(imp.chartContentBox(page({ vectorPaths: [rect(100, 100, 60, 40, [255, 255, 255])] }), 10, 10))).toEqual([100, 100, 160, 140]);
+    expect(imp.chartContentBox(page({ vectorPaths: [rect(100, 100, 40.1, 40.1, [255, 255, 255])] }), 10, 10)).toBeNull();
     expect(imp.chartContentBox(page({ vectorPaths: [nearWhite] }), 10, 10)).toBeNull();
     expect(box(imp.chartContentBox(page({ vectorPaths: [rect(200, 200, 50, 50, [244, 250, 255])] }), 10, 10))).toEqual([200, 200, 250, 250]);
   });
@@ -205,6 +209,12 @@ describe('anchorGridToRuler', () => {
     expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchY: 9.5 }), 100, 100)).toBeNull();
     expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchX: 10.39 }), 100, 100)).not.toBeNull();
     expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchX: 9.62 }), 100, 100)).not.toBeNull();
+    // 10 / 9.6117 is 4.04% over and 10 / 10.42 is 4.03% under; 9.62 and 10.41 are inside
+    expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchX: 9.6117 }), 100, 100)).toBeNull();
+    expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchY: 9.6117 }), 100, 100)).toBeNull();
+    expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchX: 10.41 }), 100, 100)).not.toBeNull();
+    expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchY: 10.41 }), 100, 100)).not.toBeNull();
+    expect(imp.anchorGridToRuler(grid, ruler(cols, rows, { pitchY: 10.42 }), 100, 100)).toBeNull();
   });
 
   it('reads the first column and row from cell-centred labels', () => {
