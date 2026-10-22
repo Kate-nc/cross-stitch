@@ -4761,8 +4761,8 @@ html.pref-dark a { color: var(--accent); }
   .mh-subtabs {
     overflow-x:auto; flex-wrap:nowrap;
     /* fix-3.2 — fade the right edge so users see there's more content. */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
-            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); /* css-tokens-lint-allow: alpha mask stop, the colour is never painted */
+            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); /* css-tokens-lint-allow: alpha mask stop, the colour is never painted */
     scrollbar-width:none;
   }
   .mh-subtabs::-webkit-scrollbar { display:none; }
@@ -7005,7 +7005,7 @@ button[aria-disabled="true"] {
 
 .import-preview-canvas {
   display: block; max-width: 100%;
-  border: 1px solid var(--line); background: #fff;
+  border: 1px solid var(--line); background: #fff; /* css-tokens-lint-allow: blank fabric, matches the #fff ImportPreviewPane paints in every theme */
   border-radius: var(--radius-sm);
 }
 .import-preview-meta {

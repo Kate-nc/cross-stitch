@@ -245,7 +245,7 @@ npm run test:mobile-audit        # phone / tablet / desktop layout audit
 npm run perf:baseline            # desktop perf (also perf:mobile)
 
 npm run lint:terminology         # banned terms in user-facing copy
-npm run lint:css-tokens          # raw hex / removed --ws-* aliases in CSS
+npm run lint:css-tokens          # raw hex outside token blocks in styles.css (advisory)
 ```
 
 Tests are CommonJS and mostly load browser source with `fs.readFileSync` + `new Function`/`eval`, since the app has no module system.
