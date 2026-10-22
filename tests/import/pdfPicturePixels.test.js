@@ -63,6 +63,13 @@ describe('pictureRgba: raw bytes from pdf.js', () => {
     }
   });
 
+  it('pads a 1-bit row only to the next whole byte: 8 pixels take one byte, 9 take two', () => {
+    expect(px(imp.pictureRgba({ width: 8, height: 2, kind: 1, data: u8([0xF0, 0x0F]) })).filter((_, i) => i % 4 === 0))
+      .toEqual([255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255]);
+    expect(px(imp.pictureRgba({ width: 9, height: 2, kind: 1, data: u8([0xFF, 0x00, 0x00, 0x80]) })).filter((_, i) => i % 4 === 0))
+      .toEqual([255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]);
+  });
+
   it('reads kind 2 as RGB and kind 3 as RGBA', () => {
     expect(px(imp.pictureRgba({ width: 2, height: 1, kind: 2, data: u8([10, 20, 30, 40, 50, 60]) })))
       .toEqual([10, 20, 30, 255, 40, 50, 60, 255]);
@@ -75,6 +82,8 @@ describe('pictureRgba: raw bytes from pdf.js', () => {
     expect(px(imp.pictureRgba({ width: 1, height: 1, kind: 3, data: u8([0, 0, 0, 128]) }))).toEqual([127, 127, 127, 255]);
     expect(px(imp.pictureRgba({ width: 1, height: 1, kind: 3, data: u8([200, 100, 0, 64]) }))).toEqual([241, 216, 191, 255]);
     expect(px(imp.pictureRgba({ width: 1, height: 1, kind: 3, data: u8([9, 8, 7, 1]) }))).toEqual([254, 254, 254, 255]);
+    // fractions of a half or more round up (62.84 -> 63, 93.5+ -> 94), so this is rounding, not truncation
+    expect(px(imp.pictureRgba({ width: 1, height: 1, kind: 3, data: u8([10, 50, 100, 200]) }))).toEqual([63, 94, 133, 255]);
   });
 
   it('guesses the channel count from the byte length when the kind says nothing', () => {
