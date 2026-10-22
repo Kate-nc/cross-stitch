@@ -356,6 +356,7 @@ import-formats.js              .oxs / .json / image parsers
 import-engine/                 PDF and pattern import pipeline (bundled)
 pdf-importer.js                Legacy PDF importer
 pdf-chart-geometry.js         Ruler-to-grid placement maths used by pdf-importer.js
+pdf-picture-pixels.js         Decoded-picture to RGBA-on-white conversion used by pdf-importer.js
 
 project-storage.js             Multi-project storage (CrossStitchDB)
 stash-bridge.js                Bridge to stitch_manager_db from any page

@@ -107,6 +107,7 @@ var PRECACHE_URLS = [
   './pdf-axis-labels.js',
   './pdf-raster-chart.js',
   './pdf-chart-geometry.js',
+  './pdf-picture-pixels.js',
   './pdf-raster-worker.js',
   './pdf-importer.js',
   // assets/fontkit.umd.min.js is intentionally omitted from PRECACHE_URLS.
@@ -139,7 +140,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "845e8bdf3a0d9e8e90719689b6185c0c0da145a23b7bfac9912235bc3ceb6e1c";
+var BUILD_ID = "f535d48dcbecb3eca6ed24edb52ce251c4ba8d2474be90e81b79288d7f2c2779";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -231,6 +232,7 @@ var REQUIRED_URLS = [
   "./pdf-axis-labels.js",
   "./pdf-raster-chart.js",
   "./pdf-chart-geometry.js",
+  "./pdf-picture-pixels.js",
   "./pdf-raster-worker.js",
   "./pdf-importer.js",
   "./backup-restore.js",
@@ -288,13 +290,13 @@ var BUILD_ASSETS = {
     "sha256": "201121913b2ad585320cc1b57dcef43291d753390cb5e8f9ac8a02cddb7cc7fa"
   },
   "./index.html": {
-    "sha256": "40f1776ae850c9f2566a616732cbec48ff7a76ed3768e4bd7e82eeb1c2aa1df5"
+    "sha256": "afb07c1f8b1cc4cf0007e97564bd0c5b7f972418ca415dabaeda674e38b8ef9d"
   },
   "./create.html": {
-    "sha256": "94af422db293bb08ced498c3d34bfb53ee4a6a8bb9d7541509dfbee71caee7c9"
+    "sha256": "dfa07028c2bf17aadb3e6e3e806faf1f7b840199e9539ddfbd56189c73b25f32"
   },
   "./stitch.html": {
-    "sha256": "79b7ae70a90db4018fb708cfff1624a805491f4ef31e31a986cc28cede9df88b"
+    "sha256": "288829a427c849c65cd092ef73ea43facc7e841382ced2a58b518859df6d517f"
   },
   "./manager.html": {
     "sha256": "29be2d3d2a6e2371a91e6701bdeaf3edfcc66bc5dd675dac7682f33d95ef358e"
@@ -468,7 +470,7 @@ var BUILD_ASSETS = {
     "sha256": "1e130923b21bc32251ce6902d11971903019918ddbcb56ee74d6759b52af812a"
   },
   "./import-engine/bundle.js": {
-    "sha256": "605ae1e75a68247362a29e312a8be4050d7fed1c6ee33d76b889bba3136b132c"
+    "sha256": "c5b93c3e8ff40e0392576c2a45cea55cbd795b9f9f57075e1f587bfcbc31a9be"
   },
   "./compiled/manager-app.compiled.js": {
     "sha256": "d6a5b4a6f2d858410332694a3473a2179ab89ae3f0f5824733286beb7ee3b2f0"
@@ -554,11 +556,14 @@ var BUILD_ASSETS = {
   "./pdf-chart-geometry.js": {
     "sha256": "79ffd3e8081a742a9afe37b2b4d7d94e830637c6b9cbb5d49bafa315631a32f0"
   },
+  "./pdf-picture-pixels.js": {
+    "sha256": "369913827119725fb7c68688b9af6f64b7a62e4742c38d92e7aa91e65bd38afa"
+  },
   "./pdf-raster-worker.js": {
     "sha256": "524d936a439d9395a7d93a77e6addc9c2224e3a46076f7aeb702985b740c4713"
   },
   "./pdf-importer.js": {
-    "sha256": "5aed7c408b286fb5e988fba35ae867921401ec367a5a59065a53ba631ffb778d"
+    "sha256": "8198a07f0ddb8418e06ead070b430c3ee541347ead26adf666d5497adee2d167"
   },
   "./backup-restore.js": {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
