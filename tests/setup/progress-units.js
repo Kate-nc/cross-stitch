@@ -27,3 +27,6 @@ global.SyncExportScheduler = require('../../sync-export-scheduler.js');
 
 // Pages load the PDF placement geometry before pdf-importer.js, whose ruler/grid methods delegate to it by global name.
 global.PdfChartGeometry = require('../../pdf-chart-geometry.js');
+
+// Pages load the picture pixel conversion before pdf-importer.js, whose pictureRgba delegates to it by global name.
+global.PdfPicturePixels = require('../../pdf-picture-pixels.js');

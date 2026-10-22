@@ -1601,26 +1601,8 @@ class PatternKeeperImporter {
     if (!(w > 0) || !(h > 0)) return null;
     let src = null;
     if (img.data) {
-      const d = img.data, n = w * h;
-      src = new Uint8ClampedArray(n * 4);
-      if (img.kind === 1) {
-        // 1 bit per pixel, rows padded to whole bytes; a set bit is white.
-        const rowBytes = (w + 7) >> 3;
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-          const v = (d[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1 ? 255 : 0;
-          const o = (y * w + x) * 4;
-          src[o] = src[o + 1] = src[o + 2] = v; src[o + 3] = 255;
-        }
-      } else {
-        const ch = img.kind === 3 ? 4 : img.kind === 2 ? 3 : Math.round(d.length / n);
-        if (!(ch >= 1 && ch <= 4) || d.length < n * ch) return null;
-        for (let i = 0; i < n; i++) {
-          src[i * 4] = d[i * ch];
-          src[i * 4 + 1] = d[i * ch + Math.min(1, ch - 1)];
-          src[i * 4 + 2] = d[i * ch + Math.min(2, ch - 1)];
-          src[i * 4 + 3] = ch === 4 ? d[i * ch + 3] : 255;
-        }
-      }
+      src = PdfPicturePixels.rawToRgba(img, w, h);
+      if (!src) return null;
     } else if (img.bitmap) {
       let canvas, context;
       try {
@@ -1636,14 +1618,8 @@ class PatternKeeperImporter {
     } else {
       return null;
     }
-    // Transparency shows the paper: composite onto white.
-    const data = new Uint8ClampedArray(w * h * 4);
-    for (let i = 0; i < w * h; i++) {
-      const a = src[i * 4 + 3] / 255;
-      for (let k = 0; k < 3; k++) data[i * 4 + k] = Math.round(src[i * 4 + k] * a + 255 * (1 - a));
-      data[i * 4 + 3] = 255;
-    }
-    return { w, h, data };
+    // Transparency shows the paper: composite onto white (pdf-picture-pixels.js).
+    return PdfPicturePixels.onWhite(src, w, h);
   }
 
   /**

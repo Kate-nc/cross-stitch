@@ -1,0 +1,36 @@
+--- round 1 base
+raw RGBA (kind 3)    median 868.0 ms  retained after drop -15.26 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 793.1 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 501.6 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 479.6 ms  retained after drop 26.70 MB  held while one result kept 0.00 MB
+peak RSS 143.12 MB
+--- round 1 head
+raw RGBA (kind 3)    median 747.7 ms  retained after drop 38.15 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 914.7 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 466.1 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 494.5 ms  retained after drop 26.70 MB  held while one result kept 0.00 MB
+peak RSS 141.50 MB
+--- round 2 base
+raw RGBA (kind 3)    median 841.7 ms  retained after drop -15.26 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 764.0 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 474.1 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 463.8 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+peak RSS 142.34 MB
+--- round 2 head
+raw RGBA (kind 3)    median 906.9 ms  retained after drop 38.15 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 781.4 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 439.8 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 519.0 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+peak RSS 141.88 MB
+--- round 3 base
+raw RGBA (kind 3)    median 800.4 ms  retained after drop -15.26 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 678.0 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 516.1 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 512.8 ms  retained after drop 26.70 MB  held while one result kept 0.00 MB
+peak RSS 142.36 MB
+--- round 3 head
+raw RGBA (kind 3)    median 863.0 ms  retained after drop -15.26 MB  held while one result kept -11.44 MB
+raw RGB (kind 2)     median 817.0 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+raw 1-bit (kind 1)   median 472.1 ms  retained after drop 0.00 MB  held while one result kept 0.00 MB
+bitmap via canvas    median 471.0 ms  retained after drop 26.70 MB  held while one result kept 0.00 MB
+peak RSS 141.87 MB

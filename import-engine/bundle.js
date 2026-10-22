@@ -3296,6 +3296,7 @@
             return loadScript('pdf-axis-labels.js')
               .then(function () { return loadScript('pdf-raster-chart.js'); })
               .then(function () { return loadScript('pdf-chart-geometry.js'); })
+              .then(function () { return loadScript('pdf-picture-pixels.js'); })
               .then(function () { return loadScript('pdf-importer.js'); });
           });
       }

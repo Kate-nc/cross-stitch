@@ -1,0 +1,14 @@
+SAME {
+ "base": {
+  "ms": 11996,
+  "sha": "fec7a3ea9b44a1ee",
+  "head": "Review imported pattern Usable import with limitations 100% matched to the key Pages Preview Palette Details Compare Verification and repairs 299 × 474 stitches",
+  "pageErrors": []
+ },
+ "head": {
+  "ms": 12004,
+  "sha": "fec7a3ea9b44a1ee",
+  "head": "Review imported pattern Usable import with limitations 100% matched to the key Pages Preview Palette Details Compare Verification and repairs 299 × 474 stitches",
+  "pageErrors": []
+ }
+}
