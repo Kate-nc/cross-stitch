@@ -88,6 +88,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `import-formats.js`, `import-engine/`, `pdf-importer.js` | Import parsers (`.oxs`, `.json`, images, PDF charts) |
 | `pdf-chart-geometry.js` | Pure ruler-to-grid placement arithmetic (`chartContentBox`, `rulerCellSpan`, `anchorGridToRuler`, `gridFromRuler`, `samplingGrid`) that `pdf-importer.js` delegates to by global name; loaded after `pdf-axis-labels.js` and `pdf-raster-chart.js`, before the importer, by every lazy loader of it |
 | `pdf-picture-pixels.js` | Pure byte-level conversion of a pdf.js-decoded picture to RGBA on white (`rawToRgba`, `onWhite`) that `pdf-importer.js`'s `pictureRgba` delegates to by global name (the ImageBitmap canvas draw stays in the importer); loaded after `pdf-chart-geometry.js`, before the importer, by every lazy loader of it |
+| `pdf-key-reader.js` | Pure code-anchored colour key reader (`readKeyEntries(page, exclude)`: one extracted PDF page to its key entries) that `pdf-importer.js`'s `parseKeyEntries` delegates to by global name; `parseLegend`, `parseLegendLegacy` and `linkSymbolsToThreads` stay in the importer; loaded after `pdf-picture-pixels.js`, before the importer, by every lazy loader of it |
 | `threadCalc.js` | `stitchesToSkeins()`, and `threadKeyUsage()` (the strands and skeins a colour-key row shows) |
 | `backup-restore.js` | Full backup (`.csb` compressed, or `.json`) and restore |
 | `header.js` | Top bar, File menu, sync status popover |

@@ -1,0 +1,22 @@
+caught  jest 1 failed, differential 7 mismatches in 1500  swatch reach 80 -> >= 80
+caught  jest passed, differential 668 mismatches in 1500  same line 7 -> < 7
+caught  jest 1 failed, differential 2 mismatches in 1500  swatch tie prefers smaller area
+caught  jest passed, differential 544 mismatches in 1500  wide swatch limit 160 -> 170
+caught  jest 1 failed, differential 42 mismatches in 1500  symbol reach 90 -> 89
+caught  jest 1 failed, differential 834 mismatches in 1500  U+ placeholder no longer a glyph
+caught  jest 1 failed, differential 623 mismatches in 1500  swatch colour not rounded
+SURVIVED  jest passed, differential 0 mismatches in 1500  next-entry bound >= prefixX (equivalent: a following prefix is always strictly right of the previous code)
+caught  jest 1 failed, differential 924 mismatches in 1500  code may be one digit
+caught  jest 1 failed, differential 37 mismatches in 1500  exclusion box edges exclusive
+caught  jest 1 failed, differential 0 mismatches in 1500  sample reach 40 -> 41
+caught  jest 1 failed, differential 767 mismatches in 1500  unknown symbol font label
+caught  jest 2 failed, differential 549 mismatches in 1500  nearest symbol is the left-most
+caught  jest 1 failed, differential 974 mismatches in 1500  strands-before-code window
+caught  jest 1 failed, differential 0 mismatches in 1500  thin bar height 4 -> 5
+caught  jest passed, differential 172 mismatches in 1500  fallback text height 8 -> 9
+caught  jest 1 failed, differential 0 mismatches in 1500  count regexp drops "pts"
+caught  jest 3 failed, differential 1040 mismatches in 1500  picture glyphs ignored
+caught  jest 11 failed, differential 1399 mismatches in 1500  entries reversed
+caught  jest passed, differential 14 mismatches in 1500  swatch picked among those inside the previous code only
+
+19 of 20 mutants caught

@@ -30,3 +30,6 @@ global.PdfChartGeometry = require('../../pdf-chart-geometry.js');
 
 // Pages load the picture pixel conversion before pdf-importer.js, whose pictureRgba delegates to it by global name.
 global.PdfPicturePixels = require('../../pdf-picture-pixels.js');
+
+// Pages load the colour key reader before pdf-importer.js, whose parseKeyEntries delegates to it by global name.
+global.PdfKeyReader = require('../../pdf-key-reader.js');
