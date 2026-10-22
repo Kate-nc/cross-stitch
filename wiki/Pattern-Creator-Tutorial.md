@@ -39,15 +39,15 @@ The first setting picks good starting values for the picture:
 | Type | Starting values |
 |------|-----------------|
 | **Graphic or logo** | Up to 8 threads, no shading, no blends; a plain border background is left unstitched |
-| **Photo** | Up to 20 threads, subtle shading, blends, balanced cleanup |
-| **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across) |
+| **Photo** | Up to 24 threads, subtle shading, blends, Stitch Cleanup on |
+| **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across), Stitch Cleanup off so every pixel is kept |
 
 The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**. To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
 ### Image
 
 - **Brightness / Contrast / Saturation** — tune the image before conversion.
-- **Soften grainy photos** — smooths away noise before the threads are chosen. The method is under **Advanced**.
+- **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
 - **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Skip background** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Skip background**, press **Pick**, click the background colour, then adjust **Tolerance**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
 - **Crop** — crop the image to the part you want.
@@ -85,16 +85,17 @@ A blend stitches two threads together in one needle (one strand of each) and get
 | Setting | Effect | When to use |
 |---------|--------|------------|
 | **Off** | Each area takes its closest thread | Logos, simple graphics |
-| **Smooth blend — Subtle** | Gentle blending, few confetti stitches | Soft gradients |
-| **Smooth blend — Balanced** | Smooth gradients in clean colour zones | Most photos |
-| **Smooth blend — Strong** | Richest gradients, more scattered stitches | Detailed photos |
-| **Pattern blend — Coarse / Medium / Fine** | A regular geometric blending pattern | A deliberate textured look |
+| **Smooth blend — Subtle** | Gentle blending, few confetti stitches | Most photos (the Photo default) |
+| **Smooth blend — Balanced** | Smoother gradients, more confetti stitches | Soft, detailed photos |
+| **Pattern blend — Coarse / Medium / Fine** | A regular geometric blending pattern | Graphics and a deliberate textured look; on photos it adds many confetti stitches |
 
-With Smooth blend, **Fewer confetti stitches in shading** keeps the mix in small clumps. The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
+The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
-**Min stitches per colour** — colours used fewer times than this are dropped.
-**Reduce confetti** — merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the surrounding colour (0–3).
-**Stitch Cleanup** — tidies small regions, with options to protect fine details and **Keep look-alike colours apart** (with **How strict**).
+**Min stitches per colour** — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
+**Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and folds away in-between shades along edges.
+**Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
+**Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
+**Keep look-alike colours apart** (with **How strict**) — moves stitches away from a neighbour too similar to tell apart on a printed chart, at some cost to colour accuracy.
 
 ### Compare options
 

@@ -58,13 +58,13 @@ const code = setup
   + extract(cuSrc,   '_gaussianBlur1') + '\n'
   + extract(cuSrc,   'labToRgb') + '\n'
   + extract(cuSrc,   'applyUnsharpMask') + '\n'
-  + extract(genSrc,  'prescaleForGrid') + '\n'
   + extract(genSrc,  'applyPreSharpenCanvas') + '\n'
-  + '({rgbToLab, labToRgb, applyUnsharpMask, prescaleForGrid, applyPreSharpenCanvas})';
+  + '({rgbToLab, labToRgb, applyUnsharpMask, applyPreSharpenCanvas})';
 
 // eslint-disable-next-line no-eval
 const fns = eval(code);
-const { rgbToLab, labToRgb, applyUnsharpMask, prescaleForGrid, applyPreSharpenCanvas } = fns;
+const { rgbToLab, labToRgb, applyUnsharpMask, applyPreSharpenCanvas } = fns;
+const { linearAreaDownscale } = require(path.join(root, 'colour-utils.js'));
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -223,12 +223,15 @@ function makeEdge(W, H) {
 // that pass through to the eval'd globals. We achieve this by adding them to
 // the eval'd code block as closures over the canvas require.
 
+// The app's own step (gridPixels in creator/generate.js): a light-correct area average.
 function downscale(srcCanvas, tw, th) {
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  const src = srcCanvas.getContext('2d').getImageData(0, 0, sw, sh).data;
   const c = createCanvas(tw, th);
   const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(prescaleForGrid(srcCanvas, tw, th), 0, 0, tw, th);
+  const out = ctx.createImageData(tw, th);
+  out.data.set(linearAreaDownscale(src, sw, sh, tw, th));
+  ctx.putImageData(out, 0, 0);
   return c;
 }
 

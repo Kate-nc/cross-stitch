@@ -163,23 +163,22 @@ test.describe('Convert preview fidelity', function() {
     expect(errors).toEqual([]);
   });
 
-  for (const fallback of [false, true]) {
-    test(`adjusted preview agrees with generated cells (${fallback ? 'pixel filter fallback' : 'native filters'})`, async ({ page }) => {
-      await openConvert(page);
-      const oldUrl = await page.evaluate(() => window.__previewState.previewUrl);
-      await page.evaluate(fallback => {
-        if (fallback) window._canvasFilterSupported = false;
-        const s = window.__previewState;
-        s.setBri(20); s.setCon(-15); s.setSat(25); s.setDithMode('bayer4');
-      }, fallback);
-      await expect.poll(() => page.evaluate(oldUrl => {
-        const s = window.__previewState; return {changed:s.previewUrl !== oldUrl,bri:s.bri,con:s.con,sat:s.sat,loading:s.previewLoading,error:s.previewError};
-      }, oldUrl), {timeout:30000}).toEqual({changed:true,bri:20,con:-15,sat:25,loading:false,error:null});
-      const before = await page.evaluate(() => window.__previewState.previewMapped.map(c => c.id));
-      await clickGenerate(page); await waitForEdit(page);
-      expect(await page.evaluate(() => window.__previewState.pat.map(c => c.id))).toEqual(before);
+  // Adjustments are applied to the stitch-sized picture by one formula on
+  // every browser (gridPixels), so there is no separate ctx.filter fallback.
+  test('adjusted preview agrees with generated cells', async ({ page }) => {
+    await openConvert(page);
+    const oldUrl = await page.evaluate(() => window.__previewState.previewUrl);
+    await page.evaluate(() => {
+      const s = window.__previewState;
+      s.setBri(20); s.setCon(-15); s.setSat(25); s.setDithMode('bayer4');
     });
-  }
+    await expect.poll(() => page.evaluate(oldUrl => {
+      const s = window.__previewState; return {changed:s.previewUrl !== oldUrl,bri:s.bri,con:s.con,sat:s.sat,loading:s.previewLoading,error:s.previewError};
+    }, oldUrl), {timeout:30000}).toEqual({changed:true,bri:20,con:-15,sat:25,loading:false,error:null});
+    const before = await page.evaluate(() => window.__previewState.previewMapped.map(c => c.id));
+    await clickGenerate(page); await waitForEdit(page);
+    expect(await page.evaluate(() => window.__previewState.pat.map(c => c.id))).toEqual(before);
+  });
 });
 
 // Exercise the real browser component with tiny deterministic images so that

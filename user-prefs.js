@@ -70,9 +70,11 @@
     creatorAllowBlends:           true,
     creatorStashOnlyDefault:      false,
     creatorDefaultDithering:      "off",        // off | weak | balanced | strong
-    creatorSmoothDithering:       true,
+    creatorSmoothDithering:       true,         // no longer shown (it measured no effect); kept so backups restore
     creatorOrphanRemovalStrength: 2,            // 0..3
-    creatorMinStitchesPerColour:  6,
+    // 0: the automatic rare-colour pass already folds stray colours, keeping
+    // deliberate accents; a fixed minimum removed accents such as catchlights.
+    creatorMinStitchesPerColour:  0,
     creatorProtectDetails:        true,
     creatorStitchCleanup:         true,
     creatorStitchCleanupStrength: "balanced",   // gentle | balanced | thorough

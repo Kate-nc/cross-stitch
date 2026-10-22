@@ -3,7 +3,7 @@
    CreatorContext.
    Depends on globals: React, usePaletteSwap, buildPalette, buildPaletteWithScratch,
    skeinEst, calcDifficulty, DMC, SYMS, FABRIC_COUNTS, A4W, A4H,
-   DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
+   DEFAULT_SKEIN_PRICE, runGenerationPipeline. */
 
 // Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
 // bare ids ('310'). Returns { brand, id } so callers can look the thread up in
@@ -160,46 +160,32 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   });
 };
 
-// Feature-detect ctx.filter support (not available on Safari <15).
-// Result is constant per page-load so we compute it once here.
-// Test for the property itself: assigning to a context that lacks `filter`
-// just creates an ordinary property that reads back what was written, so a
-// write-then-read check passes everywhere.
-var _canvasFilterSupported = (function() {
-  try {
-    var _fc = document.createElement('canvas');
-    var _fx = _fc.getContext('2d');
-    return !!_fx && 'filter' in _fx && typeof _fx.filter === 'string';
-  } catch (_) { return false; }
-})();
-
-// Pixel-level fallback for brightness / contrast / saturation applied when
-// ctx.filter is unavailable. Mutates the ImageData's pixel array in-place.
-// bri/con/sat each range -100 to +100 (0 = no change, matches the CSS filter
-// percentages: brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%)).
+// Brightness / contrast / saturation on picture pixels (bri/con/sat each
+// -100 to +100, 0 = no change), the same formulas as the CSS filters
+// brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%), each step
+// clamped to 0..255 as CSS does. gridPixels (creator/generate.js) applies it
+// to the stitch-sized picture on every browser, so the preview, Generate and
+// Compare options agree whether or not the canvas supports ctx.filter.
+// Mutates the ImageData's pixel array in place.
 function _applyImageFilters(imageData, bri, con, sat) {
   if (bri === 0 && con === 0 && sat === 0) return;
   var d = imageData.data;
   var briFactor = (100 + bri) / 100;
   var conFactor = (100 + con) / 100;
   var satFactor = (100 + sat) / 100;
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
   for (var i = 0; i < d.length; i += 4) {
-    var r = d[i], g = d[i + 1], b = d[i + 2];
     // brightness
-    r *= briFactor; g *= briFactor; b *= briFactor;
-    // contrast (pivot at 128)
-    r = (r - 128) * conFactor + 128;
-    g = (g - 128) * conFactor + 128;
-    b = (b - 128) * conFactor + 128;
-    // saturation
+    var r = clamp(d[i] * briFactor), g = clamp(d[i + 1] * briFactor), b = clamp(d[i + 2] * briFactor);
+    // contrast (pivot at mid-grey, 127.5 as in CSS)
+    r = clamp((r - 127.5) * conFactor + 127.5);
+    g = clamp((g - 127.5) * conFactor + 127.5);
+    b = clamp((b - 127.5) * conFactor + 127.5);
+    // saturation (CSS saturate matrix: Rec. 709 luminance)
     var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    r = gray + (r - gray) * satFactor;
-    g = gray + (g - gray) * satFactor;
-    b = gray + (b - gray) * satFactor;
-    // clamp to [0, 255]
-    d[i]   = r < 0 ? 0 : r > 255 ? 255 : (r + 0.5) | 0;
-    d[i+1] = g < 0 ? 0 : g > 255 ? 255 : (g + 0.5) | 0;
-    d[i+2] = b < 0 ? 0 : b > 255 ? 255 : (b + 0.5) | 0;
+    d[i]     = Math.round(clamp(gray + (r - gray) * satFactor));
+    d[i + 1] = Math.round(clamp(gray + (g - gray) * satFactor));
+    d[i + 2] = Math.round(clamp(gray + (b - gray) * satFactor));
   }
 }
 
@@ -238,21 +224,25 @@ var CONVERSION_STATE_KEYS = [
 // count and size from the picture itself (picturePresetValues).
 var PICTURE_PRESETS = {
   graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
-  photo:   { label: 'Photo', maxC: 20, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
-  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
+  // 24 threads: at 20 the palette spent its threads on big areas and drew
+  // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
+  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true },
+  // Stitch Cleanup off: at its own size every pixel of pixel art is deliberate,
+  // and merging small patches changed highlights, shadows and hand dithering.
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, cleanup: false, sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, dithMode, allowBlends, cleanupStrength, skipBg, bgCol,
+// without "set" (cleanup is Stitch Cleanup on or off): maxC, dithMode, allowBlends, cleanup, skipBg, bgCol,
 // sW, sH.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
   var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
   if (p.maxC) v.maxC = p.maxC;
-  if (p.cleanupStrength) v.cleanupStrength = p.cleanupStrength;
+  if (p.cleanup != null) v.cleanup = p.cleanup;
   if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
@@ -302,10 +292,14 @@ function analysePicture(imageData, w, h) {
 
 // Few colours and large flat areas suggest a graphic; a tiny picture with
 // few colours suggests pixel art; anything else is treated as a photo.
+// Graphics measured 0.95 to 0.99 of their pixels in eight colour groups and
+// photos 0.20 to 0.61, so the cut-off sits between them at 0.85: at 0.95 a
+// logo saved as a JPEG (0.948) was treated as a photo and shaded.
+var GRAPHIC_TOP8_COVER = 0.85;
 function guessPictureType(info) {
   if (!info) return 'photo';
   if (Math.max(info.w, info.h) <= 96 && info.distinct <= 64) return 'pixel';
-  if (info.top8Cover >= 0.95 && info.flat >= 0.6) return 'graphic';
+  if (info.top8Cover >= GRAPHIC_TOP8_COVER && info.flat >= 0.6) return 'graphic';
   return 'photo';
 }
 
@@ -472,6 +466,16 @@ window.creatorDefaultFabricColour = defaultFabricColour;
 
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
+// A shading mode the Creator offers: "off", "weak", "balanced", "bayer2",
+// "bayer4" or "bayer8". The retired "strong" and any other "on" value become
+// "balanced"; anything falsy is "off".
+var DITH_MODES = ["off", "weak", "balanced", "bayer2", "bayer4", "bayer8"];
+function normaliseDithMode(v) {
+  if (DITH_MODES.indexOf(v) !== -1) return v;
+  return v && v !== "off" ? "balanced" : "off";
+}
+window.normaliseDithMode = normaliseDithMode;
+
 function loadUserPref(key, fallback) {
   try {
     if (typeof UserPrefs === "undefined") return fallback;
@@ -501,12 +505,16 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
-  var dithMode = _dith[0]; var setDithMode = _dith[1];
+  // Shading. "strong" (Atkinson at 150%) was retired: it measured worse than
+  // Balanced on every count (reports/photo-conversion-accuracy-review.md), so
+  // a stored "strong" (preferences, drafts, backups) opens as Balanced.
+  var _dith   = useState(function () { return normaliseDithMode(loadUserPref("creatorDefaultDithering", "off")); });
+  var dithMode = _dith[0], _setDithModeRaw = _dith[1];
+  var setDithMode = useCallback(function (v) { _setDithModeRaw(normaliseDithMode(v)); }, []);
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
-  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
+  // Numeric strength multiplier: weak=0.5, balanced=1.0 (Atkinson only)
+  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
   // Algorithm: "off" | "atkinson" | "bayer"
   var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
@@ -774,18 +782,6 @@ window.useCreatorState = function useCreatorState() {
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
-  // Persist the stitch-cleanup strength across sessions so the user's
-  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
-  // enabled / protectDetails / smoothDithering, which are already
-  // persisted via the preferences modal). Only the local strength
-  // picker writes here; the prefs modal owns the other three flags.
-  useEffect(function () {
-    try {
-      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
-        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
-      }
-    } catch (_) {}
-  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
@@ -810,7 +806,7 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanupStrength) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: true, strength: v.cleanupStrength }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup }); });
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
@@ -819,7 +815,7 @@ window.useCreatorState = function useCreatorState() {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
       maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      cleanup: !!(stitchCleanup && stitchCleanup.enabled),
       bgCol: bgCol
     };
     for (var k in v) {
@@ -2078,20 +2074,9 @@ window.useCreatorState = function useCreatorState() {
         return;
       }
       // Extract pixel data here (requires canvas — must stay on main thread)
-      var c = document.createElement("canvas");
-      c.width = sW; c.height = sH;
-      var cx = c.getContext("2d");
-      cx.imageSmoothingEnabled = true;
-      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-      if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
-        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      }
-      var _genSrc = preSharpen ? applyPreSharpenCanvas(img, sW, sH, { amount: preSharpenAmount }) : img;
-      cx.drawImage(prescaleForGrid(_genSrc, sW, sH), 0, 0, sW, sH);
-      if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
-        imageData = cx.getImageData(0, 0, sW, sH);
+        imageData = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -2099,8 +2084,6 @@ window.useCreatorState = function useCreatorState() {
         setBusy(false);
         return;
       }
-      if (!_canvasFilterSupported) _applyImageFilters(imageData, bri, con, sat);
-
       var worker = getOrCreateWorker();
       if (!worker) {
         // Fallback: run synchronously on main thread (e.g. file:// protocol).
@@ -2235,26 +2218,22 @@ window.useCreatorState = function useCreatorState() {
         var MAX_GAL = 2500;
         var gw = sW, gh = sH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
-        var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
-        var gcx = cv.getContext("2d");
-        if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) { gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)"; }
-        gcx.drawImage(img, 0, 0, gw, gh);
-        if (_canvasFilterSupported) gcx.filter = "none";
+        // The same picture-to-stitches step as Generate (gridPixels), so a
+        // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+          _gcxImgData = gridPixels(img, gw, gh, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
           return;
         }
-        if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
-          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -2280,7 +2259,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;

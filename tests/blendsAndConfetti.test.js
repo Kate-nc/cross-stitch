@@ -208,7 +208,7 @@ describe('the terminology lint holds the line', () => {
     const t = read('TERMINOLOGY.md');
     expect(has(t, /\| Denoise tool \| \*\*Reduce confetti\*\* \|/)).toBe(true);
     expect(has(t, /\| Two-thread mixing in Convert \| \*\*Allow two-thread blends\*\* \|/)).toBe(true);
-    expect(has(t, /\| Smooth-dither clean-up \| \*\*Fewer confetti stitches in shading\*\* \|/)).toBe(true);
+    expect(has(t, /\| Clean-up switch and amount \| \*\*Stitch Cleanup\*\*, \*\*Reduce confetti\*\* \(Off, 1–3\) \|/)).toBe(true);
     expect(has(t, '### One thread label')).toBe(true);
     expect(has(t, '### Confetti stitches')).toBe(true);
     expect(has(t, '**DMC 341 + 826 (blend)**')).toBe(true);

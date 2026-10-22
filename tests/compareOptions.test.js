@@ -111,10 +111,10 @@ describe('wiring', () => {
     expect(strip).toMatch(/var _open = React\.useState\(!props\.compact\);/);
     // Closing the strip ends the batch and stops a running job too.
     expect(strip).toMatch(/var batch = \+\+batchRef\.current;\s*if \(busyRef\.current\) stopWorker\(\);\s*if \(!open \|\| /);
-    // Same pipeline settings as Generate, including the filter fallback and
-    // Separate similar neighbours.
+    // Same pipeline settings as Generate, the same picture-to-stitches step
+    // (gridPixels, which owns the filter fallback) and Separate similar neighbours.
     expect(strip).toMatch(/disambig: s\.disambig, disambigLevel: s\.disambigLevel/);
-    expect(strip).toMatch(/_applyImageFilters\(data, s\.bri \|\| 0, s\.con \|\| 0, s\.sat \|\| 0\)/);
+    expect(strip).toMatch(/gridPixels\(img, pw, ph, \{ bri: s\.bri, con: s\.con, sat: s\.sat, preSharpenOpts:/);
     expect(strip).toMatch(/fmtHours\(window\.compareHours\(r\.stats\.stitches, props\.stitchSpeed\)\)/);
     // A failing worker is handled here, never by the page's error handler,
     // and the jobs fall back to the page after two failures.

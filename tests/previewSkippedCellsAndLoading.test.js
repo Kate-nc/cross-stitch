@@ -1,11 +1,9 @@
 /**
  * Convert preview fidelity (usePreview.js, useCreatorState.js).
  *
- * - `_canvasFilterSupported` must test for the `filter` property itself. A
- *   write-then-read check passes on a context that lacks it, because the
- *   assignment just makes an ordinary property, so Safari without ctx.filter
- *   never reached the pixel fallback and brightness/contrast/saturation did
- *   nothing.
+ * - Brightness / contrast / saturation (`_applyImageFilters`) follow the CSS
+ *   filter formulas, clamping after each step. gridPixels applies them on every
+ *   browser, so there is no ctx.filter detection or fallback any more.
  * - usePreview must never leave the spinner running, must not let a queued
  *   full pass land after the settings changed, and must publish the preview
  *   size with the fast-pass picture.
@@ -19,29 +17,22 @@ const path = require('path');
 const usePrevSrc = fs.readFileSync(path.join(__dirname, '..', 'creator', 'usePreview.js'), 'utf8');
 const stateSrc = fs.readFileSync(path.join(__dirname, '..', 'creator', 'useCreatorState.js'), 'utf8');
 
-describe('_canvasFilterSupported detection', () => {
-  const m = /var _canvasFilterSupported = \(function\(\) \{[\s\S]*?\n\}\)\(\);/.exec(stateSrc);
-  function detect(documentFake) {
-    return new Function('document', m[0] + '\nreturn _canvasFilterSupported;')(documentFake);
-  }
-  const docWith = (ctx, throws) => ({
-    createElement: () => ({ getContext: () => { if (throws) throw new Error('no canvas'); return ctx; } })
-  });
+describe('_applyImageFilters (the CSS filter formulas)', () => {
+  const src = /function _applyImageFilters\(imageData, bri, con, sat\) \{[\s\S]*?\n\}/.exec(stateSrc)[0];
+  const apply = (rgb, bri, con, sat) => {
+    const id = { data: new Uint8ClampedArray([...rgb, 255]) };
+    new Function(src + '\nreturn _applyImageFilters;')()(id, bri, con, sat);
+    return Array.from(id.data.slice(0, 3));
+  };
 
-  test('the detector is found in the source', () => { expect(m).not.toBeNull(); });
-
-  test('a context without a filter property is not supported, even though writes to it stick', () => {
-    // Plain object: assigning ctx.filter would read back, which fooled the old check.
-    expect(detect(docWith({ drawImage() {} }))).toBe(false);
-  });
-
-  test('a context with a filter property is supported', () => {
-    expect(detect(docWith({ filter: 'none' }))).toBe(true);
-  });
-
-  test('a missing or throwing context is not supported', () => {
-    expect(detect(docWith(null))).toBe(false);
-    expect(detect(docWith({}, true))).toBe(false);
+  test('no adjustment changes nothing', () => { expect(apply([12, 130, 250], 0, 0, 0)).toEqual([12, 130, 250]); });
+  test('brightness multiplies', () => { expect(apply([100, 50, 10], 20, 0, 0)).toEqual([120, 60, 12]); });
+  test('contrast pivots on mid-grey', () => { expect(apply([127, 128, 255], 0, 50, 0)).toEqual([127, 128, 255]); expect(apply([100, 100, 100], 0, 50, 0)).toEqual([86, 86, 86]); });
+  test('saturation 0 is the Rec. 709 grey', () => { expect(apply([255, 0, 0], 0, 0, -100)).toEqual([54, 54, 54]); });
+  test('each step clamps, as CSS does: a brightened white stays white under contrast', () => {
+    // 250 x 1.5 clips to 255 before contrast; clamping only at the end would give 255 too,
+    // but a darkening contrast after it must start from 255, not 375.
+    expect(apply([250, 250, 250], 50, -50, 0)).toEqual([191, 191, 191]);
   });
 });
 
@@ -71,7 +62,7 @@ describe('usePreview scheduling', () => {
         return c;
       }
     };
-    global.prescaleForGrid = (s) => s;
+    global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
     global.applyPreSharpenCanvas = (s) => s;
     global.skeinEst = () => 1;
     global.isColorOwned = () => true;
@@ -155,7 +146,7 @@ describe('usePreview scheduling', () => {
 
   test.each(['preparation', 'fast pass', 'full pass', 'encoding'])('%s errors clear all stale results and allow retry', stage => {
     const pipeline = global.runCleanupPipeline.getMockImplementation();
-    if (stage === 'preparation') global.prescaleForGrid = () => { throw new Error('decode failed'); };
+    if (stage === 'preparation') global.gridPixels = () => { throw new Error('decode failed'); };
     if (stage === 'fast pass') global.runCleanupPipeline.mockImplementationOnce(() => { throw new Error('conversion failed'); });
     if (stage === 'full pass') global.runCleanupPipeline.mockImplementationOnce(pipeline).mockImplementationOnce(() => { throw new Error('conversion failed'); });
     if (stage === 'encoding') {
@@ -168,7 +159,7 @@ describe('usePreview scheduling', () => {
     expectCleared();
     expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
     if (stage !== 'encoding') {
-      global.prescaleForGrid = s => s;
+      global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
       preview.generatePreview();
       jest.runAllTimers();
       expect(setters.setPreviewError).toHaveBeenLastCalledWith(null);

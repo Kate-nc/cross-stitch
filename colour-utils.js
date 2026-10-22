@@ -1584,6 +1584,77 @@ function applyBilateralFilter(data, w, h, opts) {
  * @param {number} b   b* (approximately −128 to +127)
  * @returns {[number, number, number]}  [R, G, B] each 0–255
  */
+// ── Shrinking a picture to the stitch grid, averaged as light ───────────────
+// A stitch shows the average of the picture under it as light, so pixels are
+// linearised before averaging and re-encoded after. Averaging the stored sRGB
+// values instead (what canvas drawImage does) makes white + black 128, about
+// 22% of the light rather than 50%: thin bright detail and every boundary
+// between two colours come out too dark. On detailed photos a quarter of the
+// stitches moved by more than ΔE 3 (reports/photo-conversion-accuracy-review.md,
+// finding 2). Each output pixel is the exact area average of the source pixels
+// it covers, fractional edges included, weighted by alpha (premultiplied, as
+// the canvas does) so hidden RGB under transparency never tints a stitch.
+var _SRGB8_TO_LINEAR = (function () {
+  var t = new Float32Array(256);
+  for (var i = 0; i < 256; i++) { var v = i / 255; t[i] = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  return t;
+})();
+function _linearToSrgb8(v) {
+  if (!(v > 0)) return 0;
+  if (v >= 1) return 255;
+  return Math.round((v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255);
+}
+// Source pixels covering each output pixel along one axis: start index, count
+// and weights (flat), for scaling n source pixels down to m.
+function _areaSpans(n, m) {
+  var step = n / m, start = new Int32Array(m), count = new Int32Array(m), weights = [];
+  for (var d = 0; d < m; d++) {
+    var x0 = d * step, x1 = x0 + step;
+    var i0 = Math.floor(x0), i1 = Math.min(n, Math.ceil(x1 - 1e-9));
+    start[d] = i0; count[d] = i1 - i0;
+    for (var i = i0; i < i1; i++) weights.push(Math.min(i + 1, x1) - Math.max(i, x0));
+  }
+  return { start: start, count: count, weights: Float32Array.from(weights) };
+}
+/**
+ * Area-average RGBA pixels from sw x sh down to dw x dh in linear light.
+ * dw <= sw and dh <= sh. Returns a new Uint8ClampedArray (dw * dh * 4).
+ */
+function linearAreaDownscale(src, sw, sh, dw, dh) {
+  var LIN = _SRGB8_TO_LINEAR, xs = _areaSpans(sw, dw), ys = _areaSpans(sh, dh);
+  // Pass 1: each source row to dw columns (premultiplied linear r, g, b and alpha).
+  var tmp = new Float32Array(sh * dw * 4);
+  for (var y = 0; y < sh; y++) {
+    var row = y * sw * 4, trow = y * dw * 4, wi = 0;
+    for (var dx = 0; dx < dw; dx++) {
+      var r = 0, g = 0, b = 0, a = 0, x = xs.start[dx], n = xs.count[dx];
+      for (var k = 0; k < n; k++, x++) {
+        var p = row + x * 4, al = src[p + 3] / 255 * xs.weights[wi++];
+        if (al > 0) { r += LIN[src[p]] * al; g += LIN[src[p + 1]] * al; b += LIN[src[p + 2]] * al; a += al; }
+      }
+      var t = trow + dx * 4;
+      tmp[t] = r; tmp[t + 1] = g; tmp[t + 2] = b; tmp[t + 3] = a;
+    }
+  }
+  // Pass 2: columns down to dh rows, then un-premultiply and re-encode.
+  var out = new Uint8ClampedArray(dw * dh * 4), area = (sw / dw) * (sh / dh), wj = 0;
+  for (var dy = 0; dy < dh; dy++) {
+    var y0 = ys.start[dy], m = ys.count[dy], wBase = wj;
+    for (var dx2 = 0; dx2 < dw; dx2++) {
+      var R = 0, G = 0, B = 0, A = 0, wk = wBase;
+      for (var j = 0; j < m; j++) {
+        var q = ((y0 + j) * dw + dx2) * 4, wy = ys.weights[wk++];
+        R += tmp[q] * wy; G += tmp[q + 1] * wy; B += tmp[q + 2] * wy; A += tmp[q + 3] * wy;
+      }
+      var o = (dy * dw + dx2) * 4;
+      if (A > 0) { out[o] = _linearToSrgb8(R / A); out[o + 1] = _linearToSrgb8(G / A); out[o + 2] = _linearToSrgb8(B / A); }
+      out[o + 3] = Math.round(A / area * 255);
+    }
+    wj = wBase + m;
+  }
+  return out;
+}
+
 function labToRgb(L, a, b) {
   var fy = (L + 16) / 116;
   var fx = a / 500 + fy;
@@ -2437,6 +2508,43 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
   return mapped;
 }
 
+// ── Reduce confetti: what the Convert settings ask removeOrphanStitches to do ──
+// One place for the page pipeline (creator/generate.js) and generate-worker.js.
+// Stitch Cleanup is the on/off switch and Reduce confetti (`orphans`, 0 to 3)
+// the size: level n merges patches of up to n stitches in detailed areas and up
+// to n x (1 + CONFETTI_FLAT_MULTIPLIER) in plain ones. 0 is off.
+// Protect fine details adds edge protection: a patch touching an outline is
+// kept. The edge map is not dilated: dilated by one stitch it covered half of
+// a typical photo, and confetti cleanup then changed almost nothing
+// (reports/photo-conversion-accuracy-review.md, finding 1). The ΔE contrast
+// guard (a catchlight in a dark eye is ΔE ≈ 70 from it; noise is under 20) is
+// always on, so a deliberate accent survives with or without edge protection.
+var CONFETTI_FLAT_MULTIPLIER = 2.0;
+var ORPHAN_MAX_ITERATIONS = 8;
+var ORPHAN_CONTRAST_GUARD_DE = 30;
+var ORPHAN_EDGE_DILATION = 0;
+// Returns null when no confetti cleanup should run, else the
+// removeOrphanStitches arguments plus `protectEdges`.
+function confettiCleanupPlan(stitchCleanup, orphans) {
+  var level = typeof orphans === 'number' && orphans > 0 ? orphans : 0;
+  if (!(stitchCleanup && stitchCleanup.enabled) || !level) return null;
+  return {
+    maxOrphanSize: level,
+    protectEdges: !!stitchCleanup.protectDetails,
+    options: { saliencyMultiplier: CONFETTI_FLAT_MULTIPLIER, deContrastGuard: ORPHAN_CONTRAST_GUARD_DE, maxIterations: ORPHAN_MAX_ITERATIONS }
+  };
+}
+// Run Reduce confetti on `mapped` (pixel data `raw` for the edge map). Returns
+// { mapped, preCleanupIds, confettiClean } or null when it is off.
+function runConfettiCleanup(mapped, raw, w, h, saliencyMap, preLabels, stitchCleanup, orphans) {
+  var plan = confettiCleanupPlan(stitchCleanup, orphans);
+  if (!plan) return null;
+  var edgeMap = plan.protectEdges ? generateEdgeMap(raw, w, h, { edgeDilation: ORPHAN_EDGE_DILATION }) : null;
+  var preCleanupIds = mapped.map(function (m) { return m.id; });
+  var out = removeOrphanStitches(mapped, w, h, plan.maxOrphanSize, edgeMap, saliencyMap, plan.options, preLabels);
+  return { mapped: out, preCleanupIds: preCleanupIds, confettiClean: analyzeConfetti(out, w, h, labelConnectedComponents(out, w, h)) };
+}
+
 // Analyses a mapped pattern and returns confetti stitch statistics without mutating the array.
 // "Confetti" = isolated stitches with no same-colour neighbours (component size 1) or tiny
 // clusters of 2-3 stitches. These are tedious to stitch because they require a separate thread pass.
@@ -3162,4 +3270,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale }; }

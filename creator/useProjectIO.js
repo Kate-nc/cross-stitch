@@ -53,6 +53,33 @@ window.creatorHasTrace = creatorHasTrace;
 // A new picture's starting size (audit IMG-03): the long side fitted to 100
 // stitches, never more stitches than the picture has pixels. The Pixel art
 // preset, applied after this, uses the picture's own size instead.
+// A large upload (over 2000 x 2000 or 5 MB) shrunk to w x h for keeping.
+// Halving steps with high-quality smoothing, then the final size: one
+// default-quality drawImage of a 48-megapixel photo sampled one pixel in
+// four or more along each side, and those noisy samples were what later got
+// averaged into stitches. At 2000 pixels the steps' gamma-space averaging is
+// far finer than a stitch; gridPixels averages as light from here.
+// Returns the canvas, or null without a 2D context.
+function creatorShrinkUpload(img, w, h) {
+  var cur = img, cw = img.naturalWidth || img.width, ch = img.naturalHeight || img.height;
+  function step(nw, nh) {
+    var c = document.createElement("canvas"); c.width = nw; c.height = nh;
+    var cx = c.getContext("2d");
+    if (!cx) return null;
+    cx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in cx) cx.imageSmoothingQuality = "high";
+    cx.drawImage(cur, 0, 0, nw, nh);
+    return c;
+  }
+  while (cw > w * 2 || ch > h * 2) {
+    cw = Math.max(w, Math.ceil(cw / 2)); ch = Math.max(h, Math.ceil(ch / 2));
+    cur = step(cw, ch);
+    if (!cur) return null;
+  }
+  return step(w, h);
+}
+window.creatorShrinkUpload = creatorShrinkUpload;
+
 function creatorInitialSize(w, h) {
   if (typeof window.initialPatternSize === "function") return window.initialPatternSize(w, h);
   return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };
@@ -740,10 +767,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           if (targetW * targetH > MAX_AREA || (f.size && f.size > 5 * 1024 * 1024)) {
             var scale = Math.sqrt(MAX_AREA / (targetW * targetH));
             if (scale < 1) { targetW = Math.round(targetW * scale); targetH = Math.round(targetH * scale); }
-            var c = document.createElement("canvas"); c.width = targetW; c.height = targetH;
-            var cx = c.getContext("2d");
-            if (!cx) { state.setIsUploading(false); return; }
-            cx.drawImage(i, 0, 0, targetW, targetH);
+            var c = creatorShrinkUpload(i, targetW, targetH);
+            if (!c) { state.setIsUploading(false); return; }
             var scaledImg = new Image();
             scaledImg.onerror = function() { state.setIsUploading(false); };
             scaledImg.onload = function() {

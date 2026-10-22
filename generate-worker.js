@@ -27,25 +27,15 @@
                        buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                        foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE,
                        generateSaliencyMap, generateEdgeMap,
-                       labelConnectedComponents, removeOrphanStitches,
+                       labelConnectedComponents, removeOrphanStitches, runConfettiCleanup,
                        analyzeConfetti, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
 */
 
 importScripts('constants.js', 'dmc-data.js', 'creator/symbolFontSpec.js', 'creator/pdfChartLayout.js', 'symbol-glyphs.js', 'colour-utils.js');
 
-// STRENGTH_MAP mirrors window.STRENGTH_MAP in creator/generate.js.
-// Duplicated here because creator/generate.js assigns via `window.*` and
-// calls document.createElement, making it unsuitable for worker import.
-var STRENGTH_MAP = {
-  gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
-};
-
-// ORPHAN_MAX_ITERATIONS and ORPHAN_CONTRAST_GUARD_DE mirror the constants in
-// creator/generate.js.  Keep in sync when either value changes.
-var ORPHAN_MAX_ITERATIONS = 8;
-var ORPHAN_CONTRAST_GUARD_DE = 30;
+// Reduce confetti's settings (sizes, the contrast guard, edge protection) come
+// from colour-utils.js (confettiCleanupPlan / runConfettiCleanup), shared with
+// creator/generate.js.
 
 self.onmessage = function(e) {
   var msg = e.data;
@@ -118,7 +108,6 @@ self.onmessage = function(e) {
     var dithBayerSize = settings.dithBayerSize || 4;
     var allowBlends  = settings.allowBlends;
     var stitchCleanup = settings.stitchCleanup;
-    var orphansOpt = settings.orphans != null ? settings.orphans : null;
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
@@ -180,40 +169,14 @@ self.onmessage = function(e) {
     var confettiClean = null;
     var preCleanupIds = null;
 
-    // Mirror the engine fix: cleanup runs if EITHER orphans > 0 OR the Stitch
-    // Cleanup toggle is on. The previous condition treated orphans === 0 as
-    // "explicitly off" and suppressed the separate toggle. Keep `orphansOpt`
-    // as the existing variable name so the branch below still compiles.
-    var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
-    var runCleanup = (orphansOpt != null && orphansOpt > 0) || cleanupEnabled;
-    if (orphansOpt != null && orphansOpt === 0 && cleanupEnabled) orphansOpt = null;
-    if (runCleanup) {
+    // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
+    // (mirrors runCleanupPipeline).
+    if (confettiCleanupPlan(stitchCleanup, settings.orphans)) {
       postProgress('cleanup', 'Cleaning up stitches…');
-      var maxOrphanSize, saliencyMult;
-      if (orphansOpt != null) {
-        maxOrphanSize = orphansOpt;
-        var _csMap = stitchCleanup && STRENGTH_MAP[stitchCleanup.strength] ? STRENGTH_MAP[stitchCleanup.strength] : STRENGTH_MAP.balanced;
-        saliencyMult = _csMap.saliencyMultiplier;
-      } else {
-        var strengthKey = Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-          ? stitchCleanup.strength : 'balanced';
-        var sp = STRENGTH_MAP[strengthKey];
-        maxOrphanSize = sp.maxOrphanSize;
-        saliencyMult = sp.saliencyMultiplier;
-      }
-      var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
-      // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
-      // small features.  Disable it when the user has turned off protectDetails.
-      var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
-      preCleanupIds = mapped.map(function(m) { return m.id; });
-      mapped = removeOrphanStitches(
-        mapped, width, height, maxOrphanSize,
-        edgeMap, saliencyMap,
-        { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS },
-        preLabels
-      );
-      var postLabels = labelConnectedComponents(mapped, width, height);
-      confettiClean = analyzeConfetti(mapped, width, height, postLabels);
+      var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+      mapped = cleaned.mapped;
+      preCleanupIds = cleaned.preCleanupIds;
+      confettiClean = cleaned.confettiClean;
     }
 
     // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────
@@ -221,7 +184,8 @@ self.onmessage = function(e) {
     if (settings.disambig && settings.disambigLevel && settings.disambigLevel !== 'off') {
       postProgress('disambiguating', 'Separating similar neighbours…');
       var dlvl = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[settings.disambigLevel] || { threshold: 15, maxDegradation: 20 };
-      var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+      // Dilated by one stitch, as before (Reduce confetti's map is not).
+      var disambigEdgeMap = generateEdgeMap(raw, width, height);
       var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
       var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
         threshold:      dlvl.threshold,

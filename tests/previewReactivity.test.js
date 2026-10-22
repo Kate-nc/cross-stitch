@@ -80,11 +80,6 @@ global.SYMS = "●◆■▲★♦♥♣♠◄►▼○◇□△☆♢♡♧♤�
 
 // generate.js attaches to `window`; provide a stub.
 global.window = global.window || global;
-global.STRENGTH_MAP = {
-  gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 3, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 5, saliencyMultiplier: 3.0 },
-};
 
 // Eval generate.js. It defines window.runCleanupPipeline & window.runGenerationPipeline.
 eval(generateSrc); // eslint-disable-line no-eval
@@ -281,83 +276,66 @@ describe('runCleanupPipeline — settings reach the engine', () => {
     }
   });
 
-  test('runs Stitch Cleanup when toggle is on even if orphans slider is 0 (regression)', () => {
-    // Bug: the previous engine condition treated `opts.orphans === 0` as
-    // "explicitly off" and skipped cleanup entirely, so the Stitch Cleanup
-    // toggle and its strength/protectDetails sub-options were dead unless the
-    // user moved the orphans slider above 0.
-    const w = 24, h = 24;
-    // Speckle pattern: scattered isolated single magenta pixels on a dark
-    // background. These ARE genuine 1-stitch orphans the cleanup pass should
-    // remove when enabled — and leave alone when disabled.
+  // Reduce confetti (colour-utils.js confettiCleanupPlan): Stitch Cleanup is
+  // the on/off switch and the Reduce confetti level (1 to 3) the size; 0 is
+  // off. It used to fall back to a hidden "Cleanup strength" size at 0, so 0
+  // did not mean off.
+  function speckles(w, h, speckle, base) {
     const raw = new Uint8ClampedArray(w * h * 4);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = (y * w + x) * 4;
-        const speckle = (x % 4 === 1 && y % 4 === 1);
-        raw[i]     = speckle ? 255 : 50;
-        raw[i + 1] = speckle ? 0   : 50;
-        raw[i + 2] = speckle ? 255 : 50;
-        raw[i + 3] = 255;
-      }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, c = (x % 4 === 1 && y % 4 === 1) ? speckle : base;
+      raw[i] = c[0]; raw[i + 1] = c[1]; raw[i + 2] = c[2]; raw[i + 3] = 255;
     }
-    const baseOpts = {
-      maxC: 12, dith: false, allowBlends: false,
-      skipBg: false, bgCol: [255,255,255], bgTh: 15,
-      orphans: 0, allowedPalette: null,
-    };
-    const off = runCleanupPipeline(raw, w, h, Object.assign({}, baseOpts, {
-      stitchCleanup: { enabled: false, strength: 'thorough', protectDetails: false, smoothDithering: false },
-    }));
-    const on = runCleanupPipeline(raw, w, h, Object.assign({}, baseOpts, {
-      stitchCleanup: { enabled: true, strength: 'thorough', protectDetails: false, smoothDithering: false },
-    }));
-    expect(off).not.toBeNull();
-    expect(on).not.toBeNull();
-    // The "on" run must record the pre-cleanup snapshot; the "off" run must not.
-    expect(on.preCleanupIds).not.toBeNull();
+    return raw;
+  }
+  const cleanupBase = {
+    maxC: 12, dith: false, allowBlends: false,
+    skipBg: false, bgCol: [255,255,255], bgTh: 15, allowedPalette: null,
+  };
+  const sc = (o) => Object.assign({ enabled: true, strength: 'balanced', protectDetails: false, smoothDithering: false }, o);
+  // A dark brown speckle on a mid grey: different enough to get a thread of
+  // its own, close enough (well under the ΔE 30 contrast guard) to be noise.
+  const noisy = () => speckles(24, 24, [92, 72, 58], [80, 80, 80]);
+
+  test('Stitch Cleanup off: Reduce confetti changes nothing', () => {
+    const off = runCleanupPipeline(noisy(), 24, 24, Object.assign({}, cleanupBase, { orphans: 3, stitchCleanup: sc({ enabled: false }) }));
     expect(off.preCleanupIds).toBeNull();
-    // And the two outputs must differ in at least one cell.
+  });
+
+  test('Reduce confetti 0 is off, even with Stitch Cleanup on', () => {
+    const zero = runCleanupPipeline(noisy(), 24, 24, Object.assign({}, cleanupBase, { orphans: 0, stitchCleanup: sc() }));
+    expect(zero.preCleanupIds).toBeNull();
+  });
+
+  test('Stitch Cleanup on with a Reduce confetti level merges noise speckles', () => {
+    const before = runCleanupPipeline(noisy(), 24, 24, Object.assign({}, cleanupBase, { orphans: 0, stitchCleanup: sc() }));
+    const on = runCleanupPipeline(noisy(), 24, 24, Object.assign({}, cleanupBase, { orphans: 1, stitchCleanup: sc() }));
+    expect(on.preCleanupIds).not.toBeNull();
     let differs = 0;
-    for (let i = 0; i < off.mapped.length; i++) {
-      if (off.mapped[i].id !== on.mapped[i].id) differs++;
-    }
+    for (let i = 0; i < on.mapped.length; i++) if (on.mapped[i].id !== before.mapped[i].id) differs++;
     expect(differs).toBeGreaterThan(0);
   });
 
-  test('Stitch Cleanup strength is honoured (gentle vs thorough produce different output)', () => {
-    const w = 20, h = 20;
-    // Build clusters of varying size: 1px, 2px, 3px, 4px isolated dots.
-    // gentle (max=2) leaves 3+ alone; thorough (max=5) removes them all.
-    const raw = new Uint8ClampedArray(w * h * 4);
-    for (let i = 0; i < raw.length; i += 4) {
-      raw[i] = 50; raw[i+1] = 50; raw[i+2] = 50; raw[i+3] = 255;
-    }
-    function setRare(x, y) {
-      if (x < 0 || y < 0 || x >= w || y >= h) return;
-      const i = (y * w + x) * 4;
-      raw[i] = 255; raw[i+1] = 0; raw[i+2] = 255;
-    }
-    // 3-stitch L cluster at (5,5)
-    setRare(5,5); setRare(6,5); setRare(5,6);
-    // 4-stitch square at (12,12)
-    setRare(12,12); setRare(13,12); setRare(12,13); setRare(13,13);
-    const base = {
-      maxC: 12, dith: false, allowBlends: false,
-      skipBg: false, bgCol: [255,255,255], bgTh: 15,
-      orphans: 0, allowedPalette: null,
-    };
-    const gentle = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
-      stitchCleanup: { enabled: true, strength: 'gentle', protectDetails: false, smoothDithering: false },
-    }));
-    const thorough = runCleanupPipeline(raw, w, h, Object.assign({}, base, {
-      stitchCleanup: { enabled: true, strength: 'thorough', protectDetails: false, smoothDithering: false },
-    }));
-    let differs = 0;
-    for (let i = 0; i < gentle.mapped.length; i++) {
-      if (gentle.mapped[i].id !== thorough.mapped[i].id) differs++;
-    }
-    expect(differs).toBeGreaterThan(0);
+  test('a high-contrast accent survives with Protect fine details off (contrast guard is always on)', () => {
+    const raw = speckles(24, 24, [255, 0, 255], [50, 50, 50]);
+    const on = runCleanupPipeline(raw, 24, 24, Object.assign({}, cleanupBase, { orphans: 3, stitchCleanup: sc({ protectDetails: false }) }));
+    const ids = new Set(on.mapped.map((m) => m.id));
+    expect(ids.size).toBe(2);
+  });
+
+  test('the plan: sizes, guard and edge protection', () => {
+    expect(confettiCleanupPlan(null, 2)).toBeNull();
+    expect(confettiCleanupPlan({ enabled: false }, 2)).toBeNull();
+    expect(confettiCleanupPlan({ enabled: true }, 0)).toBeNull();
+    const p = confettiCleanupPlan({ enabled: true, strength: 'thorough', protectDetails: true }, 2);
+    expect(p.maxOrphanSize).toBe(2);
+    expect(p.protectEdges).toBe(true);
+    // Strength no longer changes anything: one flat-area multiplier.
+    expect(p.options).toEqual(confettiCleanupPlan({ enabled: true, strength: 'gentle', protectDetails: false }, 2).options);
+    expect(p.options.deContrastGuard).toBe(30);
+    expect(confettiCleanupPlan({ enabled: true, protectDetails: false }, 3).protectEdges).toBe(false);
+    // The edge map is not dilated (a dilated map covered half of a photo).
+    expect(ORPHAN_EDGE_DILATION).toBe(0);
   });
 });
 

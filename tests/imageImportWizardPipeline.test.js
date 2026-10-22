@@ -126,3 +126,19 @@ test('blend thread metadata survives conversion and project creation',()=>{
     expect(saved.pattern[i].threads.map(t=>t.id)).toEqual(cell.threads.map(t=>t.id));
   }
 });
+
+test('shrinking averages the picture as light, so a fine checker becomes one even grey', () => {
+  // A 1-pixel black and white checker at 5 pixels per stitch. Sampling it
+  // (the old single drawImage) gave black, white or dark-grey stitches; the
+  // light-correct average is about sRGB 188, a light grey.
+  const c = runtime(), w = 200, h = 100, img = createCanvas(w, h), x = img.getContext('2d');
+  const id = x.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const v = ((i % w) + Math.floor(i / w)) % 2 ? 255 : 0; id.data.set([v, v, v, 255], i * 4); }
+  x.putImageData(id, 0, 0);
+  const result = c.parseImagePattern(img, { ...base, maxWidth: 40, maxHeight: 20 });
+  const threads = new Set(result.pattern.map((cell) => cell.id));
+  expect(threads.size).toBe(1);
+  const rgb = result.pattern[0].rgb, lum = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+  expect(lum).toBeGreaterThan(165);
+  expect(lum).toBeLessThan(210);
+});
