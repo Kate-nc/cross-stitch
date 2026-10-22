@@ -62,7 +62,9 @@ describe('callers that use window.StashBridge — guarded references', () => {
     expect(CM_SRC).toMatch(/window\.StashBridge/);
   });
 
-  test('home-app.js checks window.StashBridge', () => {
-    expect(HOME_SRC).toMatch(/window\.StashBridge/);
+  test('home-app.js never uses a bare StashBridge global', () => {
+    // Home reaches the stash through ProjectStorage.getProjectsReadyToStart
+    // (which guards StashBridge itself), so any direct use must be window.-qualified.
+    expect(HOME_SRC).not.toMatch(/(^|[^.\w])StashBridge\./m);
   });
 });

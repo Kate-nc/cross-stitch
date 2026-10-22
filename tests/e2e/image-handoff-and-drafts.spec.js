@@ -108,7 +108,8 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
 
     await page.goto('/home.html?tab=projects');
     const row = page.locator('.home-draft-row');
-    await expect(row).toContainText('Draft · logo · not generated yet');
+    await expect(row).toContainText('logo');
+    await expect(row).toContainText('Picture, not converted yet');
     await row.getByRole('button', { name: 'Continue' }).click();
     await page.waitForURL(/create\.html/);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });

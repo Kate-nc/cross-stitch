@@ -19256,7 +19256,7 @@ window.CropModal = function CropModal() {
 /* ─── NewDesignSheet.js ─── */
 /* creator/NewDesignSheet.js — set up a design drawn from scratch (audit DRAW-02).
  *
- * Shown for Home > Create new > Draw on a blank grid, before the grid is
+ * Shown for Home > A blank canvas, before the grid is
  * made, so the size and fabric are chosen up front rather than found later
  * under More > Resize canvas:
  *   - Size: Small motif 30 × 30, Card 50 × 70, Medium 100 × 100,

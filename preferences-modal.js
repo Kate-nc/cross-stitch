@@ -260,7 +260,7 @@
 
       h(Section, { title: "Home dashboard" },
         h(Row, { last: true, label: "Show finished projects in the home list",
-          desc: "When off, projects at 100% complete are hidden from the All projects list on the home page. They remain in the Stash Manager library." },
+          desc: "When off, projects at 100% complete are hidden from Your projects on the home page. They remain in the Stash Manager library." },
           h(Switch, { checked: showDone[0], onChange: showDone[1] })
         )
       )

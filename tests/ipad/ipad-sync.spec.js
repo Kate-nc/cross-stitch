@@ -143,7 +143,7 @@ test.describe('iPad (WebKit) sync workflow', () => {
     // The cs:openPreferences listener is registered in a React useEffect, so
     // an event dispatched before the app mounts fires into the void. Retry
     // the dispatch until the modal answers rather than guessing at a marker.
-    await expect(page.locator('.home-tabs')).toBeVisible();
+    await expect(page.locator('.home-page')).toBeVisible();
     const prefsNav = page.getByRole('button', { name: /Sync, backup & data/i });
     await expect(async () => {
       await page.evaluate(() => window.dispatchEvent(new CustomEvent('cs:openPreferences')));

@@ -273,11 +273,12 @@ describe('the surfaces use the one label', () => {
     expect(has(trackerSrc, /<ThreadKeyLabel row=\{kr\} classes=\{TILE_KEY_CLASSES\}\/>/)).toBe(true);
   });
 
-  test('the Materials thread list, the Manager and Home use formatThread', () => {
+  test('the Materials thread list, the Manager and Home\'s practice pattern use formatThread', () => {
     expect(has(legendSrc, /window\.threadKeyRow\(p, \{ fabricCount: fabricCt \}\)/)).toBe(true);
     expect(has(managerSrc, /const label = formatThread\(t\);/)).toBe(true);
     expect(has(managerSrc, /`DMC \$\{t\.id\}/)).toBe(false);
-    expect(has(homeSrc, /window\.formatThread\(row\)/)).toBe(true);
+    // Home no longer lists stash threads (that is the Stash Manager's job); the practice pattern names its threads.
+    expect(has(homeSrc, /window\.formatThread\(t\)/)).toBe(true);
   });
 
   test('the Tracker status bar and active tile use the formatter', () => {

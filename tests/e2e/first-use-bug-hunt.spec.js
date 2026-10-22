@@ -8,20 +8,20 @@ test.describe('First-use bug hunt',()=>{
   test('sample supports keyboard, collapse/reopen and narrow screens without a reset',async({page})=>{
     await page.setViewportSize({width:320,height:740});
     await page.goto('/home.html?tab=create');
-    await page.getByText('Try a sample project',{exact:true}).click();
+    await page.getByText('Try the practice pattern',{exact:true}).click();
     const sample=page.locator('.home-sample');
     const cell=sample.getByRole('button',{name:'Row 1, column 3, DMC 321 Red',exact:true});
     await cell.focus();await page.keyboard.press('Space');
     await expect(cell).toHaveAttribute('aria-pressed','true');
     await sample.locator('summary').click();await sample.locator('summary').click();
     await expect(sample.getByRole('status')).toContainText('1 of');
-    await page.getByRole('tab',{name:'Stats',exact:true}).click();
-    await page.goBack();await page.goForward();
-    await expect(page.getByRole('tab',{name:'Stats',exact:true})).toHaveAttribute('aria-selected','true');
-    await page.goBack();await expect(cell).toHaveAttribute('aria-pressed','true');
+    // Opening and closing Which files work? leaves the practice alone.
+    await page.getByRole('button',{name:'Which files work?'}).click();
+    await page.getByRole('button',{name:'Which files work?'}).click();
+    await expect(cell).toHaveAttribute('aria-pressed','true');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
-    await page.getByText('Saving, recovery and advanced tools',{exact:true}).click();
-    await expect(page.getByText(/conversion drafts stay on this device/)).toBeVisible();
+    // Recovery stays findable on a first visit: Restore a backup in Home's footer and in the File menu.
+    await expect(page.locator('.home-footer').getByText('Restore a backup',{exact:true})).toBeVisible();
     await page.getByRole('button',{name:'File',exact:true}).click();
     await expect(page.getByRole('button',{name:'Export Backup',exact:true})).toBeVisible();
     await expect(page.getByText('Restore from Backup…',{exact:true})).toBeVisible();

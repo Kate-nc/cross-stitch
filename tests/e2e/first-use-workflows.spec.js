@@ -20,30 +20,34 @@ async function storageSnapshot(page) {
 for (const name of ['desktop','Pixel 5']) {
   test.describe('First use on '+name, () => {
     test.use(device(name));
-    test('first visit exposes all paths; practice and tab Back never write real data', async ({page}) => {
+    test('first visit says what stitchx is, exposes all paths, and practice never writes real data', async ({page}) => {
       await page.goto('/home.html');
-      await expect(page.getByRole('button',{name:/Stitch an existing chart/})).toBeVisible();
-      await expect(page.getByRole('button',{name:/Convert a picture/})).toBeVisible();
-      await expect(page.getByRole('link',{name:/Draw a pattern/})).toBeVisible();
-      await expect(page.getByText(/A photograph of a printed chart is different/)).toBeVisible();
+      await expect(page.getByRole('heading',{name:'Make, follow and track cross-stitch patterns.'})).toBeVisible();
+      await expect(page.getByText('Saves automatically on this device')).toBeVisible();
+      await expect(page.getByRole('button',{name:/A pattern I already have/})).toBeVisible();
+      await expect(page.getByRole('button',{name:/A photo or picture/})).toBeVisible();
+      await expect(page.getByRole('link',{name:/A blank canvas/})).toBeVisible();
+      // The printed-chart caveat is said once, behind Which files work?
+      const files = page.getByRole('button',{name:'Which files work?'});
+      await expect(page.getByText(/A photo of a printed chart can’t be read yet/)).toBeHidden();
+      await files.click();
+      await expect(files).toHaveAttribute('aria-expanded','true');
+      await expect(page.getByText(/A photo of a printed chart can’t be read yet/)).toBeVisible();
       const before = await storageSnapshot(page);
-      await page.getByText('Try a sample project',{exact:true}).click();
+      await expect(page.getByRole('heading',{name:'Not sure yet? Try a practice pattern.'})).toBeVisible();
+      await page.getByText('Try the practice pattern',{exact:true}).click();
       const sample = page.locator('.home-sample');
       await sample.getByRole('button',{name:'Mark next stitch'}).click();
       await expect(sample.getByRole('status')).toContainText('1 of');
       await sample.getByRole('button',{name:'Undo sample mark'}).click();
       await expect(sample.getByRole('status')).toContainText('0 of');
       await sample.getByRole('button',{name:'Mark next stitch'}).click();
-      await page.getByRole('tab',{name:'Stash',exact:true}).click();
-      await expect(page).toHaveURL(/tab=stash/);
-      await page.goBack();
-      await expect(page.getByRole('tab',{name:'Projects',exact:true})).toHaveAttribute('aria-selected','true');
       await expect(sample.getByRole('status')).toContainText('1 of');
       expect(await storageSnapshot(page)).toEqual(before);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({path:'work/after-first-use-'+name.replace(' ','-')+'.png',fullPage:true});
       await page.reload();
-      await page.getByText('Try a sample project',{exact:true}).click();
+      await page.getByText('Try the practice pattern',{exact:true}).click();
       await expect(sample.getByRole('status')).toContainText('0 of');
     });
     test('chart photograph warning cancels cleanly, then failed import leaves all paths usable', async ({page}) => {
@@ -52,13 +56,15 @@ for (const name of ['desktop','Pixel 5']) {
       await page.locator('.home-import-file-input').setInputFiles(LOGO);
       const dialog=page.getByRole('dialog');
       await expect(dialog).toHaveCount(1);
-      await expect(dialog).toContainText('It does not read the grid, symbols or thread key');
-      await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+      await expect(dialog).toContainText('What’s in this picture?');
+      await dialog.getByRole('button',{name:/A printed chart/}).click();
+      await expect(dialog).toContainText('can’t pick out the grid, symbols and thread key');
+      await dialog.getByRole('button',{name:'Close',exact:true}).click();
       await expect(dialog).toHaveCount(0);
       await page.locator('.home-import-file-input').setInputFiles(path.join(__dirname,'../fixtures/not-a-pattern.json'));
       await expect(page.locator('[data-toast-id]').filter({hasText:'isn’t a stitchx pattern'})).toBeVisible();
       await expect(page.locator('.import-review-modal')).toHaveCount(0);
-      await expect(page.getByRole('button',{name:/Stitch an existing chart/})).toBeEnabled();
+      await expect(page.getByRole('button',{name:/A pattern I already have/})).toBeEnabled();
       expect((await storageSnapshot(page)).records).toEqual([]);
     });
   });
@@ -71,16 +77,16 @@ test.describe('Workflow switching', () => {
     const width=page.locator('.size-field').getByLabel('Width in stitches');
     await width.fill('123'); await width.press('Enter');
     await page.goBack();
-    await expect(page.getByRole('button',{name:/Convert a picture/})).toBeVisible();
+    await expect(page.getByRole('button',{name:/A photo or picture/})).toBeVisible();
     const drafts=await page.evaluate(()=>BlobStore.list('draft:'));
     expect(drafts).toHaveLength(1); expect(drafts[0].settings.sW).toBe(123);
-    await page.getByRole('link',{name:/Draw a pattern/}).click();
+    await page.getByRole('link',{name:/A blank canvas/}).click();
     await startBlankGrid(page,{navigate:false,preset:'Small motif'});
     await expect.poll(()=>page.evaluate(()=>ProjectStorage.getActiveProjectId())).toMatch(/^proj_/);
     const id=await page.evaluate(()=>ProjectStorage.getActiveProjectId());
     await page.goto('/home.html');
-    await expect(page.locator('.home-active-card')).toBeVisible();
-    await page.locator('.home-active-card').getByRole('button',{name:/Edit/}).click();
+    await expect(page.locator('.home-continue')).toBeVisible();
+    await page.locator('.home-continue').getByRole('button',{name:'Edit pattern'}).click();
     await expect(page.locator('.creator-rail, .toolbar-row').first()).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(()=>ProjectStorage.getActiveProjectId())).toBe(id);
@@ -94,7 +100,7 @@ test.describe('Workflow switching', () => {
     await expect(page.getByRole('button',{name:'Clean-up',exact:true})).toHaveAttribute('aria-expanded','true');
     await page.screenshot({path:'work/after-convert-desktop.png',fullPage:true});
   });
-  test('tracker marks survive leaving for another workflow; sample cannot affect real records', async ({page}) => {
+  test('tracker marks survive leaving for another workflow; Home leaves real records alone', async ({page}) => {
     await quietOnboarding(page);
     await page.addInitScript(()=>{ localStorage.setItem('cs_stitchStyle','block'); localStorage.setItem('cs_sessionOnboardingDone','1'); });
     await page.goto('/stitch.html?from=home');
@@ -110,12 +116,13 @@ test.describe('Workflow switching', () => {
     });
     const before=await storageSnapshot(page);
     expect(before.records).toHaveLength(1);
-    await page.getByRole('tab',{name:'Create new',exact:true}).click();
-    await page.getByText('Try a sample project',{exact:true}).click();
-    await page.getByRole('button',{name:'Mark next stitch'}).click();
+    // With a real project, Home offers Continue instead of the practice pattern, and browsing it writes nothing.
+    await expect(page.locator('.home-sample')).toHaveCount(0);
+    await page.getByRole('button',{name:'Which files work?'}).click();
+    await page.getByRole('button',{name:/^Not started|^In progress/}).first().click();
+    await page.getByRole('button',{name:/^All/}).click();
     expect(await storageSnapshot(page)).toEqual(before);
-    await page.getByRole('tab',{name:'Projects',exact:true}).click();
-    await page.locator('.home-active-card').getByRole('button',{name:'Resume tracking'}).click();
+    await page.locator('.home-continue').getByRole('button',{name:'Continue stitching'}).click();
     await expect.poll(()=>trackerDoneCount(page)).toBe(1);
     await expect(page.locator('.home-sample')).toHaveCount(0);
   });

@@ -59,7 +59,11 @@ describe('copy', () => {
     expect(stats).not.toMatch(/Back to grid/);
     expect(stats).toMatch(/Back to projects/);
   });
-  test('Home hides the active-project card until a project exists', () => {
-    expect(home).toMatch(/list\.length > 0 && h\(ActiveProjectCard/);
+  test('Home shows the Continue card only once a project exists', () => {
+    expect(home).toMatch(/loaded && hasProjects && h\(React\.Fragment[\s\S]*current && h\(ContinueCard/);
+  });
+  test('Home lists Home, Stash and Stats and has no project switcher', () => {
+    expect(header).toMatch(/const navSections = page === 'home' \? homeSections : appSections;/);
+    expect(header).toMatch(/page !== 'home' && React\.createElement\(HeaderProjectSwitcher/);
   });
 });

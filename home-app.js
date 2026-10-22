@@ -1,20 +1,28 @@
-// home-app.js — Combo A (tab bar + project hub)
-// Cross-mode landing page (`/home`). Mounts to #root in home.html.
+// home-app.js — Home (`/home`), "Ask what they have" layout.
+// Mounts to #root in home.html. Design and reasoning:
+// reports/home-redesign-proposals.md (Option 1) and the new-user walkthrough in
+// reports/home-page-audit/README.md (findings F1 to F16, referenced below).
 //
-// Tabs: Projects (default) | Create new | Stash | Stats
+// One page, no tabs. Top to bottom:
+//   1. Shared <Header page="home"> — Home / Stash / Stats links, Help, File.
+//      Home shows no project switcher: the Continue card is the one place the
+//      open project appears (F16).
+//   First visit (no projects):
+//   2. Hero — what stitchx is, plus the free / on this device promise (F1).
+//   3. "What are you starting with?" — three cards named after what the user
+//      has, not which tool they need (F5): a pattern / a picture / a blank canvas.
+//      "Which files work?" explains formats once (F6).
+//   4. Practice pattern card — visible, not hidden in a disclosure (F8).
+//   5. "How stitchx fits together" — names the three tools once (F1).
+//   Returning (one or more projects):
+//   2. Continue card — one primary action for the open project (F12).
+//   3. Your projects — cards with a preview, size, progress and status, one
+//      action each plus a More menu (F12, F13), filters, "Show all" (F14).
+//   4. Start something new — the same three cards, compact.
 //
-// Projects tab renders, top-to-bottom:
-//   1. Shared <Header page="home"> — Help + File menu live there; no duplication.
-//   2. HomeTabBar — Projects / Create new / Stash / Stats.
-//   3. Greeting row — time-aware greeting + "New project" button.
-//   4. ActiveProjectCard — merges old GreetingHero + ResumeCard into one card.
-//   5. ProjectsList — all projects with per-row Track + Edit buttons.
-//
-// Create new tab: two creation tiles (image + blank).
-// Stash tab: stash stats + Open Stash Manager link.
-// Stats tab: link to stats page.
-//
-// Help and Preferences are in the shared Header — HomeFooter shows About only.
+// Files can be dropped anywhere on the page. A picture whose purpose is
+// unclear (dropped, or chosen under "A pattern I already have") gets one
+// question: something to turn into a pattern, or a printed chart?
 // No emojis or unicode glyphs — every icon comes from window.Icons.
 
 (function () {
@@ -22,10 +30,8 @@
   var h = React.createElement;
 
   // ── Helpers ────────────────────────────────────────────────────────────
-  // Inlined from home-screen.js so /home no longer depends on the legacy
-  // bundle (Tier 2 of the homepage-predominance audit retired the in-Creator
-  // HomeScreen). window.timeAgo / window.getGreeting remain the canonical
-  // implementations when home-screen.js is also loaded (e.g. on manager.html).
+  // window.timeAgo is the canonical implementation when home-screen.js is also
+  // loaded (manager.html); /home inlines a copy so it doesn't need that bundle.
   function timeAgo(d) {
     if (typeof window.timeAgo === 'function') return window.timeAgo(d);
     if (!d) return '';
@@ -44,27 +50,75 @@
     var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return months[dt.getMonth()] + ' ' + dt.getDate();
   }
-  function getGreeting() {
-    if (typeof window.getGreeting === 'function') return window.getGreeting();
-    var hr = new Date().getHours();
-    if (hr >= 5 && hr <= 11) return 'Good morning';
-    if (hr >= 12 && hr <= 16) return 'Good afternoon';
-    return 'Good evening';
+
+  function icon(name) {
+    return window.Icons && typeof window.Icons[name] === 'function' ? window.Icons[name]() : null;
   }
 
-  function projectInitials(name) {
-    var s = String(name || '').trim();
-    if (!s) return '?';
-    var parts = s.split(/\s+/);
-    if (parts.length === 1) return s.slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
+  // Percent for a project: a full record (pattern + done) is measured with the
+  // one shared definition; a library row (listProjects) already carries `pct`
+  // and the exact unit totals, so it is read straight from those (F13).
   function projectPct(p) {
-    if (!p || !(p.pattern || p.p)) return null;
-    var r = ProgressUnits.fromProject(p);
-    if (r.totalUnits <= 0) return null;
-    return r.percent;
+    if (!p) return null;
+    if (p.pattern || p.p) {
+      var r = ProgressUnits.fromProject(p);
+      return r.totalUnits > 0 ? r.percent : null;
+    }
+    if (typeof p.pct === 'number') return p.pct;
+    if (p.totalStitches > 0) return ProgressUnits.percent(p.completedStitches || 0, p.totalStitches);
+    return null;
+  }
+
+  // "120 × 90" from a library row (dimensions) or a full record (settings).
+  function projectSize(p) {
+    if (!p) return null;
+    if (p.dimensions && p.dimensions.width) return p.dimensions.width + ' × ' + p.dimensions.height;
+    if (p.settings && p.settings.sW) return p.settings.sW + ' × ' + p.settings.sH;
+    return null;
+  }
+
+  // 'new' (nothing marked), 'wip' or 'done'. One marked stitch is enough to be
+  // started, even when the percentage still rounds to 0.
+  function projectStatus(p) {
+    if (!p) return 'new';
+    var pct = projectPct(p);
+    if (pct !== null && pct >= 100) return 'done';
+    var started = (pct !== null && pct > 0) || p.anyProgress || p.completedStitches > 0;
+    if (!started && (p.pattern || p.p)) started = ProgressUnits.fromProject(p).doneUnits > 0;
+    return started ? 'wip' : 'new';
+  }
+
+  // "42%", or "Started" while a started project still rounds to 0%.
+  function pctText(pct) {
+    return pct > 0 ? pct + '%' : 'Started';
+  }
+
+  // What the main button does, said the way it will happen (borrowed from the
+  // Workbench proposal: the label follows the project's state).
+  function trackLabel(status) {
+    if (status === 'new') return 'Start stitching';
+    if (status === 'done') return 'Open in Tracker';
+    return 'Continue stitching';
+  }
+
+  function lastActivity(p) {
+    if (!p) return '';
+    if (p.lastSessionDate) return 'Last stitched ' + timeAgo(p.lastSessionDate + 'T12:00:00');
+    if (p.updatedAt) return 'Updated ' + timeAgo(p.updatedAt);
+    return '';
+  }
+
+  // Estimated finish for a library row, from the one estimator (helpers.js), worded as everywhere else (estimateText):
+  // "Est. about 424 hours, about 4 weeks at your pace".
+  // The row carries what it needs (paceDaily, firstActiveDate, activeDaysTotal); rows saved before that have none
+  // until the next refresh and show nothing. Returns null when there is not enough history to say.
+  function etaLabel(p) {
+    if (!p || !p.paceDaily || typeof estimateFromPace !== 'function') return null;
+    var today = getStitchingDate(new Date(), getDayEndHour());
+    var pace = paceFromDaily(p.paceDaily, p.firstActiveDate, today, p.activeDaysTotal);
+    var remaining = (p.totalStitches || 0) - (p.completedStitches || 0);
+    var est = estimateFromPace(pace, remaining, { today: today, percent: p.pct });
+    return est.enough ? 'Est. ' + estimateText(p.stitchesPerHour > 0 ? remaining / p.stitchesPerHour : 0, est.calendarDaysRemaining) : null;
   }
 
   function activateAndGo(id, href) {
@@ -102,456 +156,218 @@
     window.location.href = 'create.html?from=home&id=' + encodeURIComponent(id);
   }
 
-  // fmtNum, plural and threadKm are shared globals from helpers.js
+  function openChartUpdate(id) {
+    window.ChartUpdates.open(id).catch(function (e) { window.Toast.show({ message: e.message, type: 'error' }); });
+  }
 
-  // Build the points string for a 120×32 sparkline from a daily-stitch
-  // log array ([{date:'YYYY-MM-DD', count:n}, ...]). Missing days = 0.
-  // Returns { points: 'x,y x,y …', total, activeDays, max }.
-  function buildSpark(daily, days) {
-    var byDate = {};
-    (daily || []).forEach(function (e) { if (e && e.date) byDate[e.date] = e.count || 0; });
-    var pts = [];
-    var total = 0;
-    var active = 0;
-    var max = 1;
-    var today = new Date();
-    for (var i = days - 1; i >= 0; i -= 1) {
-      var d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-      var k = d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
-      var v = byDate[k] || 0;
-      pts.push(v);
-      total += v;
-      if (v > 0) active += 1;
-      if (v > max) max = v;
+  function openHelp(opts) {
+    if (window.HelpDrawer && typeof window.HelpDrawer.open === 'function') window.HelpDrawer.open(opts || {});
+  }
+
+  function downloadBackup() {
+    if (!window.BackupRestore) return;
+    window.BackupRestore.downloadBackup().catch(function (e) {
+      if (window.Toast) window.Toast.show({ message: 'Backup failed: ' + e.message, type: 'error' });
+    });
+  }
+
+  // ── Pattern previews ────────────────────────────────────────────────────
+  // Library rows leave out the pattern so listProjects() stays cheap. Each card
+  // fetches its project once (the same approach as home-screen.js) and draws it
+  // with PartialStitchThumb, which ghosts unstitched cells. Shared across
+  // re-renders; cleared when a project changes.
+  var thumbPayloads = new Map();
+  function HomeThumb(props) {
+    var id = props.id;
+    var stamp = props.stamp || '';
+    var key = id + '|' + stamp;
+    var st = React.useState(function () { return thumbPayloads.get(key) || null; });
+    var payload = st[0]; var setPayload = st[1];
+    React.useEffect(function () {
+      var cached = thumbPayloads.get(key);
+      if (cached) { setPayload(cached); return; }
+      if (!window.ProjectStorage || !window.ProjectStorage.get) return;
+      var cancelled = false;
+      window.ProjectStorage.get(id).then(function (full) {
+        if (cancelled || !full || !full.pattern) return;
+        var w = full.w || (full.settings && full.settings.sW) || 0;
+        var ht = full.h || (full.settings && full.settings.sH) || 0;
+        var p = { pattern: full.pattern, done: full.done, w: w, h: ht };
+        thumbPayloads.set(key, p);
+        setPayload(p);
+      }).catch(function () {});
+      return function () { cancelled = true; };
+    }, [key]);
+    var cls = 'home-thumb' + (props.className ? ' ' + props.className : '');
+    if (payload && payload.pattern && payload.w && payload.h && window.PartialStitchThumb) {
+      return h('span', { className: cls },
+        h(window.PartialStitchThumb, {
+          pattern: payload.pattern, done: payload.done, w: payload.w, h: payload.h,
+          size: props.size || 240, projectId: id, className: 'home-thumb__img', alt: ''
+        }));
     }
-    var W = 120, H = 32;
-    var step = pts.length > 1 ? W / (pts.length - 1) : 0;
-    var coords = pts.map(function (v, i) {
-      var x = (i * step).toFixed(1);
-      var y = (H - (v / max) * (H - 4) - 2).toFixed(1);
-      return x + ',' + y;
-    }).join(' ');
-    return { points: coords, total: total, activeDays: active, max: max };
+    return h('span', { className: cls + ' home-thumb--empty', 'aria-hidden': 'true' }, icon('frame'));
   }
 
-  // "47 days ago" / "yesterday" / "today" — short form for card footers.
-  function daysAgo(iso) {
-    if (!iso) return '';
-    var t = Date.parse(iso);
-    if (!t) return '';
-    var diff = Date.now() - t;
-    var d = Math.floor(diff / 86400000);
-    if (d <= 0) return 'today';
-    if (d === 1) return 'yesterday';
-    if (d < 30) return d + ' days ago';
-    var m = Math.floor(d / 30);
-    if (m === 1) return '1 month ago';
-    return m + ' months ago';
-  }
-
-  // Estimated finish for a project row, from the one estimator (helpers.js), worded as everywhere else (estimateText):
-  // "Est. about 424 hours, about 4 weeks at your pace".
-  // The row carries what it needs (paceDaily, firstActiveDate, activeDaysTotal); rows saved before that have none
-  // until the next refresh and show nothing. Returns null when there is not enough history to say.
-  function etaLabel(p) {
-    if (!p || !p.paceDaily || typeof estimateFromPace !== 'function') return null;
-    var today = getStitchingDate(new Date(), getDayEndHour());
-    var pace = paceFromDaily(p.paceDaily, p.firstActiveDate, today, p.activeDaysTotal);
-    var remaining = (p.totalStitches || 0) - (p.completedStitches || 0);
-    var est = estimateFromPace(pace, remaining, { today: today, percent: p.pct });
-    return est.enough ? 'Est. ' + estimateText(p.stitchesPerHour > 0 ? remaining / p.stitchesPerHour : 0, est.calendarDaysRemaining) : null;
-  }
-
-  function rgbCss(rgb) {
-    if (!Array.isArray(rgb) || rgb.length < 3) return 'var(--surface-tertiary, #ddd)';
-    return 'rgb(' + (rgb[0] | 0) + ',' + (rgb[1] | 0) + ',' + (rgb[2] | 0) + ')';
-  }
-
-  // ── HomeTabBar ──────────────────────────────────────────────────────────
-  function HomeTabBar(props) {
-    var tab = props.tab;
-    var onTab = props.onTab;
-    var projectCount = props.projectCount;
-    var tabs = [
-      { key: 'projects', label: 'Projects', badge: projectCount > 0 ? projectCount : null },
-      { key: 'create',   label: 'Create new' },
-      { key: 'stash',    label: 'Stash' },
-      { key: 'stats',    label: 'Stats' },
-    ];
-    return h('div', { className: 'home-tabs', role: 'tablist', 'aria-label': 'Home sections' },
-      tabs.map(function (t) {
-        return h('button', {
-          key: t.key,
-          role: 'tab',
-          type: 'button',
-          className: 'home-tab' + (tab === t.key ? ' home-tab--active' : ''),
-          'aria-selected': tab === t.key ? 'true' : 'false',
-          onClick: function () { onTab(t.key); }
-        },
-          t.label,
-          t.badge ? h('span', { className: 'home-tab__badge', 'aria-hidden': 'true' }, t.badge) : null
-        );
-      })
-    );
-  }
-
-  // ── GreetingRow ─────────────────────────────────────────────────────────
-  // Greeting text + single "New project" button. Replaces standalone GreetingHero.
-  function GreetingRow(props) {
-    var list = props.list || [];
-    var sub = list.length
-      ? list.length + ' project' + (list.length !== 1 ? 's' : '')
-      : 'No projects yet — create one to get started.';
-    return h('div', { className: 'home-greeting-row' },
-      h('div', null,
-        h('h1', { className: 'home-greeting-row__title' }, getGreeting() + ', ready to stitch?'),
-        h('p', { className: 'home-greeting-row__sub' }, sub)
-      ),
+  // ── More menu ───────────────────────────────────────────────────────────
+  // A small menu button: Escape and outside clicks close it, arrow keys move
+  // between items, and focus goes back to the button when it closes.
+  function HomeMenu(props) {
+    var st = React.useState(false);
+    var open = st[0]; var setOpen = st[1];
+    var wrapRef = React.useRef(null);
+    var btnRef = React.useRef(null);
+    var listRef = React.useRef(null);
+    React.useEffect(function () {
+      if (!open) return;
+      function onDoc(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+      function onKey(e) {
+        if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); if (btnRef.current) btnRef.current.focus(); }
+      }
+      document.addEventListener('mousedown', onDoc);
+      document.addEventListener('touchstart', onDoc);
+      document.addEventListener('keydown', onKey, true);
+      var first = listRef.current && listRef.current.querySelector('[role="menuitem"]');
+      if (first) first.focus();
+      return function () {
+        document.removeEventListener('mousedown', onDoc);
+        document.removeEventListener('touchstart', onDoc);
+        document.removeEventListener('keydown', onKey, true);
+      };
+    }, [open]);
+    function onListKey(e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      var items = Array.prototype.slice.call(listRef.current.querySelectorAll('[role="menuitem"]'));
+      var i = items.indexOf(document.activeElement);
+      var next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
+        : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      e.preventDefault();
+      if (items[next]) items[next].focus();
+    }
+    return h('div', { className: 'home-menu' + (props.className ? ' ' + props.className : ''), ref: wrapRef },
       h('button', {
         type: 'button',
-        className: 'btn btn-primary home-greeting-row__new-btn',
-        // The greeting "+ New project" button used to navigate to
-        // create.html?action=new-from-image, which dropped users on the
-        // welcome card with no image picked yet — different from clicking
-        // the "New from image" tile on the Create tab. Switching the tab
-        // in-page makes both entry points converge on the same UI.
-        onClick: function () {
-          if (typeof props.onTab === 'function') props.onTab('create');
-        }
-      }, '+ New project')
+        ref: btnRef,
+        className: 'btn btn-sm home-menu__btn',
+        'aria-haspopup': 'menu',
+        'aria-expanded': open ? 'true' : 'false',
+        'aria-label': props.label,
+        title: props.label,
+        onClick: function () { setOpen(!open); }
+      }, icon('more')),
+      open && h('div', { className: 'home-menu__list', role: 'menu', 'aria-label': props.label, ref: listRef, onKeyDown: onListKey },
+        props.items.filter(Boolean).map(function (it) {
+          return h('button', {
+            key: it.key || it.label,
+            type: 'button',
+            role: 'menuitem',
+            className: 'home-menu__item',
+            onClick: function () { setOpen(false); it.onClick(); }
+          },
+            h('span', { className: 'home-menu__icon', 'aria-hidden': 'true' }, icon(it.icon)),
+            h('span', { className: 'home-menu__text' }, it.label, it.hint ? h('small', null, it.hint) : null)
+          );
+        })
+      )
     );
   }
 
-  // ── ActiveProjectCard ───────────────────────────────────────────────────
-  // Merges the old GreetingHero + ResumeCard into one prominent card.
-  function ActiveProjectCard(props) {
-    var p = props.activeProject;
-    if (!p) {
-      return h('div', { className: 'home-active-card home-active-card--empty' },
-        h('div', { className: 'home-active-card__band' }, 'No active project'),
-        h('div', { className: 'home-active-card__body' },
-          h('p', { className: 'home-active-card__empty-msg' }, 'Pick a project below, or start something new.')
+  function projectMenuItems(p, status, onDetails) {
+    return [
+      { key: 'track', label: trackLabel(status), icon: 'needle', onClick: function () { activateAndGo(p.id, 'stitch.html'); } },
+      { key: 'edit', label: 'Edit pattern', icon: 'pencil', onClick: function () { activateAndGo(p.id, 'create.html'); } },
+      { key: 'export', label: 'Export or print', icon: 'printer', onClick: function () { activateAndGoExport(p.id); } },
+      { key: 'update', label: 'Update chart', hint: 'Re-import a corrected version of this chart', icon: 'refresh', onClick: function () { openChartUpdate(p.id); } },
+      { key: 'details', label: 'Project details', icon: 'info', onClick: function () { onDetails(p); } }
+    ];
+  }
+
+  // ── Project details dialog ──────────────────────────────────────────────
+  function ProjectDetails(props) {
+    var p = props.project;
+    var pct = projectPct(p);
+    var rows = [];
+    var size = projectSize(p);
+    if (size) rows.push(['Size', size + ' stitches']);
+    var fabric = p.fabricCt || (p.settings && p.settings.fabricCt);
+    if (fabric) rows.push(['Fabric', fabric + ' count']);
+    if (pct !== null && p.totalStitches > 0) {
+      rows.push(['Progress', pct + '% (' + ProgressUnits.formatUnits(p.completedStitches || 0) + ' of ' + ProgressUnits.formatUnits(p.totalStitches) + ' stitches)']);
+    } else if (pct !== null) {
+      rows.push(['Progress', pct + '%']);
+    }
+    var eta = etaLabel(p);
+    if (eta) rows.push(['Estimate', eta.replace(/^Est\. /, '')]);
+    if (p.totalMinutes > 0) rows.push(['Time stitched', window.fmtTimeL ? window.fmtTimeL(p.totalMinutes * 60) : Math.round(p.totalMinutes / 60) + ' hours']);
+    if (p.lastSessionDate) rows.push(['Last stitched', timeAgo(p.lastSessionDate + 'T12:00:00')]);
+    if (p.createdAt) rows.push(['Created', new Date(p.createdAt).toLocaleDateString('en-GB')]);
+    if (p.updatedAt) rows.push(['Last saved', timeAgo(p.updatedAt)]);
+    return h(window.Overlay, { onClose: props.onClose, variant: 'dialog', maxWidth: 420, labelledBy: 'home-details-title', zIndex: 1200 },
+      h('div', { className: 'home-dialog' },
+        h('h2', { id: 'home-details-title', className: 'home-dialog__title' }, p.name || 'Untitled project'),
+        h('dl', { className: 'home-details' },
+          rows.map(function (r) { return h(React.Fragment, { key: r[0] }, h('dt', null, r[0]), h('dd', null, r[1])); })
+        )
+      ),
+      h(window.Overlay.CloseButton, { onClose: props.onClose })
+    );
+  }
+
+  // ── "What's in this picture?" ───────────────────────────────────────────
+  // Asked only when it's unclear what a picture is for: a dropped picture, or
+  // one chosen under "A pattern I already have". The printed-chart caveat is
+  // shown to the people it applies to, instead of to everyone up front (F6).
+  function PhotoQuestion(props) {
+    var st = React.useState('ask');
+    var step = st[0]; var setStep = st[1];
+    var name = (props.file && props.file.name) || 'picture';
+    var body;
+    if (step === 'ask') {
+      body = h(React.Fragment, null,
+        h('h2', { id: 'home-photo-q-title', className: 'home-dialog__title' }, 'What’s in this picture?'),
+        h('p', { className: 'home-dialog__file' }, h('span', { 'aria-hidden': 'true' }, icon('image')), name),
+        h('div', { className: 'home-choice-list' },
+          h('button', { type: 'button', className: 'home-choice', onClick: props.onConvert },
+            h('span', { className: 'home-choice__art', 'aria-hidden': 'true' }, icon('image')),
+            h('span', null, h('strong', null, 'Something to turn into a pattern'), h('small', null, 'A photo, drawing or piece of artwork'))),
+          h('button', { type: 'button', className: 'home-choice', onClick: function () { setStep('chart'); } },
+            h('span', { className: 'home-choice__art', 'aria-hidden': 'true' }, icon('document')),
+            h('span', null, h('strong', null, 'A printed chart'), h('small', null, 'A photo or scan of a pattern from a book, magazine or kit')))
+        )
+      );
+    } else {
+      body = h(React.Fragment, null,
+        h('h2', { id: 'home-photo-q-title', className: 'home-dialog__title' }, 'Printed charts can’t be read from a photo yet'),
+        h('p', { className: 'home-dialog__text' }, 'stitchx can’t pick out the grid, symbols and thread key in a photo. If you bought this pattern as a PDF or chart file, open that instead and every stitch and thread comes across.'),
+        h('div', { className: 'home-dialog__actions' },
+          h('button', { type: 'button', className: 'btn', onClick: props.onConvert }, 'Convert it as a picture anyway'),
+          h('button', { type: 'button', className: 'btn btn-primary', onClick: props.onChooseChart }, 'Choose a chart file')
         )
       );
     }
-    var pct = projectPct(p);
-    var dim = p.settings && (p.settings.sW + '×' + p.settings.sH);
-    // Compute velocity from full project data for ETA projection (R14),
-    // memoised by project id/updatedAt so it only recalculates when data changes.
-    var activeEta = React.useMemo(function () {
-      if (!(p.statsSessions && (p.pattern || p.p)) || typeof estimateCompletion !== 'function') return null;
-      var r = ProgressUnits.fromProject(p);
-      var est = estimateCompletion(p.statsSessions, r.remainingUnits, { percent: r.percent });
-      return est.enough ? 'Est. ' + estimateText(est.hoursRemaining, est.calendarDaysRemaining) : null;
-    }, [p.id, p.updatedAt, p.statsSessions, p.pattern, p.p, p.done]);
-    var metaParts = [
-      dim || null,
-      p.updatedAt ? ('Updated ' + timeAgo(p.updatedAt)) : null,
-      pct !== null ? (pct + '% complete') : null,
-      activeEta || null
-    ].filter(Boolean);
-    return h('section', {
-      className: 'home-active-card',
-      'aria-labelledby': 'home-active-card-title'
-    },
-      h('div', { className: 'home-active-card__band', 'aria-hidden': 'true' },
-        'Active — pick up where you left off'
-      ),
-      h('div', { className: 'home-active-card__body' },
-        h('div', { className: 'home-active-card__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
-        h('div', { className: 'home-active-card__info' },
-          h('div', {
-            id: 'home-active-card-title',
-            className: 'home-active-card__name'
-          }, p.name || 'Untitled project'),
-          h('div', { className: 'home-active-card__meta' }, metaParts.join(' · ')),
-          pct !== null && h('div', { className: 'home-active-card__bar', 'aria-hidden': 'true' },
-            h('div', { className: 'home-active-card__bar-fill', style: { width: pct + '%' } })
-          )
-        ),
-        h('div', { className: 'home-active-card__actions' },
-          h('button', {
-            type: 'button',
-            className: 'btn btn-primary',
-            onClick: function () { activateAndGo(p.id, 'stitch.html'); }
-          }, 'Resume tracking'),
-          h('button', {
-            type: 'button',
-            className: 'btn',
-            onClick: function () { activateAndGo(p.id, 'create.html'); }
-          }, 'Edit pattern'),
-          h('button', {
-            type: 'button',
-            className: 'btn',
-            onClick: function () { activateAndGoExport(p.id); }
-          }, 'Export pattern'),
-          h('button', {type:'button',className:'btn',onClick:function(){ window.ChartUpdates.open(p.id).catch(function(e){window.Toast.show({message:e.message,type:'error'});}); }}, 'Update chart')
-        )
-      )
+    return h(window.Overlay, { onClose: props.onClose, variant: 'sheet', maxWidth: 460, labelledBy: 'home-photo-q-title', zIndex: 1200 },
+      h('div', { className: 'home-dialog' }, body),
+      h(window.Overlay.CloseButton, { onClose: props.onClose })
     );
   }
 
-  // ── ProjectsList ────────────────────────────────────────────────────────
-  // Replaces RecentGrid. Each row exposes both Track and Edit so the user
-  // chooses their destination — no silent redirect to the Tracker.
-  // Plan B Phase 3: name + meta now open a metadata popover (powered by the
-  // shared AppInfoPopover). Track and Edit stay as inline primary actions —
-  // collapsing them into a `⋯` overflow menu would silently drop the
-  // one-click Track CTA most users rely on, which we'd rather not regress
-  // without explicit feedback.
-  // ── DraftsList ──────────────────────────────────────────────────────────
-  // Pictures set up in Convert but not generated yet (audit COMMON-07). They
-  // live in IndexedDB as draft:<id> records (blob-store.js), not as
-  // projects, so stats and sync never see them.
-  function DraftsList() {
-    var st = React.useState([]);
-    var drafts = st[0]; var setDrafts = st[1];
-    function load() {
-      var BS = window.BlobStore;
-      if (!BS || !BS.available()) return;
-      BS.list('draft:').then(setDrafts).catch(function () { setDrafts([]); });
-    }
-    React.useEffect(load, []);
-    if (!drafts.length) return null;
-    return h('section', { className: 'home-proj-list home-drafts', 'aria-labelledby': 'home-drafts-title' },
-      h('h2', { id: 'home-drafts-title', className: 'home-section__title' }, 'Not generated yet'),
-      h('div', { className: 'home-proj-list__rows' },
-        drafts.map(function (d) {
-          var name = String(d.name || 'Picture').replace(/\.[a-z0-9]+$/i, '');
-          return h('div', { key: d.id, className: 'home-proj-row home-draft-row' },
-            h('div', { className: 'home-proj-row__avatar', 'aria-hidden': 'true' },
-              window.Icons && window.Icons.image ? window.Icons.image() : null),
-            h('div', { className: 'home-proj-row__body' },
-              h('div', { className: 'home-proj-row__name' }, 'Draft \u00B7 ' + name + ' \u00B7 not generated yet'),
-              h('div', { className: 'home-proj-row__meta' }, (d.updatedAt || d.createdAt) ? timeAgo(new Date(d.updatedAt || d.createdAt).toISOString()) : '')
-            ),
-            h('div', { className: 'home-proj-row__actions' },
-              h('button', {
-                type: 'button', className: 'btn btn-primary btn-sm',
-                onClick: function () {
-                  window.__navigatingAway = true;
-                  window.location.href = 'create.html?action=draft&from=home&draft=' + encodeURIComponent(d.id);
-                }
-              }, 'Continue'),
-              h('button', {
-                type: 'button', className: 'btn btn-sm',
-                'aria-label': 'Discard draft ' + name,
-                onClick: function () {
-                  window.BlobStore.delete(d.id).then(load, load);
-                }
-              }, 'Discard')
-            )
-          );
-        })
-      )
-    );
-  }
-
-  function ProjectsList(props) {
-    var list = (props.projects || []).slice(0, 8);
-    var openState = React.useState(null);
-    var openFor = openState[0];
-    var setOpenFor = openState[1];
-    var triggerRefs = React.useRef({});
-    if (!list.length) return null;
-
-    function metadataPopover(p) {
-      if (!window.AppInfoPopover) return null;
-      var dim = p.settings && (p.settings.sW + ' × ' + p.settings.sH + ' stitches');
-      var fabric = p.settings && p.settings.fabricCt ? (p.settings.fabricCt + ' ct Aida') : null;
-      var pct = projectPct(p);
-      // "Stitchable" is the pattern's stitch cells; Progress is in units, the one shared definition (a half stitch
-      // is half, a knot is one), the same figure as the Tracker and Stats.
-      var stitchable = 0;
-      if (p.pattern) {
-        for (var i = 0; i < p.pattern.length; i += 1) {
-          var c = p.pattern[i];
-          if (c && c.id !== '__skip__' && c.id !== '__empty__') stitchable += 1;
-        }
-      }
-      var prog = ProgressUnits.fromProject(p);
-      var distinctColours = 0;
-      if (p.pattern) {
-        var seen = {};
-        for (var k = 0; k < p.pattern.length; k += 1) {
-          var pc = p.pattern[k];
-          if (pc && pc.id && pc.id !== '__skip__' && pc.id !== '__empty__' && !seen[pc.id]) {
-            seen[pc.id] = 1;
-            distinctColours += 1;
-          }
-        }
-      }
-      var totalSec = (typeof p.totalTime === 'number') ? p.totalTime : 0;
-      var fmtL = window.fmtTimeL || function (s) { return Math.round(s/3600) + 'h'; };
-      var patternRows = [];
-      if (dim) patternRows.push(['Dimensions', dim]);
-      if (fabric) patternRows.push(['Fabric', fabric]);
-      if (stitchable > 0) patternRows.push(['Stitchable', stitchable.toLocaleString('en-GB')]);
-      if (distinctColours > 0) patternRows.push(['Colours', String(distinctColours)]);
-      if (pct !== null) patternRows.push(['Progress', pct + '% (' + ProgressUnits.formatUnits(prog.doneUnits) + '/' + ProgressUnits.formatUnits(prog.totalUnits) + ')']);
-      var metaRows = [];
-      if (p.createdAt) metaRows.push(['Created', new Date(p.createdAt).toLocaleDateString('en-GB')]);
-      if (p.updatedAt) metaRows.push(['Last edited', timeAgo(p.updatedAt)]);
-      if (totalSec > 0) metaRows.push(['Time spent', fmtL(totalSec)]);
-      var children = [
-        h(window.AppInfoSection, { key: 'pat', title: 'Pattern' }, h(window.AppInfoGrid, { rows: patternRows }))
-      ];
-      if (metaRows.length) {
-        children.push(h(window.AppInfoDivider, { key: 'd1' }));
-        children.push(h(window.AppInfoSection, { key: 'meta', title: 'Metadata' }, h(window.AppInfoGrid, { rows: metaRows })));
-      }
-      var ref = { current: triggerRefs.current[p.id] || null };
-      return h(window.AppInfoPopover, {
-        open: true,
-        onClose: function () { setOpenFor(null); },
-        triggerRef: ref,
-        ariaLabel: (p.name || 'Project') + ' details',
-        className: 'app-info-popover--left'
-      }, children);
-    }
-
-    return h('section', {
-      className: 'home-proj-list',
-      'aria-labelledby': 'home-proj-list-title'
-    },
-      h('h2', { id: 'home-proj-list-title', className: 'home-section__title' }, 'All projects'),
-      h('div', { className: 'home-proj-list__rows' },
-        list.map(function (p) {
-          var pct = projectPct(p);
-          var dim = p.settings && (p.settings.sW + '×' + p.settings.sH);
-          var metaParts = [
-            dim || null,
-            p.updatedAt ? timeAgo(p.updatedAt) : null,
-            pct !== null ? pct + '%' : null,
-            etaLabel(p) || null
-          ].filter(Boolean);
-          var isOpen = openFor === p.id;
-          return h('div', {
-            key: p.id,
-            className: 'home-proj-row'
-          },
-            h('div', { className: 'home-proj-row__avatar', 'aria-hidden': 'true' }, projectInitials(p.name)),
-            h('div', { className: 'home-proj-row__body app-info-chip-wrap' },
-              h('button', {
-                type: 'button',
-                ref: function (el) { triggerRefs.current[p.id] = el; },
-                className: 'home-proj-row__name home-proj-row__name--button',
-                'aria-haspopup': 'dialog',
-                'aria-expanded': isOpen ? 'true' : 'false',
-                onClick: function () { setOpenFor(isOpen ? null : p.id); },
-                title: 'Project details'
-              }, p.name || 'Untitled'),
-              h('div', { className: 'home-proj-row__meta' }, metaParts.join(' · ')),
-              pct !== null && h('div', { className: 'home-proj-row__bar', 'aria-hidden': 'true' },
-                h('div', { className: 'home-proj-row__bar-fill', style: { width: pct + '%' } })
-              ),
-              isOpen && metadataPopover(p)
-            ),
-            h('div', { className: 'home-proj-row__actions' },
-              h('button', {
-                type: 'button',
-                className: 'btn btn-primary btn-sm',
-                onClick: function () { activateAndGo(p.id, 'stitch.html'); }
-              }, 'Track'),
-              h('button', {
-                type: 'button',
-                className: 'btn btn-sm',
-                onClick: function () { activateAndGo(p.id, 'create.html'); }
-              }, 'Edit'),
-              h('button', {
-                type: 'button',
-                className: 'btn btn-sm',
-                onClick: function () { activateAndGoExport(p.id); }
-              }, 'Export'),
-              h('button', {type:'button',className:'btn btn-sm',onClick:function(){ window.ChartUpdates.open(p.id).catch(function(e){window.Toast.show({message:e.message,type:'error'});}); }}, 'Update chart')
-            )
-          );
-        })
-      )
-    );
-  }
-
-  // ── CreatePanel ─────────────────────────────────────────────────────────
-  // "Create new" tab content.
-  //
-  // "New from image": triggers the file picker in the same user-gesture as the
-  // button click (so the browser allows it), serialises the selected file to
-  // sessionStorage as a data URL, then navigates to
-  // create.html?action=home-image-pending where creator-main.js reconstructs
-  // the File object and passes it to the Creator without a second click.
-  //
-  // "New from scratch": navigates to create.html?action=new-blank which already
-  // sets mode='design' + pendingCreatorAction='scratch' in one step.
-  //
-  // "Embroidery planner (beta)": optional third tile, only rendered when the
-  // experimental.embroideryTool pref is on. Goes to embroidery.html (a
-  // separate prototype page).
-  // Deliberately memory-only: practice never enters project, session, sync or stash storage.
-  function SampleProject() {
-    var rows = ['..AA....', '.ABBA...', '.ABBA...', '..AA....', '...C..C.', '.C.C.C..', '..CCC...', '...C....'];
-    var colours = { A: { id: '321', name: 'Red' }, B: { id: '444', name: 'Lemon' }, C: { id: '700', name: 'Green' } };
-    var threadName = function (t) { return window.formatThread ? window.formatThread(t) : 'DMC ' + t.id + ' ' + t.name; };
-    var doneState = React.useState([]), done = doneState[0], setDone = doneState[1];
-    var historyState = React.useState([]), history = historyState[0], setHistory = historyState[1];
-    var selectedState = React.useState('A'), selected = selectedState[0], setSelected = selectedState[1];
-    var cells = rows.join('').split('');
-    var total = cells.filter(function (c) { return c !== '.'; }).length;
-    function mark(i) {
-      setHistory(function (h) { return h.concat([done]); });
-      setDone(function (d) { return d.indexOf(i) < 0 ? d.concat(i) : d.filter(function (n) { return n !== i; }); });
-    }
-    var next = cells.findIndex(function (c, i) { return c === selected && done.indexOf(i) < 0; });
-    return h('details', { className: 'home-sample' },
-      h('summary', null, 'Try a sample project'),
-      h('h3', null, 'Practice tracking: Little flower'),
-      h('p', null, 'Choose a thread, then tap its stitches to mark or unmark them. Or use Mark next stitch. This practice stays on this page only; it never changes your projects, progress, sessions or thread inventory.'),
-      h('div', { className: 'home-sample__threads', role: 'group', 'aria-label': 'Sample threads' },
-        Object.keys(colours).map(function (key) {
-          return h('button', { key: key, type: 'button', className: 'btn', 'aria-pressed': selected === key,
-            onClick: function () { setSelected(key); } }, key + ' · ' + threadName(colours[key]));
-        })),
-      h('div', { className: 'home-sample__chart', role: 'group', 'aria-label': 'Sample chart, 8 by 8 stitches' },
-        cells.map(function (c, i) {
-          var marked = done.indexOf(i) >= 0;
-          if (c === '.') return h('span', { key: i, 'aria-hidden': 'true' });
-          return h('button', { key: i, type: 'button', className: 'home-sample__cell home-sample__cell--' + c,
-            'aria-label': 'Row ' + (Math.floor(i / 8) + 1) + ', column ' + (i % 8 + 1) + ', ' + threadName(colours[c]),
-            'aria-pressed': marked, disabled: c !== selected,
-            onClick: function () { mark(i); } }, marked ? h('span', { 'aria-hidden': 'true' }, window.Icons.check()) : c);
-        })),
-      h('p', { role: 'status', 'aria-live': 'polite' }, done.length + ' of ' + total + ' stitches marked (' + Math.round(done.length / total * 100) + '%).'),
-      next < 0 && h('p', null, done.length === total ? 'Sample complete. You can unmark a stitch or undo a mark to practise corrections.' : 'All stitches for ' + selected + ' are marked. Choose another thread to continue.'),
-      h('div', { className: 'home-sample__threads' },
-        h('button', { type: 'button', className: 'btn btn-primary', disabled: next < 0, onClick: function () { mark(next); } }, 'Mark next stitch'),
-        h('button', { type: 'button', className: 'btn', disabled: !history.length, onClick: function () {
-          setDone(history[history.length - 1]); setHistory(history.slice(0, -1));
-        } }, 'Undo sample mark')),
-      h('p', null, 'Ready for your own chart? Use Stitch an existing chart above. The Tracker adds zoom, marking tools, sessions and saved progress.')
-    );
-  }
-
-  function CreatePanel() {
-    var Icons = window.Icons || {};
+  // ── Creating: pickers, drops and the hand-off to the Creator ────────────
+  // "A photo or picture": opens the picture picker in the same user gesture as
+  // the click (so the browser allows it), stores the file in IndexedDB, then
+  // navigates to create.html?action=home-image-pending where creator-main.js
+  // picks it up without a second click.
+  // "A pattern I already have": opens the chart picker; the import engine
+  // reviews the file on this page.
+  // "A blank canvas": create.html?action=new-blank.
+  function useCreateFlow() {
     var fileInputRef = React.useRef(null);
     var importInputRef = React.useRef(null);
-    var dragState = React.useState(false);
-    var dragging = dragState[0]; var setDragging = dragState[1];
     var pendingState = React.useState(false);
     var pending = pendingState[0]; var setPending = pendingState[1];
-
-    // Read the embroidery beta flag synchronously. UserPrefs.get returns the
-    // default (false) when the pref hasn't been set, so this is safe even on
-    // a first visit. We don't need a re-render listener here — the user
-    // toggling the flag in another tab/page won't move them mid-render of
-    // the Home Create panel; they'll see the new tile next time they land
-    // on /home, which matches every other UserPrefs surface.
-    var embroideryEnabled = false;
-    try {
-      embroideryEnabled = !!(window.UserPrefs && window.UserPrefs.get &&
-        window.UserPrefs.get('experimental.embroideryTool'));
-    } catch (_) { embroideryEnabled = false; }
+    var dragState = React.useState(false);
+    var dragging = dragState[0]; var setDragging = dragState[1];
+    var askState = React.useState(null);
+    var askFile = askState[0]; var setAskFile = askState[1];
 
     // bfcache restore: if the user lands back on /home via the browser back
     // button after a successful image handoff, the spinner state from the
@@ -563,14 +379,8 @@
       return function () { window.removeEventListener('pageshow', reset); };
     }, []);
 
-    function handleNewFromImage() {
-      var input = fileInputRef.current;
-      if (input) input.click();
-    }
-    function handleImportChart() {
-      var input = importInputRef.current;
-      if (input) input.click();
-    }
+    function pickPicture() { var input = fileInputRef.current; if (input) input.click(); }
+    function pickChart() { var input = importInputRef.current; if (input) input.click(); }
 
     function navigateAfterPaint(href) {
       // One rAF lets the spinner paint, then queueMicrotask (or setTimeout
@@ -595,8 +405,9 @@
       return /\.(pat|oxs|xml|json|pdf|xsd)$/i.test(file.name || '') ? 'pattern' : 'unsupported';
     }
 
-    // Each tile has its own picker (audit COMMON-04). A file that suits the
-    // other tile is offered there rather than silently rerouted.
+    // Each card has its own picker (audit COMMON-04). A chart chosen as a
+    // picture is offered to the importer rather than silently rerouted; a
+    // picture chosen as a chart gets the "What's in this picture?" question.
     function handlePhotoChange(e) { takeFile(e, 'photo'); }
     function handleImportChange(e) { takeFile(e, 'import'); }
     function takeFile(e, tile) {
@@ -609,18 +420,17 @@
     function routeFile(file, tile) {
       var kind = classify(file);
       if (kind === 'unsupported') return startFile(file);
-      var ask = null;
+      if (kind === 'image' && tile !== 'photo') { setAskFile(file); return; }
       if (tile === 'photo' && kind === 'pattern') {
-        ask = { title: 'This looks like a chart file', message: 'This looks like a chart file. Import it instead?', confirmLabel: 'Import' };
-      } else if (tile === 'import' && kind === 'image') {
-        ask = { title: 'Convert this picture?', message: 'Convert chooses threads from the colours in a picture. It does not read the grid, symbols or thread key in a photograph of a printed chart. For a printed chart, cancel and use the original PDF or supported chart file.', confirmLabel: 'Convert picture' };
+        var CD = window.ConfirmDialog;
+        var msg = 'This looks like a chart file. Import it instead?';
+        var answer = CD && typeof CD.show === 'function'
+          ? CD.show({ title: 'This looks like a chart file', message: msg, confirmLabel: 'Import', cancelLabel: 'Cancel' })
+          : Promise.resolve(window.confirm(msg));
+        answer.then(function (ok) { if (ok) startFile(file); });
+        return;
       }
-      if (!ask) return startFile(file);
-      var CD = window.ConfirmDialog;
-      var answer = CD && typeof CD.show === 'function'
-        ? CD.show({ title: ask.title, message: ask.message, confirmLabel: ask.confirmLabel, cancelLabel: 'Cancel' })
-        : Promise.resolve(window.confirm(ask.message));
-      answer.then(function (ok) { if (ok) startFile(file); });
+      startFile(file);
     }
 
     function onDragOver(e) {
@@ -632,14 +442,16 @@
       if (e.currentTarget.contains && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
       setDragging(false);
     }
-    // Dropping a file anywhere on the Create tab (it used to be the
-    // Creator's welcome card): pictures are converted, charts imported.
+    // Dropping a file anywhere on Home: charts are imported, pictures get the
+    // "What's in this picture?" question first (routeFile).
     function onDrop(e) {
       e.preventDefault();
       setDragging(false);
       if (pending) return;
       var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) startFile(file);
+      if (!file) return;
+      if (classify(file) === 'image') { setAskFile(file); return; }
+      startFile(file);
     }
 
     function startFile(file) {
@@ -772,424 +584,409 @@
     }
 
     var accept = function (list) { return window.Platform ? window.Platform.fileAccept(list) : list; };
-    return h('section', {
-      className: 'home-create-panel' + (dragging ? ' home-create-panel--dragging' : ''),
-      'aria-labelledby': 'home-create-panel-title',
-      onDragOver: onDragOver, onDragEnter: onDragOver, onDragLeave: onDragLeave, onDrop: onDrop
-    },
-      h('h2', { id: 'home-create-panel-title', className: 'home-section__title' }, 'What would you like to do?'),
-      // One picker per tile. ".oxs" resolves to no UTI on iOS and would grey
-      // out the whole Files picker; Platform.fileAccept drops the filter
-      // there and keeps it everywhere else (tests/platformCapabilities.test.js).
+    // One picker per card. ".oxs" resolves to no UTI on iOS and would grey
+    // out the whole Files picker; Platform.fileAccept drops the filter
+    // there and keeps it everywhere else (tests/platformCapabilities.test.js).
+    var inputs = h(React.Fragment, null,
       h('input', {
-        ref: fileInputRef,
-        type: 'file',
-        accept: accept('image/*'),
-        className: 'home-create-file-input',
-        onChange: handlePhotoChange,
-        'aria-hidden': 'true',
-        tabIndex: -1
+        ref: fileInputRef, type: 'file', accept: accept('image/*'),
+        className: 'home-create-file-input', onChange: handlePhotoChange, 'aria-hidden': 'true', tabIndex: -1
       }),
       h('input', {
-        ref: importInputRef,
-        type: 'file',
-        accept: accept('.pdf,.pat,.oxs,.xsd,.xml,.json'),
-        className: 'home-import-file-input',
-        onChange: handleImportChange,
-        'aria-hidden': 'true',
-        tabIndex: -1
-      }),
-      h('div', { className: 'home-create-panel__grid' },
-        h('button', {
-          type: 'button',
-          className: 'home-create-tile',
-          onClick: handleImportChart,
-          disabled: pending,
-          'data-onboard': 'home-import-chart'
-        },
-          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.document === 'function' ? Icons.document() : null),
-          h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Stitch an existing chart'),
-            h('span', null, 'A PDF, .oxs, supported Pattern Maker .xsd or PCStitch 7 .pat chart, or saved .json project. Photos of paper charts aren\u2019t supported yet.')
-          )
-        ),
-        h('button', {
-          type: 'button',
-          className: 'home-create-tile home-create-tile--primary',
-          onClick: handleNewFromImage,
-          disabled: pending,
-          'data-onboard': 'home-from-image'
-        },
-          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.image === 'function' ? Icons.image() : null),
-          h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Convert a picture'),
-            h('span', null, 'Turn a photograph or artwork into stitches by choosing thread colours. This does not read a printed chart.')
-          )
-        ),
-        h('a', {
-          href: 'create.html?action=new-blank',
-          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
-          'aria-disabled': pending ? 'true' : undefined,
-          onClick: pending ? function (e) { e.preventDefault(); } : undefined
-        },
-          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.pencil === 'function' ? Icons.pencil() : null),
-          h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Draw a pattern'),
-            h('span', null, 'Design stitch by stitch.')
-          )
-        ),
-        // Embroidery planner: experimental third tile, only rendered when the
-        // user has opted in via Preferences -> Creator -> Experimental. Carries a
-        // "Beta" badge so users know this lives outside the supported flows.
-        embroideryEnabled && h('a', {
-          href: 'embroidery.html?from=home',
-          className: 'home-create-tile' + (pending ? ' home-create-tile--disabled' : ''),
-          'aria-disabled': pending ? 'true' : undefined,
-          onClick: pending ? function (e) { e.preventDefault(); } : undefined
-        },
-          h('span', { className: 'home-create-tile__icon', 'aria-hidden': 'true' },
-            typeof Icons.thread === 'function' ? Icons.thread()
-              : (typeof Icons.image === 'function' ? Icons.image() : null)),
-          h('span', { className: 'home-create-tile__copy' },
-            h('strong', null, 'Embroidery planner ',
-              h('span', { className: 'home-create-tile__badge' }, 'Beta')),
-            h('span', null, 'Sketch a freehand embroidery layout (experimental)')
-          )
-        )
-      ),
-      h('p', { className: 'home-first-use-note' }, 'A photograph of a printed chart is different from a picture to convert: stitchx does not read the chart grid or thread key from an image file. Use the original PDF or a supported chart file.'),
-      h(SampleProject, null),
-      h('details', { className: 'home-first-use-note' },
-        h('summary', null, 'Saving, recovery and advanced tools'),
-        h('p', null, 'Saved projects and unfinished picture conversions are in Projects. Cancel conversion to keep its settings and any existing pattern. Use File > Export Backup to protect saved projects and inventory, or File > Restore from Backup to recover a backup. Picture conversion drafts stay on this device and are not included in backups.'),
-        h('p', null, 'In the Creator, expand Clean-up or Adjust image for more control. In Palette, use Change symbol beside a thread to reassign its symbol. Materials & Output > Export > Format & settings includes Stitches per page presets and Custom for your own PDF stitch density.')),
-      // Transitional overlay shown between FileReader-load and the Creator
-      // page taking over. Stops the page change feeling like a teleport.
-      pending && h('div', {
-        className: 'home-create-pending',
-        role: 'status',
-        'aria-live': 'polite'
-      },
+        ref: importInputRef, type: 'file', accept: accept('.pdf,.pat,.oxs,.xsd,.xml,.json'),
+        className: 'home-import-file-input', onChange: handleImportChange, 'aria-hidden': 'true', tabIndex: -1
+      })
+    );
+    // Shown between the file being read and the Creator taking over, so the
+    // page change doesn't feel like a teleport.
+    var overlays = h(React.Fragment, null,
+      pending && h('div', { className: 'home-create-pending', role: 'status', 'aria-live': 'polite' },
         h('div', { className: 'home-create-pending__spinner', 'aria-hidden': 'true' }),
-        h('div', { className: 'home-create-pending__msg' }, 'Preparing your file\u2026')
+        h('div', { className: 'home-create-pending__msg' }, 'Preparing your file…')
+      ),
+      dragging && h('div', { className: 'home-drop-hint', 'aria-hidden': 'true' },
+        h('span', null, icon('upload'), 'Drop to open a pattern or a picture')),
+      askFile && window.Overlay && h(PhotoQuestion, {
+        file: askFile,
+        onClose: function () { setAskFile(null); },
+        onConvert: function () { var f = askFile; setAskFile(null); startFile(f); },
+        onChooseChart: function () { setAskFile(null); pickChart(); }
+      })
+    );
+    return {
+      pickPicture: pickPicture,
+      pickChart: pickChart,
+      pending: pending,
+      inputs: inputs,
+      overlays: overlays,
+      dropProps: { onDragOver: onDragOver, onDragEnter: onDragOver, onDragLeave: onDragLeave, onDrop: onDrop }
+    };
+  }
+
+  // ── Start cards ─────────────────────────────────────────────────────────
+  // Named after what the user has in hand, not which tool they need (F5).
+  // Equal weight: Home doesn't know which one they want (F7).
+  var INTENTS = [
+    { key: 'chart', icon: 'document', title: 'A pattern I already have',
+      desc: 'Bought or downloaded a chart? Open it here and tick off stitches as you go.',
+      foot: 'PDF and most chart files', go: 'Open a pattern', short: 'PDF and chart files', onboard: 'home-import-chart' },
+    { key: 'picture', icon: 'image', title: 'A photo or picture',
+      desc: 'Turn it into a pattern using real DMC or Anchor thread colours.',
+      foot: 'Photos, drawings, artwork', go: 'Choose a picture', short: 'Turn it into a pattern', onboard: 'home-from-image' },
+    { key: 'blank', icon: 'pencil', title: 'A blank canvas',
+      desc: 'Design your own pattern stitch by stitch, at any size.',
+      foot: 'Pick a size and fabric', go: 'Start drawing', short: 'Draw your own' }
+  ];
+
+  function IntentCards(props) {
+    var flow = props.flow;
+    var compact = !!props.compact;
+    return h('div', { className: compact ? 'home-intents home-intents--compact' : 'home-intents' },
+      INTENTS.map(function (it) {
+        var inner = compact
+          ? [h('span', { key: 'a', className: 'home-intent__art', 'aria-hidden': 'true' }, icon(it.icon)),
+             h('span', { key: 't', className: 'home-intent__copy' }, h('strong', null, it.title), h('small', null, it.short))]
+          : [h('span', { key: 'a', className: 'home-intent__art', 'aria-hidden': 'true' }, icon(it.icon)),
+             h('strong', { key: 't', className: 'home-intent__title' }, it.title),
+             h('span', { key: 'd', className: 'home-intent__desc' }, it.desc),
+             h('span', { key: 'f', className: 'home-intent__foot' },
+               h('span', null, it.foot),
+               h('span', { className: 'home-intent__go' }, it.go, h('span', { 'aria-hidden': 'true' }, icon('chevronRight'))))];
+        var common = { key: it.key, className: 'home-intent' + (flow.pending ? ' home-intent--disabled' : '') };
+        if (it.key === 'blank') {
+          return h('a', Object.assign(common, {
+            href: 'create.html?action=new-blank',
+            'aria-disabled': flow.pending ? 'true' : undefined,
+            onClick: flow.pending ? function (e) { e.preventDefault(); } : undefined
+          }), inner);
+        }
+        return h('button', Object.assign(common, {
+          type: 'button',
+          disabled: flow.pending,
+          'data-onboard': compact ? undefined : it.onboard,
+          onClick: it.key === 'chart' ? flow.pickChart : flow.pickPicture
+        }), inner);
+      })
+    );
+  }
+
+  // "Which files work?" — the one place formats and the printed-chart caveat
+  // are explained (F6).
+  function FilesHelp() {
+    var st = React.useState(false);
+    var open = st[0]; var setOpen = st[1];
+    return h(React.Fragment, null,
+      h('div', { className: 'home-below-cards' },
+        h('span', { className: 'home-below-cards__drop' }, h('span', { 'aria-hidden': 'true' }, icon('upload')), 'You can also drop a file anywhere on this page.'),
+        h('button', {
+          type: 'button', className: 'home-link', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'home-files-help',
+          onClick: function () { setOpen(!open); }
+        }, 'Which files work?')
+      ),
+      h('dl', { id: 'home-files-help', className: 'home-files-help', hidden: !open },
+        h('dt', null, 'Patterns'),
+        h('dd', null, 'PDF charts, Open X-Stitch (.oxs), Pattern Maker (.xsd), PCStitch 7 (.pat) and saved stitchx projects (.json).'),
+        h('dt', null, 'Pictures'),
+        h('dd', null, 'JPG, PNG, GIF, WebP or BMP. A photo of a printed chart can’t be read yet: if you bought the pattern, open the PDF instead.'),
+        h('dd', { className: 'home-files-help__more' },
+          h('button', { type: 'button', className: 'home-link', onClick: function () { openHelp({ topic: 'creator', section: 'What can I import?' }); } }, 'More about importing'))
       )
     );
   }
 
-  // ── StashPanel ──────────────────────────────────────────────────────────
-  // "Stash" tab content. Reuses the stash data + shopping/ready lists loaded
-  // in HomeApp. Renders an at-a-glance dashboard rather than a deep-link.
-  function StashPanel(props) {
-    var s = props.stash;
-    var shopping = props.shopping || [];
-    var ready = props.ready || [];
-
-    if (!s) {
-      return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
-        h('p', null, 'No stash data yet. Add threads in the Stash Manager.'),
-        h('a', { href: 'manager.html?from=home', className: 'btn btn-primary', style: { marginTop: '12px', display: 'inline-flex' } }, 'Open Stash Manager')
-      );
+  // ── Practice pattern ────────────────────────────────────────────────────
+  // Deliberately memory-only: practice never enters project, session, sync or stash storage.
+  function SampleProject() {
+    var rows = ['..AA....', '.ABBA...', '.ABBA...', '..AA....', '...C..C.', '.C.C.C..', '..CCC...', '...C....'];
+    var colours = { A: { id: '321', name: 'Red' }, B: { id: '444', name: 'Lemon' }, C: { id: '700', name: 'Green' } };
+    var threadName = function (t) { return window.formatThread ? window.formatThread(t) : 'DMC ' + t.id + ' ' + t.name; };
+    var doneState = React.useState([]), done = doneState[0], setDone = doneState[1];
+    var historyState = React.useState([]), history = historyState[0], setHistory = historyState[1];
+    var selectedState = React.useState('A'), selected = selectedState[0], setSelected = selectedState[1];
+    var cells = rows.join('').split('');
+    var total = cells.filter(function (c) { return c !== '.'; }).length;
+    function mark(i) {
+      setHistory(function (h) { return h.concat([done]); });
+      setDone(function (d) { return d.indexOf(i) < 0 ? d.concat(i) : d.filter(function (n) { return n !== i; }); });
     }
+    var next = cells.findIndex(function (c, i) { return c === selected && done.indexOf(i) < 0; });
+    return h('details', { className: 'home-sample' },
+      h('summary', { className: 'btn' }, icon('play'), 'Try the practice pattern'),
+      h('div', { className: 'home-sample__body' },
+        h('h3', null, 'Practice tracking: Little flower'),
+        h('p', null, 'Choose a thread, then tap its stitches to mark or unmark them. Or use Mark next stitch. This practice stays on this page only; it never changes your projects, progress, sessions or thread inventory.'),
+        h('div', { className: 'home-sample__threads', role: 'group', 'aria-label': 'Sample threads' },
+          Object.keys(colours).map(function (key) {
+            return h('button', { key: key, type: 'button', className: 'btn', 'aria-pressed': selected === key,
+              onClick: function () { setSelected(key); } }, key + ' · ' + threadName(colours[key]));
+          })),
+        h('div', { className: 'home-sample__chart', role: 'group', 'aria-label': 'Sample chart, 8 by 8 stitches' },
+          cells.map(function (c, i) {
+            var marked = done.indexOf(i) >= 0;
+            if (c === '.') return h('span', { key: i, 'aria-hidden': 'true' });
+            return h('button', { key: i, type: 'button', className: 'home-sample__cell home-sample__cell--' + c,
+              'aria-label': 'Row ' + (Math.floor(i / 8) + 1) + ', column ' + (i % 8 + 1) + ', ' + threadName(colours[c]),
+              'aria-pressed': marked, disabled: c !== selected,
+              onClick: function () { mark(i); } }, marked ? h('span', { 'aria-hidden': 'true' }, icon('check')) : c);
+          })),
+        h('p', { role: 'status', 'aria-live': 'polite' }, done.length + ' of ' + total + ' stitches marked (' + Math.round(done.length / total * 100) + '%).'),
+        next < 0 && h('p', null, done.length === total ? 'Sample complete. You can unmark a stitch or undo a mark to practise corrections.' : 'All stitches for ' + selected + ' are marked. Choose another thread to continue.'),
+        h('div', { className: 'home-sample__threads' },
+          h('button', { type: 'button', className: 'btn btn-primary', disabled: next < 0, onClick: function () { mark(next); } }, 'Mark next stitch'),
+          h('button', { type: 'button', className: 'btn', disabled: !history.length, onClick: function () {
+            setDone(history[history.length - 1]); setHistory(history.slice(0, -1));
+          } }, 'Undo sample mark')),
+        h('p', null, 'Ready for your own? Pick one of the three cards above. The Stitch Tracker adds zoom, marking tools, sessions and saved progress.')
+      )
+    );
+  }
 
-    var hasAny = (s.ownedSkeins || 0) > 0 || (s.uniqueThreads || 0) > 0 || (s.patternCount || 0) > 0 || shopping.length > 0 || ready.length > 0;
-    if (!hasAny) {
-      return h('div', { className: 'home-stash-panel home-stash-panel--empty' },
-        h('p', null, 'Your stash is empty. Add threads in the Stash Manager to start tracking what you own.'),
-        h('a', { href: 'manager.html?from=home', className: 'btn btn-primary', style: { marginTop: '12px', display: 'inline-flex' } }, 'Open Stash Manager')
-      );
-    }
-
-    var shoppingTop = shopping.slice(0, 3);
-    var shoppingMore = Math.max(0, shopping.length - shoppingTop.length);
-    var readyTop = ready.slice(0, 3);
-    var readyMore = Math.max(0, ready.length - readyTop.length);
-
-    return h('section', {
-      className: 'home-stash-panel',
-      'aria-labelledby': 'home-stash-panel-title'
-    },
-      h('div', { className: 'home-stash-panel__head' },
-        h('h2', { id: 'home-stash-panel-title', className: 'home-section__title' }, 'Stash at a glance'),
-        h('a', { href: 'manager.html?from=home', className: 'home-section__more' }, 'Open Stash Manager')
-      ),
-
-      // KPI strip
-      h('div', { className: 'home-kpi-grid' },
-        h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNum(s.ownedSkeins || 0)),
-          h('span', { className: 'home-kpi__lbl' }, (s.ownedSkeins === 1 ? 'Skein' : 'Skeins'))
-        ),
-        h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNum(s.uniqueThreads || 0)),
-          h('span', { className: 'home-kpi__lbl' }, (s.uniqueThreads === 1 ? 'Thread' : 'Threads'))
-        ),
-        h('div', { className: 'home-kpi' },
-          h('span', { className: 'home-kpi__num' }, fmtNum(s.patternCount || 0)),
-          h('span', { className: 'home-kpi__lbl' }, (s.patternCount === 1 ? 'Pattern' : 'Patterns'))
+  function PracticeCard() {
+    return h('section', { className: 'home-card home-practice', 'aria-labelledby': 'home-practice-title' },
+      h('div', { className: 'home-practice__head' },
+        h('span', { className: 'home-practice__art', 'aria-hidden': 'true' }, icon('needle')),
+        h('div', null,
+          h('h2', { id: 'home-practice-title', className: 'home-practice__title' }, 'Not sure yet? Try a practice pattern.'),
+          h('p', { className: 'home-muted' }, 'A small flower you can mark stitch by stitch, right here. It’s practice only: nothing is saved.')
         )
       ),
+      h(SampleProject, null)
+    );
+  }
 
-      // Shopping list + Ready to start
-      h('div', { className: 'home-stash-grid' },
-        h('article', { className: 'home-stash-card' },
-          h('header', { className: 'home-stash-card__head' },
-            h('h3', { className: 'home-stash-card__title' }, 'Shopping list'),
-            shopping.length > 0
-              ? h('a', { href: 'manager.html?tab=shopping&from=home', className: 'home-stash-card__more' }, 'Open')
-              : null
-          ),
-          shopping.length === 0
-            ? h('p', { className: 'home-stash-card__empty' }, 'Nothing on your shopping list.')
-            : h(React.Fragment, null,
-                h('ul', { className: 'home-stash-list' },
-                  shoppingTop.map(function (row) {
-                    return h('li', { key: row.key, className: 'home-stash-list__item' },
-                      h('span', {
-                        className: 'home-stash-list__sw',
-                        style: { background: rgbCss(row.rgb) },
-                        'aria-hidden': 'true'
-                      }),
-                      h('span', { className: 'home-stash-list__name' },
-                        window.formatThread ? window.formatThread(row) : (row.brand && row.brand !== 'dmc' ? row.brand.toUpperCase() + ' ' : 'DMC ') + row.id +
-                        (row.name && row.name !== row.id ? ' ' + row.name : '')
-                      ),
-                      row.tobuyQty > 0
-                        ? h('span', { className: 'home-stash-list__qty' }, '×' + row.tobuyQty)
-                        : null
-                    );
-                  })
-                ),
-                h('p', { className: 'home-stash-card__foot' },
-                  plural(shopping.length, 'thread') +
-                  (shoppingMore > 0 ? ' · +' + shoppingMore + ' more' : '')
-                )
-              )
-        ),
-        h('article', { className: 'home-stash-card' },
-          h('header', { className: 'home-stash-card__head' },
-            h('h3', { className: 'home-stash-card__title' }, 'Ready to start')
-          ),
-          ready.length === 0
-            ? h('p', { className: 'home-stash-card__empty' }, 'No patterns are fully covered by your stash yet.')
-            : h(React.Fragment, null,
-                h('p', { className: 'home-stash-card__lead' },
-                  h('strong', null, plural(ready.length, 'pattern')),
-                  ' in your library can be stitched entirely from your current stash.'
-                ),
-                h('ul', { className: 'home-stash-chips' },
-                  readyTop.map(function (p) {
-                    return h('li', { key: p.id, className: 'home-stash-chips__item' },
-                      h('span', null, p.title || 'Untitled')
-                    );
-                  }),
-                  readyMore > 0
-                    ? h('li', { key: '__more', className: 'home-stash-chips__item home-stash-chips__item--more' },
-                        h('a', { href: 'manager.html?from=home' }, '+' + readyMore + ' more')
-                      )
-                    : null
-                )
-              )
+  // ── First visit ─────────────────────────────────────────────────────────
+  function Hero() {
+    return h('section', { className: 'home-hero', 'aria-labelledby': 'home-hero-title' },
+      h('h1', { id: 'home-hero-title', className: 'home-hero__title' }, 'Make, follow and track cross-stitch patterns.'),
+      h('p', { className: 'home-hero__lede' }, 'Turn a picture into a pattern, stitch from a chart you already own, and keep count of every stitch and every skein.'),
+      h('ul', { className: 'home-hero__trust' },
+        ['Free, no account needed', 'Saves automatically on this device', 'Your files are never uploaded'].map(function (t) {
+          return h('li', { key: t }, h('span', { 'aria-hidden': 'true' }, icon('check')), t);
+        })
+      )
+    );
+  }
+
+  function HowItFits() {
+    var tools = [
+      { icon: 'pencil', name: 'Pattern Creator', text: 'Turn pictures into patterns or draw your own, then print or export them.' },
+      { icon: 'needle', name: 'Stitch Tracker', text: 'Mark stitches as you go, time your sessions and see how long is left.' },
+      { icon: 'thread', name: 'Stash Manager', text: 'Record the threads you own and get a shopping list for each pattern.' }
+    ];
+    return h('section', { className: 'home-section', 'aria-labelledby': 'home-how-title' },
+      h('h2', { id: 'home-how-title', className: 'home-section__heading' }, 'How stitchx fits together'),
+      h('div', { className: 'home-how' },
+        tools.map(function (t) {
+          return h('div', { key: t.name, className: 'home-how__item' },
+            h('span', { className: 'home-how__art', 'aria-hidden': 'true' }, icon(t.icon)),
+            h('strong', null, t.name),
+            h('p', null, t.text));
+        })
+      )
+    );
+  }
+
+  // ── Returning: Continue card ────────────────────────────────────────────
+  function ContinueCard(props) {
+    var p = props.project;
+    // The library row knows about half stitches and other marks (anyProgress),
+    // so the card and the grid agree on whether a project has been started.
+    var status = projectStatus(props.meta || p);
+    var r = (p.pattern || p.p) ? ProgressUnits.fromProject(p) : null;
+    var pct = projectPct(p);
+    // ETA from the full project's sessions, memoised by project id/updatedAt so
+    // it only recalculates when the data changes.
+    var eta = React.useMemo(function () {
+      if (!(p.statsSessions && (p.pattern || p.p)) || typeof estimateCompletion !== 'function') return null;
+      var rr = ProgressUnits.fromProject(p);
+      var est = estimateCompletion(p.statsSessions, rr.remainingUnits, { percent: rr.percent });
+      return est.enough ? estimateText(est.hoursRemaining, est.calendarDaysRemaining) : null;
+    }, [p.id, p.updatedAt, p.statsSessions, p.pattern, p.p, p.done]);
+    var meta = props.meta || p;
+    var bits = [];
+    if (pct !== null) {
+      bits.push(h('span', { key: 'pct' }, h('strong', null, status === 'wip' ? pctText(pct) : pct + '%'),
+        r && r.totalUnits > 0 ? ' · ' + ProgressUnits.formatUnits(r.doneUnits) + ' of ' + ProgressUnits.formatUnits(r.totalUnits) + ' stitches' : null));
+    }
+    var when = lastActivity(meta);
+    if (when) bits.push(h('span', { key: 'when' }, h('span', { 'aria-hidden': 'true' }, icon('clock')), when));
+    if (eta && status === 'wip') bits.push(h('span', { key: 'eta' }, eta));
+    var eyebrow = status === 'new' ? 'Ready to start' : status === 'done' ? 'Finished' : 'Continue where you left off';
+    return h('section', { className: 'home-card home-continue', 'aria-labelledby': 'home-continue-title' },
+      h(HomeThumb, { id: p.id, stamp: p.updatedAt, size: 320, className: 'home-continue__thumb' }),
+      h('div', { className: 'home-continue__body' },
+        h('span', { className: 'home-eyebrow' }, eyebrow),
+        h('h2', { id: 'home-continue-title', className: 'home-continue__name' }, p.name || 'Untitled project'),
+        h('div', { className: 'home-continue__meta' }, bits),
+        pct !== null && h('div', { className: 'home-bar home-continue__bar' + (status === 'done' ? ' home-bar--done' : ''), 'aria-hidden': 'true' },
+          h('span', { style: { width: pct + '%' } })),
+        h('div', { className: 'home-continue__actions' },
+          h('button', { type: 'button', className: 'btn btn-primary', onClick: function () { activateAndGo(p.id, 'stitch.html'); } },
+            icon('play'), trackLabel(status)),
+          h('button', { type: 'button', className: 'btn', onClick: function () { activateAndGo(p.id, 'create.html'); } },
+            icon('pencil'), 'Edit pattern'),
+          h(HomeMenu, {
+            label: 'More actions for ' + (p.name || 'this project'),
+            items: projectMenuItems(meta, status, props.onDetails).filter(function (it) { return it.key !== 'track' && it.key !== 'edit'; })
+          })
         )
       )
     );
   }
 
-  // ── StatsPanel ──────────────────────────────────────────────────────────
-  // Mini-dashboard mirroring the look of stats-page.js's Showcase, but
-  // computed from the cheap aggregate APIs already loaded on /home.
-  function StatsPanel(props) {
-    var lifetimeStitches = props.lifetimeStitches || 0;
-    var dailyLog = props.dailyLog || [];
-    var oldestWip = props.oldestWip || null;
+  // ── Returning: project cards ────────────────────────────────────────────
+  var FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'wip', label: 'In progress' },
+    { key: 'new', label: 'Not started' },
+    { key: 'done', label: 'Finished' }
+  ];
+  var PAGE = 12;
 
-    var hasLifetime = lifetimeStitches > 0;
-    var spark = buildSpark(dailyLog, 30);
-
-    return h('section', {
-      className: 'home-stats-panel',
-      'aria-labelledby': 'home-stats-panel-title'
-    },
-      h('div', { className: 'home-stash-panel__head' },
-        h('h2', { id: 'home-stats-panel-title', className: 'home-section__title' }, 'Your stitching'),
-        h('a', {
-          href: 'index.html?mode=stats&from=home',
-          className: 'home-section__more'
-        }, 'Full dashboard')
-      ),
-
-      // Hero: lifetime stitches
-      h('div', { className: 'home-stats-hero' },
-        hasLifetime
-          ? h(React.Fragment, null,
-              h('div', { className: 'home-stats-hero__num' }, fmtNum(lifetimeStitches)),
-              h('div', { className: 'home-stats-hero__sub' },
-                'lifetime stitches \u00b7 \u2248 ' + threadKm(lifetimeStitches) + ' km of thread'
-              )
-            )
-          : h(React.Fragment, null,
-              h('div', { className: 'home-stats-hero__num' }, '0'),
-              h('div', { className: 'home-stats-hero__sub' },
-                'Mark a stitch in the Tracker and your lifetime total will start counting here.'
-              )
-            )
-      ),
-
-      // Card grid: 30-day sparkline + oldest WIP
-      h('div', { className: 'home-stats-grid' },
-        h('article', { className: 'home-stats-card' },
-          h('h3', { className: 'home-stats-card__title' }, 'Last 30 days'),
-          spark.total > 0
-            ? h(React.Fragment, null,
-                h('svg', {
-                  className: 'home-spark',
-                  viewBox: '0 0 120 32',
-                  preserveAspectRatio: 'none',
-                  role: 'img',
-                  'aria-label': fmtNum(spark.total) + ' stitches in the last 30 days'
-                },
-                  h('polyline', {
-                    points: spark.points,
-                    fill: 'none',
-                    stroke: 'currentColor',
-                    strokeWidth: '1.6',
-                    strokeLinejoin: 'round',
-                    strokeLinecap: 'round'
-                  })
-                ),
-                h('p', { className: 'home-stats-card__foot' },
-                  h('strong', null, fmtNum(spark.total)),
-                  ' stitches \u00b7 ' + spark.activeDays + (spark.activeDays === 1 ? ' active day' : ' active days')
-                )
-              )
-            : h('p', { className: 'home-stats-card__empty' },
-                'No stitches logged in the last 30 days.'
-              )
-        ),
-        oldestWip
-          ? h('button', {
-              type: 'button',
-              className: 'home-stats-card home-stats-card--link',
-              onClick: function () {
-                activateAndGo(oldestWip.id, 'stitch.html');
-              }
-            },
-              h('h3', { className: 'home-stats-card__title' }, 'Oldest WIP'),
-              h('p', { className: 'home-stats-card__name' }, oldestWip.name || 'Untitled'),
-              h('p', { className: 'home-stats-card__foot' },
-                'Last touched ' + daysAgo(oldestWip.lastTouchedAt) +
-                  ' \u00b7 ' + (oldestWip.pct || 0) + '% done'
-              )
-            )
-          : h('article', { className: 'home-stats-card' },
-              h('h3', { className: 'home-stats-card__title' }, 'Oldest WIP'),
-              h('p', { className: 'home-stats-card__empty' }, 'No active works in progress.')
-            )
-      )
-    );
-  }
-
-  // ── HomeFooter ──────────────────────────────────────────────────────────
-  // Simplified — Help is the header Help button; Preferences is File > Preferences.
-  // About is a real modal (SharedModals.About) so the link opens an in-app
-  // dialog rather than navigating off-site to a placeholder URL.
-  function HomeFooter(props) {
-    return h('footer', { className: 'home-footer' },
+  function ProjectCard(props) {
+    var p = props.project;
+    var status = projectStatus(p);
+    var pct = projectPct(p);
+    var size = projectSize(p);
+    var name = p.name || 'Untitled';
+    var right;
+    if (status === 'done') right = h('span', { className: 'home-chip home-chip--ok' }, icon('check'), 'Finished');
+    else if (status === 'new') right = h('span', { className: 'home-chip' }, 'Not started');
+    else right = h('span', null, (pct !== null ? pctText(pct) : '') + (p.lastSessionDate || p.updatedAt ? ' · ' + timeAgo(p.lastSessionDate ? p.lastSessionDate + 'T12:00:00' : p.updatedAt) : ''));
+    return h('article', { className: 'home-card home-pcard', 'data-status': status },
       h('button', {
-        type: 'button',
-        className: 'home-footer__link',
-        onClick: function () { if (typeof props.onAbout === 'function') props.onAbout(); }
-      }, 'About')
+        type: 'button', className: 'home-pcard__main', title: trackLabel(status) + ': ' + name,
+        onClick: function () { activateAndGo(p.id, 'stitch.html'); }
+      },
+        h(HomeThumb, { id: p.id, stamp: p.updatedAt, size: 240 }),
+        h('span', { className: 'home-pcard__name' }, name),
+        h('span', { className: 'home-bar' + (status === 'done' ? ' home-bar--done' : ''), 'aria-hidden': 'true' },
+          h('span', { style: { width: (pct || 0) + '%' } })),
+        h('span', { className: 'home-pcard__row' }, h('span', null, size || ''), right),
+        props.ready && status === 'new' && h('span', { className: 'home-chip home-chip--ok home-pcard__ready' }, icon('thread'), 'You own every thread')
+      ),
+      h(HomeMenu, {
+        className: 'home-pcard__menu',
+        label: 'More actions for ' + name,
+        items: projectMenuItems(p, status, props.onDetails)
+      })
+    );
+  }
+
+  // Pictures set up in Convert but not generated yet (audit COMMON-07). They
+  // live in IndexedDB as draft:<id> records (blob-store.js), not as projects,
+  // so stats and sync never see them.
+  function DraftCard(props) {
+    var d = props.draft;
+    var name = String(d.name || 'Picture').replace(/\.[a-z0-9]+$/i, '');
+    var when = (d.updatedAt || d.createdAt) ? timeAgo(new Date(d.updatedAt || d.createdAt).toISOString()) : '';
+    return h('article', { className: 'home-card home-pcard home-draft-row' },
+      h('span', { className: 'home-thumb home-thumb--empty', 'aria-hidden': 'true' }, icon('image')),
+      h('span', { className: 'home-pcard__name' }, name),
+      h('span', { className: 'home-pcard__row' }, h('span', null, 'Picture, not converted yet'), h('span', null, when)),
+      h('div', { className: 'home-draft-row__actions' },
+        h('button', {
+          type: 'button', className: 'btn btn-primary btn-sm',
+          onClick: function () {
+            window.__navigatingAway = true;
+            window.location.href = 'create.html?action=draft&from=home&draft=' + encodeURIComponent(d.id);
+          }
+        }, 'Continue'),
+        h('button', {
+          type: 'button', className: 'btn btn-sm',
+          'aria-label': 'Discard draft ' + name,
+          onClick: function () { props.onDiscard(d.id); }
+        }, 'Discard')
+      )
+    );
+  }
+
+  function ProjectGrid(props) {
+    var list = props.projects;
+    var drafts = props.drafts || [];
+    var filterState = React.useState('all');
+    var filter = filterState[0]; var setFilter = filterState[1];
+    var allState = React.useState(false);
+    var showAll = allState[0]; var setShowAll = allState[1];
+    var counts = { all: list.length + drafts.length, wip: 0, new: 0, done: 0 };
+    list.forEach(function (p) { counts[projectStatus(p)] += 1; });
+    var shown = filter === 'all' ? list : list.filter(function (p) { return projectStatus(p) === filter; });
+    var total = shown.length;
+    var visible = showAll ? shown : shown.slice(0, PAGE);
+    return h('section', { className: 'home-section', id: 'home-projects', 'aria-labelledby': 'home-proj-list-title' },
+      h('div', { className: 'home-section__head' },
+        h('h2', { id: 'home-proj-list-title', className: 'home-section__heading' }, 'Your projects'),
+        h('div', { className: 'home-filters', role: 'group', 'aria-label': 'Show projects' },
+          FILTERS.filter(function (f) { return f.key === 'all' || counts[f.key] > 0 || filter === f.key; }).map(function (f) {
+            return h('button', {
+              key: f.key, type: 'button', className: 'home-filter',
+              'aria-pressed': filter === f.key ? 'true' : 'false',
+              onClick: function () { setFilter(f.key); setShowAll(false); }
+            }, f.label, h('span', { className: 'home-filter__n' }, counts[f.key]));
+          })
+        )
+      ),
+      h('div', { className: 'home-grid' },
+        visible.map(function (p) {
+          return h(ProjectCard, { key: p.id, project: p, ready: props.readyIds && props.readyIds[p.id], onDetails: props.onDetails });
+        }),
+        filter === 'all' && drafts.map(function (d) { return h(DraftCard, { key: d.id, draft: d, onDiscard: props.onDiscardDraft }); })
+      ),
+      total > PAGE && !showAll && h('button', { type: 'button', className: 'btn home-show-all', onClick: function () { setShowAll(true); } },
+        'Show all ' + total + ' projects'),
+      props.hiddenDone > 0 && filter === 'all' && h('p', { className: 'home-muted home-small' },
+        plural(props.hiddenDone, 'finished project') + ' hidden (Preferences > Home dashboard > Show finished projects in the home list).')
+    );
+  }
+
+  // ── Footer ──────────────────────────────────────────────────────────────
+  // Restore uses the header's restore flow (header.js restoreBackupFromInput),
+  // so Home and File > Restore from Backup behave the same.
+  function HomeFooter(props) {
+    var restoreRef = React.useRef(null);
+    return h('footer', { className: 'home-footer' },
+      h('button', { type: 'button', className: 'home-footer__link', onClick: function () { openHelp(); } }, 'Help'),
+      props.hasProjects
+        ? h('button', { type: 'button', className: 'home-footer__link', onClick: downloadBackup }, 'Back up my projects')
+        : h(React.Fragment, null,
+            h('button', { type: 'button', className: 'home-footer__link', onClick: function () { if (restoreRef.current) restoreRef.current.click(); } }, 'Restore a backup'),
+            h('input', {
+              ref: restoreRef, type: 'file', className: 'home-footer__file', 'aria-hidden': 'true', tabIndex: -1,
+              accept: window.Platform ? window.Platform.fileAccept('.json,.csb,application/json') : '.json,.csb,application/json',
+              onChange: function (e) { if (typeof window.restoreBackupFromInput === 'function') window.restoreBackupFromInput(e); }
+            })),
+      h('button', { type: 'button', className: 'home-footer__link', onClick: props.onAbout }, 'About')
     );
   }
 
   // ── Root component ──────────────────────────────────────────────────────
   function HomeApp() {
-    // Honour ?tab= so external entry points (Header "Create", manager.html
-    // "Add new", anywhere else in the app that wants to start a new pattern)
-    // can land directly on the Create tab. Keeping a single canonical Create
-    // surface stops the welcome card on create.html from being reachable via
-    // navigation — it now only shows defensively for direct URL hits.
-    var tabState = React.useState(function () {
-      try {
-        var p = new URLSearchParams(window.location.search);
-        var t = p.get('tab');
-        if (t === 'create' || t === 'stash' || t === 'stats' || t === 'projects') return t;
-      } catch (_) {}
-      return 'projects';
-    });
-    var tab = tabState[0];
-    function setTab(next) {
-      if (next === tab) return;
-      var url = new URL(window.location.href);
-      url.searchParams.set('tab', next);
-      window.history.pushState({}, '', url.pathname + url.search + url.hash);
-      tabState[1](next);
-    }
-    React.useEffect(function () {
-      function restoreTab() {
-        var t = new URLSearchParams(window.location.search).get('tab');
-        tabState[1](['create', 'stash', 'stats', 'projects'].indexOf(t) >= 0 ? t : 'projects');
-      }
-      window.addEventListener('popstate', restoreTab);
-      return function () { window.removeEventListener('popstate', restoreTab); };
-    }, []);
     var activeState = React.useState(null);
     var active = activeState[0]; var setActive = activeState[1];
-    var listState = React.useState([]);
+    var fallbackState = React.useState(null);
+    var fallback = fallbackState[0]; var setFallback = fallbackState[1];
+    var listState = React.useState(null);
     var list = listState[0]; var setList = listState[1];
-    var stashState = React.useState(null);
-    var stash = stashState[0]; var setStash = stashState[1];
-    var statsState = React.useState({ lifetimeStitches: 0, dailyLog: [], oldestWip: null });
-    var stats = statsState[0]; var setStats = statsState[1];
-    var shoppingState = React.useState([]);
-    var shopping = shoppingState[0]; var setShopping = shoppingState[1];
-    var readyState = React.useState([]);
-    var ready = readyState[0]; var setReady = readyState[1];
+    var draftsState = React.useState([]);
+    var drafts = draftsState[0]; var setDrafts = draftsState[1];
+    var readyState = React.useState({});
+    var readyIds = readyState[0]; var setReadyIds = readyState[1];
+    var detailsState = React.useState(null);
+    var details = detailsState[0]; var setDetails = detailsState[1];
     var prefsState = React.useState(false);
     var prefsOpen = prefsState[0]; var setPrefsOpen = prefsState[1];
     var aboutState = React.useState(false);
     var aboutOpen = aboutState[0]; var setAboutOpen = aboutState[1];
+    var flow = useCreateFlow();
 
-    // Listen for cs:openPreferences from the footer link, command palette, and Header.
+    // Listen for cs:openPreferences from the command palette and the Header.
     React.useEffect(function () {
       var open = function () { if (typeof window.PreferencesModal !== 'undefined') setPrefsOpen(true); };
       window.addEventListener('cs:openPreferences', open);
       return function () { window.removeEventListener('cs:openPreferences', open); };
     }, []);
 
-    // Load patterns directly from the manager IndexedDB. StashBridge has no
-    // public read for the pattern library, so mirror what home-screen.js does
-    // (raw IndexedDB) — keeps /home decoupled from manager-app.js state.
-    function loadManagerPatterns() {
-      return new Promise(function (resolve) {
-        try {
-          // Canonical versionless opener — a hard-coded version 1 throws
-          // VersionError once the database has been repaired to 2.
-          window.openManagerDB().then(function (db) {
-            try {
-              if (!db.objectStoreNames.contains('manager_state')) { resolve([]); return; }
-              var tx = db.transaction('manager_state', 'readonly');
-              var store = tx.objectStore('manager_state');
-              var r = store.get('patterns');
-              r.onsuccess = function () { resolve(Array.isArray(r.result) ? r.result : []); };
-              r.onerror = function () { resolve([]); };
-            } catch (_) { resolve([]); }
-          }).catch(function () { resolve([]); });
-        } catch (_) { resolve([]); }
-      });
-    }
-
     var refreshAllRef = React.useRef(function () {});
-    var refreshStashRef = React.useRef(function () {});
-    var refreshStatsRef = React.useRef(function () {});
-    // Track current tab in a ref so event-handler closures can read it without
-    // needing to be recreated on every tab change.
-    var tabRef = React.useRef(tab);
-    React.useEffect(function () { tabRef.current = tab; }, [tab]);
-
     React.useEffect(function () {
       var cancelled = false;
       function refreshAll() {
@@ -1235,116 +1032,91 @@
             if (window.BackupReminder && sorted.some(function (p) { return p && (p.anyProgress || p.completedStitches > 0); })) {
               setTimeout(function () { window.BackupReminder.maybeRemind(); }, 4000);
             }
-          }).catch(function () {});
+          }).catch(function () { if (!cancelled) setList([]); });
+        } else {
+          setList([]);
         }
-        // Threads (StashBridge.getGlobalStash) + patterns (raw IDB read) are
-        // loaded lazily when the Stash tab is opened; skip here to keep the
-        // Projects tab refresh fast.
+        loadDrafts();
       }
-      function refreshStash() {
-        // Threads (StashBridge.getGlobalStash) + patterns (raw IDB read).
-        // The previous build called a non-existent StashBridge API so both
-        // numbers were always missing and the panel rendered the empty state
-        // regardless of what was actually in the manager DB.
-        var threadsPromise = (window.StashBridge && typeof window.StashBridge.getGlobalStash === 'function')
-          ? window.StashBridge.getGlobalStash().catch(function () { return {}; })
-          : Promise.resolve({});
-        var SB = window.StashBridge;
-        var PS = window.ProjectStorage;
-        var shoppingP = (SB && typeof SB.getShoppingList === 'function')
-          ? SB.getShoppingList().catch(function () { return []; })
-          : Promise.resolve([]);
-        var readyP = (PS && typeof PS.getProjectsReadyToStart === 'function')
-          ? PS.getProjectsReadyToStart().catch(function () { return []; })
-          : Promise.resolve([]);
-        Promise.all([threadsPromise, loadManagerPatterns(), shoppingP, readyP]).then(function (parts) {
-          if (cancelled) return;
-          var threads = parts[0] || {};
-          var patterns = parts[1] || [];
-          var owned = 0, unique = 0;
-          Object.keys(threads).forEach(function (k) {
-            var t = threads[k];
-            // Stash entries use { owned: number } (see stash-bridge.js
-            // updateThreadOwned); keep the legacy { skeins } fallback for any
-            // older data still in users' IndexedDB.
-            var n = 0;
-            if (t && typeof t.owned === 'number') n = t.owned;
-            else if (t && typeof t.skeins === 'number') n = t.skeins;
-            else if (t && t.owned) n = 1;
-            if (n > 0) { owned += n; unique += 1; }
-          });
-          setStash({
-            ownedSkeins: owned,
-            uniqueThreads: unique,
-            patternCount: patterns.length
-          });
-          setShopping(parts[2] || []);
-          // Match the Showcase definition: only count patterns where the
-          // current stash covers every required colour (pct === 100).
-          setReady((parts[3] || []).filter(function (p) { return p && p.pct >= 100; }));
-        }).catch(function () {});
-      }
-      function refreshStats() {
-        // Stats summaries (lifetime + daily log + oldest WIP). These scan
-        // across projects/IDB and are loaded lazily when the Stats tab opens.
-        var PS = window.ProjectStorage;
-        var lifetimeP = (PS && typeof PS.getLifetimeStitches === 'function')
-          ? PS.getLifetimeStitches().catch(function () { return 0; })
-          : Promise.resolve(0);
-        var dailyP = (PS && typeof PS.getStitchLogByDay === 'function')
-          ? PS.getStitchLogByDay(30).catch(function () { return []; })
-          : Promise.resolve([]);
-        var oldestP = (PS && typeof PS.getOldestWIP === 'function')
-          ? PS.getOldestWIP().catch(function () { return null; })
-          : Promise.resolve(null);
-        Promise.all([lifetimeP, dailyP, oldestP]).then(function (r) {
-          if (cancelled) return;
-          setStats({ lifetimeStitches: r[0] || 0, dailyLog: r[1] || [], oldestWip: r[2] || null });
-        }).catch(function () {});
+      function loadDrafts() {
+        var BS = window.BlobStore;
+        if (!BS || !BS.available()) return;
+        BS.list('draft:').then(function (d) { if (!cancelled) setDrafts(d || []); }).catch(function () { if (!cancelled) setDrafts([]); });
       }
       refreshAllRef.current = refreshAll;
-      refreshStashRef.current = refreshStash;
-      refreshStatsRef.current = refreshStats;
       refreshAll();
       return function () { cancelled = true; };
     }, []);
 
-    // Lazy-load Stash/Stats tab data only when those tabs are opened, so the
-    // Projects tab refresh stays fast (avoids IDB aggregation scans on every
-    // refreshAll call).
-    React.useEffect(function () {
-      if (tab === 'stash') try { refreshStashRef.current(); } catch (_) {}
-      if (tab === 'stats') try { refreshStatsRef.current(); } catch (_) {}
-    }, [tab]);
-
     // Live refresh: keep /home in sync with changes made elsewhere in the app
     // (Tracker saves, backup restore, manager edits in another tab, etc.).
     React.useEffect(function () {
-      function reload() { try { refreshAllRef.current(); } catch (_) {} }
-      function reloadCurrentTab() {
-        reload();
-        if (tabRef.current === 'stash') try { refreshStashRef.current(); } catch (_) {}
-        if (tabRef.current === 'stats') try { refreshStatsRef.current(); } catch (_) {}
-      }
-      function onVisibility() { if (document.visibilityState === 'visible') reloadCurrentTab(); }
-      window.addEventListener('cs:projectsChanged', reloadCurrentTab);
-      window.addEventListener('cs:backupRestored', reloadCurrentTab);
-      window.addEventListener('cs:patternsChanged', reloadCurrentTab);
-      window.addEventListener('cs:stashChanged', reloadCurrentTab);
+      function reload() { thumbPayloads.clear(); try { refreshAllRef.current(); } catch (_) {} }
+      function onVisibility() { if (document.visibilityState === 'visible') reload(); }
+      window.addEventListener('cs:projectsChanged', reload);
+      window.addEventListener('cs:backupRestored', reload);
+      window.addEventListener('cs:patternsChanged', reload);
+      window.addEventListener('cs:stashChanged', reload);
       document.addEventListener('visibilitychange', onVisibility);
       return function () {
-        window.removeEventListener('cs:projectsChanged', reloadCurrentTab);
-        window.removeEventListener('cs:backupRestored', reloadCurrentTab);
-        window.removeEventListener('cs:patternsChanged', reloadCurrentTab);
-        window.removeEventListener('cs:stashChanged', reloadCurrentTab);
+        window.removeEventListener('cs:projectsChanged', reload);
+        window.removeEventListener('cs:backupRestored', reload);
+        window.removeEventListener('cs:patternsChanged', reload);
+        window.removeEventListener('cs:stashChanged', reload);
         document.removeEventListener('visibilitychange', onVisibility);
       };
     }, []);
 
-    var Header = window.Header;
-    // Projects tab excludes active project from "All projects" list since it
-    // already appears in ActiveProjectCard above. The `homeShowCompleted`
-    // preference can additionally hide 100%-complete projects.
+    // No open project but some saved: continue the most recent unfinished one.
+    React.useEffect(function () {
+      if (active || !list || !list.length) { setFallback(null); return; }
+      var pick = list.find(function (p) { return projectStatus(p) !== 'done'; }) || list[0];
+      var cancelled = false;
+      window.ProjectStorage.get(pick.id).then(function (full) { if (!cancelled && full) setFallback(full); }).catch(function () {});
+      return function () { cancelled = true; };
+    }, [active, list]);
+
+    // "You own every thread" on projects not started yet (borrowed from the
+    // Workbench proposal). Ready patterns are Stash Manager library entries;
+    // linkedProjectId ties them to a project. Loaded only when it can show.
+    var unstarted = list ? list.filter(function (p) { return projectStatus(p) === 'new'; }).length : 0;
+    React.useEffect(function () {
+      if (!unstarted || !window.ProjectStorage || typeof window.ProjectStorage.getProjectsReadyToStart !== 'function') return;
+      var cancelled = false;
+      Promise.all([
+        window.ProjectStorage.getProjectsReadyToStart().catch(function () { return []; }),
+        loadManagerPatterns()
+      ]).then(function (parts) {
+        if (cancelled) return;
+        var ready = {};
+        (parts[0] || []).forEach(function (r) { if (r && r.pct >= 100) ready[r.id] = true; });
+        var ids = {};
+        (parts[1] || []).forEach(function (pat) { if (pat && ready[pat.id] && pat.linkedProjectId) ids[pat.linkedProjectId] = true; });
+        setReadyIds(ids);
+      }).catch(function () {});
+      return function () { cancelled = true; };
+    }, [unstarted]);
+
+    // Old links (Header, Manager "Add new", command palette, Creator) use
+    // ?tab=create and ?tab=projects. Home has no tabs now, so scroll to the
+    // matching section once it has rendered.
+    var scrolledRef = React.useRef(false);
+    React.useEffect(function () {
+      if (scrolledRef.current || list === null) return;
+      scrolledRef.current = true;
+      var t = null;
+      try { t = new URLSearchParams(window.location.search).get('tab'); } catch (_) {}
+      var target = t === 'create' ? 'home-start-title' : t === 'projects' && list.length ? 'home-proj-list-title' : null;
+      if (!target) return;
+      requestAnimationFrame(function () {
+        var el = document.getElementById(target);
+        if (!el) return;
+        el.setAttribute('tabindex', '-1');
+        if (list.length) el.scrollIntoView({ block: 'start' });
+        try { el.focus({ preventScroll: true }); } catch (_) {}
+      });
+    }, [list]);
+
     var showCompletedState = React.useState(function () {
       try { var v = window.UserPrefs && window.UserPrefs.get('homeShowCompleted'); return v !== false; }
       catch (_) { return true; }
@@ -1359,11 +1131,26 @@
       window.addEventListener('cs:prefsChanged', onChange);
       return function () { window.removeEventListener('cs:prefsChanged', onChange); };
     }, []);
-    var otherProjects = list.filter(function (p) {
-      if (active && p.id === active.id) return false;
-      if (!showCompleted && projectPct(p) === 100) return false;
-      return true;
-    });
+
+    function discardDraft(id) {
+      window.BlobStore.delete(id).then(function () {
+        setDrafts(function (d) { return d.filter(function (x) { return x.id !== id; }); });
+      }, function () {});
+    }
+
+    var Header = window.Header;
+    var loaded = list !== null;
+    var projects = list || [];
+    var hasProjects = projects.length > 0;
+    var gridProjects = projects.filter(function (p) { return showCompleted || projectStatus(p) !== 'done'; });
+    var hiddenDone = projects.length - gridProjects.length;
+    var current = active || fallback;
+    var currentMeta = current ? (projects.find(function (p) { return p.id === current.id; }) || current) : null;
+    var inProgress = projects.filter(function (p) { return projectStatus(p) === 'wip'; }).length;
+    var welcomeSub = [
+      inProgress ? plural(inProgress, 'project') + ' on the go' : plural(projects.length, 'project'),
+      drafts.length ? plural(drafts.length, 'picture') + ' waiting to be converted' : null
+    ].filter(Boolean).join(' and ') + '.';
 
     return h('div', { className: 'home-shell' },
       Header
@@ -1376,28 +1163,42 @@
             }
           })
         : null,
-      h(HomeTabBar, { tab: tab, onTab: setTab, projectCount: list.length }),
-      h('div', { className: 'home-page', role: 'tabpanel' },
-        tab === 'projects' && h(React.Fragment, null,
-          h(GreetingRow, { list: list, onTab: setTab }),
-          list.length > 0 && h(ActiveProjectCard, { activeProject: active }),
-          h(DraftsList, null),
-          h(ProjectsList, { projects: otherProjects })
+      h('div', Object.assign({ className: 'home-page' }, flow.dropProps),
+        flow.inputs,
+        loaded && !hasProjects && h(React.Fragment, null,
+          h(Hero, null),
+          h('section', { className: 'home-section', 'aria-labelledby': 'home-start-title' },
+            h('h2', { id: 'home-start-title', className: 'home-section__heading' }, 'What are you starting with?'),
+            h(IntentCards, { flow: flow }),
+            h(FilesHelp, null)
+          ),
+          drafts.length > 0 && h('section', { className: 'home-section', 'aria-labelledby': 'home-drafts-title' },
+            h('h2', { id: 'home-drafts-title', className: 'home-section__heading' }, 'Pictures not converted yet'),
+            h('div', { className: 'home-grid' }, drafts.map(function (d) { return h(DraftCard, { key: d.id, draft: d, onDiscard: discardDraft }); }))
+          ),
+          h(PracticeCard, null),
+          h(HowItFits, null)
         ),
-        h('div', { hidden: !(tab === 'create' || (tab === 'projects' && !list.length)) },
-          h(CreatePanel, null)),
-        tab === 'stash' && h(React.Fragment, null,
-          h(StashPanel, { stash: stash, shopping: shopping, ready: ready })
+        loaded && hasProjects && h(React.Fragment, null,
+          h('section', { className: 'home-welcome' },
+            h('h1', { className: 'home-welcome__title' }, 'Welcome back'),
+            h('p', { className: 'home-muted' }, welcomeSub)
+          ),
+          current && h(ContinueCard, { project: current, meta: currentMeta, onDetails: setDetails }),
+          h(ProjectGrid, {
+            projects: gridProjects, drafts: drafts, readyIds: readyIds, hiddenDone: hiddenDone,
+            onDetails: setDetails, onDiscardDraft: discardDraft
+          }),
+          h('section', { className: 'home-section', 'aria-labelledby': 'home-start-title' },
+            h('h2', { id: 'home-start-title', className: 'home-section__heading' }, 'Start something new'),
+            h(IntentCards, { flow: flow, compact: true }),
+            h(FilesHelp, null)
+          )
         ),
-        tab === 'stats' && h(React.Fragment, null,
-          h(StatsPanel, {
-            lifetimeStitches: stats.lifetimeStitches,
-            dailyLog: stats.dailyLog,
-            oldestWip: stats.oldestWip
-          })
-        ),
-        h(HomeFooter, { onAbout: function () { setAboutOpen(true); } })
+        loaded && h(HomeFooter, { hasProjects: hasProjects, onAbout: function () { setAboutOpen(true); } }),
+        flow.overlays
       ),
+      details && window.Overlay && h(ProjectDetails, { project: details, onClose: function () { setDetails(null); } }),
       prefsOpen && typeof window.PreferencesModal !== 'undefined'
         ? h(window.PreferencesModal, { onClose: function () { setPrefsOpen(false); } })
         : null,
@@ -1405,6 +1206,27 @@
         ? h(SharedModals.About, { onClose: function () { setAboutOpen(false); } })
         : null
     );
+  }
+
+  // Patterns live in the manager IndexedDB under manager_state/"patterns".
+  // StashBridge has no public read for the pattern library, so read the raw
+  // row (as home-screen.js does). The database is opened via the canonical
+  // versionless window.openManagerDB() helper (tests/managerDbOpener.test.js).
+  function loadManagerPatterns() {
+    return new Promise(function (resolve) {
+      try {
+        window.openManagerDB().then(function (db) {
+          try {
+            if (!db.objectStoreNames.contains('manager_state')) { resolve([]); return; }
+            var tx = db.transaction('manager_state', 'readonly');
+            var store = tx.objectStore('manager_state');
+            var r = store.get('patterns');
+            r.onsuccess = function () { resolve(Array.isArray(r.result) ? r.result : []); };
+            r.onerror = function () { resolve([]); };
+          } catch (_) { resolve([]); }
+        }).catch(function () { resolve([]); });
+      } catch (_) { resolve([]); }
+    });
   }
 
   function mount() {

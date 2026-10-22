@@ -338,6 +338,14 @@ window.Icons = (function() {
         p('M5 20h14')
       );
     },
+    // Upload — a file going in (Home's "drop a file anywhere" hint). Mirrors download.
+    upload: function() {
+      return svg16(
+        p('M12 15V3'),
+        p('m8 7 4-4 4 4'),
+        p('M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4')
+      );
+    },
     // X / Close — replaces ❌ (error/delete)
     x: function() {
       return svg(p('M18 6L6 18M6 6l12 12'));

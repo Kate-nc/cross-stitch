@@ -203,10 +203,12 @@ describe('Stash Manager and Home wiring', () => {
     expect(read('user-prefs.js')).toMatch(/stashToBuyCollapsed:\s+false/);
   });
 
-  test('Home reads its shopping list from the bridge and says Threads, not Colours', () => {
-    expect(home).toMatch(/SB\.getShoppingList\(\)/);
+  test('Home leaves the shopping list to the Stash Manager and never says Colours', () => {
+    // Home's Stash tab (with its own copy of the shopping list) was removed in the
+    // home redesign; the list lives in the Stash Manager, and the help says so.
+    expect(home).not.toMatch(/getShoppingList/);
     expect(home).not.toMatch(/'Colours'\)/);
-    expect(home).toMatch(/home-kpi__lbl' \}, plural\w*\(|'Threads'/);
+    expect(read('help-drawer.js')).toMatch(/The Stash Manager's Shopping list already includes these threads/);
   });
 
   test('home-app.js is in the terminology lint scope', () => {
