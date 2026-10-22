@@ -1,0 +1,2 @@
+base  median 221.1 ms for 200000 coalesced saves; range 201.0-268.0 ms; timers pending after: 1
+head  median 235.0 ms for 200000 coalesced saves; range 195.4-301.0 ms; timers pending after: 1

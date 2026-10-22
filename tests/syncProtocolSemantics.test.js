@@ -14,7 +14,7 @@ function device(id) {
     Beads:require('../beads'),ProgressUnits:require('../progress-units')};
   c.window=c; c.globalThis=c;
   vm.createContext(c);
-  for (const file of ['tracking-sync.js','thread-accounting.js','project-storage.js','sync-merge-helpers.js','sync-attachment-codec.js','sync-engine.js','blob-store.js']) {
+  for (const file of ['tracking-sync.js','thread-accounting.js','project-storage.js','sync-merge-helpers.js','sync-attachment-codec.js','sync-export-scheduler.js','sync-engine.js','blob-store.js']) {
     vm.runInContext(fs.readFileSync(file,'utf8') + (file==='project-storage.js'?'\nthis.ProjectStorage=ProjectStorage;':''),c);
   }
   c.BlobStore._setOpener(()=>new Promise((r,j)=>{const q=c.indexedDB.open('CrossStitchDB',5);q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error);}));

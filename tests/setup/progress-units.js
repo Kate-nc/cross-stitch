@@ -21,3 +21,6 @@ global.SyncMergeHelpers = require('../../sync-merge-helpers.js');
 
 // Pages load the attachment codec before the engine's narrow verification adapter.
 global.SyncAttachmentCodec = require('../../sync-attachment-codec.js');
+
+// Pages load the export scheduler before the engine, which looks it up when an automatic export is first triggered.
+global.SyncExportScheduler = require('../../sync-export-scheduler.js');

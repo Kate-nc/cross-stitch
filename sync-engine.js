@@ -3231,25 +3231,17 @@ const SyncEngine = (() => {
     } catch (e) {}
   }
 
-  // Auto-export debounce (Phase-3 hardening, sync-fix #3):
-  //   * First save after a quiet period fires quickly (FAST_DELAY) so a user
-  //     who edits and immediately closes the tab doesn't lose the change.
-  //   * Subsequent saves within COOLDOWN_MS coalesce into a single later
-  //     write at the end of the cooldown — this preserves the original
-  //     "don't write 50 times during a paint stroke" behaviour.
-  var _autoExportTimer = null;
-  // Start (not completion) of the most recent real write, and whether one is
-  // running right now. See _scheduleAutoExport for why both are needed.
-  var _lastExportStartedAt = 0;
-  var _exportInFlight = false;
-  var _exportQueued = false;
+  // Auto-export debounce (Phase-3 hardening, sync-fix #3): when an automatic export may run is decided by
+  // sync-export-scheduler.js, loaded before this file and looked up on first use (as TrackingSync is). The first save
+  // after a quiet period runs after 2 s; saves inside 30 s of the start of the last write coalesce into one later
+  // write; a save during a write queues at most one follow-up. _runAutoExport below is the work it schedules and owns
+  // the permission probe, the write and every notification.
+  var _autoExportScheduler = null;
   // Timestamp of the most recent permission-warning toast for auto-export failures.
   // Used to rate-limit repeated toasts on persistent failures.
   var _lastPermWarningAt = 0;
   // Cooldown between permission-warning toasts during a persistent failure run.
   var PERM_WARN_COOLDOWN_MS = 60000;
-  var FAST_EXPORT_DELAY = 2000;
-  var COOLDOWN_MS = 30000;
 
   // Single source for the "sync paused, permission revoked" toast — shown by
   // both _reportSyncError (permission-flavoured failures) and the watcher
@@ -3299,51 +3291,21 @@ const SyncEngine = (() => {
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
       if (!dirHandle) return;
       _watchDirHandle = dirHandle;
-      _scheduleAutoExport();
+      if (!_autoExportScheduler) _autoExportScheduler = SyncExportScheduler.create(_runAutoExport);
+      _autoExportScheduler.schedule();
     }).catch(function (e) {
       _reportSyncError("auto-export", e);
     });
   }
 
-  // The debounce previously leaked: the timer handle was cleared at the START
-  // of its callback, before the (async) write finished, and the cooldown was
-  // measured from the last *completed* export. A save arriving mid-write
-  // therefore saw no scheduled timer and a stale "last export" far in the
-  // past, so it scheduled a fresh write on the 2s fast path immediately.
-  // With autosave firing on every stitch this produced a write roughly every
-  // 6 seconds — a real device logged 20 exports of a 5.93 MB file in 3.5
-  // minutes, straight into a cloud-synced folder from a phone.
-  //
-  // Now an in-flight export blocks scheduling outright and sets a queued flag,
-  // so a burst collapses to: the current write, then at most one more once the
-  // cooldown has elapsed.
-  function _scheduleAutoExport() {
-    if (_exportInFlight) { _exportQueued = true; return; }
-    if (_autoExportTimer) return; // already scheduled — coalesce into it
-    var sinceStart = Date.now() - _lastExportStartedAt;
-    var delay = (_lastExportStartedAt === 0 || sinceStart >= COOLDOWN_MS)
-      ? FAST_EXPORT_DELAY
-      : Math.max(FAST_EXPORT_DELAY, COOLDOWN_MS - sinceStart);
-    _autoExportTimer = setTimeout(_runAutoExport, delay);
-  }
-
-  function _runAutoExport() {
-    _autoExportTimer = null;
+  // Called by the scheduler when its timer fires. Returns undefined when there is no folder (nothing started), or the
+  // Promise of the export attempt, which always settles and is what the scheduler treats as "in flight".
+  function _runAutoExport(markWriteStarted) {
     var watchDirHandle = _watchDirHandle;
     if (!watchDirHandle) return;
-    _exportInFlight = true;
-    _exportQueued = false;
-
-    function settle() {
-      _exportInFlight = false;
-      if (_exportQueued) {
-        _exportQueued = false;
-        _scheduleAutoExport();
-      }
-    }
 
     // Pre-check permission without a user gesture — skip if not granted.
-    Promise.resolve()
+    return Promise.resolve()
       .then(function () { return watchDirHandle.queryPermission({ mode: "readwrite" }); })
       .then(function (perm) {
         if (perm !== "granted") {
@@ -3361,7 +3323,7 @@ const SyncEngine = (() => {
         // Stamp at the start of a real write. Measuring the cooldown from the
         // start rather than the finish is what stops a slow export from
         // immediately earning another one.
-        _lastExportStartedAt = Date.now();
+        markWriteStarted();
         return exportToFolder().then(function () {
           try {
             if (typeof window !== "undefined" && window.dispatchEvent) {
@@ -3374,8 +3336,7 @@ const SyncEngine = (() => {
       })
       .catch(function (e) {
         _reportSyncError("auto-export", e);
-      })
-      .then(settle, settle);
+      });
   }
 
   // ── Folder watcher (Phase-3, sync-fix #1) ────────────────────────────────
