@@ -1,0 +1,73 @@
+[
+ {
+  "page": "create.html?action=new-blank",
+  "finalUrl": "/create.html",
+  "picturePixels": "object",
+  "size": [
+   103,
+   94
+  ],
+  "stitches": 5347,
+  "requests": [
+   "pdf-axis-labels.js:200",
+   "pdf-raster-chart.js:200",
+   "pdf-chart-geometry.js:200",
+   "pdf-picture-pixels.js:200",
+   "pdf-importer.js:200"
+  ],
+  "pageErrors": [],
+  "orderOk": true
+ },
+ {
+  "page": "index.html?mode=stats",
+  "finalUrl": "/index.html?mode=stats",
+  "picturePixels": "object",
+  "size": [
+   103,
+   94
+  ],
+  "stitches": 5347,
+  "requests": [
+   "pdf-axis-labels.js:200",
+   "pdf-raster-chart.js:200",
+   "pdf-chart-geometry.js:200",
+   "pdf-picture-pixels.js:200",
+   "pdf-importer.js:200"
+  ],
+  "pageErrors": [],
+  "orderOk": true
+ },
+ {
+  "page": "stitch.html",
+  "finalUrl": "/stitch.html?from=home&id=proj_1792654673172_ozplb",
+  "picturePixels": "object",
+  "size": [
+   103,
+   94
+  ],
+  "stitches": 5347,
+  "requests": [
+   "pdf-axis-labels.js:200",
+   "pdf-raster-chart.js:200",
+   "pdf-chart-geometry.js:200",
+   "pdf-picture-pixels.js:200",
+   "pdf-importer.js:200"
+  ],
+  "pageErrors": [],
+  "orderOk": true
+ },
+ {
+  "page": "home.html?tab=create",
+  "reviewShown": true,
+  "reviewTitle": "Review imported pattern Usable import with limitations 99% matched to the key Pa",
+  "requests": [
+   "pdf-axis-labels.js:200",
+   "pdf-raster-chart.js:200",
+   "pdf-chart-geometry.js:200",
+   "pdf-picture-pixels.js:200",
+   "pdf-importer.js:200"
+  ],
+  "pageErrors": [],
+  "orderOk": true
+ }
+]
