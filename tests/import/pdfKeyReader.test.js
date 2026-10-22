@@ -149,6 +149,12 @@ describe('parseKeyEntries: choosing the swatch', () => {
     expect(read(page([text('5310', 110, 100)], [bar]))).toEqual([expect.objectContaining({ kind: 'backstitch', lineRgb: [20, 30, 40], swatchRgb: null })]);
   });
 
+  it('takes a bar up to 4 high for a sample, and a taller one that ends before the code for a swatch', () => {
+    const bar = (h) => ({ type: 'rect', fillColor: [20, 30, 40], points: [{ x: 60, y: 96 }, { x: 90, y: 96 }, { x: 90, y: 96 + h }, { x: 60, y: 96 + h }] });
+    expect(read(page([text('5310', 110, 100)], [bar(4)]))[0]).toEqual(expect.objectContaining({ kind: 'backstitch', lineRgb: [20, 30, 40], swatchRgb: null }));
+    expect(read(page([text('5310', 110, 100)], [bar(4.5)]))[0]).toEqual(expect.objectContaining({ kind: 'cross', swatchRgb: [20, 30, 40], lineRgb: null }));
+  });
+
   it('prefers the swatch whose right edge is nearest the code, then the larger one on a tie within half a point', () => {
     const near = rect(88, 91, 9, 9, [1, 1, 1]);   // right edge 97
     const far = rect(60, 91, 9, 9, [2, 2, 2]);    // right edge 69
@@ -229,6 +235,7 @@ describe('parseKeyEntries: backstitch samples', () => {
     expect(codes(page([text('310', 150, 100)], [stroke(70, 100, 96, [1, 1, 1])]))).toEqual([]);          // 50 away
     expect(codes(page([text('310', 140, 100)], [stroke(70, 100, 96, [1, 1, 1])]))).toEqual(['310']);     // 40 away
     expect(codes(page([text('310', 120, 100)], [stroke(70, 100, 120, [1, 1, 1])]))).toEqual([]);         // other line
+    expect(codes(page([text('310', 140.5, 100)], [stroke(70, 100, 96, [1, 1, 1])]))).toEqual([]);       // 40.5 away
   });
 
   it('rejects strokes that are not a short horizontal sample', () => {

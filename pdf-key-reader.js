@@ -6,7 +6,8 @@
  * { x0, y0, x1, y1 } box whose contents are ignored (the importer masks the chart out when a key shares its page).
  * It reads only its two arguments, never writes to the page, and returns a new array of new entries (the swatch and
  * sample colours are fresh arrays, not the page's own). It reads no pdf.js, DOM, storage or timer, is not
- * asynchronous, and holds no state between calls.
+ * asynchronous, and holds no state between calls. The code ran in a class body before, which is strict mode, so the
+ * module is strict too.
  *
  * pdf-importer.js keeps parseKeyEntries as a one-line call to this, and keeps parseLegend (which pools this
  * reader's output with parseLegendLegacy's per page, drops repeated entries and carries the brand),
@@ -16,6 +17,7 @@
  * by require() in tests.
  */
 (function () {
+  'use strict';
 
   /**
    * Code-anchored key reader.
