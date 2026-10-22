@@ -7582,6 +7582,7 @@ window.useCreatorState = function useCreatorState() {
   var _prevDims   = useState(null);  var previewDims   = _prevDims[0],   setPreviewDims   = _prevDims[1];
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
+  var _prevError  = useState(null); var previewError = _prevError[0], setPreviewError = _prevError[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -8131,6 +8132,7 @@ window.useCreatorState = function useCreatorState() {
     _thBrand[1]("dmc");
     setPreviewUrl(null); setPreviewStats(null); setPreviewHeatmap(null);
     setPreviewMapped(null); setPreviewColors(null); setPreviewDims(null); setPreviewHighlight(null);
+    setPreviewError(null);
     setExactPixelArt(false); setPictureInfo(null); setPresetApplied(null);
     // Ensure the canvas tab is active so the rpanel (settings + generate) is
     // visible when the user uploads a new image. Without this, a saved
@@ -9112,6 +9114,7 @@ window.useCreatorState = function useCreatorState() {
     previewMapped, setPreviewMapped, previewColors, setPreviewColors,
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewLoading, setPreviewLoading,
+    previewError, setPreviewError,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -14568,208 +14571,232 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
+  var sourceRef = React.useRef(state.img);
+
+  function clearDetails() {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight'].forEach(function(key) {
+      if (state['setPreview' + key]) state['setPreview' + key](null);
+    });
+  }
+  function clearPreview() {
+    clearDetails();
+    state.setPreviewUrl(null);
+    state.setPreviewDims(null);
+  }
 
   var generatePreview = React.useCallback(function() {
+    if (state.previewTimerRef.current) { clearTimeout(state.previewTimerRef.current); state.previewTimerRef.current = null; }
     if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
     var img = state.img;
     var settings = state.conversionSettings;
     // Every early return clears the loading flag the scheduling effect set, so
     // the spinner can't be left running with nothing pending.
     function stopLoading() { if (state.setPreviewLoading) state.setPreviewLoading(false); }
-    if (!settings) { stopLoading(); return; }
-    // Local aliases for the geometric/cache step (these are pure image-prep
-    // values, not pipeline values).
-    var sW = settings.sW, sH = settings.sH;
-    var bri = settings.bri, con = settings.con, sat = settings.sat;
-    var smooth = settings.smooth, smoothType = settings.smoothType;
-    var preSharpen = settings.preSharpen, preSharpenAmount = settings.preSharpenAmount;
-    var fabricCt = settings.fabricCt;
-    var stashConstrained = settings.stashConstrained;
-    var globalStash = state.globalStash;
-    var orphans = settings.orphans;
-    var stitchCleanup = settings.stitchCleanup;
-    var dith = settings.dith;
-    var showCleanupDiff = state.showCleanupDiff;
-
-    if (!img || !img.src) { stopLoading(); return; }
-    var MAX_PREVIEW_AREA = 40000;
-    var pw = sW, ph = sH;
-    if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
-    if (pw < 1) pw = 1;
-    if (ph < 1) ph = 1;
-
-    // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
-    var raw, exactResult;
-    if (settings.exactPixelArt) {
-      try { exactResult = runExactPixelPipeline(img, settings); }
-      catch (err) {
-        state.setPreviewUrl(null); state.setPreviewStats(null);
-        stopLoading();
-        return;
-      }
-    }
-    var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
-    if (exactResult) { pw = exactResult.width; ph = exactResult.height;
-    } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
-      raw = rawCacheRef.current.raw;
-    } else {
-      var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-      var cx = c.getContext("2d");
-      cx.imageSmoothingEnabled = true;
-      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-      cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
-      cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-      var previewImageData = cx.getImageData(0, 0, pw, ph);
-      if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
-      raw = previewImageData.data;
-      rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
-    }
-
-    // Pipeline options come straight from the canonical settings bundle. The
-    // ONLY caller-side overrides are the geometric step we already did above
-    // (image filters), so we strip those keys and forward everything else.
-    function pipelineOpts(overrides) {
-      var o = {
-        maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
-        dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
-        allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
-        skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
-        stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
-        minSt: settings.minSt, seed: settings.seed,
-        smooth: smooth, smoothType: smoothType,
-        disambig: settings.disambig, disambigLevel: settings.disambigLevel,
-      };
-      if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
-      return o;
-    }
-
-    // Helper: render a mapped array to a data URL
-    function renderUrl(mapped) {
-      var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
-      var pcx = pc.getContext("2d"); var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
-      for (var i = 0; i < mapped.length; i++) {
-        var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
-        else { d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255; }
-      }
-      pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
-    }
-
-    // Progressive preview: if dithering is on, show a fast map-only result immediately,
-    // then let React commit that frame before running the full dither pass.
-    if (dith && !exactResult) {
-      var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
-        // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
-        // honour the user's blend preference so the preview is bit-faithful
-        // (see C4 in reports/preview-3-diagnosis.md).
-        dith: false, stitchCleanup: null, orphans: 0,
-      }));
-      if (fastResult) {
-        // The size travels with the picture: the slider shapes itself from
-        // previewDims, so a new-size frame must not be paired with old dims.
-        state.setPreviewDims({ pw: pw, ph: ph });
-        state.setPreviewUrl(renderUrl(fastResult.mapped));
-      }
-      fullPassTimerRef.current = setTimeout(runFull, 0);
-      return;
-    }
-    runFull();
-
-    function runFull() {
-      fullPassTimerRef.current = null;
-      var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
-      if (!pipelineResult) { stopLoading(); return; }
-      var mapped = pipelineResult.mapped;
-      var confettiRaw = pipelineResult.confettiRaw;
-      var confettiClean = pipelineResult.confettiClean;
-      var preCleanupIds = pipelineResult.preCleanupIds || null;
-
-      var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
-      for (var j = 0; j < mapped.length; j++) {
-        var m = mapped[j];
-        if (m.id === "__skip__") { skipped++; }
-        else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; if (!colorRgbs[m.id]) colorRgbs[m.id] = m.rgb; }
-      }
-      var uniqueColors = Object.keys(colorCounts).length;
-      var scaleFactor = (sW * sH) / (pw * ph);
-      var estSkeins = 0;
-      Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
-
-      // QW2: Stash usage stat
-      var stashUsage = null;
-      if (stashConstrained && globalStash) {
-        var availableCount = 0;
-        // Threads of the brand being converted to (P4-5); bare keys are DMC.
-        var stashBrand = settings.convertBrand || 'dmc';
-        Object.keys(globalStash).forEach(function(id) {
-          var keyBrand = id.indexOf(':') < 0 ? 'dmc' : id.slice(0, id.indexOf(':'));
-          if (keyBrand === stashBrand && isColorOwned(globalStash[id])) availableCount++;
-        });
-        stashUsage = { used: uniqueColors, available: availableCount };
-      }
-
-      state.setPreviewStats({
-        stitchable: Math.round(stitchable * scaleFactor),
-        skipped: Math.round(skipped * scaleFactor),
-        uniqueColors: uniqueColors,
-        estSkeins: estSkeins,
-        confettiPct: confettiRaw.pct,
-        confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
-        confettiSinglesPct: confettiRaw.singlesPct,
-        confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
-        stashUsage: stashUsage,
-        exactMappings: exactResult ? exactResult.mappings : null,
-      });
-
-      var colorList = Object.keys(colorCounts).map(function(id) {
-        return { id: id, rgb: colorRgbs[id], count: colorCounts[id] };
-      }).sort(function(a, b) { return b.count - a.count; });
-      state.setPreviewColors(colorList);
-      state.setPreviewMapped(mapped);
-      state.setPreviewDims({ pw: pw, ph: ph });
-
-      // Render preview canvas and compute confetti heatmap in same loop
-      var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
-      var pcx = pc.getContext("2d");
-      var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
-      var hData = pcx.createImageData(pw, ph); var hd = hData.data;
-      var hasHeat = false;
-      for (var i = 0; i < mapped.length; i++) {
-        var mm = mapped[i]; var idx = i * 4;
-        if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
-        else {
-          d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255;
-          var row = Math.floor(i / pw), col = i % pw;
-          var isolated = true;
-          if (col > 0 && mapped[i - 1].id === mm.id) isolated = false;
-          if (isolated && col < pw - 1 && mapped[i + 1].id === mm.id) isolated = false;
-          if (isolated && row > 0 && mapped[i - pw].id === mm.id) isolated = false;
-          if (isolated && row < ph - 1 && mapped[i + pw].id === mm.id) isolated = false;
-          if (isolated) { hd[idx]=255; hd[idx+1]=60; hd[idx+2]=0; hd[idx+3]=220; hasHeat = true; }
-        }
-      }
-      pcx.putImageData(imgData, 0, 0);
-      // Diff overlay on preview thumbnail
-      if (showCleanupDiff && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0) && preCleanupIds) {
-        pcx.fillStyle = "rgba(255,0,255,0.45)";
-        for (var pi = 0; pi < mapped.length; pi++) {
-          if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
-            var pcs2 = 1; // each preview pixel is 1px
-            pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
-          }
-        }
-      }
-      state.setPreviewUrl(pc.toDataURL());
-      if (hasHeat) {
-        var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
-        var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
-        state.setPreviewHeatmap(hc.toDataURL());
-      } else {
-        state.setPreviewHeatmap(null);
-      }
+    function failPreview() {
+      rawCacheRef.current = null;
+      clearPreview();
+      if (state.setPreviewError) state.setPreviewError('Could not update the preview. Try again, adjust the settings or choose another image.');
       stopLoading();
     }
+    if (state.setPreviewError) state.setPreviewError(null);
+    if (!settings || !img || !img.src) { clearPreview(); stopLoading(); return; }
+    if (state.setPreviewLoading) state.setPreviewLoading(true);
+    try {
+      // Local aliases for the geometric/cache step (these are pure image-prep
+      // values, not pipeline values).
+      var sW = settings.sW, sH = settings.sH;
+      var bri = settings.bri, con = settings.con, sat = settings.sat;
+      var smooth = settings.smooth, smoothType = settings.smoothType;
+      var preSharpen = settings.preSharpen, preSharpenAmount = settings.preSharpenAmount;
+      var fabricCt = settings.fabricCt;
+      var stashConstrained = settings.stashConstrained;
+      var globalStash = state.globalStash;
+      var orphans = settings.orphans;
+      var stitchCleanup = settings.stitchCleanup;
+      var dith = settings.dith;
+      var showCleanupDiff = state.showCleanupDiff;
+
+      var MAX_PREVIEW_AREA = 40000;
+      var pw = sW, ph = sH;
+      if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+      if (pw < 1) pw = 1;
+      if (ph < 1) ph = 1;
+
+      // --- Geometric (image-drawing) cache: skip canvas if only pipeline settings changed ---
+      var raw, exactResult;
+      if (settings.exactPixelArt) {
+        exactResult = runExactPixelPipeline(img, settings);
+      }
+      var geoSig = img.src + '|' + pw + '|' + ph + '|' + bri + '|' + con + '|' + sat + '|' + smooth + '|' + smoothType + '|' + (preSharpen ? preSharpenAmount : '0');
+      if (exactResult) { pw = exactResult.width; ph = exactResult.height;
+      } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
+        raw = rawCacheRef.current.raw;
+      } else {
+        var c = document.createElement("canvas"); c.width = pw; c.height = ph;
+        var cx = c.getContext("2d");
+        cx.imageSmoothingEnabled = true;
+        if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+        if (typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported) {
+          cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+        }
+        var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
+        cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
+        var previewImageData = cx.getImageData(0, 0, pw, ph);
+        if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+        raw = previewImageData.data;
+        rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
+      }
+
+      // Pipeline options come straight from the canonical settings bundle. The
+      // ONLY caller-side overrides are the geometric step we already did above
+      // (image filters), so we strip those keys and forward everything else.
+      function pipelineOpts(overrides) {
+        var o = {
+          maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
+          dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
+          allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+          skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
+          stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
+          minSt: settings.minSt, seed: settings.seed,
+          smooth: smooth, smoothType: smoothType,
+          disambig: settings.disambig, disambigLevel: settings.disambigLevel,
+        };
+        if (overrides) Object.keys(overrides).forEach(function(k) { o[k] = overrides[k]; });
+        return o;
+      }
+
+      // Helper: render a mapped array to a data URL
+      function renderUrl(mapped) {
+        var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
+        var pcx = pc.getContext("2d"); var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
+        for (var i = 0; i < mapped.length; i++) {
+          var mm = mapped[i]; var idx = i * 4;
+          if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
+          else { d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255; }
+        }
+        pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
+      }
+
+      // Progressive preview: if dithering is on, show a fast map-only result immediately,
+      // then let React commit that frame before running the full dither pass.
+      if (dith && !exactResult) {
+        var fastResult = runCleanupPipeline(raw, pw, ph, pipelineOpts({
+          // Fast pre-pass: skip the slow stages (dither, cleanup, orphans) but
+          // honour the user's blend preference so the preview is bit-faithful
+          // (see C4 in reports/preview-3-diagnosis.md).
+          dith: false, stitchCleanup: null, orphans: 0,
+        }));
+        if (fastResult) {
+          // The size travels with the picture: the slider shapes itself from
+          // previewDims, so a new-size frame must not be paired with old dims.
+          var fastUrl = renderUrl(fastResult.mapped);
+          clearDetails();
+          state.setPreviewDims({ pw: pw, ph: ph });
+          state.setPreviewUrl(fastUrl);
+        }
+        fullPassTimerRef.current = setTimeout(function() {
+          try { runFull(); } catch (err) { failPreview(); }
+        }, 0);
+        return;
+      }
+      runFull();
+
+      function runFull() {
+        fullPassTimerRef.current = null;
+        var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
+        if (!pipelineResult) { failPreview(); return; }
+        var mapped = pipelineResult.mapped;
+        var confettiRaw = pipelineResult.confettiRaw;
+        var confettiClean = pipelineResult.confettiClean;
+        var preCleanupIds = pipelineResult.preCleanupIds || null;
+
+        var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
+        for (var j = 0; j < mapped.length; j++) {
+          var m = mapped[j];
+          if (m.id === "__skip__") { skipped++; }
+          else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; if (!colorRgbs[m.id]) colorRgbs[m.id] = m.rgb; }
+        }
+        var uniqueColors = Object.keys(colorCounts).length;
+        var scaleFactor = (sW * sH) / (pw * ph);
+        var estSkeins = 0;
+        Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
+
+        // QW2: Stash usage stat
+        var stashUsage = null;
+        if (stashConstrained && globalStash) {
+          var availableCount = 0;
+          // Threads of the brand being converted to (P4-5); bare keys are DMC.
+          var stashBrand = settings.convertBrand || 'dmc';
+          Object.keys(globalStash).forEach(function(id) {
+            var keyBrand = id.indexOf(':') < 0 ? 'dmc' : id.slice(0, id.indexOf(':'));
+            if (keyBrand === stashBrand && isColorOwned(globalStash[id])) availableCount++;
+          });
+          stashUsage = { used: uniqueColors, available: availableCount };
+        }
+
+        state.setPreviewStats({
+          stitchable: Math.round(stitchable * scaleFactor),
+          skipped: Math.round(skipped * scaleFactor),
+          uniqueColors: uniqueColors,
+          estSkeins: estSkeins,
+          confettiPct: confettiRaw.pct,
+          confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
+          confettiSinglesPct: confettiRaw.singlesPct,
+          confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+          stashUsage: stashUsage,
+          exactMappings: exactResult ? exactResult.mappings : null,
+        });
+
+        var colorList = Object.keys(colorCounts).map(function(id) {
+          return { id: id, rgb: colorRgbs[id], count: colorCounts[id] };
+        }).sort(function(a, b) { return b.count - a.count; });
+        state.setPreviewColors(colorList);
+        state.setPreviewMapped(mapped);
+        state.setPreviewDims({ pw: pw, ph: ph });
+        if (state.setPreviewHighlight) state.setPreviewHighlight(null);
+
+        // Render preview canvas and compute confetti heatmap in same loop
+        var pc = document.createElement("canvas"); pc.width = pw; pc.height = ph;
+        var pcx = pc.getContext("2d");
+        var imgData = pcx.createImageData(pw, ph); var d = imgData.data;
+        var hData = pcx.createImageData(pw, ph); var hd = hData.data;
+        var hasHeat = false;
+        for (var i = 0; i < mapped.length; i++) {
+          var mm = mapped[i]; var idx = i * 4;
+          if (mm.id === "__skip__") { d[idx]=240; d[idx+1]=240; d[idx+2]=240; d[idx+3]=0; }
+          else {
+            d[idx]=mm.rgb[0]; d[idx+1]=mm.rgb[1]; d[idx+2]=mm.rgb[2]; d[idx+3]=255;
+            var row = Math.floor(i / pw), col = i % pw;
+            var isolated = true;
+            if (col > 0 && mapped[i - 1].id === mm.id) isolated = false;
+            if (isolated && col < pw - 1 && mapped[i + 1].id === mm.id) isolated = false;
+            if (isolated && row > 0 && mapped[i - pw].id === mm.id) isolated = false;
+            if (isolated && row < ph - 1 && mapped[i + pw].id === mm.id) isolated = false;
+            if (isolated) { hd[idx]=255; hd[idx+1]=60; hd[idx+2]=0; hd[idx+3]=220; hasHeat = true; }
+          }
+        }
+        pcx.putImageData(imgData, 0, 0);
+        // Diff overlay on preview thumbnail
+        if (showCleanupDiff && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0) && preCleanupIds) {
+          pcx.fillStyle = "rgba(255,0,255,0.45)";
+          for (var pi = 0; pi < mapped.length; pi++) {
+            if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
+              var pcs2 = 1; // each preview pixel is 1px
+              pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+            }
+          }
+        }
+        state.setPreviewUrl(pc.toDataURL());
+        if (hasHeat) {
+          var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
+          var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
+          state.setPreviewHeatmap(hc.toDataURL());
+        } else {
+          state.setPreviewHeatmap(null);
+        }
+        stopLoading();
+      }
+    } catch (err) { failPreview(); }
   }, [
     state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
   ]);
@@ -14779,7 +14806,19 @@ window.usePreview = function usePreview(state) {
   }, []);
 
   React.useEffect(function() {
-    if (!state.img) return;
+    // A crop or replacement source must never be compared with the old image's
+    // converted pixels, stats or cached overlays during the debounce.
+    if (sourceRef.current !== state.img) {
+      sourceRef.current = state.img;
+      rawCacheRef.current = null;
+      clearPreview();
+    }
+    if (state.setPreviewError) state.setPreviewError(null);
+    if (!state.img || !state.img.src || !state.conversionSettings) {
+      clearPreview();
+      if (state.setPreviewLoading) state.setPreviewLoading(false);
+      return;
+    }
     var timer = state.previewTimerRef.current;
     if (timer) clearTimeout(timer);
     // Mark loading immediately so the spinner appears during the debounce
@@ -14789,7 +14828,7 @@ window.usePreview = function usePreview(state) {
       generatePreview();
     }, 400);
     return function() {
-      if (state.previewTimerRef.current) clearTimeout(state.previewTimerRef.current);
+      if (state.previewTimerRef.current) { clearTimeout(state.previewTimerRef.current); state.previewTimerRef.current = null; }
       // A full pass queued by the previous settings must not land after they
       // changed: it would commit a stale picture and drop the spinner while
       // the new pass is still waiting out its debounce.

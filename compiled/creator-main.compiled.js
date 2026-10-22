@@ -76,7 +76,8 @@ function ComparisonSlider({
   previewPh,
   leftLabel,
   rightLabel,
-  fabricColour
+  fabricColour,
+  previewLoading = false
 }) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
@@ -98,6 +99,7 @@ function ComparisonSlider({
   const [showDiff, setShowDiff] = useState(false);
   const [diffUrl, setDiffUrl] = useState(null);
   const prevPreviewRef = useRef(null);
+  const prevOriginalRef = useRef(originalSrc);
   // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
   function computePos(e) {
@@ -163,6 +165,15 @@ function ComparisonSlider({
     };
   }, []);
   useEffect(function () {
+    if (prevOriginalRef.current !== originalSrc) {
+      prevOriginalRef.current = originalSrc;
+      prevPreviewRef.current = null;
+      setShowDiff(false);
+    }
+    setDiffUrl(null);
+    // The quick pass is an intermediate frame, not the user's previous result.
+    // Retain the last settled frame as the comparison baseline while loading.
+    if (previewLoading) return;
     if (!previewSrc) {
       prevPreviewRef.current = null;
       setDiffUrl(null);
@@ -174,8 +185,6 @@ function ComparisonSlider({
     }
     var prevSrc = prevPreviewRef.current;
     prevPreviewRef.current = previewSrc;
-    // The old overlay describes the previous update; never draw it on the new picture.
-    setDiffUrl(null);
     var cancelled = false;
     var imgA = new Image(),
       imgB = new Image();
@@ -186,30 +195,37 @@ function ComparisonSlider({
       var w = imgB.naturalWidth,
         h = imgB.naturalHeight;
       if (!w || !h) return;
-      var ca = document.createElement('canvas');
-      ca.width = w;
-      ca.height = h;
-      var cxa = ca.getContext('2d');
-      cxa.drawImage(imgA, 0, 0, w, h);
-      var da = cxa.getImageData(0, 0, w, h).data;
-      var cb = document.createElement('canvas');
-      cb.width = w;
-      cb.height = h;
-      var cxb = cb.getContext('2d');
-      cxb.drawImage(imgB, 0, 0, w, h);
-      var db = cxb.getImageData(0, 0, w, h).data;
-      var out = cxb.createImageData(w, h);
-      var od = out.data;
-      for (var i = 0; i < da.length; i += 4) {
-        if (Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 12) {
-          od[i] = 255;
-          od[i + 1] = 80;
-          od[i + 2] = 0;
-          od[i + 3] = 200;
+      try {
+        var ca = document.createElement('canvas');
+        ca.width = w;
+        ca.height = h;
+        var cxa = ca.getContext('2d');
+        cxa.imageSmoothingEnabled = false;
+        cxa.drawImage(imgA, 0, 0, w, h);
+        var da = cxa.getImageData(0, 0, w, h).data;
+        var cb = document.createElement('canvas');
+        cb.width = w;
+        cb.height = h;
+        var cxb = cb.getContext('2d');
+        cxb.drawImage(imgB, 0, 0, w, h);
+        var db = cxb.getImageData(0, 0, w, h).data;
+        var out = cxb.createImageData(w, h);
+        var od = out.data;
+        for (var i = 0; i < da.length; i += 4) {
+          // Empty -> stitched is a change even for black pixels; RGB hidden in
+          // fully transparent cells must not create a false change.
+          if (da[i + 3] !== db[i + 3] || da[i + 3] && db[i + 3] && Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 12) {
+            od[i] = 255;
+            od[i + 1] = 80;
+            od[i + 2] = 0;
+            od[i + 3] = 200;
+          }
         }
+        cxb.putImageData(out, 0, 0);
+        setDiffUrl(cb.toDataURL());
+      } catch (_) {
+        setDiffUrl(null);
       }
-      cxb.putImageData(out, 0, 0);
-      setDiffUrl(cb.toDataURL());
     }
     imgA.onload = onLoad;
     imgB.onload = onLoad;
@@ -224,7 +240,12 @@ function ComparisonSlider({
     return function () {
       cancelled = true;
     };
-  }, [previewSrc]);
+  }, [previewSrc, previewLoading, originalSrc]);
+  useEffect(function () {
+    return function () {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
   function handlePointerMove(e) {
     if ((altHeld.current || zoomLocked) && containerRef.current) {
       var rect = containerRef.current.getBoundingClientRect();
@@ -346,7 +367,7 @@ function ComparisonSlider({
       imageRendering: "pixelated"
     },
     alt: "Preview"
-  })), showDiff && diffUrl && /*#__PURE__*/React.createElement("div", {
+  })), !previewLoading && showDiff && diffUrl && /*#__PURE__*/React.createElement("div", {
     "data-testid": "cmp-diff",
     style: {
       position: "absolute",
@@ -370,9 +391,11 @@ function ComparisonSlider({
       objectFit: "fill"
     },
     alt: ""
-  })), showHeatmap && heatmapSrc && /*#__PURE__*/React.createElement("img", {
+  })), !previewLoading && showHeatmap && heatmapSrc && /*#__PURE__*/React.createElement("img", {
+    "data-testid": "cmp-heatmap",
     src: heatmapSrc,
     style: {
+      clipPath: `inset(0 0 0 ${splitPos}%)`,
       position: "absolute",
       top: 0,
       left: 0,
@@ -385,9 +408,11 @@ function ComparisonSlider({
     },
     alt: "",
     "aria-hidden": "true"
-  }), highlightSrc && /*#__PURE__*/React.createElement("img", {
+  }), !previewLoading && highlightSrc && /*#__PURE__*/React.createElement("img", {
+    "data-testid": "cmp-highlight",
     src: highlightSrc,
     style: {
+      clipPath: `inset(0 0 0 ${splitPos}%)`,
       position: "absolute",
       top: 0,
       left: 0,
@@ -521,7 +546,7 @@ function ComparisonSlider({
       bgY = -(cy * ZOOM - LENS / 2);
     var lensL = Math.max(0, Math.min(W - LENS, cx - LENS / 2));
     var lensT = Math.max(0, Math.min(H - LENS, cy - LENS / 2));
-    var splitInLensPct = Math.max(0, Math.min(100, (splitPos / 100 * W - lensL) / LENS * 100));
+    var splitInLensPct = Math.max(0, Math.min(100, (LENS / 2 + (splitPos / 100 * W - cx) * ZOOM) / LENS * 100));
     return /*#__PURE__*/React.createElement("div", {
       style: {
         position: "absolute",
@@ -713,7 +738,7 @@ function CreatorApp({
     window.addEventListener('cs:showWelcome', onShow);
     return () => window.removeEventListener('cs:showWelcome', onShow);
   }, [tourWayIn]);
-  usePreviewHook(state);
+  const preview = usePreviewHook(state);
   useKeyboardShortcutsHook(Object.assign({}, state, {
     isActive: isActive
   }), history, io);
@@ -2221,7 +2246,15 @@ function CreatorApp({
       color: "var(--text-secondary)",
       fontSize: 12
     }
-  }, "Adjust settings and generate a pattern to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement("div", {
+  }, state.previewError ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    role: "alert"
+  }, state.previewError), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: preview.generatePreview
+  }, "Retry preview")) : state.previewLoading ? /*#__PURE__*/React.createElement("span", {
+    role: "status",
+    "aria-label": "Updating preview"
+  }, "Updating preview\u2026") : "Choose an image and adjust the settings to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, state.conversionSettings && state.conversionSettings.stashConstrained && state.conversionSettings.stashCount === 0 && /*#__PURE__*/React.createElement("div", {
     role: "status",
@@ -2314,7 +2347,8 @@ function CreatorApp({
     height: state.sH,
     previewPw: state.previewDims && state.previewDims.pw,
     previewPh: state.previewDims && state.previewDims.ph,
-    fabricColour: state.fabricColour
+    fabricColour: state.fabricColour,
+    previewLoading: state.previewLoading
   }))), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
     img: state.img,
     settings: state.conversionSettings,
@@ -2338,7 +2372,7 @@ function CreatorApp({
       state.chgW(v.sW);
       if (!state.arLock) state.chgH(v.sH);
     }
-  }), state.previewUrl && state.previewStats && /*#__PURE__*/React.createElement("div", {
+  }), state.previewUrl && !state.previewLoading && state.previewStats && /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       padding: "12px 14px"

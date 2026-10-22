@@ -9260,14 +9260,11 @@ return(
       return React.createElement(window.ImportWizard,{
         image:importImage,
         baseName:importName||"",
+        globalStash:globalStash,
         onClose:()=>{ setImportDialog(null); setImportImage(null); },
         onGenerate:(settings)=>{
           try{
-            let result=parseImagePattern(importImage,{
-              maxWidth:settings.maxWidth, maxHeight:settings.maxHeight,
-              maxColours:settings.maxColours,
-              skipWhiteBg:settings.skipWhiteBg, bgThreshold:settings.bgThreshold
-            });
+            let result=parseImagePattern(importImage,Object.assign({},settings,{globalStash:globalStash}));
             const finalName=(settings.name||'').trim().slice(0,60);
             let project=importResultToProject(result,settings.fabricCt||14,finalName);
             project.id=ProjectStorage.newId();

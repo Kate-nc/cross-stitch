@@ -85,7 +85,7 @@ describe('usePreview scheduling', () => {
     require('../creator/usePreview.js');
 
     setters = {};
-    ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap', 'PreviewLoading']
+    ['PreviewUrl', 'PreviewStats', 'PreviewColors', 'PreviewMapped', 'PreviewDims', 'PreviewHeatmap', 'PreviewHighlight', 'PreviewLoading', 'PreviewError']
       .forEach((n) => { setters['set' + n] = jest.fn(); });
     state = Object.assign({
       img: { src: 'data:x', width: 10, height: 10 },
@@ -139,10 +139,63 @@ describe('usePreview scheduling', () => {
   test('settings changing before the queued full pass runs cancels that pass', () => {
     const cleanup = schedule();
     jest.advanceTimersByTime(400);          // fast pass done, full pass queued at 0 ms
-    expect(setters.setPreviewStats).not.toHaveBeenCalled();
+    expect(setters.setPreviewStats).toHaveBeenLastCalledWith(null);
     cleanup();                              // the effect re-runs: settings changed
     jest.advanceTimersByTime(50);
-    expect(setters.setPreviewStats).not.toHaveBeenCalled();
+    expect(setters.setPreviewStats.mock.calls.every(([stats]) => stats === null)).toBe(true);
     expect(setters.setPreviewLoading).not.toHaveBeenCalledWith(false);
+  });
+
+  function expectCleared() {
+    for (const field of ['Url', 'Stats', 'Colors', 'Mapped', 'Dims', 'Heatmap', 'Highlight']) {
+      expect(setters['setPreview' + field]).toHaveBeenLastCalledWith(null);
+    }
+    expect(setters.setPreviewLoading).toHaveBeenLastCalledWith(false);
+  }
+
+  test.each(['preparation', 'fast pass', 'full pass', 'encoding'])('%s errors clear all stale results and allow retry', stage => {
+    const pipeline = global.runCleanupPipeline.getMockImplementation();
+    if (stage === 'preparation') global.prescaleForGrid = () => { throw new Error('decode failed'); };
+    if (stage === 'fast pass') global.runCleanupPipeline.mockImplementationOnce(() => { throw new Error('conversion failed'); });
+    if (stage === 'full pass') global.runCleanupPipeline.mockImplementationOnce(pipeline).mockImplementationOnce(() => { throw new Error('conversion failed'); });
+    if (stage === 'encoding') {
+      const makeCanvas = global.document.createElement;
+      global.document.createElement = () => { const c = makeCanvas(); c.toDataURL = () => { throw new Error('encoding failed'); }; return c; };
+    }
+    const preview = global.window.usePreview(state);
+    effects[1]();
+    expect(() => jest.runAllTimers()).not.toThrow();
+    expectCleared();
+    expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
+    if (stage !== 'encoding') {
+      global.prescaleForGrid = s => s;
+      preview.generatePreview();
+      jest.runAllTimers();
+      expect(setters.setPreviewError).toHaveBeenLastCalledWith(null);
+      expect(setters.setPreviewUrl.mock.calls.at(-1)[0]).toMatch(/^data:/);
+    }
+  });
+
+  test('removing the source clears stale results and loading without another timer', () => {
+    state.img = null;
+    schedule();
+    expectCleared();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test('a pipeline returning no result is a recoverable error, not a completed quick preview', () => {
+    global.runCleanupPipeline.mockReturnValue(null);
+    schedule();
+    jest.runAllTimers();
+    expectCleared();
+    expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
+  });
+
+  test('a quick frame never retains the previous frame\'s stats or overlays', () => {
+    schedule();
+    jest.advanceTimersByTime(400);
+    for (const field of ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight']) {
+      expect(setters['setPreview' + field]).toHaveBeenLastCalledWith(null);
+    }
   });
 });
