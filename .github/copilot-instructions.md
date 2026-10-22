@@ -80,6 +80,7 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `stash-bridge.js` | Reads/writes the Stash Manager's `stitch_manager_db` from any page |
 | `sync-engine.js` | `.csync` export/import, folder watching, merge and conflict review |
 | `sync-merge-helpers.js` | Pure record-merge primitives (sessions, running totals, fractional pairs, stitch log, parking markers, work area) called by `sync-engine.js`; loaded before it on every page that loads it |
+| `sync-export-scheduler.js` | When the automatic folder export may run (2 s debounce, 30 s cooldown from the start of the last write, one queued follow-up); knows nothing about folders or notifications. Loaded before `sync-engine.js` on every page that loads it |
 | `tracker-app.js` | Stitch Tracker React tree (shortcuts are the `trackerShortcuts` array) |
 | `creator-main.js` + `creator/` | Pattern Creator — state in `creator/useCreatorState.js`, shortcuts in `creator/useKeyboardShortcuts.js` |
 | `manager-app.js` | Stash Manager React tree |

@@ -1,0 +1,122 @@
+{
+ "note": "Same browser-smoke.cjs flow, base = ca971d4 served from a detached worktree, head = this branch. Times are real wall-clock ms.",
+ "base": {
+  "phases": {
+   "connect": {
+    "watching": true,
+    "autoSync": true,
+    "hasDir": true
+   },
+   "fastPath": {
+    "delayMs": 2088,
+    "writes": 1
+   },
+   "burst": {
+    "delayFromFirstSaveMs": 29951,
+    "writesBefore": 1,
+    "writesAfter": 2,
+    "exported": 2
+   },
+   "inFlight": {
+    "writeStartedAfterMs": 2051,
+    "exportedWhileInFlight": 0,
+    "writes": 2,
+    "exports": 2,
+    "followUpWaitedAtLeastMs": 25926
+   },
+   "watcher": {
+    "ticksWhileFast": true,
+    "noTicksAfterStop": true,
+    "watchingAfterStop": false,
+    "tickFailures": 0
+   },
+   "beforeShutdown": {
+    "exportedEvents": 4,
+    "pendingFileWrites": 4
+   },
+   "reopen": {
+    "watching": true,
+    "hasWatchDir": true,
+    "ticked": true,
+    "tickFailures": 0,
+    "writesOnLoad": 0
+   },
+   "reopenExport": {
+    "delayMs": 2075,
+    "writes": 1
+   },
+   "twoTabs": {
+    "bothWatching": true,
+    "bothHaveFolder": true,
+    "failures": 0
+   },
+   "finalStop": {
+    "watching": false
+   }
+  },
+  "scheduler": "undefined",
+  "errors": [
+   "Error while trying to use the following icon from the Manifest: http://127.0.0.1:8101/assets/icons/app-icon.svg (Download error or resource isn't a valid image)"
+  ]
+ },
+ "head": {
+  "phases": {
+   "connect": {
+    "watching": true,
+    "autoSync": true,
+    "hasDir": true
+   },
+   "fastPath": {
+    "delayMs": 2093,
+    "writes": 1
+   },
+   "burst": {
+    "delayFromFirstSaveMs": 29977,
+    "writesBefore": 1,
+    "writesAfter": 2,
+    "exported": 2
+   },
+   "inFlight": {
+    "writeStartedAfterMs": 2015,
+    "exportedWhileInFlight": 0,
+    "writes": 2,
+    "exports": 2,
+    "followUpWaitedAtLeastMs": 26047
+   },
+   "watcher": {
+    "ticksWhileFast": true,
+    "noTicksAfterStop": true,
+    "watchingAfterStop": false,
+    "tickFailures": 0
+   },
+   "beforeShutdown": {
+    "exportedEvents": 4,
+    "pendingFileWrites": 4
+   },
+   "reopen": {
+    "watching": true,
+    "hasWatchDir": true,
+    "ticked": true,
+    "tickFailures": 0,
+    "writesOnLoad": 0
+   },
+   "reopenExport": {
+    "delayMs": 2087,
+    "writes": 1
+   },
+   "twoTabs": {
+    "bothWatching": true,
+    "bothHaveFolder": true,
+    "failures": 0
+   },
+   "finalStop": {
+    "watching": false
+   }
+  },
+  "scheduler": "object",
+  "errors": [
+   "Error while trying to use the following icon from the Manifest: http://127.0.0.1:8100/assets/icons/app-icon.svg (Download error or resource isn't a valid image)",
+   "Error while trying to use the following icon from the Manifest: http://127.0.0.1:8100/assets/icons/app-icon.svg (Download error or resource isn't a valid image)"
+  ]
+ }
+}

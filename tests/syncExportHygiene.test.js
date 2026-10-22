@@ -121,54 +121,127 @@ describe('fix #9 — source photos are excluded by default', () => {
 });
 
 describe('fix #9 — the auto-export debounce actually coalesces', () => {
-  const SRC = fs.readFileSync(path.join(__dirname, '..', 'sync-engine.js'), 'utf8');
+  // The debounce lives in sync-export-scheduler.js. These drive it through its real timer and clock (jest's fake
+  // ones), with a `run` whose completion the test controls; tests/syncSchedulerTrace.test.js covers the same rules
+  // end to end through the engine.
+  const Scheduler = require('../sync-export-scheduler.js');
+  const ENGINE_SRC = fs.readFileSync(path.join(__dirname, '..', 'sync-engine.js'), 'utf8');
 
-  test('an in-flight export blocks scheduling instead of stacking writes', () => {
-    const idx = SRC.indexOf('function _scheduleAutoExport');
+  // A run that records its calls and keeps each write open until finish()/fail() is called.
+  function harness({ writes = true } = {}) {
+    const calls = [];
+    const open = [];
+    const sched = Scheduler.create(markWriteStarted => {
+      calls.push(Date.now());
+      return new Promise((resolve, reject) => {
+        if (writes) markWriteStarted();
+        open.push({ resolve, reject });
+      });
+    });
+    return { sched, calls, open, finish: () => open.shift().resolve(), fail: () => open.shift().reject(new Error('x')) };
+  }
+  const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date('2026-01-01T12:00:00Z')); });
+  afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); });
+
+  test('an in-flight export blocks scheduling instead of stacking writes', async () => {
+    const h = harness();
+    h.sched.schedule();
+    jest.advanceTimersByTime(2000);
+    expect(h.calls).toHaveLength(1);
+    for (let i = 0; i < 5; i++) h.sched.schedule();
+    expect(jest.getTimerCount()).toBe(0);
+    jest.advanceTimersByTime(120000);
+    expect(h.calls).toHaveLength(1);
+  });
+
+  test('the cooldown is measured from the START of a write, not its completion', async () => {
+    const h = harness();
+    h.sched.schedule();
+    jest.advanceTimersByTime(2000);              // write starts at +2000
+    h.sched.schedule();                           // queued
+    jest.advanceTimersByTime(25000);              // the write is slow: completes at +27000
+    h.finish(); await flush();
+    // 25 s after the start, the 30 s cooldown has 5 s left; a completion-based clock would wait the full 30 s.
+    expect(jest.getTimerCount()).toBe(1);
+    jest.advanceTimersByTime(4999);
+    expect(h.calls).toHaveLength(1);
+    jest.advanceTimersByTime(1);
+    expect(h.calls).toHaveLength(2);
+  });
+
+  test('the pending timer is single, and the write window is closed to new timers until it settles', async () => {
+    const h = harness();
+    h.sched.schedule(); h.sched.schedule(); h.sched.schedule();
+    expect(jest.getTimerCount()).toBe(1);
+    jest.advanceTimersByTime(2000);
+    expect(jest.getTimerCount()).toBe(0);         // timer consumed, write running
+    h.sched.schedule();
+    expect(jest.getTimerCount()).toBe(0);         // ... and a save now only queues
+  });
+
+  test('a queued change triggers exactly one follow-up write', async () => {
+    const h = harness();
+    h.sched.schedule();
+    jest.advanceTimersByTime(2000);
+    h.sched.schedule(); h.sched.schedule();
+    h.finish(); await flush();
+    expect(jest.getTimerCount()).toBe(1);
+    jest.advanceTimersByTime(30000);
+    expect(h.calls).toHaveLength(2);
+    h.finish(); await flush();
+    // The follow-up did not itself re-queue: nothing more is scheduled.
+    expect(jest.getTimerCount()).toBe(0);
+    jest.advanceTimersByTime(120000);
+    expect(h.calls).toHaveLength(2);
+  });
+
+  test('a run that wrote nothing does not consume the cooldown', async () => {
+    const h = harness({ writes: false });
+    h.sched.schedule();
+    jest.advanceTimersByTime(2000);
+    h.finish(); await flush();
+    h.sched.schedule();
+    jest.advanceTimersByTime(1999);
+    expect(h.calls).toHaveLength(1);
+    jest.advanceTimersByTime(1);
+    expect(h.calls).toHaveLength(2);
+  });
+
+  test('settle runs on both success and failure', async () => {
+    const h = harness();
+    h.sched.schedule();
+    jest.advanceTimersByTime(2000);
+    h.sched.schedule();
+    h.fail(); await flush();
+    expect(jest.getTimerCount()).toBe(1);        // the queued follow-up was scheduled after the failure
+    jest.advanceTimersByTime(30000);
+    expect(h.calls).toHaveLength(2);
+    h.finish(); await flush();
+    h.sched.schedule();
+    expect(jest.getTimerCount()).toBe(1);        // and the window is closed again after a success
+  });
+
+  test('a run with no folder starts no write, leaves nothing queued and does not block the next save', async () => {
+    let folder = false;
+    const calls = [];
+    const sched = Scheduler.create(mark => { calls.push(1); if (!folder) return undefined; mark(); return Promise.resolve(); });
+    sched.schedule();
+    jest.advanceTimersByTime(2000);
+    expect(calls).toHaveLength(1);
+    folder = true;
+    sched.schedule();
+    jest.advanceTimersByTime(2000);
+    expect(calls).toHaveLength(2);
+  });
+
+  test('the engine stamps the write start only after the permission check, and hands the scheduler its Promise', () => {
+    const idx = ENGINE_SRC.indexOf('function _runAutoExport');
     expect(idx).toBeGreaterThan(0);
-    const body = SRC.slice(idx, idx + 700);
-    expect(body).toMatch(/if\s*\(_exportInFlight\)\s*\{\s*_exportQueued\s*=\s*true;\s*return;/);
-  });
-
-  test('the cooldown is measured from the START of a write, not its completion', () => {
-    const idx = SRC.indexOf('function _scheduleAutoExport');
-    const body = SRC.slice(idx, idx + 700);
-    expect(body).toMatch(/_lastExportStartedAt/);
-    // The old completion-based field is gone entirely.
-    expect(SRC).not.toMatch(/_lastExportFiredAt/);
-  });
-
-  test('the timer handle is not cleared before the async write finishes', () => {
-    // _runAutoExport clears the handle then immediately guards with
-    // _exportInFlight, so the window the old code left open is closed.
-    const idx = SRC.indexOf('function _runAutoExport');
-    expect(idx).toBeGreaterThan(0);
-    const body = SRC.slice(idx, idx + 900);
-    expect(body).toMatch(/_exportInFlight\s*=\s*true/);
-    expect(body).toMatch(/_exportQueued\s*=\s*false/);
-  });
-
-  test('a queued change triggers exactly one follow-up write', () => {
-    const idx = SRC.indexOf('function _runAutoExport');
-    const body = SRC.slice(idx, idx + 1200);
-    // settle() clears the flag before rescheduling, so the follow-up cannot
-    // itself re-queue and loop.
-    expect(body).toMatch(/function settle\(\)[\s\S]{0,220}_exportQueued\s*=\s*false;[\s\S]{0,60}_scheduleAutoExport\(\)/);
-  });
-
-  test('a permission failure does not consume the cooldown', () => {
-    const idx = SRC.indexOf('function _runAutoExport');
-    const body = SRC.slice(idx, idx + 1600);
-    const permIdx = body.indexOf('Write permission not granted');
-    const stampIdx = body.indexOf('_lastExportStartedAt = Date.now()');
-    // The stamp happens only on the granted path, after the early return.
-    expect(permIdx).toBeGreaterThan(0);
-    expect(stampIdx).toBeGreaterThan(permIdx);
-  });
-
-  test('settle runs on both success and failure', () => {
-    const idx = SRC.indexOf('function _runAutoExport');
-    const body = SRC.slice(idx, idx + 2000);
-    expect(body).toMatch(/\.then\(settle,\s*settle\)/);
+    const body = ENGINE_SRC.slice(idx, idx + 2000);
+    expect(body.indexOf('markWriteStarted()')).toBeGreaterThan(body.indexOf('Write permission not granted'));
+    expect(body).toMatch(/return Promise\.resolve\(\)\s*\.then\(function \(\) \{ return watchDirHandle\.queryPermission/);
+    expect(ENGINE_SRC).not.toMatch(/_lastExportFiredAt|_exportInFlight|_autoExportTimer/);
   });
 });

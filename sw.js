@@ -123,6 +123,7 @@ var PRECACHE_URLS = [
   './creator/pdfExport.js',
   './sync-merge-helpers.js',
   './sync-attachment-codec.js',
+  './sync-export-scheduler.js',
   './sync-engine.js',
   './webdav-sync.js',
   './assets/fonts/CrossStitchSymbols.base64.js',
@@ -137,7 +138,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "4b91110129e98b44034ca5844dabb2510211b4f2d13ab19f8d91523946bb93d3";
+var BUILD_ID = "58663dffb24229e3a655ab8b13c0949f166d2849eb724d83684790062696d43c";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -235,6 +236,7 @@ var REQUIRED_URLS = [
   "./creator/pdfExport.js",
   "./sync-merge-helpers.js",
   "./sync-attachment-codec.js",
+  "./sync-export-scheduler.js",
   "./sync-engine.js",
   "./webdav-sync.js",
   "./assets/fonts/CrossStitchSymbols.base64.js",
@@ -281,19 +283,19 @@ var BUILD_ASSETS = {
     "integrity": "sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
   },
   "./home.html": {
-    "sha256": "d63e4c40818b86b122ed994ef14d97ad1ae628db09c1c6fcb3e94068f988caee"
+    "sha256": "201121913b2ad585320cc1b57dcef43291d753390cb5e8f9ac8a02cddb7cc7fa"
   },
   "./index.html": {
-    "sha256": "123993737ef5b179bcd6f9a93adca95d5366f853614117f1853c4d04e5d8cdc6"
+    "sha256": "0ed4c2a76981fe77613df37f87c721e11949bdab3ae3ba512263a7988da12522"
   },
   "./create.html": {
-    "sha256": "e6bc7f986ba7582dfdef5e9a781415611a5f1ca028d6647a90fb80b655e9cc2b"
+    "sha256": "89070d56ff276b6667ef75a038868d85e0bc593c0d3a844db8934683af0c87d1"
   },
   "./stitch.html": {
-    "sha256": "031b067d89de5c762cf1aed9764276a5bf766b327463751fd8e9681cd0b8af2c"
+    "sha256": "d1277db6eb031ba800a04f3cf3d2a29b1ac7fe144f8230535487facef2e19525"
   },
   "./manager.html": {
-    "sha256": "cdb4097076456215f2e187b20acd184c753c718065b297d729550968c9f875aa"
+    "sha256": "29be2d3d2a6e2371a91e6701bdeaf3edfcc66bc5dd675dac7682f33d95ef358e"
   },
   "./manifest.json": {
     "sha256": "d4c4100e8bde92386cc77c149696bd4d6c0d2eb300e62625529e72b92b05b64d"
@@ -568,8 +570,11 @@ var BUILD_ASSETS = {
   "./sync-attachment-codec.js": {
     "sha256": "23c363f05ddb3d40fba2ed31fc546c47201ada20ff7d4ee7e69b2245c5b041fd"
   },
+  "./sync-export-scheduler.js": {
+    "sha256": "9d302aef429305ff28bf6a6b08814dbdc9d405308dacd76c293253be5ccdf067"
+  },
   "./sync-engine.js": {
-    "sha256": "65f486111491ee217a4d217e1ba7177be500004cacccf50c529a82fba44a1df2"
+    "sha256": "ebdcb10d5fe71dd7eea19c9d40ebfc5ac49c4aaab070724d908f0a65a4b91163"
   },
   "./webdav-sync.js": {
     "sha256": "eb6cceb9c949c479b79108eeae059db6022221763d97ba454578672be887a39c"
