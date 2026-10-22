@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Just Open It Home</title>
+<!-- stitchx home page redesign, Option 3: Just open it. Static mockup; see reports/home-redesign-proposals.md.
+     Generated from a shared template so the three options share tokens, icons and chrome. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Workshop tokens (mirrors styles.css :root and [data-theme="dark"]) ── */
+:root{
+  --accent:#B85C38;--accent-hover:#944526;--accent-soft:#F4DDCF;--accent-border:#E8B89A;--accent-text:#944526;
+  --text-primary:#1B1814;--text-secondary:#5C5448;--text-tertiary:#6F6757;--text-on-accent:#FFFFFF;
+  --surface:#FFFFFF;--surface-secondary:#FBF8F3;--surface-tertiary:#EFE7D6;
+  --line:#E5DCCB;--line-2:#D8CDB6;
+  --success:#4F7D3F;--success-soft:#DEE7D2;--success-text:#3F6A31;
+  --warning:#C0883A;--warning-soft:#F2E2BE;
+  --tint-fabric:#EDE3D0;--tint-thread:#E9DCC2;
+  --stage:#ECE5D9;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:10px;--radius-xl:12px;--radius-pill:999px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.04);--shadow:0 2px 8px rgba(60,40,20,.08);--shadow-lg:0 12px 28px rgba(60,40,20,.14);
+  --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --motion:160ms ease-out;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --accent:#E2865B;--accent-hover:#F0A07A;--accent-soft:#3A2418;--accent-border:#6E3A22;--accent-text:#E2865B;
+    --text-primary:#F4EFE7;--text-secondary:#B6AC9C;--text-tertiary:#9D9383;--text-on-accent:#1B1410;
+    --surface:#1C1A18;--surface-secondary:#14120F;--surface-tertiary:#2A2724;
+    --line:#3A352E;--line-2:#4B4339;
+    --success:#88B077;--success-soft:#2C3A24;--success-text:#88B077;
+    --warning:#E6B069;--warning-soft:#3A2E16;
+    --tint-fabric:#322B1F;--tint-thread:#2E281D;
+    --stage:#0D0C0A;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.32);--shadow:0 2px 8px rgba(0,0,0,.42);--shadow-lg:0 12px 28px rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --accent:#E2865B;--accent-hover:#F0A07A;--accent-soft:#3A2418;--accent-border:#6E3A22;--accent-text:#E2865B;
+  --text-primary:#F4EFE7;--text-secondary:#B6AC9C;--text-tertiary:#9D9383;--text-on-accent:#1B1410;
+  --surface:#1C1A18;--surface-secondary:#14120F;--surface-tertiary:#2A2724;
+  --line:#3A352E;--line-2:#4B4339;
+  --success:#88B077;--success-soft:#2C3A24;--success-text:#88B077;
+  --warning:#E6B069;--warning-soft:#3A2E16;
+  --tint-fabric:#322B1F;--tint-thread:#2E281D;
+  --stage:#0D0C0A;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.32);--shadow:0 2px 8px rgba(0,0,0,.42);--shadow-lg:0 12px 28px rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font-ui);background:var(--stage);color:var(--text-primary);font-size:13px;line-height:1.45;min-height:100vh}
+button{font:inherit;color:inherit}
+a{color:inherit}
+.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;display:inline-block;vertical-align:-0.125em}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ── Mockup chrome (not part of the design) ─────────────────────────── */
+.mk-bar{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.mk-title{font-weight:700;font-size:14px;flex:1 1 220px;min-width:0}
+.mk-title small{display:block;font-weight:500;font-size:11px;color:var(--text-secondary)}
+.mk-links{display:flex;gap:4px;flex-wrap:wrap}
+.mk-links a{font-size:12px;text-decoration:none;padding:4px 8px;border-radius:var(--radius-sm);color:var(--text-secondary)}
+.mk-links a[aria-current="page"]{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.mk-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--radius-md);overflow:hidden}
+.mk-seg button{border:0;background:var(--surface);padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-secondary)}
+.mk-seg button+button{border-left:1px solid var(--line-2)}
+.mk-seg button[aria-pressed="true"]{background:var(--accent);color:var(--text-on-accent)}
+.mk-group{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary)}
+
+.mk-stage{display:flex;gap:20px;align-items:flex-start;padding:20px 16px 48px;max-width:1640px;margin:0 auto}
+.mk-frame{--frame-w:1120px;width:min(var(--frame-w),100%);flex-shrink:0;border-radius:14px;overflow:hidden;box-shadow:var(--shadow-lg);border:1px solid var(--line);position:relative;background:var(--surface-secondary);transition:width var(--motion)}
+body[data-width="phone"] .mk-frame{--frame-w:390px}
+.mk-why{flex:1 1 320px;min-width:0;max-width:520px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 22px;position:sticky;top:72px;max-height:calc(100vh - 92px);overflow:auto}
+.mk-why h2{font-size:17px;margin-bottom:4px}
+.mk-why .lede{color:var(--text-secondary);margin-bottom:14px}
+.mk-why h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin:18px 0 8px}
+.mk-why p,.mk-why li{font-size:13px}
+.mk-why ul{padding-left:18px;display:grid;gap:6px}
+.mk-why .fix{list-style:none;padding:0}
+.mk-why .fix li{display:grid;grid-template-columns:40px 1fr;gap:8px;align-items:baseline}
+.mk-why .fx{font-size:11px;font-weight:700;color:var(--accent-text);background:var(--accent-soft);border-radius:var(--radius-pill);text-align:center;padding:1px 0}
+.mk-why code{font-size:12px;background:var(--surface-tertiary);padding:0 4px;border-radius:4px}
+@media (max-width:1100px){
+  .mk-stage{flex-direction:column;align-items:center}
+  .mk-why{position:static;max-height:none;max-width:1120px;width:100%}
+}
+@media (max-width:520px){ .mk-stage{padding:12px 0 40px} .mk-frame{border-radius:0;border-left:0;border-right:0} .mk-why{border-radius:0;border-left:0;border-right:0} }
+
+/* ── App primitives shared by all three options ─────────────────────── */
+.app{container-type:inline-size;container-name:app;background:var(--surface-secondary);color:var(--text-primary);min-height:720px;position:relative}
+.logo{display:inline-flex;align-items:center;font-weight:800;font-size:16px;letter-spacing:-.3px;text-decoration:none;color:var(--text-primary);white-space:nowrap}
+.logo .ic{color:var(--accent);stroke-width:2.4;width:.9em;height:.9em;margin-left:1px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;font-size:13px;font-weight:600;border-radius:var(--radius-md);border:1px solid var(--line-2);background:var(--surface);color:var(--text-primary);cursor:pointer;text-decoration:none;white-space:nowrap;transition:background var(--motion),border-color var(--motion)}
+.btn:hover{background:var(--surface-tertiary)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--text-on-accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+.btn-ghost:hover{background:var(--surface-tertiary);color:var(--text-primary)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:6px;width:32px;height:32px}
+.btn-link{border:0;background:none;color:var(--accent-text);font-weight:600;cursor:pointer;padding:0;text-decoration:none;display:inline-flex;align-items:center;gap:4px}
+.btn-link:hover{text-decoration:underline}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-xl)}
+.muted{color:var(--text-secondary)}
+.tiny{font-size:11px;color:var(--text-tertiary)}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-secondary)}
+.bar{height:6px;border-radius:var(--radius-pill);background:var(--surface-tertiary);overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.bar.done>i{background:var(--success)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:var(--radius-pill);background:var(--surface-tertiary);color:var(--text-secondary);white-space:nowrap}
+.chip.acc{background:var(--accent-soft);color:var(--accent-text)}
+.chip.ok{background:var(--success-soft);color:var(--success-text)}
+canvas.thumb{display:block;width:100%;height:auto;aspect-ratio:1;image-rendering:pixelated;border-radius:var(--radius-md);background:var(--tint-fabric)}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid var(--line-2);flex-shrink:0}
+
+/* menus + sheets + toast */
+.menu-wrap{position:relative;display:inline-flex}
+.menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:200px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:4px}
+.menu button,.menu a{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border:0;background:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;text-decoration:none;color:var(--text-primary)}
+.menu button:hover,.menu a:hover{background:var(--surface-tertiary)}
+.menu .ic{color:var(--text-secondary)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.menu small{display:block;color:var(--text-tertiary);font-size:11px}
+.scrim{position:fixed;inset:0;background:rgba(20,15,10,.45);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:16px}
+@container app (min-width:641px){ .scrim{align-items:center} }
+.sheet{background:var(--surface);border-radius:16px;box-shadow:var(--shadow-lg);width:min(460px,100%);padding:20px;display:grid;gap:14px}
+.sheet h3{font-size:17px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:var(--text-primary);color:var(--surface);padding:10px 16px;border-radius:var(--radius-md);font-size:13px;box-shadow:var(--shadow-lg);transition:opacity var(--motion),transform var(--motion);z-index:100;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* state switch: .only-new / .only-ret */
+body[data-state="new"] .only-ret{display:none!important}
+body[data-state="returning"] .only-new{display:none!important}
+
+/* ── Option 3 ───────────────────────────────────────────────────── */
+.o3-shell{display:grid;grid-template-columns:208px minmax(0,1fr);min-height:720px}
+.o3-side{background:var(--surface);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:2px}
+.o3-side .logo{padding:4px 10px 20px}
+.o3-nav{display:grid;gap:2px}
+.o3-nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-md);text-decoration:none;color:var(--text-secondary);font-weight:500;font-size:14px}
+.o3-nav a .ic{font-size:18px}
+.o3-nav a:hover{background:var(--surface-tertiary)}
+.o3-nav a[aria-current]{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.o3-nav a .n{margin-left:auto;font-size:11px;color:var(--text-tertiary)}
+.o3-side .bottom{margin-top:auto;padding-top:16px;border-top:1px solid var(--line)}
+.o3-top,.o3-tabs{display:none}
+.o3-col{display:flex;flex-direction:column;min-width:0}
+.o3-main{padding:44px 40px 56px;max-width:860px;width:100%;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:28px;align-content:start}
+.o3-pitch h1{font-size:28px;line-height:1.2;letter-spacing:-.02em;max-width:26ch}
+.o3-pitch p{color:var(--text-secondary);font-size:15px;margin-top:8px}
+.o3-drop{border:2px dashed var(--accent-border);background:var(--surface);border-radius:18px;padding:44px 24px;text-align:center;display:grid;justify-items:center;gap:8px;transition:background var(--motion),border-color var(--motion)}
+.o3-drop.over{background:var(--accent-soft);border-color:var(--accent)}
+.o3-drop .art{width:64px;height:64px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:grid;place-items:center;font-size:30px;margin-bottom:6px}
+.o3-drop h2{font-size:21px;letter-spacing:-.01em}
+.o3-drop p{color:var(--text-secondary);max-width:46ch;font-size:14px}
+.o3-drop .btn-primary{margin-top:10px;padding:11px 22px;font-size:14px}
+.o3-drop .tiny{margin-top:6px}
+.o3-ph{display:none}
+.o3-alt{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.o3-alt button{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-lg);cursor:pointer;text-align:left}
+.o3-alt button:hover{border-color:var(--accent-border)}
+.o3-alt .art{width:38px;height:38px;border-radius:10px;background:var(--surface-tertiary);display:grid;place-items:center;font-size:18px;color:var(--text-secondary);flex-shrink:0}
+.o3-alt strong{display:block;font-size:14px}
+.o3-alt small{color:var(--text-secondary);font-size:12px}
+.o3-trust{display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:13px;justify-content:center;text-align:center}
+.o3-trust .ic{color:var(--success)}
+
+/* returning */
+.o3-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.o3-h h2{font-size:18px;letter-spacing:-.01em}
+.o3-shelf{display:grid;grid-auto-flow:column;grid-auto-columns:210px;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 8px;margin:0 -2px}
+.o3-pc{scroll-snap-align:start;position:relative;padding:10px}
+.o3-pc .main{display:grid;gap:8px;width:100%;text-align:left;border:0;background:none;cursor:pointer;padding:0}
+.o3-pc .name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.o3-pc .row{display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);gap:6px}
+.o3-pc .go{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:var(--accent-text)}
+.o3-pc .more{position:absolute;top:16px;right:16px;background:var(--surface);border-color:var(--line);box-shadow:var(--shadow-sm)}
+.o3-pc .ph{aspect-ratio:1;border-radius:var(--radius-md);background:var(--surface-tertiary);display:grid;place-items:center;font-size:34px;color:var(--text-tertiary)}
+.o3-pc.first{border-color:var(--accent-border);box-shadow:var(--shadow)}
+.o3-newbar{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px dashed var(--line-2);border-radius:var(--radius-lg);background:var(--surface);flex-wrap:wrap}
+.o3-newbar .art{width:36px;height:36px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:grid;place-items:center;font-size:18px}
+.o3-newbar .t{flex:1;min-width:180px}
+.o3-newbar .t strong{display:block;font-size:14px}
+.o3-newbar .t small{color:var(--text-secondary);font-size:12px}
+.o3-glance{list-style:none}
+.o3-glance li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:14px}
+.o3-glance li:first-child{border-top:0}
+.o3-glance .art{width:32px;height:32px;border-radius:8px;background:var(--surface-tertiary);display:grid;place-items:center;color:var(--text-secondary);font-size:16px;flex-shrink:0}
+.o3-glance .t{flex:1}
+.o3-glance .ok{background:var(--success-soft);color:var(--success-text)}
+
+/* sheets */
+.o3-choice{display:grid;gap:10px}
+.o3-choice button{display:grid;grid-template-columns:40px 1fr;gap:2px 12px;align-items:center;text-align:left;padding:14px;border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-lg);cursor:pointer}
+.o3-choice button:hover{border-color:var(--accent-border);background:var(--surface-secondary)}
+.o3-choice .art{grid-row:span 2;width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent-text);display:grid;place-items:center;font-size:20px}
+.o3-choice strong{font-size:14px}
+.o3-choice small{font-size:12px;color:var(--text-secondary)}
+.o3-file{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-secondary);border:1px solid var(--line);border-radius:var(--radius-md);font-size:13px}
+.o3-file .ic{font-size:18px;color:var(--text-secondary)}
+.o3-warn{display:flex;gap:10px;background:var(--warning-soft);border-radius:var(--radius-md);padding:12px;font-size:13px}
+.o3-warn .ic{color:var(--warning);font-size:18px;margin-top:1px}
+.o3-sheet-acts{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.o3-actions{display:grid;gap:2px}
+.o3-actions button{display:flex;align-items:center;gap:12px;padding:11px 10px;border:0;background:none;border-radius:var(--radius-md);cursor:pointer;font-size:14px;text-align:left}
+.o3-actions button:hover{background:var(--surface-tertiary)}
+.o3-actions button .ic{font-size:18px;color:var(--text-secondary)}
+.o3-actions button.primary{color:var(--accent-text);font-weight:600}
+.o3-actions button.primary .ic{color:var(--accent-text)}
+.o3-actions small{display:block;color:var(--text-tertiary);font-size:12px;font-weight:400}
+.o3-sheet-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.o3-mock{border-top:1px dashed var(--line-2);padding-top:10px;font-size:11px;color:var(--text-tertiary)}
+.spin{width:18px;height:18px;border:2px solid var(--line-2);border-top-color:var(--accent);border-radius:50%;animation:spin 800ms linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+
+@container app (max-width:640px){
+  .o3-shell{grid-template-columns:1fr}
+  .o3-side{display:none}
+  .o3-top{display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 12px 0 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+  .o3-tabs{display:grid;grid-template-columns:repeat(4,1fr);position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:6px 4px 10px;margin-top:auto;z-index:5}
+  .o3-tabs a{display:grid;justify-items:center;gap:2px;font-size:11px;text-decoration:none;color:var(--text-secondary);padding:4px;border-radius:var(--radius-md)}
+  .o3-tabs a .ic{font-size:22px}
+  .o3-tabs a[aria-current]{color:var(--accent-text);font-weight:600}
+  .o3-main{padding:24px 16px 28px;gap:22px}
+  .o3-pitch h1{font-size:22px}
+  .o3-pitch p{font-size:14px}
+  .o3-drop{padding:28px 16px}
+  .o3-drop h2{font-size:19px}
+  .o3-dt{display:none}
+  .o3-ph{display:inline}
+  .o3-drop .btn-primary{width:100%}
+  .o3-alt{grid-template-columns:1fr}
+  .o3-shelf{grid-auto-columns:68%}
+  .o3-newbar .btn{flex:1}
+}
+</style>
+</head>
+<body>
+<header class="mk-bar">
+  <div class="mk-title">Option 3: Just open it<small>stitchx home page redesign mockup · file-first and phone-first, asks questions only when they matter</small></div>
+  <nav class="mk-links" aria-label="Mockups">
+    <a href="home-page-audit/README.md">Walkthrough</a>
+    <a data-keep href="home-redesign-option-1.html">Option 1</a>
+    <a data-keep href="home-redesign-option-2.html">Option 2</a>
+    <a data-keep href="home-redesign-option-3.html" aria-current="page">Option 3</a>
+    <a href="home-redesign-proposals.md">Comparison</a>
+  </nav>
+  <div class="mk-group">User <div class="mk-seg"><button data-set="state:new">New</button><button data-set="state:returning">Returning</button></div></div>
+  <div class="mk-group">Width <div class="mk-seg"><button data-set="width:desktop">Desktop</button><button data-set="width:phone">Phone</button></div></div>
+  <div class="mk-group">Theme <div class="mk-seg"><button data-set="theme:auto">Auto</button><button data-set="theme:light">Light</button><button data-set="theme:dark">Dark</button></div></div>
+</header>
+<main class="mk-stage">
+  <div class="mk-frame"><div class="app" id="app">
+<div class="o3-shell">
+  <aside class="o3-side" aria-label="Sections">
+    <a class="logo" href="#" aria-label="stitchx home">stitch<span data-ic="stitchX"></span></a>
+    <nav class="o3-nav">
+      <a href="#" aria-current="page" data-ic="home">Home</a>
+      <a href="#" data-ic="grid" data-toast="Opens the Projects page (the full Project library)">Projects<span class="n only-ret">5</span></a>
+      <a href="#" data-ic="thread" data-toast="Opens the Stash Manager">Stash</a>
+      <a href="#" data-ic="barChart" data-toast="Opens the Stats page">Stats</a>
+    </nav>
+    <div class="o3-nav bottom">
+      <a href="#" data-ic="search" data-toast="Opens the command palette">Search</a>
+      <a href="#" data-ic="help" data-toast="Opens the Help drawer">Help</a>
+      <a href="#" data-ic="gear" data-toast="Opens Settings: preferences, backup and restore">Settings</a>
+    </div>
+  </aside>
+
+  <div class="o3-col">
+    <header class="o3-top">
+      <a class="logo" href="#" aria-label="stitchx home">stitch<span data-ic="stitchX"></span></a>
+      <span style="display:flex;gap:2px">
+        <button class="btn btn-ghost btn-icon" data-ic="search" aria-label="Search" data-toast="Opens the command palette"></button>
+        <button class="btn btn-ghost btn-icon" data-ic="help" aria-label="Help" data-toast="Opens the Help drawer"></button>
+        <button class="btn btn-ghost btn-icon" data-ic="gear" aria-label="Settings" data-toast="Opens Settings"></button>
+      </span>
+    </header>
+
+    <!-- ═════ First visit ═════ -->
+    <div class="o3-main only-new">
+      <section class="o3-pitch">
+        <h1>Cross-stitch patterns, made and tracked in your browser.</h1>
+        <p>Open a chart you've bought and tick off stitches, or turn any picture into a new pattern.</p>
+      </section>
+
+      <section class="o3-drop" id="o3-drop" aria-labelledby="o3-drop-h">
+        <span class="art" data-ic="upload"></span>
+        <h2 id="o3-drop-h"><span class="o3-dt">Drop a pattern or a picture here</span><span class="o3-ph">Open a pattern or a picture</span></h2>
+        <p>stitchx works out what it is. Chart files open ready to stitch. Pictures become new patterns.</p>
+        <button class="btn btn-primary" data-ic="upload" data-open="o3-pick">Choose a file</button>
+        <span class="tiny">PDF, OXS, XSD, PAT and backups · JPG, PNG and other pictures</span>
+      </section>
+
+      <div class="o3-alt">
+        <button data-toast="Opens the Pattern Creator with a blank canvas"><span class="art" data-ic="pencil"></span><span><strong>Start from a blank canvas</strong><small>Draw your own pattern</small></span></button>
+        <button data-toast="Creates a Demo project and opens it in the Stitch Tracker"><span class="art" data-ic="play"></span><span><strong>Try the demo pattern</strong><small>Practise in the real Stitch Tracker</small></span></button>
+      </div>
+
+      <p class="o3-trust"><span data-ic="lock"></span>Free, no account. Nothing is uploaded: your files stay on this device.</p>
+    </div>
+
+    <!-- ═════ Returning ═════ -->
+    <div class="o3-main only-ret">
+      <section aria-labelledby="o3-shelf-h">
+        <div class="o3-h"><h2 id="o3-shelf-h">Pick up where you left off</h2><button class="btn-link" data-toast="Opens the Projects page">All projects<span data-ic="chevronRight" data-ic-pos="end"></span></button></div>
+        <div class="o3-shelf">
+          <div class="card o3-pc first">
+            <button class="main" data-toast="Opens Grandma's birthday sampler in the Stitch Tracker"><canvas class="thumb" data-thumb="sampler" data-pct="8"></canvas><span class="name">Grandma's birthday sampler</span><span class="bar"><i style="width:8%"></i></span><span class="row"><span>8%</span><span>2 days ago</span></span><span class="go" data-ic="play">Continue</span></button>
+            <button class="btn btn-icon btn-sm more" data-ic="more" aria-label="More actions for Grandma's birthday sampler" data-open="o3-acts" data-name="Grandma's birthday sampler"></button>
+          </div>
+          <div class="card o3-pc">
+            <button class="main" data-toast="Opens Autumn fox in the Stitch Tracker"><canvas class="thumb" data-thumb="fox" data-pct="42"></canvas><span class="name">Autumn fox</span><span class="bar"><i style="width:42%"></i></span><span class="row"><span>42%</span><span>last week</span></span><span class="go" data-ic="play">Continue</span></button>
+            <button class="btn btn-icon btn-sm more" data-ic="more" aria-label="More actions for Autumn fox" data-open="o3-acts" data-name="Autumn fox"></button>
+          </div>
+          <div class="card o3-pc">
+            <button class="main" data-toast="Reopens Convert with the saved picture"><span class="ph" data-ic="image"></span><span class="name">Biscuit the dog</span><span class="row"><span>Picture, not converted yet</span></span><span class="go" data-ic="image">Continue converting</span></button>
+          </div>
+          <div class="card o3-pc">
+            <button class="main" data-toast="Opens Seaside cottage in the Stitch Tracker"><canvas class="thumb" data-thumb="cottage" data-pct="0"></canvas><span class="name">Seaside cottage</span><span class="bar"><i style="width:0"></i></span><span class="row"><span>Not started</span><span>150 × 100</span></span><span class="go" data-ic="play">Start stitching</span></button>
+            <button class="btn btn-icon btn-sm more" data-ic="more" aria-label="More actions for Seaside cottage" data-open="o3-acts" data-name="Seaside cottage"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="o3-newbar" id="o3-drop-ret" aria-label="Start a new pattern">
+        <span class="art" data-ic="plus"></span>
+        <span class="t"><strong>New pattern</strong><small><span class="o3-dt">Drop a chart or a picture here, or choose one.</span><span class="o3-ph">Open a chart or a picture.</span></small></span>
+        <button class="btn btn-primary btn-sm" data-ic="upload" data-open="o3-pick">Choose a file</button>
+        <button class="btn btn-sm" data-ic="pencil" data-toast="Opens a blank canvas">Blank</button>
+      </section>
+
+      <section aria-labelledby="o3-glance-h">
+        <div class="o3-h"><h2 id="o3-glance-h">At a glance</h2></div>
+        <ul class="o3-glance">
+          <li><span class="art" data-ic="barChart"></span><span class="t"><strong>1,240 stitches</strong> this week, on 5 days.</span><button class="btn-link" data-toast="Opens the Stats page">Stats</button></li>
+          <li><span class="art ok" data-ic="check"></span><span class="t"><strong>Seaside cottage</strong> is ready: you own every thread.</span><button class="btn-link" data-toast="Opens Seaside cottage">Open</button></li>
+          <li><span class="art" data-ic="cart"></span><span class="t"><strong>3 threads</strong> on your shopping list.</span><button class="btn-link" data-toast="Opens the shopping list in the Stash Manager">Shopping list</button></li>
+        </ul>
+      </section>
+    </div>
+
+    <nav class="o3-tabs" aria-label="Sections">
+      <a href="#" aria-current="page" data-ic="home">Home</a>
+      <a href="#" data-ic="grid" data-toast="Opens the Projects page">Projects</a>
+      <a href="#" data-ic="thread" data-toast="Opens the Stash Manager">Stash</a>
+      <a href="#" data-ic="barChart" data-toast="Opens the Stats page">Stats</a>
+    </nav>
+  </div>
+</div>
+
+<!-- Sheets -->
+<div class="scrim" id="o3-pick" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="o3-pick-h">
+    <div class="o3-sheet-h"><h3 id="o3-pick-h">Mockup: pick a sample file</h3><button class="btn btn-ghost btn-icon" data-ic="x" aria-label="Close" data-close></button></div>
+    <p class="muted">The real button opens the device's file picker. Pick one of these to see what happens next.</p>
+    <div class="o3-choice">
+      <button data-go="o3-pdf"><span class="art" data-ic="document"></span><strong>Autumn fox.pdf</strong><small>A chart bought from a shop</small></button>
+      <button data-go="o3-photo"><span class="art" data-ic="image"></span><strong>IMG_2041.jpg</strong><small>A photo from the camera roll</small></button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="o3-photo" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="o3-photo-h">
+    <div class="o3-sheet-h"><h3 id="o3-photo-h">What's in this picture?</h3><button class="btn btn-ghost btn-icon" data-ic="x" aria-label="Close" data-close></button></div>
+    <div class="o3-file"><span data-ic="image"></span>IMG_2041.jpg</div>
+    <div class="o3-choice">
+      <button data-toast="Opens Convert in the Pattern Creator with this picture" data-close><span class="art" data-ic="image"></span><strong>Something to turn into a pattern</strong><small>A photo, drawing or piece of artwork</small></button>
+      <button data-go="o3-chartphoto"><span class="art" data-ic="document"></span><strong>A printed chart</strong><small>A photo or scan of a pattern from a book, magazine or kit</small></button>
+    </div>
+    <p class="o3-mock">Only pictures get this question. Chart files (PDF, OXS, XSD, PAT, backups) skip it.</p>
+  </div>
+</div>
+
+<div class="scrim" id="o3-chartphoto" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="o3-cp-h">
+    <div class="o3-sheet-h"><h3 id="o3-cp-h">Printed charts can't be read from a photo yet</h3><button class="btn btn-ghost btn-icon" data-ic="x" aria-label="Close" data-close></button></div>
+    <div class="o3-warn"><span data-ic="info"></span><span>stitchx can't pick out the grid and symbols in a photo. If you bought this pattern as a PDF, open that file instead and every stitch and thread comes across.</span></div>
+    <div class="o3-sheet-acts">
+      <button class="btn" data-toast="Opens Convert with this picture anyway" data-close>Convert as a picture anyway</button>
+      <button class="btn btn-primary" data-go="o3-pick">Choose another file</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="o3-pdf" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="o3-pdf-h">
+    <div class="o3-sheet-h"><h3 id="o3-pdf-h">Opening Autumn fox.pdf</h3><button class="btn btn-ghost btn-icon" data-ic="x" aria-label="Close" data-close></button></div>
+    <div class="o3-file" id="o3-pdf-status"><span class="spin" aria-hidden="true"></span>Reading the chart…</div>
+    <div class="o3-sheet-acts" id="o3-pdf-done" hidden>
+      <button class="btn" data-toast="Opens the import review" data-close>Check the import</button>
+      <button class="btn btn-primary" data-ic="play" data-toast="Opens Autumn fox in the Stitch Tracker" data-close>Start stitching</button>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="o3-acts" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="o3-acts-h">
+    <div class="o3-sheet-h"><h3 id="o3-acts-h">Project</h3><button class="btn btn-ghost btn-icon" data-ic="x" aria-label="Close" data-close></button></div>
+    <div class="o3-actions">
+      <button class="primary" data-ic="play" data-toast="Opens in the Stitch Tracker" data-close>Continue stitching</button>
+      <button data-ic="pencil" data-toast="Opens in the Pattern Creator" data-close>Edit pattern</button>
+      <button data-ic="download" data-toast="Opens Export" data-close>Export or print</button>
+      <button data-ic="refresh" data-toast="Opens Update chart" data-close><span>Update chart<small>Re-import a corrected version of this chart</small></span></button>
+      <button data-ic="info" data-toast="Opens project details" data-close>Details</button>
+    </div>
+  </div>
+</div>
+  </div></div>
+  <aside class="mk-why" aria-label="Design rationale">
+<h2>Option 3 — Just open it</h2>
+<p class="lede">The first-visit page is one big target: open a pattern or a picture. stitchx already detects file types, so the "Convert or import?" choice goes away. A question only comes up when it's needed: after someone picks a photo.</p>
+
+<h3>Why this direction</h3>
+<ul>
+  <li><strong>The app can already tell files apart.</strong> <code>ImportEngine.classifyFileForCreate()</code> sorts a file into pattern, image or unsupported. Today Home still makes people choose a tile first, then warns them when they pick the wrong one. One "Choose a file" button removes that choice and the warnings.</li>
+  <li><strong>Ask at the moment it matters.</strong> The "photo of a printed chart" problem only affects people who pick a photo. They get one plain question ("What's in this picture?") and, only if they say "A printed chart", the explanation and a way out. Everyone else never sees the warning.</li>
+  <li><strong>Phone first.</strong> Returning users mostly carry on stitching from a phone. A bottom tab bar (Home, Projects, Stash, Stats) puts navigation under the thumb, and the "Pick up where you left off" shelf makes Continue a single tap on a big picture of the work.</li>
+  <li><strong>Actions in a sheet, not a row.</strong> Each project card has one tap target (Continue). Everything else (Edit, Export, Update chart, Details) is in a sheet that slides up, with a line of explanation for the rare ones. That's how phone apps handle secondary actions, and it can't overflow.</li>
+  <li><strong>Sentences instead of dashboards.</strong> "At a glance" gives three plain sentences that each link somewhere. That's enough to bring people back to the Stash and Stats pages without building a second dashboard on Home.</li>
+  <li><strong>Projects get their own page.</strong> Home stops trying to be the library. The shelf shows unfinished work and the Projects tab holds everything, so nothing gets silently cut off.</li>
+</ul>
+
+<h3>Walkthrough findings it fixes</h3>
+<ul class="fix">
+  <li><span class="fx">F1</span><span>One-line pitch and a privacy line under the drop zone.</span></li>
+  <li><span class="fx">F3 F4 F5</span><span>One "Choose a file" button instead of tiles plus "+ New project"; no tab/content mismatch.</span></li>
+  <li><span class="fx">F6 F7</span><span>The paper-chart warning appears only after someone picks a photo and says it's a printed chart.</span></li>
+  <li><span class="fx">F8</span><span>"Try the demo pattern" is a first-class choice that opens the real Tracker.</span></li>
+  <li><span class="fx">F9 F10</span><span>Labelled sidebar (desktop) or tab bar (phone); backup and preferences live under Settings.</span></li>
+  <li><span class="fx">F11</span><span>Stash and Stats are real destinations, with one-line hooks on Home.</span></li>
+  <li><span class="fx">F12</span><span>One tap target per card; everything else in an action sheet.</span></li>
+  <li><span class="fx">F13 F14</span><span>Big previews with progress; the full list moves to Projects, with a count in the nav.</span></li>
+  <li><span class="fx">F15 F16</span><span>Designed at 390 px first. The active project leads the shelf instead of appearing in three places.</span></li>
+</ul>
+
+<h3>Trade-offs</h3>
+<ul>
+  <li>The biggest change to the app's structure: a new nav model (sidebar or tab bar) and a Projects page. That's more work than Options 1 and 2, and it touches the shared header on every page.</li>
+  <li>A single "Choose a file" button hides what stitchx can do. Someone who has no file yet sees only "blank canvas" and "demo" as alternatives. The pitch line has to do the explaining.</li>
+  <li>The photo question adds one step to the Convert path for the most common new-user goal. It's one tap, and it replaces three warnings.</li>
+</ul>
+
+<h3>Build notes</h3>
+<ul>
+  <li>Routing already exists: <code>CreatePanel.startFile()</code> sends charts to <code>ImportEngine.importAndReview</code> and pictures to the Convert handoff. The photo question goes between <code>classify()</code> and <code>handOffImage()</code>.</li>
+  <li>The page-wide drop target is the existing <code>onDrop</code> handler moved from the Create tab to the whole page.</li>
+  <li>The Projects page can start as <code>manager.html</code>'s Pattern library, already reachable today.</li>
+</ul>
+  </aside>
+</main>
+<script>
+(function () {
+  'use strict';
+  // Icon paths: the same geometry as icons.js, drawn at the house 1.6 stroke.
+  var I = {
+    document: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    pencil: '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    play: '<polygon points="6 4 19 12 6 20 6 4"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    chevronRight: '<polyline points="9 6 15 12 9 18"/>',
+    chevronDown: '<polyline points="6 9 12 15 18 9"/>',
+    search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+    help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    thread: '<rect x="5" y="3" width="14" height="3" rx="1"/><rect x="5" y="18" width="14" height="3" rx="1"/><rect x="8" y="6" width="8" height="12"/><path d="M12 6 Q16 12 14 18"/>',
+    barChart: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+    cart: '<circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    x: '<path d="M18 6L6 18M6 6l12 12"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/>',
+    warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="15"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    upload: '<path d="M12 15V3"/><polyline points="7 8 12 3 17 8"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    download: '<path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>',
+    needle: '<line x1="3" y1="21" x2="21" y2="3"/><circle cx="20" cy="4" r="1.5"/><path d="M5 19l4 0 0 -4"/>',
+    device: '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    stitchX: '<path d="M5 5l14 14M19 5L5 19"/>'
+  };
+  function icon(name) {
+    return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (I[name] || '') + '</svg>';
+  }
+  window.mkIcon = icon;
+  function fillIcons(root) {
+    (root || document).querySelectorAll('[data-ic]').forEach(function (el) {
+      if (el.__ic) return; el.__ic = true;
+      var where = el.dataset.icPos === 'end' ? 'beforeend' : 'afterbegin';
+      el.insertAdjacentHTML(where, icon(el.dataset.ic));
+    });
+  }
+
+  // ── Pixel-art pattern thumbnails ─────────────────────────────────────
+  // Each map is a small cross-stitch chart. Stitches past the project's
+  // progress are drawn faded, the way the Tracker shows unstitched areas.
+  var PAL = { O:'#C8642B', W:'#F3EEE4', K:'#2B2420', N:'#1B1814', B:'#8A5A3B', R:'#D0532E', Y:'#E3B23C', G:'#5E8C4A',
+              S:'#A9CBDD', D:'#7A4A2A', C:'#6E6258', P:'#B85C38', H:'#C2405A', T:'#3D6C8E', F:'#E0A43A', A:'#E3D2A2', L:'#9DBF6A', M:'#7C5BA6' };
+  var MAPS = {
+    fox: ['..............','..O.......O...','..OO.....OO...','..OOOOOOOOO...','..OWOOOOOWO...','..OOKOOOKOO...','...OOOOOOO....','....WWNWW.....','.....WWW......','....OOOOO.....','...OOOOOOO..OO','...OOOOOOO.OOW','....OOOOO.OOW.','....K...K.....'],
+    robin: ['..............','.....BBBB.....','....BBBBBB....','....BKBBBB....','...YBBBBBB....','....RRRBBBB...','...RRRRRBBBB..','...RRRRRBBBBB.','....RRRBBBBBBB','.....BBBBB..BB','......K..K....','.....KK.KK....','GGGGGGGGGGGGGG','..............'],
+    cottage: ['SSSSSSSSSSSSSS','SSSSSSSSSCSSSS','SSSSSSRRRCRSSS','SSSSSRRRRRRRSS','SSSSRRRRRRRRRS','SSSRRRRRRRRRRR','SSSWWWWWWWWWWS','SSSWTTWWWTTWWS','SSSWTTWWWTTWWS','SSSWWWWDDWWWWS','GGGWWWWDDWWWWG','GGGGGGGGGGGGGG','AAAAAAAAAAAAAA','AAAAAAAAAAAAAA'],
+    sampler: ['PPPPPPPPPPPPPP','P............P','P.HH.HH..L.L.P','P.HHHHH...L..P','P..HHH...LLL.P','P...H.....L..P','P............P','P.TTT.MMM.FF.P','P.T...M.M.F..P','P.TTT.MMM.FF.P','P...T.M...F..P','P.TTT.M...FF.P','P............P','PPPPPPPPPPPPPP'],
+    flower: ['............','....AA......','...ABBA.....','...ABBA.....','....AA......','.....L..L...','...L.L.L....','....LLL.....','.....L......','.....L......','............','............'].map(function (r) { return r.replace(/A/g, 'R').replace(/B/g, 'Y'); })
+  };
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function drawThumbs() {
+    var bg = cssVar('--tint-fabric') || '#EDE3D0';
+    document.querySelectorAll('canvas[data-thumb]').forEach(function (cv) {
+      var map = MAPS[cv.dataset.thumb]; if (!map) return;
+      var pct = cv.dataset.pct == null ? 100 : +cv.dataset.pct;
+      var rows = map.length, cols = map[0].length, cell = 10, gap = 1;
+      cv.width = cols * cell; cv.height = rows * cell;
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height);
+      var total = 0; map.forEach(function (r) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') total++; });
+      var doneN = Math.round(total * pct / 100), k = 0;
+      for (var y = 0; y < rows; y++) for (var x = 0; x < cols; x++) {
+        var ch = map[y][x]; if (ch === '.') continue;
+        ctx.globalAlpha = k < doneN ? 1 : 0.28; k++;
+        ctx.fillStyle = PAL[ch] || '#999';
+        ctx.fillRect(x * cell + gap, y * cell + gap, cell - gap * 2, cell - gap * 2);
+      }
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // ── Toggles: state / width / theme, reflected in the URL ─────────────
+  var params = new URLSearchParams(location.search);
+  var body = document.body;
+  body.dataset.state = params.get('state') === 'returning' ? 'returning' : 'new';
+  body.dataset.width = params.get('width') === 'phone' ? 'phone' : 'desktop';
+  var theme = params.get('theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+
+  function syncUi() {
+    document.querySelectorAll('[data-set]').forEach(function (b) {
+      var kv = b.dataset.set.split(':');
+      var cur = kv[0] === 'theme' ? (document.documentElement.dataset.theme || 'auto') : body.dataset[kv[0]];
+      b.setAttribute('aria-pressed', cur === kv[1] ? 'true' : 'false');
+    });
+    var q = new URLSearchParams();
+    q.set('state', body.dataset.state); q.set('width', body.dataset.width);
+    if (document.documentElement.dataset.theme) q.set('theme', document.documentElement.dataset.theme);
+    document.querySelectorAll('.mk-links a[data-keep]').forEach(function (a) { a.search = q.toString(); });
+    try { history.replaceState(null, '', '?' + q.toString()); } catch (_) {}
+  }
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-set]');
+    if (s) {
+      var kv = s.dataset.set.split(':');
+      if (kv[0] === 'theme') { if (kv[1] === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = kv[1]; drawThumbs(); }
+      else body.dataset[kv[0]] = kv[1];
+      closeMenus(); syncUi(); return;
+    }
+    var m = e.target.closest('[data-menu]');
+    if (m) {
+      var el = document.getElementById(m.dataset.menu);
+      var open = el.hidden; closeMenus(); el.hidden = !open; m.setAttribute('aria-expanded', open ? 'true' : 'false');
+      e.stopPropagation(); return;
+    }
+    var t = e.target.closest('[data-toast]');
+    if (t) { e.preventDefault(); toast(t.dataset.toast); closeMenus(); return; }
+    if (!e.target.closest('.menu')) closeMenus();
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenus(); document.querySelectorAll('.scrim').forEach(function (s) { s.hidden = true; }); } });
+  function closeMenus() {
+    document.querySelectorAll('.menu').forEach(function (m) { m.hidden = true; });
+    document.querySelectorAll('[data-menu]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+  }
+  var toastEl, toastTimer;
+  function toast(msg) {
+    if (!toastEl) { toastEl = document.createElement('div'); toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
+    toastEl.textContent = msg; toastEl.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 2600);
+  }
+  window.mkToast = toast;
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawThumbs);
+
+  fillIcons(); drawThumbs(); syncUi();
+  window.mkRefresh = function () { fillIcons(); drawThumbs(); };
+})();
+
+</script>
+<script>
+(function () {
+  function show(id, name) {
+    document.querySelectorAll('.scrim').forEach(function (s) { s.hidden = true; });
+    var el = document.getElementById(id); if (!el) return;
+    el.hidden = false;
+    if (id === 'o3-acts' && name) document.getElementById('o3-acts-h').textContent = name;
+    if (id === 'o3-pdf') {
+      var st = document.getElementById('o3-pdf-status'), done = document.getElementById('o3-pdf-done');
+      st.innerHTML = '<span class="spin" aria-hidden="true"></span>Reading the chart…'; done.hidden = true;
+      setTimeout(function () { st.innerHTML = window.mkIcon('check') + '<span>Found an 80 × 60 chart with 24 threads and a key. Ready to stitch.</span>'; done.hidden = false; }, 1100);
+    }
+    var f = el.querySelector('button:not([data-close])') || el.querySelector('button'); if (f) f.focus();
+  }
+  document.addEventListener('click', function (e) {
+    var o = e.target.closest('[data-open]'); if (o) { show(o.dataset.open, o.dataset.name); return; }
+    var g = e.target.closest('[data-go]'); if (g) { show(g.dataset.go); return; }
+    var c = e.target.closest('[data-close]');
+    if (c) { var s = c.closest('.scrim'); if (s) s.hidden = true; return; }
+    if (e.target.classList && e.target.classList.contains('scrim')) e.target.hidden = true;
+  });
+  ['o3-drop', 'o3-drop-ret'].forEach(function (id) {
+    var z = document.getElementById(id); if (!z) return;
+    z.addEventListener('dragover', function (e) { e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', function () { z.classList.remove('over'); });
+    z.addEventListener('drop', function (e) {
+      e.preventDefault(); z.classList.remove('over');
+      var f = e.dataTransfer.files && e.dataTransfer.files[0];
+      show(f && /^image\//.test(f.type) ? 'o3-photo' : 'o3-pdf');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -440,6 +440,53 @@ function formatRelative(date) {
   catch (_) { return d.toISOString(); }
 }
 
+// Inline restore used by the File dropdown on pages without custom restore handlers,
+// and by Home's "Restore a backup" link (home-app.js), so both behave the same.
+function handleInlineRestore(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 64 * 1024 * 1024) { window.Toast.show({ message: 'Backup exceeds the 64 MiB file limit.', type: 'error' }); e.target.value = ''; return; }
+  var reader = new FileReader();
+  reader.onload = function () {
+    // backup-restore.js is loaded on demand (lazy-modules.js). parseBackupText
+    // and validate return values synchronously, so they cannot be proxied —
+    // the module has to be in place before either is called.
+    window.loadBackupRestore().then(function (BackupRestore) {
+    try {
+      // PERF (deferred-2): parseBackupText handles both legacy JSON files
+      // and the new CSB1\n compressed format.
+      var backup = BackupRestore.parseBackupText(reader.result);
+      var check = BackupRestore.validate(backup);
+      if (!check.valid) { (window.Toast ? window.Toast.show({ message: check.error, type: 'error' }) : alert(check.error)); return; }
+      var s = check.summary;
+      var when = s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : 'unknown date';
+      var msg = 'Restore backup from ' + when + '?\n\n'
+        + plural(s.projectCount, 'project') + ' \u00b7 ' + plural(s.threadCount, 'owned thread') + ' \u00b7 ' + plural(s.patternCount, 'pattern')
+        + '\n\n' + s.completeness + '. Existing projects are retained. Identical records are skipped; conflicting IDs stop the import. Portable settings in this file replace your current choices. Reload after restoring.';
+      window.ConfirmDialog.show({
+        title: 'Restore from backup?',
+        message: msg,
+        confirmLabel: 'Restore',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        BackupRestore.restore(backup)
+          .then(function (result) { if (result.requiresReload) window.location.reload(); else window.Toast.show({ message: 'Backup already present; nothing changed.', type: 'success' }); })
+          .catch(function (err) { (window.Toast ? window.Toast.show({ message: 'Restore failed: ' + err.message, type: 'error' }) : alert('Restore failed: ' + err.message)); });
+      });
+    } catch (err) {
+      (window.Toast ? window.Toast.show({ message: 'Invalid backup: ' + err.message, type: 'error' }) : alert('Invalid backup: ' + err.message));
+    }
+    }).catch(function () {
+      (window.Toast ? window.Toast.show({ message: 'Could not load the restore tools. Please check your connection and try again.', type: 'error' }) : alert('Could not load the restore tools.'));
+    });
+  };
+  reader.onerror = function () { window.Toast.show({ message: 'Could not read the backup file.', type: 'error' }); };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+window.restoreBackupFromInput = handleInlineRestore;
+
 function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF, onExportOxs, onNewProject, onOpenProject, onPreferences, onBulkAddThreads, setModal, activeProject, onBackupDownload, onRestoreFile, storageUsage, projectName: propProjectName, projectPct: propProjectPct, onNameChange, showAutosaved, saveStatus, savedAt, saveError, onRetrySave }) {
   const [pageDrop, setPageDrop] = React.useState(false);
   const dropRef = React.useRef(null);
@@ -653,50 +700,6 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     return function() { cancelled = true; };
   }, []);
 
-  // Inline backup/restore used by the File dropdown on pages without custom restore handlers
-  function handleInlineRestore(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    if (file.size > 64 * 1024 * 1024) { window.Toast.show({ message: 'Backup exceeds the 64 MiB file limit.', type: 'error' }); e.target.value = ''; return; }
-    var reader = new FileReader();
-    reader.onload = function () {
-      // backup-restore.js is loaded on demand (lazy-modules.js). parseBackupText
-      // and validate return values synchronously, so they cannot be proxied —
-      // the module has to be in place before either is called.
-      window.loadBackupRestore().then(function (BackupRestore) {
-      try {
-        // PERF (deferred-2): parseBackupText handles both legacy JSON files
-        // and the new CSB1\n compressed format.
-        var backup = BackupRestore.parseBackupText(reader.result);
-        var check = BackupRestore.validate(backup);
-        if (!check.valid) { (window.Toast ? window.Toast.show({ message: check.error, type: 'error' }) : alert(check.error)); return; }
-        var s = check.summary;
-        var when = s.createdAt ? new Date(s.createdAt).toLocaleString('en-GB') : 'unknown date';
-        var msg = 'Restore backup from ' + when + '?\n\n'
-          + plural(s.projectCount, 'project') + ' \u00b7 ' + plural(s.threadCount, 'owned thread') + ' \u00b7 ' + plural(s.patternCount, 'pattern')
-          + '\n\n' + s.completeness + '. Existing projects are retained. Identical records are skipped; conflicting IDs stop the import. Portable settings in this file replace your current choices. Reload after restoring.';
-        window.ConfirmDialog.show({
-          title: 'Restore from backup?',
-          message: msg,
-          confirmLabel: 'Restore',
-          danger: true
-        }).then(function (ok) {
-          if (!ok) return;
-          BackupRestore.restore(backup)
-            .then(function (result) { if (result.requiresReload) window.location.reload(); else window.Toast.show({ message: 'Backup already present; nothing changed.', type: 'success' }); })
-            .catch(function (err) { (window.Toast ? window.Toast.show({ message: 'Restore failed: ' + err.message, type: 'error' }) : alert('Restore failed: ' + err.message)); });
-        });
-      } catch (err) {
-        (window.Toast ? window.Toast.show({ message: 'Invalid backup: ' + err.message, type: 'error' }) : alert('Invalid backup: ' + err.message));
-      }
-      }).catch(function () {
-        (window.Toast ? window.Toast.show({ message: 'Could not load the restore tools. Please check your connection and try again.', type: 'error' }) : alert('Could not load the restore tools.'));
-      });
-    };
-    reader.onerror = function () { window.Toast.show({ message: 'Could not read the backup file.', type: 'error' }); };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
 
   // B3: Creator sub-pages collapsed from 5 → 3. Materials/Prepare/Export
   // are now sub-tabs inside the new "Materials & Output" hub. The legacy
@@ -731,6 +734,15 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     { id: 'manager', label: 'Stash',  href: 'manager.html?from=home' },
     { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
   ];
+  // Home lists the places you can go from it instead: Home itself, the Stash
+  // Manager and Stats. Its own cards cover creating and opening projects, so
+  // Create and Track would only repeat them (reports/home-redesign-proposals.md).
+  const homeSections = [
+    { id: 'home', label: 'Home', href: 'home.html' },
+    { id: 'manager', label: 'Stash', href: 'manager.html?from=home' },
+    { id: 'stats', label: 'Stats', href: 'index.html?mode=stats&from=home' },
+  ];
+  const navSections = page === 'home' ? homeSections : appSections;
 
   // Active project summary for the badge (consumed from prop or read from ProjectStorage if available)
   const [projSummary, setProjSummary] = React.useState(null);
@@ -820,16 +832,19 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
           }, window.Icons && window.Icons.stitchDot ? window.Icons.stitchDot() : '.')
         ),
 
-        // App-section navigation tabs — suppressed on home page because
-        // home.html has its own in-page tab bar (HomeTabBar in home-app.js)
-        // covering the same destinations. Shown on all other pages as before.
-        page !== 'home' && React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
-          appSections.map(({ id, label, href, title }) => {
+        // App-section navigation tabs: the tools on every tool page, and
+        // Home / Stash / Stats on Home (homeSections above).
+        React.createElement('nav', { className: 'tb-app-nav', 'aria-label': 'App sections' },
+          navSections.map(({ id, label, href, title }) => {
             // Map section id to NavigationAPI target ('manager' has no in-page
             // handler so it maps to 'stash' which falls through to cross-page).
             const navTargetMap = { creator: createTarget, tracker: 'tracker', manager: 'stash', stats: 'stats' };
             const navTarget = navTargetMap[id];
             const isActive = id === 'creator' ? inCreatorTool : page === id;
+            if (id === 'home') {
+              return React.createElement('a', { key: id, href: href, className: 'tb-app-tab tb-app-tab--active', 'aria-current': 'page',
+                onClick: (e) => { e.preventDefault(); window.scrollTo(0, 0); } }, label);
+            }
             return React.createElement('a', {
               key: id,
               href: id === 'creator' ? (createTarget === 'editor' ? 'create.html?from=home' : 'home.html?tab=create') : href,
@@ -871,9 +886,11 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // Project switcher (UX-12 Phase 6 PR #10) — recents dropdown +
         // "All projects…" entry that delegates to the existing project
-        // picker. Always present so the active project is identifiable
-        // even before the badge has loaded its name.
-        React.createElement(HeaderProjectSwitcher, {
+        // picker. Present on every tool page so the active project is
+        // identifiable even before the badge has loaded its name.
+        // Not on Home: its Continue card is where the open project appears, so
+        // a switcher and progress chip there would show it three times.
+        page !== 'home' && React.createElement(HeaderProjectSwitcher, {
           activeProject: projSummary,
           projectName: propProjectName || projName,
           onOpenAll: onOpenProject || undefined,
@@ -886,7 +903,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
 
         // Active project badge — editable when onNameChange is provided. At tablet
         // widths its progress and save state move into the switcher chip instead.
-        !compactChip && (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
+        page !== 'home' && !compactChip && (propProjectName || projName) && React.createElement('div', { className: 'tb-proj-badge' },
           onNameChange
             ? (editingName
               ? React.createElement('input', {

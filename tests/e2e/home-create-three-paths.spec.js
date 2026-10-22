@@ -17,27 +17,27 @@ async function openCreateTab(page) {
 test.describe('Starting a pattern on Pixel 5', function() {
   test.use(device('Pixel 5'));
 
-  test('Home shows three tiles', async function({ page }) {
+  test('Home shows three cards named after what you have', async function({ page }) {
     await openCreateTab(page);
-    await expect(page.getByRole('button', { name: /Convert a picture/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Draw a pattern/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Stitch an existing chart/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /A photo or picture/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /A blank canvas/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /A pattern I already have/ })).toBeVisible();
     // Each picker accepts its own kind of file.
     await expect(page.locator('input.home-create-file-input')).toHaveAttribute('accept', 'image/*');
     await expect(page.locator('input.home-import-file-input')).toHaveAttribute('accept', '.pdf,.pat,.oxs,.xsd,.xml,.json');
   });
 
-  test('a picture on the import tile is offered to Convert, and accepting opens it', async function({ page }) {
+  test('a picture on the chart card asks what it is, and "turn into a pattern" opens Convert', async function({ page }) {
     await openCreateTab(page);
     await page.locator('input.home-import-file-input').setInputFiles(LOGO);
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('Convert chooses threads from the colours in a picture.');
-    await dialog.getByRole('button', { name: 'Convert picture' }).click();
+    await expect(dialog).toContainText('What’s in this picture?');
+    await dialog.getByRole('button', { name: /Something to turn into a pattern/ }).click();
     await page.waitForURL(/create\.html/);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 15000 });
   });
 
-  test('a chart on the photo tile is offered to import, not rerouted', async function({ page }) {
+  test('a chart on the picture card is offered to import, not rerouted', async function({ page }) {
     await openCreateTab(page);
     await page.locator('input.home-create-file-input').setInputFiles(PDF);
     const dialog = page.getByRole('dialog');
@@ -56,7 +56,7 @@ test.describe('Starting a pattern on Pixel 5', function() {
 
   test('a blank grid shows only tools, and its first tab is Canvas', async function({ page }) {
     await openCreateTab(page);
-    await page.getByRole('link', { name: /Draw a pattern/ }).click();
+    await page.getByRole('link', { name: /A blank canvas/ }).click();
     await startBlankGrid(page, { navigate: false });
     await page.waitForSelector('.creator-rail', { timeout: 15000 });
     await expect(page.getByRole('tab', { name: 'Canvas' })).toBeVisible();

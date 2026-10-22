@@ -2,7 +2,8 @@
    The header lists tools only (Create, Track, Stash, Stats); the Creator's own steps (Convert, Edit, Materials) are
    not header tabs and the header stays on Create through all of them. Dark inactive tabs are not the accent colour.
    At 768, 1024 and 1366 px the project, progress and save state fit with the File menu on screen. Shortcuts opens on the
-   current tool. An empty Home has no active-project card and a plain "No project" chip. */
+   current tool. An empty Home has no Continue card and no project switcher; elsewhere an empty switcher is a plain
+   "No project" chip. */
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 const { TRACKER_CANVAS } = require('./touch-helpers');
@@ -193,13 +194,20 @@ test.describe('Shortcuts opens on the current tool', () => {
 test.describe('first run on Home', () => {
   test.use({ viewport: { width: 1100, height: 800 } });
 
-  test('no projects: no active-project card, three Create cards, and a plain "No project" chip', async ({ page }) => {
+  test('no projects: no Continue card, three start cards, Home / Stash / Stats, and no switcher', async ({ page }) => {
     await quiet(page, 'light');
     await page.goto('/home.html');
-    await page.waitForSelector('.home-create-tile');
-    await expect(page.locator('.home-create-tile')).toHaveCount(3);
-    await expect(page.locator('.home-active-card')).toHaveCount(0);
+    await page.waitForSelector('.home-intent');
+    await expect(page.locator('.home-intent')).toHaveCount(3);
+    await expect(page.locator('.home-continue')).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText(/no active project/i);
+    expect(await tabLabels(page)).toEqual(['Home', 'Stash', 'Stats']);
+    await expect(page.locator('.tb-proj-switcher__btn')).toHaveCount(0);
+  });
+
+  test('elsewhere, no project is a plain "No project" chip', async ({ page }) => {
+    await quiet(page, 'light');
+    await page.goto('/manager.html?from=home');
     const chip = page.locator('.tb-proj-switcher__btn');
     await expect(chip).toContainText('No project');
     await expect(chip.locator('.tb-proj-switcher__avatar')).toHaveCount(0);
@@ -209,7 +217,7 @@ test.describe('first run on Home', () => {
   test('a project shows its initials again', async ({ page }) => {
     await quiet(page, 'light');
     await seed(page);
-    await page.goto('/home.html');
+    await page.goto('/manager.html?from=home');
     await expect(page.locator('.tb-proj-switcher__avatar').first()).toHaveText('ML');
   });
 });
