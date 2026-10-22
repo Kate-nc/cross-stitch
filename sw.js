@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "b4947123ab2d782a8d414077c52f896dbfd2967367e7c515cb064d2479fd97cb";
+var BUILD_ID = "5b86e22c1d4c53183ae6c1d19b4742af71ebd1df9de37d7fec26122d4cab3764";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -322,7 +322,7 @@ var BUILD_ASSETS = {
     "sha256": "e6eb85c63f550a144711119400be10329d751552dae19c745a3e530d5f199448"
   },
   "./version.js": {
-    "sha256": "57b85df2c502f7ac963b884337e6d65a59b3c2ae28eb31b3b568f97bfa08b9bf"
+    "sha256": "8abe5d311a31dae0db1a6d8f264681ce58456f270a361a4f3baf13b21f6e2472"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -388,7 +388,7 @@ var BUILD_ASSETS = {
     "sha256": "091b228defb48ce03701ddaff9fa792d89bd139f7a203fca387c05041024fa0b"
   },
   "./import-formats.js": {
-    "sha256": "fefa2b949a61f38c7e0c3ead6d31d2c3bcd09e7d867f8a36fa210444f464073a"
+    "sha256": "c070c0cb4a01773c8a2ab33b55c756e2ee2a9a9e2ed76a984e0eb9e780157bb9"
   },
   "./components.js": {
     "sha256": "a541a43c0c5f3d56cd7a41ce98e06a8d49e4a0180b96f23d993ece5466b9d78d"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "2e657c49b6eb1aed72bab638afbf18a3b17d793f431c482a1299d73f810776a8"
+    "sha256": "53875ed624d431cafd95e50c8f4a23b58dd670effec0767651974d091a246319"
   },
   "./creator/extras-bundle.js": {
     "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
@@ -574,7 +574,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "68e929b1a856d6d1d6295641c8c330d729f4bbb9ba09a516353e2c41c7807c72"
+    "sha256": "c85ebc517af363eb649f7dfb6cf3e902113cf4bf68d5e26a95eeca741276fd6e"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

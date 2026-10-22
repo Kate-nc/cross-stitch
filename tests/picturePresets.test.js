@@ -82,11 +82,11 @@ describe('preset values', () => {
     expect(v).toEqual({ maxC: 8, dithMode: 'off', allowBlends: false, skipBg: true, bgCol: [255, 255, 255] });
     expect(api.picturePresetValues('graphic', api.analysePicture(photo)).skipBg).toBeUndefined();
   });
-  test('Photo: 20 threads, subtle shading, blends, balanced cleanup', () => {
-    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' });
+  test('Photo: 24 threads, subtle shading, blends, Stitch Cleanup on', () => {
+    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true });
   });
   test('Pixel art: the picture\'s colours (at most 30) at its own size (up to 500)', () => {
-    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', allowBlends: false, maxC: 6, sW: 24, sH: 24 });
+    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', allowBlends: false, cleanup: false, maxC: 6, sW: 24, sH: 24 });
     expect(api.picturePresetValues('pixel', { w: 64, h: 64, distinct: 300 }).maxC).toBe(30);
     expect(api.picturePresetValues('pixel', { w: 800, h: 600, distinct: 12 }).sW).toBeUndefined();
     expect(api.picturePresetValues('pixel', { w: 40, h: 40, distinct: 1 }).maxC).toBe(2);
@@ -110,6 +110,13 @@ describe('the hook', () => {
     // Size isn't part of the Photo preset.
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { sW: 120 }))).toBe('photo');
     expect(run(null, cur)).toBe('custom');
+
+    // Pixel art turns Stitch Cleanup off: every pixel is deliberate. Turning
+    // it back on is a change.
+    const pixelV = api.picturePresetValues('pixel', { w: 24, h: 24, distinct: 6 });
+    const p = { maxC: 6, dithMode: 'off', allowBlends: false, skipBg: false, sW: 24, sH: 24, stitchCleanup: { enabled: false, strength: 'balanced' } };
+    expect(run({ id: 'pixel', values: pixelV }, p)).toBe('pixel');
+    expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { stitchCleanup: { enabled: true, strength: 'balanced' } }))).toBe('custom');
 
     // Graphic records the skipped background colour; picking another one is
     // a change (compared by value, not by array identity).

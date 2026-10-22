@@ -893,14 +893,34 @@ function parseImagePattern(img, options = {}) {
   // Aspect crops can have fractional source bounds; output cells cannot.
   targetWidth = Math.round(targetWidth);
   targetHeight = Math.round(targetHeight);
+  // Shrinking averages the picture as light, like the Creator (gridPixels,
+  // creator/generate.js): the oriented crop is drawn at its own size and
+  // each stitch is the light-correct mean of the pixels under it
+  // (linearAreaDownscale, colour-utils.js). A single scaled drawImage
+  // sampled the picture instead (nearest-neighbour up to 2:1, a few pixels
+  // per stitch beyond), so stitches took the colour of whichever pixel they
+  // hit. Enlarging has nothing to average and keeps crisp, unsmoothed pixels.
+  let drawWidth = targetWidth, drawHeight = targetHeight;
+  const shrink = typeof linearAreaDownscale === 'function' && geometry.sw >= targetWidth && geometry.sh >= targetHeight;
+  if (shrink) {
+    drawWidth = Math.max(targetWidth, Math.round(geometry.sw));
+    drawHeight = Math.max(targetHeight, Math.round(geometry.sh));
+    const MAX_AREA = 4096 * 4096;   // very large pictures: drawn smaller first, far finer than a stitch
+    if (drawWidth * drawHeight > MAX_AREA) {
+      const k = Math.sqrt(MAX_AREA / (drawWidth * drawHeight));
+      drawWidth = Math.max(targetWidth, Math.floor(drawWidth * k));
+      drawHeight = Math.max(targetHeight, Math.floor(drawHeight * k));
+    }
+  }
   const canvas = document.createElement("canvas");
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
+  canvas.width = drawWidth;
+  canvas.height = drawHeight;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  ctx.imageSmoothingEnabled = (geometry.sw > targetWidth * 2);
+  ctx.imageSmoothingEnabled = shrink;
+  if (shrink && 'imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
   ctx.save();
-  ctx.scale(targetWidth / geometry.sw, targetHeight / geometry.sh);
+  ctx.scale(drawWidth / geometry.sw, drawHeight / geometry.sh);
   ctx.translate(-geometry.sx, -geometry.sy);
   ctx.translate(geometry.width / 2, geometry.height / 2);
   ctx.rotate(geometry.rotate * Math.PI / 180);
@@ -909,8 +929,8 @@ function parseImagePattern(img, options = {}) {
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
   ctx.restore();
 
-  const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
-  const data = imgData.data;
+  let data = ctx.getImageData(0, 0, drawWidth, drawHeight).data;
+  if (drawWidth !== targetWidth || drawHeight !== targetHeight) data = linearAreaDownscale(data, drawWidth, drawHeight, targetWidth, targetHeight);
   const contrast = Math.max(-50, Math.min(50, Number(options.contrast) || 0));
   if (contrast) {
     const factor = 1 + contrast / 100;

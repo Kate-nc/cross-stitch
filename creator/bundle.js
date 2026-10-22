@@ -797,7 +797,7 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
-                 applyUnsharpMask; _canvasFilterSupported, _applyImageFilters (useCreatorState.js)
+                 applyUnsharpMask; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
 // Pictures with more pixels than this are first drawn smaller by the browser.
@@ -805,12 +805,21 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
 // sources, at a scale far finer than a stitch.
 var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
 
+// The averaged picture for the last grid size asked of each picture element,
+// so moving Brightness, Contrast or Saturation, a Compare options batch and
+// Generate don't each read the whole picture again (about 80 ms for a
+// 2000-pixel photo, longer on a phone). Canvases are never cached: their
+// pixels can change under the same object.
+var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
+
 /**
  * The picture at grid size: one RGBA pixel per stitch, each the light-correct
- * average of the picture under it (linearAreaDownscale, colour-utils.js), with
- * brightness / contrast / saturation applied first. The one place that turns a
- * picture into stitch pixels, shared by Generate, the preview, Compare options
- * and the stash gallery so they all see the same thing.
+ * average of the picture under it (linearAreaDownscale, colour-utils.js), then
+ * brightness / contrast / saturation applied to that stitch colour
+ * (_applyImageFilters, the same formula as the CSS filters, on every
+ * browser). The one place that turns a picture into stitch pixels, shared by
+ * Generate, the preview, Compare options and the stash gallery so they all
+ * see the same thing.
  * Enlarging (grid bigger than the picture) has nothing to average and uses
  * the browser's smooth scaling, as before. DOM-only.
  *
@@ -824,35 +833,44 @@ var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
 function gridPixels(source, targetW, targetH, opts) {
   opts = opts || {};
   var bri = opts.bri || 0, con = opts.con || 0, sat = opts.sat || 0;
-  var adjust = bri !== 0 || con !== 0 || sat !== 0;
-  var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
-  var filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  var src = opts.preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, opts.preSharpenOpts) : source;
+  // The picture's own size is part of the key, in case an element is ever
+  // reused for another picture (the app makes a new one each time). Not its
+  // src: reading a data URL of a few megabytes takes about 20 ms each time.
+  var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
+  var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
+  var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
+  var hit = cacheable ? _gridPixelsCache.get(source) : null;
+  var averaged = hit && hit.key === key ? hit.data : null;
+  var ctx = document.createElement("canvas").getContext("2d");
+  if (!averaged) {
+    averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
+    if (cacheable) _gridPixelsCache.set(source, { key: key, data: averaged });
+  }
+  var out = ctx.createImageData(targetW, targetH);
+  out.data.set(averaged);
+  if ((bri !== 0 || con !== 0 || sat !== 0) && typeof _applyImageFilters === "function") _applyImageFilters(out, bri, con, sat);
+  return out;
+}
+
+// gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
+function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
+  var src = preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, preSharpenOpts) : source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
-  // Draw `src` at w x h (no resampling when it is its own size) with the
-  // adjustments, and return its pixels.
-  function draw(w, h) {
+  function read(w, h) {
     var c = document.createElement("canvas");
     c.width = w; c.height = h;
     var cx = c.getContext("2d");
     cx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-    if (adjust && canFilter) cx.filter = filter;
     cx.drawImage(src, 0, 0, w, h);
-    if (adjust && canFilter) cx.filter = "none";
-    var id = cx.getImageData(0, 0, w, h);
-    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(id, bri, con, sat);
-    return { canvas: c, ctx: cx, imageData: id };
+    return cx.getImageData(0, 0, w, h).data;
   }
-  if (!sw || !sh || sw < targetW || sh < targetH) return draw(targetW, targetH).imageData;
+  if (!sw || !sh || sw < targetW || sh < targetH) return new Uint8ClampedArray(read(targetW, targetH));
   if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
     var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
     sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
   }
-  var full = draw(sw, sh);
-  var out = full.ctx.createImageData(targetW, targetH);
-  out.data.set(linearAreaDownscale(full.imageData.data, sw, sh, targetW, targetH));
-  return out;
+  return linearAreaDownscale(read(sw, sh), sw, sh, targetW, targetH);
 }
 
 /**
@@ -6646,46 +6664,32 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   });
 };
 
-// Feature-detect ctx.filter support (not available on Safari <15).
-// Result is constant per page-load so we compute it once here.
-// Test for the property itself: assigning to a context that lacks `filter`
-// just creates an ordinary property that reads back what was written, so a
-// write-then-read check passes everywhere.
-var _canvasFilterSupported = (function() {
-  try {
-    var _fc = document.createElement('canvas');
-    var _fx = _fc.getContext('2d');
-    return !!_fx && 'filter' in _fx && typeof _fx.filter === 'string';
-  } catch (_) { return false; }
-})();
-
-// Pixel-level fallback for brightness / contrast / saturation applied when
-// ctx.filter is unavailable. Mutates the ImageData's pixel array in-place.
-// bri/con/sat each range -100 to +100 (0 = no change, matches the CSS filter
-// percentages: brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%)).
+// Brightness / contrast / saturation on picture pixels (bri/con/sat each
+// -100 to +100, 0 = no change), the same formulas as the CSS filters
+// brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%), each step
+// clamped to 0..255 as CSS does. gridPixels (creator/generate.js) applies it
+// to the stitch-sized picture on every browser, so the preview, Generate and
+// Compare options agree whether or not the canvas supports ctx.filter.
+// Mutates the ImageData's pixel array in place.
 function _applyImageFilters(imageData, bri, con, sat) {
   if (bri === 0 && con === 0 && sat === 0) return;
   var d = imageData.data;
   var briFactor = (100 + bri) / 100;
   var conFactor = (100 + con) / 100;
   var satFactor = (100 + sat) / 100;
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
   for (var i = 0; i < d.length; i += 4) {
-    var r = d[i], g = d[i + 1], b = d[i + 2];
     // brightness
-    r *= briFactor; g *= briFactor; b *= briFactor;
-    // contrast (pivot at 128)
-    r = (r - 128) * conFactor + 128;
-    g = (g - 128) * conFactor + 128;
-    b = (b - 128) * conFactor + 128;
-    // saturation
+    var r = clamp(d[i] * briFactor), g = clamp(d[i + 1] * briFactor), b = clamp(d[i + 2] * briFactor);
+    // contrast (pivot at mid-grey, 127.5 as in CSS)
+    r = clamp((r - 127.5) * conFactor + 127.5);
+    g = clamp((g - 127.5) * conFactor + 127.5);
+    b = clamp((b - 127.5) * conFactor + 127.5);
+    // saturation (CSS saturate matrix: Rec. 709 luminance)
     var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    r = gray + (r - gray) * satFactor;
-    g = gray + (g - gray) * satFactor;
-    b = gray + (b - gray) * satFactor;
-    // clamp to [0, 255]
-    d[i]   = r < 0 ? 0 : r > 255 ? 255 : (r + 0.5) | 0;
-    d[i+1] = g < 0 ? 0 : g > 255 ? 255 : (g + 0.5) | 0;
-    d[i+2] = b < 0 ? 0 : b > 255 ? 255 : (b + 0.5) | 0;
+    d[i]     = Math.round(clamp(gray + (r - gray) * satFactor));
+    d[i + 1] = Math.round(clamp(gray + (g - gray) * satFactor));
+    d[i + 2] = Math.round(clamp(gray + (b - gray) * satFactor));
   }
 }
 
@@ -6726,21 +6730,23 @@ var PICTURE_PRESETS = {
   graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
-  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
-  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
+  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true },
+  // Stitch Cleanup off: at its own size every pixel of pixel art is deliberate,
+  // and merging small patches changed highlights, shadows and hand dithering.
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, cleanup: false, sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, dithMode, allowBlends, cleanupStrength, skipBg, bgCol,
+// without "set" (cleanup is Stitch Cleanup on or off): maxC, dithMode, allowBlends, cleanup, skipBg, bgCol,
 // sW, sH.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
   var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
   if (p.maxC) v.maxC = p.maxC;
-  if (p.cleanupStrength) v.cleanupStrength = p.cleanupStrength;
+  if (p.cleanup != null) v.cleanup = p.cleanup;
   if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
@@ -7280,18 +7286,6 @@ window.useCreatorState = function useCreatorState() {
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
-  // Persist the stitch-cleanup strength across sessions so the user's
-  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
-  // enabled / protectDetails / smoothDithering, which are already
-  // persisted via the preferences modal). Only the local strength
-  // picker writes here; the prefs modal owns the other three flags.
-  useEffect(function () {
-    try {
-      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
-        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
-      }
-    } catch (_) {}
-  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
@@ -7316,7 +7310,7 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanupStrength) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: true, strength: v.cleanupStrength }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup }); });
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
@@ -7325,7 +7319,7 @@ window.useCreatorState = function useCreatorState() {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
       maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      cleanup: !!(stitchCleanup && stitchCleanup.enabled),
       bgCol: bgCol
     };
     for (var k in v) {
@@ -13146,6 +13140,33 @@ window.creatorHasTrace = creatorHasTrace;
 // A new picture's starting size (audit IMG-03): the long side fitted to 100
 // stitches, never more stitches than the picture has pixels. The Pixel art
 // preset, applied after this, uses the picture's own size instead.
+// A large upload (over 2000 x 2000 or 5 MB) shrunk to w x h for keeping.
+// Halving steps with high-quality smoothing, then the final size: one
+// default-quality drawImage of a 48-megapixel photo sampled one pixel in
+// four or more along each side, and those noisy samples were what later got
+// averaged into stitches. At 2000 pixels the steps' gamma-space averaging is
+// far finer than a stitch; gridPixels averages as light from here.
+// Returns the canvas, or null without a 2D context.
+function creatorShrinkUpload(img, w, h) {
+  var cur = img, cw = img.naturalWidth || img.width, ch = img.naturalHeight || img.height;
+  function step(nw, nh) {
+    var c = document.createElement("canvas"); c.width = nw; c.height = nh;
+    var cx = c.getContext("2d");
+    if (!cx) return null;
+    cx.imageSmoothingEnabled = true;
+    if ("imageSmoothingQuality" in cx) cx.imageSmoothingQuality = "high";
+    cx.drawImage(cur, 0, 0, nw, nh);
+    return c;
+  }
+  while (cw > w * 2 || ch > h * 2) {
+    cw = Math.max(w, Math.ceil(cw / 2)); ch = Math.max(h, Math.ceil(ch / 2));
+    cur = step(cw, ch);
+    if (!cur) return null;
+  }
+  return step(w, h);
+}
+window.creatorShrinkUpload = creatorShrinkUpload;
+
 function creatorInitialSize(w, h) {
   if (typeof window.initialPatternSize === "function") return window.initialPatternSize(w, h);
   return { w: 80, h: Math.max(10, Math.round(80 * h / w)) };
@@ -13833,10 +13854,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
           if (targetW * targetH > MAX_AREA || (f.size && f.size > 5 * 1024 * 1024)) {
             var scale = Math.sqrt(MAX_AREA / (targetW * targetH));
             if (scale < 1) { targetW = Math.round(targetW * scale); targetH = Math.round(targetH * scale); }
-            var c = document.createElement("canvas"); c.width = targetW; c.height = targetH;
-            var cx = c.getContext("2d");
-            if (!cx) { state.setIsUploading(false); return; }
-            cx.drawImage(i, 0, 0, targetW, targetH);
+            var c = creatorShrinkUpload(i, targetW, targetH);
+            if (!c) { state.setIsUploading(false); return; }
             var scaledImg = new Image();
             scaledImg.onerror = function() { state.setIsUploading(false); };
             scaledImg.onload = function() {

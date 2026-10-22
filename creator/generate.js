@@ -6,7 +6,7 @@
                  removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
                  disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
-                 applyUnsharpMask; _canvasFilterSupported, _applyImageFilters (useCreatorState.js)
+                 applyUnsharpMask; _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
 // Pictures with more pixels than this are first drawn smaller by the browser.
@@ -14,12 +14,21 @@
 // sources, at a scale far finer than a stitch.
 var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
 
+// The averaged picture for the last grid size asked of each picture element,
+// so moving Brightness, Contrast or Saturation, a Compare options batch and
+// Generate don't each read the whole picture again (about 80 ms for a
+// 2000-pixel photo, longer on a phone). Canvases are never cached: their
+// pixels can change under the same object.
+var _gridPixelsCache = typeof WeakMap === "function" ? new WeakMap() : null;
+
 /**
  * The picture at grid size: one RGBA pixel per stitch, each the light-correct
- * average of the picture under it (linearAreaDownscale, colour-utils.js), with
- * brightness / contrast / saturation applied first. The one place that turns a
- * picture into stitch pixels, shared by Generate, the preview, Compare options
- * and the stash gallery so they all see the same thing.
+ * average of the picture under it (linearAreaDownscale, colour-utils.js), then
+ * brightness / contrast / saturation applied to that stitch colour
+ * (_applyImageFilters, the same formula as the CSS filters, on every
+ * browser). The one place that turns a picture into stitch pixels, shared by
+ * Generate, the preview, Compare options and the stash gallery so they all
+ * see the same thing.
  * Enlarging (grid bigger than the picture) has nothing to average and uses
  * the browser's smooth scaling, as before. DOM-only.
  *
@@ -33,35 +42,44 @@ var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
 function gridPixels(source, targetW, targetH, opts) {
   opts = opts || {};
   var bri = opts.bri || 0, con = opts.con || 0, sat = opts.sat || 0;
-  var adjust = bri !== 0 || con !== 0 || sat !== 0;
-  var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
-  var filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  var src = opts.preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, opts.preSharpenOpts) : source;
+  // The picture's own size is part of the key, in case an element is ever
+  // reused for another picture (the app makes a new one each time). Not its
+  // src: reading a data URL of a few megabytes takes about 20 ms each time.
+  var srcSize = source ? (source.naturalWidth || source.width) + "x" + (source.naturalHeight || source.height) : "";
+  var key = targetW + "x" + targetH + "|" + (opts.preSharpenOpts ? JSON.stringify(opts.preSharpenOpts) : "") + "|" + srcSize;
+  var cacheable = !!(_gridPixelsCache && source && typeof source === "object" && typeof source.getContext !== "function");
+  var hit = cacheable ? _gridPixelsCache.get(source) : null;
+  var averaged = hit && hit.key === key ? hit.data : null;
+  var ctx = document.createElement("canvas").getContext("2d");
+  if (!averaged) {
+    averaged = _averagedGridPixels(source, targetW, targetH, opts.preSharpenOpts);
+    if (cacheable) _gridPixelsCache.set(source, { key: key, data: averaged });
+  }
+  var out = ctx.createImageData(targetW, targetH);
+  out.data.set(averaged);
+  if ((bri !== 0 || con !== 0 || sat !== 0) && typeof _applyImageFilters === "function") _applyImageFilters(out, bri, con, sat);
+  return out;
+}
+
+// gridPixels before the adjustments: a new Uint8ClampedArray (w * h * 4).
+function _averagedGridPixels(source, targetW, targetH, preSharpenOpts) {
+  var src = preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, preSharpenOpts) : source;
   var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
-  // Draw `src` at w x h (no resampling when it is its own size) with the
-  // adjustments, and return its pixels.
-  function draw(w, h) {
+  function read(w, h) {
     var c = document.createElement("canvas");
     c.width = w; c.height = h;
     var cx = c.getContext("2d");
     cx.imageSmoothingEnabled = true;
     if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-    if (adjust && canFilter) cx.filter = filter;
     cx.drawImage(src, 0, 0, w, h);
-    if (adjust && canFilter) cx.filter = "none";
-    var id = cx.getImageData(0, 0, w, h);
-    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(id, bri, con, sat);
-    return { canvas: c, ctx: cx, imageData: id };
+    return cx.getImageData(0, 0, w, h).data;
   }
-  if (!sw || !sh || sw < targetW || sh < targetH) return draw(targetW, targetH).imageData;
+  if (!sw || !sh || sw < targetW || sh < targetH) return new Uint8ClampedArray(read(targetW, targetH));
   if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
     var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
     sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
   }
-  var full = draw(sw, sh);
-  var out = full.ctx.createImageData(targetW, targetH);
-  out.data.set(linearAreaDownscale(full.imageData.data, sw, sh, targetW, targetH));
-  return out;
+  return linearAreaDownscale(read(sw, sh), sw, sh, targetW, targetH);
 }
 
 /**

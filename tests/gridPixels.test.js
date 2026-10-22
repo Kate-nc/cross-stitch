@@ -57,9 +57,9 @@ describe('linearAreaDownscale', () => {
 describe('gridPixels', () => {
   // A fake canvas: drawing an image at its own size copies its pixels;
   // at any other size, records the call and returns grey.
-  let draws, filters, applied;
-  function load(opts = {}) {
-    draws = []; filters = []; applied = [];
+  let draws, applied;
+  function load() {
+    draws = []; applied = [];
     const document = {
       createElement: () => {
         const c = { width: 0, height: 0 };
@@ -68,51 +68,44 @@ describe('gridPixels', () => {
           filter: 'none',
           drawImage(src, x, y, w, h) {
             draws.push({ w, h, filter: ctx.filter });
-            filters.push(ctx.filter);
             pixels = (w === src.width && h === src.height && src.pixels) ? src.pixels.slice() : new Uint8ClampedArray(w * h * 4).fill(128);
           },
           getImageData: (x, y, w, h) => ({ data: pixels, width: w, height: h }),
           createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4), width: w, height: h }),
         };
-        if (opts.noFilter) delete ctx.filter;
         c.getContext = () => ctx;
         return c;
       },
     };
-    const fn = new Function('document', 'linearAreaDownscale', 'applyPreSharpenCanvas', '_canvasFilterSupported', '_applyImageFilters',
+    const fn = new Function('document', 'linearAreaDownscale', 'applyPreSharpenCanvas', '_applyImageFilters',
       genSrc.slice(genSrc.indexOf('var GRID_PIXELS_MAX_SOURCE_AREA'), genSrc.indexOf('/**\n * Apply a pre-downscale luminance unsharp mask')) + '\nreturn { gridPixels, GRID_PIXELS_MAX_SOURCE_AREA };');
-    return fn(document, linearAreaDownscale, (s) => s, !opts.noFilter, (id, b, c, s) => applied.push([id.width, b, c, s]));
+    return fn(document, linearAreaDownscale, (s) => s, (id, b, c, s) => applied.push([id.width, b, c, s]));
   }
-  const checker = { width: 2, height: 2, pixels: px([0, 0, 0], [255, 255, 255], [255, 255, 255], [0, 0, 0]) };
+  const checker = () => ({ width: 2, height: 2, pixels: px([0, 0, 0], [255, 255, 255], [255, 255, 255], [0, 0, 0]) });
 
   test('draws the picture at its own size and averages it as light', () => {
     const { gridPixels } = load();
-    const out = gridPixels(checker, 1, 1);
+    const out = gridPixels(checker(), 1, 1);
     expect(draws[0]).toMatchObject({ w: 2, h: 2 });
     expect(Array.from(out.data)).toEqual([188, 188, 188, 255]);
   });
 
-  test('brightness, contrast and saturation are drawn with the canvas filter, then reset', () => {
+  test('brightness, contrast and saturation go to the stitch-sized picture, never as a canvas filter', () => {
     const { gridPixels } = load();
-    gridPixels(checker, 1, 1, { bri: 10, con: -5, sat: 20 });
-    expect(draws[0].filter).toBe('brightness(110%) contrast(95%) saturate(120%)');
+    gridPixels(checker(), 1, 1, { bri: 10, con: -5, sat: 20 });
+    expect(applied).toEqual([[1, 10, -5, 20]]);
+    expect(draws.every((d) => d.filter === 'none')).toBe(true);
   });
 
-  test('no adjustments: no filter', () => {
+  test('no adjustments: the pixels are left alone', () => {
     const { gridPixels } = load();
-    gridPixels(checker, 1, 1, {});
-    expect(draws[0].filter).toBe('none');
-  });
-
-  test('without canvas filters the adjustments go to the full-size pixels', () => {
-    const { gridPixels } = load({ noFilter: true });
-    gridPixels(checker, 1, 1, { bri: 10 });
-    expect(applied).toEqual([[2, 10, 0, 0]]);
+    gridPixels(checker(), 1, 1, {});
+    expect(applied).toEqual([]);
   });
 
   test('enlarging has nothing to average: drawn straight at grid size', () => {
     const { gridPixels } = load();
-    const out = gridPixels(checker, 4, 4);
+    const out = gridPixels(checker(), 4, 4);
     expect(draws).toEqual([{ w: 4, h: 4, filter: 'none' }]);
     expect(out.data.length).toBe(64);
   });
@@ -122,6 +115,36 @@ describe('gridPixels', () => {
     gridPixels({ width: 9000, height: 6000 }, 90, 60);
     expect(draws[0].w * draws[0].h).toBeLessThanOrEqual(GRID_PIXELS_MAX_SOURCE_AREA);
     expect(draws[0].w / draws[0].h).toBeCloseTo(1.5, 2);
+  });
+
+  test('the same picture and size are read once, whatever the adjustments', () => {
+    const { gridPixels } = load();
+    const img = checker();
+    const a = gridPixels(img, 1, 1);
+    const b = gridPixels(img, 1, 1, { bri: 30 });
+    gridPixels(img, 1, 1);
+    expect(draws.length).toBe(1);
+    expect(Array.from(a.data)).toEqual([188, 188, 188, 255]);   // the cached copy is never adjusted in place
+    expect(b.data).not.toBe(a.data);
+  });
+
+  test('an element given a picture of another size is read again', () => {
+    const { gridPixels } = load();
+    const img = checker();
+    gridPixels(img, 1, 1);
+    Object.assign(img, { width: 4, height: 2, pixels: px([0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]) });
+    expect(Array.from(gridPixels(img, 1, 1).data)).toEqual([0, 0, 0, 255]);
+    expect(draws.length).toBe(2);
+  });
+
+  test('a new size, or a canvas source, is read again', () => {
+    const { gridPixels } = load();
+    const img = checker();
+    gridPixels(img, 1, 1); gridPixels(img, 2, 1);
+    expect(draws.length).toBe(2);
+    const canvas = Object.assign(checker(), { getContext() {} });
+    gridPixels(canvas, 1, 1); gridPixels(canvas, 1, 1);
+    expect(draws.length).toBe(4);
   });
 });
 
@@ -140,5 +163,37 @@ describe('every picture-to-stitches path uses gridPixels', () => {
     for (const f of ['creator/generate.js', 'creator/useCreatorState.js', 'creator/usePreview.js', 'creator/CompareStrip.js']) {
       expect(loadSource(f)).not.toMatch(/prescaleForGrid/);
     }
+  });
+});
+
+describe('creatorShrinkUpload (large uploads, useProjectIO.js)', () => {
+  const ioSrc = loadSource('creator/useProjectIO.js');
+  const fnSrc = ioSrc.slice(ioSrc.indexOf('function creatorShrinkUpload('), ioSrc.indexOf('window.creatorShrinkUpload'));
+  function load(noContext) {
+    const draws = [];
+    const document = { createElement: () => {
+      const c = { width: 0, height: 0 };
+      c.getContext = () => (noContext ? null : { imageSmoothingQuality: 'low', drawImage(src, x, y, w, h) { draws.push({ from: [src.width, src.height], to: [w, h], quality: this.imageSmoothingQuality, smooth: this.imageSmoothingEnabled }); } });
+      return c;
+    } };
+    return { draws, shrink: new Function('document', fnSrc + '\nreturn creatorShrinkUpload;')(document) };
+  }
+
+  test('a 48-megapixel photo is halved in high-quality steps, never sampled in one go', () => {
+    const { draws, shrink } = load();
+    const out = shrink({ width: 8064, height: 6048 }, 2000, 1500);
+    expect([out.width, out.height]).toEqual([2000, 1500]);
+    expect(draws.map((d) => d.to)).toEqual([[4032, 3024], [2016, 1512], [2000, 1500]]);
+    for (const d of draws) { expect(d.quality).toBe('high'); expect(d.smooth).toBe(true); expect(d.from[0] / d.to[0]).toBeLessThanOrEqual(2); }
+  });
+
+  test('a picture already within twice the size is drawn once', () => {
+    const { draws, shrink } = load();
+    shrink({ width: 3000, height: 2000 }, 2000, 1333);
+    expect(draws).toHaveLength(1);
+  });
+
+  test('no 2D context: null', () => {
+    expect(load(true).shrink({ width: 8000, height: 6000 }, 2000, 1500)).toBeNull();
   });
 });

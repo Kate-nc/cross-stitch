@@ -160,46 +160,32 @@ window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   });
 };
 
-// Feature-detect ctx.filter support (not available on Safari <15).
-// Result is constant per page-load so we compute it once here.
-// Test for the property itself: assigning to a context that lacks `filter`
-// just creates an ordinary property that reads back what was written, so a
-// write-then-read check passes everywhere.
-var _canvasFilterSupported = (function() {
-  try {
-    var _fc = document.createElement('canvas');
-    var _fx = _fc.getContext('2d');
-    return !!_fx && 'filter' in _fx && typeof _fx.filter === 'string';
-  } catch (_) { return false; }
-})();
-
-// Pixel-level fallback for brightness / contrast / saturation applied when
-// ctx.filter is unavailable. Mutates the ImageData's pixel array in-place.
-// bri/con/sat each range -100 to +100 (0 = no change, matches the CSS filter
-// percentages: brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%)).
+// Brightness / contrast / saturation on picture pixels (bri/con/sat each
+// -100 to +100, 0 = no change), the same formulas as the CSS filters
+// brightness((100+bri)%) contrast((100+con)%) saturate((100+sat)%), each step
+// clamped to 0..255 as CSS does. gridPixels (creator/generate.js) applies it
+// to the stitch-sized picture on every browser, so the preview, Generate and
+// Compare options agree whether or not the canvas supports ctx.filter.
+// Mutates the ImageData's pixel array in place.
 function _applyImageFilters(imageData, bri, con, sat) {
   if (bri === 0 && con === 0 && sat === 0) return;
   var d = imageData.data;
   var briFactor = (100 + bri) / 100;
   var conFactor = (100 + con) / 100;
   var satFactor = (100 + sat) / 100;
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
   for (var i = 0; i < d.length; i += 4) {
-    var r = d[i], g = d[i + 1], b = d[i + 2];
     // brightness
-    r *= briFactor; g *= briFactor; b *= briFactor;
-    // contrast (pivot at 128)
-    r = (r - 128) * conFactor + 128;
-    g = (g - 128) * conFactor + 128;
-    b = (b - 128) * conFactor + 128;
-    // saturation
+    var r = clamp(d[i] * briFactor), g = clamp(d[i + 1] * briFactor), b = clamp(d[i + 2] * briFactor);
+    // contrast (pivot at mid-grey, 127.5 as in CSS)
+    r = clamp((r - 127.5) * conFactor + 127.5);
+    g = clamp((g - 127.5) * conFactor + 127.5);
+    b = clamp((b - 127.5) * conFactor + 127.5);
+    // saturation (CSS saturate matrix: Rec. 709 luminance)
     var gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    r = gray + (r - gray) * satFactor;
-    g = gray + (g - gray) * satFactor;
-    b = gray + (b - gray) * satFactor;
-    // clamp to [0, 255]
-    d[i]   = r < 0 ? 0 : r > 255 ? 255 : (r + 0.5) | 0;
-    d[i+1] = g < 0 ? 0 : g > 255 ? 255 : (g + 0.5) | 0;
-    d[i+2] = b < 0 ? 0 : b > 255 ? 255 : (b + 0.5) | 0;
+    d[i]     = Math.round(clamp(gray + (r - gray) * satFactor));
+    d[i + 1] = Math.round(clamp(gray + (g - gray) * satFactor));
+    d[i + 2] = Math.round(clamp(gray + (b - gray) * satFactor));
   }
 }
 
@@ -240,21 +226,23 @@ var PICTURE_PRESETS = {
   graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
-  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
-  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
+  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true },
+  // Stitch Cleanup off: at its own size every pixel of pixel art is deliberate,
+  // and merging small patches changed highlights, shadows and hand dithering.
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, cleanup: false, sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, dithMode, allowBlends, cleanupStrength, skipBg, bgCol,
+// without "set" (cleanup is Stitch Cleanup on or off): maxC, dithMode, allowBlends, cleanup, skipBg, bgCol,
 // sW, sH.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
   var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
   if (p.maxC) v.maxC = p.maxC;
-  if (p.cleanupStrength) v.cleanupStrength = p.cleanupStrength;
+  if (p.cleanup != null) v.cleanup = p.cleanup;
   if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
@@ -794,18 +782,6 @@ window.useCreatorState = function useCreatorState() {
     };
   });
   var stitchCleanup = _sc[0], setStitchCleanup = _sc[1];
-  // Persist the stitch-cleanup strength across sessions so the user's
-  // last chosen aggressiveness sticks (matches `creatorStitchCleanup`
-  // enabled / protectDetails / smoothDithering, which are already
-  // persisted via the preferences modal). Only the local strength
-  // picker writes here; the prefs modal owns the other three flags.
-  useEffect(function () {
-    try {
-      if (typeof UserPrefs !== "undefined" && stitchCleanup && stitchCleanup.strength) {
-        UserPrefs.set("creatorStitchCleanupStrength", stitchCleanup.strength);
-      }
-    } catch (_) {}
-  }, [stitchCleanup && stitchCleanup.strength]);
   var _hasGen   = useState(false);   var hasGenerated = _hasGen[0], setHasGenerated = _hasGen[1];
 
   // ── Picture type (audit IMG-01) ─────────────────────────────────────────
@@ -830,7 +806,7 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanupStrength) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: true, strength: v.cleanupStrength }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup }); });
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
@@ -839,7 +815,7 @@ window.useCreatorState = function useCreatorState() {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
       maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanupStrength: stitchCleanup && stitchCleanup.enabled ? stitchCleanup.strength : null,
+      cleanup: !!(stitchCleanup && stitchCleanup.enabled),
       bgCol: bgCol
     };
     for (var k in v) {
