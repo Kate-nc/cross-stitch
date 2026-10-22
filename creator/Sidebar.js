@@ -72,32 +72,50 @@ window.CreatorSidebar = function CreatorSidebar() {
   // The sidebarOpen state is kept for accordion sections but the panel itself stays visible
 
   // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
+  // props.info adds a hint icon right after the label. It sits outside the
+  // switch, so pressing it (or Enter on it) never flips the switch.
   function Toggle(props) {
-    return h("div", {
-      role: "switch",
-      tabIndex: 0,
-      "aria-checked": props.checked,
-      onClick: function() { props.onChange(!props.checked); },
-      onKeyDown: function(e) {
-        if (e.repeat) return;
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          props.onChange(!props.checked);
-        }
-      },
-      style:{display:"flex",alignItems:"center",gap:'var(--s-2)',cursor:"pointer",marginBottom:'var(--s-2)',userSelect:"none"}
-    },
-      h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
-        h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-          background:props.checked?"var(--accent)":"var(--border)",transition:"background 0.15s"}}),
-        h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
-          left:props.checked?16:2,borderRadius:"50%",background:"var(--surface)",
-          transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
+    var track = h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
+      h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
+        background:props.checked?"var(--accent)":"var(--border)",transition:"background 0.15s"}}),
+      h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
+        left:props.checked?16:2,borderRadius:"50%",background:"var(--surface)",
+        transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
+    );
+    var labelStyle = {fontSize:'var(--text-sm)',fontWeight:500,color:"var(--text-primary)",display:"block"};
+    var helpStyle = {fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1};
+    function switchProps(style) {
+      return {
+        role: "switch",
+        tabIndex: 0,
+        "aria-checked": props.checked,
+        "aria-label": props.label,
+        onClick: function() { props.onChange(!props.checked); },
+        onKeyDown: function(e) {
+          if (e.repeat) return;
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            props.onChange(!props.checked);
+          }
+        },
+        style: Object.assign({display:"flex",alignItems:"center",gap:'var(--s-2)',cursor:"pointer",userSelect:"none"}, style)
+      };
+    }
+    if (!props.info) {
+      return h("div", switchProps({marginBottom:'var(--s-2)'}),
+        track,
+        h("span", {style:{flex:1}},
+          h("span", {style:labelStyle}, props.label),
+          props.help && h("span", {style:helpStyle}, props.help)
+        )
+      );
+    }
+    return h("div", {style:{marginBottom:'var(--s-2)'}},
+      h("div", {style:{display:"flex",alignItems:"center",gap:4}},
+        h("div", switchProps(null), track, h("span", {style:labelStyle}, props.label)),
+        h(InfoIcon, {text:props.info, label:props.label, width:240})
       ),
-      h("span", {style:{flex:1}},
-        h("span", {style:{fontSize:'var(--text-sm)',fontWeight:500,color:"var(--text-primary)",display:"block"}}, props.label),
-        props.help && h("span", {style:{fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1}}, props.help)
-      )
+      props.help && h("span", {style:Object.assign({}, helpStyle, {paddingLeft:'calc(32px + var(--s-2))'})}, props.help)
     );
   }
 
@@ -752,12 +770,20 @@ window.CreatorSidebar = function CreatorSidebar() {
     )
   );
 
+  // Hover text for each picture type's button.
+  var PICTURE_TYPE_HINTS = {
+    graphic: "A few flat colours: up to 8 threads, no shading or blends, and a plain border left unstitched.",
+    photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
+    pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
+  };
   // ── What kind of picture is this? (audit IMG-01) ─────────────────────────────
   // Each choice applies a preset (useCreatorState PICTURE_PRESETS); Custom is
   // shown once any value the preset set has been changed.
   var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
     ? h("div", {className:"picture-type"},
-        h("div", {id:"picture-type-label", className:"picture-type__label"}, "What kind of picture is this?"),
+        h("div", {className:"picture-type__label convert-label"},
+          h("span", {id:"picture-type-label"}, "What kind of picture is this?"),
+          h(InfoIcon, {label:"What kind of picture is this?", width:260, text:"Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable."})),
         h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
           window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
             var on = gen.pictureType === id;
@@ -766,6 +792,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             var tabbable = on || (order.indexOf(gen.pictureType) === -1 && i === 0);
             return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
               className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-picture-type":id,
+              title:PICTURE_TYPE_HINTS[id],
               tabIndex: tabbable ? 0 : -1,
               onClick:function(){ gen.applyPicturePreset(id); },
               onKeyDown:function(e){
@@ -785,10 +812,13 @@ window.CreatorSidebar = function CreatorSidebar() {
         // Exact import is a Pixel art option, so it only shows for pixel art
         // (or while it is on).
         (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", {className:"picture-type__exact"},
-          h("label", null,
-            h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
-              disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
-              onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+          // The hint sits outside the <label> so it never ticks the box.
+          h("div", {className:"convert-label"},
+            h("label", null,
+              h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
+                disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+                onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
+            h(InfoIcon, {label:"Exact pixel-art import", width:260, text:"Turns each pixel into exactly one stitch at the picture's own size, matched to the nearest solid thread. For pixel art up to 500 by 500 pixels. Size, adjustments, shading and tidying are skipped."})),
           h("p", {className:"hint"}, gen.exactPixelArt
             ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, shading and tidying are ignored. Review source-to-thread mappings in the preview before Generate."
             : "One stitch per pixel, exactly: for pictures up to 500 by 500 pixels. Colours are mapped to solid threads.")
@@ -800,7 +830,9 @@ window.CreatorSidebar = function CreatorSidebar() {
   var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
     // Which brand's threads the pattern is made from (P4-5 / audit IMG-04).
     gen.setConvertBrand && window.THREAD_BRANDS && h("div", {className:"thread-brand"},
-      h("div", {id:"thread-brand-label", className:"thread-brand__label"}, "Threads"),
+      h("div", {className:"thread-brand__label convert-label"},
+        h("span", {id:"thread-brand-label"}, "Threads"),
+        h(InfoIcon, {label:"Threads", width:240, text:"Which brand of stranded cotton the colours are matched to. The key, shopping list, Stitch Tracker and printed chart all use that brand's numbers."})),
       h("div", {className:"lp-segmented thread-brand__seg", role:"radiogroup", "aria-labelledby":"thread-brand-label"},
         Object.keys(window.THREAD_BRANDS).map(function(id, i, order) {
           var on = gen.convertBrand === id;
@@ -823,7 +855,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     ),
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
-        helpText:"Each thread is one colour of stranded cotton",
+        helpText:"Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
         inlineHint:"Each thread is one colour of stranded cotton. A blend uses two of these threads in one stitch, so the chart can have more symbols than threads. Fewer threads means less shopping and faster stitching.",
         helpTopic:"palette"}),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
@@ -836,7 +868,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
       h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
       h("span", null, "Allow two-thread blends"),
-      h(InfoIcon, {text:"A blend puts one strand of each of two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads in the needle to make an in-between shade, for smoother gradients.", width:220})
+      h(InfoIcon, {label:"Allow two-thread blends", text:"A blend puts one strand of each of two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads in the needle to make an in-between shade, for smoother gradients.", width:220})
     ),
     // What the setting does to the chart, in words (UX-013).
     h("div", {className:"convert-blend-effect", style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.45,marginBottom:'var(--s-2)'}},
@@ -853,7 +885,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
         format:function(v){return v===0?"Off":v;},
-        helpText:"Minimum stitches before a colour is kept",
+        helpText:"Colours used fewer times than this are merged into a similar neighbour, so there are fewer threads to buy. Off still folds away stray colours automatically, keeping small bright accents.",
         inlineHint:"Merges every colour used fewer times than this into a similar neighbour, reducing your thread count. Off still folds away stray colours automatically, keeping small bright accents.",
         helpTopic:"palette"})
     ),
@@ -862,7 +894,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     },
       h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
       h("span", null, "Use only stash threads"),
-      h(InfoIcon, {text:"Constrains the palette to the " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads you own. Produces a pattern you can stitch immediately without buying anything.", width:220})
+      h(InfoIcon, {label:"Use only stash threads", text:"Constrains the palette to the " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads you own. Produces a pattern you can stitch immediately without buying anything.", width:220})
     ),
     typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
       "Enable to generate patterns using only threads you already own."
@@ -1052,13 +1084,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     var ps = app.previewStats;
     var confettiNow = ps ? (ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
     var styleChooser = h("div", {className:"stitch-style"},
-      h("p", {className:"stitch-style__lead"}, "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch."),
+      h("div", {className:"stitch-style__lead"},
+        "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch. ",
+        h(InfoIcon, {label:"Detail and tidiness", width:280, text:"More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour. Fine-tune holds every individual control."})),
       h("div", {className:"lp-segmented stitch-style__seg", role:"radiogroup", "aria-label":"Detail and tidiness"},
         styleOrder.map(function(id, i, order) {
           var on = styleNow === id;
           var tabbable = on || (styleNow === "custom" && i === 0);
           return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
             className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-stitch-style":id,
+            title:styleDescs[id],
             tabIndex: tabbable ? 0 : -1,
             onClick:function(){ gen.applyStitchStyle(id); },
             onKeyDown:function(e){
@@ -1146,7 +1181,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         h("div", {style:{marginTop:'var(--s-2)'}},
           h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
             h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
-            h(InfoIcon, {text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
+            h(InfoIcon, {label:"Shading", text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
           ),
           // Off | Smooth blend | Pattern blend
           h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
@@ -1182,13 +1217,14 @@ window.CreatorSidebar = function CreatorSidebar() {
             checked:sc2.enabled,
             onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
             label:"Stitch Cleanup",
-            help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched."
+            help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched.",
+            info:"Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them, and blurry in-between shades along edges fold into the colours either side. Off keeps every stitch exactly as matched."
           }),
           sc2.enabled && h(React.Fragment, null,
             h("div", {style:{marginTop:'var(--s-2)'}},
               h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
                 format:function(v){return v===0?"Off":String(v);},
-                helpText:"How much confetti to merge into the colour around it. Off keeps every stitch",
+                helpText:"How big a group of cut-off stitches is merged into the colour around it: 1 merges confetti stitches, 2 groups of up to 2, 3 groups of up to 3 (three times larger in plain areas). Off merges none.",
                 inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
                 helpTopic:"confetti"}),
               gen.orphans > 0 && (function() {
@@ -1243,6 +1279,7 @@ window.CreatorSidebar = function CreatorSidebar() {
               checked:sc2.protectDetails,
               onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
               label:"Protect fine details",
+              info:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines, out of the tidying. Turn off for the tidiest chart. Bright accents such as a catchlight are kept either way.",
               help:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines. Off gives the tidiest chart, easiest to stitch. Bright accents such as catchlights are kept either way."
             })
           )
@@ -1254,13 +1291,14 @@ window.CreatorSidebar = function CreatorSidebar() {
             checked:gen.disambig,
             onChange:gen.setDisambig,
             label:"Keep look-alike colours apart",
+            info:"After matching, changes a stitch whose neighbour is a thread too similar to tell apart on a printed chart, so the symbols are easier to follow. Those stitches move a little away from the picture's colour.",
             help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart, moving them away from their closest thread. Makes skies and skin tones easier to read, at some cost to colour accuracy."
           }),
           gen.disambig && h(React.Fragment, null,
             h("div", {style:{marginTop:'var(--s-2)'}},
               h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
                 h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:500}}, "How strict"),
-                h(InfoIcon, {text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
+                h(InfoIcon, {label:"How strict", text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
               ),
               h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
                 [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
@@ -1297,7 +1335,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{marginTop:'var(--s-2)'}},
       h(SliderRow, {label:"Soften grainy photos", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
-        helpText:"Softens grain before threads are matched",
+        helpText:"Blurs the picture slightly before threads are chosen: fewer speckled stitches, but softer edges and outlines. Most photos look best at Off.",
         inlineHint:"Blurs the picture at stitch size before threads are matched. Fewer speckled stitches, but softer edges and outlines. Shrinking a photo to stitches already smooths away grain, so most photos look best at Off.",
         helpTopic:"image"}),
       gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Most photos look best at Off. Try 1 only for very speckled results"),
@@ -1314,14 +1352,17 @@ window.CreatorSidebar = function CreatorSidebar() {
           )
         )
       )),
-      h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";}}),
-      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";}}),
+      h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";},
+        helpText:"Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out."}),
+      h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";},
+        helpText:"Pushes the lights and darks further apart, or closer together. More contrast gives a crisper, bolder chart; less gives a softer one."}),
+      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";},
+        helpText:"Makes the colours more vivid, or more muted, before threads are chosen."}),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
       h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
         h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
         h("span", null, "Sharpen details"),
-        h(InfoIcon, {text:"Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy.", width:260})
+        h(InfoIcon, {label:"Sharpen details", text:"Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy.", width:260})
       ),
       gen.preSharpen && h(SliderRow, {
         label:"Amount",
@@ -1372,7 +1413,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         else if (!on && gen.pickBg) gen.setPickBg(false);
       }}),
       h("span", null, "Skip background"),
-      h(InfoIcon, {text:"Exclude pixels matching a chosen colour, leaving them unstitched. Good for solid colour backgrounds", width:220})
+      h(InfoIcon, {label:"Skip background", text:"Leaves a plain background unstitched, so the fabric shows through. Only areas of the chosen colour that touch the picture's edge are skipped, so the same colour inside the picture is kept. Pick the colour from the picture, then set how close a match counts.", width:260})
     ),
     gen.skipBg && h("div", {style:{marginTop:10}},
       h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},

@@ -110,7 +110,7 @@ test.describe('Convert preview fidelity', function() {
       return { box: box.width / box.height, picture: img.naturalWidth / img.naturalHeight };
     });
     const before = await shape();
-    await page.getByLabel('Lock aspect ratio').uncheck();
+    await page.getByRole('checkbox', { name: 'Lock aspect ratio' }).uncheck();
     await page.getByLabel('Height in stitches').fill('10');
     await page.keyboard.press('Tab');
     await page.waitForTimeout(120);            // inside the 400 ms debounce: the old picture is still showing

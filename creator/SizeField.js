@@ -156,11 +156,22 @@
           : "; it will be stretched to fit, so it may look soft.")));
     }
 
+    // Hover hints (components.js InfoIcon). Kept outside <label>s so pressing
+    // one never toggles the control beside it.
+    function hint(label, text) {
+      return typeof InfoIcon === "function" ? h(InfoIcon, { label: label, text: text, width: 240 }) : null;
+    }
+
     return h("div", { className: "size-field" },
+      h("div", { className: "convert-label" },
+        h("span", { className: "size-field__heading" }, "Size"),
+        hint("Size", "How many stitches wide and tall the pattern is. Bigger patterns keep more detail but take longer to stitch. Enter stitches, or switch to Finished size to enter the size on the fabric; the two are linked by the fabric count.")),
       modeSwitch,
-      h("label", { className: "size-field__lock" },
-        h("input", { type: "checkbox", checked: !!props.arLock, onChange: function (ev) { props.setArLock(ev.target.checked); } }),
-        "Lock aspect ratio"),
+      h("div", { className: "convert-label" },
+        h("label", { className: "size-field__lock" },
+          h("input", { type: "checkbox", checked: !!props.arLock, onChange: function (ev) { props.setArLock(ev.target.checked); } }),
+          "Lock aspect ratio"),
+        hint("Lock aspect ratio", "Keeps the picture's shape: changing the width changes the height to match. Turn off to stretch or squash the picture.")),
       fields,
       h("div", { className: "size-field__chips", role: "group", "aria-label": "Size presets" },
         FRAMES.map(function (f) {

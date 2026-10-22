@@ -223,7 +223,7 @@ describe('threads and symbols', () => {
     const sb = loadSource('creator/Sidebar.js');
     expect(sb).toMatch(/className:"palette-counts"[^\n]*window\.threadCountsShort\(window\.creatorThreadCounts\(displayPal\)\)/);
     expect(sb).toMatch(/label:"Threads \(max\)"/);
-    expect(sb).toMatch(/helpText:"Each thread is one colour of stranded cotton"/);
+    expect(sb).toMatch(/helpText:"Each thread is one colour of stranded cotton/);
     expect(sb).not.toMatch(/" colours used"/);
   });
 });
