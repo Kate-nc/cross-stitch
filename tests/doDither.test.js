@@ -41,6 +41,15 @@ function extractFn(src, name) {
 eval(extractFn(embSrc, 'sobelMag')); // eslint-disable-line no-eval
 
 const cuSrc = fs.readFileSync('./colour-utils.js', 'utf8');
+// Top-level `var NAME = value;` constants the extracted functions read.
+const extractVar = (src, name) => src.match(new RegExp(`\\nvar ${name} = [^;]+;`))[0];
+eval(extractVar(cuSrc, 'SALIENCY_LUM_FLOOR')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'SALIENCY_CHROMA_FLOOR')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'SALIENCY_NORM_LO')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'SALIENCY_NORM_HI')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_dE2000Core'));         // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_dE2000LightnessBound')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_gradientParts'));     // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'findSolid'));           // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'findBest'));            // eslint-disable-line no-eval
 eval(extractFn(cuSrc, '_gaussianBlur1'));       // eslint-disable-line no-eval

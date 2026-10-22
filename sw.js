@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "58d4f9e18c6cc47464e71067adf02293702076399fb4a4cfa44de932a14ba155";
+var BUILD_ID = "79e63d1fa6c165b83c78e62aec7442d07a023ab81ad4b9013fc2f89e45aeb29b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -322,7 +322,7 @@ var BUILD_ASSETS = {
     "sha256": "e6eb85c63f550a144711119400be10329d751552dae19c745a3e530d5f199448"
   },
   "./version.js": {
-    "sha256": "60cfd27dc9e475ebe7af0bd8d396754f8d817adacd0761466b1ad8397a694305"
+    "sha256": "7c9d20eb40a43b472ec5b2b54f129bc4f9d0c4ed91aa0de13e57d946581f1a73"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -349,7 +349,7 @@ var BUILD_ASSETS = {
     "sha256": "5b0d7792c6a6759211b8db8c2e611a0da3fbc4ee0d8c7fc87efa698f1da6c2b3"
   },
   "./colour-utils.js": {
-    "sha256": "5bd7f36393a272ffd8252a3c3add0072c0bf0a6f566677e547043098b5d7116a"
+    "sha256": "e2947bdae8317be95931ace6d626f7b357ceb2362c7156975cbcee56119bef57"
   },
   "./symbol-glyphs.js": {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "10f259838ad2bd1854f7849574089cd93828dac892c9a5bbfaf9b2710ab09742"
+    "sha256": "688be22c6caebf44001036b87faa0ddee9d1d88f3a7db233c98222ea95328619"
   },
   "./creator/extras-bundle.js": {
     "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
@@ -499,7 +499,7 @@ var BUILD_ASSETS = {
     "sha256": "a0d3b9526ec89bef46ff8d716915854502b25aab8885583811080e37cf04ef7b"
   },
   "./generate-worker.js": {
-    "sha256": "16be6368ce43eaa444dcaca9975f262d4caabdca098ea37d0f2ad013c25fdbea"
+    "sha256": "f859227c99856dd15b977f69e9bd7ccdaaf0ef0bc24302a5a9d5079a7572ed65"
   },
   "./cleanup-worker.js": {
     "sha256": "400f297c33328632690d56fe926ad82623f561c3d83fc445fd8ce5152cfaa96e"
@@ -574,7 +574,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "64e0339d34612f95f84489fae6a5944400b354fffc5e4123f0379658265e6783"
+    "sha256": "2d803ed5eccfdb311a43e4cb2d42efb69cae600a57ba49756911f5fc49ed8302"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

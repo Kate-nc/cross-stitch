@@ -5,13 +5,20 @@ const fc = require('fast-check');
 const fs = require('fs');
 const { rgbToLab, dE2 } = require('../dmc-data.js');
 
-// findSolid in colour-utils.js references the bare global `dE2` (defined in
-// dmc-data.js at runtime in the browser). Re-evaluate the function in this
-// scope so it picks up the locally-imported dE2.
+// findSolid in colour-utils.js matches by CIEDE2000 through the helper
+// _dE2000Core. Evaluate both in this scope.
 const _coSrc = fs.readFileSync('./colour-utils.js', 'utf8');
-const _findSolidSrc = _coSrc.match(/function findSolid\s*\([^)]*\)\s*\{[^\n]*\}/);
-if (!_findSolidSrc) throw new Error('Could not extract findSolid from colour-utils.js');
-eval(_findSolidSrc[0]);
+for (const name of ['_dE2000Core', '_dE2000LightnessBound', 'findSolid']) {
+  const start = _coSrc.indexOf(`\nfunction ${name}(`);
+  if (start === -1) throw new Error(`Could not extract ${name} from colour-utils.js`);
+  // Match the body's braces (the parameter lists here have none).
+  let i = _coSrc.indexOf('{', start), depth = 0;
+  for (; i < _coSrc.length; i++) {
+    if (_coSrc[i] === '{') depth++;
+    else if (_coSrc[i] === '}' && --depth === 0) break;
+  }
+  eval(_coSrc.slice(start, i + 1)); // eslint-disable-line no-eval
+}
 
 // Small fixed palette — enough variety to make matches non-trivial.
 const PALETTE = [

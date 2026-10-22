@@ -25,6 +25,7 @@
                    → SymbolGlyphs (the chart symbols buildPalette assigns)
      colour-utils.js → findSolid, findBest, quantize, quantizeConstrained, doDither, doRiemersma, doMap,
                        buildPalette, applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
+                       foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE,
                        generateSaliencyMap, generateEdgeMap,
                        labelConnectedComponents, removeOrphanStitches,
                        analyzeConfetti, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
@@ -141,70 +142,22 @@ self.onmessage = function(e) {
       mapped = doDither(raw, width, height, p, allowBlends, saliencyMap, { confettiDitherThreshold: cdt, ditherStrength: dithStrength });
     }
 
-    // ── 3. Rarity removal (minSt pass) ───────────────────────────────────────
-    // Applied before confetti analysis so stats reflect the post-minSt palette,
-    // matching the ordering in runCleanupPipeline (creator/generate.js).
+    // ── 3. Rare colours (mirrors runCleanupPipeline) ─────────────────────────
+    // Applied before confetti analysis so stats reflect the folded palette.
+    // The user's minimum removes every colour under it; the automatic pass
+    // (0.5% of stitches, cap 15) keeps patches that stand out from all they touch.
     var minSt = settings.minSt;
     if (minSt > 0) {
       postProgress('rarity', 'Removing rare colours…');
-      for (var pass = 0; pass < 3; pass++) {
-        var ep   = buildPalette(mapped);
-        var rare = ep.pal.filter(function(e) { return e.count < minSt; });
-        var keep = ep.pal.filter(function(e) { return e.count >= minSt; });
-        if (!rare.length || !keep.length) break;
-        var rm = {};
-        rare.forEach(function(r) {
-          var b = null, bd = 1e9;
-          keep.forEach(function(k) {
-            var d = dE(r.lab, k.lab);
-            if (d < bd) { bd = d; b = k.id; }
-          });
-          if (b) rm[r.id] = b;
-        });
-        var changed = false;
-        var keepMap = {};
-        keep.forEach(function(k) { keepMap[k.id] = k; });
-        for (var j = 0; j < mapped.length; j++) {
-          if (mapped[j].id !== '__skip__' && rm[mapped[j].id]) {
-            mapped[j] = Object.assign({}, keepMap[rm[mapped[j].id]]);
-            changed = true;
-          }
-        }
-        if (!changed) break;
-      }
+      foldRareColours(mapped, width, height, minSt);
     }
-
-    // ── Auto-coverage post-pass (mirrors runCleanupPipeline) ─────────────────
-    // Remove colours covering < 0.5% of non-skip cells (cap 15) to prevent
-    // 1–3 stitch stragglers from consuming palette slots.
     {
       var _atTotal = 0;
       for (var _ati = 0; _ati < mapped.length; _ati++) { if (mapped[_ati].id !== '__skip__') _atTotal++; }
       var _autoThresh = Math.max(2, Math.min(15, Math.floor(_atTotal * 0.005)));
       if (_autoThresh > (minSt || 0)) {
         postProgress('rarity', 'Removing rare colours…');
-        for (var _apass = 0; _apass < 3; _apass++) {
-          var _aep = buildPalette(mapped);
-          var _arare = _aep.pal.filter(function(e) { return e.count < _autoThresh; });
-          var _akeep = _aep.pal.filter(function(e) { return e.count >= _autoThresh; });
-          if (!_arare.length || !_akeep.length) break;
-          var _arm = {};
-          _arare.forEach(function(r) {
-            var _ab = null, _abd = 1e9;
-            _akeep.forEach(function(k) { var d = dE(r.lab, k.lab); if (d < _abd) { _abd = d; _ab = k.id; } });
-            if (_ab) _arm[r.id] = _ab;
-          });
-          var _akm = {};
-          _akeep.forEach(function(k) { _akm[k.id] = k; });
-          var _achanged = false;
-          for (var _aj = 0; _aj < mapped.length; _aj++) {
-            if (mapped[_aj].id !== '__skip__' && _arm[mapped[_aj].id]) {
-              mapped[_aj] = Object.assign({}, _akm[_arm[mapped[_aj].id]]);
-              _achanged = true;
-            }
-          }
-          if (!_achanged) break;
-        }
+        foldRareColours(mapped, width, height, _autoThresh, { contrastGuard: RARE_COLOUR_CONTRAST_GUARD_DE });
       }
     }
 
@@ -214,6 +167,9 @@ self.onmessage = function(e) {
       mergeEdgeBlendColours(mapped, width, height, {
         // Coverage is already decided. Colour cleanup must not create new holes.
         bgLab: null,
+        // Undithered, an edge shade is also judged by the pixels it was drawn from.
+        // (Dithered stitches all lie between their neighbours' colours, so not then.)
+        source: (!dith || dithAlgo === 'off') ? raw : null,
         maxDeltaE: (!dith || dithAlgo === 'off') && typeof EDGE_BLEND_MAX_DE_NO_DITHER === 'number' ? EDGE_BLEND_MAX_DE_NO_DITHER : undefined
       });
     }

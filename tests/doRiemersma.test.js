@@ -32,6 +32,8 @@ function extractFn(src, name) {
 }
 
 // findSolid and findBest are needed by doRiemersma
+eval(extractFn(cuSrc, '_dE2000Core')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_dE2000LightnessBound')); // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'findSolid')); // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'findBest'));  // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'doRiemersma')); // eslint-disable-line no-eval

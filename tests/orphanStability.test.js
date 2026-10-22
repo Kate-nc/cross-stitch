@@ -42,6 +42,7 @@ function extractFn(src, name) {
   throw new Error(`Unterminated function ${name}`);
 }
 
+eval(extractFn(cuSrc, '_dE2000Core'));              // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'labelConnectedComponents')); // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'removeOrphanStitches'));      // eslint-disable-line no-eval
 

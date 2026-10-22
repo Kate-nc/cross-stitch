@@ -1,23 +1,47 @@
-function findSolid(lab,p){if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};let b=null,bd=1e9;for(let i=0;i<p.length;i++){let d=dE2(lab,p[i].lab);if(d<bd){bd=d;b=p[i];if(d===0)break;/* PERF (perf-7 #1): exact-match early exit avoids scanning the rest of the palette when the input lab is already in p */}}return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:Math.sqrt(bd)};}
+// Nearest palette thread by CIEDE2000: the measure the quantiser uses to pick
+// the palette and findBest uses for blends. Matching with plain Euclidean Lab
+// here (as before) disagreed with them: a flat sky went to a thread ΔE2000 7.9
+// away while one 4.6 away sat in the palette, and pixels flipped between the two.
+// `dist` is the ΔE2000 distance of the match.
+function findSolid(lab,p){
+  if(!p||!p.length)return{type:"solid",id:"__empty__",name:"",rgb:[0,0,0],lab:[0,0,0],dist:Infinity};
+  let b=null,bd=Infinity;const L=lab[0],A=lab[1],B=lab[2];
+  for(let i=0;i<p.length;i++){
+    const e=p[i].lab;
+    if(bd<Infinity&&_dE2000LightnessBound(L,e[0])>=bd)continue;// cannot beat the best so far
+    let d=_dE2000Core(L,A,B,e[0],e[1],e[2]);if(d<bd){bd=d;b=p[i];if(d===0)break;/* exact match: nothing can beat it */}
+  }
+  return{type:"solid",id:b.id,name:b.name,rgb:b.rgb,lab:b.lab,dist:bd};
+}
+// A cheap lower bound on ΔE2000: never less than the lightness difference over
+// its weight S_L (the other terms add (|x| - |y|)² or more, as |R_T| <= 2).
+// Lets a nearest-colour search skip threads that cannot beat the best so far
+// without changing which thread it finds.
+function _dE2000LightnessBound(L1,L2){const m=(L1+L2)/2-50,m2=m*m;return Math.abs(L1-L2)/(1+0.015*m2/Math.sqrt(20+m2));}
 function findBest(lab, palette, allowBlends = true) {
   const solidMatch = findSolid(lab, palette);
   if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
 
-  // Use CIEDE2000 (dE2000) for blend search and solid-vs-blend decision so that
-  // perceptually similar blues/purples and warm reds are compared accurately.
-  // findSolid still uses dE2 (Euclidean LAB) for speed — it's called per-pixel
-  // during dithering; findBest's blend loop is palette²/2 iterations at most.
-  const solidDist00 = dE2000(lab, solidMatch.lab);
+  // CIEDE2000 throughout, like findSolid. The uncached core: nearly every call
+  // here has a new input colour, so the cache would only add cost.
+  const solidDist00 = solidMatch.dist;
+  const L = lab[0], A = lab[1], B = lab[2];
+  // A blend is used only when the nearest solid is over 5 away and the blend
+  // is more than 3 nearer than it, so search only below that (same result,
+  // far fewer distances: most stitches have a solid within 5).
+  if (!(solidDist00 > 5)) return solidMatch;
 
-  let bestBlendDist00 = 1e9;
+  let bestBlendDist00 = solidDist00 - 3;
   let bestBlendIdx = -1;
   const blends = findBest._blends;
   for (let i = 0; i < blends.length; i++) {
-    const dist = dE2000(lab, blends[i].lab);
+    const bl = blends[i].lab;
+    if (_dE2000LightnessBound(L, bl[0]) >= bestBlendDist00) continue;
+    const dist = _dE2000Core(L, A, B, bl[0], bl[1], bl[2]);
     if (dist < bestBlendDist00) { bestBlendDist00 = dist; bestBlendIdx = i; }
   }
 
-  if (bestBlendIdx >= 0 && (bestBlendDist00 + 3 < solidDist00) && solidDist00 > 5) {
+  if (bestBlendIdx >= 0) {
     const b = blends[bestBlendIdx];
     return {
       type: "blend",
@@ -32,6 +56,12 @@ function findBest(lab, palette, allowBlends = true) {
 
   return solidMatch;
 }
+// Two threads further apart than this (ΔE2000) are never paired in a blend.
+// A blend is two strands in one needle, so it reads as a mix only when the
+// strands are close; a far pair is a tweed of two unrelated colours. Without
+// this limit a flat warm grey came out as "Straw Dk + Royal Blue" and
+// "Black + Winter White", whose averages happen to land near grey.
+var BLEND_MAX_PARTNER_DE = 20;
 // Pre-compute blend pairs once per palette — call before dithering.
 findBest.precomputeBlends = function(palette) {
   findBest._blendPalette = palette;
@@ -39,6 +69,8 @@ findBest.precomputeBlends = function(palette) {
   for (let i = 0; i < palette.length; i++) {
     for (let j = i + 1; j < palette.length; j++) {
       const a = palette[i], b = palette[j];
+      if (!a.lab || !b.lab) continue;
+      if (_dE2000Core(a.lab[0], a.lab[1], a.lab[2], b.lab[0], b.lab[1], b.lab[2]) > BLEND_MAX_PARTNER_DE) continue;
       const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
       // Canonicalise blend ID so [a,b] and [b,a] always produce the same string.
       const blendId = [String(a.id), String(b.id)].sort().join("+");
@@ -272,6 +304,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   // LAB point. This eliminates the double-error of unconstrained k-means → final snap.
   // Per-pixel assignment uses OKLab (better hue linearity); centroid-to-pool
   // snapping uses dE2000 (perceptually accurate for small palette decisions).
+  function lloyd(){
   let _sumL=new Float64Array(cs.length),_sumA=new Float64Array(cs.length),_sumB=new Float64Array(cs.length),_cnt=new Uint32Array(cs.length);
   for(let it=0;it<20;it++){
     _sumL.fill(0);_sumA.fill(0);_sumB.fill(0);_cnt.fill(0);
@@ -290,13 +323,30 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
       let b=null,bd=1e9,bti=-1;
       for(let ti=0;ti<pool.length;ti++){
         if(usedIter.has(pool[ti].id))continue;
-        let d=dE2000(centroid,pool[ti].lab);if(d<bd){bd=d;b=pool[ti];bti=ti;}
+        let pl=pool[ti].lab,d=_dE2000Core(centroid[0],centroid[1],centroid[2],pl[0],pl[1],pl[2]);if(d<bd){bd=d;b=pool[ti];bti=ti;}
       }
       if(!b)continue;
       if(b.id!==cs[c].id)mv=true;
       cs[c]=b;csOk[c]=poolOk[bti];usedIter.add(b.id);
     }
     if(!mv)break;
+  }
+  }
+  lloyd();
+  // Palette refinement (see prunePalette and addDistinctColours below):
+  // drop near-duplicate threads, refit the survivors to the clusters they now
+  // serve, then give small but clearly different colours a slot.
+  // options.refine === false keeps the raw clusters.
+  if(cs.length&&!(options&&options.refine===false)){
+    let uc=_uniqueColours(data,w,h);
+    let pruned=prunePalette(uc,cs,w);
+    if(pruned.length<cs.length){
+      let poolIdx=new Map();for(let ti=0;ti<pool.length;ti++)poolIdx.set(pool[ti].id,ti);
+      cs=pruned;csOk=cs.map(function(e){let ti=poolIdx.get(e.id);return ti!=null?poolOk[ti]:rgbToOklab(e.rgb[0],e.rgb[1],e.rgb[2]);});
+      lloyd();
+      cs=prunePalette(uc,cs,w);
+    }
+    cs=addDistinctColours(uc,w,cs,pool,maxN);
   }
   // Empty-palette fallback: mirrors quantize behaviour
   if(!cs.length){
@@ -308,6 +358,279 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
     }
   }
   return cs;
+}
+// ── Palette refinement (after quantizeConstrained's clustering) ──────────────
+// k-means weighs a colour by how many pixels it covers. Left alone it fills
+// every slot, spending most of them on near-copies of the biggest flat areas,
+// and image noise then decides which copy each stitch gets: splotches of a
+// second shade inside one solid colour. A small but clearly different feature
+// (a catchlight, a spot of another colour) covers too few pixels to win a slot
+// and is drawn in whatever thread is nearest. Two steps fix that:
+//   prunePalette       drops near-duplicate and unused threads;
+//   addDistinctColours gives clearly different colours a thread.
+// Every distance is ΔE2000, the measure findSolid maps stitches with, so the
+// palette is judged the way it will be used. The palette may come back
+// smaller than maxN: the maximum is a limit, not a quota.
+var PALETTE_PRUNE_DE = 2.0;
+var PALETTE_ADD_MIN_DE = 10;
+var PALETTE_ADD_SUBTLE_DE = 6;
+var PALETTE_ADD_MIN_PIXELS = 4;
+var PALETTE_ADD_CANDIDATES = 24;   // threads tried per round
+var PALETTE_ADD_SCAN = 64;         // worst-served colours looked at to find them
+var PALETTE_ADD_GAIN_SAMPLE = 4000; // worst-served colours a thread's gain is measured on
+var PALETTE_MAX_SWAPS = 4;
+
+// The picture's visible colours for palette statistics, grouped by 6 bits per
+// RGB channel (members of a group are within 4 levels on each channel, about
+// ΔE 2 at most): each group's mean Lab, how many pixels it has, and which group
+// each pixel is in (-1 for transparent). Grouping keeps the statistics fast on
+// big, noisy photos, where nearly every pixel is a distinct colour.
+// `cols` caches each thread's distance column (see _distColumn).
+function _uniqueColours(data, w, h) {
+  const N = w * h, keyIdx = new Map(), pixU = new Int32Array(N), sums = [], counts = [];
+  for (let i = 0; i < N; i++) {
+    const j = i * 4;
+    if (data[j + 3] < 128) { pixU[i] = -1; continue; }
+    const key = ((data[j] >> 2) << 12) | ((data[j + 1] >> 2) << 6) | (data[j + 2] >> 2);
+    let u = keyIdx.get(key);
+    if (u === undefined) { u = counts.length; keyIdx.set(key, u); sums.push(0, 0, 0); counts.push(0); }
+    const l = rgbToLab(data[j], data[j + 1], data[j + 2]);
+    sums[u * 3] += l[0]; sums[u * 3 + 1] += l[1]; sums[u * 3 + 2] += l[2];
+    counts[u]++; pixU[i] = u;
+  }
+  const lab = new Array(counts.length);
+  for (let u = 0; u < counts.length; u++) lab[u] = [sums[u * 3] / counts[u], sums[u * 3 + 1] / counts[u], sums[u * 3 + 2] / counts[u]];
+  return { lab: lab, count: Uint32Array.from(counts), pixU: pixU, n: lab.length, cols: new Map() };
+}
+// ΔE2000 from every colour group to one thread (cached per thread).
+function _distColumn(uc, e) {
+  const hit = uc.cols && uc.cols.get(e.id);
+  if (hit) return hit;
+  const col = new Float32Array(uc.n), L = e.lab[0], A = e.lab[1], B = e.lab[2];
+  for (let u = 0; u < uc.n; u++) { const l = uc.lab[u]; col[u] = _dE2000Core(l[0], l[1], l[2], L, A, B); }
+  if (uc.cols) uc.cols.set(e.id, col);
+  return col;
+}
+// Nearest and second-nearest thread for every distinct colour.
+function _assignColours(uc, cols) {
+  const U = uc.n, best = new Int32Array(U), d1 = new Float32Array(U), d2 = new Float32Array(U);
+  let total = 0;
+  for (let u = 0; u < U; u++) {
+    let a = Infinity, b = Infinity, ai = -1;
+    for (let c = 0; c < cols.length; c++) { const d = cols[c][u]; if (d < a) { b = a; a = d; ai = c; } else if (d < b) b = d; }
+    best[u] = ai; d1[u] = a; d2[u] = b; total += uc.count[u] * a;
+  }
+  return { best: best, d1: d1, d2: d2, total: total };
+}
+
+// Drop threads one at a time while one is cheap to drop: its cost, averaged
+// over the pixels it serves, is under PALETTE_PRUNE_DE, where a pixel's cost
+// is how much further its next-best thread is than the best thread it had at
+// the start. Measuring from the start, not from the previous removal, stops a
+// chain of small steps from drifting a colour (a beige background went
+// 3047 > 950 > 543, visibly lighter, one "small" step at a time). A thread no
+// pixel picks costs nothing and always goes.
+// A flat colour lying between two threads splits between them by noise, and
+// in colour terms that looks just like a gradient band. Spatially it does not:
+// noise leaves many tiny patches, a band is one long patch. So a thread whose
+// patches average under PALETTE_NOISE_PATCH pixels, with another thread within
+// PALETTE_NOISE_NEAR_DE, may be dropped at up to PALETTE_PRUNE_NOISY_DE.
+var PALETTE_NOISE_PATCH = 8;
+var PALETTE_NOISE_NEAR_DE = 10;
+var PALETTE_PRUNE_NOISY_DE = 5;
+function prunePalette(uc, cs, w) {
+  const pal = cs.filter(function (e) { return e && e.lab; });
+  if (pal.length < 2 || !uc.n) return pal.length ? pal : cs;
+  const cols = pal.map(function (e) { return _distColumn(uc, e); });
+  const d0 = _assignColours(uc, cols).d1;
+  const pixU = uc.pixU, N = pixU.length;
+  const thread = new Int32Array(N), seen = new Uint8Array(N), stack = new Int32Array(N);
+  while (pal.length > 1) {
+    const as = _assignColours(uc, cols), k = pal.length;
+    const cost = new Float64Array(k), share = new Float64Array(k);
+    for (let u = 0; u < uc.n; u++) {
+      const c = as.best[u];
+      cost[c] += uc.count[u] * (as.d2[u] - d0[u]); share[c] += uc.count[u];
+    }
+    // Patches (4-connected) of each thread, when the image shape is known.
+    const patches = new Float64Array(k);
+    if (w > 0) {
+      for (let i = 0; i < N; i++) { thread[i] = pixU[i] < 0 ? -1 : as.best[pixU[i]]; seen[i] = 0; }
+      for (let i = 0; i < N; i++) {
+        if (seen[i] || thread[i] < 0) continue;
+        const t = thread[i];
+        patches[t]++;
+        let sp = 0; stack[sp++] = i; seen[i] = 1;
+        while (sp) {
+          const c = stack[--sp], x = c % w;
+          if (x > 0 && !seen[c - 1] && thread[c - 1] === t) { seen[c - 1] = 1; stack[sp++] = c - 1; }
+          if (x < w - 1 && !seen[c + 1] && thread[c + 1] === t) { seen[c + 1] = 1; stack[sp++] = c + 1; }
+          if (c >= w && !seen[c - w] && thread[c - w] === t) { seen[c - w] = 1; stack[sp++] = c - w; }
+          if (c + w < N && !seen[c + w] && thread[c + w] === t) { seen[c + w] = 1; stack[sp++] = c + w; }
+        }
+      }
+    }
+    // Of the threads cheap enough to drop, drop the one costing least in
+    // total, so a big flat area keeps its best thread and a near-copy serving
+    // a few pixels goes instead.
+    let drop = -1;
+    for (let c = 0; c < k; c++) {
+      const mean = share[c] ? cost[c] / share[c] : 0;
+      let limit = PALETTE_PRUNE_DE;
+      if (patches[c] && share[c] / patches[c] < PALETTE_NOISE_PATCH) {
+        const e = pal[c].lab;
+        for (let o = 0; o < k; o++) {
+          if (o === c) continue;
+          const f = pal[o].lab;
+          if (_dE2000Core(e[0], e[1], e[2], f[0], f[1], f[2]) < PALETTE_NOISE_NEAR_DE) { limit = PALETTE_PRUNE_NOISY_DE; break; }
+        }
+      }
+      if (mean < limit && (drop < 0 || cost[c] < cost[drop])) drop = c;
+    }
+    if (drop < 0) break;
+    pal.splice(drop, 1); cols.splice(drop, 1);
+  }
+  return pal;
+}
+
+// While there are free slots, find the pixels more than PALETTE_ADD_SUBTLE_DE
+// from every thread and add the unused thread that serves them best, if the
+// pixels it would win are
+//   - clearly different (over PALETTE_ADD_MIN_DE from every thread) and at
+//     least PALETTE_ADD_MIN_PIXELS of them touch each other, so a 2×2
+//     catchlight counts but lone noise pixels never earn a thread; or
+//   - subtly different but forming solid patches, averaging at least
+//     PALETTE_NOISE_PATCH pixels (dark green blocks in olive grass, about
+//     ΔE 6 apart), the spatial test prunePalette uses to tell noise apart. With no free slot, swap it
+// in for an existing thread only when that lowers the picture's total error.
+// Pixels that are a mix of the colours either side of them (within
+// PALETTE_EDGE_MIX_DE, ΔE76, of the line between the threads of two opposite
+// neighbours) are left out: they are anti-aliasing, not a missing colour.
+// Counting them gave the edges of small white lettering on navy three
+// threads of light blue, and the letters disappeared into them.
+var PALETTE_EDGE_MIX_DE = 10;
+function _segDist76(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+  const len2 = dx * dx + dy * dy + dz * dz;
+  let t = len2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy + (p[2] - a[2]) * dz) / len2 : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const ex = a[0] + t * dx - p[0], ey = a[1] + t * dy - p[1], ez = a[2] + t * dz - p[2];
+  return Math.sqrt(ex * ex + ey * ey + ez * ez);
+}
+function addDistinctColours(uc, w, cs, pool, maxN) {
+  const pal = cs.filter(function (e) { return e && e.lab; });
+  if (!pal.length || !uc.n) return cs;
+  const U = uc.n, N = uc.pixU.length, pixU = uc.pixU;
+  const cols = pal.map(function (e) { return _distColumn(uc, e); });
+  const tried = new Set(pal.map(function (e) { return e.id; }));
+  const won = new Uint8Array(U);
+  let swaps = 0;
+  const h = w > 0 ? Math.round(N / w) : 0;
+  const mix = new Uint8Array(N), weight = new Float64Array(U);
+  const seen = new Uint8Array(N), stack = new Int32Array(N);
+  for (let round = 0; round < maxN + PALETTE_MAX_SWAPS; round++) {
+    const as = _assignColours(uc, cols), d1 = as.d1;
+    // Edge mixes among the poorly served pixels; `weight` counts the rest.
+    mix.fill(0); weight.fill(0);
+    for (let i = 0; i < N; i++) {
+      const u = pixU[i];
+      if (u < 0) continue;
+      if (d1[u] > PALETTE_ADD_SUBTLE_DE && w > 0) {
+        const x = i % w, y = (i / w) | 0, l = uc.lab[u];
+        const pairs = [[x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1], [y > 0 ? i - w : -1, y < h - 1 ? i + w : -1],
+          [x > 0 && y > 0 ? i - w - 1 : -1, x < w - 1 && y < h - 1 ? i + w + 1 : -1], [x < w - 1 && y > 0 ? i - w + 1 : -1, x > 0 && y < h - 1 ? i + w - 1 : -1]];
+        for (let q = 0; q < 4 && !mix[i]; q++) {
+          const a = pairs[q][0], b = pairs[q][1];
+          if (a < 0 || b < 0 || pixU[a] < 0 || pixU[b] < 0) continue;
+          const ta = as.best[pixU[a]], tb = as.best[pixU[b]];
+          if (ta !== tb && _segDist76(l, pal[ta].lab, pal[tb].lab) <= PALETTE_EDGE_MIX_DE) mix[i] = 1;
+        }
+      }
+      if (!mix[i]) weight[u]++;
+    }
+    const poor = [];
+    let poorPixels = 0;
+    for (let u = 0; u < U; u++) if (d1[u] > PALETTE_ADD_SUBTLE_DE && weight[u] > 0) { poor.push(u); poorPixels += weight[u]; }
+    if (poorPixels < PALETTE_ADD_MIN_PIXELS) break;
+    poor.sort(function (a, b) { return weight[b] * d1[b] - weight[a] * d1[a]; });
+    if (poor.length > PALETTE_ADD_GAIN_SAMPLE) poor.length = PALETTE_ADD_GAIN_SAMPLE;
+    // Candidates: the nearest unused thread to each of the worst-served colours.
+    const cands = [], candIds = new Set();
+    for (let k = 0; k < poor.length && k < PALETTE_ADD_SCAN && cands.length < PALETTE_ADD_CANDIDATES; k++) {
+      const l = uc.lab[poor[k]];
+      let bt = null, bd = Infinity;
+      for (let t = 0; t < pool.length; t++) {
+        const e = pool[t];
+        if (!e.lab || tried.has(e.id)) continue;
+        if (bd < Infinity && _dE2000LightnessBound(l[0], e.lab[0]) >= bd) continue;
+        const d = _dE2000Core(l[0], l[1], l[2], e.lab[0], e.lab[1], e.lab[2]);
+        if (d < bd) { bd = d; bt = e; }
+      }
+      if (bt && !candIds.has(bt.id)) { candIds.add(bt.id); cands.push(bt); }
+    }
+    let pick = null, pickGain = 0;
+    for (let ci = 0; ci < cands.length; ci++) {
+      const t = cands[ci], L = t.lab[0], A = t.lab[1], B = t.lab[2];
+      let gain = 0;
+      won.fill(0);
+      for (let k = 0; k < poor.length; k++) {
+        const u = poor[k], l = uc.lab[u];
+        if (_dE2000LightnessBound(l[0], L) >= d1[u]) continue;   // cannot win it
+        const d = _dE2000Core(l[0], l[1], l[2], L, A, B);
+        if (d < d1[u]) { gain += weight[u] * (d1[u] - d); won[u] = 1; }
+      }
+      if (gain <= pickGain) continue;
+      // Clearly different: at least PALETTE_ADD_MIN_PIXELS won pixels over
+      // PALETTE_ADD_MIN_DE that touch another such pixel.
+      const isWon = function (i) { const u = pixU[i]; return u >= 0 && won[u] === 1 && !mix[i]; };
+      const isClear = function (i) { return isWon(i) && d1[pixU[i]] > PALETTE_ADD_MIN_DE; };
+      let coherent = 0;
+      for (let i = 0; i < N && coherent < PALETTE_ADD_MIN_PIXELS; i++) {
+        if (!isClear(i)) continue;
+        const x = i % w;
+        if ((x > 0 && isClear(i - 1)) || (x < w - 1 && isClear(i + 1)) ||
+            (i >= w && isClear(i - w)) || (i + w < N && isClear(i + w))) coherent++;
+      }
+      let ok = coherent >= PALETTE_ADD_MIN_PIXELS;
+      if (!ok) {
+        // Subtly different: the won pixels must form solid patches.
+        let pixels = 0, patches = 0;
+        seen.fill(0);
+        for (let i = 0; i < N; i++) {
+          if (seen[i] || !isWon(i)) continue;
+          patches++;
+          let sp = 0; stack[sp++] = i; seen[i] = 1;
+          while (sp) {
+            const c = stack[--sp], x = c % w;
+            pixels++;
+            if (x > 0 && !seen[c - 1] && isWon(c - 1)) { seen[c - 1] = 1; stack[sp++] = c - 1; }
+            if (x < w - 1 && !seen[c + 1] && isWon(c + 1)) { seen[c + 1] = 1; stack[sp++] = c + 1; }
+            if (c >= w && !seen[c - w] && isWon(c - w)) { seen[c - w] = 1; stack[sp++] = c - w; }
+            if (c + w < N && !seen[c + w] && isWon(c + w)) { seen[c + w] = 1; stack[sp++] = c + w; }
+          }
+        }
+        ok = patches > 0 && pixels / patches >= PALETTE_NOISE_PATCH;
+      }
+      if (!ok) continue;
+      pick = t; pickGain = gain;
+    }
+    if (!pick) break;
+    tried.add(pick.id);
+    if (pal.length < maxN) { pal.push(pick); cols.push(_distColumn(uc, pick)); continue; }
+    // Full palette: swap out the cheapest thread, but only if that lowers the
+    // total error.
+    if (swaps >= PALETTE_MAX_SWAPS) break;
+    const cost = new Float64Array(pal.length);
+    for (let u = 0; u < U; u++) cost[as.best[u]] += uc.count[u] * (as.d2[u] - as.d1[u]);
+    let out = 0;
+    for (let c = 1; c < pal.length; c++) if (cost[c] < cost[out]) out = c;
+    if (!(pickGain > cost[out])) break;
+    const oldE = pal[out], oldCol = cols[out];
+    pal[out] = pick; cols[out] = _distColumn(uc, pick);
+    if (_assignColours(uc, cols).total < as.total) swaps++;
+    else { pal[out] = oldE; cols[out] = oldCol; break; }
+  }
+  return pal;
 }
 /**
  * Atkinson dithering with Stage 2 confetti-aware color selection.
@@ -337,7 +660,7 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
  * @param {Float32Array}      [saliencyMap]  per-pixel saliency scores 0–1; if omitted,
  *                                           treated as all-zero (maximum smoothing)
  * @param {object}            [opts]
- * @param {number}            [opts.confettiDitherThreshold=4.0]  base Delta-E² penalty
+ * @param {number}            [opts.confettiDitherThreshold=4.0]  base ΔE2000 penalty
  *                                           the algorithm accepts to avoid an isolate
  * @param {number}            [opts.ditherStrength=1.0]  multiplier for Atkinson
  *                                           error weights. 0.5 = weak/subtle,
@@ -390,10 +713,10 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
       // Compute the effective threshold, scaled by (1 - saliency).
       const saliency = saliencyMap ? saliencyMap[idx] : 0;
       const effectiveThreshold = confettiDitherThreshold * (1.0 - saliency);
-      // dE2 returns squared Lab distance (ΔE²). The brief specifies the penalty
-      // check as:  dE2(target, secondBest) - dE2(target, best) < threshold
-      // so we compare the difference of squared distances against the raw threshold.
-      // (Squaring both sides of a ΔE comparison would over-tighten the bound.)
+      // The penalty is in plain ΔE2000 units, the measure findBest chose `best`
+      // with: ΔE(target, secondBest) - ΔE(target, best) < threshold. It used to
+      // subtract squared Euclidean distances, so a 4 "ΔE" threshold accepted a
+      // neighbour only about 0.2 ΔE worse and the check almost never fired.
 
       let chosen = best;
 
@@ -415,7 +738,8 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
         if (!bestNeighbour) {
           // Find the closest palette color that shares a neighbor's ID.
           let secondBest = null;
-          let secondBestDistSq = Infinity;
+          const tL = targetLab[0], tA = targetLab[1], tB = targetLab[2];
+          let secondBestDist = Infinity;
 
           if (_useIdMap) {
             // PERF (deferred-4): direct id-map lookup, O(unique neighbours) ≤ 4.
@@ -429,9 +753,9 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
               if (nbi > 2 && nid === nb2) continue;
               const entry = _palIdMap.get(nid);
               if (!entry) continue;
-              const distSq = dE2(targetLab, entry.lab);
-              if (distSq < secondBestDistSq) {
-                secondBestDistSq = distSq;
+              const dist = _dE2000Core(tL, tA, tB, entry.lab[0], entry.lab[1], entry.lab[2]);
+              if (dist < secondBestDist) {
+                secondBestDist = dist;
                 secondBest = entry;
               }
             }
@@ -441,17 +765,16 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
               const entry = pal[pi];
               const eid = entry.id;
               if (eid !== nb0 && eid !== nb1 && eid !== nb2 && eid !== nb3) continue;
-              const distSq = dE2(targetLab, entry.lab);
-              if (distSq < secondBestDistSq) {
-                secondBestDistSq = distSq;
+              const dist = _dE2000Core(tL, tA, tB, entry.lab[0], entry.lab[1], entry.lab[2]);
+              if (dist < secondBestDist) {
+                secondBestDist = dist;
                 secondBest = entry;
               }
             }
           }
 
           if (secondBest !== null) {
-            const bestDistSq = dE2(targetLab, best.lab);
-            const penalty = secondBestDistSq - bestDistSq;
+            const penalty = secondBestDist - _dE2000Core(tL, tA, tB, best.lab[0], best.lab[1], best.lab[2]);
             if (penalty < effectiveThreshold) {
               chosen = secondBest;
             }
@@ -907,6 +1230,9 @@ function applyMedianFilterCore(data, w, h, radius, buf) {
   const rArr = new Int32Array(size);
   const gArr = new Int32Array(size);
   const bArr = new Int32Array(size);
+  const rSort = new Int32Array(size);
+  const gSort = new Int32Array(size);
+  const bSort = new Int32Array(size);
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
@@ -931,20 +1257,37 @@ function applyMedianFilterCore(data, w, h, radius, buf) {
           idx++;
         }
       }
-      const rs = rArr.subarray(0, idx).sort();
-      const gs = gArr.subarray(0, idx).sort();
-      const bs = bArr.subarray(0, idx).sort();
-
-      let mid = idx >> 1;
       let outIdx = (y * w + x) << 2;
-      buf[outIdx] = idx ? rs[mid] : data[outIdx];
-      buf[outIdx + 1] = idx ? gs[mid] : data[outIdx + 1];
-      buf[outIdx + 2] = idx ? bs[mid] : data[outIdx + 2];
       buf[outIdx + 3] = data[outIdx + 3];
+      if (!idx) {
+        buf[outIdx] = data[outIdx]; buf[outIdx + 1] = data[outIdx + 1]; buf[outIdx + 2] = data[outIdx + 2];
+        continue;
+      }
+      rSort.set(rArr.subarray(0, idx)); gSort.set(gArr.subarray(0, idx)); bSort.set(bArr.subarray(0, idx));
+      const mid = idx >> 1;
+      const mr = rSort.subarray(0, idx).sort()[mid];
+      const mg = gSort.subarray(0, idx).sort()[mid];
+      const mb = bSort.subarray(0, idx).sort()[mid];
+      // The three channel medians can come from three different pixels, which
+      // near an edge makes a colour that is in none of them (red over green
+      // giving brown). Output the neighbourhood pixel closest to them instead,
+      // so smoothing never invents a colour.
+      let bi = 0, bd = Infinity;
+      for (let k = 0; k < idx; k++) {
+        const dr = rArr[k] - mr, dg = gArr[k] - mg, db = bArr[k] - mb;
+        const d = dr * dr + dg * dg + db * db;
+        if (d < bd) { bd = d; bi = k; if (d === 0) break; }
+      }
+      buf[outIdx] = rArr[bi];
+      buf[outIdx + 1] = gArr[bi];
+      buf[outIdx + 2] = bArr[bi];
     }
   }
 }
 
+// Two results of applyMedianFilter closer than this (squared RGB distance:
+// 12 levels on each channel) are close enough to blend without inventing a colour.
+var MEDIAN_BLEND_MAX_DIST2 = 3 * 12 * 12;
 function applyMedianFilter(data, w, h, radius) {
   if (radius <= 0) return data;
   const len = data.length;
@@ -966,8 +1309,20 @@ function applyMedianFilter(data, w, h, radius) {
   const buf2 = new Uint8ClampedArray(len);
   applyMedianFilterCore(data, w, h, r2, buf2);
 
-  for (let i = 0; i < len; i++) {
-    data[i] = buf1[i] + (buf2[i] - buf1[i]) * frac;
+  // Between two radii: blend the two results where they are nearly the same
+  // colour (flat areas, so the slider stays smooth), otherwise take the nearer
+  // radius, since blending two different colours would invent a third.
+  for (let i = 0; i < len; i += 4) {
+    const dr = buf2[i] - buf1[i], dg = buf2[i + 1] - buf1[i + 1], db = buf2[i + 2] - buf1[i + 2];
+    if (dr * dr + dg * dg + db * db <= MEDIAN_BLEND_MAX_DIST2) {
+      data[i] = buf1[i] + dr * frac;
+      data[i + 1] = buf1[i + 1] + dg * frac;
+      data[i + 2] = buf1[i + 2] + db * frac;
+    } else {
+      const src = frac < 0.5 ? buf1 : buf2;
+      data[i] = src[i]; data[i + 1] = src[i + 1]; data[i + 2] = src[i + 2];
+    }
+    data[i + 3] = buf1[i + 3];
   }
   return data;
 }
@@ -1404,12 +1759,61 @@ function _gaussianBlur1(data, w, h, sigma) {
   }
 }
 
+// Gradient magnitudes for the saliency and edge maps, both 3×3 Sobel:
+//   lum    — on Rec. 709 brightness (0–255), like sobelMag;
+//   chroma — on CIELAB a* and b*, scaled by 2.55 so one unit of a*/b* weighs
+//            like one unit of L* on that 0–255 scale.
+// sobelMag and cannyEdges see brightness only, so a change between two colours
+// of similar brightness (a brown spot in green grass) was invisible to edge
+// protection and to the saliency map. The brightness part is computed here
+// rather than through the global sobelMag because embroidery.js defines a
+// different sobelMag (with a 5×5 pass that reads a smooth ramp about four
+// times stronger), and the saliency floors below need one fixed scale.
+function _gradientParts(data, w, h) {
+  const N = w * h, Y = new Float32Array(N), A = new Float32Array(N), B = new Float32Array(N);
+  const lum = new Float32Array(N), chroma = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+    Y[i] = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const lab = rgbToLab(r, g, b);
+    A[i] = lab[1]; B[i] = lab[2];
+  }
+  function sob(C, i) {
+    const gx = C[i - w + 1] + 2 * C[i + 1] + C[i + w + 1] - C[i - w - 1] - 2 * C[i - 1] - C[i + w - 1];
+    const gy = C[i + w - 1] + 2 * C[i + w] + C[i + w + 1] - C[i - w - 1] - 2 * C[i - w] - C[i - w + 1];
+    return gx * gx + gy * gy;
+  }
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      lum[i] = Math.sqrt(sob(Y, i));
+      chroma[i] = 2.55 * Math.sqrt(sob(A, i) + sob(B, i));
+    }
+  }
+  return { lum: lum, chroma: chroma };
+}
+
+// Saliency scale, in sobelMag units (a step of s grey levels scores 4s).
+// Below the floors is smooth shading or noise (measured on a JPEG photo at
+// stitch size: flat areas stay under 11 for brightness and 73 for colour, whose
+// noise JPEG makes larger). The map is divided by the strongest edge in the
+// picture, as before, but that divisor is held between the response of a
+// thin 15-grey and a thin 40-grey step. Dividing by the raw maximum made one
+// black-on-white edge crush every subtler real detail towards 0, and made the
+// noise in a low-contrast picture look like detail.
+var SALIENCY_LUM_FLOOR = 16;
+var SALIENCY_CHROMA_FLOOR = 64;
+var SALIENCY_NORM_LO = 44;    // 4 × 15 − floor
+var SALIENCY_NORM_HI = 144;   // 4 × 40 − floor
+
 /**
- * Generates a per-pixel "detail importance" saliency map normalized to 0.0–1.0.
+ * Generates a per-pixel "detail importance" saliency map in 0.0–1.0.
  *
- * Uses the Sobel gradient magnitude (via the global `sobelMag` from embroidery.js)
- * to detect high-frequency edge regions, then normalizes and optionally blurs the
- * result so that nearby pixels share similar importance scores.
+ * Takes the larger of the brightness and colour gradients (_gradientParts),
+ * each less its noise floor, blurs it so nearby
+ * pixels share similar scores, and divides by the picture's strongest edge
+ * held between SALIENCY_NORM_LO and SALIENCY_NORM_HI (scaled by how much the
+ * blur lowers a thin edge). Anything at or above the divisor is 1.
  *
  * @param {Uint8ClampedArray} data  RGBA pixel data, length = w*h*4
  * @param {number}            w     image width in pixels
@@ -1420,43 +1824,30 @@ function _gaussianBlur1(data, w, h, sigma) {
  */
 function generateSaliencyMap(data, w, h, { sigma = 3.0 } = {}) {
   const N = w * h;
-
-  // Step 1: Compute Sobel gradient magnitude.
-  // sobelMag is a global function defined in embroidery.js.
-  const mag = sobelMag(data, w, h); // Float32Array, length N
-
-  // Step 2: Normalize to 0.0–1.0.
-  let minVal = Infinity, maxVal = -Infinity;
-  for (let i = 0; i < N; i++) {
-    if (mag[i] < minVal) minVal = mag[i];
-    if (mag[i] > maxVal) maxVal = mag[i];
-  }
+  const grad = _gradientParts(data, w, h), lum = grad.lum, chroma = grad.chroma;
   const saliency = new Float32Array(N);
-  const range = maxVal - minVal;
-  if (range > 0) {
-    for (let i = 0; i < N; i++) {
-      saliency[i] = (mag[i] - minVal) / range;
-    }
+  for (let i = 0; i < N; i++) {
+    const v = Math.max(lum[i] - SALIENCY_LUM_FLOOR, chroma[i] - SALIENCY_CHROMA_FLOOR);
+    saliency[i] = v > 0 ? v : 0;
   }
-  // If range === 0 (flat image), saliency stays all-zero — correct behavior.
-
-  // Step 3: Optional Gaussian blur to smooth importance zone boundaries.
+  // How much the blur lowers a thin (2-pixel) edge: the divisor's bounds are
+  // set for an unblurred thin edge.
+  let thin = 1;
   if (sigma > 0) {
     _gaussianBlur1(saliency, w, h, sigma);
-    // Re-normalize after blurring (blur can compress the range near boundaries).
-    let bMin = Infinity, bMax = -Infinity;
-    for (let i = 0; i < N; i++) {
-      if (saliency[i] < bMin) bMin = saliency[i];
-      if (saliency[i] > bMax) bMax = saliency[i];
-    }
-    const bRange = bMax - bMin;
-    if (bRange > 0) {
-      for (let i = 0; i < N; i++) {
-        saliency[i] = (saliency[i] - bMin) / bRange;
-      }
-    }
+    const radius = Math.ceil(sigma * 3);
+    let kSum = 0;
+    for (let k = -radius; k <= radius; k++) kSum += Math.exp(-(k * k) / (2 * sigma * sigma));
+    thin = (1 + Math.exp(-1 / (2 * sigma * sigma))) / kSum;
   }
-
+  let maxVal = 0;
+  for (let i = 0; i < N; i++) if (saliency[i] > maxVal) maxVal = saliency[i];
+  if (maxVal <= 0) return saliency;   // flat picture: all zero
+  const norm = Math.min(SALIENCY_NORM_HI * thin, Math.max(SALIENCY_NORM_LO * thin, maxVal));
+  for (let i = 0; i < N; i++) {
+    const v = saliency[i] / norm;
+    saliency[i] = v > 1 ? 1 : v;
+  }
   return saliency;
 }
 
@@ -1687,11 +2078,17 @@ function _dilate3Square(mask, w, h) {
   return out;
 }
 
+// Colour-change strength (_gradientParts chroma units) that counts as an edge: a
+// step of about 12 in a*/b*, well above the JPEG colour noise in flat areas.
+var CHROMA_EDGE_THRESHOLD = 120;
+
 /**
  * Stage 4: Generate a boolean edge mask from the source image.
  *
- * Calls the global `cannyEdges` function from embroidery.js, then optionally
- * dilates the result so stitches immediately adjacent to an edge are also
+ * Calls the global `cannyEdges` function from embroidery.js (brightness
+ * edges), adds colour edges from _gradientParts so a change between two
+ * colours of similar brightness is protected too, then optionally dilates
+ * the result so stitches immediately adjacent to an edge are also
  * protected from orphan removal in Stage 5.
  *
  * @param {Uint8ClampedArray} data           RGBA source pixels
@@ -1704,6 +2101,8 @@ function _dilate3Square(mask, w, h) {
 function generateEdgeMap(data, w, h, { edgeDilation = 1 } = {}) {
   // cannyEdges is a global defined in embroidery.js
   let edges = cannyEdges(data, w, h); // Uint8Array, 0/1
+  const chroma = _gradientParts(data, w, h).chroma;
+  for (let i = 0; i < edges.length; i++) if (chroma[i] >= CHROMA_EDGE_THRESHOLD) edges[i] = 1;
 
   for (let pass = 0; pass < edgeDilation; pass++) {
     edges = _dilate3Square(edges, w, h);
@@ -1872,12 +2271,16 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
         if (Object.keys(neighborFreq).length === 0) continue;
 
         // ── Perceptual replacement selection ─────────────────────────────────
+        // ΔE2000, the unit the contrast guard is documented in. Plain Euclidean
+        // Lab overstated saturated differences, so noise specks in vivid areas
+        // passed the guard as "deliberate accents" and were kept.
         const orphanLab = mapped[cells[0]].lab;
+        if (!orphanLab) continue;
         let minDE = Infinity;
         for (const nid in neighborFreq) {
           const entry = colorEntries[nid];
-          if (!entry) continue;
-          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (!entry || !entry.lab) continue;
+          const de = _dE2000Core(orphanLab[0], orphanLab[1], orphanLab[2], entry.lab[0], entry.lab[1], entry.lab[2]);
           if (de < minDE) minDE = de;
         }
 
@@ -1893,8 +2296,8 @@ function removeOrphanStitches(mapped, w, h, maxOrphanSize, edgeMap = null, salie
         let bestId = null, bestCount = -1;
         for (const nid in neighborFreq) {
           const entry = colorEntries[nid];
-          if (!entry) continue;
-          const de = Math.sqrt(dE2(orphanLab, entry.lab));
+          if (!entry || !entry.lab) continue;
+          const de = _dE2000Core(orphanLab[0], orphanLab[1], orphanLab[2], entry.lab[0], entry.lab[1], entry.lab[2]);
           if (de - minDE <= deTieBreakThreshold) {
             if (neighborFreq[nid] > bestCount) { bestCount = neighborFreq[nid]; bestId = nid; }
           }
@@ -2047,33 +2450,27 @@ function confettiSummary(pat, w, h) {
 const _de2000Cache = new Map();
 const _DE2000_CACHE_MAX = 5000;
 
-function dE2000(lab1, lab2) {
-  const k = lab1[0].toFixed(4)+','+lab1[1].toFixed(4)+','+lab1[2].toFixed(4)+'-'+lab2[0].toFixed(4)+','+lab2[1].toFixed(4)+','+lab2[2].toFixed(4);
-  const cached = _de2000Cache.get(k);
-  if (cached !== undefined) return cached;
-
-  const L1 = lab1[0], a1 = lab1[1], b1 = lab1[2];
-  const L2 = lab2[0], a2 = lab2[1], b2 = lab2[2];
-
+// Uncached CIEDE2000 on plain numbers. Per-pixel callers (findSolid, the blend
+// search, the quantiser) use this: almost every call there has a new input
+// colour, so the string-keyed cache below would only add cost.
+function _dE2000Core(L1, a1, b1, L2, a2, b2) {
   // Step 1: compute C'ab and h'ab
   const C1ab = Math.sqrt(a1*a1 + b1*b1);
   const C2ab = Math.sqrt(a2*a2 + b2*b2);
   const Cab_avg = (C1ab + C2ab) / 2;
-  const Cab_avg7 = Math.pow(Cab_avg, 7);
+  const Cab_avg2 = Cab_avg * Cab_avg;
+  const Cab_avg7 = Cab_avg2 * Cab_avg2 * Cab_avg2 * Cab_avg;
   const G = 0.5 * (1 - Math.sqrt(Cab_avg7 / (Cab_avg7 + 6103515625))); // 25^7 = 6103515625
   const a1p = a1 * (1 + G);
   const a2p = a2 * (1 + G);
   const C1p = Math.sqrt(a1p*a1p + b1*b1);
   const C2p = Math.sqrt(a2p*a2p + b2*b2);
 
-  function hpAngle(ap, b) {
-    if (ap === 0 && b === 0) return 0;
-    let h = Math.atan2(b, ap) * 180 / Math.PI;
-    if (h < 0) h += 360;
-    return h;
-  }
-  const h1p = hpAngle(a1p, b1);
-  const h2p = hpAngle(a2p, b2);
+  // h' in degrees, 0–360 (0 for a neutral colour).
+  let h1p = (a1p === 0 && b1 === 0) ? 0 : Math.atan2(b1, a1p) * 180 / Math.PI;
+  if (h1p < 0) h1p += 360;
+  let h2p = (a2p === 0 && b2 === 0) ? 0 : Math.atan2(b2, a2p) * 180 / Math.PI;
+  if (h2p < 0) h2p += 360;
 
   // Step 2: compute ΔL', ΔC', Δh'
   const dLp = L2 - L1;
@@ -2111,7 +2508,8 @@ function dE2000(lab1, lab2) {
     + 0.32 * Math.cos((3 * Hp_avg + 6) * Math.PI / 180)
     - 0.20 * Math.cos((4 * Hp_avg - 63) * Math.PI / 180);
 
-  const Cp_avg7 = Math.pow(Cp_avg, 7);
+  const Cp_avg2 = Cp_avg * Cp_avg;
+  const Cp_avg7 = Cp_avg2 * Cp_avg2 * Cp_avg2 * Cp_avg;
   const Rc = 2 * Math.sqrt(Cp_avg7 / (Cp_avg7 + 6103515625));
   const Lp50sq = (Lp_avg - 50) * (Lp_avg - 50);
   const SL = 1 + 0.015 * Lp50sq / Math.sqrt(20 + Lp50sq);
@@ -2121,12 +2519,19 @@ function dE2000(lab1, lab2) {
   const RT = -Math.sin(2 * dTheta * Math.PI / 180) * Rc;
 
   const kL = 1, kC = 1, kH = 1;
-  const result = Math.sqrt(
+  return Math.sqrt(
     (dLp / (kL * SL)) * (dLp / (kL * SL)) +
     (dCp / (kC * SC)) * (dCp / (kC * SC)) +
     (dHp / (kH * SH)) * (dHp / (kH * SH)) +
     RT * (dCp / (kC * SC)) * (dHp / (kH * SH))
   );
+}
+
+function dE2000(lab1, lab2) {
+  const k = lab1[0].toFixed(4)+','+lab1[1].toFixed(4)+','+lab1[2].toFixed(4)+'-'+lab2[0].toFixed(4)+','+lab2[1].toFixed(4)+','+lab2[2].toFixed(4);
+  const cached = _de2000Cache.get(k);
+  if (cached !== undefined) return cached;
+  const result = _dE2000Core(lab1[0], lab1[1], lab1[2], lab2[0], lab2[1], lab2[2]);
 
   _de2000Cache.set(k, result);
   // PERF (perf-8 #10): batch-evict 10% of cap once full instead of one-at-a-time;
@@ -2395,25 +2800,64 @@ if (typeof window !== 'undefined') window.detectUniformBorder = detectUniformBor
 // blend between (audit IMG-01). Scaling a flat graphic (a logo, clip art)
 // down to stitches averages the pixels along every edge, and the quantiser
 // gives those in-between shades threads of their own: a four-colour logo came
-// out as twelve threads, eight of them only ever one stitch wide. A colour is
-// folded away only when all of these hold, so photos keep their shading:
-//   - it is minor: under `minorShare` (5%) of the stitches;
-//   - it is thin: at least `thinShare` (80%) of its stitches touch another
-//     colour (4-neighbours), i.e. it lines edges rather than filling areas;
-//   - it is a blend: within `maxDeltaE` (ΔE76 10) of the straight line in Lab
-//     between two main colours (each at least `minorShare`), or between a main
-//     colour and the skipped background (`opts.bgLab`).
-// Each of its stitches becomes whichever of the two it borders more (the
-// background means unstitched). `mapped` is changed in place; returns the
-// number of colours folded away. Pure apart from that.
+// out as twelve threads, eight of them only ever one stitch wide. A colour can
+// fold only when it is
+//   - minor: under `minorShare` (5%) of the stitches, and
+//   - thin: at least `thinShare` (80%) of its stitches touch another colour
+//     (4-neighbours), i.e. it lines edges rather than filling areas,
+// so photos keep their shading. Each patch of it (4-connected) then folds when
+//   - it sits between two main colours (each at least `minorShare`) or a main
+//     colour and the skipped background (`opts.bgLab`): both are colours the
+//     patch touches, each for at least `minTouchShare` (10%) of its contacts
+//     with other colours, or that an edge shade it touches touches that way
+//     (an edge two shades wide: red | shade | shade | white); and
+//   - it is a blend of them: its colour is within `maxDeltaE` (ΔE76 10) of the
+//     straight line in Lab between them. Its colour is its thread's or, when
+//     `opts.source` (the RGBA pixels the pattern was made from) is given, the
+//     average of the pixels it was drawn from, whichever is nearer the line.
+//     The pixels matter because the nearest thread to a pink edge pixel
+//     between red and white can be an orange that is nowhere near that line.
+// A patch touching only one main colour folds into it when within `maxDeltaE`
+// of it (a near-duplicate shade). Before patches had to touch the colours they
+// fold into, any pair of main colours anywhere counted, and with many main
+// colours their lines covered so much of colour space that thin outlines and
+// lettering were folded away.
+// Each stitch of a folding patch becomes whichever of the two it borders more
+// (the background means unstitched). Passes repeat until nothing changes (at
+// most EDGE_BLEND_PASSES), for edges wider than two shades. `mapped` is changed in place; returns the number
+// of colours folded away entirely. Pure apart from that.
+var EDGE_BLEND_PASSES = 3;
 function mergeEdgeBlendColours(mapped, w, h, opts) {
+  if (!mapped || !w || !h) return 0;
+  function colourCount() {
+    var seen = {}, n = 0;
+    for (var i = 0; i < mapped.length; i++) {
+      var m = mapped[i];
+      if (!m || m.id === "__skip__" || m.id === "__empty__" || seen[m.id]) continue;
+      seen[m.id] = true; n++;
+    }
+    return n;
+  }
+  var before = colourCount();
+  for (var pass = 0; pass < EDGE_BLEND_PASSES; pass++) {
+    if (!_mergeEdgeBlendPass(mapped, w, h, opts)) break;
+  }
+  return before - colourCount();
+}
+// One pass; returns the number of patches folded.
+function _mergeEdgeBlendPass(mapped, w, h, opts) {
   opts = opts || {};
   var minorShare = opts.minorShare != null ? opts.minorShare : 0.05;
   var thinShare = opts.thinShare != null ? opts.thinShare : 0.8;
   var maxDeltaE = opts.maxDeltaE != null ? opts.maxDeltaE : 10;
-  if (!mapped || !w || !h) return 0;
+  var minTouchShare = opts.minTouchShare != null ? opts.minTouchShare : 0.1;
+  var source = opts.source && opts.source.length >= mapped.length * 4 ? opts.source : null;
   var SKIP = "__skip__";
   var stats = {}, total = 0, skipCell = null, i;
+  function neighbours(i) {
+    var x = i % w, y = (i / w) | 0;
+    return [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1];
+  }
   for (i = 0; i < mapped.length; i++) {
     var m = mapped[i];
     if (!m) continue;
@@ -2422,17 +2866,23 @@ function mergeEdgeBlendColours(mapped, w, h, opts) {
     total++;
     var st = stats[m.id] || (stats[m.id] = { id: m.id, entry: m, count: 0, edge: 0 });
     st.count++;
-    var x = i % w, y = (i / w) | 0, edge = false;
-    if (x > 0 && mapped[i - 1] && mapped[i - 1].id !== m.id) edge = true;
-    else if (x < w - 1 && mapped[i + 1] && mapped[i + 1].id !== m.id) edge = true;
-    else if (y > 0 && mapped[i - w] && mapped[i - w].id !== m.id) edge = true;
-    else if (y < h - 1 && mapped[i + w] && mapped[i + w].id !== m.id) edge = true;
-    if (edge) st.edge++;
+    var nbs = neighbours(i);
+    for (var q = 0; q < 4; q++) {
+      var nb = nbs[q] >= 0 ? mapped[nbs[q]] : null;
+      if (nb && nb.id !== m.id) { st.edge++; break; }
+    }
   }
   if (!total) return 0;
   var ids = Object.keys(stats);
   var majors = ids.filter(function (id) { return stats[id].count >= total * minorShare && stats[id].entry.lab; });
   if (!majors.length) return 0;
+  var eligible = {}, anyEligible = false;
+  ids.forEach(function (id) {
+    var st = stats[id];
+    if (st.count >= total * minorShare || !st.entry.lab || st.edge / st.count < thinShare) return;
+    eligible[id] = true; anyEligible = true;
+  });
+  if (!anyEligible) return 0;
   // End points a blend can lie between: the main colours, plus the background.
   var ends = majors.map(function (id) { return { id: id, lab: stats[id].entry.lab }; });
   if (opts.bgLab && skipCell) ends.push({ id: SKIP, lab: opts.bgLab });
@@ -2444,51 +2894,160 @@ function mergeEdgeBlendColours(mapped, w, h, opts) {
     var ex = a[0] + t * dx - p[0], ey = a[1] + t * dy - p[1], ez = a[2] + t * dz - p[2];
     return Math.sqrt(ex * ex + ey * ey + ez * ez);
   }
-  var targets = {}, merged = 0;
-  ids.forEach(function (id) {
-    var st = stats[id];
-    if (st.count >= total * minorShare || !st.entry.lab) return;
-    if (st.edge / st.count < thinShare) return;
-    var best = null, bestD = maxDeltaE;
-    for (var a = 0; a < ends.length; a++) {
-      for (var b = a + 1; b < ends.length; b++) {
-        var d = segDist(st.entry.lab, ends[a].lab, ends[b].lab);
-        if (d <= bestD) { bestD = d; best = [ends[a], ends[b]]; }
+  var labels = labelConnectedComponents(mapped, w, h);
+  // Per eligible patch: the colours it touches, the eligible patches it
+  // touches, and the mean Lab of its source pixels.
+  var info = new Map();
+  labels.components.forEach(function (comp, label) {
+    if (!eligible[comp.id]) return;
+    var touch = {}, contacts = 0, nbPatches = {}, sL = 0, sA = 0, sB = 0, sN = 0;
+    for (var k = 0; k < comp.cells.length; k++) {
+      var c = comp.cells[k], nbs = neighbours(c);
+      for (var q = 0; q < 4; q++) {
+        var nb = nbs[q] >= 0 ? mapped[nbs[q]] : null;
+        if (!nb || nb.id === comp.id) continue;
+        touch[nb.id] = (touch[nb.id] || 0) + 1; contacts++;
+        if (eligible[nb.id]) nbPatches[labels.labels[nbs[q]]] = true;
+      }
+      if (source && source[c * 4 + 3] >= 128) {
+        var lab = rgbToLab(source[c * 4], source[c * 4 + 1], source[c * 4 + 2]);
+        sL += lab[0]; sA += lab[1]; sB += lab[2]; sN++;
       }
     }
-    // One main colour and no background: a near-duplicate shade still folds in.
-    if (!best && ends.length === 1 && segDist(st.entry.lab, ends[0].lab, ends[0].lab) <= maxDeltaE) best = [ends[0], ends[0]];
-    if (best) { targets[id] = best; merged++; }
+    info.set(label, { comp: comp, touch: touch, contacts: contacts, nbPatches: Object.keys(nbPatches), mean: sN ? [sL / sN, sA / sN, sB / sN] : null });
   });
-  if (!merged) return 0;
+  function directEnds(it) {
+    return ends.filter(function (e) { return (it.touch[e.id] || 0) >= it.contacts * minTouchShare; });
+  }
+  var folds = [];
+  info.forEach(function (it) {
+    // The colours this patch borders, and those bordered by an edge shade next
+    // to it (an edge two shades wide: red | shade | shade | white).
+    var near = directEnds(it), nearIds = {};
+    near.forEach(function (e) { nearIds[e.id] = true; });
+    it.nbPatches.forEach(function (lbl) {
+      var other = info.get(+lbl);
+      if (!other) return;
+      directEnds(other).forEach(function (e) { if (!nearIds[e.id]) { nearIds[e.id] = true; near.push(e); } });
+    });
+    if (!near.length) return;
+    var points = [stats[it.comp.id].entry.lab];
+    if (it.mean) points.push(it.mean);
+    function dist(a, b) {
+      var d = Infinity;
+      for (var p = 0; p < points.length; p++) d = Math.min(d, segDist(points[p], a.lab, b.lab));
+      return d;
+    }
+    var best = null, bestD = maxDeltaE;
+    for (var a = 0; a < near.length; a++) {
+      for (var b = a + 1; b < near.length; b++) {
+        var d = dist(near[a], near[b]);
+        if (d <= bestD) { bestD = d; best = [near[a], near[b]]; }
+      }
+    }
+    // It borders only one main colour: a near-duplicate shade of it still folds in.
+    if (!best && near.length === 1 && dist(near[0], near[0]) <= maxDeltaE) best = [near[0], near[0]];
+    if (best) folds.push({ cells: it.comp.cells, pair: best });
+  });
+  if (!folds.length) return 0;
   var src = mapped.slice();
   function entryFor(endId) { return endId === SKIP ? skipCell : stats[endId].entry; }
-  for (i = 0; i < src.length; i++) {
-    var c = src[i];
-    if (!c || !targets[c.id]) continue;
-    var pair = targets[c.id], na = 0, nb = 0;
-    var cx = i % w, cy = (i / w) | 0;
-    for (var oy = -1; oy <= 1; oy++) {
-      for (var ox = -1; ox <= 1; ox++) {
+  folds.forEach(function (f) {
+    var pair = f.pair;
+    for (var k = 0; k < f.cells.length; k++) {
+      var i = f.cells[k], c = src[i], na = 0, nb = 0;
+      var cx = i % w, cy = (i / w) | 0;
+      for (var oy = -1; oy <= 1; oy++) {
+        for (var ox = -1; ox <= 1; ox++) {
+          if (!ox && !oy) continue;
+          var nx = cx + ox, ny = cy + oy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          var n = src[ny * w + nx];
+          if (!n) continue;
+          if (n.id === pair[0].id) na++; else if (n.id === pair[1].id) nb++;
+        }
+      }
+      var pick;
+      if (na !== nb) pick = na > nb ? pair[0] : pair[1];
+      else {
+        var da = segDist(c.lab, pair[0].lab, pair[0].lab), db = segDist(c.lab, pair[1].lab, pair[1].lab);
+        pick = da <= db ? pair[0] : pair[1];
+      }
+      mapped[i] = Object.assign({}, entryFor(pick.id));
+    }
+  });
+  return folds.length;
+}
+_colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
+
+// ── Rare-colour fold (creator/generate.js and generate-worker.js) ────────────
+// Every colour used for fewer than `minCount` stitches is redrawn, one patch
+// (4-connected component) at a time, in the closest colour that patch touches
+// (ΔE2000; within ΔE 1, the one it touches most). A patch that touches no
+// common colour takes the closest common colour anywhere. Folding into the
+// palette-nearest colour regardless of position (as before) painted a brown
+// spot in grass in the golden brown of a line elsewhere in the picture.
+// opts.contrastGuard (ΔE2000, 0 = off): a patch whose closest touching colour
+// is further away than this is a deliberate accent (a catchlight, a pupil) and
+// stays. The automatic pass sets it; the user's explicit "minimum stitches per
+// colour" does not, so that setting still removes every colour under it.
+// `mapped` is changed in place. Returns the number of colours removed.
+var RARE_COLOUR_CONTRAST_GUARD_DE = 20;
+function foldRareColours(mapped, w, h, minCount, opts) {
+  opts = opts || {};
+  var guard = opts.contrastGuard > 0 ? opts.contrastGuard : 0;
+  if (!(minCount > 0) || !mapped || !mapped.length || !w || !h) return 0;
+  var count = {}, entry = {}, i;
+  for (i = 0; i < mapped.length; i++) {
+    var m = mapped[i];
+    if (!m || m.id === '__skip__' || m.id === '__empty__') continue;
+    if (!count[m.id]) { count[m.id] = 0; entry[m.id] = m; }
+    count[m.id]++;
+  }
+  var ids = Object.keys(count);
+  var isRare = {}, rareN = 0, keepIds = [];
+  ids.forEach(function (id) {
+    if (count[id] < minCount) { isRare[id] = true; rareN++; }
+    else if (entry[id].lab) keepIds.push(id);
+  });
+  if (!rareN || !keepIds.length) return 0;
+  var labels = labelConnectedComponents(mapped, w, h);
+  var src = mapped.slice(), survived = {};
+  labels.components.forEach(function (comp) {
+    if (!isRare[comp.id]) return;
+    var lab = entry[comp.id].lab, freq = {}, any = false;
+    for (var k = 0; k < comp.cells.length; k++) {
+      var c = comp.cells[k], cx = c % w, cy = (c / w) | 0;
+      for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) {
         if (!ox && !oy) continue;
         var nx = cx + ox, ny = cy + oy;
         if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
         var n = src[ny * w + nx];
-        if (!n) continue;
-        if (n.id === pair[0].id) na++; else if (n.id === pair[1].id) nb++;
+        if (!n || isRare[n.id] || !count[n.id] || !entry[n.id].lab) continue;
+        freq[n.id] = (freq[n.id] || 0) + 1; any = true;
       }
     }
-    var pick;
-    if (na !== nb) pick = na > nb ? pair[0] : pair[1];
-    else {
-      var da = segDist(c.lab, pair[0].lab, pair[0].lab), db = segDist(c.lab, pair[1].lab, pair[1].lab);
-      pick = da <= db ? pair[0] : pair[1];
-    }
-    mapped[i] = Object.assign({}, entryFor(pick.id));
-  }
-  return merged;
+    var cands = any ? Object.keys(freq) : keepIds;
+    var dist = {}, minDE = Infinity;
+    if (!lab) { survived[comp.id] = true; return; }
+    cands.forEach(function (id) {
+      var e = entry[id].lab;
+      dist[id] = _dE2000Core(lab[0], lab[1], lab[2], e[0], e[1], e[2]);
+      if (dist[id] < minDE) minDE = dist[id];
+    });
+    if (guard && minDE > guard) { survived[comp.id] = true; return; }
+    var best = null, bestF = -1;
+    cands.forEach(function (id) {
+      if (dist[id] - minDE <= 1 && (freq[id] || 0) > bestF) { bestF = freq[id] || 0; best = id; }
+    });
+    for (var j = 0; j < comp.cells.length; j++) mapped[comp.cells[j]] = Object.assign({}, entry[best]);
+  });
+  var removed = 0;
+  ids.forEach(function (id) { if (isRare[id] && !survived[id]) removed++; });
+  return removed;
 }
-_colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
+_colourUtilsGlobal.foldRareColours = foldRareColours;
+_colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE;
 
 // The fold's tolerance when the pattern isn't dithered (P2-6). The nearest
 // DMC thread to an anti-aliased edge colour can sit well off the straight
@@ -2499,4 +3058,4 @@ _colourUtilsGlobal.mergeEdgeBlendColours = mergeEdgeBlendColours;
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours }; }

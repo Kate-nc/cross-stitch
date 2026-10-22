@@ -40,6 +40,22 @@ eval('var _de2000Cache = new Map(); var _DE2000_CACHE_MAX = 5000;'); // eslint-d
 eval(extractFn(cuSrc, 'dE2000'));              // eslint-disable-line no-eval  (needed by quantizeConstrained)
 eval(extractFn(cuSrc, 'quantize'));            // eslint-disable-line no-eval
 eval(extractFn(cuSrc, 'quantizeConstrained')); // eslint-disable-line no-eval
+// Top-level `var NAME = value;` constants the extracted functions read.
+const extractVar = (src, name) => src.match(new RegExp(`\\nvar ${name} = [^;]+;`))[0];
+eval(extractVar(cuSrc, 'PALETTE_PRUNE_DE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_MIN_DE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_SUBTLE_DE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_MIN_PIXELS')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_CANDIDATES')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_SCAN')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_ADD_GAIN_SAMPLE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_MAX_SWAPS')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_NOISE_PATCH')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_NOISE_NEAR_DE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_PRUNE_NOISY_DE')); // eslint-disable-line no-eval
+eval(extractVar(cuSrc, 'PALETTE_EDGE_MIX_DE')); // eslint-disable-line no-eval
+eval(extractFn(cuSrc, '_dE2000Core'));         // eslint-disable-line no-eval
+for (const fn of ['_dE2000LightnessBound', '_uniqueColours', '_distColumn', '_assignColours', 'prunePalette', '_segDist76', 'addDistinctColours']) eval(extractFn(cuSrc, fn)); // eslint-disable-line no-eval
 
 // ---------------------------------------------------------------------------
 // Helpers
