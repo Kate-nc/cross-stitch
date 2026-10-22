@@ -8,6 +8,7 @@ function findSolid(lab,p){
   let b=null,bd=Infinity;const L=lab[0],A=lab[1],B=lab[2];
   for(let i=0;i<p.length;i++){
     const e=p[i].lab;
+    if(!e)continue;
     if(bd<Infinity&&_dE2000LightnessBound(L,e[0])>=bd)continue;// cannot beat the best so far
     let d=_dE2000Core(L,A,B,e[0],e[1],e[2]);if(d<bd){bd=d;b=p[i];if(d===0)break;/* exact match: nothing can beat it */}
   }
@@ -501,8 +502,9 @@ function prunePalette(uc, cs, w) {
 //     catchlight counts but lone noise pixels never earn a thread; or
 //   - subtly different but forming solid patches, averaging at least
 //     PALETTE_NOISE_PATCH pixels (dark green blocks in olive grass, about
-//     ΔE 6 apart), the spatial test prunePalette uses to tell noise apart. With no free slot, swap it
-// in for an existing thread only when that lowers the picture's total error.
+//     ΔE 6 apart), the spatial test prunePalette uses to tell noise apart.
+// With no free slot, swap it in for an existing thread only when that lowers
+// the picture's total error.
 // Pixels that are a mix of the colours either side of them (within
 // PALETTE_EDGE_MIX_DE, ΔE76, of the line between the threads of two opposite
 // neighbours) are left out: they are anti-aliasing, not a missing colour.
@@ -537,14 +539,15 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
       if (u < 0) continue;
       if (d1[u] > PALETTE_ADD_SUBTLE_DE && w > 0) {
         const x = i % w, y = (i / w) | 0, l = uc.lab[u];
-        const pairs = [[x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1], [y > 0 ? i - w : -1, y < h - 1 ? i + w : -1],
-          [x > 0 && y > 0 ? i - w - 1 : -1, x < w - 1 && y < h - 1 ? i + w + 1 : -1], [x < w - 1 && y > 0 ? i - w + 1 : -1, x > 0 && y < h - 1 ? i + w - 1 : -1]];
-        for (let q = 0; q < 4 && !mix[i]; q++) {
-          const a = pairs[q][0], b = pairs[q][1];
-          if (a < 0 || b < 0 || pixU[a] < 0 || pixU[b] < 0) continue;
+        const between = function (a, b) {
+          if (pixU[a] < 0 || pixU[b] < 0) return false;
           const ta = as.best[pixU[a]], tb = as.best[pixU[b]];
-          if (ta !== tb && _segDist76(l, pal[ta].lab, pal[tb].lab) <= PALETTE_EDGE_MIX_DE) mix[i] = 1;
-        }
+          return ta !== tb && _segDist76(l, pal[ta].lab, pal[tb].lab) <= PALETTE_EDGE_MIX_DE;
+        };
+        // Opposite neighbours: left/right, up/down and the two diagonals.
+        if ((x > 0 && x < w - 1 && between(i - 1, i + 1)) ||
+            (y > 0 && y < h - 1 && (between(i - w, i + w) ||
+              (x > 0 && x < w - 1 && (between(i - w - 1, i + w + 1) || between(i - w + 1, i + w - 1)))))) mix[i] = 1;
       }
       if (!mix[i]) weight[u]++;
     }
@@ -568,22 +571,26 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
       }
       if (bt && !candIds.has(bt.id)) { candIds.add(bt.id); cands.push(bt); }
     }
-    let pick = null, pickGain = 0;
-    for (let ci = 0; ci < cands.length; ci++) {
-      const t = cands[ci], L = t.lab[0], A = t.lab[1], B = t.lab[2];
+    // Each candidate's gain over the worst-served pixels; `won` marks the
+    // colour groups it would serve better.
+    const gainOf = function (t, markWon) {
+      const L = t.lab[0], A = t.lab[1], B = t.lab[2];
       let gain = 0;
-      won.fill(0);
+      if (markWon) won.fill(0);
       for (let k = 0; k < poor.length; k++) {
         const u = poor[k], l = uc.lab[u];
         if (_dE2000LightnessBound(l[0], L) >= d1[u]) continue;   // cannot win it
         const d = _dE2000Core(l[0], l[1], l[2], L, A, B);
-        if (d < d1[u]) { gain += weight[u] * (d1[u] - d); won[u] = 1; }
+        if (d < d1[u]) { gain += weight[u] * (d1[u] - d); if (markWon) won[u] = 1; }
       }
-      if (gain <= pickGain) continue;
+      return gain;
+    };
+    const isWon = function (i) { const u = pixU[i]; return u >= 0 && won[u] === 1 && !mix[i]; };
+    const isClear = function (i) { return isWon(i) && d1[pixU[i]] > PALETTE_ADD_MIN_DE; };
+    // Whether the pixels a candidate wins (marked in `won`) may earn it a thread.
+    const qualifies = function () {
       // Clearly different: at least PALETTE_ADD_MIN_PIXELS won pixels over
       // PALETTE_ADD_MIN_DE that touch another such pixel.
-      const isWon = function (i) { const u = pixU[i]; return u >= 0 && won[u] === 1 && !mix[i]; };
-      const isClear = function (i) { return isWon(i) && d1[pixU[i]] > PALETTE_ADD_MIN_DE; };
       let coherent = 0;
       for (let i = 0; i < N && coherent < PALETTE_ADD_MIN_PIXELS; i++) {
         if (!isClear(i)) continue;
@@ -591,28 +598,33 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
         if ((x > 0 && isClear(i - 1)) || (x < w - 1 && isClear(i + 1)) ||
             (i >= w && isClear(i - w)) || (i + w < N && isClear(i + w))) coherent++;
       }
-      let ok = coherent >= PALETTE_ADD_MIN_PIXELS;
-      if (!ok) {
-        // Subtly different: the won pixels must form solid patches.
-        let pixels = 0, patches = 0;
-        seen.fill(0);
-        for (let i = 0; i < N; i++) {
-          if (seen[i] || !isWon(i)) continue;
-          patches++;
-          let sp = 0; stack[sp++] = i; seen[i] = 1;
-          while (sp) {
-            const c = stack[--sp], x = c % w;
-            pixels++;
-            if (x > 0 && !seen[c - 1] && isWon(c - 1)) { seen[c - 1] = 1; stack[sp++] = c - 1; }
-            if (x < w - 1 && !seen[c + 1] && isWon(c + 1)) { seen[c + 1] = 1; stack[sp++] = c + 1; }
-            if (c >= w && !seen[c - w] && isWon(c - w)) { seen[c - w] = 1; stack[sp++] = c - w; }
-            if (c + w < N && !seen[c + w] && isWon(c + w)) { seen[c + w] = 1; stack[sp++] = c + w; }
-          }
+      if (coherent >= PALETTE_ADD_MIN_PIXELS) return true;
+      // Subtly different: the won pixels must form solid patches.
+      let pixels = 0, patches = 0;
+      seen.fill(0);
+      for (let i = 0; i < N; i++) {
+        if (seen[i] || !isWon(i)) continue;
+        patches++;
+        let sp = 0; stack[sp++] = i; seen[i] = 1;
+        while (sp) {
+          const c = stack[--sp], x = c % w;
+          pixels++;
+          if (x > 0 && !seen[c - 1] && isWon(c - 1)) { seen[c - 1] = 1; stack[sp++] = c - 1; }
+          if (x < w - 1 && !seen[c + 1] && isWon(c + 1)) { seen[c + 1] = 1; stack[sp++] = c + 1; }
+          if (c >= w && !seen[c - w] && isWon(c - w)) { seen[c - w] = 1; stack[sp++] = c - w; }
+          if (c + w < N && !seen[c + w] && isWon(c + w)) { seen[c + w] = 1; stack[sp++] = c + w; }
         }
-        ok = patches > 0 && pixels / patches >= PALETTE_NOISE_PATCH;
       }
-      if (!ok) continue;
-      pick = t; pickGain = gain;
+      return patches > 0 && pixels / patches >= PALETTE_NOISE_PATCH;
+    };
+    // The highest-gain candidate that qualifies (spatial tests only as needed).
+    const ranked = cands.map(function (t) { return { t: t, gain: gainOf(t, false) }; })
+      .filter(function (c) { return c.gain > 0; })
+      .sort(function (a, b) { return b.gain - a.gain; });
+    let pick = null, pickGain = 0;
+    for (let r = 0; r < ranked.length; r++) {
+      gainOf(ranked[r].t, true);
+      if (qualifies()) { pick = ranked[r].t; pickGain = ranked[r].gain; break; }
     }
     if (!pick) break;
     tried.add(pick.id);
