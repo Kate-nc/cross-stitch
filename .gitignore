@@ -40,3 +40,8 @@ reports/perf-results/
 # Stray jest-output captures (created by ad-hoc debugging)
 jest_inband.txt
 jest_output*.txt
+
+# Conversion accuracy harness outputs (scripts/conversion-accuracy/README.md)
+scripts/conversion-accuracy/img/
+scripts/conversion-accuracy/render/
+scripts/conversion-accuracy/results*.json
