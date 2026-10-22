@@ -278,9 +278,8 @@
     var allowBlend = usePref("creatorAllowBlends", true);
     var stashOnly = usePref("creatorStashOnlyDefault", false);
     var dith = usePref("creatorDefaultDithering", "off");
-    var smooth = usePref("creatorSmoothDithering", true);
     var orphan = usePref("creatorOrphanRemovalStrength", 2);
-    var minStit = usePref("creatorMinStitchesPerColour", 6);
+    var minStit = usePref("creatorMinStitchesPerColour", 0);
     var protect = usePref("creatorProtectDetails", true);
     var cleanup = usePref("creatorStitchCleanup", true);
     var view = usePref("creatorDefaultViewMode", "colour");
@@ -321,14 +320,12 @@
       ),
 
       h(Section, { title: "Image preparation" },
-        h(Row, { label: "Shading", desc: "How the Creator blends neighbouring threads for soft gradients. Off (the default) gives the tidiest charts; Balanced suits photos. Used when the picture type isn't guessed." },
-          h(Segmented, { value: dith[0], onChange: dith[1], options: [
+        h(Row, { label: "Shading", desc: "How the Creator blends neighbouring threads for soft gradients. Off (the default) gives the tidiest charts; Subtle suits photos. Used when the picture type isn't guessed." },
+          // "strong" was retired; a stored "strong" shows (and opens) as Balanced.
+          h(Segmented, { value: dith[0] === "strong" ? "balanced" : dith[0], onChange: dith[1], options: [
             { value: "off", label: "Off" }, { value: "weak", label: "Subtle" },
-            { value: "balanced", label: "Balanced" }, { value: "strong", label: "Strong" }
+            { value: "balanced", label: "Balanced" }
           ]})
-        ),
-        h(Row, { label: "Fewer confetti stitches in shading", desc: "Keeps shading in small clumps instead of scattered confetti stitches." },
-          h(Switch, { checked: smooth[0], onChange: smooth[1] })
         ),
         h(Row, { last: true, label: "Reference image opacity", desc: "How visible your source photo is when overlaid on the chart." },
           h("input", { type: "range", min: 0, max: 100, value: refOpac[0], onChange: function (e) { refOpac[1](parseInt(e.target.value, 10)); }, style: { width: 160 } }),
@@ -337,17 +334,17 @@
       ),
 
       h(Section, { title: "Tidying up the pattern" },
-        h(Row, { label: "Reduce confetti", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them." },
+        h(Row, { label: "Stitch Cleanup", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them, and folds away the in-between shades along edges. Off keeps every stitch as matched." },
           h(Switch, { checked: cleanup[0], onChange: cleanup[1] })
         ),
-        h(Row, { label: "How strongly to reduce confetti", desc: "0 keeps everything. 3 merges the most confetti stitches." },
+        h(Row, { label: "Reduce confetti", desc: "How much Stitch Cleanup merges. 0 merges none; 1 merges single confetti stitches; 3 merges groups of up to 3. Plain areas allow groups three times larger." },
           h("input", { type: "range", min: 0, max: 3, value: orphan[0], onChange: function (e) { orphan[1](parseInt(e.target.value, 10)); }, style: { width: 120 } }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),
-        h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this." },
+        h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this. At 0 (the default) stray colours are still folded away automatically, keeping small bright accents such as catchlights." },
           h("input", { type: "number", inputMode: "numeric", min: 0, max: 500, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
         ),
-        h(Row, { last: true, label: "Protect detailed areas", desc: "Skips tidying around faces, edges and other detail." },
+        h(Row, { last: true, label: "Protect detailed areas", desc: "Keeps small groups of stitches that touch an outline, such as eyes and lettering. Off gives the tidiest chart. Bright accents are kept either way." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
         )
       ),

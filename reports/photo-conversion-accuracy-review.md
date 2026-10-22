@@ -4,6 +4,15 @@
 `colour-utils.js`, the defaults in `user-prefs.js` and `creator/useCreatorState.js`, and
 the controls in `creator/Sidebar.js`. No app code is changed by this report.
 
+**Status (implemented on `claude/photo-conversion-accuracy`):** all four default changes,
+light-correct shrinking (pipeline item 1, also used by the preview, Compare options and the
+stash gallery), and the control changes. Stitch Cleanup is now the on/off switch and Reduce
+confetti the amount, with stated sizes. Cleanup strength, *Fewer confetti stitches in shading*
+and Strong shading are removed. The contrast guard is always on, so turning off *Protect fine
+details* with Reduce confetti 1 gives Option B. Soften's help now states its cost, but Soften
+still runs at stitch size (pipeline item 2). Pipeline items 3 and 4 were not prototyped and
+are not done. With the shipped code, the harness reproduces Option A exactly.
+
 ## Summary
 
 1. **Stitch cleanup does almost nothing on photos.** The "Protect fine details" edge map

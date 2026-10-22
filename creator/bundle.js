@@ -794,51 +794,65 @@ window.useHover = function useHover() { return React.useContext(window.HoverCont
    Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
-                 removeOrphanStitches, analyzeConfetti, findSolid,
+                 removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
-                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
+                 applyUnsharpMask; _canvasFilterSupported, _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
+// Pictures with more pixels than this are first drawn smaller by the browser.
+// Uploads are already capped at 2000 x 2000; this only guards very large
+// sources, at a scale far finer than a stitch.
+var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
+
 /**
- * Progressive area-averaging downscale for large reduction ratios.
- *
- * A single canvas drawImage at 'low' quality (bilinear) discards most source
- * pixels at ratios above ~2:1, producing speckle noise in flat regions.
- * This helper steps the image down in 2:1 halvings until within 2× of the
- * target.  At each 2:1 step bilinear sampling covers every source pixel
- * (equivalent to area averaging), so the chain produces a clean mean for
- * any reduction ratio.
- *
- * Returns the source unchanged when the ratio is already ≤ 2:1 in both
- * dimensions — the caller's final drawImage with 'high' quality suffices.
- *
- * Used by runGenerationPipeline, startGeneration (useCreatorState), and
- * generatePreview (usePreview).  Defined here because generate.js is the
- * first entry in the bundle ORDER so the function is in scope for all three.
+ * The picture at grid size: one RGBA pixel per stitch, each the light-correct
+ * average of the picture under it (linearAreaDownscale, colour-utils.js), with
+ * brightness / contrast / saturation applied first. The one place that turns a
+ * picture into stitch pixels, shared by Generate, the preview, Compare options
+ * and the stash gallery so they all see the same thing.
+ * Enlarging (grid bigger than the picture) has nothing to average and uses
+ * the browser's smooth scaling, as before. DOM-only.
  *
  * @param {HTMLImageElement|HTMLCanvasElement} source
- * @param {number} targetW
- * @param {number} targetH
- * @returns {HTMLImageElement|HTMLCanvasElement}
+ * @param {number} targetW  Grid width in stitches
+ * @param {number} targetH  Grid height in stitches
+ * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
+ *                            preSharpenOpts (applyUnsharpMask options or null) }
+ * @returns {ImageData}
  */
-function prescaleForGrid(source, targetW, targetH) {
-  var srcW = (source.naturalWidth || source.width) | 0;
-  var srcH = (source.naturalHeight || source.height) | 0;
-  if (!srcW || !srcH || (srcW <= targetW * 2 && srcH <= targetH * 2)) return source;
-  var cur = source;
-  var w = srcW, h = srcH;
-  while (w > targetW * 2 || h > targetH * 2) {
-    w = Math.max(targetW, Math.ceil(w / 2));
-    h = Math.max(targetH, Math.ceil(h / 2));
-    var tc = document.createElement('canvas');
-    tc.width = w; tc.height = h;
-    var tcx = tc.getContext('2d');
-    tcx.imageSmoothingEnabled = true;
-    if ('imageSmoothingQuality' in tcx) tcx.imageSmoothingQuality = 'high';
-    tcx.drawImage(cur, 0, 0, w, h);
-    cur = tc;
+function gridPixels(source, targetW, targetH, opts) {
+  opts = opts || {};
+  var bri = opts.bri || 0, con = opts.con || 0, sat = opts.sat || 0;
+  var adjust = bri !== 0 || con !== 0 || sat !== 0;
+  var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
+  var filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+  var src = opts.preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, opts.preSharpenOpts) : source;
+  var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
+  // Draw `src` at w x h (no resampling when it is its own size) with the
+  // adjustments, and return its pixels.
+  function draw(w, h) {
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var cx = c.getContext("2d");
+    cx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+    if (adjust && canFilter) cx.filter = filter;
+    cx.drawImage(src, 0, 0, w, h);
+    if (adjust && canFilter) cx.filter = "none";
+    var id = cx.getImageData(0, 0, w, h);
+    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(id, bri, con, sat);
+    return { canvas: c, ctx: cx, imageData: id };
   }
-  return cur;
+  if (!sw || !sh || sw < targetW || sh < targetH) return draw(targetW, targetH).imageData;
+  if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
+    var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
+    sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
+  }
+  var full = draw(sw, sh);
+  var out = full.ctx.createImageData(targetW, targetH);
+  out.data.set(linearAreaDownscale(full.imageData.data, sw, sh, targetW, targetH));
+  return out;
 }
 
 /**
@@ -847,9 +861,8 @@ function prescaleForGrid(source, targetW, targetH) {
  * Works at a fixed "working resolution" of 8× the target grid dimensions
  * (capped at the source size) so the filter parameters (radius, threshold)
  * are image-size-independent — a 50×50 target sharpens at ≤400×400,
- * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
- * through prescaleForGrid so the preserved edge signal survives the
- * area-average chain.
+ * a 120×80 target at ≤960×640.  The sharpened canvas then goes through
+ * gridPixels' light-correct area average like any other picture.
  *
  * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
  * DOM-only — cannot be called inside a Web Worker.
@@ -886,26 +899,9 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
   return c;
 }
 
-// Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
-// (Originally defined inline in index.html; moved here because generate uses it.)
-window.STRENGTH_MAP = {
-  gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
-};
-
-// Maximum passes for the orphan-removal stability loop.
-// The loop also exits early when no change occurs or orphan count stops decreasing.
-// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
-var ORPHAN_MAX_ITERATIONS = 8;
-
-// ΔE2000 contrast guard for orphan removal.
-// A small region whose nearest-neighbour palette colour differs by more than this
-// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
-// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
-// Noise artefacts typically differ from their surroundings by ΔE < 20;
-// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
-var ORPHAN_CONTRAST_GUARD_DE = 30;
+// Reduce confetti's settings (sizes, the contrast guard, edge protection) live
+// in colour-utils.js (confettiCleanupPlan) so this file and generate-worker.js
+// cannot drift apart.
 
 /**
  * Shared coverage mask → quantize → map/dither → confetti → orphan-removal pipeline.
@@ -992,30 +988,13 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var confettiClean = null;
   var preCleanupIds = null;
 
-  // Cleanup runs if EITHER the user moved the Remove-Orphans slider above 0
-  // OR they enabled the Stitch Cleanup toggle. Treating `orphans === 0` as
-  // "explicitly off" (the previous behaviour) silently suppressed the separate
-  // Stitch Cleanup toggle and all its sub-options, since the orphans slider
-  // defaults to 0.
-  var orphansOpt = (typeof opts.orphans === 'number' && opts.orphans > 0) ? opts.orphans : 0;
-  var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
-  var runCleanup = orphansOpt > 0 || cleanupEnabled;
-  if (runCleanup) {
-    var cleanupStrength = stitchCleanup && Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-      ? stitchCleanup.strength : 'balanced';
-    var sp = STRENGTH_MAP[cleanupStrength];
-    // Orphans slider is the explicit override when set; otherwise use the
-    // strength preset's maxOrphanSize.
-    var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
-    var saliencyMult = sp.saliencyMultiplier;
-    var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
-    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
-    // small features.  Disable it when the user has turned off protectDetails.
-    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
-    preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
-    var postLabels = labelConnectedComponents(mapped, width, height);
-    confettiClean = analyzeConfetti(mapped, width, height, postLabels);
+  // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
+  // Cleanup is on and the Reduce confetti level is above 0.
+  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans);
+  if (cleaned) {
+    mapped = cleaned.mapped;
+    preCleanupIds = cleaned.preCleanupIds;
+    confettiClean = cleaned.confettiClean;
   }
 
   // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────────
@@ -1024,9 +1003,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var disambigData = null;
   if (opts.disambig && opts.disambigLevel && opts.disambigLevel !== 'off') {
     var dlevel = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[opts.disambigLevel] || { threshold: 15, maxDegradation: 20 };
-    // Reuse edgeMap from Stage 8 cleanup if available; otherwise compute now.
-    // `edgeMap` is var-scoped so it's accessible here (undefined if cleanup didn't run).
-    var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+    // Its own edge map, dilated by one stitch as before: Reduce confetti's is
+    // not dilated, and this pass has always protected the stitches beside an edge.
+    var disambigEdgeMap = generateEdgeMap(raw, width, height);
     // Solid palette entries only — blend entries don't have a single .lab value
     var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
     var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
@@ -1106,18 +1085,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var c = document.createElement("canvas");
-  c.width = sW; c.height = sH;
-  var cx = c.getContext("2d");
-  cx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-  cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
-  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
-  cx.filter = "none";
-  var generationImageData = cx.getImageData(0, 0, sW, sH);
-  if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(generationImageData, bri, con, sat);
-  var raw = generationImageData.data;
+  var raw = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: opts.preSharpenOpts }).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
@@ -6521,7 +6489,7 @@ window.useSelectionClipboard = function useSelectionClipboard(state) {
    CreatorContext.
    Depends on globals: React, usePaletteSwap, buildPalette, buildPaletteWithScratch,
    skeinEst, calcDifficulty, DMC, SYMS, FABRIC_COUNTS, A4W, A4H,
-   DEFAULT_SKEIN_PRICE, runGenerationPipeline, STRENGTH_MAP. */
+   DEFAULT_SKEIN_PRICE, runGenerationPipeline. */
 
 // Composite stash keys are 'dmc:310' / 'anchor:403'. Pre-migration data may use
 // bare ids ('310'). Returns { brand, id } so callers can look the thread up in
@@ -6756,7 +6724,9 @@ var CONVERSION_STATE_KEYS = [
 // count and size from the picture itself (picturePresetValues).
 var PICTURE_PRESETS = {
   graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
-  photo:   { label: 'Photo', maxC: 20, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
+  // 24 threads: at 20 the palette spent its threads on big areas and drew
+  // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
+  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' },
   pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
@@ -6820,10 +6790,14 @@ function analysePicture(imageData, w, h) {
 
 // Few colours and large flat areas suggest a graphic; a tiny picture with
 // few colours suggests pixel art; anything else is treated as a photo.
+// Graphics measured 0.95 to 0.99 of their pixels in eight colour groups and
+// photos 0.20 to 0.61, so the cut-off sits between them at 0.85: at 0.95 a
+// logo saved as a JPEG (0.948) was treated as a photo and shaded.
+var GRAPHIC_TOP8_COVER = 0.85;
 function guessPictureType(info) {
   if (!info) return 'photo';
   if (Math.max(info.w, info.h) <= 96 && info.distinct <= 64) return 'pixel';
-  if (info.top8Cover >= 0.95 && info.flat >= 0.6) return 'graphic';
+  if (info.top8Cover >= GRAPHIC_TOP8_COVER && info.flat >= 0.6) return 'graphic';
   return 'photo';
 }
 
@@ -6990,6 +6964,16 @@ window.creatorDefaultFabricColour = defaultFabricColour;
 
 // Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
 // (e.g. SSR or test environments) never throws during render.
+// A shading mode the Creator offers: "off", "weak", "balanced", "bayer2",
+// "bayer4" or "bayer8". The retired "strong" and any other "on" value become
+// "balanced"; anything falsy is "off".
+var DITH_MODES = ["off", "weak", "balanced", "bayer2", "bayer4", "bayer8"];
+function normaliseDithMode(v) {
+  if (DITH_MODES.indexOf(v) !== -1) return v;
+  return v && v !== "off" ? "balanced" : "off";
+}
+window.normaliseDithMode = normaliseDithMode;
+
 function loadUserPref(key, fallback) {
   try {
     if (typeof UserPrefs === "undefined") return fallback;
@@ -7019,12 +7003,16 @@ window.useCreatorState = function useCreatorState() {
   var _bri    = useState(0);          var bri    = _bri[0],    setBri    = _bri[1];
   var _con    = useState(0);          var con    = _con[0],    setCon    = _con[1];
   var _sat    = useState(0);          var sat    = _sat[0],    setSat    = _sat[1];
-  var _dith   = useState(function () { var v = loadUserPref("creatorDefaultDithering", "off"); var valid = ["weak","balanced","strong","bayer2","bayer4","bayer8"]; return (valid.indexOf(v) !== -1) ? v : (v && v !== "off" ? "balanced" : "off"); });
-  var dithMode = _dith[0]; var setDithMode = _dith[1];
+  // Shading. "strong" (Atkinson at 150%) was retired: it measured worse than
+  // Balanced on every count (reports/photo-conversion-accuracy-review.md), so
+  // a stored "strong" (preferences, drafts, backups) opens as Balanced.
+  var _dith   = useState(function () { return normaliseDithMode(loadUserPref("creatorDefaultDithering", "off")); });
+  var dithMode = _dith[0], _setDithModeRaw = _dith[1];
+  var setDithMode = useCallback(function (v) { _setDithModeRaw(normaliseDithMode(v)); }, []);
   // Derived boolean kept for all legacy consumers (generate call, Sidebar badge, etc.)
   var dith = dithMode !== "off";
-  // Numeric strength multiplier: weak=0.5, balanced=1.0, strong=1.5 (Atkinson only)
-  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0, strong:1.5};
+  // Numeric strength multiplier: weak=0.5, balanced=1.0 (Atkinson only)
+  var DITH_STRENGTH_MAP = {weak:0.5, balanced:1.0};
   var dithStrength = DITH_STRENGTH_MAP[dithMode] || 1.0;
   // Algorithm: "off" | "atkinson" | "bayer"
   var dithAlgo = dithMode === "off" ? "off" : dithMode.startsWith("bayer") ? "bayer" : "atkinson";
@@ -8596,20 +8584,9 @@ window.useCreatorState = function useCreatorState() {
         return;
       }
       // Extract pixel data here (requires canvas — must stay on main thread)
-      var c = document.createElement("canvas");
-      c.width = sW; c.height = sH;
-      var cx = c.getContext("2d");
-      cx.imageSmoothingEnabled = true;
-      if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-      if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) {
-        cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-      }
-      var _genSrc = preSharpen ? applyPreSharpenCanvas(img, sW, sH, { amount: preSharpenAmount }) : img;
-      cx.drawImage(prescaleForGrid(_genSrc, sW, sH), 0, 0, sW, sH);
-      if (_canvasFilterSupported) cx.filter = "none";
       var imageData;
       try {
-        imageData = cx.getImageData(0, 0, sW, sH);
+        imageData = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
       } catch (secErr) {
         // SecurityError: canvas is tainted (cross-origin image without CORS).
         // Surface a clear message and abort generation rather than crashing silently.
@@ -8617,8 +8594,6 @@ window.useCreatorState = function useCreatorState() {
         setBusy(false);
         return;
       }
-      if (!_canvasFilterSupported) _applyImageFilters(imageData, bri, con, sat);
-
       var worker = getOrCreateWorker();
       if (!worker) {
         // Fallback: run synchronously on main thread (e.g. file:// protocol).
@@ -8753,26 +8728,22 @@ window.useCreatorState = function useCreatorState() {
         var MAX_GAL = 2500;
         var gw = sW, gh = sH;
         if (gw * gh > MAX_GAL) { var sc = Math.sqrt(MAX_GAL / (gw * gh)); gw = Math.max(4, Math.round(gw * sc)); gh = Math.max(4, Math.round(gh * sc)); }
-        var cv = document.createElement("canvas"); cv.width = gw; cv.height = gh;
-        var gcx = cv.getContext("2d");
-        if (_canvasFilterSupported && (bri !== 0 || con !== 0 || sat !== 0)) { gcx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)"; }
-        gcx.drawImage(img, 0, 0, gw, gh);
-        if (_canvasFilterSupported) gcx.filter = "none";
+        // The same picture-to-stitches step as Generate (gridPixels), so a
+        // thumbnail matches the chart it makes.
         var _gcxImgData;
         try {
-          _gcxImgData = gcx.getImageData(0, 0, gw, gh);
+          _gcxImgData = gridPixels(img, gw, gh, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
         } catch (_) {
           // SecurityError: skip this gallery slot silently — generation will
           // still use the main canvas which already showed an error toast.
           return;
         }
-        if (!_canvasFilterSupported) _applyImageFilters(_gcxImgData, bri, con, sat);
         var rawPx = _gcxImgData.data;
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
           smooth: smooth, smoothType: smoothType,
           maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
-          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans,
+          skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           allowedPalette: slotSubset, seed: slotSeed,
         });
         var slotUrl = null, usedCt = 0;
@@ -8798,7 +8769,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, smooth, smoothType, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -14589,17 +14560,7 @@ window.usePreview = function usePreview(state) {
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-        var cx = c.getContext("2d");
-        cx.imageSmoothingEnabled = true;
-        if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-        if (typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported) {
-          cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-        }
-        var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
-        cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-        var previewImageData = cx.getImageData(0, 0, pw, ph);
-        if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+        var previewImageData = gridPixels(img, pw, ph, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
@@ -14983,23 +14944,10 @@ window.usePreview = function usePreview(state) {
 
   var CACHE_LIMIT = 24;
 
-  // Picture pixels at pw × ph with the picture adjustments, as generate does.
+  // Picture pixels at pw × ph with the picture adjustments: generate's own
+  // step (gridPixels in creator/generate.js).
   function picturePixels(img, pw, ph, s) {
-    var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-    var cx = c.getContext("2d");
-    cx.imageSmoothingEnabled = true;
-    if ("imageSmoothingQuality" in cx) cx.imageSmoothingQuality = "high";
-    // Where ctx.filter isn't supported (Safari before 15) the adjustments
-    // are applied to the pixels afterwards, as generate does.
-    var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
-    var adjust = !!(s.bri || s.con || s.sat);
-    if (adjust && canFilter) cx.filter = "brightness(" + (100 + (s.bri || 0)) + "%) contrast(" + (100 + (s.con || 0)) + "%) saturate(" + (100 + (s.sat || 0)) + "%)";
-    var src = s.preSharpen && typeof applyPreSharpenCanvas === "function" ? applyPreSharpenCanvas(img, pw, ph, { amount: s.preSharpenAmount }) : img;
-    cx.drawImage(typeof prescaleForGrid === "function" ? prescaleForGrid(src, pw, ph) : src, 0, 0, pw, ph);
-    cx.filter = "none";
-    var data = cx.getImageData(0, 0, pw, ph);
-    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(data, s.bri || 0, s.con || 0, s.sat || 0);
-    return data;
+    return gridPixels(img, pw, ph, { bri: s.bri, con: s.con, sat: s.sat, preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
   }
 
   function pipelineSettings(s, values, paletteFor) {
@@ -20400,10 +20348,6 @@ window.CreatorSidebar = function CreatorSidebar() {
     var sc2 = gen.stitchCleanup;
     var tidyActive = gen.dith || gen.minSt > 0 || gen.orphans > 0 || sc2.enabled || gen.disambig;
     var tidyBadge = tidyActive ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-    var strengthKeys=["gentle","balanced","thorough"];
-    var strengthLabels=["Gentle","Balanced","Thorough"];
-    var strengthDescs=["Keeps 2-stitch clusters. Best for detail-heavy designs.","Removes 3-stitch clusters. Balanced stitchability & detail.","Removes up to 5-stitch clusters. Smoothest, easiest to sew."];
-    var strengthIdx=strengthKeys.indexOf(sc2.strength);
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
     // Shading (audit COMMON-09): Off, Smooth blend or Pattern blend. The
@@ -20411,12 +20355,11 @@ window.CreatorSidebar = function CreatorSidebar() {
     var algoOpts = [
       {id:"off",      label:"Off",           tip:"Each stitch takes its closest thread. The tidiest chart and the easiest to stitch."},
       {id:"atkinson", label:"Smooth blend",  tip:"Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos."},
-      {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures."},
+      {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures, not photos: on a photo it adds many confetti stitches."},
     ];
     var atkinsonLevels = [
       {id:"weak",     label:"Subtle",   tip:"Light blending, with very few confetti stitches."},
-      {id:"balanced", label:"Balanced", tip:"Smooth gradients in tidy patches of colour."},
-      {id:"strong",   label:"Strong",   tip:"The richest gradients, with more confetti stitches."},
+      {id:"balanced", label:"Balanced", tip:"Smoother gradients, with more confetti stitches."},
     ];
     var bayerSizes = [
       {id:"bayer2", label:"Coarse", tip:"A bold, chequered pattern."},
@@ -20445,7 +20388,6 @@ window.CreatorSidebar = function CreatorSidebar() {
         })
       );
     }
-    var smoothDithActive = gen.dith && dithAlgo === "atkinson";
     return h(Section, {title:"Clean-up", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
       // ── Shading subsection ───────────────────────────────────────────────
       h("div", {style:{marginTop:'var(--s-2)'}},
@@ -20471,22 +20413,10 @@ window.CreatorSidebar = function CreatorSidebar() {
         // Sub-option row (contextual)
         dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
         dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
-        // Smooth-dithering toggle: only meaningful for Atkinson (error-diffusion only)
-        h("div", {style:{marginTop:'var(--s-2)',opacity:smoothDithActive?1:0.5,pointerEvents:smoothDithActive?"auto":"none"}, "aria-disabled":!smoothDithActive},
-          h(Toggle, {
-            checked:sc2.smoothDithering,
-            onChange:function(v){ if (smoothDithActive) gen.setStitchCleanup(function(s){return Object.assign({},s,{smoothDithering:v});}); },
-            label:"Fewer confetti stitches in shading",
-            help:"Keeps Smooth blend from scattering confetti stitches. Cleaner gradients, though colours may shift slightly."
-          }),
-          !smoothDithActive && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2,marginLeft:2}},
-            dithAlgo === "bayer" ? "Not used with Pattern blend." : "Only used with Smooth blend."
-          )
-        ),
         // The method names, for those who want them.
         h("details", {className:"convert-advanced"},
           h("summary", null, "Advanced"),
-          h("p", null, "Smooth blend is Atkinson error diffusion at 50%, 100% or 150% strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
+          h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
         )
       ),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
@@ -20495,118 +20425,97 @@ window.CreatorSidebar = function CreatorSidebar() {
         h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
           format:function(v){return v===0?"Off":v;},
           helpText:"Minimum stitches before a colour is kept",
-          inlineHint:"Merges rarely-used colours into similar neighbours, reducing your thread count. Raise this if too many shades look nearly identical.",
+          inlineHint:"Merges every colour used fewer times than this into a similar neighbour, reducing your thread count. Off still folds away stray colours automatically, keeping small bright accents.",
           helpTopic:"palette"})
       ),
-      h("div", {style:{marginTop:'var(--s-2)'}},
-        h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
-          format:function(v){return v===0?"Off":String(v);},
-          helpText:"Merges confetti stitches into the colour around them",
-          inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
-          helpTopic:"confetti"}),  
-        gen.orphans > 0 && (function() {
-          var desc;
-          if (gen.orphans === 1) {
-            desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this targets groups of exactly 1 stitch.");
-          } else if (gen.orphans === 2) {
-            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20132 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
-          } else {
-            desc = h("span", null, "Merges groups of ", h("strong", null, "1\u20133 stitches"), " that are cut off from their colour. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
-          }
-          return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
-        })()
-      ),
-      gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-        "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
-        " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
-      ),
-      ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-        h("button", {
-          onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
-          style:{
-            fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-            border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
-            background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
-            color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-            fontWeight:gen.showCleanupDiff?600:400,
-            display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
-          }
-        }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
-      ),
-      gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-        fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-        background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
-        marginTop:'var(--s-1)',lineHeight:1.5
-      }},
-        h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
-        gen.cleanupDiff.count.toLocaleString(), " stitches changed",
-        ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-        Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
-          Object.entries(gen.cleanupDiff.byColour)
-            .sort(function(a,b){return b[1]-a[1];})
-            .slice(0,4)
-            .map(function(e){return "DMC "+e[0]+": "+e[1];})
-            .join(" \xB7 ") +
-            (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
-        )
-      ),
-      (function() {
-        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-        if (!warning) return null;
-        var isDanger = warning.level === "danger";
-        return h("div", {style:{
-          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-          background:isDanger?"var(--danger-soft)":"#FAF5E1",
-          border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
-          color:isDanger?"var(--danger)":"var(--accent-ink)",
-          display:"flex",alignItems:"flex-start",gap:6
-        }},
-          h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-          h("span", null, warning.message)
-        );
-      })(),
       h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
       h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Cleanup"),
       h("div", {style:{marginTop:'var(--s-1)'}},
+        // Stitch Cleanup is the on/off switch; Reduce confetti the amount
+        // (colour-utils.js confettiCleanupPlan). They used to be separate
+        // controls, with a Cleanup strength that the confetti slider overrode.
         h(Toggle, {
           checked:sc2.enabled,
           onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
           label:"Stitch Cleanup",
-          help:"Automatically merges confetti stitches that are hard to sew. Turn off if you want to keep the full shaded detail."
+          help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched."
         }),
         sc2.enabled && h(React.Fragment, null,
-          h("div", {style:{marginBottom:10,padding:"8px 10px",background:"var(--accent-light)",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",fontSize:'var(--text-xs)',color:"var(--accent)",fontWeight:500}},
-            "Merges confetti stitches (" + window.CONFETTI_HELP.definition + ") that are impractical to sew \u2014 especially in shaded areas and gradients."
+          h("div", {style:{marginTop:'var(--s-2)'}},
+            h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
+              format:function(v){return v===0?"Off":String(v);},
+              helpText:"How much confetti to merge into the colour around it. Off keeps every stitch",
+              inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
+              helpTopic:"confetti"}),
+            gen.orphans > 0 && (function() {
+              // Sizes from confettiCleanupPlan (colour-utils.js): level n merges
+              // patches of up to n stitches, and up to 3n in plain areas.
+              var desc;
+              if (gen.orphans === 1) {
+                desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
+              } else if (gen.orphans === 2) {
+                desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
+              } else {
+                desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"#A06F2D",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
+              }
+              return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
+            })()
           ),
-          h("div", {style:{marginTop:'var(--s-1)',marginBottom:10}},
-            h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-              h("span", {style:{fontSize:'var(--text-sm)',color:"#52525b",fontWeight:500}}, "Cleanup strength"),
-              h(InfoIcon, {text:"How aggressively scattered stitches are merged into nearby colours. Gentle keeps more detail. Thorough creates smoother, easier-to-sew blocks.", width:220})
-            ),
-            h("input", {
-              type:"range",min:0,max:2,step:1,value:strengthIdx,
-              onChange:function(e){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[+e.target.value]});});},
-              style:{width:"100%",accentColor:"var(--accent)"}
-            }),
-            h("div", {style:{display:"flex",justifyContent:"space-between",marginTop:6,gap:'var(--s-1)'}},
-              strengthLabels.map(function(l,i) {
-                return h(Tooltip, {key:l, text:strengthDescs[i], width:160},
-                  h("span", {
-                    style:{fontSize:10,color:strengthIdx===i?"var(--accent)":"var(--text-tertiary)",fontWeight:strengthIdx===i?600:400,cursor:"pointer",padding:"2px 4px",borderRadius:4,transition:"all 0.15s",background:strengthIdx===i?"#e0f7f4":"transparent"},
-                    onClick:function(){gen.setStitchCleanup(function(s){return Object.assign({},s,{strength:strengthKeys[i]});});}
-                  }, l)
-                );
-              })
+          gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
+            "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
+            " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
+          ),
+          ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
+            h("button", {
+              onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
+              style:{
+                fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+                border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
+                background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
+                color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
+                fontWeight:gen.showCleanupDiff?600:400,
+                display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
+              }
+            }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
+          ),
+          gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
+            fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
+            background:"var(--surface-secondary)",border:"1px solid #f0abfc",borderRadius:'var(--radius-md)',
+            marginTop:'var(--s-1)',lineHeight:1.5
+          }},
+            h("span", {style:{color:"var(--accent)",fontWeight:700,marginRight:'var(--s-1)'}}, "\u25CF"),
+            gen.cleanupDiff.count.toLocaleString(), " stitches changed",
+            ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
+            Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
+              Object.entries(gen.cleanupDiff.byColour)
+                .sort(function(a,b){return b[1]-a[1];})
+                .slice(0,4)
+                .map(function(e){return "DMC "+e[0]+": "+e[1];})
+                .join(" \xB7 ") +
+                (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
             )
           ),
+          (function() {
+            var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
+            if (!warning) return null;
+            var isDanger = warning.level === "danger";
+            return h("div", {style:{
+              marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
+              background:isDanger?"var(--danger-soft)":"#FAF5E1",
+              border:"1px solid "+(isDanger?"var(--danger-soft)":"#E5C97D"),
+              color:isDanger?"var(--danger)":"var(--accent-ink)",
+              display:"flex",alignItems:"flex-start",gap:6
+            }},
+              h("span", {style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
+              h("span", null, warning.message)
+            );
+          })(),
           h(Toggle, {
             checked:sc2.protectDetails,
             onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
             label:"Protect fine details",
-            help:"Uses edge detection to preserve small stitches in important outlines \u2014 eyes, lettering, thin lines. Turn off for simpler designs."
+            help:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines. Off gives the tidiest chart, easiest to stitch. Bright accents such as catchlights are kept either way."
           })
-          // "Smooth dithering" toggle moved to the Dithering subsection above —
-          // it modifies the dither pass, not the cleanup pass.
         )
       ),
     h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
@@ -20616,7 +20525,7 @@ window.CreatorSidebar = function CreatorSidebar() {
         checked:gen.disambig,
         onChange:gen.setDisambig,
         label:"Keep look-alike colours apart",
-        help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart. Helps with skies and skin tones."
+        help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart, moving them away from their closest thread. Makes skies and skin tones easier to read, at some cost to colour accuracy."
       }),
       gen.disambig && h(React.Fragment, null,
         h("div", {style:{marginTop:'var(--s-2)'}},
@@ -20659,9 +20568,9 @@ window.CreatorSidebar = function CreatorSidebar() {
       h(SliderRow, {label:"Soften grainy photos", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
         format:function(v){return v===0?"Off":v.toFixed(1);},
         helpText:"Softens grain before threads are matched",
-        inlineHint:"Blurs the source before generating. Try 1\u20132 for grainy or low-resolution photos to reduce speckled stitches. Leave at Off for sharp images.",
+        inlineHint:"Blurs the picture at stitch size before threads are matched. Fewer speckled stitches, but softer edges and outlines. Shrinking a photo to stitches already smooths away grain, so most photos look best at Off.",
         helpTopic:"image"}),
-      gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Try 1\u20132 for noisy or low-resolution photos"),
+      gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Most photos look best at Off. Try 1 only for very speckled results"),
       // The softening method is under Advanced (audit COMMON-09).
       gen.smooth>0 && h("details", {className:"convert-advanced"},
         h("summary", null, "Advanced"),

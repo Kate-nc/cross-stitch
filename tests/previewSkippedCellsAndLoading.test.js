@@ -71,7 +71,7 @@ describe('usePreview scheduling', () => {
         return c;
       }
     };
-    global.prescaleForGrid = (s) => s;
+    global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
     global.applyPreSharpenCanvas = (s) => s;
     global.skeinEst = () => 1;
     global.isColorOwned = () => true;
@@ -155,7 +155,7 @@ describe('usePreview scheduling', () => {
 
   test.each(['preparation', 'fast pass', 'full pass', 'encoding'])('%s errors clear all stale results and allow retry', stage => {
     const pipeline = global.runCleanupPipeline.getMockImplementation();
-    if (stage === 'preparation') global.prescaleForGrid = () => { throw new Error('decode failed'); };
+    if (stage === 'preparation') global.gridPixels = () => { throw new Error('decode failed'); };
     if (stage === 'fast pass') global.runCleanupPipeline.mockImplementationOnce(() => { throw new Error('conversion failed'); });
     if (stage === 'full pass') global.runCleanupPipeline.mockImplementationOnce(pipeline).mockImplementationOnce(() => { throw new Error('conversion failed'); });
     if (stage === 'encoding') {
@@ -168,7 +168,7 @@ describe('usePreview scheduling', () => {
     expectCleared();
     expect(setters.setPreviewError).toHaveBeenLastCalledWith(expect.any(String));
     if (stage !== 'encoding') {
-      global.prescaleForGrid = s => s;
+      global.gridPixels = (s, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
       preview.generatePreview();
       jest.runAllTimers();
       expect(setters.setPreviewError).toHaveBeenLastCalledWith(null);

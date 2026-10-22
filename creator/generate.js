@@ -3,51 +3,65 @@
    Uses globals: quantize, quantizeConstrained, doDither, doRiemersma, doMap, buildPalette, rgbToLab, dE,
                  foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE,
                  generateSaliencyMap, generateEdgeMap, labelConnectedComponents,
-                 removeOrphanStitches, analyzeConfetti, findSolid,
+                 removeOrphanStitches, runConfettiCleanup, analyzeConfetti, findSolid,
                  applyGaussianBlur, applyMedianFilter, applyBilateralFilter,
-                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP
+                 disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, linearAreaDownscale,
+                 applyUnsharpMask; _canvasFilterSupported, _applyImageFilters (useCreatorState.js)
    (all defined in colour-utils.js / constants.js). */
 
+// Pictures with more pixels than this are first drawn smaller by the browser.
+// Uploads are already capped at 2000 x 2000; this only guards very large
+// sources, at a scale far finer than a stitch.
+var GRID_PIXELS_MAX_SOURCE_AREA = 4096 * 4096;
+
 /**
- * Progressive area-averaging downscale for large reduction ratios.
- *
- * A single canvas drawImage at 'low' quality (bilinear) discards most source
- * pixels at ratios above ~2:1, producing speckle noise in flat regions.
- * This helper steps the image down in 2:1 halvings until within 2× of the
- * target.  At each 2:1 step bilinear sampling covers every source pixel
- * (equivalent to area averaging), so the chain produces a clean mean for
- * any reduction ratio.
- *
- * Returns the source unchanged when the ratio is already ≤ 2:1 in both
- * dimensions — the caller's final drawImage with 'high' quality suffices.
- *
- * Used by runGenerationPipeline, startGeneration (useCreatorState), and
- * generatePreview (usePreview).  Defined here because generate.js is the
- * first entry in the bundle ORDER so the function is in scope for all three.
+ * The picture at grid size: one RGBA pixel per stitch, each the light-correct
+ * average of the picture under it (linearAreaDownscale, colour-utils.js), with
+ * brightness / contrast / saturation applied first. The one place that turns a
+ * picture into stitch pixels, shared by Generate, the preview, Compare options
+ * and the stash gallery so they all see the same thing.
+ * Enlarging (grid bigger than the picture) has nothing to average and uses
+ * the browser's smooth scaling, as before. DOM-only.
  *
  * @param {HTMLImageElement|HTMLCanvasElement} source
- * @param {number} targetW
- * @param {number} targetH
- * @returns {HTMLImageElement|HTMLCanvasElement}
+ * @param {number} targetW  Grid width in stitches
+ * @param {number} targetH  Grid height in stitches
+ * @param {object} [opts]   { bri, con, sat (each -100..100, 0 = unchanged),
+ *                            preSharpenOpts (applyUnsharpMask options or null) }
+ * @returns {ImageData}
  */
-function prescaleForGrid(source, targetW, targetH) {
-  var srcW = (source.naturalWidth || source.width) | 0;
-  var srcH = (source.naturalHeight || source.height) | 0;
-  if (!srcW || !srcH || (srcW <= targetW * 2 && srcH <= targetH * 2)) return source;
-  var cur = source;
-  var w = srcW, h = srcH;
-  while (w > targetW * 2 || h > targetH * 2) {
-    w = Math.max(targetW, Math.ceil(w / 2));
-    h = Math.max(targetH, Math.ceil(h / 2));
-    var tc = document.createElement('canvas');
-    tc.width = w; tc.height = h;
-    var tcx = tc.getContext('2d');
-    tcx.imageSmoothingEnabled = true;
-    if ('imageSmoothingQuality' in tcx) tcx.imageSmoothingQuality = 'high';
-    tcx.drawImage(cur, 0, 0, w, h);
-    cur = tc;
+function gridPixels(source, targetW, targetH, opts) {
+  opts = opts || {};
+  var bri = opts.bri || 0, con = opts.con || 0, sat = opts.sat || 0;
+  var adjust = bri !== 0 || con !== 0 || sat !== 0;
+  var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
+  var filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
+  var src = opts.preSharpenOpts ? applyPreSharpenCanvas(source, targetW, targetH, opts.preSharpenOpts) : source;
+  var sw = (src.naturalWidth || src.width) | 0, sh = (src.naturalHeight || src.height) | 0;
+  // Draw `src` at w x h (no resampling when it is its own size) with the
+  // adjustments, and return its pixels.
+  function draw(w, h) {
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var cx = c.getContext("2d");
+    cx.imageSmoothingEnabled = true;
+    if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
+    if (adjust && canFilter) cx.filter = filter;
+    cx.drawImage(src, 0, 0, w, h);
+    if (adjust && canFilter) cx.filter = "none";
+    var id = cx.getImageData(0, 0, w, h);
+    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(id, bri, con, sat);
+    return { canvas: c, ctx: cx, imageData: id };
   }
-  return cur;
+  if (!sw || !sh || sw < targetW || sh < targetH) return draw(targetW, targetH).imageData;
+  if (sw * sh > GRID_PIXELS_MAX_SOURCE_AREA) {
+    var k = Math.sqrt(GRID_PIXELS_MAX_SOURCE_AREA / (sw * sh));
+    sw = Math.max(targetW, Math.floor(sw * k)); sh = Math.max(targetH, Math.floor(sh * k));
+  }
+  var full = draw(sw, sh);
+  var out = full.ctx.createImageData(targetW, targetH);
+  out.data.set(linearAreaDownscale(full.imageData.data, sw, sh, targetW, targetH));
+  return out;
 }
 
 /**
@@ -56,9 +70,8 @@ function prescaleForGrid(source, targetW, targetH) {
  * Works at a fixed "working resolution" of 8× the target grid dimensions
  * (capped at the source size) so the filter parameters (radius, threshold)
  * are image-size-independent — a 50×50 target sharpens at ≤400×400,
- * a 120×80 target at ≤960×640.  The sharpened canvas is then passed
- * through prescaleForGrid so the preserved edge signal survives the
- * area-average chain.
+ * a 120×80 target at ≤960×640.  The sharpened canvas then goes through
+ * gridPixels' light-correct area average like any other picture.
  *
  * Delegates pixel manipulation to applyUnsharpMask() in colour-utils.js.
  * DOM-only — cannot be called inside a Web Worker.
@@ -95,26 +108,9 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
   return c;
 }
 
-// Strength → numeric pipeline parameters for the Stitch Cleanup pipeline.
-// (Originally defined inline in index.html; moved here because generate uses it.)
-window.STRENGTH_MAP = {
-  gentle:   { maxOrphanSize: 2, saliencyMultiplier: 1.0 },
-  balanced: { maxOrphanSize: 4, saliencyMultiplier: 2.0 },
-  thorough: { maxOrphanSize: 6, saliencyMultiplier: 3.0 },
-};
-
-// Maximum passes for the orphan-removal stability loop.
-// The loop also exits early when no change occurs or orphan count stops decreasing.
-// 8 is a conservative upper cap; normal images typically stabilise in 1–3 passes.
-var ORPHAN_MAX_ITERATIONS = 8;
-
-// ΔE2000 contrast guard for orphan removal.
-// A small region whose nearest-neighbour palette colour differs by more than this
-// value is treated as a deliberate high-contrast feature (e.g. a white catchlight
-// in a dark eye, ΔE ≈ 70) and is NOT merged regardless of its size.
-// Noise artefacts typically differ from their surroundings by ΔE < 20;
-// intentional accents are reliably above ΔE 30.  Set to 0 to disable.
-var ORPHAN_CONTRAST_GUARD_DE = 30;
+// Reduce confetti's settings (sizes, the contrast guard, edge protection) live
+// in colour-utils.js (confettiCleanupPlan) so this file and generate-worker.js
+// cannot drift apart.
 
 /**
  * Shared coverage mask → quantize → map/dither → confetti → orphan-removal pipeline.
@@ -201,30 +197,13 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var confettiClean = null;
   var preCleanupIds = null;
 
-  // Cleanup runs if EITHER the user moved the Remove-Orphans slider above 0
-  // OR they enabled the Stitch Cleanup toggle. Treating `orphans === 0` as
-  // "explicitly off" (the previous behaviour) silently suppressed the separate
-  // Stitch Cleanup toggle and all its sub-options, since the orphans slider
-  // defaults to 0.
-  var orphansOpt = (typeof opts.orphans === 'number' && opts.orphans > 0) ? opts.orphans : 0;
-  var cleanupEnabled = !!(stitchCleanup && stitchCleanup.enabled);
-  var runCleanup = orphansOpt > 0 || cleanupEnabled;
-  if (runCleanup) {
-    var cleanupStrength = stitchCleanup && Object.prototype.hasOwnProperty.call(STRENGTH_MAP, stitchCleanup.strength)
-      ? stitchCleanup.strength : 'balanced';
-    var sp = STRENGTH_MAP[cleanupStrength];
-    // Orphans slider is the explicit override when set; otherwise use the
-    // strength preset's maxOrphanSize.
-    var maxOrphanSize = orphansOpt > 0 ? orphansOpt : sp.maxOrphanSize;
-    var saliencyMult = sp.saliencyMultiplier;
-    var edgeMap = (stitchCleanup && stitchCleanup.protectDetails) ? generateEdgeMap(raw, width, height) : null;
-    // The ΔE contrast guard is a sibling of edge protection: both guard deliberate
-    // small features.  Disable it when the user has turned off protectDetails.
-    var contrastGuard = (stitchCleanup && stitchCleanup.protectDetails) ? ORPHAN_CONTRAST_GUARD_DE : 0;
-    preCleanupIds = mapped.map(function(m) { return m.id; });
-    mapped = removeOrphanStitches(mapped, width, height, maxOrphanSize, edgeMap, saliencyMap, { saliencyMultiplier: saliencyMult, deContrastGuard: contrastGuard, maxIterations: ORPHAN_MAX_ITERATIONS }, preLabels);
-    var postLabels = labelConnectedComponents(mapped, width, height);
-    confettiClean = analyzeConfetti(mapped, width, height, postLabels);
+  // Reduce confetti (colour-utils.js runConfettiCleanup): runs when Stitch
+  // Cleanup is on and the Reduce confetti level is above 0.
+  var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, opts.orphans);
+  if (cleaned) {
+    mapped = cleaned.mapped;
+    preCleanupIds = cleaned.preCleanupIds;
+    confettiClean = cleaned.confettiClean;
   }
 
   // ── Stage 9: Adjacent-cell colour disambiguation ────────────────────────────
@@ -233,9 +212,9 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   var disambigData = null;
   if (opts.disambig && opts.disambigLevel && opts.disambigLevel !== 'off') {
     var dlevel = (typeof DISAMBIG_LEVEL_MAP !== 'undefined' ? DISAMBIG_LEVEL_MAP : {})[opts.disambigLevel] || { threshold: 15, maxDegradation: 20 };
-    // Reuse edgeMap from Stage 8 cleanup if available; otherwise compute now.
-    // `edgeMap` is var-scoped so it's accessible here (undefined if cleanup didn't run).
-    var disambigEdgeMap = (typeof edgeMap !== 'undefined' ? edgeMap : null) || generateEdgeMap(raw, width, height);
+    // Its own edge map, dilated by one stitch as before: Reduce confetti's is
+    // not dilated, and this pass has always protected the stitches beside an edge.
+    var disambigEdgeMap = generateEdgeMap(raw, width, height);
     // Solid palette entries only — blend entries don't have a single .lab value
     var solidPalette = p.filter(function(e) { return e.type !== 'blend' && e.lab; });
     var dr = disambiguateSimilarNeighbours(mapped, width, height, disambigEdgeMap, saliencyMap, solidPalette, {
@@ -315,18 +294,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   // caller can surface a friendly error.
   if (!Number.isFinite(sW) || !Number.isFinite(sH) || sW <= 0 || sH <= 0) return null;
 
-  var c = document.createElement("canvas");
-  c.width = sW; c.height = sH;
-  var cx = c.getContext("2d");
-  cx.imageSmoothingEnabled = true;
-  if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-  cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-  var _preSrc = opts.preSharpenOpts ? applyPreSharpenCanvas(img, sW, sH, opts.preSharpenOpts) : img;
-  cx.drawImage(prescaleForGrid(_preSrc, sW, sH), 0, 0, sW, sH);
-  cx.filter = "none";
-  var generationImageData = cx.getImageData(0, 0, sW, sH);
-  if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(generationImageData, bri, con, sat);
-  var raw = generationImageData.data;
+  var raw = gridPixels(img, sW, sH, { bri: bri, con: con, sat: sat, preSharpenOpts: opts.preSharpenOpts }).data;
 
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,

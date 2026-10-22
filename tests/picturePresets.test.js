@@ -62,6 +62,15 @@ describe('guessing the picture type', () => {
   test('no picture is treated as a photo', () => {
     expect(api.guessPictureType(null)).toBe('photo');
   });
+  // Measured on real pictures (reports/photo-conversion-accuracy-review.md):
+  // a logo saved as a quality-0.7 JPEG covers 0.948 in its top eight colour
+  // groups, photos at most 0.61.
+  test('a JPEG-compressed logo is still a graphic', () => {
+    expect(api.guessPictureType({ w: 400, h: 400, distinct: 4097, top8Cover: 0.948, flat: 0.799 })).toBe('graphic');
+  });
+  test('a busy photo is still a photo', () => {
+    expect(api.guessPictureType({ w: 768, h: 512, distinct: 4097, top8Cover: 0.61, flat: 0.17 })).toBe('photo');
+  });
 });
 
 describe('preset values', () => {
@@ -74,7 +83,7 @@ describe('preset values', () => {
     expect(api.picturePresetValues('graphic', api.analysePicture(photo)).skipBg).toBeUndefined();
   });
   test('Photo: 20 threads, subtle shading, blends, balanced cleanup', () => {
-    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 20, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' });
+    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', allowBlends: true, cleanupStrength: 'balanced' });
   });
   test('Pixel art: the picture\'s colours (at most 30) at its own size (up to 500)', () => {
     expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', allowBlends: false, maxC: 6, sW: 24, sH: 24 });
@@ -94,7 +103,7 @@ describe('the hook', () => {
     const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', 'bgCol', // eslint-disable-line no-new-func
       derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol);
     const photoV = api.picturePresetValues('photo', null);
-    const cur = { maxC: 20, dithMode: 'weak', allowBlends: true, skipBg: false, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'balanced' } };
+    const cur = { maxC: 24, dithMode: 'weak', allowBlends: true, skipBg: false, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'balanced' } };
     expect(run({ id: 'photo', values: photoV }, cur)).toBe('photo');
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { maxC: 21 }))).toBe('custom');
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { stitchCleanup: { enabled: false, strength: 'balanced' } }))).toBe('custom');

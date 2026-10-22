@@ -34,23 +34,10 @@
 
   var CACHE_LIMIT = 24;
 
-  // Picture pixels at pw × ph with the picture adjustments, as generate does.
+  // Picture pixels at pw × ph with the picture adjustments: generate's own
+  // step (gridPixels in creator/generate.js).
   function picturePixels(img, pw, ph, s) {
-    var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-    var cx = c.getContext("2d");
-    cx.imageSmoothingEnabled = true;
-    if ("imageSmoothingQuality" in cx) cx.imageSmoothingQuality = "high";
-    // Where ctx.filter isn't supported (Safari before 15) the adjustments
-    // are applied to the pixels afterwards, as generate does.
-    var canFilter = typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported;
-    var adjust = !!(s.bri || s.con || s.sat);
-    if (adjust && canFilter) cx.filter = "brightness(" + (100 + (s.bri || 0)) + "%) contrast(" + (100 + (s.con || 0)) + "%) saturate(" + (100 + (s.sat || 0)) + "%)";
-    var src = s.preSharpen && typeof applyPreSharpenCanvas === "function" ? applyPreSharpenCanvas(img, pw, ph, { amount: s.preSharpenAmount }) : img;
-    cx.drawImage(typeof prescaleForGrid === "function" ? prescaleForGrid(src, pw, ph) : src, 0, 0, pw, ph);
-    cx.filter = "none";
-    var data = cx.getImageData(0, 0, pw, ph);
-    if (adjust && !canFilter && typeof _applyImageFilters === "function") _applyImageFilters(data, s.bri || 0, s.con || 0, s.sat || 0);
-    return data;
+    return gridPixels(img, pw, ph, { bri: s.bri, con: s.con, sat: s.sat, preSharpenOpts: s.preSharpen ? { amount: s.preSharpenAmount } : null });
   }
 
   function pipelineSettings(s, values, paletteFor) {

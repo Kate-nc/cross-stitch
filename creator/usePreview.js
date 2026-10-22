@@ -68,17 +68,7 @@ window.usePreview = function usePreview(state) {
       } else if (rawCacheRef.current && rawCacheRef.current.sig === geoSig) {
         raw = rawCacheRef.current.raw;
       } else {
-        var c = document.createElement("canvas"); c.width = pw; c.height = ph;
-        var cx = c.getContext("2d");
-        cx.imageSmoothingEnabled = true;
-        if ('imageSmoothingQuality' in cx) cx.imageSmoothingQuality = 'high';
-        if (typeof _canvasFilterSupported === "undefined" || _canvasFilterSupported) {
-          cx.filter = "brightness(" + (100 + bri) + "%) contrast(" + (100 + con) + "%) saturate(" + (100 + sat) + "%)";
-        }
-        var _prevSrc = preSharpen ? applyPreSharpenCanvas(img, pw, ph, { amount: preSharpenAmount }) : img;
-        cx.drawImage(prescaleForGrid(_prevSrc, pw, ph), 0, 0, pw, ph); cx.filter = "none";
-        var previewImageData = cx.getImageData(0, 0, pw, ph);
-        if (typeof _canvasFilterSupported !== "undefined" && !_canvasFilterSupported) _applyImageFilters(previewImageData, bri, con, sat);
+        var previewImageData = gridPixels(img, pw, ph, { bri: bri, con: con, sat: sat, preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null });
         raw = previewImageData.data;
         rawCacheRef.current = { sig: geoSig, raw: new Uint8ClampedArray(raw), pw: pw, ph: ph };
       }
