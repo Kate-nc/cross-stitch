@@ -131,6 +131,35 @@ describe('the palette has no near-copies and gives distinct small features a thr
     expect(C.dE2000(b[1].lab, magenta)).toBeLessThan(C.dE2000(green.lab, magenta) - 30);
   });
 
+  test('two separate pixel pairs are not a patch', () => {
+    const w = 40, h = 40, green = dmc('3347');
+    const pairs = new Set([5 * w + 5, 5 * w + 6, 30 * w + 30, 30 * w + 31]);
+    const data = image(w, h, (x, y) => (pairs.has(y * w + x) ? [230, 20, 200] : green.rgb));
+    expect(C.addDistinctColours(C._uniqueColours(data, w, h), w, [green], DMC, 8).map((e) => e.id)).toEqual([green.id]);
+  });
+
+  test('with blends on, a thread a blend needs is not pruned', () => {
+    // A flat grey that only a blend of 3799 and 317 matches: neither thread
+    // is any pixel's nearest solid on its own, but both are needed.
+    const w = 30, h = 10, data = image(w, h, () => [87, 87, 87]);
+    const stash = [dmc('3799'), dmc('317')];
+    const pal = C.quantizeConstrained(data, w, h, 2, stash, { seed: 1337, blends: true });
+    expect(pal.map((e) => e.id).sort()).toEqual(['317', '3799']);
+    C.findBest.precomputeBlends(pal);
+    const m = C.doMap(data, w, h, pal, true);
+    expect(m.every((e) => e.id === '317+3799')).toBe(true);
+    expect(m[0].dist).toBeLessThan(1);
+    // Without blends the second thread does nothing for this picture and goes.
+    expect(C.quantizeConstrained(data, w, h, 2, stash, { seed: 1337 })).toHaveLength(1);
+  });
+
+  test('every pipeline tells the quantiser when blends will be used', () => {
+    for (const f of ['creator/generate.js', 'generate-worker.js']) {
+      expect(fs.readFileSync(f, 'utf8')).toMatch(/blends: !!\(allowBlends && dith\)/);
+    }
+    expect(fs.readFileSync('import-formats.js', 'utf8')).toMatch(/\{ blends: allowBlends \}/);
+  });
+
   test('refine: false keeps the raw clusters', () => {
     const w = 40, h = 40, data = image(w, h, () => [110, 160, 215], 8);
     expect(C.quantizeConstrained(data, w, h, 15, null, { seed: 1337, refine: false })).toHaveLength(15);

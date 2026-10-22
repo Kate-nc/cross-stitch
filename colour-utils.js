@@ -337,17 +337,19 @@ function quantizeConstrained(data,w,h,n,allowedPalette,options){
   // Palette refinement (see prunePalette and addDistinctColours below):
   // drop near-duplicate threads, refit the survivors to the clusters they now
   // serve, then give small but clearly different colours a slot.
-  // options.refine === false keeps the raw clusters.
+  // options.blends: two-thread blends will be used with this palette, so a
+  // thread a blend needs is kept. options.refine === false keeps the raw clusters.
   if(cs.length&&!(options&&options.refine===false)){
     let uc=_uniqueColours(data,w,h);
-    let pruned=prunePalette(uc,cs,w);
+    let blends=!!(options&&options.blends);
+    let pruned=prunePalette(uc,cs,w,blends,pool);
     if(pruned.length<cs.length){
       let poolIdx=new Map();for(let ti=0;ti<pool.length;ti++)poolIdx.set(pool[ti].id,ti);
       cs=pruned;csOk=cs.map(function(e){let ti=poolIdx.get(e.id);return ti!=null?poolOk[ti]:rgbToOklab(e.rgb[0],e.rgb[1],e.rgb[2]);});
       lloyd();
-      cs=prunePalette(uc,cs,w);
+      cs=prunePalette(uc,cs,w,blends,pool);
     }
-    cs=addDistinctColours(uc,w,cs,pool,maxN);
+    cs=addDistinctColours(uc,w,cs,pool,maxN,blends);
   }
   // Empty-palette fallback: mirrors quantize behaviour
   if(!cs.length){
@@ -424,6 +426,36 @@ function _assignColours(uc, cols) {
   return { best: best, d1: d1, d2: d2, total: total };
 }
 
+// The colour groups a blend of two palette threads would serve, by findBest's
+// rule (the nearest solid over 5 away, the blend more than 3 nearer than it;
+// partners within BLEND_MAX_PARTNER_DE). `as` is _assignColours for `pal`.
+// Returns per group the blend's distance (Infinity for none) and the palette
+// indices of its two threads.
+function _blendUse(uc, pal, as) {
+  const U = uc.n, dist = new Float32Array(U).fill(Infinity), ta = new Int32Array(U).fill(-1), tb = new Int32Array(U).fill(-1);
+  const pairs = [];
+  for (let i = 0; i < pal.length; i++) {
+    for (let j = i + 1; j < pal.length; j++) {
+      const a = pal[i].lab, b = pal[j].lab;
+      if (_dE2000Core(a[0], a[1], a[2], b[0], b[1], b[2]) > BLEND_MAX_PARTNER_DE) continue;
+      pairs.push({ i: i, j: j, lab: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] });
+    }
+  }
+  if (!pairs.length) return { dist: dist, a: ta, b: tb };
+  for (let u = 0; u < U; u++) {
+    if (!(as.d1[u] > 5)) continue;
+    const l = uc.lab[u];
+    let cap = as.d1[u] - 3;
+    for (let p = 0; p < pairs.length; p++) {
+      const m = pairs[p].lab;
+      if (_dE2000LightnessBound(l[0], m[0]) >= cap) continue;
+      const d = _dE2000Core(l[0], l[1], l[2], m[0], m[1], m[2]);
+      if (d < cap) { cap = d; dist[u] = d; ta[u] = pairs[p].i; tb[u] = pairs[p].j; }
+    }
+  }
+  return { dist: dist, a: ta, b: tb };
+}
+
 // Drop threads one at a time while one is cheap to drop: its cost, averaged
 // over the pixels it serves, is under PALETTE_PRUNE_DE, where a pixel's cost
 // is how much further its next-best thread is than the best thread it had at
@@ -436,20 +468,61 @@ function _assignColours(uc, cols) {
 // noise leaves many tiny patches, a band is one long patch. So a thread whose
 // patches average under PALETTE_NOISE_PATCH pixels, with another thread within
 // PALETTE_NOISE_NEAR_DE, may be dropped at up to PALETTE_PRUNE_NOISY_DE.
+// With `blends`, a pixel that needs a blend depends on both of its threads:
+// dropping either costs it the distance to its best remaining solid. Otherwise
+// a flat grey drawn by a near-exact blend of 3799 and 317 lost 317, because no
+// pixel had 317 as its nearest solid. A pixel needs a blend when one serves it
+// (_blendUse, on the starting palette) and the nearest thread in `pool` is
+// both more than PALETTE_PRUNE_DE worse than the blend and over
+// PALETTE_BLEND_KEEP_DE away. Otherwise pruning and refitting can draw it with
+// one thread, which is simpler to stitch. findBest only draws a blend where
+// the nearest solid is over 5 away, so for a colour near that line (flat grass
+// 5.3 from its nearest thread) noise flips stitches between the thread, a
+// near neighbour and their blend: keeping that blend brings the splotches back.
+var PALETTE_BLEND_KEEP_DE = 6;
 var PALETTE_NOISE_PATCH = 8;
 var PALETTE_NOISE_NEAR_DE = 10;
 var PALETTE_PRUNE_NOISY_DE = 5;
-function prunePalette(uc, cs, w) {
+function prunePalette(uc, cs, w, blends, pool) {
   const pal = cs.filter(function (e) { return e && e.lab; });
   if (pal.length < 2 || !uc.n) return pal.length ? pal : cs;
   const cols = pal.map(function (e) { return _distColumn(uc, e); });
-  const d0 = _assignColours(uc, cols).d1;
+  const as0 = _assignColours(uc, cols);
+  const bu = blends ? _blendUse(uc, pal, as0) : null;
+  const d0 = new Float32Array(uc.n);
+  for (let u = 0; u < uc.n; u++) {
+    if (bu && bu.dist[u] < as0.d1[u]) {
+      // Would a single thread do? (findSolid's search, stopping early.)
+      const l = uc.lab[u], limit = Math.max(bu.dist[u] + PALETTE_PRUNE_DE, PALETTE_BLEND_KEEP_DE);
+      let single = false;
+      for (let t = 0; pool && t < pool.length && !single; t++) {
+        const e = pool[t].lab;
+        if (!e || _dE2000LightnessBound(l[0], e[0]) > limit) continue;
+        if (_dE2000Core(l[0], l[1], l[2], e[0], e[1], e[2]) <= limit) single = true;
+      }
+      if (single) bu.dist[u] = Infinity;   // drawn by one thread instead
+    }
+    d0[u] = bu && bu.dist[u] < as0.d1[u] ? bu.dist[u] : as0.d1[u];
+  }
+  // Starting index of each thread still in `pal`, and which are still there.
+  const start = pal.map(function (_, i) { return i; }), alive = new Uint8Array(pal.length).fill(1);
   const pixU = uc.pixU, N = pixU.length;
   const thread = new Int32Array(N), seen = new Uint8Array(N), stack = new Int32Array(N);
   while (pal.length > 1) {
     const as = _assignColours(uc, cols), k = pal.length;
     const cost = new Float64Array(k), share = new Float64Array(k);
+    const pos = new Int32Array(alive.length).fill(-1);
+    for (let c = 0; c < k; c++) pos[start[c]] = c;
     for (let u = 0; u < uc.n; u++) {
+      if (bu && bu.dist[u] < as.d1[u] && alive[bu.a[u]] && alive[bu.b[u]]) {
+        // Served by a blend: losing either thread leaves its best other solid.
+        const ends = [pos[bu.a[u]], pos[bu.b[u]]];
+        for (let q = 0; q < 2; q++) {
+          const c = ends[q], next = as.best[u] === c ? as.d2[u] : as.d1[u];
+          cost[c] += uc.count[u] * (next - d0[u]); share[c] += uc.count[u];
+        }
+        continue;
+      }
       const c = as.best[u];
       cost[c] += uc.count[u] * (as.d2[u] - d0[u]); share[c] += uc.count[u];
     }
@@ -489,7 +562,8 @@ function prunePalette(uc, cs, w) {
       if (mean < limit && (drop < 0 || cost[c] < cost[drop])) drop = c;
     }
     if (drop < 0) break;
-    pal.splice(drop, 1); cols.splice(drop, 1);
+    alive[start[drop]] = 0;
+    pal.splice(drop, 1); cols.splice(drop, 1); start.splice(drop, 1);
   }
   return pal;
 }
@@ -519,7 +593,9 @@ function _segDist76(p, a, b) {
   const ex = a[0] + t * dx - p[0], ey = a[1] + t * dy - p[1], ez = a[2] + t * dz - p[2];
   return Math.sqrt(ex * ex + ey * ey + ez * ez);
 }
-function addDistinctColours(uc, w, cs, pool, maxN) {
+// With `blends`, how well a pixel is served counts a blend that would serve
+// it (_blendUse), and a thread a used blend needs is never swapped out.
+function addDistinctColours(uc, w, cs, pool, maxN, blends) {
   const pal = cs.filter(function (e) { return e && e.lab; });
   if (!pal.length || !uc.n) return cs;
   const U = uc.n, N = uc.pixU.length, pixU = uc.pixU;
@@ -530,8 +606,18 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
   const h = w > 0 ? Math.round(N / w) : 0;
   const mix = new Uint8Array(N), weight = new Float64Array(U);
   const seen = new Uint8Array(N), stack = new Int32Array(N);
+  // Distances counting blends: { as, d1 (per group, the better of solid and
+  // blend), bu (or null), total }.
+  const served = function () {
+    const as = _assignColours(uc, cols);
+    if (!blends) return { as: as, d1: as.d1, bu: null, total: as.total };
+    const bu = _blendUse(uc, pal, as), d1 = new Float32Array(U);
+    let total = 0;
+    for (let u = 0; u < U; u++) { d1[u] = bu.dist[u] < as.d1[u] ? bu.dist[u] : as.d1[u]; total += uc.count[u] * d1[u]; }
+    return { as: as, d1: d1, bu: bu, total: total };
+  };
   for (let round = 0; round < maxN + PALETTE_MAX_SWAPS; round++) {
-    const as = _assignColours(uc, cols), d1 = as.d1;
+    const sv = served(), as = sv.as, d1 = sv.d1;
     // Edge mixes among the poorly served pixels; `weight` counts the rest.
     mix.fill(0); weight.fill(0);
     for (let i = 0; i < N; i++) {
@@ -588,32 +674,35 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
     const isWon = function (i) { const u = pixU[i]; return u >= 0 && won[u] === 1 && !mix[i]; };
     const isClear = function (i) { return isWon(i) && d1[pixU[i]] > PALETTE_ADD_MIN_DE; };
     // Whether the pixels a candidate wins (marked in `won`) may earn it a thread.
-    const qualifies = function () {
-      // Clearly different: at least PALETTE_ADD_MIN_PIXELS won pixels over
-      // PALETTE_ADD_MIN_DE that touch another such pixel.
-      let coherent = 0;
-      for (let i = 0; i < N && coherent < PALETTE_ADD_MIN_PIXELS; i++) {
-        if (!isClear(i)) continue;
-        const x = i % w;
-        if ((x > 0 && isClear(i - 1)) || (x < w - 1 && isClear(i + 1)) ||
-            (i >= w && isClear(i - w)) || (i + w < N && isClear(i + w))) coherent++;
+    // Size of the 4-connected patch of pixels passing `test` that holds pixel i,
+    // marking them in `seen`.
+    const patchSize = function (i, test) {
+      let sp = 0, size = 0; stack[sp++] = i; seen[i] = 1;
+      while (sp) {
+        const c = stack[--sp], x = c % w;
+        size++;
+        if (x > 0 && !seen[c - 1] && test(c - 1)) { seen[c - 1] = 1; stack[sp++] = c - 1; }
+        if (x < w - 1 && !seen[c + 1] && test(c + 1)) { seen[c + 1] = 1; stack[sp++] = c + 1; }
+        if (c >= w && !seen[c - w] && test(c - w)) { seen[c - w] = 1; stack[sp++] = c - w; }
+        if (c + w < N && !seen[c + w] && test(c + w)) { seen[c + w] = 1; stack[sp++] = c + w; }
       }
-      if (coherent >= PALETTE_ADD_MIN_PIXELS) return true;
+      return size;
+    };
+    const qualifies = function () {
+      // Clearly different: one patch of at least PALETTE_ADD_MIN_PIXELS won
+      // pixels over PALETTE_ADD_MIN_DE (two separate pairs are not a patch).
+      seen.fill(0);
+      for (let i = 0; i < N; i++) {
+        if (seen[i] || !isClear(i)) continue;
+        if (patchSize(i, isClear) >= PALETTE_ADD_MIN_PIXELS) return true;
+      }
       // Subtly different: the won pixels must form solid patches.
       let pixels = 0, patches = 0;
       seen.fill(0);
       for (let i = 0; i < N; i++) {
         if (seen[i] || !isWon(i)) continue;
         patches++;
-        let sp = 0; stack[sp++] = i; seen[i] = 1;
-        while (sp) {
-          const c = stack[--sp], x = c % w;
-          pixels++;
-          if (x > 0 && !seen[c - 1] && isWon(c - 1)) { seen[c - 1] = 1; stack[sp++] = c - 1; }
-          if (x < w - 1 && !seen[c + 1] && isWon(c + 1)) { seen[c + 1] = 1; stack[sp++] = c + 1; }
-          if (c >= w && !seen[c - w] && isWon(c - w)) { seen[c - w] = 1; stack[sp++] = c - w; }
-          if (c + w < N && !seen[c + w] && isWon(c + w)) { seen[c + w] = 1; stack[sp++] = c + w; }
-        }
+        pixels += patchSize(i, isWon);
       }
       return patches > 0 && pixels / patches >= PALETTE_NOISE_PATCH;
     };
@@ -632,14 +721,17 @@ function addDistinctColours(uc, w, cs, pool, maxN) {
     // Full palette: swap out the cheapest thread, but only if that lowers the
     // total error.
     if (swaps >= PALETTE_MAX_SWAPS) break;
-    const cost = new Float64Array(pal.length);
-    for (let u = 0; u < U; u++) cost[as.best[u]] += uc.count[u] * (as.d2[u] - as.d1[u]);
-    let out = 0;
-    for (let c = 1; c < pal.length; c++) if (cost[c] < cost[out]) out = c;
-    if (!(pickGain > cost[out])) break;
+    const cost = new Float64Array(pal.length), needed = new Uint8Array(pal.length);
+    for (let u = 0; u < U; u++) {
+      if (sv.bu && sv.bu.dist[u] < as.d1[u]) { needed[sv.bu.a[u]] = 1; needed[sv.bu.b[u]] = 1; continue; }
+      cost[as.best[u]] += uc.count[u] * (as.d2[u] - as.d1[u]);
+    }
+    let out = -1;
+    for (let c = 0; c < pal.length; c++) if (!needed[c] && (out < 0 || cost[c] < cost[out])) out = c;
+    if (out < 0 || !(pickGain > cost[out])) break;
     const oldE = pal[out], oldCol = cols[out];
     pal[out] = pick; cols[out] = _distColumn(uc, pick);
-    if (_assignColours(uc, cols).total < as.total) swaps++;
+    if (served().total < sv.total) swaps++;
     else { pal[out] = oldE; cols[out] = oldCol; break; }
   }
   return pal;

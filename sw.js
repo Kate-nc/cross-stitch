@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "1f32ed9898f4869aa4141542640b78a2e228afa92e31a0c1b85d553ac48aa845";
+var BUILD_ID = "0f051898943c6a2da8fbda0872ba349ff5d06a6d6f4a4fb6f839e43a6475b676";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -349,7 +349,7 @@ var BUILD_ASSETS = {
     "sha256": "5b0d7792c6a6759211b8db8c2e611a0da3fbc4ee0d8c7fc87efa698f1da6c2b3"
   },
   "./colour-utils.js": {
-    "sha256": "4477d6cb4f282b3dadf6fdb67839510ede973e9c3dea56a444e8476de3bcd581"
+    "sha256": "da3c49ad6df4cbf9162abec9db2e5210b6ac35ce4cb05b4a0f1f5fece066f566"
   },
   "./symbol-glyphs.js": {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
@@ -388,7 +388,7 @@ var BUILD_ASSETS = {
     "sha256": "091b228defb48ce03701ddaff9fa792d89bd139f7a203fca387c05041024fa0b"
   },
   "./import-formats.js": {
-    "sha256": "5448438d900362624c2a05c00baf4b1776ea301e78d22cdfb1f9735e33fc2dd9"
+    "sha256": "fefa2b949a61f38c7e0c3ead6d31d2c3bcd09e7d867f8a36fa210444f464073a"
   },
   "./components.js": {
     "sha256": "a541a43c0c5f3d56cd7a41ce98e06a8d49e4a0180b96f23d993ece5466b9d78d"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "688be22c6caebf44001036b87faa0ddee9d1d88f3a7db233c98222ea95328619"
+    "sha256": "5f7900b8bfb4e9a5e80d3d66a36f636d91af03331fce556e2935edbb8c5a570e"
   },
   "./creator/extras-bundle.js": {
     "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
@@ -499,7 +499,7 @@ var BUILD_ASSETS = {
     "sha256": "a0d3b9526ec89bef46ff8d716915854502b25aab8885583811080e37cf04ef7b"
   },
   "./generate-worker.js": {
-    "sha256": "f859227c99856dd15b977f69e9bd7ccdaaf0ef0bc24302a5a9d5079a7572ed65"
+    "sha256": "c57aee029f3f8450bdf489864a57b46fa370882821b973bdbbde192b1e79f58e"
   },
   "./cleanup-worker.js": {
     "sha256": "400f297c33328632690d56fe926ad82623f561c3d83fc445fd8ce5152cfaa96e"

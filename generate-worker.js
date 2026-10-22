@@ -122,7 +122,8 @@ self.onmessage = function(e) {
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
-    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed});
+    // blends: as in runCleanupPipeline, only shading draws blends here.
+    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!(allowBlends && dith)});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;

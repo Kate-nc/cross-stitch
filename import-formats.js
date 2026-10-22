@@ -929,8 +929,10 @@ function parseImagePattern(img, options = {}) {
   // all iterations (no free-space drift then final snap). Falls back to the
   // legacy quantize if the constrained version is not yet loaded.
   const _quantize = (typeof quantizeConstrained === 'function') ? quantizeConstrained : quantize;
-  const pal = _quantize(data, targetWidth, targetHeight, maxColours, options.allowedPalette);
   const allowBlends = !!options.allowBlends;
+  // blends: every mapping path below uses blends when allowed, so the
+  // quantiser keeps the threads a blend needs.
+  const pal = _quantize(data, targetWidth, targetHeight, maxColours, options.allowedPalette, { blends: allowBlends });
   const saliencyMap = (dithAlgo !== 'off' || options.saliency) && typeof generateSaliencyMap === 'function'
     ? generateSaliencyMap(data, targetWidth, targetHeight) : null;
 
