@@ -48,6 +48,60 @@ test('cancelled sparse strokes commit nothing', () => {
   expect(gesture([down(25), move(33), {type:'POINTER_CANCEL'}]).commits).toHaveLength(0);
 });
 
+test.each([false,true])('off-centre strokes follow actual coordinates, reversed=%s', reverse => {
+  const start={idx:26,point:{x:2.9,y:2.95}},end={idx:40,point:{x:4.1,y:3.9}};
+  const [a,b]=reverse?[end,start]:[start,end];
+  const {commits}=gesture([down(a.idx,{point:a.point}),{...up(b.idx),point:b.point}]);
+  expect([...commits[0].set].sort((a,b)=>a-b)).toEqual([26,38,39,40]);
+});
+
+test('the next segment begins at the latest position within the current cell',()=>{
+  const {commits}=gesture([
+    down(26,{point:{x:2.1,y:2.1}}),
+    {...move(26),point:{x:2.9,y:2.95}},
+    {...up(40),point:{x:4.1,y:3.9}}
+  ]);
+  expect([...commits[0].set].sort((a,b)=>a-b)).toEqual([26,38,39,40]);
+});
+
+test('a segment ending on a corner does not step beyond its endpoint',()=>{
+  const {commits}=gesture([down(15,{point:{x:3.5,y:1.5}}),{...up(38),point:{x:2,y:3}}]);
+  expect([...commits[0].set].sort((a,b)=>a-b)).toEqual([15,26,38]);
+});
+
+test('an older drag state without a previous sample does not trace an invalid segment',()=>{
+  const ctx={w:12,h:12,pattern:Array(144).fill({id:'310'}),done:new Uint8Array(144)};
+  const state={...initialState(),mode:'drag',path:new Set([25]),startIdx:25,intent:'mark'};
+  const result=dragMarkReducer(state,{...move(30),point:{x:6.2,y:2.4}},ctx);
+  expect([...result.state.path]).toEqual([25,30]);
+});
+
+test('fractional strokes match independent segment/cell intersections in every direction',()=>{
+  const fc=require('fast-check');
+  const point=fc.record({x:fc.integer({min:0,max:1199}),y:fc.integer({min:0,max:1199})}).map(p=>({x:p.x/100,y:p.y/100}));
+  const idx=p=>Math.floor(p.y)*12+Math.floor(p.x);
+  fc.assert(fc.property(point,point,(a,b)=>{
+    // Clip the segment against each cell independently. A corner-only touch
+    // has zero length and does not paint either neighbouring side cell.
+    const expected=new Set([idx(a),idx(b)]);
+    for(let y=0;y<12;y++)for(let x=0;x<12;x++){
+      let lo=0,hi=1;
+      for(const [key,min] of [['x',x],['y',y]]){
+        const delta=b[key]-a[key];
+        if(!delta){if(a[key]<min||a[key]>=min+1)hi=-1;}
+        else {
+          const p=(min-a[key])/delta,q=(min+1-a[key])/delta;
+          lo=Math.max(lo,Math.min(p,q));hi=Math.min(hi,Math.max(p,q));
+        }
+      }
+      if(hi-lo>1e-10)expected.add(y*12+x);
+    }
+    const result=gesture([down(idx(a),{point:a}),{...up(idx(b)),point:b}]);
+    const actual=new Set(result.effects.flatMap(e=>e.type==='COMMIT_DRAG'?[...e.set]:e.type==='TOGGLE_CELL'?[e.idx]:[]));
+    expect([...actual].sort((a,b)=>a-b)).toEqual([...expected].sort((a,b)=>a-b));
+  }),{seed:393,numRuns:200});
+});
+
 test('Space-pan claims the press before specialty hit tests or the marking hook', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname,'../tracker-app.js'),'utf8');
   const start=src.indexOf('  onPointerDown:e=>{',src.indexOf('const dragMarkHandlers=Object.assign'));
@@ -100,8 +154,22 @@ test('a press consumed to stop momentum ends the touch count without marking a s
   const start=src.indexOf('  onPointerUp:e=>{',src.indexOf('const dragMarkHandlers=Object.assign'));
   const body=src.slice(start+'  onPointerUp:e=>{'.length,src.indexOf('\n  },\n  onPointerCancel:',start));
   const end=jest.fn();
-  const ctx={bsPressRef:{current:null},knotPressRef:{current:{stopPan:true,id:1}},_dragMarkHandlers:{onExtraTouchEnd:end}};
+  const ctx={bsPressRef:{current:null},knotPressRef:{current:{stopPan:true,id:1}},_dragMarkHandlers:{onExtraTouchEnd:end},dragMarkGetStateRef:{current:()=>({mode:'idle'})}};
   const e={pointerId:1,pointerType:'touch'};
   new Function('ctx','e','with(ctx){'+body+'}')(ctx,e);
   expect(ctx.knotPressRef.current).toBeNull();expect(end).toHaveBeenCalledWith(e);
+});
+
+test.each(['multi','idle'])('half release checks %s before ending the contact',mode=>{
+  const src=require('fs').readFileSync(require('path').join(__dirname,'../tracker-app.js'),'utf8');
+  const start=src.indexOf('  onPointerUp:e=>{',src.indexOf('const dragMarkHandlers=Object.assign'));
+  const body=src.slice(start+'  onPointerUp:e=>{'.length,src.indexOf('\n  },\n  onPointerCancel:',start));
+  let currentMode=mode;
+  const toggleHalfAtPoint=jest.fn(),end=jest.fn(()=>{currentMode='idle';});
+  const ctx={bsPressRef:{current:null},knotPressRef:{current:{half:{idx:25},id:1,x:0,y:0}},
+    _dragMarkHandlers:{onExtraTouchEnd:end},dragMarkGetStateRef:{current:()=>({mode:currentMode})},toggleHalfAtPoint};
+  const e={pointerId:1,pointerType:'touch',clientX:0,clientY:0};
+  new Function('ctx','e','with(ctx){'+body+'}')(ctx,e);
+  expect(end).toHaveBeenCalledWith(e);
+  expect(toggleHalfAtPoint).toHaveBeenCalledTimes(mode==='multi'?0:1);
 });

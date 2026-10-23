@@ -29,6 +29,19 @@ describe('isolated drag preview scheduling',()=>{
     expect(setState).not.toHaveBeenCalled();expect(global.requestAnimationFrame).not.toHaveBeenCalled();
   });
 
+  test('fractional intra-cell samples update the next segment without publishing a preview',()=>{
+    const commit=jest.fn(),listener=jest.fn();
+    const h=useDragMark({w:12,h:12,pattern:Array(144).fill({id:'310'}),done:new Uint8Array(144),
+      cellAtPoint:(x,y)=>({idx:Math.floor(y)*12+Math.floor(x),x,y}),isolatedPreview:true,onCommitDrag:commit});
+    h.previewStore.subscribe(listener);
+    h.handlers.onPointerDown({...event(2.1),clientY:2.1});frames.shift()();
+    setState.mockClear();global.requestAnimationFrame.mockClear();
+    h.handlers.onPointerMove({...event(2.9),clientY:2.95});
+    expect(setState).not.toHaveBeenCalled();expect(global.requestAnimationFrame).not.toHaveBeenCalled();
+    h.handlers.onPointerUp({...event(4.1),clientY:3.9});
+    expect([...commit.mock.calls[0][0]].sort((a,b)=>a-b)).toEqual([26,38,39,40]);
+  });
+
   test('path updates share one frame while save state and release commit stay synchronous',()=>{
     const h=hook(),listener=jest.fn();h.previewStore.subscribe(listener);
     h.handlers.onPointerDown(event(25));

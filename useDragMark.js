@@ -13,7 +13,7 @@
        w, h,            // grid dimensions
        pattern,         // flat cell array (read-only)
        done,            // flat done array (read-only)
-       cellAtPoint,     // (clientX, clientY) => idx | -1
+       cellAtPoint,     // (clientX, clientY) => idx | -1 | {idx,x,y} in chart cells
        onToggleCell,    // (idx) => void           — single-cell tap
        onCommitDrag,    // (Set<idx>, intent) => void
        onCommitRange,   // (Set<idx>, intent) => void
@@ -113,17 +113,31 @@
     return (done && done[idx]) ? 'unmark' : 'mark';
   }
 
-  // Walk the cells crossed by the segment between cell centres. A diagonal
-  // through a corner enters the diagonal cell, not the two beside it. Clone
-  // lazily so travelling over an existing part of the stroke costs no copy.
-  function extendDragPath(path, from, to, ctx) {
-    if (to < 0 || to >= ctx.w * ctx.h) return path;
-    if (from == null || from < 0 || from >= ctx.w * ctx.h) from = to;
-    var x = from % ctx.w, y = Math.floor(from / ctx.w);
-    var tx = to % ctx.w, ty = Math.floor(to / ctx.w);
-    var nx = Math.abs(tx - x), ny = Math.abs(ty - y);
-    var sx = tx > x ? 1 : -1, sy = ty > y ? 1 : -1;
-    var ix = 0, iy = 0, out = path;
+  // Old callers may still return only an index. The Tracker also supplies
+  // fractional chart coordinates so tracing follows the pointer, not a line
+  // between cell centres. Invalid/out-of-area samples break the segment.
+  function cellPoint(idx, point, ctx) {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= ctx.w * ctx.h) return null;
+    if (point && Number.isFinite(point.x) && Number.isFinite(point.y)
+        && Math.floor(point.x) === idx % ctx.w && Math.floor(point.y) === Math.floor(idx / ctx.w)) return point;
+    return { x: idx % ctx.w + 0.5, y: Math.floor(idx / ctx.w) + 0.5 };
+  }
+  function samePoint(a, b) {
+    return a === b || !!(a && b && a.x === b.x && a.y === b.y);
+  }
+  function extendDragPath(path, from, to, ctx, fromPoint, toPoint) {
+    var end = cellPoint(to, toPoint, ctx);
+    if (!end) return path;
+    var start = cellPoint(from, fromPoint, ctx) || end;
+    var x = Math.floor(start.x), y = Math.floor(start.y);
+    var tx = Math.floor(end.x), ty = Math.floor(end.y);
+    var dx = end.x - start.x, dy = end.y - start.y;
+    var sx = Math.sign(dx), sy = Math.sign(dy);
+    var stepX = dx ? Math.abs(1 / dx) : Infinity;
+    var stepY = dy ? Math.abs(1 / dy) : Infinity;
+    var crossX = dx ? (x + (sx > 0 ? 1 : 0) - start.x) / dx : Infinity;
+    var crossY = dy ? (y + (sy > 0 ? 1 : 0) - start.y) / dy : Infinity;
+    var out = path;
     function add() {
       var idx = y * ctx.w + x;
       if (isMarkableAt(ctx.pattern, idx) && !out.has(idx)) {
@@ -132,11 +146,13 @@
       }
     }
     add();
-    while (ix < nx || iy < ny) {
-      var a = (1 + 2 * ix) * ny, b = (1 + 2 * iy) * nx;
-      if (a === b) { x += sx; y += sy; ix++; iy++; }
-      else if (a < b) { x += sx; ix++; }
-      else { y += sy; iy++; }
+    while (x !== tx || y !== ty) {
+      // Do not step past an endpoint lying exactly on a grid boundary.
+      var a = x === tx ? Infinity : crossX, b = y === ty ? Infinity : crossY;
+      if (Math.abs(a - b) < 1e-12) {
+        x += sx; y += sy; crossX += stepX; crossY += stepY;
+      } else if (a < b) { x += sx; crossX += stepX; }
+      else { y += sy; crossY += stepY; }
       add();
     }
     return out;
@@ -281,6 +297,7 @@
             intent: null,
             startIdx: action.idx,
             lastIdx: action.idx,
+            lastPoint: cellPoint(action.idx, action.point, ctx),
             startTime: action.time,
             startX: (typeof action.x === 'number' ? action.x : 0),
             startY: (typeof action.y === 'number' ? action.y : 0),
@@ -330,8 +347,10 @@
           };
         }
         if (action.idx === s.startIdx && !s.moved && s.mode === 'pending') {
-          // Still on first cell — no transition.
-          return { state: s, effects: effects };
+          // Remember intra-cell movement for the next segment, without
+          // publishing a new preview or promoting a jittery tap to a drag.
+          var pendingPoint = cellPoint(action.idx, action.point, ctx);
+          return { state: samePoint(s.lastPoint, pendingPoint) ? s : next({ lastPoint: pendingPoint }), effects: effects };
         }
         // Slop check: for touch / pen pointers, require the finger to
         // travel at least TAP_SLOP_PX before promoting to a drag. This
@@ -363,20 +382,22 @@
             return { state: next({ moved: true }), effects: effects };
           }
           var di = intentForCell(ctx.done, firstIdx);
-          var p = extendDragPath(s.path, s.startIdx, action.idx, ctx);
+          var p = extendDragPath(s.path, s.startIdx, action.idx, ctx, s.lastPoint, action.point);
           effects.push({ type: 'CLEAR_LONG_PRESS' });
           return {
             state: next({
               mode: 'drag', path: p, intent: di, moved: newMoved, lastIdx: action.idx,
+              lastPoint: cellPoint(action.idx, action.point, ctx),
             }),
             effects: effects,
           };
         }
         // Already in drag — accumulate.
         if (s.mode === 'drag') {
-          var np = extendDragPath(s.path, s.lastIdx, action.idx, ctx);
-          if (np === s.path && action.idx === s.lastIdx) return { state: s, effects: effects };
-          return { state: next({ path: np, moved: newMoved, lastIdx: action.idx }), effects: effects };
+          var point = cellPoint(action.idx, action.point, ctx);
+          var np = extendDragPath(s.path, s.lastIdx, action.idx, ctx, s.lastPoint, point);
+          if (np === s.path && action.idx === s.lastIdx && samePoint(s.lastPoint, point)) return { state: s, effects: effects };
+          return { state: next({ path: np, moved: newMoved, lastIdx: action.idx, lastPoint: point }), effects: effects };
         }
         return { state: s, effects: effects };
       }
@@ -401,7 +422,7 @@
         if (s.mode === 'idle') return { state: s, effects: effects };
         // The release can carry a newer position than the last move (or be
         // the only movement sample). Include it before committing the stroke.
-      if (s.mode === 'pending' || s.mode === 'drag') {
+        if (s.mode === 'pending' || s.mode === 'drag') {
           var release = dragMarkReducer(s, Object.assign({}, action, { type: 'POINTER_MOVE' }), ctx);
           s = release.state;
           effects = effects.concat(release.effects);
@@ -691,7 +712,8 @@
       applyEffects(r.effects);
       if (stateRef.current !== before) {
         syncDragState();
-        queuePreview();
+        var after = stateRef.current;
+        if (before.mode !== after.mode || before.path !== after.path || before.anchor !== after.anchor || before.intent !== after.intent) queuePreview();
       }
     }
 
@@ -705,6 +727,11 @@
 
     var isEdit = !!opts.isEditMode;
     var cellAtPoint = opts.cellAtPoint;
+    function sampleAtPoint(cx, cy) {
+      var hit = cellAtPoint(cx, cy);
+      return typeof hit === 'number' ? { idx: hit, point: null }
+        : hit ? { idx: hit.idx, point: hit } : { idx: -1, point: null };
+    }
 
     var noop = R.useCallback(function () {}, []);
 
@@ -729,7 +756,7 @@
         live.forEach(function (at, id) { if (t - at > TOUCH_STALE_MS) live.delete(id); });
         live.set(e.pointerId, t);
       }
-      var idx = cellAtPoint(e.clientX, e.clientY);
+      var sample = sampleAtPoint(e.clientX, e.clientY), idx = sample.idx;
       try {
         if (e.currentTarget && e.currentTarget.setPointerCapture
             && e.pointerId != null) {
@@ -738,7 +765,7 @@
       } catch (_) {}
       dispatch({
         type: 'POINTER_DOWN',
-        idx: idx,
+        idx: idx, point: sample.point,
         x: e.clientX, y: e.clientY,
         time: t,
         pointerId: e.pointerId != null ? e.pointerId : 0,
@@ -753,20 +780,20 @@
       if (stateRef.current.mode === 'idle'
           || stateRef.current.mode === 'range') return;
       if (typeof cellAtPoint !== 'function') return;
-      var idx = cellAtPoint(e.clientX, e.clientY);
+      var sample = sampleAtPoint(e.clientX, e.clientY), idx = sample.idx;
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
-      dispatch({ type: 'POINTER_MOVE', idx: idx, x: e.clientX, y: e.clientY, time: t });
+      dispatch({ type: 'POINTER_MOVE', idx: idx, point: sample.point, x: e.clientX, y: e.clientY, time: t });
     }, [isEdit, cellAtPoint]);
 
     var onPointerUp = R.useCallback(function (e) {
       if (e && e.pointerType === 'touch') touchIdsRef.current.delete(e.pointerId);
       if (isEdit) return;
       if (typeof cellAtPoint !== 'function') return;
-      var idx = cellAtPoint(e.clientX, e.clientY);
+      var sample = sampleAtPoint(e.clientX, e.clientY), idx = sample.idx;
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
-      dispatch({ type: 'POINTER_UP', idx: idx, x: e.clientX, y: e.clientY, time: t, touchCount: touchIdsRef.current.size });
+      dispatch({ type: 'POINTER_UP', idx: idx, point: sample.point, x: e.clientX, y: e.clientY, time: t, touchCount: touchIdsRef.current.size });
     }, [isEdit, cellAtPoint]);
 
     var onPointerCancel = R.useCallback(function (e) {

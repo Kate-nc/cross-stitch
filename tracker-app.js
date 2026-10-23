@@ -7615,13 +7615,14 @@ useEffect(()=>{
 // and pen. Pan and specialty presses are claimed before they reach it.
 const _dragMarkCellAtPoint=useCallback(function(cx,cy){
   if(!stitchRef.current||!pat||layerVis.full===false)return -1;
-  const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
-  if(!gc)return -1;
-  if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  const rect=stitchRef.current.getBoundingClientRect(),tile=chartTileRef.current;
+  const x=(cx-rect.left+tile.x-G)/scs,y=(cy-rect.top+tile.y-G)/scs;
+  const gx=Math.floor(x),gy=Math.floor(y);
+  if(gx<0||gx>=sW||gy<0||gy>=sH)return -1;
   // Margin stitches around a work area are context, not part of it: no tap,
   // drag or range can mark them.
-  if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return -1;
-  return gc.gy*sW+gc.gx;
+  if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return -1;
+  return {idx:gy*sW+gx,x,y};
 },[pat,sW,sH,scs,areaOn,workArea,layerVis.full]);
 
 const _pulseCells=useCallback(function(idxList){
@@ -8174,9 +8175,12 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     }
     const p=knotPressRef.current;
     if(p&&p.id===e.pointerId){
+      // Read before ending the contact: the last lift clears 'multi', but
+      // must not turn a cancelled half/specialty press back into a tap.
+      const cancelled=e.pointerType==="touch"&&dragMarkGetStateRef.current&&dragMarkGetStateRef.current().mode==="multi";
       knotPressRef.current=null;
       if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
-      if(p.stopPan)return;
+      if(p.stopPan||cancelled)return;
       if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.bead){setSelectedBead(p.bead.uid);setBeadPanelOpen(true);}else if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.half)toggleHalfAtPoint(p.half,e);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
       return;
     }

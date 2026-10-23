@@ -3,6 +3,49 @@ const fs = require('fs');
 const path = require('path');
 const H = require('./touch-helpers');
 
+async function readMarks(page){
+  // A read-only bridge in the served test copy verifies exactly which cells
+  // changed; matching counts alone would miss a displaced stroke.
+  await page.route('**/compiled/tracker-app.compiled.js*',async route=>{
+    const response=await route.fetch(),original=await response.text();
+    const anchor='function toggleKnotDone(k){';
+    if(!original.includes(anchor))throw new Error('Missing tracker read bridge anchor');
+    await route.fulfill({response,body:original.replace(anchor,
+      'window.__gestureMarks=()=>({full:Array.from(doneRef.current),half:[...halfDoneRef.current.entries()]});'+anchor)});
+  });
+}
+
+for(const reverse of [false,true]){
+test('off-centre diagonal strokes mark exact cells, reversed='+reverse,async({page})=>{
+  await readMarks(page);await H.loadTrackerFixture(page);
+  const a=await H.trackerCellPoint(page,2,2,.9,.95),b=await H.trackerCellPoint(page,4,3,.1,.9);
+  const [start,end]=reverse?[b,a]:[a,b];
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y);await page.mouse.up();
+  await expect.poll(()=>page.evaluate(()=>__gestureMarks().full.flatMap((v,i)=>v?[i]:[]))).toEqual([122,182,183,184]);
+  await page.keyboard.press('Control+z');await expect.poll(()=>H.trackerDoneCount(page)).toBe(0);
+});
+}
+
+for(const release of ['first','second','together']){
+  test('two fingers on half stitches never mark; release '+release,async({page})=>{
+    await readMarks(page);
+    const project=JSON.parse(fs.readFileSync(H.ensureTrackerProjectFixture(),'utf8'));
+    project.done[122]=project.done[125]=1;
+    project.halfStitches=[[122,{fwd:{id:'310'}}],[125,{fwd:{id:'310'}}]];
+    const file=path.join(__dirname,'../.tmp/gesture-palm-halves.json');fs.writeFileSync(file,JSON.stringify(project));
+    await H.loadTrackerFixture(page,file);
+    const touch=await H.trackerTouchDriver(page),a={...await H.trackerCellPoint(page,2,2),id:1},b={...await H.trackerCellPoint(page,5,2),id:2};
+    await touch('touchStart',[a]);await touch('touchStart',[a,b]);
+    if(release!=='together')await touch('touchEnd',release==='first'?[b]:[a]);
+    await touch('touchEnd',[]);
+    expect(await page.evaluate(()=>__gestureMarks().half)).toEqual([]);
+    expect(await H.trackerDoneCount(page)).toBe(2);
+    // The cancellation ends when all contacts lift; the next tap works.
+    await touch('touchStart',[a]);await page.waitForTimeout(50);await touch('touchEnd',[]);
+    await expect.poll(()=>page.evaluate(()=>__gestureMarks().half)).toEqual([[122,{fwd:1}]]);
+  });
+}
+
 test('a sparse mouse stroke includes all crossed stitches and undoes in one step', async ({page}) => {
   await H.loadTrackerFixture(page);
   const a=await H.trackerCellPoint(page,1,2),b=await H.trackerCellPoint(page,9,2);
