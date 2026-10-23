@@ -88,25 +88,16 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (typeof getAnchorById === 'function' ? getAnchorById(id) : (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; }))) return 'anchor';
       return 'dmc';
     }
+    var demands = ctx.materialThreadRows || threadDemandRows(displayPal, {fabricCount:fabricCtForStash,stash:stash});
+    var demandByKey = Object.fromEntries(demands.map(function(r) { return [r.key,r]; }));
     function stashStatusForChip(p) {
       if (!stashHas) return null;
-      // Blend: status = worst component status.
-      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? splitBlendId(p.id)
-        : [p.id];
-      var worst = 'owned';
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        if (!id || id === '__skip__' || id === '__empty__') continue;
-        var brand = p.brand || resolveBrand(id);
-        var key = brand + ':' + id;
-        var entry = stash[key];
-        var owned = stashEffectiveQty(entry);
-        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
-        var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
-        if (s === 'needed') return 'needed';
-        if (s === 'partial' && worst === 'owned') worst = 'partial';
-      }
+      var parts = threadConstituents(p), worst = 'owned';
+      parts.forEach(function(t) {
+        var r = demandByKey[t.brand + ':' + t.id];
+        if (r && r.status === 'needed') worst = 'needed';
+        else if (r && r.status === 'partial' && worst === 'owned') worst = 'partial';
+      });
       return worst;
     }
     var STASH_DOT = { owned: 'var(--success)', partial: 'var(--warning)', needed: 'var(--danger)' };
@@ -117,21 +108,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     var unownedSeen = Object.create(null);
     function _trackUnowned(p) {
       if (!stashHas) return;
-      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? splitBlendId(p.id)
-        : [p.id];
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        if (!id || id === '__skip__' || id === '__empty__') continue;
-        var brand = p.brand || resolveBrand(id);
-        var key = brand + ':' + id;
-        if (unownedSeen[key]) continue;
-        var entry = stash[key];
-        var owned = stashEffectiveQty(entry);
-        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
-        if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
-      }
+      threadConstituents(p).forEach(function(t) {
+        var key = t.brand + ':' + t.id, r = demandByKey[key];
+        if (r && r.missing > 0 && !unownedSeen[key]) { unownedSeen[key] = true; unownedKeys.push(key); }
+      });
     }
+
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;

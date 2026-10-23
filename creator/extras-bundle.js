@@ -2405,15 +2405,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // used only for knots gets a row of its own.
   // The pattern's thread brand (P4-5): "DMC" or "Anchor".
   var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
-  var matPal = useMemo(function() {
-    if (!ctx.pal || !window.Knots) return ctx.pal;
-    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
-  }, [ctx.pal, ctx.knots]);
-
-  var threadRows = useMemo(function() {
-    if (!(ctx.pat && matPal)) return [];
-    return window.buildThreadShoppingRows(matPal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, matPal, stash, fabricCt]);
+  var matPal = ctx.pal;
+  var threadRows = ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash, project: ctx});
 
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
@@ -2421,29 +2414,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) { threadById[r.key] = r; });
     var rank = { needed: 0, partial: 1, owned: 2 };
     return matPal.map(function(p) {
-      var skResult = (typeof stitchesToSkeins === "function")
-        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2 })
-        : null;
-      var needed;
-      if (skResult) {
-        needed = skResult.colorA
-          ? Math.max(skResult.colorA.skeinsToBuy || 0, skResult.colorB.skeinsToBuy || 0)
-          : (skResult.skeinsToBuy || 0);
-      } else {
-        needed = (typeof skeinEst === "function") ? skeinEst(p.count, fabricCt) : Math.ceil(p.count / 800);
-      }
-      if (needed < 1) needed = 1;
-      var owned, status;
-      if (p.type === "blend" && p.threads) {
-        // A blend is in stash when both of its threads are.
-        var parts = p.threads.map(function(t) { return threadById[(t.brand || p.brand || 'dmc') + ':' + t.id]; }).filter(Boolean);
-        owned  = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
-        status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, "owned") : "needed";
-      } else {
-        var stashEntry = stash[threadKey(p.brand || 'dmc', p.id)];
-        owned  = typeof stashEffectiveQty === 'function' ? stashEffectiveQty(stashEntry) : ((stashEntry && stashEntry.owned) || 0);
-        status = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
-      }
+      var parts = threadConstituents(p).map(function(t) { return threadById[t.brand + ':' + t.id]; }).filter(Boolean);
+      var needed = parts.reduce(function(n, r) { return n + r.needed; }, 0);
+      var owned = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
+      var status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, 'owned') : 'needed';
       var name = (p.type === "blend" && p.threads)
         ? p.threads[0].name + " + " + p.threads[1].name
         : (p.name || p.id);
@@ -2543,10 +2517,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // Totals count threads, not palette entries: a blend is not an extra colour to buy.
   var totalColours   = threadRows.length;
-  var totalSkeins    = threadRows.reduce(function(s, r) { return s + r.needed; }, 0);
+  var totalSkeins    = threadRows.reduce(function(s, r) { return s + r.estimatedNeeded; }, 0);
   var ownedColours   = threadRows.filter(function(r) { return r.status === "owned"; }).length;
   var partialColours = threadRows.filter(function(r) { return r.status === "partial"; }).length;
-  var needSkeins     = threadRows.reduce(function(s, r) { return s + Math.max(0, r.needed - r.owned); }, 0);
+  var needSkeins     = threadRows.reduce(function(s, r) { return s + r.missing; }, 0);
   var hasStash       = Object.keys(stash).length > 0;
 
   // ── Early returns after all hooks ─────────────────────────────────────────
@@ -2599,7 +2573,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-      lines.push(mark + " " + formatThread(r.p, {variant: "title"}) + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
+      lines.push(formatThread(r.p, {variant: "title"}) + " — estimated use " + formatSkeins(r.estimatedNeeded) + own + "; buy " + r.missing + " whole skeins");
     });
     lines.push("", "Total: " + ownedColours + "/" + totalColours + " threads owned");
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -2614,7 +2588,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     var lines = ["Shopping List \u2014 " + sW + "\u00d7" + sH + " @ " + fabricShortLabel(fabricCt), ""];
     threadRows.forEach(function(r) {
       if (r.status !== "owned") {
-        var diff = Math.max(0, r.needed - r.owned);
+        var diff = r.missing;
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
         lines.push(formatThread(r.p, {variant: "title"}) + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
       }
@@ -2625,7 +2599,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   function handleAddAll() {
     if (typeof StashBridge === "undefined") return;
     var promises = threadRows.filter(function(r) { return r.status !== "owned"; }).map(function(r) {
-      return StashBridge.updateThreadOwned(r.p.id, r.needed);
+      return StashBridge.updateThreadOwned(r.key, ((stash[r.key] || {}).owned || 0) + r.missing);
     });
     Promise.all(promises).then(function() {
       setAddedAll(true);
@@ -2643,6 +2617,17 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return h("div", {style:{maxWidth:980, padding:"16px 16px 20px"}},
 
+    h('section', {'aria-label':'Thread purchases', style:{overflowX:'auto',marginBottom:14}},
+      h('h3', null, 'Estimated use and purchases'),
+      h('table', {style:{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-sm)'}},
+        h('thead', null, h('tr', null,
+          ['Thread','Estimated use','Usable stash','Buy whole skeins'].map(function(label) { return h('th',{key:label,style:thSt('left')},label); }))),
+        h('tbody', null, threadRows.map(function(r) { return h('tr',{key:r.key},
+          h('td',null,formatThread(r.p,{variant:'short'})),
+          h('td',null,formatSkeins(r.estimatedNeeded)),
+          h('td',null,r.owned), h('td',null,r.missing)); })))
+    ),
+    h('p', {style:{fontSize:'var(--text-xs)',color:'var(--text-secondary)'}}, 'Planning estimate includes 20% allowance. Partial stash quantities are approximate. Buy quantities are rounded per thread after subtracting usable stash.'),
     // ── Summary bar ──────────────────────────────────────────────────────────
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
@@ -2651,7 +2636,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       border:"0.5px solid " + (allOwned ? "var(--success-soft)" : "var(--border)")
     }},
       h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
-        totalColours + " thread" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
+        totalColours + " threads; estimated use: " + formatSkeins(totalSkeins) + "; buy " + needSkeins + " whole skeins"
       ),
       hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)", display:"inline-flex", alignItems:"center", gap:4}},
         allOwned
@@ -2660,7 +2645,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
       hasStash && !allOwned && h("span", {style:{color:"var(--danger)", fontSize:'var(--text-xs)'}},
-        "\u2014 ~" + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
+        "Buy " + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
       ),
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
         h("button", {onClick:handleCopy, style:{
@@ -3061,10 +3046,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var fabricCt = ctx.fabricCt || 14;
 
   // Shopping rows: one per thread, blends folded into their component threads.
-  var rows = useMemo(function() {
-    if (!(ctx.pat && ctx.pal)) return [];
-    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, ctx.pal, stash, fabricCt]);
+  var rows = ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash, project: ctx});
 
   // Sort
   function compareThreadIds(aId, bId) {
@@ -3102,7 +3084,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var ownedColours = rows.filter(function(r) { return r.status === 'owned'; }).length;
   var partialColours = rows.filter(function(r) { return r.status === 'partial'; }).length;
   var needSkeins = rows.reduce(function(acc, r) {
-    return acc + Math.max(0, r.needed - r.owned);
+    return acc + r.missing;
   }, 0);
 
   // Early returns AFTER all hooks
@@ -3135,7 +3117,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
       var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
-      lines.push(mark + ' ' + formatThread(r.p, {variant: 'title'}) + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+      lines.push(formatThread(r.p, {variant: 'title'}) + ' — estimated use ' + formatSkeins(r.estimatedNeeded) + own + '; buy ' + r.missing + ' whole skeins');
     });
     lines.push('');
     lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
@@ -3154,7 +3136,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-        lines.push(formatThread(r.p, {variant: 'title'}) + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+        lines.push(formatThread(r.p, {variant: 'title'}) + ' \u2014 need ' + r.missing + ' skein' + (r.missing !== 1 ? 's' : '') + own);
       }
     });
     navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
@@ -3164,8 +3146,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   function handleAddAll() {
     if (typeof StashBridge === 'undefined') return;
     var promises = rows.filter(function(r) { return r.status !== 'owned'; }).map(function(r) {
-      var newOwned = r.needed;
-      return StashBridge.updateThreadOwned(r.p.id, newOwned);
+      var newOwned = ((stash[r.key] || {}).owned || 0) + r.missing;
+      return StashBridge.updateThreadOwned(r.key, newOwned);
     });
     Promise.all(promises).then(function() {
       setAddedAll(true);
@@ -3209,7 +3191,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         partialColours + ' partial.'
       ),
       (ownedColours < totalColours) && h('span', {style: {color: 'var(--danger)'}},
-        'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
+        'Buy ' + needSkeins + ' whole skeins across ' + (totalColours - ownedColours) + ' colours.'
       ),
       h('div', {style: {marginLeft: 'auto', display: 'flex', gap:'var(--s-2)'}},
         h('button', {
@@ -3264,7 +3246,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, threadBrandLabel(ctx.threadBrand)),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Estimated use'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right'}}, 'Buy whole skeins'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'In stash'),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Status')
           )
@@ -3285,7 +3268,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
               h('td', {style: {padding: '6px 10px', color: 'var(--text-secondary)'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, formatSkeins(r.estimatedNeeded)),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.missing),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? 'var(--success)' : 'var(--text-tertiary)'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),
@@ -4290,74 +4274,26 @@ window.CreatorExportTab = function CreatorExportTab() {
     }, [anchorDataReady, ctx.pal]);
 
     var stash = ctx.globalStash || {};
-    var fabricCt = (profile && profile.fabric_count) || ctx.fabricCt || 14;
+    var fabricCt = ctx.fabricCt || (profile && profile.fabric_count) || 14;
     var strandsUsed = (profile && profile.strands_used) || 2;
-    var wasteFactor = (profile && profile.waste_factor) || 0.20;
+    var wasteFactor = profile && profile.waste_factor != null ? profile.waste_factor : 0.20;
 
     // Build per-component shopping rows. Blends contribute half-stitches to each
     // component, summed across all palette entries that include that component.
     var rows = useMemo(function () {
       if (!(ctx.pat && ctx.pal)) return [];
-      var perId = {};   // id -> { stitches, isBlendOnly }
-      ctx.pal.forEach(function (p) {
-        if (!p || p.id === '__skip__' || p.id === '__empty__') return;
-        var stitches = p.count || 0;
-        var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-          ? splitBlendId(p.id)
-          : [p.id];
-        ids.forEach(function (id) {
-          // Keyed by brand too: an Anchor pattern's 403 isn't DMC 403 (P4-5).
-          var k = (p.brand || '') + ':' + id;
-          if (!perId[k]) perId[k] = { id: id, brand: p.brand || null, stitches: 0, fromBlend: ids.length > 1 };
-          // Blends use roughly half the thread of each component.
-          perId[k].stitches += ids.length > 1 ? stitches / 2 : stitches;
-        });
-      });
-      return Object.keys(perId).map(function (k) {
-        var id = perId[k].id;
-        var stitches = Math.round(perId[k].stitches);
-        var needed = 1;
-        if (typeof stitchesToSkeins === 'function') {
-          var r = stitchesToSkeins({
-            stitchCount: stitches, fabricCount: fabricCt,
-            strandsUsed: strandsUsed, wasteFactor: wasteFactor
-          });
-          needed = Math.max(1, r.skeinsToBuy || 0);
-        }
-        // Brand resolution: the entry's own brand when it has one (cells of
-        // an Anchor project carry it), else DMC first, then Anchor. The
-        // matching brand's composite stash key is used to look up owned counts.
-        var info = null, brand = perId[k].brand || 'dmc';
-        info = findThreadInCatalog(brand, id);
-        if (!info && !perId[k].brand) {
-          // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
-          info = (typeof getAnchorById === 'function')
-            ? getAnchorById(id)
-            : (typeof ANCHOR !== 'undefined' ? ANCHOR.find(function (d) { return d.id === id; }) : null);
-          if (info) brand = 'anchor';
-        }
-        var entry = stash[brand + ':' + id] || {};
-        var owned = entry.owned || 0;
-        var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
-        return {
-          id: id,
-          brand: brand,
-          brandLabel: window.threadBrandLabel ? window.threadBrandLabel(brand) : (brand === 'anchor' ? 'Anchor' : 'DMC'),
-          name: info ? info.name : id,
-          rgb: info ? info.rgb : [128, 128, 128],
-          stitches: stitches,
-          needed: needed,
-          owned: owned,
-          status: status,
-          missing: Math.max(0, needed - owned)
-        };
+      return (ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash,
+        strandsUsed: strandsUsed, wasteFactor: wasteFactor, project: ctx})).map(function(r) {
+        return {id: r.p.id, brand: r.p.brand, brandLabel: window.threadBrandLabel ? window.threadBrandLabel(r.p.brand) : r.p.brand,
+          name: r.name, rgb: r.p.rgb, stitches: r.p.count, estimatedNeeded: r.estimatedNeeded,
+          needed: r.needed, owned: r.owned, status: r.status, missing: r.missing};
       }).sort(function (a, b) {
         var an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
         var bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
         if (an !== bn) return an - bn;
         return String(a.id).localeCompare(String(b.id));
       });
-    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
+    }, [ctx, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
 
     var ownedRows = rows.filter(function (r) { return r.status === 'owned'; });
     var buyRows = rows.filter(function (r) { return r.status !== 'owned'; });
@@ -4370,7 +4306,7 @@ window.CreatorExportTab = function CreatorExportTab() {
         lines.push('Need to buy:');
         buyRows.forEach(function (r) {
           var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' — estimated use ' + formatSkeins(r.estimatedNeeded) + '; buy ' + r.missing + ' whole skeins' + own);
         });
         lines.push('');
       }
@@ -4436,7 +4372,7 @@ window.CreatorExportTab = function CreatorExportTab() {
       var border = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
-        : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
+        : 'buy ' + r.missing + ' whole skeins; estimated use ' + formatSkeins(r.estimatedNeeded) + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
         key: r.brand + ':' + r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }
@@ -4603,15 +4539,14 @@ window.CreatorExportTab = function CreatorExportTab() {
     var sample = React.useMemo(function () {
       return Object.assign({}, ctx, { pat: crop(ctx.pat, ctx.sW, r), sW: r.w, sH: r.h });
     }, [ctx, r.x, r.y, r.w, r.h]);
-    var matPal = window.Knots ? window.Knots.withKnotCounts(m.pal, ctx.knots, typeof restoreStitch === 'function' ? restoreStitch : null) : m.pal;
-    var rows = window.buildThreadShoppingRows(matPal, { fabricCt: ctx.fabricCt, stash: ctx.globalStash });
+    var rows = ctx.materialThreadRows || window.buildThreadShoppingRows(m.pal, {fabricCt: ctx.fabricCt, stash: ctx.globalStash, project: ctx});
     var skeins = rows.reduce(function (n, row) { return n + row.needed; }, 0);
     var bounds = { x: 0, y: 0, w: ctx.sW, h: ctx.sH };
     var source = gen.img && gen.img.src;
     var other = (ctx.bsLines || []).length || (ctx.partialStitches && ctx.partialStitches.size) ||
       (ctx.knots || []).length || (ctx.specialtyStitches || []).length;
     var coords = 'Columns ' + (r.x + 1) + '–' + (r.x + r.w) + ', rows ' + (r.y + 1) + '–' + (r.y + r.h);
-    var assumptions = ctx.fabricCt + ' count, over ' + stitchOverFor(ctx.fabricCt) + '; 2 strands; 20% waste; 8 m skeins';
+    var assumptions = ctx.fabricCt + 'ct over ' + stitchOverFor(ctx.fabricCt) + '; crosses: 2 strands; outlines: 1; 20% allowance; skeins by brand';
     function go(sub) { app.setMaterialsTab(sub); }
     function controls() { app.setTab('pattern'); app.setAppMode('edit'); app.setSidebarTab('tools'); app.setSidebarOpen(true); }
     function adjustments() { app.requestBackToConvert(); }
@@ -4663,13 +4598,13 @@ window.CreatorExportTab = function CreatorExportTab() {
         figure('Current chart', h(Chart, { ctx: ctx, fabric: app.fabricColour, region: bounds, cell: Math.min(12, 1200 / Math.max(ctx.sW, ctx.sH)), label: 'Current generated or drawn chart' })),
         figure('Stitches from the current chart', Math.max(ctx.sW, ctx.sH) <= 1600 ? h(window.CreatorRealisticCanvas, { patternData: ctx, review: true, inputLevel: 2 }) : h('p', null, 'This chart is too large for a full stitch simulation. Inspect the selected sample below.'))),
       h('p', null, 'Overview images are scaled to fit, not shown at physical size. The stitch simulation uses actual full-cross cells and approximate screen thread colours. It cannot calibrate physical colours or predict lighting, tension, fabric coverage or guaranteed results. Blends show component colours where available. Inspect a stitched sample for important colours and detail.'),
-      other ? h('p', { className: 'ready-review-note' }, 'This chart also contains other stitch types. The stitch simulation shows full crosses only; inspect the chart and Export for fractional stitches, backstitch, knots and specialty stitches. Existing material estimates may not cover all these objects.') : null,
+      other ? h('p', { className: 'ready-review-note' }, 'This chart also contains other stitch types. The stitch simulation shows full crosses only; inspect the chart and Export for fractional stitches, backstitch, knots and specialty stitches. Material estimates include these objects using approximate thread lengths. Beads and fabric are separate.') : null,
       h('div', { className: 'ready-review-summary' },
         h('div', null, h('h3', null, 'Size and materials'),
           h('p', null, ctx.sW + ' × ' + ctx.sH + ' stitches; finished ' + size(ctx.sW, ctx.sH, ctx.fabricCt) + '.'),
           h('p', null, 'Finished size covers the whole grid, including empty cells. Add your own framing and finishing margins.'),
           h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
-          h('p', null, assumptions + '. Equal strand shares assumed for blends; confirm unusual blend ratios.'),
+          h('p', null, assumptions + '. Imported blend strand ratios are used when supplied. Confirm unusual thread requirements.'),
           h('p', null, window.threadCountsShort({ threads: rows.length, symbols: m.pal.length }) + '. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
           button('Inspect threads and estimates', function () { go('threads'); }), button('Check stash', function () { go('stash'); })),
         h('div', null, h('h3', null, 'Stitching effort and detail'),

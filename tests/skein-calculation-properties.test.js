@@ -6,16 +6,11 @@ const { stitchesToSkeins } = require('../threadCalc.js');
 const { fcStitchCount, fcFabricCt, fcStrandCount } = require('./arbitraries');
 
 describe('stitchesToSkeins — properties', () => {
-  test('skeinsExact >= 0 and skeinsToBuy === ceil(skeinsExact)', () => {
+  test('raw demand is non-negative and buying uses raw demand', () => {
     fc.assert(
       fc.property(fcStitchCount(), fcFabricCt(), fcStrandCount(), (stitchCount, fabricCount, strandsUsed) => {
         const r = stitchesToSkeins({ stitchCount, fabricCount, strandsUsed });
-        if (r.skeinsExact < 0) return false;
-        // skeinsExact is rounded to 2dp; the rounded value can be a hair below
-        // the raw value used for ceil(). Allow ceil(rounded) or ceil(rounded)+1
-        // when the raw exact sits just above a whole skein.
-        const ceilRounded = Math.ceil(r.skeinsExact);
-        return r.skeinsToBuy === ceilRounded || r.skeinsToBuy === ceilRounded + 1;
+        return r.skeinsRaw >= 0 && r.skeinsToBuy === Math.ceil(r.skeinsRaw - 1e-12);
       }),
       { numRuns: 200 }
     );

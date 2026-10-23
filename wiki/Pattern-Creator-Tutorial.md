@@ -423,3 +423,10 @@ All presets use the existing worker and its 112-symbol limit, missing-glyph and 
 ### Guided image import (experimental)
 
 Enable **Preferences > Pattern Creator > Use guided import wizard** for image imports in Track. The five steps cover crop and orientation, palette, finished stitch dimensions, live preview, and confirmation. Aspect-ratio crops are centred after rotation and mirroring. Preview and Generate use the same processing settings. **From my stash** uses owned DMC threads, including partial skeins; an empty stash must be corrected before generation. **Show saliency overlay** highlights detail for inspection only and does not alter the stitches. If preview processing fails, adjust the settings or use **Retry preview**. Generate is available once the current preview succeeds.
+
+
+### Understanding thread estimates
+
+Materials shows estimated fractional consumption separately from whole skeins to buy. It adds solid and blended uses of the same physical thread, subtracts usable full and partial stash, then rounds only the shortage. Twenty colours with tiny amounts can require twenty skeins from scratch even if total consumption is only a few skeins.
+
+The default is about 1,575 full crosses per 8 m six-strand skein at 14-count using two strands, including 20% allowance. Brand-specific lengths and supplied blend strand counts are used. Fractional stitches, knots and outlines contribute approximate lengths. Screen estimates cannot measure personal travel, tails or tension; stitch a sample if precision matters. Project planning uses the same model for unfinished work. Recalibrated planning does not rewrite consumption history or stock balances.

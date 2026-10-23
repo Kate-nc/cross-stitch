@@ -17,7 +17,7 @@ function read(rel) { return fs.readFileSync(path.join(__dirname, '..', rel), 'ut
 const env = new Function(
   read('constants.js') + '\n' + read('pattern-size-calc.js').replace(/if \(typeof module[\s\S]*$/, '') + '\n' +
   read('threadCalc.js').replace(/if \(typeof module[\s\S]*$/, '') + '\n' +
-  'return { FABRIC_COUNTS, stitchOverFor, fabricShortLabel, calcDesignSizeIn, finishedSizeText, stitchesToSkeins };'
+  'return { FABRIC_COUNTS, stitchOverFor, fabricShortLabel, calcDesignSizeIn, finishedSizeText, stitchesToSkeins, threadDemandRows, projectThreadEntries };'
 )();
 
 describe('stitchOverFor', () => {
@@ -83,9 +83,9 @@ describe('buildThreadShoppingRows', () => {
   const end = src.indexOf('\n};\n', start) + 3;
   const window = {};
   // eslint-disable-next-line no-new-func
-  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', src.slice(start, end))(
+  new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', 'threadDemandRows', 'projectThreadEntries', src.slice(start, end))(
     window, env.stitchesToSkeins, (b, id) => b + ':' + id, () => null,
-    (entry) => entry ? (entry.owned || 0) + ({ 'mostly-full': 0.75, 'about-half': 0.5, remnant: 0.25 }[entry.partialStatus] || 0) : 0);
+    (entry) => entry ? (entry.owned || 0) + ({ 'mostly-full': 0.75, 'about-half': 0.5, remnant: 0.25 }[entry.partialStatus] || 0) : 0, env.threadDemandRows, env.projectThreadEntries);
   const build = window.buildThreadShoppingRows;
 
   const pal = [
@@ -131,10 +131,10 @@ describe('buildThreadShoppingRows', () => {
   });
 
   test('shopping defaults use the same two-strand, 20% waste model as the review and summaries', () => {
-    const rows = build([{id:'310', type:'solid', count:1140}], {fabricCt:14});
-    expect(rows[0].needed).toBe(env.stitchesToSkeins({stitchCount:1140, fabricCount:14, strandsUsed:2, wasteFactor:0.20}).skeinsToBuy);
+    const rows = build([{id:'310', type:'solid', count:1600}], {fabricCt:14});
+    expect(rows[0].needed).toBe(env.stitchesToSkeins({stitchCount:1600, fabricCount:14, strandsUsed:2, wasteFactor:0.20}).skeinsToBuy);
     expect(rows[0].needed).toBe(2);
-    expect(build([{id:'310', type:'solid', count:1140}], {fabricCt:14, wasteFactor:0.15})[0].needed).toBe(1);
+    expect(build([{id:'310', type:'solid', count:1600}], {fabricCt:14, wasteFactor:0.15})[0].needed).toBe(1);
   });
 
   test('skips background and empty cells', () => {

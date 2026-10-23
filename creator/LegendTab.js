@@ -48,15 +48,8 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // used only for knots gets a row of its own.
   // The pattern's thread brand (P4-5): "DMC" or "Anchor".
   var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(ctx.threadBrand) : "DMC";
-  var matPal = useMemo(function() {
-    if (!ctx.pal || !window.Knots) return ctx.pal;
-    return window.Knots.withKnotCounts(ctx.pal, ctx.knots, typeof restoreStitch === "function" ? restoreStitch : null);
-  }, [ctx.pal, ctx.knots]);
-
-  var threadRows = useMemo(function() {
-    if (!(ctx.pat && matPal)) return [];
-    return window.buildThreadShoppingRows(matPal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, matPal, stash, fabricCt]);
+  var matPal = ctx.pal;
+  var threadRows = ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash, project: ctx});
 
   var rows = useMemo(function() {
     if (!(ctx.pat && ctx.pal)) return [];
@@ -64,29 +57,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) { threadById[r.key] = r; });
     var rank = { needed: 0, partial: 1, owned: 2 };
     return matPal.map(function(p) {
-      var skResult = (typeof stitchesToSkeins === "function")
-        ? stitchesToSkeins({ stitchCount: p.count, fabricCount: fabricCt, strandsUsed: 2 })
-        : null;
-      var needed;
-      if (skResult) {
-        needed = skResult.colorA
-          ? Math.max(skResult.colorA.skeinsToBuy || 0, skResult.colorB.skeinsToBuy || 0)
-          : (skResult.skeinsToBuy || 0);
-      } else {
-        needed = (typeof skeinEst === "function") ? skeinEst(p.count, fabricCt) : Math.ceil(p.count / 800);
-      }
-      if (needed < 1) needed = 1;
-      var owned, status;
-      if (p.type === "blend" && p.threads) {
-        // A blend is in stash when both of its threads are.
-        var parts = p.threads.map(function(t) { return threadById[(t.brand || p.brand || 'dmc') + ':' + t.id]; }).filter(Boolean);
-        owned  = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
-        status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, "owned") : "needed";
-      } else {
-        var stashEntry = stash[threadKey(p.brand || 'dmc', p.id)];
-        owned  = typeof stashEffectiveQty === 'function' ? stashEffectiveQty(stashEntry) : ((stashEntry && stashEntry.owned) || 0);
-        status = owned >= needed ? "owned" : owned > 0 ? "partial" : "needed";
-      }
+      var parts = threadConstituents(p).map(function(t) { return threadById[t.brand + ':' + t.id]; }).filter(Boolean);
+      var needed = parts.reduce(function(n, r) { return n + r.needed; }, 0);
+      var owned = parts.length ? Math.min.apply(null, parts.map(function(r) { return r.owned; })) : 0;
+      var status = parts.length ? parts.reduce(function(s, r) { return rank[r.status] < rank[s] ? r.status : s; }, 'owned') : 'needed';
       var name = (p.type === "blend" && p.threads)
         ? p.threads[0].name + " + " + p.threads[1].name
         : (p.name || p.id);
@@ -186,10 +160,10 @@ window.CreatorLegendTab = function CreatorLegendTab() {
 
   // Totals count threads, not palette entries: a blend is not an extra colour to buy.
   var totalColours   = threadRows.length;
-  var totalSkeins    = threadRows.reduce(function(s, r) { return s + r.needed; }, 0);
+  var totalSkeins    = threadRows.reduce(function(s, r) { return s + r.estimatedNeeded; }, 0);
   var ownedColours   = threadRows.filter(function(r) { return r.status === "owned"; }).length;
   var partialColours = threadRows.filter(function(r) { return r.status === "partial"; }).length;
-  var needSkeins     = threadRows.reduce(function(s, r) { return s + Math.max(0, r.needed - r.owned); }, 0);
+  var needSkeins     = threadRows.reduce(function(s, r) { return s + r.missing; }, 0);
   var hasStash       = Object.keys(stash).length > 0;
 
   // ── Early returns after all hooks ─────────────────────────────────────────
@@ -242,7 +216,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     threadRows.forEach(function(r) {
       var mark = r.status === "owned" ? "\u2713" : r.status === "partial" ? "~" : "\u25cb";
       var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
-      lines.push(mark + " " + formatThread(r.p, {variant: "title"}) + " \u2014 " + r.needed + " skein" + (r.needed !== 1 ? "s" : "") + own);
+      lines.push(formatThread(r.p, {variant: "title"}) + " — estimated use " + formatSkeins(r.estimatedNeeded) + own + "; buy " + r.missing + " whole skeins");
     });
     lines.push("", "Total: " + ownedColours + "/" + totalColours + " threads owned");
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -257,7 +231,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
     var lines = ["Shopping List \u2014 " + sW + "\u00d7" + sH + " @ " + fabricShortLabel(fabricCt), ""];
     threadRows.forEach(function(r) {
       if (r.status !== "owned") {
-        var diff = Math.max(0, r.needed - r.owned);
+        var diff = r.missing;
         var own  = r.owned > 0 ? " (own " + r.owned + ")" : "";
         lines.push(formatThread(r.p, {variant: "title"}) + " \u2014 need " + diff + " skein" + (diff !== 1 ? "s" : "") + own);
       }
@@ -268,7 +242,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   function handleAddAll() {
     if (typeof StashBridge === "undefined") return;
     var promises = threadRows.filter(function(r) { return r.status !== "owned"; }).map(function(r) {
-      return StashBridge.updateThreadOwned(r.p.id, r.needed);
+      return StashBridge.updateThreadOwned(r.key, ((stash[r.key] || {}).owned || 0) + r.missing);
     });
     Promise.all(promises).then(function() {
       setAddedAll(true);
@@ -286,6 +260,17 @@ window.CreatorLegendTab = function CreatorLegendTab() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return h("div", {style:{maxWidth:980, padding:"16px 16px 20px"}},
 
+    h('section', {'aria-label':'Thread purchases', style:{overflowX:'auto',marginBottom:14}},
+      h('h3', null, 'Estimated use and purchases'),
+      h('table', {style:{width:'100%',borderCollapse:'collapse',fontSize:'var(--text-sm)'}},
+        h('thead', null, h('tr', null,
+          ['Thread','Estimated use','Usable stash','Buy whole skeins'].map(function(label) { return h('th',{key:label,style:thSt('left')},label); }))),
+        h('tbody', null, threadRows.map(function(r) { return h('tr',{key:r.key},
+          h('td',null,formatThread(r.p,{variant:'short'})),
+          h('td',null,formatSkeins(r.estimatedNeeded)),
+          h('td',null,r.owned), h('td',null,r.missing)); })))
+    ),
+    h('p', {style:{fontSize:'var(--text-xs)',color:'var(--text-secondary)'}}, 'Planning estimate includes 20% allowance. Partial stash quantities are approximate. Buy quantities are rounded per thread after subtracting usable stash.'),
     // ── Summary bar ──────────────────────────────────────────────────────────
     h("div", {style:{
       display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
@@ -294,7 +279,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
       border:"0.5px solid " + (allOwned ? "var(--success-soft)" : "var(--border)")
     }},
       h("span", {style:{fontSize:'var(--text-xs)', color:"var(--text-tertiary)"}},
-        totalColours + " thread" + (totalColours !== 1 ? "s" : "") + ", " + totalSkeins + " skein" + (totalSkeins !== 1 ? "s" : "")
+        totalColours + " threads; estimated use: " + formatSkeins(totalSkeins) + "; buy " + needSkeins + " whole skeins"
       ),
       hasStash && h("span", {style:{fontWeight:600, color: allOwned ? "var(--success)" : "var(--text-secondary)", display:"inline-flex", alignItems:"center", gap:4}},
         allOwned
@@ -303,7 +288,7 @@ window.CreatorLegendTab = function CreatorLegendTab() {
             + (partialColours > 0 ? ", " + partialColours + " partial" : "")
       ),
       hasStash && !allOwned && h("span", {style:{color:"var(--danger)", fontSize:'var(--text-xs)'}},
-        "\u2014 ~" + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
+        "Buy " + needSkeins + " skein" + (needSkeins !== 1 ? "s" : "") + " still needed"
       ),
       h("div", {style:{marginLeft:"auto", display:"flex", gap:6}},
         h("button", {onClick:handleCopy, style:{

@@ -177,8 +177,8 @@ describe('stash keys', () => {
     const end = src.indexOf('\n};\n', start) + 3;
     const win = {};
     // eslint-disable-next-line no-new-func
-    new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', src.slice(start, end))(
-      win, null, (b, id) => b + ':' + id, () => null, (e) => (e ? e.owned || 0 : 0));
+    new Function('window', 'stitchesToSkeins', 'threadKey', 'findThreadInCatalog', 'stashEffectiveQty', 'threadDemandRows', src.slice(start, end))(
+      win, null, (b, id) => b + ':' + id, () => null, (e) => (e ? e.owned || 0 : 0), require('../threadCalc').threadDemandRows);
     const pal = run(withAnchor, `buildPalette([restoreStitch({id:'403', type:'solid'}, 'anchor')]).pal`);
     const rows = win.buildThreadShoppingRows(pal, { fabricCt: 14, stash: { 'anchor:403': { owned: 5 }, 'dmc:403': { owned: 0 } } });
     expect(rows).toHaveLength(1);

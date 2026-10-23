@@ -28,8 +28,9 @@ describe('Brief D — Stash-aware Creator wiring', () => {
   });
 
   it('project-storage.save() skips background/empty cells when counting threads', () => {
-    expect(projectStorageSrc).toMatch(/cell\.id\s*===\s*["']__skip__["']/);
-    expect(projectStorageSrc).toMatch(/cell\.id\s*===\s*["']__empty__["']/);
+    expect(projectStorageSrc).toContain('projectThreadEntries(project)');
+    const {projectThreadEntries}=require('../threadCalc');
+    expect(projectThreadEntries({pattern:[{id:'__skip__'},{id:'__empty__'}]})).toEqual([]);
   });
 
   it('project-storage.delete() unlinks the linked manager pattern entry', () => {

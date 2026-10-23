@@ -233,6 +233,14 @@ const StashBridge = (() => {
   //              for all active patterns together (Home's shopping list).
   // A shortfall for a single pattern is a to-buy item, never a conflict.
 
+  function _planningRows(pat, stash) {
+    if (typeof threadDemandRows !== 'function') return null;
+    const o=pat.project_overrides||{};
+    const entries=(pat.threads||[]).map(t=>{const k=_libraryKey(t),i=k.indexOf(':');return {...t,id:k.slice(i+1),brand:k.slice(0,i),unit:t.unit||'skeins',count:t.qty};});
+    return threadDemandRows(entries,{fabricCount:o.fabric_count??pat.fabricCt??14,
+      strandsUsed:o.strands_used??2,wasteFactor:o.waste_factor??.20,stash:stash||{}});
+  }
+
   // Skeins a pattern's thread row asks for.
   function _skeinsNeeded(t, fabricCt) {
     if (t.unit === "stitches") {
@@ -251,9 +259,10 @@ const StashBridge = (() => {
       if (!Array.isArray(pat.threads)) return;
       const pid = pat.id != null ? String(pat.id) : "#" + index;
       const fc = pat.fabricCt || 14;
-      for (const t of pat.threads) {
-        const skeins = Number(_skeinsNeeded(t, fc)) || 0;
-        const key = _libraryKey(t);
+      const planned = _planningRows(pat);
+      for (const t of planned || pat.threads) {
+        const skeins = planned ? t.estimatedNeeded : Number(_skeinsNeeded(t, fc)) || 0;
+        const key = planned ? t.key : _libraryKey(t);
         const d = demand[key] || (demand[key] = { total: 0, patterns: [] });
         d.total += skeins;
         const share = d.patterns.find(function(p) { return p.id === pid; });
@@ -993,6 +1002,7 @@ const StashBridge = (() => {
                   status: status || (existing ? existing.status : "inprogress"),
                   tags: existing ? existing.tags : ["auto-synced"],
                   fabricCt: fabricCt || 14,
+                  project_overrides: existing ? existing.project_overrides : undefined,
                   threads: skeinData.map(d => ({
                     id: d.id,
                     name: d.name,
@@ -1136,14 +1146,15 @@ const StashBridge = (() => {
           if (!pat.threads || pat.threads.length === 0) continue;
           const fc = pat.fabricCt || 14;
           let covered = 0, missing = [];
-          for (const t of pat.threads) {
-            const skeins = t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
-            const key = _libraryKey(t);
+          const planned = _planningRows(pat,threadsData);
+          for (const t of planned || pat.threads) {
+            const skeins = planned ? t.estimatedNeeded : t.unit === "stitches" ? (typeof skeinEst === "function" ? skeinEst(t.qty, fc) : Math.ceil(t.qty / 200)) : t.qty;
+            const key = planned ? t.key : _libraryKey(t);
             const owned = _getOwnedCount(threadsData, key, t.id);
             if (owned >= skeins) covered++;
-            else missing.push({ id: t.id, name: t.name, need: skeins, have: owned });
+            else missing.push({ id: planned ? t.p.id : t.id, name: t.name, need: skeins, have: owned });
           }
-          results.push({ id: pat.id, title: pat.title, status: pat.status, totalThreads: pat.threads.length, coveredThreads: covered, missing, pct: Math.round(covered / pat.threads.length * 100) });
+          results.push({ id: pat.id, title: pat.title, status: pat.status, totalThreads: (planned || pat.threads).length, coveredThreads: covered, missing, pct: Math.round(covered / (planned || pat.threads).length * 100) });
         }
         results.sort((a, b) => b.pct - a.pct);
         return results;
@@ -1525,6 +1536,7 @@ const StashBridge = (() => {
       const stash = globalStash || {};
       const opts = options || {};
       const fabricCt = opts.fabricCt || 14;
+      if (typeof threadDemandRows === 'function') return threadDemandRows(displayPal, {fabricCount:fabricCt,stash:stash}).filter(r=>r.missing>0).map(r=>r.key);
       const estimator = typeof opts.skeinEst === 'function'
         ? opts.skeinEst
         : function(stitches) { return Math.max(1, Math.ceil((stitches || 0) / 1800)); };

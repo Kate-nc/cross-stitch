@@ -38,7 +38,7 @@ Convert images into stitchable charts, or design patterns from scratch.
 **Materials & Output**
 
 - **Ready to stitch** compares source, current chart and a stitch-data simulation; review finished size, fabric and material assumptions, confetti stitches and rarely used symbols before buying. Inspect and export a chosen sample region. Screen colours and estimates are approximate; no quality score is implied.
-- Threads: per-thread stitch counts, strands, skein estimates and cost. The Palette tab and the Tracker colour list show the same label, strands and skeins for each symbol.
+- Threads: per-thread stitch counts, strands, fractional estimated use and whole-skein purchases after subtracting usable stash. The shared planning model covers about 1,575 full crosses per 8 m skein on 14-count/two strands with 20% allowance; brand lengths, blend ratios, fractional stitches and outlines are included. Estimates are approximate. The Palette tab and the Tracker colour list show the same label, strands and skeins for each symbol.
 - Stash status: what you own, what is low, what you need to buy.
 - Export: PDF, PNG, `.oxs` and a `.zip` bundle (see [Export & Sharing](#export--sharing)).
 - Adapt to my stash / Adapt to brand: make a copy of the pattern that uses threads you own, or another brand.

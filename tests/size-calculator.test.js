@@ -205,28 +205,28 @@ describe('stitchesToSkeins calibration (no waste)', () => {
   // stitches per skein = skeinLength / threadPerStitch
   // For an 8 m DMC skein split into 6 strands with 0% waste:
 
-  test('14-ct 2 strands: stitches/skein in 1200–1500', () => {
+  test('14-ct 2 strands: stitches/skein in 1800–1950', () => {
     const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
-    const tps = BASE_THREAD_PER_STITCH_IN;      // 1.4 in/stitch at 14-ct 2s
+    const tps = BASE_THREAD_PER_STITCH_IN;      // 1 aggregate single-strand inch at 14ct/2 strands
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1200);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(1500);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1800);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(1950);
   });
 
-  test('16-ct 2 strands: stitches/skein in 1500–1680', () => {
+  test('16-ct 2 strands: stitches/skein in 2100–2250', () => {
     const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
-    const tps = BASE_THREAD_PER_STITCH_IN * (14 / 16);   // 1.225 in/stitch
+    const tps = BASE_THREAD_PER_STITCH_IN * (14 / 16);   // 0.875 aggregate inches
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1500);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(1680);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(2100);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(2250);
   });
 
-  test('18-ct 2 strands: stitches/skein in 1680–1800', () => {
+  test('18-ct 2 strands: stitches/skein in 2350–2500', () => {
     const skeinLen = 8.0 * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
-    const tps = BASE_THREAD_PER_STITCH_IN * (14 / 18);   // 1.089 in/stitch
+    const tps = BASE_THREAD_PER_STITCH_IN * (14 / 18);   // 0.778 aggregate inches
     const stitchesPerSkein = skeinLen / tps;
-    expect(stitchesPerSkein).toBeGreaterThanOrEqual(1680);
-    expect(stitchesPerSkein).toBeLessThanOrEqual(1800);
+    expect(stitchesPerSkein).toBeGreaterThanOrEqual(2350);
+    expect(stitchesPerSkein).toBeLessThanOrEqual(2500);
   });
 
   test('2→3 strand scaling ≈ +50% (linearity)', () => {

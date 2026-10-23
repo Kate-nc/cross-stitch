@@ -633,31 +633,13 @@ const ProjectStorage = (() => {
             // Only sync named projects (proj_*) — skips "auto_save" and
             // similar transient keys.
             if (typeof StashBridge !== "undefined" && StashBridge.syncProjectToLibrary
-                && project.id && project.id.startsWith("proj_") && project.pattern) {
+                && project.id && project.id.startsWith("proj_") && project.pattern && typeof threadDemandRows === "function") {
               try {
-                // Counted per "brand:id" (P4-5): a saved cell names its brand
-                // only when it isn't the project's (absent means DMC).
-                const projBrand = typeof projectThreadBrand === "function" ? projectThreadBrand(project) : 'dmc';
-                const counts = {};
-                for (const cell of project.pattern) {
-                  if (!cell || !cell.id || cell.id === "__skip__" || cell.id === "__empty__") continue;
-                  const k = String(cell.brand || projBrand).toLowerCase() + ':' + cell.id;
-                  counts[k] = (counts[k] || 0) + 1;
-                }
+                // Physical-thread equivalents include blends, fractional crosses and lines.
                 const fc = (project.settings && project.settings.fabricCt) || 14;
-                const skeinData = Object.entries(counts).map(([key, stitches]) => {
-                  const colon = key.indexOf(':');
-                  const brand = key.slice(0, colon), id = key.slice(colon + 1);
-                  const dmcEntry = typeof findThreadInCatalog === "function" ? findThreadInCatalog(brand, id) : null;
-                  return {
-                    id,
-                    brand,
-                    name: dmcEntry ? dmcEntry.name : id,
-                    stitches,
-                    skeins: typeof skeinEst === "function" ? skeinEst(stitches, fc) : 1,
-                    rgb: dmcEntry ? dmcEntry.rgb : [128, 128, 128]
-                  };
-                });
+                const skeinData = threadDemandRows(projectThreadEntries(project), {fabricCount:fc}).map(r=>({
+                  id:r.p.id,brand:r.p.brand,name:r.name,stitches:r.threadStitches,skeins:r.needed,rgb:r.p.rgb
+                }));
                 StashBridge.syncProjectToLibrary(
                   project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc
                 ).catch(function(err) {

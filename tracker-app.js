@@ -2501,16 +2501,9 @@ const rowRuler=useMemo(()=>Array.from({length:sH},(_,y)=>{
 }),[sH,scs,rulerStep]);
 const skeinData=useMemo(()=>{
   if(!pal)return[];
-  let map={};
-  // Keyed "brand:id" (P4-5): a thread's brand is its own (absent: DMC).
-  pal.forEach(p=>{
-    if(p.type==="solid"){const k=(p.brand||"dmc")+":"+p.id;map[k]=(map[k]||0)+p.count;}
-    else if(p.type==="blend"&&p.threads){p.threads.forEach(t=>{const k=(t.brand||p.brand||"dmc")+":"+t.id;map[k]=(map[k]||0)+p.count;});}
-  });
-  return Object.entries(map).map(([key,ct])=>{const c=key.indexOf(":");return{brand:key.slice(0,c),id:key.slice(c+1),ct};})
-    .sort((a,b)=>{let na=parseInt(a.id)||0,nb=parseInt(b.id)||0;if(na&&nb)return na-nb;return a.id.localeCompare(b.id);})
-    .map(({brand,id,ct})=>{let t=findThreadInCatalog(brand,id);return{id,brand,key:threadKey(brand,id),name:t?t.name:"",rgb:t?t.rgb:[128,128,128],stitches:ct,skeins:skeinEst(ct,fabricCt)};});
-},[pal,fabricCt]);
+  return threadDemandRows(projectThreadEntries({pattern:pat,halfStitches,partialStitches,bsLines,knots,specialtyStitches,threadBrand}),{fabricCount:fabricCt})
+    .map(r=>{const t=findThreadInCatalog(r.p.brand,r.p.id);return{id:r.p.id,brand:r.p.brand,key:r.key,name:t?t.name:r.name,rgb:t?t.rgb:[128,128,128],stitches:r.threadStitches,skeins:r.needed,estimatedSkeins:r.estimatedNeeded};});
+},[pal,pat,fabricCt,halfStitches,partialStitches,bsLines,knots,specialtyStitches,threadBrand]);
 
 useEffect(()=>{
   function loadStash(){if(typeof StashBridge!=="undefined"){StashBridge.getGlobalStash().then(setGlobalStash).catch(e=>console.warn('getGlobalStash failed:',e));}}
