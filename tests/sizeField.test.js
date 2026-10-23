@@ -117,7 +117,7 @@ describe('the Size field', () => {
   });
 
   test('it replaces the Size slider, and chgW, chgH and slRsz still exist', () => {
-    const sb = loadSource('creator/Sidebar.js');
+    const sb = loadSource('creator/ConvertPanel.js');
     expect(sb).toMatch(/h\(window\.CreatorSizeField, \{/);
     expect(sb).not.toMatch(/label:"Size", value:ctx\.sW/);
     const st = loadSource('creator/useCreatorState.js');

@@ -3,24 +3,26 @@
 // with an Edit link to Edit > Project > Fabric.
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
-const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, openConvertWithLogo, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
 test.use(Object.assign({}, device('desktop'), { viewport: { width: 1366, height: 900 }, launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {} }));
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
 
-test('the Convert Size & fabric card shows all its content at 1366x900 (not clipped)', async ({ page }) => {
+test('the Convert Size step shows all of the fabric block at 1366x900 (not clipped)', async ({ page }) => {
   await openConvertWithLogo(page);
+  await convertStep(page, 'size');
   const clipped = await page.evaluate(() => {
-    const head = Array.from(document.querySelectorAll('button[aria-expanded]')).find(b => /^Size & fabric/.test(b.textContent));
-    const card = head.parentElement;
-    return { scrollHeight: card.scrollHeight, clientHeight: card.clientHeight };
+    const sec = document.querySelector('[data-cv-section="fabric"]');
+    return { scrollHeight: sec.scrollHeight, clientHeight: sec.clientHeight };
   });
-  // The card is overflow:hidden, so a shrunk card hides the rest of its content.
   expect(clipped.clientHeight).toBeGreaterThanOrEqual(clipped.scrollHeight - 1);
-  await expect(page.locator('.fabric-block__select').first()).toBeAttached();
+  const select = page.locator('.fabric-block__select').first();
+  await select.scrollIntoViewIfNeeded();
+  await expect(select).toBeVisible();
 });
 
 test('one count: edited in Convert and Project, read-only with an Edit link in Materials', async ({ page }) => {
   await openConvertWithLogo(page);
+  await convertStep(page, 'size');
   await page.locator('.fabric-block__select').first().selectOption('18');
   await clickGenerate(page);
   await waitForEdit(page);

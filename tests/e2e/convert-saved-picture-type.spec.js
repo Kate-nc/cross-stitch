@@ -4,7 +4,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
-const { device, generateLogo, clickGenerate, waitForEdit, skipTourIfShown } = require('./creator-helpers');
+const { device, generateLogo, clickGenerate, waitForEdit, skipTourIfShown, convertStep } = require('./creator-helpers');
 
 function savedSettings(page) {
   return page.evaluate(async function() {
@@ -55,7 +55,9 @@ test.describe('The picture type survives a reload', function() {
       .toBe('graphic off');
 
     await reopenInConvert(page);
-    await expect(page.locator('.picture-type').getByRole('radio', { name: 'Graphic or logo' })).toHaveAttribute('aria-checked', 'true');
+    await convertStep(page, 'picture');
+    await expect(page.getByRole('radiogroup', { name: 'What kind of picture is this?' }).getByRole('radio', { name: 'Graphic or logo' })).toHaveAttribute('aria-checked', 'true');
+    await convertStep(page, 'detail');
     await expect(step(page, 'Balanced')).toHaveAttribute('aria-checked', 'true');
 
     // The same step again, then a new pattern: still the graphic's Balanced.
@@ -80,6 +82,7 @@ test.describe('The picture type survives a reload', function() {
     });
 
     await reopenInConvert(page);
+    await convertStep(page, 'detail');
     await step(page, 'More detail').click();
     await step(page, 'Balanced').click();
     await expect(step(page, 'Balanced')).toHaveAttribute('aria-checked', 'true');

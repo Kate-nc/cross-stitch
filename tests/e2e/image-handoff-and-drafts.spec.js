@@ -3,7 +3,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, quietOnboarding, skipTourIfShown, LOGO } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, LOGO, convertStep } = require('./creator-helpers');
 
 function slider(page, label) {
   return page.locator('xpath=//span[normalize-space(text())="' + label + '"]/ancestor::div[2]//input[@type="range"]').first();
@@ -63,12 +63,13 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await page.locator('input.home-create-file-input').setInputFiles(LOGO);
     await page.waitForURL(/create\.html/);
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
-    await openSettings(page);
+    await convertStep(page, 'size');
     const width = page.locator('.size-field').getByLabel('Width in stitches');
     await width.fill('120');
     await width.press('Enter');
-    await slider(page, 'Threads (max)').fill('12');
     await expect(width).toHaveValue('120');
+    await convertStep(page, 'threads');
+    await slider(page, 'Threads (max)').fill('12');
     // Saved a second after the last change.
     await expect.poll(function() {
       return page.evaluate(async function() {
@@ -82,8 +83,9 @@ test.describe('Image handoff and drafts on Pixel 5', function() {
     await expect(dialog).toContainText('Continue setting up logo?');
     await dialog.getByRole('button', { name: 'Continue' }).click();
     await expect(page.locator('.cc-generate')).toBeVisible({ timeout: 20000 });
-    await openSettings(page);
+    await convertStep(page, 'size');
     await expect(page.locator('.size-field').getByLabel('Width in stitches')).toHaveValue('120');
+    await convertStep(page, 'threads');
     await expect(sliderValue(page, 'Threads (max)')).toHaveText('12');
 
     // The draft is gone once a pattern is made.

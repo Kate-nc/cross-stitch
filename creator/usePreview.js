@@ -15,6 +15,54 @@
 // bigger chart is previewed smaller, so its counts are estimates.
 var PREVIEW_PAGE_MAX_AREA = 40000;
 
+// What a settings change did to the preview, for the line under it in
+// Convert ("Threads (max): threads 24 to 18, confetti 4.3% to 3.1%").
+// prev/next are { settings, summary, ids }; summary holds the counts shown.
+// Returns null when there is nothing to compare.
+var PREVIEW_CHANGE_LABELS = [
+  [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
+  [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
+  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
+  [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
+  [['allowBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
+  [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
+  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
+  [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
+];
+function _sameSetting(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null || typeof a !== 'object' || typeof b !== 'object') return false;
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; }
+}
+function describePreviewChange(prev, next) {
+  if (!prev || !next || !prev.settings || !next.settings) return null;
+  var settings = [];
+  PREVIEW_CHANGE_LABELS.forEach(function (row) {
+    if (row[0].some(function (k) { return !_sameSetting(prev.settings[k], next.settings[k]); })) settings.push(row[1]);
+  });
+  if (!settings.length) return null;
+  var a = prev.summary || {}, b = next.summary || {};
+  var stats = [];
+  function add(label, from, to, fmt) {
+    if (from == null || to == null) return;
+    var f = fmt ? fmt(from) : String(from), t = fmt ? fmt(to) : String(to);
+    if (f !== t) stats.push({ label: label, from: f, to: t });
+  }
+  add('threads', a.threads, b.threads);
+  add('chart symbols', a.symbols, b.symbols);
+  add('stitches', a.stitchable, b.stitchable, function (v) { return v.toLocaleString('en-GB'); });
+  add('confetti', a.confettiPct, b.confettiPct, function (v) { return v.toFixed(1) + '%'; });
+  add('skeins', a.skeins, b.skeins);
+  // Stitches whose thread changed, when both charts are the same size.
+  var changed = null;
+  if (prev.ids && next.ids && prev.ids.length === next.ids.length) {
+    changed = 0;
+    for (var i = 0; i < next.ids.length; i++) if (prev.ids[i] !== next.ids[i]) changed++;
+  }
+  return { settings: settings, stats: stats, changedStitches: changed, total: next.ids ? next.ids.length : null };
+}
+window.describePreviewChange = describePreviewChange;
+
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
@@ -23,6 +71,7 @@ window.usePreview = function usePreview(state) {
   var workerRef = React.useRef(null);
   var busyRef = React.useRef(false);      // a job is running in the worker
   var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
+  var settledRef = React.useRef(null);    // the last finished preview, for describePreviewChange
 
   function getWorker() {
     if (workerRef.current === 'unavailable') return null;
@@ -46,7 +95,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -89,7 +138,6 @@ window.usePreview = function usePreview(state) {
       var orphans = settings.orphans;
       var stitchCleanup = settings.stitchCleanup;
       var dith = settings.dith;
-      var showCleanupDiff = state.showCleanupDiff;
 
       // The chart's own size in the worker; on the page, at most
       // PREVIEW_PAGE_MAX_AREA stitches.
@@ -224,6 +272,18 @@ window.usePreview = function usePreview(state) {
           else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; if (!colorRgbs[m.id]) colorRgbs[m.id] = m.rgb; }
         }
         var uniqueColors = Object.keys(colorCounts).length;
+        // Threads to buy: a blend's two threads count once each.
+        var threadSet = {};
+        Object.keys(colorCounts).forEach(function(id) { String(id).split('+').forEach(function(t) { threadSet[t] = true; }); });
+        var threadsUsed = Object.keys(threadSet).length;
+        // Stitches that tidying (and look-alike separation) changed.
+        var tidiedCount = null;
+        if (preCleanupIds && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0)) {
+          tidiedCount = 0;
+          for (var tq = 0; tq < mapped.length; tq++) {
+            if (preCleanupIds[tq] !== mapped[tq].id && preCleanupIds[tq] !== "__skip__") tidiedCount++;
+          }
+        }
         var scaleFactor = (sW * sH) / (pw * ph);
         var estSkeins = 0;
         Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
@@ -257,7 +317,27 @@ window.usePreview = function usePreview(state) {
           estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
+          threadsUsed: threadsUsed,
+          tidiedStitches: tidiedCount == null ? null : Math.round(tidiedCount * scaleFactor),
         });
+        // What this change did, compared with the last finished preview.
+        var settledIds = new Array(mapped.length);
+        for (var si = 0; si < mapped.length; si++) settledIds[si] = mapped[si].id;
+        var settled = {
+          settings: settings,
+          ids: settledIds,
+          summary: {
+            threads: threadsUsed, symbols: uniqueColors, skeins: estSkeins,
+            stitchable: Math.round(stitchable * scaleFactor),
+            confettiPct: stitchable > 0 ? confettiFinal.singles / stitchable * 100 : 0
+          }
+        };
+        if (state.setPreviewChange) {
+          var change = describePreviewChange(settledRef.current, settled);
+          if (change) state.setPreviewChange(change);
+          else if (!settledRef.current) state.setPreviewChange(null);
+        }
+        settledRef.current = settled;
 
         var colorList = Object.keys(colorCounts).map(function(id) {
           return { id: id, rgb: colorRgbs[id], count: colorCounts[id] };
@@ -288,17 +368,24 @@ window.usePreview = function usePreview(state) {
           }
         }
         pcx.putImageData(imgData, 0, 0);
-        // Diff overlay on preview thumbnail
-        if (showCleanupDiff && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0) && preCleanupIds) {
-          pcx.fillStyle = "rgba(255,0,255,0.45)";
-          for (var pi = 0; pi < mapped.length; pi++) {
-            if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
-              var pcs2 = 1; // each preview pixel is 1px
-              pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+        state.setPreviewUrl(pc.toDataURL());
+        // The stitches tidying changed, as their own overlay picture: the
+        // preview itself always shows the chart as it will be.
+        if (state.setPreviewTidied) {
+          if (tidiedCount > 0) {
+            var tc = document.createElement("canvas"); tc.width = pw; tc.height = ph;
+            var tcx = tc.getContext("2d"); var tData = tcx.createImageData(pw, ph); var td = tData.data;
+            for (var ti = 0; ti < mapped.length; ti++) {
+              if (preCleanupIds[ti] !== mapped[ti].id && preCleanupIds[ti] !== "__skip__") {
+                var tidx = ti * 4; td[tidx] = 255; td[tidx + 1] = 0; td[tidx + 2] = 255; td[tidx + 3] = 200;
+              }
             }
+            tcx.putImageData(tData, 0, 0);
+            state.setPreviewTidied(tc.toDataURL());
+          } else {
+            state.setPreviewTidied(null);
           }
         }
-        state.setPreviewUrl(pc.toDataURL());
         if (hasHeat) {
           var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
           var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
@@ -310,7 +397,7 @@ window.usePreview = function usePreview(state) {
       }
     } catch (err) { failPreview(); }
   }, [
-    state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
+    state.img, state.conversionSettings, state.globalStash,
   ]);
 
   React.useEffect(function() {
@@ -327,6 +414,8 @@ window.usePreview = function usePreview(state) {
     if (sourceRef.current !== state.img) {
       sourceRef.current = state.img;
       rawCacheRef.current = null;
+      settledRef.current = null;
+      if (state.setPreviewChange) state.setPreviewChange(null);
       clearPreview();
     }
     if (state.setPreviewError) state.setPreviewError(null);

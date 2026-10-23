@@ -61,6 +61,7 @@ const sourceFiles = [
   '../creator/ExportTab.js',
   '../creator/PatternTab.js',
   '../creator/Sidebar.js',
+  '../creator/ConvertPanel.js',
 ].map(function(f) { return path.join(__dirname, f); });
 
 const usedIconNames = new Set();

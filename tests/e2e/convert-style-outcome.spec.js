@@ -5,15 +5,20 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
-const { device, openConvertWithLogo } = require('./creator-helpers');
+const { device, openConvertWithLogo: openLogo, convertStep } = require('./creator-helpers');
+
+// The count is in Convert's Detail step; the width in its Size step.
+async function openConvertWithLogo(page) { await openLogo(page); await convertStep(page, 'detail'); }
 
 function outcome(page) { return page.locator('.stitch-style__outcome'); }
 function step(page, label) {
   return page.getByRole('radiogroup', { name: 'Detail and tidiness' }).getByRole('radio', { name: label });
 }
 async function setWidth(page, n) {
+  await convertStep(page, 'size');
   await page.getByLabel('Width in stitches', { exact: true }).fill(String(n));
   await page.keyboard.press('Tab');
+  await convertStep(page, 'detail');
 }
 
 test.describe('The Detail and tidiness count', function() {

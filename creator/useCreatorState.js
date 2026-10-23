@@ -714,17 +714,18 @@ window.useCreatorState = function useCreatorState() {
   // pointer events without a circular hook dependency.
   var denoiseHandlersRef = useRef(null);
 
-  // Sidebar tab within current mode (mode-specific).
-  // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
-  // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
+  // Edit's panel tab: "palette" | "tools" | "view" | "preview" | "project".
+  // Convert has its own step tab (convertTab). Ids Edit no longer has (the
+  // old Convert tabs "image" and "dimensions", and the older "settings")
+  // open Palette.
+  var EDIT_SIDEBAR_TABS = ["palette", "tools", "view", "preview", "project"];
   var _sidebarTab = useState(function () {
     var v = loadUserPref("creator.sidebarTab", null);
-    if (v === "settings") return "image";
-    return v || "image";
+    return EDIT_SIDEBAR_TABS.indexOf(v) >= 0 ? v : "palette";
   });
   var sidebarTab = _sidebarTab[0], _setSidebarTabRaw = _sidebarTab[1];
   function setSidebarTab(v) {
-    if (v === "settings") v = "image"; // back-compat for any caller still passing the old id
+    if (EDIT_SIDEBAR_TABS.indexOf(v) < 0) v = "palette";
     _setSidebarTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.sidebarTab", v); } catch (_) {}
   }
@@ -838,16 +839,13 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Section open states
-  // Convert panel order (audit IMG-06): Size & fabric, Colours, Detail and
-  // tidiness, Background, Adjust image, palette swap, Project. Size, Colours
-  // and Detail and tidiness start open; the rest start collapsed.
-  var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
-  var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
-  var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
-  var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
+  // Detail or Project. A new picture starts on Picture (resetAll).
+  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  function setConvertTab(v) {
+    var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
+    if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
+  }
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -1118,6 +1116,13 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
   var _prevError  = useState(null); var previewError = _prevError[0], setPreviewError = _prevError[1];
+  // The stitches Stitch Cleanup changed in the preview (an overlay picture),
+  // and whether Convert shows it.
+  var _prevTidied = useState(null); var previewTidied = _prevTidied[0], setPreviewTidied = _prevTidied[1];
+  var _showTidied = useState(false); var showTidied = _showTidied[0], setShowTidied = _showTidied[1];
+  // What the last settings change did to the preview (usePreview.js
+  // describePreviewChange): which settings, and the counts before and after.
+  var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -1659,8 +1664,8 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
-    setBgOpen(false); setCleanupOpen(true); setIsCropping(false); setCropRect(null);
+    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
@@ -1961,13 +1966,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setCleanupDiff(null);
     }
-    if (!hasGenerated) {
-      // First generation only: collapse all the settings accordions so
-      // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false);
-      setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
-      setHasGenerated(true);
-    }
+    if (!hasGenerated) setHasGenerated(true);
     // Always switch to Edit mode after any generation — first or re-generate.
     // Previously only the first generate did this; regenerating from the
     // Image / Dimensions / Palette sidebar tabs left users stranded in
@@ -2586,9 +2585,8 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen,
-    adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
-    cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
+    convertTab, setConvertTab,
+    stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
@@ -2634,6 +2632,8 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewLoading, setPreviewLoading,
     previewError, setPreviewError,
+    previewTidied, setPreviewTidied, showTidied, setShowTidied,
+    previewChange, setPreviewChange,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,

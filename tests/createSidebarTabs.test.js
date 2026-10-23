@@ -7,109 +7,77 @@ const path = require('path');
 
 function read(p) { return fs.readFileSync(path.join(__dirname, '..', p), 'utf8'); }
 
-describe('Create-mode sidebar — five task tabs', () => {
+describe('Convert and Edit each have their own tabs', () => {
   const sidebarSrc = read('creator/Sidebar.js');
+  const convertSrc = read('creator/ConvertPanel.js');
   const stateSrc   = read('creator/useCreatorState.js');
-  const stripSrc   = read('creator/ToolStrip.js');
 
-  it('declares Image / Dimensions / Palette / (locked Tools+View) / Preview / Project as the unifiedTabs', () => {
-    // Polish 13 step 3 — createTabs is now an alias of unifiedTabs (a
-    // single 7-tab array used in both appModes).
-    const m = sidebarSrc.match(/var unifiedTabs\s*=\s*\[([\s\S]*?)\];/);
+  it('Edit has Palette / Tools / View / Preview / Project, with Tools and View locked until a pattern exists', () => {
+    const m = sidebarSrc.match(/var editTabs\s*=\s*\[([\s\S]*?)\];/);
     expect(m).toBeTruthy();
     const ids = Array.from(m[1].matchAll(/id:\s*"([^"]+)"/g)).map(x => x[1]);
-    expect(ids).toEqual(['image', 'dimensions', 'palette', 'tools', 'view', 'preview', 'project']);
-    // Tools/View are locked (disabled) until a pattern exists.
+    expect(ids).toEqual(['palette', 'tools', 'view', 'preview', 'project']);
     expect(m[1]).toMatch(/id:\s*"tools"[\s\S]{0,160}disabled:\s*!hasPattern/);
     expect(m[1]).toMatch(/id:\s*"view"[\s\S]{0,160}disabled:\s*!hasPattern/);
-    // createTabs is preserved as a back-compat alias of unifiedTabs.
-    expect(sidebarSrc).toMatch(/var createTabs\s*=\s*unifiedTabs;/);
   });
 
-  it('no longer ships the legacy single-Settings tab', () => {
+  it('Convert steps are Picture / Size / Threads / Detail / Project, each falling through to the next', () => {
+    const m = convertSrc.match(/var CONVERT_TABS = \[([\s\S]*?)\];/);
+    const ids = Array.from(m[1].matchAll(/id: "([^"]+)"/g)).map(x => x[1]);
+    expect(ids).toEqual(['picture', 'size', 'threads', 'detail', 'project']);
+    const next = Array.from(m[1].matchAll(/next: (null|"[^"]+")/g)).map(x => x[1]);
+    expect(next).toEqual(['"size"', '"threads"', '"detail"', 'null', 'null']);
+  });
+
+  it('no longer ships the legacy single-Settings tab, nor the old Convert ids in Edit', () => {
     expect(sidebarSrc).not.toMatch(/id:\s*"settings"/);
+    expect(sidebarSrc).not.toMatch(/id:\s*"image"/);
+    expect(sidebarSrc).not.toMatch(/id:\s*"dimensions"/);
   });
 
-  it('remaps a stored "settings" sidebarTab to "image" for back-compat', () => {
-    expect(stateSrc).toMatch(/v === "settings"[\s\S]{0,40}return "image"/);
-    expect(sidebarSrc).toMatch(/rawTab === "settings"[\s\S]{0,80}rawTab = "image"/);
+  it('a stored Edit tab Edit no longer has opens Palette', () => {
+    expect(stateSrc).toMatch(/var EDIT_SIDEBAR_TABS = \["palette", "tools", "view", "preview", "project"\];/);
+    expect(stateSrc).toMatch(/return EDIT_SIDEBAR_TABS\.indexOf\(v\) >= 0 \? v : "palette";/);
   });
 
-  it('persists the chosen sidebarTab via UserPrefs', () => {
+  it('persists the chosen Edit tab via UserPrefs; a new picture starts Convert on Picture', () => {
     expect(stateSrc).toMatch(/UserPrefs\.set\("creator\.sidebarTab"/);
+    expect(stateSrc).toMatch(/_setConvertTabRaw\("picture"\);/);
   });
 
-  it('puts all conversion sections (background, fabric, palette, dimensions) in the single create-mode panel', () => {
-    // Hybrid 1+5+3: create mode renders one scrollable createPanel with all
-    // sections stacked vertically (no tabContentMap or separate tab-content vars).
-    const cpIdx = sidebarSrc.indexOf('var createPanel');
-    expect(cpIdx).toBeGreaterThan(0);
-    // bgSection, palSection and dimSection must all appear inside the
-    // createPanel definition (within 2000 chars of it). The fabric select
-    // lives in dimSection (Output); the separate fabSection was a duplicate
-    // (audit B-16).
-    const cpBlock = sidebarSrc.slice(cpIdx, cpIdx + 2000);
-    expect(cpBlock).toMatch(/bgSection/);
-    expect(cpBlock).not.toMatch(/fabSection/);
-    expect(cpBlock).toMatch(/palSection/);
-    expect(cpBlock).toMatch(/dimSection/);
-    // The old separate tab-content vars are gone from create mode.
-    expect(sidebarSrc).not.toMatch(/var dimensionsContent\s*=\s*h\(React\.Fragment,[\s\S]*?bgSection/);
-  });
-
-  it('uses a single scrollable createPanel (not a tabContentMap) in create mode', () => {
-    // Hybrid 1+5+3: create mode renders one scrollable panel with all sections
-    // stacked vertically. The old tabContentMap routing is gone.
-    expect(sidebarSrc).toMatch(/var createPanel\s*=/);
-    expect(sidebarSrc).not.toMatch(/tabContentMap\s*=\s*\{/);
-  });
-
-  it('switches the Edit→Create button back to the Image tab (legacy "settings" id removed)', () => {
-    expect(sidebarSrc).toMatch(/setSidebarTab\("image"\)/);
-    // The legacy literal "settings" tab id must no longer appear as a setSidebarTab argument.
-    expect(sidebarSrc).not.toMatch(/setSidebarTab\("settings"\)/);
+  it('Convert is one panel component; the old accordion sections are gone', () => {
+    expect(sidebarSrc).not.toMatch(/var createPanel\s*=/);
+    expect(sidebarSrc).not.toMatch(/var (dimSection|palSection|tidySection|bgSection|adjSection)\b/);
+    expect(sidebarSrc).not.toMatch(/Show all conversion controls/);
+    expect(convertSrc).not.toMatch(/h\(Section,/);
   });
 });
 
-describe('Create-mode top toolbar — duplicate Generate removed', () => {
+describe('Convert has no chart tool strip', () => {
   const stripSrc = read('creator/ToolStrip.js');
 
-  it('no longer renders a Generate / Regenerate button in the create-mode toolbar', () => {
-    // Look at just the create-mode branch (everything before the
-    // "Edit Mode: full editing toolbar" divider).
+  it('returns nothing in Convert: it shows the live preview, and the chart tools are Edit\'s', () => {
     const splitMarker = '// ─── Edit Mode: full editing toolbar';
     const createSection = stripSrc.split(splitMarker)[0];
-    expect(createSection).not.toMatch(/aria-label.*Generate pattern/);
-    expect(createSection).not.toMatch(/Regenerate/);
-    expect(createSection).not.toMatch(/Generate/); // also rules out the comment
-  });
-
-  it('keeps the Overlay quick-toggle in the create-mode toolbar (uses Icons.image, no emoji)', () => {
-    const splitMarker = '// ─── Edit Mode: full editing toolbar';
-    const createSection = stripSrc.split(splitMarker)[0];
-    expect(createSection).toMatch(/Icons\.image\(\)/);
-    // The previous \uD83D\uDDBC (🖼) emoji must be gone.
-    expect(createSection).not.toMatch(/\uD83D\uDDBC/);
+    expect(createSection).toMatch(/if \(app\.appMode === "create"\) return null;/);
+    expect(createSection).not.toMatch(/Generate/);
   });
 });
 
 describe('Convert panel shows each control once (audit B-16)', () => {
-  const sidebarSrc = fs.readFileSync(path.join(__dirname, '..', 'creator/Sidebar.js'), 'utf8');
+  // Rendered and counted step by step in tests/convertPanel.test.js.
+  const convertSrc = fs.readFileSync(path.join(__dirname, '..', 'creator/ConvertPanel.js'), 'utf8');
 
-  it('renders "Skip background" once, in the Background section', () => {
-    expect(sidebarSrc.match(/h\("span", null, "Skip background"\)/g) || []).toHaveLength(1);
-    const bg = sidebarSrc.indexOf('var bgSection');
-    expect(sidebarSrc.indexOf('"Skip background"', bg)).toBeGreaterThan(bg);
+  it('renders the background switch once, in the Background section', () => {
+    expect(convertSrc.match(/label: "Leave background unstitched"/g) || []).toHaveLength(1);
+    const bg = convertSrc.indexOf('var background = sec("background"');
+    expect(convertSrc.indexOf('"Leave background unstitched"', bg)).toBeGreaterThan(bg);
   });
 
-  it('renders one fabric select, in the Output section', () => {
-    // The count select lives in the Fabric block (creator/FabricBlock.js, P2-2).
-    expect(sidebarSrc.match(/FABRIC_COUNTS\.map\(/g) || []).toHaveLength(0);
-    // One select, built by fabricSelect() and used in Size & fabric (and in
-    // the Canvas tab for a design drawn from scratch, P2-1).
-    const dim = sidebarSrc.indexOf('var dimSection');
-    expect(sidebarSrc.indexOf('fabricBlock()', dim)).toBeGreaterThan(dim);
-    expect(sidebarSrc).not.toMatch(/var fabSection/);
-    expect(sidebarSrc).toMatch(/Skein estimates assume 2 strands and 8 m per skein\./);
+  it('renders one fabric block, in the Size step', () => {
+    expect(convertSrc.match(/FABRIC_COUNTS\.map\(/g) || []).toHaveLength(0);
+    expect(convertSrc.match(/window\.CreatorFabricBlock/g) || []).toHaveLength(1);
+    expect(convertSrc).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
+    expect(convertSrc).toMatch(/Skein estimates assume 2 strands and 8 m per skein\./);
   });
 });

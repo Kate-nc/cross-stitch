@@ -7248,17 +7248,18 @@ window.useCreatorState = function useCreatorState() {
   // pointer events without a circular hook dependency.
   var denoiseHandlersRef = useRef(null);
 
-  // Sidebar tab within current mode (mode-specific).
-  // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
-  // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
+  // Edit's panel tab: "palette" | "tools" | "view" | "preview" | "project".
+  // Convert has its own step tab (convertTab). Ids Edit no longer has (the
+  // old Convert tabs "image" and "dimensions", and the older "settings")
+  // open Palette.
+  var EDIT_SIDEBAR_TABS = ["palette", "tools", "view", "preview", "project"];
   var _sidebarTab = useState(function () {
     var v = loadUserPref("creator.sidebarTab", null);
-    if (v === "settings") return "image";
-    return v || "image";
+    return EDIT_SIDEBAR_TABS.indexOf(v) >= 0 ? v : "palette";
   });
   var sidebarTab = _sidebarTab[0], _setSidebarTabRaw = _sidebarTab[1];
   function setSidebarTab(v) {
-    if (v === "settings") v = "image"; // back-compat for any caller still passing the old id
+    if (EDIT_SIDEBAR_TABS.indexOf(v) < 0) v = "palette";
     _setSidebarTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.sidebarTab", v); } catch (_) {}
   }
@@ -7372,16 +7373,13 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Section open states
-  // Convert panel order (audit IMG-06): Size & fabric, Colours, Detail and
-  // tidiness, Background, Adjust image, palette swap, Project. Size, Colours
-  // and Detail and tidiness start open; the rest start collapsed.
-  var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
-  var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
-  var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
-  var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
+  // Detail or Project. A new picture starts on Picture (resetAll).
+  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  function setConvertTab(v) {
+    var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
+    if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
+  }
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -7652,6 +7650,13 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
   var _prevError  = useState(null); var previewError = _prevError[0], setPreviewError = _prevError[1];
+  // The stitches Stitch Cleanup changed in the preview (an overlay picture),
+  // and whether Convert shows it.
+  var _prevTidied = useState(null); var previewTidied = _prevTidied[0], setPreviewTidied = _prevTidied[1];
+  var _showTidied = useState(false); var showTidied = _showTidied[0], setShowTidied = _showTidied[1];
+  // What the last settings change did to the preview (usePreview.js
+  // describePreviewChange): which settings, and the counts before and after.
+  var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -8193,8 +8198,8 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
-    setBgOpen(false); setCleanupOpen(true); setIsCropping(false); setCropRect(null);
+    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
@@ -8495,13 +8500,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setCleanupDiff(null);
     }
-    if (!hasGenerated) {
-      // First generation only: collapse all the settings accordions so
-      // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false);
-      setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
-      setHasGenerated(true);
-    }
+    if (!hasGenerated) setHasGenerated(true);
     // Always switch to Edit mode after any generation — first or re-generate.
     // Previously only the first generate did this; regenerating from the
     // Image / Dimensions / Palette sidebar tabs left users stranded in
@@ -9120,9 +9119,8 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen,
-    adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
-    cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
+    convertTab, setConvertTab,
+    stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
@@ -9168,6 +9166,8 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewLoading, setPreviewLoading,
     previewError, setPreviewError,
+    previewTidied, setPreviewTidied, showTidied, setShowTidied,
+    previewChange, setPreviewChange,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -14699,6 +14699,54 @@ window.useProjectIO = function useProjectIO(state, history, options) {
 // bigger chart is previewed smaller, so its counts are estimates.
 var PREVIEW_PAGE_MAX_AREA = 40000;
 
+// What a settings change did to the preview, for the line under it in
+// Convert ("Threads (max): threads 24 to 18, confetti 4.3% to 3.1%").
+// prev/next are { settings, summary, ids }; summary holds the counts shown.
+// Returns null when there is nothing to compare.
+var PREVIEW_CHANGE_LABELS = [
+  [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
+  [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
+  [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
+  [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
+  [['allowBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
+  [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
+  [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
+  [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
+];
+function _sameSetting(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null || typeof a !== 'object' || typeof b !== 'object') return false;
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; }
+}
+function describePreviewChange(prev, next) {
+  if (!prev || !next || !prev.settings || !next.settings) return null;
+  var settings = [];
+  PREVIEW_CHANGE_LABELS.forEach(function (row) {
+    if (row[0].some(function (k) { return !_sameSetting(prev.settings[k], next.settings[k]); })) settings.push(row[1]);
+  });
+  if (!settings.length) return null;
+  var a = prev.summary || {}, b = next.summary || {};
+  var stats = [];
+  function add(label, from, to, fmt) {
+    if (from == null || to == null) return;
+    var f = fmt ? fmt(from) : String(from), t = fmt ? fmt(to) : String(to);
+    if (f !== t) stats.push({ label: label, from: f, to: t });
+  }
+  add('threads', a.threads, b.threads);
+  add('chart symbols', a.symbols, b.symbols);
+  add('stitches', a.stitchable, b.stitchable, function (v) { return v.toLocaleString('en-GB'); });
+  add('confetti', a.confettiPct, b.confettiPct, function (v) { return v.toFixed(1) + '%'; });
+  add('skeins', a.skeins, b.skeins);
+  // Stitches whose thread changed, when both charts are the same size.
+  var changed = null;
+  if (prev.ids && next.ids && prev.ids.length === next.ids.length) {
+    changed = 0;
+    for (var i = 0; i < next.ids.length; i++) if (prev.ids[i] !== next.ids[i]) changed++;
+  }
+  return { settings: settings, stats: stats, changedStitches: changed, total: next.ids ? next.ids.length : null };
+}
+window.describePreviewChange = describePreviewChange;
+
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
@@ -14707,6 +14755,7 @@ window.usePreview = function usePreview(state) {
   var workerRef = React.useRef(null);
   var busyRef = React.useRef(false);      // a job is running in the worker
   var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
+  var settledRef = React.useRef(null);    // the last finished preview, for describePreviewChange
 
   function getWorker() {
     if (workerRef.current === 'unavailable') return null;
@@ -14730,7 +14779,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -14773,7 +14822,6 @@ window.usePreview = function usePreview(state) {
       var orphans = settings.orphans;
       var stitchCleanup = settings.stitchCleanup;
       var dith = settings.dith;
-      var showCleanupDiff = state.showCleanupDiff;
 
       // The chart's own size in the worker; on the page, at most
       // PREVIEW_PAGE_MAX_AREA stitches.
@@ -14908,6 +14956,18 @@ window.usePreview = function usePreview(state) {
           else { stitchable++; colorCounts[m.id] = (colorCounts[m.id] || 0) + 1; if (!colorRgbs[m.id]) colorRgbs[m.id] = m.rgb; }
         }
         var uniqueColors = Object.keys(colorCounts).length;
+        // Threads to buy: a blend's two threads count once each.
+        var threadSet = {};
+        Object.keys(colorCounts).forEach(function(id) { String(id).split('+').forEach(function(t) { threadSet[t] = true; }); });
+        var threadsUsed = Object.keys(threadSet).length;
+        // Stitches that tidying (and look-alike separation) changed.
+        var tidiedCount = null;
+        if (preCleanupIds && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0)) {
+          tidiedCount = 0;
+          for (var tq = 0; tq < mapped.length; tq++) {
+            if (preCleanupIds[tq] !== mapped[tq].id && preCleanupIds[tq] !== "__skip__") tidiedCount++;
+          }
+        }
         var scaleFactor = (sW * sH) / (pw * ph);
         var estSkeins = 0;
         Object.values(colorCounts).forEach(function(ct) { estSkeins += skeinEst(Math.round(ct * scaleFactor), fabricCt); });
@@ -14941,7 +15001,27 @@ window.usePreview = function usePreview(state) {
           estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
+          threadsUsed: threadsUsed,
+          tidiedStitches: tidiedCount == null ? null : Math.round(tidiedCount * scaleFactor),
         });
+        // What this change did, compared with the last finished preview.
+        var settledIds = new Array(mapped.length);
+        for (var si = 0; si < mapped.length; si++) settledIds[si] = mapped[si].id;
+        var settled = {
+          settings: settings,
+          ids: settledIds,
+          summary: {
+            threads: threadsUsed, symbols: uniqueColors, skeins: estSkeins,
+            stitchable: Math.round(stitchable * scaleFactor),
+            confettiPct: stitchable > 0 ? confettiFinal.singles / stitchable * 100 : 0
+          }
+        };
+        if (state.setPreviewChange) {
+          var change = describePreviewChange(settledRef.current, settled);
+          if (change) state.setPreviewChange(change);
+          else if (!settledRef.current) state.setPreviewChange(null);
+        }
+        settledRef.current = settled;
 
         var colorList = Object.keys(colorCounts).map(function(id) {
           return { id: id, rgb: colorRgbs[id], count: colorCounts[id] };
@@ -14972,17 +15052,24 @@ window.usePreview = function usePreview(state) {
           }
         }
         pcx.putImageData(imgData, 0, 0);
-        // Diff overlay on preview thumbnail
-        if (showCleanupDiff && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0) && preCleanupIds) {
-          pcx.fillStyle = "rgba(255,0,255,0.45)";
-          for (var pi = 0; pi < mapped.length; pi++) {
-            if (preCleanupIds[pi] !== mapped[pi].id && preCleanupIds[pi] !== "__skip__") {
-              var pcs2 = 1; // each preview pixel is 1px
-              pcx.fillRect(pi % pw, Math.floor(pi / pw), pcs2, pcs2);
+        state.setPreviewUrl(pc.toDataURL());
+        // The stitches tidying changed, as their own overlay picture: the
+        // preview itself always shows the chart as it will be.
+        if (state.setPreviewTidied) {
+          if (tidiedCount > 0) {
+            var tc = document.createElement("canvas"); tc.width = pw; tc.height = ph;
+            var tcx = tc.getContext("2d"); var tData = tcx.createImageData(pw, ph); var td = tData.data;
+            for (var ti = 0; ti < mapped.length; ti++) {
+              if (preCleanupIds[ti] !== mapped[ti].id && preCleanupIds[ti] !== "__skip__") {
+                var tidx = ti * 4; td[tidx] = 255; td[tidx + 1] = 0; td[tidx + 2] = 255; td[tidx + 3] = 200;
+              }
             }
+            tcx.putImageData(tData, 0, 0);
+            state.setPreviewTidied(tc.toDataURL());
+          } else {
+            state.setPreviewTidied(null);
           }
         }
-        state.setPreviewUrl(pc.toDataURL());
         if (hasHeat) {
           var hc = document.createElement("canvas"); hc.width = pw; hc.height = ph;
           var hcx = hc.getContext("2d"); hcx.putImageData(hData, 0, 0);
@@ -14994,7 +15081,7 @@ window.usePreview = function usePreview(state) {
       }
     } catch (err) { failPreview(); }
   }, [
-    state.img, state.conversionSettings, state.showCleanupDiff, state.globalStash,
+    state.img, state.conversionSettings, state.globalStash,
   ]);
 
   React.useEffect(function() {
@@ -15011,6 +15098,8 @@ window.usePreview = function usePreview(state) {
     if (sourceRef.current !== state.img) {
       sourceRef.current = state.img;
       rawCacheRef.current = null;
+      settledRef.current = null;
+      if (state.setPreviewChange) state.setPreviewChange(null);
       clearPreview();
     }
     if (state.setPreviewError) state.setPreviewError(null);
@@ -17548,61 +17637,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
-  // The Canvas tab (a design drawn from scratch: size and fabric) has no
-  // tools; the image-conversion strip below doesn't apply to it.
-  if (app.appMode === "create" && app.sourceTab === "canvas") return null;
-
-  // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
-  if (app.appMode === "create") {
-    var createZoomGrp = [
-      h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
-      h("div", {key:"zoom-grp", className:"tb-grp"},
-        h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:80}, title:"Zoom",
-          labelStyle:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}),
-        h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
-      )
-    ];
-    return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
-      h("div", {className:"pill-row"},
-        h("div", {ref:app.stripRef, className:"pill"},
-          // Overlay toggle — quick-access duplicate of the canonical
-          // "Source overlay" control in the sidebar's Image tab. The
-          // sidebar version owns opacity; this one just toggles on/off.
-          gen.img && h("button", {
-            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
-            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
-            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, Icons.image(), " Overlay"),
-          // Cleanup mode toggle — available in create mode to clean up
-          // lineart that was averaged into stitch colours during import.
-          ctx.pat && h("button", {
-            className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-            onClick:function(){
-              if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-              else { if (cv.enterCleanup) cv.enterCleanup(); }
-            },
-            title:"Fix outline colours: replace stitches where an outline was blended into the colours around it",
-            "aria-label":"Fix outline colours",
-            "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
-          }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Fix outline colours"),
-          // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
-          ctx.pat && h("button", {
-            className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
-            onClick:function(){
-              if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
-              else { if (cv.enterDenoise) cv.enterDenoise(); }
-            },
-            title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads",
-            "aria-label":"Reduce confetti",
-            "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
-          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Reduce confetti"),
-          // Zoom
-          createZoomGrp
-        )
-      ),
-      cv.activeTool === 'cleanup' ? cleanupRow : denoiseRow
-    );
-  }
+  // Convert and the Canvas tab have no chart tools: Convert shows the live
+  // preview of its settings (creator-main.js ConvertPreview), and the Canvas
+  // tab is the grid's size and fabric. The chart's tools are all in Edit.
+  if (app.appMode === "create") return null;
 
   // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
 
@@ -19247,7 +19285,7 @@ window.CropModal = function CropModal() {
             return h("button", {
               key: f.id, type: "button",
               className: "fabric-block__swatch" + (on ? " fabric-block__swatch--on" : ""),
-              style: { background: f.hex },
+              style: { background: f.hex, "--swatch": f.hex },
               title: f.label, "aria-label": f.label, "aria-pressed": on ? "true" : "false",
               onClick: function () { if (props.setFabricColour) props.setFabricColour(f.hex); }
             });
@@ -19636,11 +19674,6 @@ window.CreatorSidebar = function CreatorSidebar() {
   var h = React.createElement;
   var traceInputRef = React.useRef(null);
   var _pco = React.useState(true); var palChipsOpen = _pco[0], setPalChipsOpen = _pco[1];
-  var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
-  var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
-  var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
-  var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
-  var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
   var _anchorReady = React.useState(typeof ANCHOR !== 'undefined'); var anchorDataReady = _anchorReady[0], setAnchorDataReady = _anchorReady[1];
 
   React.useEffect(function () {
@@ -19668,81 +19701,8 @@ window.CreatorSidebar = function CreatorSidebar() {
     };
   }, [anchorDataReady, ctx.displayPal, ctx.pal, ctx.globalStash]);
 
-  function getCleanupWarning(sW, sH, orphans, previewStats) {
-    if (orphans === 0) return null;
-    var area = sW * sH;
-    if (area <= 900 && orphans > 0) {
-      return {level:"danger",message:"Your pattern is very small ("+sW+"\xD7"+sH+"), so merging confetti stitches may remove fine details. Choose More detail, or make the pattern bigger."};
-    }
-    if (area <= 1600 && orphans >= 2) {
-      return {level:"danger",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may lose eyes, lettering or thin lines. Choose More detail, or make the pattern bigger."};
-    }
-    if (area <= 2500 && orphans >= 3) {
-      return {level:"warning",message:"On a "+sW+"\xD7"+sH+" pattern this much tidying may remove more detail than expected. Try Balanced or More detail."};
-    }
-    if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
-      var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
-      var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
-      if (pctRemoved > 20) {
-        return {level:"danger",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). This will likely cause visible detail loss. Try a step towards More detail."};
-      }
-      if (pctRemoved > 10) {
-        return {level:"warning",message:"Reducing confetti would remove ~"+removed.toLocaleString()+" stitches ("+pctRemoved.toFixed(0)+"% of the pattern). Check the preview to make sure you\u2019re happy with the result."};
-      }
-    }
-    return null;
-  }
-
   // Note: sidebar always renders — now shown as a right panel (rpanel)
   // The sidebarOpen state is kept for accordion sections but the panel itself stays visible
-
-  // ── Inline Toggle component (used only in Stitch Cleanup section) ──────────
-  // props.info adds a hint icon right after the label. It sits outside the
-  // switch, so pressing it (or Enter on it) never flips the switch.
-  function Toggle(props) {
-    var track = h("span", {"aria-hidden":"true", style:{position:"relative",display:"inline-block",width:32,height:18,flexShrink:0}},
-      h("span", {style:{display:"block",position:"absolute",inset:0,borderRadius:9,
-        background:props.checked?"var(--accent)":"var(--border)",transition:"background 0.15s"}}),
-      h("span", {style:{display:"block",position:"absolute",width:14,height:14,top:2,
-        left:props.checked?16:2,borderRadius:"50%",background:"var(--surface)",
-        transition:"left 0.15s",boxShadow:"0 1px 3px rgba(0,0,0,0.18)"}})
-    );
-    var labelStyle = {fontSize:'var(--text-sm)',fontWeight:500,color:"var(--text-primary)",display:"block"};
-    var helpStyle = {fontSize:10,color:"var(--text-tertiary)",display:"block",marginTop:1};
-    function switchProps(style) {
-      return {
-        role: "switch",
-        tabIndex: 0,
-        "aria-checked": props.checked,
-        "aria-label": props.label,
-        onClick: function() { props.onChange(!props.checked); },
-        onKeyDown: function(e) {
-          if (e.repeat) return;
-          if (e.key === ' ' || e.key === 'Enter') {
-            e.preventDefault();
-            props.onChange(!props.checked);
-          }
-        },
-        style: Object.assign({display:"flex",alignItems:"center",gap:'var(--s-2)',cursor:"pointer",userSelect:"none"}, style)
-      };
-    }
-    if (!props.info) {
-      return h("div", switchProps({marginBottom:'var(--s-2)'}),
-        track,
-        h("span", {style:{flex:1}},
-          h("span", {style:labelStyle}, props.label),
-          props.help && h("span", {style:helpStyle}, props.help)
-        )
-      );
-    }
-    return h("div", {style:{marginBottom:'var(--s-2)'}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:4}},
-        h("div", switchProps(null), track, h("span", {style:labelStyle}, props.label)),
-        h(InfoIcon, {text:props.info, label:props.label, width:240})
-      ),
-      props.help && h("span", {style:Object.assign({}, helpStyle, {paddingLeft:'calc(32px + var(--s-2))'})}, props.help)
-    );
-  }
 
   // ── Change symbol (audit DRAW-05) ───────────────────────────────────────────
   var _symFor = React.useState(null); var symbolPickerFor = _symFor[0], setSymbolPickerFor = _symFor[1];
@@ -20064,72 +20024,6 @@ window.CreatorSidebar = function CreatorSidebar() {
     );
   })() : null;
 
-  // ── Crop image card ──────────────────────────────────────────────────────────
-  // When pickBg is active the card grows a pulsing orange outline and a
-  // prominent banner so the user knows this is the click target. ESC cancels
-  // (wired in useKeyboardShortcuts.js).
-  var imageCard = (ctx.pat && gen.img && gen.img.src) ? h("div", {id:"bg-pick-target", className:"card"+(gen.pickBg?" card--pickBg":"")},
-    gen.pickBg && h("div", {style:{padding:"10px 12px",fontSize:'var(--text-sm)',color:"var(--accent-hover)",fontWeight:600,background:"#F8EFD8",borderBottom:"1px solid #E5C99A",display:"flex",alignItems:"center",gap:'var(--s-2)'}},
-      h("span", {style:{flex:1}}, "Click anywhere on the image to set the background colour."),
-      h("button", {
-        onClick:function(){gen.setPickBg(false);},
-        title:"Cancel pick (Esc)",
-        style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"1px solid #D4A570",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--accent-hover)",cursor:"pointer",fontWeight:600}
-      }, "Cancel")
-    ),
-    h("div", {
-      style:{position:"relative",touchAction:"none",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none"}, ref:gen.cropRef,
-      onPointerDown:gen.handleCropPointerDown,
-      onPointerMove:gen.handleCropPointerMove,
-      onPointerUp:gen.handleCropPointerUp,
-      onPointerCancel:gen.handleCropPointerCancel,
-      onLostPointerCapture:gen.handleCropPointerCancel,
-      onPointerLeave:gen.handleCropPointerUp
-    },
-      h("img", {
-        src:gen.img.src, alt:"",
-        style:{width:"100%",display:"block",
-          cursor:gen.isCropping?"crosshair":(gen.pickBg?"crosshair":"default"),
-          opacity:gen.isCropping?0.7:1
-        },
-        onClick:gen.srcClick
-      }),
-      gen.isCropping && gen.cropRect && h("div", {style:{
-        position:"absolute",left:gen.cropRect.x,top:gen.cropRect.y,
-        width:gen.cropRect.w,height:gen.cropRect.h,
-        border:"2px dashed var(--accent)",background:"rgba(184, 92, 56,0.2)",
-        boxSizing:"border-box",pointerEvents:"none"
-      }})
-    ),
-    gen.isCropping
-      ? h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
-          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, "Draw a rectangle"),
-          h("div", {style:{display:"flex",gap:6}},
-            h("button", {
-              onClick:function(){gen.setIsCropping(false); gen.setCropRect(null);},
-              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
-            }, "Cancel"),
-            h("button", {
-              onClick:gen.applyCrop,
-              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"none",borderRadius:'var(--radius-sm)',background:"var(--accent)",color:"var(--surface)"}
-            }, "Apply")
-          )
-        )
-      : h("div", {style:{padding:"6px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--surface-tertiary)"}},
-          h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)"}}, gen.origW+"×"+gen.origH+"px"),
-          h("div", {style:{display:"flex",gap:6}},
-            h("button", {
-              onClick:function(){gen.setIsCropping(true); gen.setCropRect(null);},
-              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
-            }, "Crop"),
-            h("button", {
-              onClick:function(){gen.fRef.current.click();},
-              style:{fontSize:'var(--text-xs)',padding:"3px 8px",cursor:"pointer",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface-secondary)"}
-            }, "Change")
-          )
-        )
-  ) : null;
-
   // ── Blend picker local state ──────────────────────────────────────────────
   var _bl1 = React.useState(null); var blendThread1 = _bl1[0], setBlendThread1 = _bl1[1];
   var _bl2 = React.useState(null); var blendThread2 = _bl2[0], setBlendThread2 = _bl2[1];
@@ -20366,11 +20260,10 @@ window.CreatorSidebar = function CreatorSidebar() {
       )
     );
 
-  // ── Dimensions section ──────────────────────────────────────────────────────
-  var dimBadge = h("span", {style:{fontSize:'var(--text-xs)',fontWeight:500,color:"var(--text-secondary)",background:"var(--surface-tertiary)",padding:"1px 8px",borderRadius:'var(--radius-lg)'}}, ctx.sW+"×"+ctx.sH+" · "+(ctx.fabricCt||14)+"ct");
+  // ── Fabric block ────────────────────────────────────────────────────────────
   // The fabric the pattern is stitched on (audit COMMON-08): count, colour,
-  // finished and cut size. Saved with the pattern; shared by Size & fabric,
-  // the Canvas tab and Edit > Project.
+  // finished and cut size. Saved with the pattern; the same block is in
+  // Convert > Size (ConvertPanel.js), the Canvas tab and Edit > Project.
   function fabricBlock() {
     return h(window.CreatorFabricBlock, {
       fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
@@ -20378,765 +20271,34 @@ window.CreatorSidebar = function CreatorSidebar() {
       sW: ctx.sW, sH: ctx.sH
     });
   }
-  var dimSection = h(Section, {title:"Size & fabric", isOpen:app.dimOpen, onToggle:app.setDimOpen, badge:dimBadge},
-    // Stitches or finished size, frame presets and size notes (audit IMG-03).
-    window.CreatorSizeField ? h(window.CreatorSizeField, {
-      sW:ctx.sW, sH:ctx.sH, chgW:ctx.chgW, chgH:ctx.chgH, arLock:ctx.arLock, setArLock:ctx.setArLock, ar:ctx.ar,
-      fabricCt:ctx.fabricCt, origW:gen.origW, origH:gen.origH
-    }) : null,
-    h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:'var(--s-1)'}}, "Between 10 and 500 stitches each way"),
-    (ctx.sW > 250 || ctx.sH > 250) && h("div", {style:{fontSize:10,color:"var(--text-secondary)",background:"var(--surface-tertiary)",borderRadius:'var(--radius-sm)',padding:"4px 8px",marginTop:'var(--s-1)'}},
-      "Large pattern \u2014 15 to 25 threads keep generation fast and the result clean."
-    ),
-    h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-    h("div", {style:{marginTop:'var(--s-1)'}},
-      fabricBlock(),
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:6}}, "Skein estimates assume 2 strands and 8 m per skein.")
-    )
-  );
 
-  // Hover text for each picture type's button.
-  var PICTURE_TYPE_HINTS = {
-    graphic: "A few flat colours: up to 8 threads, no shading or blends, and a plain border left unstitched.",
-    photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
-    pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
-  };
-  // ── What kind of picture is this? (audit IMG-01) ─────────────────────────────
-  // Each choice applies a preset (useCreatorState PICTURE_PRESETS); Custom is
-  // shown once any value the preset set has been changed.
-  var pictureTypeSection = (!ctx.isScratchMode && gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER)
-    ? h("div", {className:"picture-type"},
-        h("div", {className:"picture-type__label convert-label"},
-          h("span", {id:"picture-type-label"}, "What kind of picture is this?"),
-          h(InfoIcon, {label:"What kind of picture is this?", width:260, text:"Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable."})),
-        h("div", {className:"lp-segmented picture-type__seg", role:"radiogroup", "aria-labelledby":"picture-type-label"},
-          window.PICTURE_PRESET_ORDER.map(function(id, i, order) {
-            var on = gen.pictureType === id;
-            // One Tab stop (the chosen type, or the first while Custom), and
-            // arrow keys move between the types and choose them.
-            var tabbable = on || (order.indexOf(gen.pictureType) === -1 && i === 0);
-            return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
-              className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-picture-type":id,
-              title:PICTURE_TYPE_HINTS[id],
-              tabIndex: tabbable ? 0 : -1,
-              onClick:function(){ gen.applyPicturePreset(id); },
-              onKeyDown:function(e){
-                var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-                if (!step) return;
-                e.preventDefault();
-                var next = order[(i + step + order.length) % order.length];
-                gen.applyPicturePreset(next);
-                var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-picture-type="' + next + '"]');
-                if (sib) sib.focus();
-              }}, window.PICTURE_PRESETS[id].label);
-          }),
-          h("button", {type:"button", role:"radio", "aria-checked":gen.pictureType === "custom" ? "true" : "false", disabled:true,
-            className:"lp-seg" + (gen.pictureType === "custom" ? " lp-seg--on" : ""), "data-picture-type":"custom",
-            title:"Your own settings. Pick a type to start again from its preset."}, "Custom")
-        ),
-        // Exact import is a Pixel art option, so it only shows for pixel art
-        // (or while it is on).
-        (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", {className:"picture-type__exact"},
-          // The hint sits outside the <label> so it never ticks the box.
-          h("div", {className:"convert-label"},
-            h("label", null,
-              h("input", { type:"checkbox", checked:!!gen.exactPixelArt,
-                disabled:(gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
-                onChange:function(e){ gen.setExactPixelArt(e.target.checked); } }), " Exact pixel-art import"),
-            h(InfoIcon, {label:"Exact pixel-art import", width:260, text:"Turns each pixel into exactly one stitch at the picture's own size, matched to the nearest solid thread. For pixel art up to 500 by 500 pixels. Size, adjustments, shading and tidying are skipped."})),
-          h("p", {className:"hint"}, gen.exactPixelArt
-            ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, shading and tidying are ignored. Review source-to-thread mappings in the preview before Generate."
-            : "One stitch per pixel, exactly: for pictures up to 500 by 500 pixels. Colours are mapped to solid threads.")
-        )
-      )
-    : null;
-
-  // ── Palette section (non-scratch) ───────────────────────────────────────────
-  var palSection = !ctx.isScratchMode ? h(Section, {title:"Colours", isOpen:app.palOpen, onToggle:app.setPalOpen},
-    // Which brand's threads the pattern is made from (P4-5 / audit IMG-04).
-    gen.setConvertBrand && window.THREAD_BRANDS && h("div", {className:"thread-brand"},
-      h("div", {className:"thread-brand__label convert-label"},
-        h("span", {id:"thread-brand-label"}, "Threads"),
-        h(InfoIcon, {label:"Threads", width:240, text:"Which brand of stranded cotton the colours are matched to. The key, shopping list, Stitch Tracker and printed chart all use that brand's numbers."})),
-      h("div", {className:"lp-segmented thread-brand__seg", role:"radiogroup", "aria-labelledby":"thread-brand-label"},
-        Object.keys(window.THREAD_BRANDS).map(function(id, i, order) {
-          var on = gen.convertBrand === id;
-          return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
-            className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-thread-brand":id,
-            tabIndex: on ? 0 : -1,
-            onClick:function(){ gen.setConvertBrand(id); },
-            onKeyDown:function(e){
-              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-              if (!step) return;
-              e.preventDefault();
-              var next = order[(i + step + order.length) % order.length];
-              gen.setConvertBrand(next);
-              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-thread-brand="' + next + '"]');
-              if (sib) sib.focus();
-            }}, window.THREAD_BRANDS[id].label);
-        })
-      ),
-      h("div", {className:"thread-brand__hint"}, "Colours are matched to " + window.threadBrandLabel(gen.convertBrand) + " stranded cotton.")
-    ),
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Threads (max)", value:gen.maxC, min:2, max:gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange:gen.setMaxC,
-        helpText:"Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
-        inlineHint:"Each thread is one colour of stranded cotton. A blend uses two of these threads in one stitch, so the chart can have more symbols than threads. Fewer threads means less shopping and faster stitching.",
-        helpTopic:"palette"}),
-      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && h("div", {style:{fontSize:10,color:"#A06F2D",marginTop:2}},
-        "Clamped to " + gen.stashThreadCount + " (stash size)"
-      ),
-      ctx.pal && ctx.threadCounts && ctx.threadCounts.threads > 0 && ctx.threadCounts.threads < gen.effectiveMaxC && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:2}},
-        ctx.threadCounts.threads + " of " + gen.effectiveMaxC + " threads used"
-      )
-    ),
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:gen.blendsAutoDisabled?"not-allowed":"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-2)',opacity:gen.blendsAutoDisabled?0.5:1}},
-      h("input", {type:"checkbox", checked:gen.allowBlends, disabled:gen.blendsAutoDisabled, onChange:function(e){gen.setAllowBlends(e.target.checked);}}),
-      h("span", null, "Allow two-thread blends"),
-      h(InfoIcon, {label:"Allow two-thread blends", text:"A blend puts one strand of each of two " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads in the needle to make an in-between shade, for smoother gradients.", width:220})
-    ),
-    // What the setting does to the chart, in words (UX-013).
-    h("div", {className:"convert-blend-effect", style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.45,marginBottom:'var(--s-2)'}},
-      gen.allowBlends
-        ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
-        : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser."
-    ),
-    window.BlendHelpNote && h(window.BlendHelpNote, {showSetting:false}),
-    gen.blendsAutoDisabled && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-2)'}},
-      "Auto-disabled \u2014 fewer than 6 stash threads"
-    ),
-    // Min stitches per colour is about how many threads to buy, so it lives
-    // with the other thread choices.
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Min stitches per colour", value:gen.minSt, min:0, max:500, step:5, onChange:gen.setMinSt,
-        format:function(v){return v===0?"Off":v;},
-        helpText:"Colours used fewer times than this are merged into a similar neighbour, so there are fewer threads to buy. Off still folds away stray colours automatically, keeping small bright accents.",
-        inlineHint:"Merges every colour used fewer times than this into a similar neighbour, reducing your thread count. Off still folds away stray colours automatically, keeping small bright accents.",
-        helpTopic:"palette"})
-    ),
-    typeof StashBridge !== "undefined" && h("label", {
-      style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginBottom:'var(--s-2)',marginTop:'var(--s-1)'}
-    },
-      h("input", {type:"checkbox", checked:gen.stashConstrained, onChange:function(e){gen.setStashConstrained(e.target.checked);}}),
-      h("span", null, "Use only stash threads"),
-      h(InfoIcon, {label:"Use only stash threads", text:"Constrains the palette to the " + (window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " threads you own. Produces a pattern you can stitch immediately without buying anything.", width:220})
-    ),
-    typeof StashBridge !== "undefined" && !gen.stashConstrained && h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginTop:-10,marginBottom:'var(--s-2)'}},
-      "Enable to generate patterns using only threads you already own."
-    ),
-    gen.stashConstrained && typeof StashBridge !== "undefined" && h(React.Fragment, null,
-      h("div", {style:{fontSize:'var(--text-xs)',color:"var(--accent)",background:"var(--accent-light)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',padding:"6px 10px",marginBottom:'var(--s-2)'}},
-        (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in stash" +
-          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? " \u2014 palette limited to " + gen.effectiveMaxC + " threads" : "")
-      ),
-      gen.stashPalette && gen.stashPalette.length > 0 && h("div", {style:{marginBottom:'var(--s-2)'}},
-        h("div", {style:{display:"flex",flexWrap:"wrap",gap:2,marginBottom:2}},
-          (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0,60)).map(function(t) {
-            return h(Tooltip, {key:t.id, text:"DMC " + t.id + " \u2014 " + t.name, width:160},
-              h("div", {style:{width:12,height:12,borderRadius:2,background:"rgb(" + t.rgb.join(",") + ")"}})
-            );
-          })
-        ),
-        gen.stashPalette.length > 60 && h("button", {
-          onClick:function(){setStashStripExpanded(function(o){return !o;});},
-          style:{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:"0 2px"}
-        }, stashStripExpanded ? "Show less" : "+" + (gen.stashPalette.length - 60) + " more")
-      ),
-      gen.coverageGaps && gen.coverageGaps.hasGaps && h("div", {style:{
-        fontSize:'var(--text-xs)',background:"var(--danger-soft)",border:"1px solid var(--danger-soft)",borderRadius:'var(--radius-md)',
-        padding:"6px 10px",marginBottom:'var(--s-2)',color:"var(--danger)",display:"flex",alignItems:"flex-start",gap:6
-      }},
-        h("span", {style:{fontSize:'var(--text-md)',lineHeight:1,flexShrink:0}}, Icons.warning()),
-        h("span", null, "Your stash may lack coverage in: ",
-          gen.coverageGaps.gaps.map(function(g, i) {
-            return h("span", {key:g.hue},
-              (i > 0 ? ", " : ""),
-              h("strong", null, g.hue),
-              g.severity === "high" ? " (significant)" : ""
-            );
-          })
-        )
-      ),
-      h("div", {style:{marginBottom:'var(--s-2)'}},
-        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:'var(--s-1)',fontWeight:500}}, "Quick-add thread to stash"),
-        h("div", {style:{display:"flex",alignItems:"center",gap:6}},
-          h("input", {
-            type:"text", value:qaVal,
-            // In the brand being converted to (P4-5).
-            placeholder:(window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC") + " number\u2026",
-            onChange:function(e){setQaVal(e.target.value);},
-            style:{flex:1,padding:"4px 8px",fontSize:'var(--text-sm)',borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",fontFamily:"inherit"}
-          }),
-          (function(){
-            var dmc = findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim());
-            return dmc ? h(Tooltip, {text:formatThread({ id: dmc.id, name: dmc.name, brand: gen.convertBrand }), width:160},
-              h("div", {style:{width:18,height:18,borderRadius:3,background:"rgb(" + dmc.rgb.join(",") + ")"}})
-            ) : null;
-          })(),
-          h("button", {
-            disabled:qaLoading || !findThreadInCatalog(gen.convertBrand || 'dmc', qaVal.trim()),
-            onClick:function(){
-              var trimmed = qaVal.trim();
-              var qaBrand = gen.convertBrand || 'dmc';
-              if (!trimmed || !findThreadInCatalog(qaBrand, trimmed)) return;
-              var qaKey = qaBrand + ':' + trimmed;
-              setQaLoading(true);
-              StashBridge.addToStash(qaKey, 1).then(function(){
-                setQaVal(""); setQaLoading(false);
-                ctx.setGlobalStash(function(s){
-                  var n = Object.assign({}, s);
-                  if (!n[qaKey]) n[qaKey] = {};
-                  n[qaKey] = Object.assign({}, n[qaKey], {owned: (n[qaKey].owned || 0) + 1});
-                  return n;
-                });
-              }).catch(function(){ setQaLoading(false); });
-            },
-            style:{fontSize:'var(--text-xs)',padding:"4px 10px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--accent-border)",background:qaLoading?"var(--border)":"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
-          }, qaLoading ? "\u2026" : "+ Add")
-        )
-      ),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:10}},
-        h("div", {style:{display:"flex",alignItems:"center",gap:6,marginBottom:'var(--s-1)',flexWrap:"wrap"}},
-          h("button", {
-            onClick:function(){ gen.randomise(); },
-            disabled:!(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img,
-            style:{display:"flex",alignItems:"center",gap:'var(--s-1)',fontSize:'var(--text-sm)',fontWeight:500,padding:"5px 12px",borderRadius:'var(--radius-md)',border:"0.5px solid var(--accent-border)",background:"var(--accent-light)",color:"var(--accent)",cursor:"pointer",fontFamily:"inherit"}
-          }, Icons.shuffle(), " Randomise"),
-          gen.variationSeed ? (seedEditing ?
-            h("span", {style:{display:"flex",alignItems:"center",gap:3}},
-              h("input", {
-                type:"number", value:seedTmp, autoFocus:true,
-                onChange:function(e){setSeedTmp(e.target.value);},
-                onKeyDown:function(e){
-                  if (e.key==="Enter"){ var n=parseInt(seedTmp,10); if(!isNaN(n)&&n>0){gen.applyVariationSeed(n>>>0);} setSeedEditing(false); }
-                  else if(e.key==="Escape"){setSeedEditing(false);}
-                },
-                onBlur:function(){setSeedEditing(false);},
-                style:{width:70,padding:"2px 4px",fontSize:10,borderRadius:4,border:"0.5px solid var(--accent-border)",fontFamily:"inherit"}
-              })
-            ) :
-            h("span", {
-              onClick:function(){setSeedEditing(true);setSeedTmp(String(gen.variationSeed));},
-              title:"Click to enter a specific seed",
-              style:{fontSize:10,color:"var(--text-tertiary)",cursor:"pointer",userSelect:"none",fontVariantNumeric:"tabular-nums"}
-            }, "#" + gen.variationSeed)
-          ) : null
-        ),
-        gen.stashConstrained && gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 && h("div", {
-          style:{fontSize:10,color:"var(--accent)",marginBottom:6,display:"flex",alignItems:"center",gap:'var(--s-1)'}
-        }, Icons.dice(), " Roulette \u2014 using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads"),
-        h("button", {
-          onClick:function(){
-            gen.setGalleryOpen(function(o){return !o;});
-            if (!gen.galleryOpen) gen.generateGallery();
-          },
-          style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",background:"none",border:"none",cursor:"pointer",padding:"0",fontFamily:"inherit",display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}
-        },
-          h("span", {"aria-hidden":"true", style:{display:"inline-flex",width:12,height:12,transform:gen.galleryOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}, Icons.chevronRight()),
-          "Explore variations"
-        ),
-        gen.galleryOpen && h("div", {style:{marginTop:'var(--s-1)'}},
-          h("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:'var(--s-2)'}},
-            gen.gallerySlots.map(function(slot, i) {
-              return h("div", {
-                key:i,
-                onClick:function(){ if (!slot.loading && slot.url) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } },
-                style:{
-                  borderRadius:'var(--radius-md)',overflow:"hidden",border:"0.5px solid var(--border)",
-                  cursor:(!slot.loading && slot.url) ? "pointer" : "default",
-                  background:"var(--surface-secondary)",transition:"border-color 0.15s"
-                }
-              },
-                slot.loading ?
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--text-tertiary)"}}, "\u2026") :
-                slot.url ?
-                  h("div", null,
-                    h("img", {src:slot.url, style:{width:"100%",display:"block",imageRendering:"pixelated"}}),
-                    h("div", {style:{padding:"3px 6px",fontSize:9,color:"var(--text-secondary)"}},
-                      "#" + slot.seed + " \u00B7 " + slot.threadCount + " threads"
-                    )
-                  ) :
-                  h("div", {style:{height:60,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#B85555"}}, "Error")
-              );
-            })
-          ),
-          h("div", {style:{display:"flex",justifyContent:"center"}},
-            h("button", {
-              onClick:function(){ gen.generateGallery(); },
-              style:{fontSize:'var(--text-xs)',padding:"4px 12px",borderRadius:'var(--radius-sm)',border:"0.5px solid var(--border)",background:"var(--surface)",color:"var(--text-secondary)",cursor:"pointer",fontFamily:"inherit"}
-            }, "New batch")
-          )
-        ),
-        gen.variationHistory.length > 0 && h("div", {style:{marginTop:'var(--s-2)'}},
-          h("div", {style:{fontSize:10,color:"var(--text-tertiary)",marginBottom:'var(--s-1)'}}, "Recent variations"),
-          h("div", {style:{display:"flex",gap:'var(--s-1)',overflowX:"auto",paddingBottom:4}},
-            gen.variationHistory.map(function(entry, i) {
-              return h("div", {
-                key:(entry.timestamp || i) + "-" + i,
-                onClick:function(){ gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); },
-                title:"Seed #" + entry.seed,
-                style:{flexShrink:0,cursor:"pointer",borderRadius:4,overflow:"hidden",border:"0.5px solid var(--border)"}
-              },
-                entry.previewUrl ?
-                  h("img", {src:entry.previewUrl, style:{width:32,height:32,display:"block",imageRendering:"pixelated",objectFit:"cover"}}) :
-                  h("div", {style:{width:32,height:32,background:"var(--surface-tertiary)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--text-tertiary)"}}, "?"),
-                h("div", {style:{fontSize:7,color:"var(--text-tertiary)",textAlign:"center",padding:"1px 2px"}}, "#" + entry.seed)
-              );
-            })
-          )
-        )
-      )
-    )
-    // Dithering moved out of this section into "Smoothing & cleanup" — it's
-    // a colour-blending choice that pairs naturally with the cleanup options
-    // it depends on (e.g. "Smooth dithering" only matters when dither is on).
-  ) : null;
-
-  // ── Detail and tidiness ─────────────────────────────────────────────────────
-  // One choice from More detail to Easiest to stitch sets shading and tidying
-  // together (STITCH_STYLES in useCreatorState.js, steps measured on photos).
-  // The individual controls stay under Fine-tune; changing one there shows
-  // Custom. Min stitches per colour lives in Colours, picture fixes in Adjust image.
-  var tidySection = !ctx.isScratchMode ? (function() {
-    var sc2 = gen.stitchCleanup;
-    // The dot marks settings changed under Fine-tune (no step matches them).
-    var styleNow = gen.stitchStyle || "custom";
-    var styleBasis = gen.stitchStyleBasis || "photo";
-    var tidyBadge = styleNow === "custom" ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-    var styleOrder = window.STITCH_STYLE_ORDER || [];
-    var styleDescs = (window.STITCH_STYLE_DESCRIPTIONS || {})[styleBasis] || {};
-    // What the preview chart has now (the worker converts it at full size).
-    var ps = app.previewStats;
-    // The finished chart's count (after look-alike separation and the thread
-    // limit); older stats objects only have the cleanup counts.
-    var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
-      : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
-    var styleChooser = h("div", {className:"stitch-style"},
-      h("div", {className:"stitch-style__lead"},
-        "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch. ",
-        h(InfoIcon, {label:"Detail and tidiness", width:280, text:"More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour. Fine-tune holds every individual control."})),
-      h("div", {className:"lp-segmented stitch-style__seg", role:"radiogroup", "aria-label":"Detail and tidiness"},
-        styleOrder.map(function(id, i, order) {
-          var on = styleNow === id;
-          var tabbable = on || (styleNow === "custom" && i === 0);
-          return h("button", {key:id, type:"button", role:"radio", "aria-checked":on ? "true" : "false",
-            className:"lp-seg" + (on ? " lp-seg--on" : ""), "data-stitch-style":id,
-            title:styleDescs[id],
-            tabIndex: tabbable ? 0 : -1,
-            onClick:function(){ gen.applyStitchStyle(id); },
-            onKeyDown:function(e){
-              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
-              if (!step) return;
-              e.preventDefault();
-              var next = order[(i + step + order.length) % order.length];
-              gen.applyStitchStyle(next);
-              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-stitch-style="' + next + '"]');
-              if (sib) sib.focus();
-            }}, window.STITCH_STYLE_LABELS[id]);
-        })
-      ),
-      h("p", {className:"stitch-style__desc"}, styleNow === "custom"
-        ? "Custom: your own mix of shading and tidying, set under Fine-tune. Pick a step to start again from it."
-        : styleDescs[styleNow]),
-      // The count is for the preview on screen: while a new one is worked out
-      // it would be the previous step's, so it waits. A preview smaller than
-      // the chart (no background worker) gives scaled-up estimates.
-      app.previewLoading && ps ? h("p", {className:"stitch-style__outcome", "data-outcome":"updating", "aria-live":"polite"},
-        "Updating preview\u2026")
-      : confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome", "data-outcome":ps.estimated ? "estimate" : "count", "aria-live":"polite"},
-        "In the preview: " + (ps.estimated ? "about " : "") + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
-        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches)" +
-        (ps.estimated ? ", estimated from a smaller preview." : "."))
-      ,
-      // A small grid with heavy tidying can lose eyes and lettering: say so
-      // here, not only under Fine-tune, because a step can set it.
-      sc2.enabled && (function() {
-        var warning = getCleanupWarning(ctx.sW, ctx.sH, gen.orphans, app.previewStats);
-        if (!warning) return null;
-        var isDanger = warning.level === "danger";
-        return h("div", {role:"note", style:{
-          marginTop:6,padding:"8px 10px",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',lineHeight:1.5,
-          background:isDanger?"var(--danger-soft)":"var(--warning-soft)",
-          border:"1px solid "+(isDanger?"var(--danger-soft)":"var(--warning-soft)"),
-          color:isDanger?"var(--danger)":"var(--accent-ink)",
-          display:"flex",alignItems:"flex-start",gap:6
-        }},
-          h("span", {"aria-hidden":"true", style:{fontSize:'var(--text-lg)',lineHeight:1,flexShrink:0}}, isDanger?Icons.warning():Icons.lightbulb()),
-          h("span", null, warning.message)
-        );
-      })()
-    );
-    var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
-    var dithAlgo = dithCur === "off" ? "off" : dithCur.startsWith("bayer") ? "bayer" : "atkinson";
-    // Shading (audit COMMON-09): Off, Smooth blend or Pattern blend. The
-    // method names are only under Advanced.
-    var algoOpts = [
-      {id:"off",      label:"Off",           tip:"Each stitch takes its closest thread. The tidiest chart and the easiest to stitch."},
-      {id:"atkinson", label:"Smooth blend",  tip:"Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos."},
-      {id:"bayer",    label:"Pattern blend", tip:"Mixes threads in a regular, repeating pattern where colours change. Suits graphics and pixel-style pictures, not photos: on a photo it adds many confetti stitches."},
-    ];
-    var atkinsonLevels = [
-      {id:"weak",     label:"Subtle",   tip:"Light blending, with very few confetti stitches."},
-      {id:"balanced", label:"Balanced", tip:"Smoother gradients, with more confetti stitches."},
-    ];
-    var bayerSizes = [
-      {id:"bayer2", label:"Coarse", tip:"A bold, chequered pattern."},
-      {id:"bayer4", label:"Medium", tip:"A balanced, regular pattern."},
-      {id:"bayer8", label:"Fine",   tip:"A fine, detailed pattern."},
-    ];
-    function setAlgoClick(algo) {
-      if (algo === "off") { gen.setDith("off"); return; }
-      if (algo === "atkinson" && dithAlgo !== "atkinson") { gen.setDith("balanced"); return; }
-      if (algo === "bayer"    && dithAlgo !== "bayer")    { gen.setDith("bayer4");   return; }
-    }
-    // Sub-option buttons shared helper
-    function subRow(opts, activeFn) {
-      return h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,marginTop:'var(--s-1)'}},
-        opts.map(function(o) {
-          var active = activeFn(o.id);
-          return h(Tooltip, {key:o.id, text:o.tip, width:220},
-            h("button", {
-              onClick:function(){gen.setDith(o.id);},
-              style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-                background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
-                color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
-                boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
-            }, o.label)
-          );
-        })
-      );
-    }
-    return h(Section, {title:"Detail and tidiness", isOpen:app.cleanupOpen, onToggle:app.setCleanupOpen, badge:tidyBadge},
-      styleChooser,
-      // Every control behind the style choice, for those who want them.
-      h("details", {className:"convert-advanced convert-finetune"},
-        h("summary", null, "Fine-tune"),
-        // ── Shading subsection ───────────────────────────────────────────────
-        h("div", {style:{marginTop:'var(--s-2)'}},
-          h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-            h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:600}}, "Shading"),
-            h(InfoIcon, {label:"Shading", text:"Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.", width:240})
-          ),
-          // Off | Smooth blend | Pattern blend
-          h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-            algoOpts.map(function(o) {
-              var active = dithAlgo === o.id;
-              return h(Tooltip, {key:o.id, text:o.tip, width:240},
-                h("button", {
-                  onClick:function(){setAlgoClick(o.id);},
-                  style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-                    background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
-                    color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
-                    boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
-                }, o.label)
-              );
-            })
-          ),
-          // Sub-option row (contextual)
-          dithAlgo === "atkinson" && subRow(atkinsonLevels, function(id){ return dithCur === id; }),
-          dithAlgo === "bayer"    && subRow(bayerSizes,     function(id){ return dithCur === id; }),
-          // The method names, for those who want them.
-          h("details", {className:"convert-advanced"},
-            h("summary", null, "Advanced"),
-            h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.") // terminology-lint-allow
-          )
-        ),
-        h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-        h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Tidying"),
-        h("div", {style:{marginTop:'var(--s-1)'}},
-          // Stitch Cleanup is the on/off switch; Reduce confetti the amount
-          // (colour-utils.js confettiCleanupPlan). They used to be separate
-          // controls, with a Cleanup strength that the confetti slider overrode.
-          h(Toggle, {
-            checked:sc2.enabled,
-            onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{enabled:v});});},
-            label:"Stitch Cleanup",
-            help:"Merges confetti stitches that are hard to sew, and folds away the in-between shades along edges. Turn off to keep every stitch as matched.",
-            info:"Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them, and blurry in-between shades along edges fold into the colours either side. Off keeps every stitch exactly as matched."
-          }),
-          sc2.enabled && h(React.Fragment, null,
-            h("div", {style:{marginTop:'var(--s-2)'}},
-              h(SliderRow, {label:"Reduce confetti", value:gen.orphans, min:0, max:3, onChange:gen.setOrphans,
-                format:function(v){return v===0?"Off":String(v);},
-                helpText:"How big a group of cut-off stitches is merged into the colour around it: 1 merges confetti stitches, 2 groups of up to 2, 3 groups of up to 3 (three times larger in plain areas). Off merges none.",
-                inlineHint:"Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
-                helpTopic:"confetti"}),
-              gen.orphans > 0 && (function() {
-                // Sizes from confettiCleanupPlan (colour-utils.js): level n merges
-                // patches of up to n stitches, and up to 3n in plain areas.
-                var desc;
-                if (gen.orphans === 1) {
-                  desc = h("span", null, "Merges ", h("strong", null, "confetti stitches"), " \u2014 stitches with no same-colour neighbour \u2014 into the colour around them. In plain areas, groups of up to 3 stitches.");
-                } else if (gen.orphans === 2) {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 2 stitches"), " cut off from their colour, and up to 6 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid (", (ctx.sW*ctx.sH).toLocaleString(), " cells), this is ", ctx.sW <= 50 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a balanced cleanup", ".");
-                } else {
-                  desc = h("span", null, "Merges groups of ", h("strong", null, "up to 3 stitches"), " cut off from their colour, and up to 9 in plain areas. On your ", ctx.sW, "\xD7", ctx.sH, " grid, this is ", ctx.sW <= 40 ? h("span", {style:{color:"var(--danger)",fontWeight:600}}, "very aggressive") : ctx.sW <= 80 ? h("span", {style:{color:"var(--warning)",fontWeight:600}}, "moderately aggressive") : "a thorough cleanup", ".");
-                }
-                return h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginTop:'var(--s-1)',lineHeight:1.5}}, desc);
-              })()
-            ),
-            gen.orphans > 0 && app.previewStats && app.previewStats.confettiCleanSingles != null && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}},
-              "Preview estimate: removes ~", (app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles).toLocaleString(), " confetti stitches",
-              " (", ((app.previewStats.confettiSingles - app.previewStats.confettiCleanSingles) / Math.max(1, app.previewStats.stitchable) * 100).toFixed(1), "% of pattern)"
-            ),
-            ctx.pat && gen.cleanupDiff && h("div", {style:{marginTop:6,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}},
-              h("button", {
-                onClick:function(){gen.setShowCleanupDiff(function(d){return !d;});},
-                style:{
-                  fontSize:'var(--text-xs)',padding:"3px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
-                  border:gen.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--border)",
-                  background:gen.showCleanupDiff?"var(--accent-light)":"var(--surface)",
-                  color:gen.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-                  fontWeight:gen.showCleanupDiff?600:400,
-                  display:"flex",alignItems:"center",gap:'var(--s-1)',lineHeight:1.4
-                }
-              }, Icons.eye(), " " + (gen.showCleanupDiff ? "Hide changes" : "Show changes"))
-            ),
-            gen.showCleanupDiff && gen.cleanupDiff && h("div", {style:{
-              fontSize:'var(--text-xs)',color:"var(--text-secondary)",padding:"6px 10px",
-              background:"var(--surface-secondary)",border:"1px solid var(--accent-border)",borderRadius:'var(--radius-md)',
-              marginTop:'var(--s-1)',lineHeight:1.5
-            }},
-              h("span", {"aria-hidden":"true", style:{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"var(--accent)",marginRight:'var(--s-1)',verticalAlign:"middle"}}),
-              gen.cleanupDiff.count.toLocaleString(), " stitches changed",
-              ctx.totalStitchable > 0 ? " (" + (gen.cleanupDiff.count / ctx.totalStitchable * 100).toFixed(1) + "%)" : "",
-              Object.keys(gen.cleanupDiff.byColour).length > 0 && h("span", {style:{marginLeft:'var(--s-2)',color:"var(--text-tertiary)"}},
-                Object.entries(gen.cleanupDiff.byColour)
-                  .sort(function(a,b){return b[1]-a[1];})
-                  .slice(0,4)
-                  .map(function(e){return "DMC "+e[0]+": "+e[1];})
-                  .join(" \xB7 ") +
-                  (Object.keys(gen.cleanupDiff.byColour).length > 4 ? " \xB7 +" + (Object.keys(gen.cleanupDiff.byColour).length - 4) + " more" : "")
-              )
-            ),
-            h(Toggle, {
-              checked:sc2.protectDetails,
-              onChange:function(v){gen.setStitchCleanup(function(s){return Object.assign({},s,{protectDetails:v});});},
-              label:"Protect fine details",
-              info:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines, out of the tidying. Turn off for the tidiest chart. Bright accents such as a catchlight are kept either way.",
-              help:"Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines. Off gives the tidiest chart, easiest to stitch. Bright accents such as catchlights are kept either way."
-            })
-          )
-        ),
-        h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-3)',paddingTop:'var(--s-2)'}}),
-        h("div", {style:{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:'var(--s-1)',marginTop:'var(--s-1)'}}, "Legibility"),
-        h("div", {style:{marginTop:'var(--s-1)'}},
-          h(Toggle, {
-            checked:gen.disambig,
-            onChange:gen.setDisambig,
-            label:"Keep look-alike colours apart",
-            info:"After matching, changes a stitch whose neighbour is a thread too similar to tell apart on a printed chart, so the symbols are easier to follow. Those stitches move a little away from the picture's colour.",
-            help:"After generating, changes stitches that sit next to a thread too similar to tell apart on a printed chart, moving them away from their closest thread. Makes skies and skin tones easier to read, at some cost to colour accuracy."
-          }),
-          gen.disambig && h(React.Fragment, null,
-            h("div", {style:{marginTop:'var(--s-2)'}},
-              h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-1)',marginBottom:'var(--s-1)'}},
-                h("span", {style:{fontSize:'var(--text-sm)',color:"var(--text-secondary)",fontWeight:500}}, "How strict"),
-                h(InfoIcon, {label:"How strict", text:"Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy.", width:240})
-              ),
-              h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2}},
-                [["gentle","Gentle"],["standard","Standard"],["strong","Strong"]].map(function(pair) {
-                  var id = pair[0], label = pair[1];
-                  var active = (gen.disambigLevel || 'standard') === id;
-                  return h("button", {
-                    key:id,
-                    onClick:function(){gen.setDisambigLevel(id);},
-                    style:{flex:1,padding:"5px 6px",fontSize:'var(--text-xs)',fontWeight:active?600:400,
-                      background:active?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',
-                      color:active?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",
-                      boxShadow:active?"0 1px 2px rgba(0,0,0,0.04)":"none",whiteSpace:"nowrap"}
-                  }, label);
-                })
-              )
-            ),
-            gen.disambigData && gen.disambigData.swaps > 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:'var(--s-1)',lineHeight:1.5}},
-              "Last run: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " cells swapped across ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : ""
-            ),
-            gen.disambigData && gen.disambigData.swaps === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--success)",marginTop:'var(--s-1)'}},
-              "No adjacent cells needed correction."
-            )
-          )
-        )
-      )
-    );
-  })() : null;
-
-  // ── Image section (non-scratch) — source adjustments ───────────────────────
-  // Background has its own section (bgSection) below; it used to be repeated
-  // here as well (audit B-16).
-  var adjBadge = (gen.bri||gen.con||gen.sat||gen.smooth||gen.preSharpen) ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--accent)",display:"inline-block"}}) : null;
-  var adjSection = !ctx.isScratchMode ? h(Section, {title:"Adjust image", isOpen:app.adjOpen, onToggle:app.setAdjOpen, badge:adjBadge},
-    h("div", {style:{marginTop:'var(--s-2)'}},
-      h(SliderRow, {label:"Soften grainy photos", value:gen.smooth, min:0, max:4, step:0.1, onChange:gen.setSmooth,
-        format:function(v){return v===0?"Off":v.toFixed(1);},
-        helpText:"Blurs the picture slightly before threads are chosen: fewer speckled stitches, but softer edges and outlines. Most photos look best at Off.",
-        inlineHint:"Blurs the picture at stitch size before threads are matched. Fewer speckled stitches, but softer edges and outlines. Shrinking a photo to stitches already smooths away grain, so most photos look best at Off.",
-        helpTopic:"image"}),
-      gen.smooth===0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",marginTop:2}}, "Most photos look best at Off. Try 1 only for very speckled results"),
-      // The softening method is under Advanced (audit COMMON-09).
-      gen.smooth>0 && h("details", {className:"convert-advanced"},
-        h("summary", null, "Advanced"),
-        h("div", {style:{display:"flex",gap:6,margin:"6px 0"}},
-        h("div", {style:{display:"flex",gap:2,background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',padding:2,flex:1}},
-          h(Tooltip, {text:"Preserves edges better. Best for most photos", width:220},
-            h("button", {onClick:function(){gen.setSmoothType("median");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="median"?500:400,background:gen.smoothType==="median"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="median"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="median"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Median")
-          ),
-          h(Tooltip, {text:"Stronger overall blur. Better for very grainy or pixelated images", width:220},
-            h("button", {onClick:function(){gen.setSmoothType("gaussian");}, style:{padding:"5px 12px",fontSize:'var(--text-sm)',fontWeight:gen.smoothType==="gaussian"?500:400,background:gen.smoothType==="gaussian"?"var(--surface)":"transparent",borderRadius:'var(--radius-sm)',color:gen.smoothType==="gaussian"?"var(--text-primary)":"var(--text-secondary)",border:"none",cursor:"pointer",boxShadow:gen.smoothType==="gaussian"?"0 1px 2px rgba(0,0,0,0.04)":"none",flex:1}}, "Gaussian") // terminology-lint-allow
-          )
-        )
-      )),
-      h(SliderRow, {label:"Brightness", value:gen.bri, min:-50, max:50, onChange:gen.setBri, format:function(v){return (v>0?"+":"")+v+"%";},
-        helpText:"Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out."}),
-      h(SliderRow, {label:"Contrast", value:gen.con, min:-50, max:50, onChange:gen.setCon, format:function(v){return (v>0?"+":"")+v+"%";},
-        helpText:"Pushes the lights and darks further apart, or closer together. More contrast gives a crisper, bolder chart; less gives a softer one."}),
-      h(SliderRow, {label:"Saturation", value:gen.sat, min:-50, max:50, onChange:gen.setSat, format:function(v){return (v>0?"+":"")+v+"%";},
-        helpText:"Makes the colours more vivid, or more muted, before threads are chosen."}),
-      h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)'}}),
-      h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",userSelect:"none"}},
-        h("input", {type:"checkbox", checked:!!gen.preSharpen, onChange:function(e){gen.setPreSharpen(e.target.checked);}}),
-        h("span", null, "Sharpen details"),
-        h(InfoIcon, {label:"Sharpen details", text:"Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy.", width:260})
-      ),
-      gen.preSharpen && h(SliderRow, {
-        label:"Amount",
-        value:gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5,
-        min:0.1, max:2.0, step:0.1,
-        onChange:gen.setPreSharpenAmount,
-        format:function(v){return v.toFixed(1)+"x";},
-        helpText:"Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
-        inlineHint:"0.5 is a safe default. Above 1.0 watch for halos on hard edges.",
-        helpTopic:"image"
-      })
-    )
-  ) : null;
-
-  // ── Background section (non-scratch) ───────────────────────────────────────
-  // The "Skip background" toggle auto-enters pick mode the first time it's
-  // turned on so the user is never left wondering what to click. Re-toggling
-  // off and on doesn't keep re-arming pick mode (only on the 0→1 transition
-  // when no bgCol has been customised).
-  var bgBadge = gen.skipBg ? h("span", {style:{width:6,height:6,borderRadius:"50%",background:"var(--success)",display:"inline-block"}}) : null;
-  function armBgPick() {
-    // Switch the user to the Image tab so the pick target is visible.
-    if (app.appMode === "create" && app.setSidebarTab) app.setSidebarTab("image");
-    gen.setPickBg(true);
-    // Scroll the source-image card into view so users know where to click
-    // next. Defer twice so the tab switch + pickBg re-render have committed.
-    if (typeof window !== "undefined" && window.requestAnimationFrame) {
-      window.requestAnimationFrame(function(){
-        window.requestAnimationFrame(function(){
-          var el = document.getElementById("bg-pick-target");
-          if (el && el.scrollIntoView) {
-            try { var __reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; el.scrollIntoView({behavior: __reduced ? "auto" : "smooth", block:"center"}); }
-            catch (_) { el.scrollIntoView(); }
-          }
-        });
-      });
-    }
-  }
-  var bgSection = !ctx.isScratchMode ? h(Section, {title:"Background", isOpen:app.bgOpen, onToggle:app.setBgOpen, badge:bgBadge},
-    h("label", {style:{display:"flex",alignItems:"center",gap:6,fontSize:'var(--text-sm)',cursor:"pointer",marginTop:'var(--s-2)'}},
-      h("input", {type:"checkbox", checked:gen.skipBg, onChange:function(e){
-        var on = e.target.checked;
-        gen.setSkipBg(on);
-        // Auto-arm pick mode on the first enable (0→1 when no custom colour
-        // has been chosen yet). Re-toggling after a pick skips auto-arming.
-        var isDefaultWhite = gen.bgCol[0]===255 && gen.bgCol[1]===255 && gen.bgCol[2]===255;
-        if (on && isDefaultWhite) armBgPick();
-        else if (!on && gen.pickBg) gen.setPickBg(false);
-      }}),
-      h("span", null, "Skip background"),
-      h(InfoIcon, {label:"Skip background", text:"Leaves a plain background unstitched, so the fabric shows through. Only areas of the chosen colour that touch the picture's edge are skipped, so the same colour inside the picture is kept. Pick the colour from the picture, then set how close a match counts.", width:260})
-    ),
-    gen.skipBg && h("div", {style:{marginTop:10}},
-      h("div", {style:{display:"flex",alignItems:"center",gap:'var(--s-2)',marginBottom:10}},
-        h("div", {
-          onClick:armBgPick,
-          title:"Pick background colour from the source image",
-          style:{width:24,height:24,borderRadius:'var(--radius-sm)',background:"rgb("+gen.bgCol+")",border:"2px solid var(--border)",cursor:"pointer"}
-        }),
-        h("button", {
-          onClick:armBgPick,
-          style:{fontSize:'var(--text-xs)',padding:"3px 8px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-sm)',background:gen.pickBg?"#F8EFD8":"var(--surface-secondary)",color:gen.pickBg?"var(--accent-hover)":"var(--text-primary)",cursor:"pointer"}
-        }, gen.pickBg ? "Picking…" : "Pick")
-      ),
-      h(SliderRow, {label:"Tolerance", value:gen.bgTh, min:3, max:50, onChange:gen.setBgTh,
-        helpText:"How closely a pixel must match the background colour to be skipped. Higher = more pixels removed"}),
-      ctx.pat && h("div", {style:{marginTop:10,padding:"8px",background:"var(--surface-tertiary)",borderRadius:'var(--radius-md)',fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-        h("div", {style:{marginBottom:6}}, "Want to shrink the pattern to fit only the stitches?"),
-        h("button", {
-          onClick:gen.autoCrop,
-          style:{width:"100%",padding:"6px",fontSize:'var(--text-sm)',fontWeight:500,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',cursor:"pointer",color:"var(--text-primary)"}
-        }, "Auto-Crop to Stitches")
-      )
-    )
-  ) : null;
-
-  // ── Generate / Reset button ─────────────────────────────────────────────────
-  var actionBtn = ctx.isScratchMode
-    ? h("button", {
-        onClick:function(){ctx.initBlankGrid(ctx.sW, ctx.sH);},
-        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,background:"var(--danger)",color:"var(--surface)",border:"none",borderRadius:'var(--radius-md)',cursor:"pointer"}
-      }, "Reset Canvas")
-    : h("button", {
-        onClick:gen.generate, disabled:gen.busy,
-        style:{padding:"8px 14px",fontSize:'var(--text-sm)',fontWeight:600,
-          background:gen.busy?"var(--text-tertiary)":"var(--accent)",color:"var(--surface)",
-          border:"none",borderRadius:'var(--radius-md)',cursor:gen.busy?"wait":"pointer"}
-      }, gen.busy ? (gen.progressMessage || "Generating...") : (ctx.pat ? "Regenerate" : "Generate Pattern"));
-
-  // ─── Unified sidebar tab bar (Polish 13 step 3) ────────────────────────
-  // One tab strip across both appModes. Tools/View are locked until a
-  // pattern exists. Clicking a tab also flips appMode silently when the
-  // tab requires the other mode's content — no confirm dialog, no
-  // visible "Setup" chip in the action bar. Edits are autosaved so the
-  // round-trip is safe.
+  // ─── Edit panel tab bar (Polish 13 step 3) ─────────────────────────────
+  // Convert has its own step tabs (creator/ConvertPanel.js); these are Edit's.
+  // Tools and View are locked until a pattern exists.
   var mode = app.appMode || "edit";
-  var rawTab = app.sidebarTab;
-  // Back-compat: legacy "settings" (single-Settings-accordion) → first new tab.
-  if (rawTab === "settings") rawTab = "image";
   var hasPattern = !!(ctx.pat && ctx.pal);
-  var sTab = rawTab || (mode === "create" ? "image" : "palette");
-
-  // Per-tab metadata. `requires` declares which appMode owns the tab
-  // content; clicking flips appMode to match. Tools/View are disabled
-  // until generation completes.
-  var unifiedTabs = [
-    {id:"image",      label:"Image",      icon:"image",   requires:"create"},
-    {id:"dimensions", label:"Dimensions", icon:"ruler",   requires:"create"},
+  var editTabs = [
     {id:"palette",    label:"Palette",    icon:"palette"},
-    {id:"tools",      label:"Tools",      icon:"pencil",  requires:"edit",
+    {id:"tools",      label:"Tools",      icon:"pencil",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock brush, lasso, magic wand, half-stitches, and backstitch."},
-    {id:"view",       label:"View",       icon:"eye",     requires:"edit",
+    {id:"view",       label:"View",       icon:"eye",
       disabled: !hasPattern,
       disabledHint:"Generate a pattern to unlock display options."},
     {id:"preview",    label:"Preview",    icon:"image"},
     {id:"project",    label:"Project",    icon:"folder"}
   ];
-
-  // createTabs = full 7-tab list for the create/prepare phase.
-  // editTabs = filtered subset: Image and Dimensions (requires:"create") are
-  // hidden in edit mode; Project has no requires so it stays in both.
-  var createTabs = unifiedTabs;
-  var editTabs = unifiedTabs.filter(function(t) { return t.requires !== "create"; });
-  var tabs = mode === "edit" ? editTabs : createTabs;
-
-  // Ensure sidebarTab is valid AND matches the current appMode's render
-  // branch. The bottom render path still has two arms (create vs edit);
-  // a tab whose `requires` doesn't match the current `mode` would render
-  // nothing. Clamp to the first tab the current mode can actually show.
-  var validIds = tabs.map(function(t) { return t.id; });
-  if (validIds.indexOf(sTab) === -1) sTab = validIds[0];
+  var tabs = editTabs;
+  // A stored tab Edit doesn't have (the old Convert ids "image",
+  // "dimensions" or "settings") opens the first Edit tab that is available.
+  var sTab = app.sidebarTab;
   var sTabMeta = tabs.find(function(t) { return t.id === sTab; });
-  if (sTabMeta && sTabMeta.requires && sTabMeta.requires !== mode) {
-    var fallback = tabs.find(function(t) { return (!t.requires || t.requires === mode) && !t.disabled; });
-    if (fallback) sTab = fallback.id;
+  if (!sTabMeta || sTabMeta.disabled) {
+    sTab = (tabs.find(function(t) { return !t.disabled; }) || tabs[0]).id;
   }
 
   var tabBar = h("div", {
-    role:"tablist", "aria-label":mode === "create" ? "Create mode panels" : "Edit mode panels",
+    role:"tablist", "aria-label":"Edit mode panels",
     style:{display:"flex",background:"var(--surface)",flexDirection:"column"}
   },
     h("div", {"aria-hidden":"true", className:"rpanel-handle-wrap", style:{paddingTop:6,paddingBottom:2,display:"flex",justifyContent:"center"}},
@@ -21159,14 +20321,6 @@ window.CreatorSidebar = function CreatorSidebar() {
           title: isDisabled ? (t.disabledHint || "Generate a pattern to unlock") : t.label,
           onClick: function() {
             if (isDisabled) return;
-            // Polish 13 step 3 — flip appMode to match the tab's `requires`
-            // so Image/Dimensions/Project always render the create-mode
-            // panels and Tools/View/More always render the edit-mode
-            // panels, regardless of which mode the user came from. No
-            // confirm dialog: edits are autosaved.
-            if (t.requires && t.requires !== mode && typeof app.setAppMode === "function") {
-              app.setAppMode(t.requires);
-            }
             var isMobile = window.matchMedia && window.matchMedia("(max-width: 899px)").matches;
             if (isMobile) {
               var panelIsOpen = typeof app.panelOpen === "boolean" ? app.panelOpen : !!app.sidebarOpen;
@@ -21365,228 +20519,10 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   // ─── Create Mode Sidebar ─────────────────────────────────────────────────
   if (mode === "create") {
-    // ── Polish 13 step 4a — "Re-generate (values changed)" CTA ────────────
-    // When a pattern exists and its source values (sW/sH/fabricCt/maxC/
-    // colour adjustments) have drifted from the snapshot taken at the
-    // last successful generation, the user is in Dimensions or Palette
-    // probably to nudge those very values. Surface a one-click Re-gen
-    // button at the top of the relevant tab so they don't have to dig
-    // into the More tab. If there are manual edits, confirm first with
-    // a count so the destructive part of the action is explicit.
-    var regenSnap = app.lastGenSnapshot;
-    var dimensionsStale = regenSnap && (
-      !!regenSnap.exactPixelArt !== !!gen.exactPixelArt ||
-      regenSnap.sW !== ctx.sW || regenSnap.sH !== ctx.sH ||
-      regenSnap.fabricCt !== ctx.fabricCt ||
-      regenSnap.bri !== gen.bri || regenSnap.con !== gen.con || regenSnap.sat !== gen.sat
-    );
-    var paletteStale = regenSnap && (
-      regenSnap.maxC !== gen.maxC || regenSnap.dithMode !== gen.dithMode ||
-      regenSnap.allowBlends !== gen.allowBlends || regenSnap.skipBg !== gen.skipBg
-    );
-    function regenCta(forTab) {
-      if (!ctx.pat || !regenSnap) return null;
-      var stale = forTab === "dimensions" ? dimensionsStale : paletteStale;
-      if (!stale) return null;
-      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
-      var label = editCount > 0
-        ? "Re-generate (will replace " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
-        : "Re-generate (values changed)";
-      return h("div", {
-        style:{
-          margin:"8px 12px 0",padding:"10px 12px",
-          background:"var(--accent-soft, var(--surface-tertiary))",
-          border:"1px solid var(--accent)",borderRadius:'var(--radius-md)',
-          display:"flex",flexDirection:"column",gap:6
-        }
-      },
-        h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",lineHeight:1.4}},
-          "Source values have changed since the last generation. Re-generate to apply them."),
-        h("button", {
-          onClick:function(){
-            if (editCount > 0 && !confirm(
-              "Re-generating will discard " + editCount + " manual edit" +
-              (editCount === 1 ? "" : "s") + ". Continue?"
-            )) return;
-            if (typeof gen.generate === "function") gen.generate();
-          },
-          disabled: !!gen.busy,
-          style:{
-            padding:"7px 10px",fontSize:'var(--text-sm)',fontWeight:600,
-            border:"none",borderRadius:'var(--radius-sm)',
-            background:"var(--accent)",color:"var(--surface)",
-            cursor: gen.busy ? "wait" : "pointer",fontFamily:"inherit",
-            display:"flex",alignItems:"center",justifyContent:"center",gap:6
-          }
-        }, label)
-      );
-    }
-
-    // Project info summary (compact) — kept for create mode as a collapsible.
-    var projectSummary = (function() {
-      var palLen = ctx.pat && ctx.pal ? (ctx.displayPal || ctx.pal || []).length : 0;
-      var stitchable = ctx.totalStitchable || (ctx.pat ? (ctx.sW * ctx.sH) : 0);
-      var fabricCt = ctx.fabricCt || 14;
-      var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
-      var skeins = (ctx.pat && typeof skeinEst === "function" && palLen > 0)
-        // Per thread, not per palette entry: blends fold into their threads.
-        ? window.buildThreadShoppingRows(ctx.displayPal || ctx.pal || [], { fabricCt: fabricCt }).reduce(function(t, r) { return t + r.needed; }, 0)
-        : 0;
-      var cost = skeins * (ctx.skeinPrice || (typeof DEFAULT_SKEIN_PRICE !== "undefined" ? DEFAULT_SKEIN_PRICE : 0.95));
-      function row(label, value) {
-        return h("div", {style:{display:"contents"}},
-          h("span", {style:{color:"var(--text-tertiary)"}}, label),
-          h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
-        );
-      }
-      return h(Section, {title:"Live summary", defaultOpen:false},
-        h("div", {style:{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)',padding:"4px 0"}},
-          row("Size", ctx.sW + " \u00D7 " + ctx.sH + " stitches"),
-          row("Finished", finished + " (" + window.fabricShortLabel(fabricCt) + ")"),
-          row("Threads", ctx.pat ? window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal || ctx.pal)) : "\u2014"),
-          row("Stitches", ctx.pat ? stitchable.toLocaleString() : "\u2014"),
-          row("Skeins", ctx.pat && skeins > 0 ? ("\u2248 " + Math.ceil(skeins)) : "\u2014"),
-          row("Estimated cost", ctx.pat && cost > 0
-            ? ("\u2248 " + (typeof window.AppPrefs !== "undefined" && window.AppPrefs.formatCurrency
-                ? window.AppPrefs.formatCurrency(cost)
-                : ("\u00A3" + cost.toFixed(2))))
-            : "\u2014")
-        )
-      );
-    })();
-
-    // Regen CTA — shown once at top of panel when any setting is stale.
-    var anyStale = dimensionsStale || paletteStale;
-    var globalRegenCta = (function() {
-      if (!ctx.pat || !regenSnap || !anyStale) return null;
-      var editCount = (cv.editHistory && cv.editHistory.length) || 0;
-      var label = editCount > 0
-        ? "Regenerate (replaces " + editCount + " edit" + (editCount === 1 ? "" : "s") + ")"
-        : "Regenerate (values changed)";
-      return h("div", {style:{margin:"10px 12px 0",padding:"10px 12px",background:"var(--accent-soft,var(--surface-tertiary))",border:"1px solid var(--accent)",borderRadius:"var(--radius-md)",display:"flex",flexDirection:"column",gap:6}},
-        h("div", {style:{fontSize:"var(--text-xs)",color:"var(--text-secondary)",lineHeight:1.4}},
-          "Settings have changed since the last generation."),
-        h("button", {
-          onClick:function(){ if(typeof gen.generate==="function") gen.generate(); },
-          disabled:!!gen.busy,
-          style:{padding:"7px 10px",fontSize:"var(--text-sm)",fontWeight:600,border:"none",borderRadius:"var(--radius-sm)",background:"var(--accent)",color:"var(--surface)",cursor:gen.busy?"wait":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}
-        }, label)
-      );
-    })();
-
-    // ── Create mode bottom action bar ─────────────────────────────────────
-    var createActions = h("div", {style:{
-      flexShrink:0, borderTop:"1px solid var(--border)", padding:"12px",
-      background:"var(--surface)", display:"flex", flexDirection:"column", gap:'var(--s-2)'
-    }},
-      (gen.img && gen.img.src !== null) && h("button", {
-        onClick:function(){ gen.generate(); },
-        disabled:gen.busy,
-        "aria-label":gen.hasGenerated?"Regenerate pattern":"Generate pattern",
-        style:{width:"100%",padding:"10px",fontSize:'var(--text-md)',fontWeight:600,cursor:gen.busy?"wait":"pointer",
-          border:"none",borderRadius:'var(--radius-md)',
-          background:gen.busy?"var(--text-tertiary)":gen.hasGenerated?"var(--surface-tertiary)":"var(--accent)",
-          color:gen.hasGenerated?"var(--text-primary)":"var(--surface)"}
-      }, gen.busy ? (gen.progressMessage || "Generating\u2026") : (gen.hasGenerated ? h(React.Fragment, null, window.Icons.refresh(), " Regenerate") : h(React.Fragment, null, window.Icons.refresh(), " Generate Pattern"))),
-      !(gen.img && gen.img.src !== null) && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",textAlign:"center",padding:"4px 0"}},
-        "Upload an image to get started")
-    );
-
-    // ── Project section — name/designer/description + live stats ──────────
-    var createProjectSection = h(Section, {title:"Project", defaultOpen:false},
-      h("div", {style:{display:"flex",flexDirection:"column",gap:'var(--s-2)',padding:"4px 0 2px"}},
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Pattern name",
-          h("input", {
-            type:"text", value:app.projectName||"", maxLength:60,
-            placeholder:ctx.pat?(ctx.sW+"\xD7"+ctx.sH+" pattern"):"e.g. Sunflower sampler",
-            onChange:function(e){var v=e.target.value.slice(0,60);if(typeof app.renameProject==="function")app.renameProject(v);else if(typeof app.setProjectName==="function")app.setProjectName(v);},
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Designer (optional)",
-          h("input", {
-            type:"text", value:app.projectDesigner||"", maxLength:80,
-            placeholder:"Your name or studio",
-            onChange:function(e){var v=e.target.value.slice(0,80);if(typeof app.setProjectDesigner==="function")app.setProjectDesigner(v);},
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)"}
-          })
-        ),
-        h("label", {style:{display:"flex",flexDirection:"column",gap:3,fontSize:'var(--text-xs)',color:"var(--text-secondary)"}},
-          "Description / notes (optional)",
-          h("textarea", {
-            value:app.projectDescription||"", maxLength:500, rows:3,
-            placeholder:"Source, copyright, stitching notes\u2026",
-            onChange:function(e){var v=e.target.value.slice(0,500);if(typeof app.setProjectDescription==="function")app.setProjectDescription(v);},
-            style:{padding:"6px 8px",fontSize:'var(--text-sm)',border:"1px solid var(--border)",borderRadius:'var(--radius-sm)',background:"var(--surface)",color:"var(--text-primary)",resize:"vertical",minHeight:54,fontFamily:"inherit"}
-          })
-        )
-      ),
-      ctx.pat && (function() {
-        var palLen = ctx.pat&&ctx.pal?(ctx.displayPal||ctx.pal||[]).length:0;
-        var stitchable = ctx.totalStitchable||(ctx.pat?(ctx.sW*ctx.sH):0);
-        var fabricCt = ctx.fabricCt||14;
-        var finished = window.finishedSizeText(ctx.sW, ctx.sH, fabricCt);
-        var skeins = (ctx.pat&&typeof skeinEst==="function"&&palLen>0)
-          ?window.buildThreadShoppingRows(ctx.displayPal||ctx.pal||[],{fabricCt:fabricCt}).reduce(function(t,r){return t+r.needed;},0):0;
-        var cost = skeins*(ctx.skeinPrice||(typeof DEFAULT_SKEIN_PRICE!=="undefined"?DEFAULT_SKEIN_PRICE:0.95));
-        function statRow(label, value) {
-          return h(React.Fragment, null,
-            h("span", {style:{color:"var(--text-tertiary)"}}, label),
-            h("span", {style:{textAlign:"right",fontVariantNumeric:"tabular-nums"}}, value)
-          );
-        }
-        return h("div", {style:{borderTop:"0.5px solid var(--border)",marginTop:'var(--s-2)',paddingTop:'var(--s-2)',display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:4,fontSize:'var(--text-sm)'}},
-          statRow("Size", ctx.sW+" \u00D7 "+ctx.sH+" stitches"),
-          statRow("Finished", finished+" ("+window.fabricShortLabel(fabricCt)+")"),
-          statRow("Threads", window.threadCountsShort(window.creatorThreadCounts(ctx.displayPal||ctx.pal))),
-          statRow("Stitches", stitchable.toLocaleString()),
-          statRow("Skeins", skeins>0?("\u2248 "+Math.ceil(skeins)):"\u2014"),
-          statRow("Est. cost", cost>0?("\u2248 "+(typeof window.AppPrefs!=="undefined"&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(cost):("\u00A3"+cost.toFixed(2)))):"\u2014")
-        );
-      })()
-    );
-
-    // ── Single scrollable settings panel (audit IMG-06: the choices that
-    //    matter most come first; image adjustments are rarely needed) ──
-    var createPanel = h("div", {
-      style:{overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}
-    },
-      globalRegenCta,
-      h("p", {className:"convert-first-use"}, "Convert chooses thread colours from a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart. Start with size and colours, choose how much detail to keep, then Generate."),
-      h("button", {type:"button", className:"btn convert-first-use", onClick:function(){
-        app.setDimOpen(true); app.setPalOpen(true); app.setBgOpen(true);
-        app.setCleanupOpen(true); app.setAdjOpen(true); app.setPalAdvanced(true);
-        // Fine-tune is a plain disclosure inside Detail and tidiness: open it
-        // once the section has rendered.
-        requestAnimationFrame(function(){
-          Array.prototype.forEach.call(document.querySelectorAll(".convert-finetune"), function(d){ d.open = true; });
-        });
-      }}, "Show all conversion controls"),
-      // 0. What kind of picture is this? (presets)
-      pictureTypeSection,
-      // 1. Size & fabric (dimensions + fabric)
-      dimSection,
-      // 2. Colours (threads, blends, minimum stitches, stash)
-      palSection,
-      // 3. Detail and tidiness (one style choice; the controls under Fine-tune)
-      tidySection,
-      // 4. Background
-      bgSection,
-      // 5. Adjust image (collapsed by default)
-      adjSection,
-      // 6. Palette swap (conditional)
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.shiftSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.presetSection,
-      ctx.pat && ctx.pal && cv.paletteSwap && cv.paletteSwap.revertSection,
-      // 7. Project (collapsed by default)
-      createProjectSection
-    );
-
     // Under 900px the panel is a bottom drawer. Edit mode peeks its tab
-    // strip; Convert has no tabs, so it gets this Settings row instead
-    // (hidden by CSS at 900px and wider).
+    // strip; Convert and the Canvas tab get this Settings row instead, which
+    // stays visible while the drawer is closed (hidden by CSS at 900px and
+    // wider). Convert's step tabs are inside the open drawer.
     var drawerOpen = !!app.panelOpen;
     var drawerHeader = h("button", {
       type:"button", className:"rpanel-drawer-header",
@@ -21658,11 +20594,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       );
     }
 
-    return h(React.Fragment, null,
-      drawerHeader,
-      createPanel,
-      createActions
-    );
+    // Convert: the step-by-step settings panel (creator/ConvertPanel.js).
+    return h(window.CreatorConvertPanel, {drawerHeader: drawerHeader});
   }
 
   // ─── Project Info Section (shared between Create and Edit modes) ──────────
@@ -21997,7 +20930,13 @@ window.CreatorSidebar = function CreatorSidebar() {
         background:"transparent",color:"var(--text-secondary)",
         cursor:"pointer",fontFamily:"inherit",textAlign:"left"
       }
-    }, "Resize canvas\u2026")
+    }, "Resize canvas\u2026"),
+    // Trims rows and columns with no stitches from the chart's edges.
+    gen.autoCrop && h("button", {
+      type:"button", className:"cs-seltools__btn", style:{width:"100%",marginTop:6},
+      onClick:gen.autoCrop,
+      title:"Remove empty rows and columns around the stitches"
+    }, window.Icons.crop(), h("span", null, "Crop to the stitches"))
   );
 
   // Navigate | Draw (audit DRAW-01). On touch it is the first control in the
@@ -22113,7 +21052,16 @@ window.CreatorSidebar = function CreatorSidebar() {
     h("div", {style:{overflowY:"auto",flex:1}},
       sTab === "palette" && h(React.Fragment, null,
         palChipsSection,
-        coloursSection
+        coloursSection,
+        // Recolouring the chart: shift every colour, apply a preset palette,
+        // or go back to the generated palette. These change the chart, so they
+        // live here rather than in Convert.
+        cv.paletteSwap && (cv.paletteSwap.shiftSection || cv.paletteSwap.presetSection) && h("div", {className:"cs-toolsec cv-recolour"},
+          h("div", {className:"cs-toolsec__title"}, "Recolour the chart"),
+          cv.paletteSwap.shiftSection,
+          cv.paletteSwap.presetSection,
+          cv.paletteSwap.revertSection
+        )
       ),
       sTab === "tools" && toolsContent,
       sTab === "view" && viewContent,
@@ -22128,6 +21076,752 @@ window.CreatorSidebar = function CreatorSidebar() {
     editActions
   );
 };
+
+
+/* ─── ConvertPanel.js ─── */
+/* creator/ConvertPanel.js — the Convert settings panel (the right-hand panel
+   while a picture is being converted).
+
+   Laid out like the Edit panel: a strip of tabs in the order the choices are
+   made (Picture, Size, Threads, Detail, then Project), flat sections with the
+   Edit panel's headings and hints (.cs-toolsec), a Next button at the foot of
+   each step, and Generate pinned at the bottom under a one-line summary of
+   what it will make. Every setting is shown once.
+
+   Sidebar.js renders this in Convert (appMode "create" with a picture); a
+   design drawn from scratch has the Canvas panel instead. Reads the Creator
+   contexts. Concatenated into creator/bundle.js after Sidebar.js.
+   Depends on: SliderRow, InfoIcon, Tooltip (components.js), context.js. */
+
+(function () {
+  // The steps, left to right. `next` is the step the Next button opens.
+  var CONVERT_TABS = [
+    { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
+    { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
+    { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
+    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name and notes, and what it will take to stitch." }
+  ];
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
+  window.CONVERT_TABS = CONVERT_TABS;
+
+  // Hover text for each picture type.
+  var PICTURE_TYPE_HINTS = {
+    graphic: "A few flat colours: up to 8 threads, no shading or blends, and a plain border left unstitched.",
+    photo: "Up to 24 threads and blends, with smooth shading tidied into patches.",
+    pixel: "One stitch per pixel at the picture's own size, in its own colours. Every pixel is kept."
+  };
+
+  // A warning when the chosen tidying is a lot for the pattern's size.
+  function cleanupWarning(sW, sH, orphans, previewStats) {
+    if (orphans === 0) return null;
+    var area = sW * sH;
+    if (area <= 900) {
+      return { level: "danger", message: "Your pattern is very small (" + sW + "\xD7" + sH + "), so merging confetti stitches may remove fine details. Choose More detail, or make the pattern bigger." };
+    }
+    if (area <= 1600 && orphans >= 2) {
+      return { level: "danger", message: "On a " + sW + "\xD7" + sH + " pattern this much tidying may lose eyes, lettering or thin lines. Choose More detail, or make the pattern bigger." };
+    }
+    if (area <= 2500 && orphans >= 3) {
+      return { level: "warning", message: "On a " + sW + "\xD7" + sH + " pattern this much tidying may remove more detail than expected. Try Balanced or More detail." };
+    }
+    if (previewStats && previewStats.confettiSingles != null && previewStats.confettiCleanSingles != null) {
+      var removed = previewStats.confettiSingles - previewStats.confettiCleanSingles;
+      var pctRemoved = removed / Math.max(1, previewStats.stitchable) * 100;
+      if (pctRemoved > 20) {
+        return { level: "danger", message: "Reducing confetti would remove ~" + removed.toLocaleString() + " stitches (" + pctRemoved.toFixed(0) + "% of the pattern). This will likely cause visible detail loss. Try a step towards More detail." };
+      }
+      if (pctRemoved > 10) {
+        return { level: "warning", message: "Reducing confetti would remove ~" + removed.toLocaleString() + " stitches (" + pctRemoved.toFixed(0) + "% of the pattern). Check the preview to make sure you’re happy with the result." };
+      }
+    }
+    return null;
+  }
+  window.convertCleanupWarning = cleanupWarning;
+
+  // Settings the last Generate used that differ from now (lastGenSnapshot).
+  function settingsChangedSince(snap, gen, ctx) {
+    if (!snap) return false;
+    return !!snap.exactPixelArt !== !!gen.exactPixelArt ||
+      snap.sW !== ctx.sW || snap.sH !== ctx.sH || snap.fabricCt !== ctx.fabricCt ||
+      snap.bri !== gen.bri || snap.con !== gen.con || snap.sat !== gen.sat ||
+      snap.maxC !== gen.maxC || snap.dithMode !== gen.dithMode ||
+      snap.allowBlends !== gen.allowBlends || snap.skipBg !== gen.skipBg;
+  }
+  window.convertSettingsChangedSince = settingsChangedSince;
+
+  window.CreatorConvertPanel = function CreatorConvertPanel(props) {
+    var ctx = window.usePatternData();
+    var cv = window.useCanvas();
+    var app = window.useApp();
+    var gen = window.useGeneration();
+    var h = React.createElement;
+    var Icons = window.Icons;
+    var contentRef = React.useRef(null);
+    var _stashExp = React.useState(false); var stashStripExpanded = _stashExp[0], setStashStripExpanded = _stashExp[1];
+    var _qaVal = React.useState(""); var qaVal = _qaVal[0], setQaVal = _qaVal[1];
+    var _qaLoad = React.useState(false); var qaLoading = _qaLoad[0], setQaLoading = _qaLoad[1];
+    var _seedEd = React.useState(false); var seedEditing = _seedEd[0], setSeedEditing = _seedEd[1];
+    var _seedTmp = React.useState(""); var seedTmp = _seedTmp[0], setSeedTmp = _seedTmp[1];
+
+    var tab = app.convertTab;
+    if (!CONVERT_TABS.some(function (t) { return t.id === tab; })) tab = "picture";
+    var tabMeta = CONVERT_TABS.filter(function (t) { return t.id === tab; })[0];
+    function pickTab(id) { if (app.setConvertTab) app.setConvertTab(id); }
+    // A new step starts at its top.
+    React.useEffect(function () { if (contentRef.current) contentRef.current.scrollTop = 0; }, [tab]);
+
+    var brandLabel = window.threadBrandLabel ? window.threadBrandLabel(gen.convertBrand) : "DMC";
+    var ps = app.previewStats;
+
+    // ── Building blocks: the Edit panel's sections, so both read the same ──
+    function sec(id, title, info) {
+      var kids = Array.prototype.slice.call(arguments, 3);
+      return h("section", { key: id, className: "cs-toolsec cv-sec cv-sec--" + id, "data-cv-section": id },
+        title ? h("div", { className: "cv-sec__head" },
+          h("h3", { className: "cs-toolsec__title cv-sec__title" }, title),
+          info ? h(InfoIcon, { label: title, text: info, width: 260 }) : null) : null,
+        kids);
+    }
+    function hint(content, extra) {
+      return h("p", Object.assign({ className: "cs-toolsec__hint" }, extra || {}), content);
+    }
+    function note(level, content, extra) {
+      var icon = level === "danger" || level === "warning" ? Icons.warning() : Icons.info();
+      return h("div", Object.assign({ role: "note", className: "cv-note cv-note--" + level }, extra || {}),
+        h("span", { className: "cv-note__icon", "aria-hidden": "true" }, icon),
+        h("span", null, content));
+    }
+    // A checkbox with its label; the hint icon sits outside the <label> so
+    // pressing it never ticks the box.
+    function check(o) {
+      return h("div", { className: "convert-label cv-check" },
+        h("label", { className: "cs-toolsec__check" + (o.disabled ? " cv-check--disabled" : "") },
+          h("input", { type: "checkbox", checked: !!o.checked, disabled: !!o.disabled,
+            onChange: function (e) { o.onChange(e.target.checked); } }),
+          h("span", null, o.label)),
+        o.info ? h(InfoIcon, { label: o.label, text: o.info, width: 260 }) : null);
+    }
+    // One choice from a row (or grid) of buttons; arrow keys move and choose.
+    function seg(o) {
+      var opts = o.options;
+      var anyOn = opts.some(function (x) { return x.id === o.value && !x.disabled; });
+      return h("div", { className: "lp-segmented cv-seg" + (o.className ? " " + o.className : ""), role: "radiogroup", "aria-label": o.label },
+        opts.map(function (x, i) {
+          var on = x.id === o.value;
+          var enabled = opts.filter(function (y) { return !y.disabled; });
+          var p = {
+            key: x.id, type: "button", role: "radio", "aria-checked": on ? "true" : "false",
+            className: "lp-seg" + (on ? " lp-seg--on" : ""), title: x.title, disabled: !!x.disabled,
+            tabIndex: (on && !x.disabled) || (!anyOn && i === 0) ? 0 : -1,
+            "data-seg-id": x.id,
+            onClick: function () { if (!x.disabled) o.onChange(x.id); },
+            onKeyDown: function (e) {
+              var step = (e.key === "ArrowRight" || e.key === "ArrowDown") ? 1 : (e.key === "ArrowLeft" || e.key === "ArrowUp") ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              var at = enabled.indexOf(x);
+              var next = enabled[(at + step + enabled.length) % enabled.length];
+              o.onChange(next.id);
+              var sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-seg-id="' + next.id + '"]');
+              if (sib) sib.focus();
+            }
+          };
+          if (o.attr) p[o.attr] = x.id;
+          return h("button", p, x.label);
+        }));
+    }
+
+    // ═══ Picture ═══════════════════════════════════════════════════════════
+    var pictureType = (gen.img && gen.img.src && gen.applyPicturePreset && window.PICTURE_PRESET_ORDER) ? sec("picture-type", "Picture type",
+      "Picks good starting values for the picture. Graphic or logo: a few flat colours, no shading. Photo: up to 24 threads with smooth shading. Pixel art: one stitch per pixel, every pixel kept. The Creator guesses when you add a picture; every setting stays editable.",
+      seg({ label: "What kind of picture is this?", attr: "data-picture-type", className: "cv-seg--wrap", value: gen.pictureType,
+        onChange: function (id) { gen.applyPicturePreset(id); },
+        options: window.PICTURE_PRESET_ORDER.map(function (id) {
+          return { id: id, label: window.PICTURE_PRESETS[id].label, title: PICTURE_TYPE_HINTS[id] };
+        }).concat([{ id: "custom", label: "Custom", disabled: true, title: "Your own settings. Pick a type to start again from its settings." }]) }),
+      hint(gen.pictureType === "custom"
+        ? "Custom: you have changed settings since choosing a type. Pick a type to start again from its settings."
+        : (PICTURE_TYPE_HINTS[gen.pictureType] || "") + " Choosing a type sets the threads and detail; you can change them after."),
+      // Exact import is a Pixel art option, so it shows for pixel art (or while on).
+      (gen.stitchStyleBasis === "pixel" || gen.exactPixelArt) && h("div", { className: "picture-type__exact" },
+        check({ checked: gen.exactPixelArt, label: "Exact pixel-art import",
+          disabled: (gen.img.naturalWidth || gen.img.width) > 500 || (gen.img.naturalHeight || gen.img.height) > 500,
+          onChange: function (v) { gen.setExactPixelArt(v); },
+          info: "Turns each pixel into exactly one stitch at the picture's own size, matched to the nearest solid thread. For pixel art up to 500 by 500 pixels. Size, adjustments, shading and tidying are skipped." }),
+        hint(gen.exactPixelArt
+          ? "One source pixel per stitch. Source alpha below 128 is empty; other pixels are stitched. Size, image adjustments, background removal, colour limit, blends, shading and tidying are ignored. Review source-to-thread mappings in the preview before Generate."
+          : "One stitch per pixel, exactly: for pictures up to 500 by 500 pixels. Colours are mapped to solid threads.")),
+      hint("Convert matches thread colours to a photograph or artwork. It does not read the symbols or key in a photograph of a printed chart.", { className: "cs-toolsec__hint cv-hint--muted" })
+    ) : null;
+
+    function armBgPick() {
+      pickTab("picture");
+      gen.setPickBg(true);
+      // Bring the picture into view so it is clear where to click.
+      if (typeof window !== "undefined" && window.requestAnimationFrame) {
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(function () {
+            var el = document.getElementById("bg-pick-target");
+            if (el && el.scrollIntoView) {
+              try { var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; el.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" }); }
+              catch (_) { el.scrollIntoView(); }
+            }
+          });
+        });
+      }
+    }
+    var background = sec("background", "Background",
+      "Leaves a plain background unstitched, so the fabric shows through. Only areas of the chosen colour that touch the picture's edge are left out, so the same colour inside the picture is kept. Pick the colour from the picture, then set how close a match counts.",
+      check({ checked: gen.skipBg, label: "Leave background unstitched",
+        onChange: function (on) {
+          gen.setSkipBg(on);
+          // The first time it is turned on with no colour chosen, start picking.
+          var isDefaultWhite = gen.bgCol[0] === 255 && gen.bgCol[1] === 255 && gen.bgCol[2] === 255;
+          if (on && isDefaultWhite) armBgPick();
+          else if (!on && gen.pickBg) gen.setPickBg(false);
+        } }),
+      gen.skipBg ? h(React.Fragment, null,
+        h("div", { className: "cv-bgpick" },
+          h("button", { type: "button", className: "cv-bgpick__swatch", onClick: armBgPick,
+            "aria-label": "Background colour: pick it from the picture",
+            style: { background: "rgb(" + gen.bgCol + ")", "--swatch": "rgb(" + gen.bgCol + ")" } }),
+          h("button", { type: "button", className: "cs-seltools__btn" + (gen.pickBg ? " cs-seltools__btn--on" : ""), onClick: armBgPick, "aria-pressed": gen.pickBg ? "true" : "false" },
+            Icons.eyedropper(), h("span", null, gen.pickBg ? "Click the picture…" : "Pick from picture"))),
+        h(SliderRow, { label: "How close a match", value: gen.bgTh, min: 3, max: 50, onChange: gen.setBgTh,
+          helpText: "How closely a pixel must match the background colour to be left unstitched. Higher leaves out more." }),
+        hint("Only plain areas that touch the picture's edge are left unstitched.")
+      ) : hint("Off: every pixel is stitched, background included.")
+    );
+
+    var adjusted = !!(gen.bri || gen.con || gen.sat || gen.smooth || gen.preSharpen);
+    var adjust = sec("adjust", "Adjust picture",
+      "Changes the picture before threads are matched. Most pictures need none of these.",
+      h(SliderRow, { label: "Brightness", value: gen.bri, min: -50, max: 50, onChange: gen.setBri, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
+        helpText: "Lightens or darkens the picture before threads are chosen. Try it when a photo is too dark or washed out." }),
+      h(SliderRow, { label: "Contrast", value: gen.con, min: -50, max: 50, onChange: gen.setCon, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
+        helpText: "Pushes the lights and darks further apart, or closer together. More contrast gives a crisper, bolder chart; less gives a softer one." }),
+      h(SliderRow, { label: "Saturation", value: gen.sat, min: -50, max: 50, onChange: gen.setSat, format: function (v) { return (v > 0 ? "+" : "") + v + "%"; },
+        helpText: "Makes the colours more vivid, or more muted, before threads are chosen." }),
+      check({ checked: gen.preSharpen, label: "Sharpen details", onChange: function (v) { gen.setPreSharpen(v); },
+        info: "Sharpens the picture before it is shrunk to stitches, so eyes, faces and fine edges survive. Colours are left as they are. Leave off for pictures that are already sharp or very grainy." }),
+      gen.preSharpen && h(SliderRow, { label: "Amount", value: gen.preSharpenAmount != null ? gen.preSharpenAmount : 0.5, min: 0.1, max: 2.0, step: 0.1,
+        onChange: gen.setPreSharpenAmount, format: function (v) { return v.toFixed(1) + "x"; },
+        helpText: "Sharpening strength. 0.5 is conservative; increase to 1.0 for visibly soft portraits.",
+        inlineHint: "0.5 is a safe default. Above 1.0 watch for halos on hard edges.", helpTopic: "image" }),
+      h(SliderRow, { label: "Soften grainy photos", value: gen.smooth, min: 0, max: 4, step: 0.1, onChange: gen.setSmooth,
+        format: function (v) { return v === 0 ? "Off" : v.toFixed(1); },
+        helpText: "Blurs the picture slightly before threads are chosen: fewer speckled stitches, but softer edges and outlines. Most photos look best at Off.",
+        inlineHint: "Blurs the picture at stitch size before threads are matched. Shrinking a photo to stitches already smooths away grain, so most photos look best at Off.",
+        helpTopic: "image" }),
+      gen.smooth > 0 && h("details", { className: "convert-advanced" },
+        h("summary", null, "Advanced"),
+        seg({ label: "Softening method", value: gen.smoothType, onChange: function (id) { gen.setSmoothType(id); },
+          options: [
+            { id: "median", label: "Median", title: "Keeps edges better. Best for most photos." },
+            { id: "gaussian", label: "Gaussian", title: "Stronger overall blur. For very grainy or pixelated pictures." } // terminology-lint-allow
+          ] })),
+      adjusted ? h("button", { type: "button", className: "cs-seltools__btn cv-reset", onClick: function () {
+        gen.setBri(0); gen.setCon(0); gen.setSat(0); gen.setSmooth(0); gen.setPreSharpen(false);
+      } }, Icons.undo(), h("span", null, "Reset adjustments")) : null
+    );
+
+    // ═══ Size ══════════════════════════════════════════════════════════════
+    var sizeSec = sec("size", null, null,
+      window.CreatorSizeField ? h(window.CreatorSizeField, {
+        sW: ctx.sW, sH: ctx.sH, chgW: ctx.chgW, chgH: ctx.chgH, arLock: ctx.arLock, setArLock: ctx.setArLock, ar: ctx.ar,
+        fabricCt: ctx.fabricCt, origW: gen.origW, origH: gen.origH
+      }) : null,
+      hint("Between 10 and 500 stitches each way."),
+      (ctx.sW > 250 || ctx.sH > 250) && note("info", "Large pattern: 15 to 25 threads keep generation fast and the result clean.")
+    );
+    var fabricSec = sec("fabric", null, null,
+      h(window.CreatorFabricBlock, {
+        fabricCt: ctx.fabricCt, setFabricCt: ctx.setFabricCt,
+        fabricColour: app.fabricColour, setFabricColour: app.setFabricColour,
+        sW: ctx.sW, sH: ctx.sH
+      }),
+      hint("Skein estimates assume 2 strands and 8 m per skein.")
+    );
+
+    // ═══ Threads ═══════════════════════════════════════════════════════════
+    var brandSec = (gen.setConvertBrand && window.THREAD_BRANDS) ? sec("brand", "Thread brand",
+      "Which brand of stranded cotton the colours are matched to. The key, shopping list, Stitch Tracker and printed chart all use that brand's numbers.",
+      seg({ label: "Threads", attr: "data-thread-brand", value: gen.convertBrand, onChange: function (id) { gen.setConvertBrand(id); },
+        options: Object.keys(window.THREAD_BRANDS).map(function (id) { return { id: id, label: window.THREAD_BRANDS[id].label }; }) }),
+      hint("Colours are matched to " + brandLabel + " stranded cotton.")
+    ) : null;
+
+    var used = ps && !app.previewLoading && ps.threadsUsed != null ? ps.threadsUsed : null;
+    var countSec = sec("count", "Number of threads", null,
+      h(SliderRow, { label: "Threads (max)", value: gen.maxC, min: 2, max: gen.stashConstrained && gen.stashThreadCount ? Math.max(2, gen.stashThreadCount) : 100, onChange: gen.setMaxC,
+        helpText: "Each thread is one colour of stranded cotton. This is the most the pattern may use. It is a limit, not a target: simpler pictures use fewer. Fewer threads means less to buy and a calmer chart.",
+        inlineHint: "A blend uses two of these threads in one stitch, so the chart can have more symbols than threads.",
+        helpTopic: "palette" }),
+      gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
+      used != null
+        ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + ".", { "data-threads-used": "" })
+        : hint("A limit, not a target: simpler pictures use fewer.")
+    );
+
+    var blendSec = sec("blends", "Blends", null,
+      check({ checked: gen.allowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
+        onChange: function (v) { gen.setAllowBlends(v); },
+        info: "A blend puts one strand of each of two " + brandLabel + " threads in the needle to make an in-between shade, for smoother gradients." }),
+      hint(gen.allowBlends
+        ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
+        : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.", { className: "cs-toolsec__hint convert-blend-effect" }),
+      window.BlendHelpNote && h(window.BlendHelpNote, { showSetting: false }),
+      gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 6 threads.")
+    );
+
+    var rareSec = sec("rare", "Rare colours", null,
+      h(SliderRow, { label: "Min stitches per colour", value: gen.minSt, min: 0, max: 500, step: 5, onChange: gen.setMinSt,
+        format: function (v) { return v === 0 ? "Off" : v; },
+        helpText: "Colours used fewer times than this are merged into a similar neighbour, so there are fewer threads to buy. Off still folds away stray colours automatically, keeping small bright accents.",
+        inlineHint: "Merges every colour used fewer times than this into a similar neighbour, reducing your thread count.",
+        helpTopic: "palette" }),
+      hint(gen.minSt === 0 ? "Off still folds away stray colours, and keeps small bright accents." : "Colours used fewer than " + gen.minSt + " times merge into a similar neighbour.")
+    );
+
+    var stashSec = (typeof StashBridge !== "undefined") ? sec("stash", "Stash", null,
+      check({ checked: gen.stashConstrained, label: "Use only stash threads", onChange: function (v) { gen.setStashConstrained(v); },
+        info: "Constrains the palette to the " + brandLabel + " threads you own. Produces a pattern you can stitch immediately without buying anything." }),
+      !gen.stashConstrained && hint("Turn on to make the pattern only from threads you already own."),
+      gen.stashConstrained && h(React.Fragment, null,
+        note("info", (gen.stashThreadCount || 0) + " thread" + ((gen.stashThreadCount || 0) !== 1 ? "s" : "") + " in your stash" +
+          (gen.effectiveMaxC && gen.effectiveMaxC < gen.maxC ? "; the pattern may use up to " + gen.effectiveMaxC + "." : ".")),
+        gen.stashPalette && gen.stashPalette.length > 0 && h("div", { className: "cv-stash-strip" },
+          h("div", { className: "cv-stash-strip__chips" },
+            (stashStripExpanded ? gen.stashPalette : gen.stashPalette.slice(0, 60)).map(function (t) {
+              var label = formatThread({ id: t.id, name: t.name, brand: gen.convertBrand });
+              return h(Tooltip, { key: t.id, text: label, width: 180 },
+                h("span", { className: "cv-stash-strip__chip", role: "img", "aria-label": label, style: { background: "rgb(" + t.rgb.join(",") + ")" } }));
+            })),
+          gen.stashPalette.length > 60 && h("button", { type: "button", className: "cv-link", onClick: function () { setStashStripExpanded(function (o) { return !o; }); } },
+            stashStripExpanded ? "Show fewer" : "Show " + (gen.stashPalette.length - 60) + " more")),
+        gen.coverageGaps && gen.coverageGaps.hasGaps && note("warning", h(React.Fragment, null, "Your stash may lack colours in: ",
+          gen.coverageGaps.gaps.map(function (g, i) {
+            return h("span", { key: g.hue }, (i > 0 ? ", " : ""), h("strong", null, g.hue), g.severity === "high" ? " (significant)" : "");
+          }))),
+        h("div", { className: "cv-quickadd" },
+          h("label", { className: "cv-field__label", htmlFor: "cv-quickadd" }, "Add a thread to your stash"),
+          h("div", { className: "cv-quickadd__row" },
+            h("input", { id: "cv-quickadd", type: "text", className: "cv-input", value: qaVal,
+              placeholder: brandLabel + " number…", onChange: function (e) { setQaVal(e.target.value); } }),
+            (function () {
+              var found = findThreadInCatalog(gen.convertBrand || "dmc", qaVal.trim());
+              return found ? h(Tooltip, { text: formatThread({ id: found.id, name: found.name, brand: gen.convertBrand }), width: 160 },
+                h("span", { className: "cv-quickadd__swatch", style: { background: "rgb(" + found.rgb.join(",") + ")" } })) : null;
+            })(),
+            h("button", { type: "button", className: "cs-seltools__btn",
+              disabled: qaLoading || !findThreadInCatalog(gen.convertBrand || "dmc", qaVal.trim()),
+              onClick: function () {
+                var trimmed = qaVal.trim(), qaBrand = gen.convertBrand || "dmc";
+                if (!trimmed || !findThreadInCatalog(qaBrand, trimmed)) return;
+                var qaKey = qaBrand + ":" + trimmed;
+                setQaLoading(true);
+                StashBridge.addToStash(qaKey, 1).then(function () {
+                  setQaVal(""); setQaLoading(false);
+                  ctx.setGlobalStash(function (s) {
+                    var n = Object.assign({}, s);
+                    n[qaKey] = Object.assign({}, n[qaKey] || {}, { owned: ((n[qaKey] && n[qaKey].owned) || 0) + 1 });
+                    return n;
+                  });
+                }).catch(function () { setQaLoading(false); });
+              } }, qaLoading ? "Adding…" : h(React.Fragment, null, Icons.plus(), h("span", null, "Add"))))),
+        // Variations: other picks of threads from the stash.
+        h("div", { className: "cv-variations" },
+          h("div", { className: "cv-variations__row" },
+            h("button", { type: "button", className: "cs-seltools__btn", onClick: function () { gen.randomise(); },
+              disabled: !(gen.stashPalette && gen.stashPalette.length > 0) || !gen.img },
+              Icons.shuffle(), h("span", null, "Randomise")),
+            gen.variationSeed ? (seedEditing
+              ? h("input", { type: "number", className: "cv-input cv-input--seed", value: seedTmp, autoFocus: true, "aria-label": "Variation number",
+                  onChange: function (e) { setSeedTmp(e.target.value); },
+                  onKeyDown: function (e) {
+                    if (e.key === "Enter") { var n = parseInt(seedTmp, 10); if (!isNaN(n) && n > 0) gen.applyVariationSeed(n >>> 0); setSeedEditing(false); }
+                    else if (e.key === "Escape") setSeedEditing(false);
+                  },
+                  onBlur: function () { setSeedEditing(false); } })
+              : h("button", { type: "button", className: "cv-link", title: "Enter a variation number",
+                  onClick: function () { setSeedEditing(true); setSeedTmp(String(gen.variationSeed)); } }, "#" + gen.variationSeed)) : null),
+          gen.variationSeed && gen.variationSubset && gen.stashPalette && gen.stashPalette.length >= 3 &&
+            hint(h(React.Fragment, null, Icons.dice(), " Using " + gen.variationSubset.length + " of " + gen.stashPalette.length + " threads")),
+          h("button", { type: "button", className: "cv-link cv-disclosure", "aria-expanded": gen.galleryOpen ? "true" : "false",
+            onClick: function () { gen.setGalleryOpen(function (o) { return !o; }); if (!gen.galleryOpen) gen.generateGallery(); } },
+            h("span", { className: "cv-disclosure__chev", "aria-hidden": "true" }, Icons.chevronRight()), "Explore variations"),
+          gen.galleryOpen && h("div", { className: "cv-gallery" },
+            h("div", { className: "cv-gallery__grid" },
+              gen.gallerySlots.map(function (slot, i) {
+                var ready = !slot.loading && slot.url;
+                return h("button", { key: i, type: "button", className: "cv-gallery__slot", disabled: !ready,
+                  onClick: function () { if (ready) { gen.promoteVariation(slot); gen.setGalleryOpen(false); } } },
+                  slot.loading ? h("span", { className: "cv-gallery__wait" }, "…")
+                    : slot.url ? h(React.Fragment, null,
+                        h("img", { src: slot.url, alt: "" }),
+                        h("span", { className: "cv-gallery__cap" }, "#" + slot.seed + " · " + slot.threadCount + " threads"))
+                    : h("span", { className: "cv-gallery__wait" }, "Could not make this one"));
+              })),
+            h("button", { type: "button", className: "cs-seltools__btn", onClick: function () { gen.generateGallery(); } }, "New batch")),
+          gen.variationHistory.length > 0 && h("div", { className: "cv-history" },
+            hint("Recent variations"),
+            h("div", { className: "cv-history__row" },
+              gen.variationHistory.map(function (entry, i) {
+                return h("button", { key: (entry.timestamp || i) + "-" + i, type: "button", className: "cv-history__item",
+                  title: "Variation #" + entry.seed,
+                  onClick: function () { gen.applyVariationSeed(entry.seed, entry.subset !== undefined ? entry.subset : null); } },
+                  entry.previewUrl ? h("img", { src: entry.previewUrl, alt: "" }) : h("span", { className: "cv-history__blank" }),
+                  h("span", null, "#" + entry.seed));
+              })))
+        )
+      )
+    ) : null;
+
+    // ═══ Detail ════════════════════════════════════════════════════════════
+    var sc2 = gen.stitchCleanup;
+    var styleNow = gen.stitchStyle || "custom";
+    var styleBasis = gen.stitchStyleBasis || "photo";
+    var styleDescs = (window.STITCH_STYLE_DESCRIPTIONS || {})[styleBasis] || {};
+    // The finished chart's count (after look-alike separation and the thread limit).
+    var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
+      : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
+    var warning = sc2.enabled ? cleanupWarning(ctx.sW, ctx.sH, gen.orphans, ps) : null;
+    var stepsSec = sec("style", "Detail and tidiness",
+      "More detail keeps every shade and small shape, with the most confetti stitches (single stitches of a colour on their own; slow to stitch). Balanced merges most of them and keeps outlines. Tidier merges nearly all. Easiest to stitch gives big blocks of colour.",
+      seg({ label: "Detail and tidiness", attr: "data-stitch-style", className: "cv-seg--grid stitch-style__seg", value: styleNow,
+        onChange: function (id) { gen.applyStitchStyle(id); },
+        options: (window.STITCH_STYLE_ORDER || []).map(function (id) { return { id: id, label: window.STITCH_STYLE_LABELS[id], title: styleDescs[id] }; }) }),
+      h("p", { className: "stitch-style__desc" }, styleNow === "custom"
+        ? "Custom: your own mix of shading and tidying, set below. Pick a step to start again from it."
+        : styleDescs[styleNow]),
+      // The count is for the preview on screen: while a new one is worked out
+      // it would be the previous step's, so it waits.
+      app.previewLoading && ps ? h("p", { className: "stitch-style__outcome", "data-outcome": "updating", "aria-live": "polite" }, "Updating preview…")
+        : confettiNow != null && ps.stitchable > 0 && h("p", { className: "stitch-style__outcome", "data-outcome": ps.estimated ? "estimate" : "count", "aria-live": "polite" },
+          "In the preview: " + (ps.estimated ? "about " : "") + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
+          " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches)" + (ps.estimated ? ", estimated from a smaller preview." : ".")),
+      // A small grid with heavy tidying can lose eyes and lettering.
+      warning && note(warning.level, warning.message)
+    );
+
+    var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
+    var dithAlgo = dithCur === "off" ? "off" : dithCur.indexOf("bayer") === 0 ? "bayer" : "atkinson";
+    var shadingSec = sec("shading", "Shading",
+      "Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.",
+      hint("The steps above set this and the controls below; changing one here shows Custom."),
+      seg({ label: "Shading", value: dithAlgo, onChange: function (algo) {
+          if (algo === "off") gen.setDith("off");
+          else if (algo === "atkinson" && dithAlgo !== "atkinson") gen.setDith("balanced");
+          else if (algo === "bayer" && dithAlgo !== "bayer") gen.setDith("bayer4");
+        },
+        options: [
+          { id: "off", label: "Off", title: "Each stitch takes its closest thread. The tidiest chart and the easiest to stitch." },
+          { id: "atkinson", label: "Smooth blend", title: "Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos." },
+          { id: "bayer", label: "Pattern blend", title: "Mixes threads in a regular, repeating pattern. Suits graphics and pixel-style pictures; on a photo it adds many confetti stitches." }
+        ] }),
+      dithAlgo === "atkinson" && seg({ label: "Smooth blend strength", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
+        options: [{ id: "weak", label: "Subtle", title: "Light blending, with very few confetti stitches." }, { id: "balanced", label: "Balanced", title: "Smoother gradients, with more confetti stitches." }] }),
+      dithAlgo === "bayer" && seg({ label: "Pattern size", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
+        options: [{ id: "bayer2", label: "Coarse", title: "A bold, chequered pattern." }, { id: "bayer4", label: "Medium", title: "A balanced, regular pattern." }, { id: "bayer8", label: "Fine", title: "A fine, detailed pattern." }] }),
+      h("details", { className: "convert-advanced" },
+        h("summary", null, "Advanced"),
+        h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
+    );
+
+    var tidied = ps && ps.tidiedStitches != null ? ps.tidiedStitches : null;
+    var orphanDesc = null;
+    if (sc2.enabled && gen.orphans > 0) {
+      orphanDesc = gen.orphans === 1
+        ? "Merges confetti stitches, stitches with no same-colour neighbour, into the colour around them. In plain areas, groups of up to 3."
+        : gen.orphans === 2
+          ? "Merges groups of up to 2 stitches cut off from their colour, and up to 6 in plain areas."
+          : "Merges groups of up to 3 stitches cut off from their colour, and up to 9 in plain areas.";
+    }
+    var tidySec = sec("tidying", "Tidying", null,
+      check({ checked: sc2.enabled, label: "Stitch Cleanup",
+        onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { enabled: v }); }); },
+        info: "Tidies the chart after colours are matched: confetti stitches (single stitches of a colour on their own) merge into the colour around them, and blurry in-between shades along edges fold into the colours either side. Off keeps every stitch exactly as matched." }),
+      hint(sc2.enabled ? "Merges confetti stitches and folds blurry in-between shades along edges into the colours either side." : "Off: every stitch stays exactly as matched."),
+      sc2.enabled && h(React.Fragment, null,
+        h(SliderRow, { label: "Reduce confetti", value: gen.orphans, min: 0, max: 3, onChange: gen.setOrphans,
+          format: function (v) { return v === 0 ? "Off" : String(v); },
+          helpText: "How big a group of cut-off stitches is merged into the colour around it: 1 merges confetti stitches, 2 groups of up to 2, 3 groups of up to 3 (three times larger in plain areas). Off merges none.",
+          inlineHint: "Confetti stitches are " + window.CONFETTI_HELP.definition + ". Each one forces a separate thread change, so reducing them can cut stitching time a lot.",
+          helpTopic: "confetti" }),
+        orphanDesc && hint(orphanDesc),
+        check({ checked: sc2.protectDetails, label: "Protect fine details",
+          onChange: function (v) { gen.setStitchCleanup(function (s) { return Object.assign({}, s, { protectDetails: v }); }); },
+          info: "Keeps small groups of stitches that touch an outline, such as eyes, lettering and thin lines, out of the tidying. Turn off for the tidiest chart. Bright accents such as a catchlight are kept either way." }),
+        tidied != null && !app.previewLoading && h("div", { className: "cv-tidied" },
+          hint(tidied === 0 ? "In the preview, tidying changed no stitches."
+            : "In the preview, tidying changed " + tidied.toLocaleString() + " stitch" + (tidied === 1 ? "" : "es") +
+              (ps.stitchable > 0 ? " (" + (tidied / ps.stitchable * 100).toFixed(1) + "%)." : ".")),
+          tidied > 0 && app.setShowTidied && h("button", { type: "button", className: "cs-seltools__btn" + (app.showTidied ? " cs-seltools__btn--on" : ""),
+            "aria-pressed": app.showTidied ? "true" : "false", onClick: function () { app.setShowTidied(!app.showTidied); } },
+            Icons.eye(), h("span", null, "Show them on the preview")))
+      )
+    );
+
+    var lookSec = sec("lookalike", "Look-alike colours", null,
+      check({ checked: gen.disambig, label: "Keep look-alike colours apart", onChange: function (v) { gen.setDisambig(v); },
+        info: "After matching, changes a stitch whose neighbour is a thread too similar to tell apart on a printed chart, so the symbols are easier to follow. Those stitches move a little away from the picture's colour." }),
+      hint("Makes skies and skin tones easier to read on a printed chart, at some cost to colour accuracy."),
+      gen.disambig && h(React.Fragment, null,
+        h("div", { className: "cv-sub__head" },
+          h("span", { className: "cv-field__label", id: "cv-strict-label" }, "How strict"),
+          h(InfoIcon, { label: "How strict", width: 240, text: "Gentle fixes only obvious clashes. Standard fixes colours that are hard to tell apart on a printed chart. Strong keeps them furthest apart, at a small cost to colour accuracy." })),
+        seg({ label: "How strict", value: gen.disambigLevel || "standard", onChange: function (id) { gen.setDisambigLevel(id); },
+          options: [{ id: "gentle", label: "Gentle" }, { id: "standard", label: "Standard" }, { id: "strong", label: "Strong" }] }),
+        gen.disambigData && gen.disambigData.swaps > 0 && hint(h(React.Fragment, null, "Last Generate: ", h("strong", null, gen.disambigData.swaps.toLocaleString()), " stitches changed in ", gen.disambigData.iterations, " pass", gen.disambigData.iterations !== 1 ? "es" : "", ".")),
+        gen.disambigData && gen.disambigData.swaps === 0 && hint("Last Generate: no neighbouring stitches needed changing.")
+      )
+    );
+
+    // ═══ Project ═══════════════════════════════════════════════════════════
+    function field(label, input) { return h("label", { className: "cv-field" }, h("span", { className: "cv-field__label" }, label), input); }
+    var projectSec = sec("project", "Project info", null,
+      field("Pattern name", h("input", { type: "text", className: "cv-input", value: app.projectName || "", maxLength: 60,
+        placeholder: ctx.sW + "\xD7" + ctx.sH + " pattern",
+        onChange: function (e) { var v = e.target.value.slice(0, 60); if (typeof app.renameProject === "function") app.renameProject(v); else if (typeof app.setProjectName === "function") app.setProjectName(v); } })),
+      field("Designer (optional)", h("input", { type: "text", className: "cv-input", value: app.projectDesigner || "", maxLength: 80, placeholder: "Your name or studio",
+        onChange: function (e) { if (typeof app.setProjectDesigner === "function") app.setProjectDesigner(e.target.value.slice(0, 80)); } })),
+      field("Description / notes (optional)", h("textarea", { className: "cv-input cv-input--area", value: app.projectDescription || "", maxLength: 500, rows: 3,
+        placeholder: "Source, copyright, stitching notes…",
+        onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
+    );
+    var fabricCt = ctx.fabricCt || 14;
+    var estimates = sec("estimates", "From the preview", null,
+      h("dl", { className: "cv-stats" },
+        h("dt", null, "Size"), h("dd", null, ctx.sW + " × " + ctx.sH + " stitches"),
+        h("dt", null, "Finished"), h("dd", null, window.finishedSizeText(ctx.sW, ctx.sH, fabricCt) + " (" + window.fabricShortLabel(fabricCt) + ")"),
+        h("dt", null, "Threads"), h("dd", null, used != null ? used + " (" + ps.uniqueColors + " symbols)" : "—"),
+        h("dt", null, "Stitches"), h("dd", null, ps ? ps.stitchable.toLocaleString() : "—"),
+        h("dt", null, "Skeins"), h("dd", null, ps && ps.estSkeins ? "≈ " + ps.estSkeins : "—")),
+      hint("Updated as you change the settings; Generate makes the chart.")
+    );
+
+    var content;
+    if (tab === "picture") content = [pictureType, background, adjust];
+    else if (tab === "size") content = [sizeSec, fabricSec];
+    else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
+    else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
+    else content = [projectSec, estimates];
+
+    // ── Tab strip (the Edit panel's) ────────────────────────────────────────
+    var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },
+      h("div", { className: "creator-sidebar-tabs", "data-onboard": "convert-tabs" },
+        CONVERT_TABS.map(function (t, i) {
+          var on = t.id === tab;
+          return h("button", {
+            key: t.id, type: "button", role: "tab", id: "convert-tab-" + t.id,
+            className: "creator-sidebar-tab", "data-tab-id": t.id,
+            "aria-selected": on ? "true" : "false", "aria-controls": "convert-panel",
+            tabIndex: on ? 0 : -1, title: t.label,
+            onClick: function () { pickTab(t.id); },
+            onKeyDown: function (e) {
+              var step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+              if (!step) return;
+              e.preventDefault();
+              var next = CONVERT_TABS[(i + step + CONVERT_TABS.length) % CONVERT_TABS.length];
+              pickTab(next.id);
+              var sib = document.getElementById("convert-tab-" + next.id);
+              if (sib) sib.focus();
+            }
+          }, Icons[t.icon] ? Icons[t.icon]() : null, h("span", { className: "creator-sidebar-tab__label" }, t.label));
+        })));
+
+    var next = tabMeta.next;
+    var panel = h("div", { ref: contentRef, className: "cv-panel", role: "tabpanel", id: "convert-panel", "aria-labelledby": "convert-tab-" + tab },
+      h("p", { className: "cv-lead" }, tabMeta.lead),
+      content,
+      next && h("div", { className: "cv-next" },
+        h("button", { type: "button", className: "cv-next__btn", onClick: function () { pickTab(next); } },
+          h("span", null, "Next: " + NEXT_LABELS[next]), Icons.chevronRight()))
+    );
+
+    // ── Footer: what Generate will make, and Generate ──────────────────────
+    var hasImg = !!(gen.img && gen.img.src);
+    var typeLabel = gen.pictureType && window.PICTURE_PRESETS && window.PICTURE_PRESETS[gen.pictureType] ? window.PICTURE_PRESETS[gen.pictureType].label : "Custom";
+    var summary = gen.exactPixelArt
+      ? "Exact pixel art · one stitch per pixel"
+      : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
+         window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
+    var editCount = (cv.editHistory && cv.editHistory.length) || 0;
+    var stale = !!ctx.pat && settingsChangedSince(app.lastGenSnapshot, gen, ctx);
+    var footer = h("footer", { className: "cv-footer" },
+      hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
+      hasImg && ctx.pat && h("p", { className: "cv-footer__state" }, stale
+        ? "The preview shows the new settings. Regenerate to replace your chart" + (editCount > 0 ? " and its " + editCount + " edit" + (editCount === 1 ? "" : "s") : "") + "."
+        : "Your chart matches these settings."),
+      hasImg ? h("button", {
+        type: "button", className: "cv-generate" + (gen.hasGenerated && !stale ? " cv-generate--quiet" : ""),
+        onClick: function () {
+          if (editCount > 0 && ctx.pat && !window.confirm("Regenerating replaces your chart and discards " + editCount + " edit" + (editCount === 1 ? "" : "s") + ". Continue?")) return;
+          gen.generate();
+        },
+        disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
+      }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
+        : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })
+    );
+
+    return h(React.Fragment, null, props && props.drawerHeader, tabBar, panel, footer);
+  };
+})();
+
+
+/* ─── StitchedPreview.js ─── */
+/* creator/StitchedPreview.js — Convert's "Stitched" preview: the chart the
+   current settings make, drawn as cross stitches on the chosen fabric.
+
+   Each stitch is two legs of thread corner to corner. They are drawn as wide
+   as two strands lie on that fabric, so the share of fabric showing between
+   stitches is about right (more on 11-count, very little on 18-count), and a
+   leg's average colour is its thread's colour: the shading only rounds the
+   strands, it does not darken them. A blend is one strand of each thread in
+   every leg, side by side. Fabric holes show at the corners.
+
+   The canvas is drawn at the size it is shown, in device pixels, so the
+   browser never shrinks a large canvas (which shimmers). "Close up" draws
+   16 screen pixels per stitch in a scrolling box.
+
+   window.CreatorStitchedPreview(props):
+     cells        the preview's cells ({ id, rgb, threads? }), row by row
+     width,height stitches across and down
+     fabricColour '#RRGGBB'
+     fabricCt     the fabric count (over-two counts use their effective count)
+     displayWidth CSS pixels available across
+     closeUp      true for 16 CSS pixels per stitch
+   window.stitchCoverage(ct): share of a stitch's square two strands cover.
+   window.drawStitchTile(ctx, size, fabric, legA, legB, coverage): one stitch.
+
+   Loaded as a plain <script> (concatenated into creator/bundle.js). */
+
+(function () {
+  // Two strands lie thinner on coarse fabric: about 83% of the square is
+  // covered on 11-count, over 90% on 16-count and nearly all on 18-count.
+  function stitchCoverage(ct) {
+    var over = (typeof stitchOverFor === "function" && stitchOverFor(ct)) || 1;
+    var eff = (Number(ct) || 14) / over;
+    return Math.max(0.5, Math.min(1, 0.55 + (eff - 11) * 0.06));
+  }
+  window.stitchCoverage = stitchCoverage;
+
+  function hexRgb(hex) {
+    var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+    return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [255, 255, 255];
+  }
+  function shade(rgb, f) {
+    return "rgb(" + Math.min(255, Math.round(rgb[0] * f)) + "," + Math.min(255, Math.round(rgb[1] * f)) + "," + Math.min(255, Math.round(rgb[2] * f)) + ")";
+  }
+
+  // One leg from (x0,y0) to (x1,y1), w wide: a slightly darker edge, the
+  // thread's own colour, and a light crest. strands: one colour, or two side
+  // by side for a blend.
+  function drawLeg(c, x0, y0, x1, y1, w, strands, under) {
+    var dx = x1 - x0, dy = y1 - y0, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var px = -dy / len, py = dx / len;          // across the leg
+    var n = strands.length, sw = w / n;
+    var dim = under ? 0.94 : 1;                  // the under leg is a touch shaded
+    for (var k = 0; k < n; k++) {
+      var off = (k - (n - 1) / 2) * sw;
+      var ax = x0 + px * off, ay = y0 + py * off, bx = x1 + px * off, by = y1 + py * off;
+      var rgb = strands[k];
+      c.lineCap = "butt";
+      c.lineWidth = sw;
+      c.strokeStyle = shade(rgb, 0.8 * dim);
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+      c.lineWidth = sw * 0.72;
+      c.strokeStyle = shade(rgb, 1.04 * dim);
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke();
+      if (sw >= 4) {
+        c.lineWidth = sw * 0.22;
+        c.strokeStyle = shade(rgb, 1.14 * dim);
+        c.beginPath(); c.moveTo(ax - px * sw * 0.12, ay - py * sw * 0.12); c.lineTo(bx - px * sw * 0.12, by - py * sw * 0.12); c.stroke();
+      }
+    }
+  }
+
+  // One stitch in a size x size square: fabric, its holes, then the under
+  // leg (bottom left to top right) and the top leg. legA/legB are arrays of
+  // strand colours; null for an unstitched square.
+  function drawStitchTile(c, size, fabric, legA, legB, coverage) {
+    c.fillStyle = shade(fabric, 1);
+    c.fillRect(0, 0, size, size);
+    var hole = Math.max(0.6, size * 0.09);
+    c.fillStyle = shade(fabric, 0.78);
+    [[0, 0], [size, 0], [0, size], [size, size]].forEach(function (p) {
+      c.beginPath(); c.arc(p[0], p[1], hole, 0, Math.PI * 2); c.fill();
+    });
+    if (!legA) return;
+    var w = size * (0.25 + 0.30 * coverage);
+    var inset = size * 0.04;
+    drawLeg(c, inset, size - inset, size - inset, inset, w, legA, true);
+    drawLeg(c, inset, inset, size - inset, size - inset, w, legB || legA, false);
+  }
+  window.drawStitchTile = drawStitchTile;
+
+  function strandsFor(cell) {
+    if (!cell || !cell.id || cell.id === "__skip__" || cell.id === "__empty__" || !cell.rgb) return null;
+    if (cell.type === "blend" && cell.threads && cell.threads[0] && cell.threads[1] && cell.threads[0].rgb && cell.threads[1].rgb) {
+      return [cell.threads[0].rgb, cell.threads[1].rgb];
+    }
+    return [cell.rgb];
+  }
+
+  var MAX_OFFSCREEN = 4096;   // the drawn chart's longest side, in pixels
+  var MAX_DISPLAY = 8192;     // the canvas on the page, in device pixels
+
+  window.CreatorStitchedPreview = function CreatorStitchedPreview(props) {
+    var h = React.createElement;
+    var canvasRef = React.useRef(null);
+    var cells = props.cells, W = props.width, H = props.height;
+    var dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
+    // CSS pixels per stitch on screen.
+    var cssCell = props.closeUp ? 16 : (props.displayWidth > 0 ? props.displayWidth / W : 8);
+    var devCell = Math.min(cssCell * dpr, MAX_DISPLAY / Math.max(W, H));
+    var dispW = Math.max(1, Math.round(W * devCell)), dispH = Math.max(1, Math.round(H * devCell));
+    // The stitches are drawn at least 4 pixels wide, so a small one still has
+    // its fabric gaps when it is shrunk onto the page.
+    var tile = Math.max(2, Math.min(32, Math.floor(MAX_OFFSCREEN / Math.max(W, H)), Math.max(4, Math.round(devCell))));
+    var coverage = stitchCoverage(props.fabricCt);
+    var fabric = props.fabricColour || "#FFFFFF";
+
+    React.useEffect(function () {
+      var canvas = canvasRef.current;
+      if (!canvas || !cells || !W || !H || cells.length !== W * H) return;
+      var fab = hexRgb(fabric);
+      var off = document.createElement("canvas");
+      off.width = W * tile; off.height = H * tile;
+      var oc = off.getContext("2d");
+      if (!oc) return;
+      var tiles = {};
+      function tileFor(cell) {
+        var key = cell && cell.id && cell.rgb && cell.id !== "__skip__" && cell.id !== "__empty__" ? cell.id + "|" + cell.rgb.join(",") : "__fabric__";
+        if (tiles[key]) return tiles[key];
+        var t = document.createElement("canvas"); t.width = tile; t.height = tile;
+        var strands = key === "__fabric__" ? null : strandsFor(cell);
+        drawStitchTile(t.getContext("2d"), tile, fab, strands, strands, coverage);
+        tiles[key] = t;
+        return t;
+      }
+      for (var i = 0; i < cells.length; i++) {
+        oc.drawImage(tileFor(cells[i]), (i % W) * tile, Math.floor(i / W) * tile);
+      }
+      canvas.width = dispW; canvas.height = dispH;
+      var dc = canvas.getContext("2d");
+      dc.imageSmoothingEnabled = true;
+      if ("imageSmoothingQuality" in dc) dc.imageSmoothingQuality = "high";
+      dc.drawImage(off, 0, 0, dispW, dispH);
+    }, [cells, W, H, tile, dispW, dispH, coverage, fabric]);
+
+    return h("canvas", {
+      ref: canvasRef, className: "cvp-stitched__canvas", role: "img",
+      "aria-label": "The pattern as cross stitches on " + (typeof fabricShortLabel === "function" ? fabricShortLabel(props.fabricCt || 14) : "") + " fabric",
+      style: { width: dispW / dpr + "px", height: dispH / dpr + "px" }
+    });
+  };
+})();
 
 
 /* ─── Toast.js ─── */

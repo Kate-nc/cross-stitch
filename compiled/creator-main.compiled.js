@@ -280,8 +280,8 @@ function ComparisonSlider({
       aspectRatio: `${shownW}/${shownH}`,
       overflow: "hidden",
       cursor: altDown ? "zoom-in" : zoomLocked ? "crosshair" : "ew-resize",
-      borderRadius: 8,
-      border: "0.5px solid #E5DCCB",
+      borderRadius: "var(--radius-md)",
+      border: "1px solid var(--line)",
       userSelect: "none",
       touchAction: "none"
     },
@@ -590,15 +590,14 @@ function ComparisonSlider({
       }
     }));
   }()), /*#__PURE__*/React.createElement("div", {
+    className: "cvp-tools",
     style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 6,
-      flexWrap: "wrap"
+      marginTop: 8
     }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "cs-seltools__btn" + (sweeping ? " cs-seltools__btn--on" : ""),
+    "aria-pressed": sweeping ? "true" : "false",
     onClick: function () {
       setSweeping(function (s) {
         if (!s) {
@@ -607,73 +606,36 @@ function ComparisonSlider({
         }
         return !s;
       });
-    },
-    style: {
-      fontSize: 11,
-      padding: "3px 10px",
-      cursor: "pointer",
-      border: "0.5px solid #E5DCCB",
-      borderRadius: 6,
-      background: sweeping ? "#B85C38" : "#FBF8F3",
-      color: sweeping ? "#fff" : "#5C5448",
-      fontWeight: 500
     }
-  }, sweeping ? /*#__PURE__*/React.createElement(React.Fragment, null, Icons.pause(), " Pause") : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.play(), " Auto-sweep")), /*#__PURE__*/React.createElement("button", {
+  }, sweeping ? /*#__PURE__*/React.createElement(React.Fragment, null, Icons.pause(), /*#__PURE__*/React.createElement("span", null, "Pause")) : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.play(), /*#__PURE__*/React.createElement("span", null, "Auto-sweep"))), /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "cs-seltools__btn" + (zoomLocked ? " cs-seltools__btn--on" : ""),
+    "aria-pressed": zoomLocked ? "true" : "false",
     onClick: function () {
       setZoomLocked(function (z) {
         return !z;
       });
     },
-    title: zoomLocked ? "Turn off magnifier" : "Turn on magnifier (or hold Alt)",
-    style: {
-      fontSize: 11,
-      padding: "3px 10px",
-      cursor: "pointer",
-      border: "0.5px solid " + (zoomLocked ? "#A04E11" : "#E5DCCB"),
-      borderRadius: 6,
-      background: zoomLocked ? "#F8EFD8" : "#FBF8F3",
-      color: zoomLocked ? "#A04E11" : "#5C5448",
-      fontWeight: 500,
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 4
-    }
-  }, Icons.magnify(), " Magnifier"), (diffUrl || showDiff) && /*#__PURE__*/React.createElement("button", {
+    title: zoomLocked ? "Turn off magnifier" : "Turn on magnifier (or hold Alt)"
+  }, Icons.magnify(), /*#__PURE__*/React.createElement("span", null, "Magnifier")), (diffUrl || showDiff) && /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "cs-seltools__btn" + (showDiff ? " cs-seltools__btn--on" : ""),
+    "aria-pressed": showDiff ? "true" : "false",
     onClick: function () {
       setShowDiff(function (d) {
         return !d;
       });
-    },
-    style: {
-      fontSize: 11,
-      padding: "3px 10px",
-      cursor: "pointer",
-      border: "0.5px solid " + (showDiff ? "#A04E11" : "#E5DCCB"),
-      borderRadius: 6,
-      background: showDiff ? "#F8EFD8" : "#FBF8F3",
-      color: showDiff ? "#A04E11" : "#5C5448",
-      fontWeight: 500
     }
-  }, showDiff ? "Hide what changed" : "Show what changed"), heatmapSrc && /*#__PURE__*/React.createElement("button", {
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, showDiff ? "Hide what changed" : "Show what changed")), heatmapSrc && /*#__PURE__*/React.createElement("button", {
     type: "button",
+    className: "cs-seltools__btn" + (showHeatmap ? " cs-seltools__btn--on" : ""),
+    "aria-pressed": showHeatmap ? "true" : "false",
     onClick: function () {
       setShowHeatmap(function (h) {
         return !h;
       });
-    },
-    style: {
-      fontSize: 11,
-      padding: "3px 10px",
-      cursor: "pointer",
-      border: "0.5px solid " + (showHeatmap ? "#A53D3D" : "#E5DCCB"),
-      borderRadius: 6,
-      background: showHeatmap ? "#FCEFEF" : "#FBF8F3",
-      color: showHeatmap ? "#A53D3D" : "#5C5448",
-      fontWeight: 500
     }
-  }, showHeatmap ? "Hide heatmap" : /*#__PURE__*/React.createElement(React.Fragment, null, Icons.fire(), " Heatmap")), !zoomLocked && !(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer()) && /*#__PURE__*/React.createElement("span", {
+  }, Icons.fire(), /*#__PURE__*/React.createElement("span", null, "Show confetti")), !zoomLocked && !(window.Platform && window.Platform.isCoarsePointer && window.Platform.isCoarsePointer()) && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: "var(--text-xs)",
       color: "var(--text-secondary)"
@@ -681,6 +643,259 @@ function ComparisonSlider({
   }, "Hold Alt to zoom")));
 }
 window.ComparisonSlider = ComparisonSlider;
+
+// ── Convert preview (the card in the middle of Convert) ────────────────────
+// Three ways to look at the chart the current settings make:
+//   Stitched       crosses of thread on the chosen fabric (StitchedPreview.js),
+//                  the closest to the finished piece; the default.
+//   Flat           every stitch as a square of its thread colour, whole.
+//   Before / after the picture and the chart on either side of a slider.
+// Above it, a line says what the last change did (usePreview.js
+// describePreviewChange). Once a chart exists, Convert still shows this live
+// preview, and says when it differs from the chart until Regenerate.
+const PREVIEW_VIEWS = [{
+  id: 'stitched',
+  label: 'Stitched',
+  title: 'How the finished piece will look: crosses of thread on your fabric'
+}, {
+  id: 'flat',
+  label: 'Flat',
+  title: 'Every stitch as a square of its thread colour'
+}, {
+  id: 'compare',
+  label: 'Before / after',
+  title: 'Your picture and the chart either side of a slider'
+}];
+function loadPreviewView() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
+    if (PREVIEW_VIEWS.some(function (x) {
+      return x.id === v;
+    })) return v;
+  } catch (_) {}
+  return 'stitched';
+}
+function describeChangeText(change) {
+  if (!change) return null;
+  const names = change.settings.length > 3 ? change.settings.slice(0, 3).join(', ') + ' and more' : change.settings.join(', ');
+  const parts = [];
+  if (change.changedStitches != null) {
+    if (change.changedStitches === 0) parts.push('no stitches changed');else parts.push(change.changedStitches.toLocaleString('en-GB') + ' stitch' + (change.changedStitches === 1 ? '' : 'es') + ' changed' + (change.total ? ' (' + (change.changedStitches / change.total * 100).toFixed(change.changedStitches / change.total < 0.01 ? 1 : 0) + '%)' : ''));
+  }
+  change.stats.forEach(function (st) {
+    parts.push(st.label + ' ' + st.from + ' to ' + st.to);
+  });
+  return {
+    names: names,
+    detail: parts.length ? parts.join(', ') : 'no visible change to the chart'
+  };
+}
+function ConvertPreview({
+  state,
+  onRetry
+}) {
+  const [view, setViewRaw] = useState(loadPreviewView);
+  const [closeUp, setCloseUp] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  // The stitched view is drawn at the size it is shown, in device pixels, so
+  // the browser never shrinks a big canvas (which shimmers into moire).
+  const bodyRef = useRef(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(function () {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = function () {
+      setBodyW(el.clientWidth || 0);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return function () {
+      ro.disconnect();
+    };
+  }, []);
+  function setView(v) {
+    setViewRaw(v);
+    try {
+      if (window.UserPrefs) window.UserPrefs.set('creator.convertPreviewView', v);
+    } catch (_) {}
+  }
+  const dims = state.previewDims;
+  const pw = dims ? dims.pw : state.sW,
+    ph = dims ? dims.ph : state.sH;
+  // The preview's cells, kept through an update so the stitched view never blanks.
+  const stitchData = useMemo(function () {
+    if (!state.previewMapped || !dims) return null;
+    return {
+      pat: state.previewMapped,
+      cmap: null,
+      pal: null,
+      sW: dims.pw,
+      sH: dims.ph,
+      fabricCt: state.fabricCt
+    };
+  }, [state.previewMapped, dims, state.fabricCt]);
+  const lastStitchData = useRef(null);
+  if (stitchData) lastStitchData.current = stitchData;
+  const shownStitchData = stitchData || lastStitchData.current;
+  const fabricBg = state.fabricColour || 'var(--surface)';
+  const ct = state.fabricCt || 14;
+  const stale = !!state.pat && window.convertSettingsChangedSince && window.convertSettingsChangedSince(state.lastGenSnapshot, state, state);
+  const changeText = !state.previewLoading ? describeChangeText(state.previewChange) : null;
+  const loadingSpinner = state.previewLoading && /*#__PURE__*/React.createElement("span", {
+    role: "status",
+    "aria-label": "Updating preview",
+    title: "Updating preview",
+    className: "preview-spinner cvp-spinner"
+  }, Icons.spinner());
+
+  // Overlays share the chart's box: confetti, the stitches tidying changed,
+  // and the colour picked in the breakdown below.
+  const overlay = (src, testId) => src ? /*#__PURE__*/React.createElement("img", {
+    "data-testid": testId,
+    src: src,
+    className: "cvp-overlay",
+    alt: "",
+    "aria-hidden": "true"
+  }) : null;
+  const overlays = !state.previewLoading && /*#__PURE__*/React.createElement(React.Fragment, null, showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap'), state.showTidied && overlay(state.previewTidied, 'cvp-tidied'), overlay(state.previewHighlight, 'cvp-highlight'));
+  let body;
+  if (view === 'compare') {
+    body = /*#__PURE__*/React.createElement(ComparisonSlider, {
+      originalSrc: state.img.src,
+      previewSrc: state.previewUrl,
+      heatmapSrc: state.previewHeatmap,
+      highlightSrc: state.previewHighlight,
+      width: state.sW,
+      height: state.sH,
+      previewPw: dims && dims.pw,
+      previewPh: dims && dims.ph,
+      fabricColour: state.fabricColour,
+      previewLoading: state.previewLoading
+    });
+  } else if (view === 'flat') {
+    body = /*#__PURE__*/React.createElement("div", {
+      className: "cvp-box",
+      "data-testid": "cvp-flat",
+      style: {
+        aspectRatio: pw + '/' + ph,
+        background: fabricBg
+      }
+    }, /*#__PURE__*/React.createElement("img", {
+      src: state.previewUrl,
+      alt: "Preview",
+      className: "cvp-flat"
+    }), overlays);
+  } else {
+    body = /*#__PURE__*/React.createElement("div", {
+      className: 'cvp-stitched' + (closeUp ? ' cvp-stitched--close' : ''),
+      "data-testid": "cvp-stitched"
+    }, shownStitchData && window.CreatorStitchedPreview ? /*#__PURE__*/React.createElement("div", {
+      className: "cvp-stitched__inner"
+    }, /*#__PURE__*/React.createElement(window.CreatorStitchedPreview, {
+      cells: shownStitchData.pat,
+      width: shownStitchData.sW,
+      height: shownStitchData.sH,
+      fabricColour: state.fabricColour,
+      fabricCt: ct,
+      displayWidth: Math.max(0, bodyW - 2),
+      closeUp: closeUp
+    }), overlays) : /*#__PURE__*/React.createElement("div", {
+      className: "cvp-wait"
+    }, "Updating preview\u2026"));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "card cvp",
+    "data-preview-view": view
+  }, state.conversionSettings && state.conversionSettings.stashConstrained && state.conversionSettings.stashCount === 0 && /*#__PURE__*/React.createElement("div", {
+    role: "status",
+    className: "cvp-note cvp-note--warn"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "cvp-note__icon",
+    "aria-hidden": "true"
+  }, Icons.warning()), "No threads marked as owned, so the preview uses every thread. Add threads in the Stash Manager to see a stash-only preview."), /*#__PURE__*/React.createElement("div", {
+    className: "cvp-head"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "cvp-head__title"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "cvp-title"
+  }, "Preview", loadingSpinner), dims && /*#__PURE__*/React.createElement("span", {
+    className: "cvp-size",
+    "data-preview-size": ""
+  }, dims.pw, " \xD7 ", dims.ph, " stitches \xB7 ", window.finishedSizeText(dims.pw, dims.ph, ct), " on ", window.fabricShortLabel(ct), dims.pw !== state.sW ? ' (shown smaller)' : '')), /*#__PURE__*/React.createElement("div", {
+    className: "lp-segmented cvp-views",
+    role: "radiogroup",
+    "aria-label": "Preview view"
+  }, PREVIEW_VIEWS.map(function (v, i) {
+    const on = view === v.id;
+    return /*#__PURE__*/React.createElement("button", {
+      key: v.id,
+      type: "button",
+      role: "radio",
+      "aria-checked": on ? 'true' : 'false',
+      tabIndex: on ? 0 : -1,
+      className: 'lp-seg' + (on ? ' lp-seg--on' : ''),
+      title: v.title,
+      "data-preview-view": v.id,
+      onClick: function () {
+        setView(v.id);
+      },
+      onKeyDown: function (e) {
+        const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        const next = PREVIEW_VIEWS[(i + step + PREVIEW_VIEWS.length) % PREVIEW_VIEWS.length];
+        setView(next.id);
+        const sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-preview-view="' + next.id + '"]');
+        if (sib) sib.focus();
+      }
+    }, v.label);
+  }))), stale && /*#__PURE__*/React.createElement("div", {
+    role: "status",
+    className: "cvp-note cvp-note--stale"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "cvp-note__icon",
+    "aria-hidden": "true"
+  }, Icons.info()), /*#__PURE__*/React.createElement("span", null, "This preview shows your new settings. Your chart changes when you Regenerate.")), changeText && /*#__PURE__*/React.createElement("p", {
+    className: "cvp-change",
+    "data-preview-change": "",
+    "aria-live": "polite"
+  }, /*#__PURE__*/React.createElement("strong", null, changeText.names, ":"), " ", changeText.detail, "."), /*#__PURE__*/React.createElement("div", {
+    className: "cvp-body",
+    ref: bodyRef
+  }, body), view !== 'compare' && /*#__PURE__*/React.createElement("div", {
+    className: "cvp-tools"
+  }, view === 'stitched' && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "cs-seltools__btn",
+    "aria-pressed": closeUp ? 'true' : 'false',
+    onClick: function () {
+      setCloseUp(function (c) {
+        return !c;
+      });
+    }
+  }, closeUp ? Icons.magnifyMinus() : Icons.magnifyPlus(), /*#__PURE__*/React.createElement("span", null, closeUp ? 'Fit' : 'Close up')), state.previewHeatmap && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: 'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : ''),
+    "aria-pressed": showConfetti ? 'true' : 'false',
+    onClick: function () {
+      setShowConfetti(function (c) {
+        return !c;
+      });
+    }
+  }, Icons.fire(), /*#__PURE__*/React.createElement("span", null, "Show confetti")), state.previewTidied && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: 'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : ''),
+    "aria-pressed": state.showTidied ? 'true' : 'false',
+    onClick: function () {
+      state.setShowTidied(!state.showTidied);
+    }
+  }, Icons.eye(), /*#__PURE__*/React.createElement("span", null, "Show tidied stitches"))), view === 'stitched' && /*#__PURE__*/React.createElement("p", {
+    className: "cvp-caption"
+  }, "Simulated stitches: 2 strands on ", window.fabricShortLabel(ct), " fabric in your fabric colour. Screens show thread colours only roughly."));
+}
+window.ConvertPreview = ConvertPreview;
 function CreatorApp({
   onSwitchToTrack = null,
   isActive = true
@@ -873,6 +1088,10 @@ function CreatorApp({
   // picture to convert, Canvas for a design drawn from scratch (its size and
   // fabric), and neither for a chart imported without a picture.
   const _sourceTab = state.isScratchMode ? 'canvas' : state.img && state.img.src ? 'convert' : null;
+  // Convert shows the live preview of the current settings, also once a chart
+  // exists: the chart itself is Edit's. Without a chart the preview is all
+  // there is to show.
+  const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || state.appMode === 'create' && state.tab === 'pattern'));
   const handleOpenCanvas = React.useCallback(function () {
     state.setAppMode("create");
     state.setTab("pattern");
@@ -1120,18 +1339,12 @@ function CreatorApp({
       copied: state.copied,
       setCopied: state.setCopied,
       copyText: state.copyText,
-      dimOpen: state.dimOpen,
-      setDimOpen: state.setDimOpen,
-      palOpen: state.palOpen,
-      setPalOpen: state.setPalOpen,
-      adjOpen: state.adjOpen,
-      setAdjOpen: state.setAdjOpen,
-      bgOpen: state.bgOpen,
-      setBgOpen: state.setBgOpen,
-      palAdvanced: state.palAdvanced,
-      setPalAdvanced: state.setPalAdvanced,
-      cleanupOpen: state.cleanupOpen,
-      setCleanupOpen: state.setCleanupOpen,
+      convertTab: state.convertTab,
+      setConvertTab: state.setConvertTab,
+      showTidied: state.showTidied,
+      setShowTidied: state.setShowTidied,
+      previewChange: state.previewChange,
+      previewTidied: state.previewTidied,
       splitPaneEnabled: state.splitPaneEnabled,
       setSplitPaneEnabled: state.setSplitPaneEnabled,
       splitPaneRatio: state.splitPaneRatio,
@@ -1234,7 +1447,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
@@ -2124,9 +2337,10 @@ function CreatorApp({
     className: "cs-main"
   }, /*#__PURE__*/React.createElement("div", {
     className: "canvas-area"
-  }, state.pat && state.pal && /*#__PURE__*/React.createElement("div", {
+  }, state.pat && state.pal && !showConvertView && /*#__PURE__*/React.createElement("div", {
     className: "cs-page-fade cs-page-fade--" + state.tab
-  }, /*#__PURE__*/React.createElement(window.CreatorPatternTab, null), /*#__PURE__*/React.createElement(window.CreatorProjectTab, null), typeof window.CreatorMaterialsHub !== "undefined" && /*#__PURE__*/React.createElement(window.CreatorMaterialsHub, null)), !state.pat && state.img && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(window.CreatorPatternTab, null), /*#__PURE__*/React.createElement(window.CreatorProjectTab, null), typeof window.CreatorMaterialsHub !== "undefined" && /*#__PURE__*/React.createElement(window.CreatorMaterialsHub, null)), showConvertView && /*#__PURE__*/React.createElement("div", {
+    className: "cvp-layout",
     style: {
       display: "flex",
       gap: 20,
@@ -2143,18 +2357,14 @@ function CreatorApp({
       gap: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "card",
+    id: "bg-pick-target",
+    className: "card" + (state.pickBg ? " card--pickBg" : ""),
     style: {
       overflow: "hidden"
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "7px 12px 4px",
-      fontSize: 11,
-      fontWeight: 600,
-      color: "var(--text-secondary)"
-    }
-  }, "Original Image"), state.pickBg && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "cvp-title cvp-title--card"
+  }, "Your picture"), state.pickBg && /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "8px 12px",
       fontSize: 11,
@@ -2258,102 +2468,10 @@ function CreatorApp({
   }, "Retry preview")) : state.previewLoading ? /*#__PURE__*/React.createElement("span", {
     role: "status",
     "aria-label": "Updating preview"
-  }, "Updating preview\u2026") : "Choose an image and adjust the settings to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement("div", {
-    className: "card"
-  }, state.conversionSettings && state.conversionSettings.stashConstrained && state.conversionSettings.stashCount === 0 && /*#__PURE__*/React.createElement("div", {
-    role: "status",
-    style: {
-      margin: "8px 14px 0",
-      padding: "6px 10px",
-      fontSize: 11,
-      fontWeight: 500,
-      color: "var(--text-primary)",
-      background: "var(--warning-soft)",
-      border: "0.5px solid var(--line)",
-      borderRadius: 6,
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      width: 14,
-      height: 14
-    },
-    "aria-hidden": "true"
-  }, Icons.warning()), "No threads marked as owned \u2014 preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "8px 14px 4px",
-      fontSize: 12,
-      fontWeight: 600,
-      color: "var(--text-secondary)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, "Preview", state.previewLoading && /*#__PURE__*/React.createElement("span", {
-    role: "status",
-    "aria-label": "Updating preview",
-    title: "Updating preview",
-    className: "preview-spinner",
-    style: {
-      display: "inline-flex",
-      width: 12,
-      height: 12,
-      color: "var(--text-secondary)"
-    }
-  }, Icons.spinner())), state.previewDims && /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: "var(--text-xs)",
-      fontWeight: 500,
-      color: "var(--text-secondary)"
-    }
-  }, state.previewDims.pw, "\xD7", state.previewDims.ph, " px", state.previewDims.pw === state.sW ? " — full res" : " — " + Math.round(state.previewDims.pw / state.sW * 100) + "%"), state.stitchCleanup && state.stitchCleanup.enabled && state.previewUrl && /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "4px 14px 4px",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: () => state.setShowCleanupDiff(d => !d),
-    style: {
-      fontSize: 11,
-      padding: "3px 8px",
-      borderRadius: 6,
-      cursor: "pointer",
-      border: state.showCleanupDiff ? "1px solid var(--accent)" : "0.5px solid var(--line)",
-      background: state.showCleanupDiff ? "var(--accent-soft)" : "var(--surface)",
-      color: state.showCleanupDiff ? "var(--accent)" : "var(--text-secondary)",
-      fontWeight: state.showCleanupDiff ? 600 : 400,
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      lineHeight: 1.4
-    }
-  }, Icons.eye(), " ", state.showCleanupDiff ? "Hide changes" : "Show changes"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      padding: "0 14px 10px"
-    }
-  }, /*#__PURE__*/React.createElement(ComparisonSlider, {
-    originalSrc: state.img.src,
-    previewSrc: state.previewUrl,
-    heatmapSrc: state.previewHeatmap,
-    highlightSrc: state.previewHighlight,
-    width: state.sW,
-    height: state.sH,
-    previewPw: state.previewDims && state.previewDims.pw,
-    previewPh: state.previewDims && state.previewDims.ph,
-    fabricColour: state.fabricColour,
-    previewLoading: state.previewLoading
-  }))), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
+  }, "Updating preview\u2026") : "Choose an image and adjust the settings to see a preview here."), state.previewUrl && /*#__PURE__*/React.createElement(ConvertPreview, {
+    state: state,
+    onRetry: preview.generatePreview
+  }), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
     img: state.img,
     settings: state.conversionSettings,
     sW: state.sW,
@@ -2466,13 +2584,15 @@ function CreatorApp({
       fontSize: "var(--text-xs)",
       color: "var(--text-secondary)"
     }
-  }, "Thread Cost"), /*#__PURE__*/React.createElement("div", {
+  }, "Thread cost"), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 13,
       fontWeight: 600,
       color: "var(--text-primary)"
     }
-  }, "\xA3", (state.previewStats.estSkeins * state.skeinPrice).toFixed(2)))), state.previewStats.confettiPct != null && (() => {
+  }, function (c) {
+    return window.AppPrefs && window.AppPrefs.formatCurrency ? window.AppPrefs.formatCurrency(c) : "\u00A3" + c.toFixed(2);
+  }(state.previewStats.estSkeins * state.skeinPrice)))), state.previewStats.confettiPct != null && (() => {
     const t = confettiTier(state.previewStats.confettiPct);
     const tips = {
       "Excellent": "Great stitch flow",
@@ -2596,7 +2716,7 @@ function CreatorApp({
     }
   }, state.previewColors.map(function (pcol) {
     var sf = state.previewDims ? state.sW * state.sH / (state.previewDims.pw * state.previewDims.ph) : 1;
-    var n = findThreadInCatalog('dmc', pcol.id);
+    var n = findThreadInCatalog(state.convertBrand || 'dmc', pcol.id);
     return /*#__PURE__*/React.createElement("div", {
       key: pcol.id,
       style: {

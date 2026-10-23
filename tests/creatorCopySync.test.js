@@ -32,8 +32,12 @@ const CONTROLS = {
   "Paint":           [["creator/ToolStrip.js", "Paint"]],
   "Tools":           [["creator/Sidebar.js", "Tools"]],
   "View":            [["creator/Sidebar.js", "View"]],
-  "Image":           [["creator/Sidebar.js", "Image"]],
-  "Dimensions":      [["creator/Sidebar.js", "Dimensions"]],
+  // Convert's step tabs (creator/ConvertPanel.js).
+  "Picture":         [["creator/ConvertPanel.js", "Picture"]],
+  "Size":            [["creator/ConvertPanel.js", "Size"]],
+  "Threads":         [["creator/ConvertPanel.js", "Threads"]],
+  "Detail":          [["creator/ConvertPanel.js", "Detail"]],
+  "Stitched":        [["creator-main.js", "Stitched"]],
   "Undo":            [["creator/ToolStrip.js", "Undo"]]
 };
 

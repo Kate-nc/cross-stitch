@@ -78,7 +78,7 @@
       return [
         {
           title: "Turn your picture into a pattern",
-          body: "Choose what kind of picture it is, then set the size, fabric and threads in " + d.settings + ". The preview updates as you go, and Compare options shows neighbouring sizes and thread counts side by side."
+          body: "Work through the steps in " + d.settings + " from left to right: Picture, Size, Threads and Detail. The preview shows your pattern as stitches and says what each change did; Compare options shows neighbouring sizes and thread counts side by side."
         },
         {
           title: "Generate",

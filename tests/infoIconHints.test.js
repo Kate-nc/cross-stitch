@@ -88,29 +88,11 @@ describe('InfoIcon', () => {
   });
 });
 
+// Every Convert setting's hint is checked by rendering the panel in
+// tests/convertPanel.test.js; the size and fabric blocks are their own files.
 describe('Convert settings carry hints', () => {
-  const sb = fs.readFileSync(path.join(__dirname, '..', 'creator', 'Sidebar.js'), 'utf8');
   const size = fs.readFileSync(path.join(__dirname, '..', 'creator', 'SizeField.js'), 'utf8');
   const fabric = fs.readFileSync(path.join(__dirname, '..', 'creator', 'FabricBlock.js'), 'utf8');
-
-  test.each([
-    'What kind of picture is this?', 'Exact pixel-art import', 'Threads', 'Detail and tidiness',
-    'Allow two-thread blends', 'Use only stash threads', 'Shading', 'How strict',
-    'Skip background', 'Sharpen details'
-  ])('%s has a named hint icon', (label) => {
-    expect(sb).toContain('h(InfoIcon, {label:"' + label + '"');
-  });
-
-  test.each(['Stitch Cleanup', 'Protect fine details', 'Keep look-alike colours apart'])(
-    'the %s switch has a hint', (label) => {
-      const at = sb.indexOf('label:"' + label + '"');
-      expect(at).toBeGreaterThan(-1);
-      expect(sb.slice(at, at + 600)).toMatch(/\binfo:"/);
-    });
-
-  test.each(['Brightness', 'Contrast', 'Saturation'])('the %s slider has a hint', (label) => {
-    expect(sb).toMatch(new RegExp('SliderRow, \\{label:"' + label + '"[^\\n]*\\n\\s*helpText:"'));
-  });
 
   test('size and fabric settings have hints, outside their <label>s', () => {
     expect(size).toMatch(/hint\("Size", "/);

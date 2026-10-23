@@ -151,7 +151,7 @@ describe('Reduce confetti is the one name', () => {
 
   test('the tool, the Convert slider and the preferences all say Reduce confetti', () => {
     expect(has(read('creator/ToolStrip.js'), '" Reduce confetti"')).toBe(true);
-    expect(has(read('creator/Sidebar.js'), 'label:"Reduce confetti"')).toBe(true);
+    expect(has(read('creator/ConvertPanel.js'), 'label: "Reduce confetti"')).toBe(true);
     expect(has(read('creator/Sidebar.js'), '}, "Reduce confetti")')).toBe(true);
     expect(has(read('preferences-modal.js'), 'label: "Reduce confetti"')).toBe(true);
     expect(has(read('creator/MagicWandPanel.js'), '"Reduce confetti in selection"')).toBe(true);
@@ -162,7 +162,7 @@ describe('Reduce confetti is the one name', () => {
     const def = 'single stitches of a colour on their own; slow to stitch';
     expect(has(read('helpers.js'), "definition:'" + def + "'")).toBe(true);
     // The Convert slider hint, the Convert preview, the tool tooltip, Pattern info, Ready to stitch and the preferences.
-    expect(has(read('creator/Sidebar.js'), 'window.CONFETTI_HELP.definition')).toBe(true);
+    expect(has(read('creator/ConvertPanel.js'), 'window.CONFETTI_HELP.definition')).toBe(true);
     expect(has(read('creator-main.js'), 'window.CONFETTI_HELP.definition')).toBe(true);
     expect(has(read('creator/ToolStrip.js'), 'window.CONFETTI_HELP.definition')).toBe(true);
     expect(has(read('creator/PatternInfoPopover.js'), 'confettiDefinition')).toBe(true);
@@ -217,8 +217,8 @@ describe('the terminology lint holds the line', () => {
 
 describe('blends are explained once, in plain language', () => {
   test('Convert calls the setting Allow two-thread blends and says what it does beside it', () => {
-    const side = read('creator/Sidebar.js');
-    expect(has(side, 'h("span", null, "Allow two-thread blends")')).toBe(true);
+    const side = read('creator/ConvertPanel.js');
+    expect(has(side, 'label: "Allow two-thread blends"')).toBe(true);
     expect(has(side, 'On: smoother shading, but more chart symbols to follow and two threads in some needles.')).toBe(true);
     expect(has(side, 'Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.')).toBe(true);
     expect(has(side, /Allow blended threads/)).toBe(false);

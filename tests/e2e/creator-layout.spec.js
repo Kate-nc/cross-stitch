@@ -70,6 +70,8 @@ for (const c of CASES) {
       } else {
         await expect(header).toBeHidden();
       }
+      // The thread settings are in Convert's Threads step.
+      await page.locator('#convert-tab-threads').click();
       await expect(maxColours).toBeVisible();
       if (c.drawer) await header.tap();
 

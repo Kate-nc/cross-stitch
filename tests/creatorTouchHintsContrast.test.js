@@ -43,7 +43,15 @@ describe('estimate label contrast', () => {
 
 describe('Convert preview block and generating overlay use tokens', () => {
   const main = loadSource('creator-main.js');
-  const start = main.indexOf('{!state.pat&&state.img&&<div style={{display:"flex",gap:20');
+  test('the preview card (ConvertPreview) has no raw hex colours or inline 10 px labels', () => {
+    const a = main.indexOf('function ConvertPreview(');
+    const b = main.indexOf('window.ConvertPreview = ConvertPreview;');
+    expect(a).toBeGreaterThan(0);
+    const card = main.slice(a, b);
+    expect(card).not.toMatch(/#[0-9A-Fa-f]{3,6}\b/);
+    expect(card).not.toMatch(/fontSize:\s*1[01]\b/);
+  });
+  const start = main.indexOf('{showConvertView&&<div className="cvp-layout"');
   // The block ends at the generating progress card (P2-8).
   const end = main.indexOf('<window.CreatorGenerateProgress stage={state.progressStage}');
 

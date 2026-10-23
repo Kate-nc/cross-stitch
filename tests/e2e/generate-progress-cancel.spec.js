@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, openConvertWithLogo, clickGenerate } = require('./creator-helpers');
+const { device, openConvertWithLogo, clickGenerate, convertStep } = require('./creator-helpers');
 
 function threadsSlider(page) {
   return page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
@@ -14,10 +14,12 @@ test.describe('Generating on desktop', function() {
 
   test('a 500 × 500, 60-thread generation shows its stage at once and can be cancelled, leaving Convert as it was', async function({ page }) {
     await openConvertWithLogo(page);
+    await convertStep(page, 'size');
     const width = page.locator('.size-field').getByLabel('Width in stitches');
     await width.fill('500');
     await width.press('Enter');
     await expect(page.locator('.size-field').getByLabel('Height in stitches')).toHaveValue('500');
+    await convertStep(page, 'threads');
     await threadsSlider(page).fill('60');
     await expect(threadsSlider(page)).toHaveValue('60');
 
@@ -42,8 +44,9 @@ test.describe('Generating on desktop', function() {
     // Still on Convert, with the same settings and no pattern.
     await page.waitForTimeout(1500);
     await expect(page.locator('.rpanel--edit')).toHaveCount(0);
-    await expect(width).toHaveValue('500');
     await expect(threadsSlider(page)).toHaveValue('60');
+    await convertStep(page, 'size');
+    await expect(width).toHaveValue('500');
     expect(await page.evaluate(async function() { return !!(await ProjectStorage.getActiveProject()); })).toBe(false);
 
     // Escape cancels too.

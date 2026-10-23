@@ -1,12 +1,11 @@
 // P0-4 (audit IMG-01 defaults, IMG-06): with default preferences, logo.png
 // converts to a handful of colours with its white background left unstitched,
-// and the Convert panel opens with Size & fabric first.
+// and the Convert panel opens on its first step, Picture.
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
 
 const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./creator-helpers');
-const SECTION_TITLES = ['Size & fabric', 'Colours', 'Detail and tidiness', 'Background', 'Adjust image', 'Project'];
 
 // The value under an estimate label in the Preview Estimates card.
 async function estimate(page, label) {
@@ -33,14 +32,11 @@ test.describe('Convert defaults on desktop', function() {
     await waitForEdit(page);
   });
 
-  test('the first Convert section is Size & fabric, then Colours', async function({ page }) {
+  test('Convert opens on the Picture step: picture type, background, then picture fixes', async function({ page }) {
     await openConvertWithLogo(page);
-    const titles = await page.locator('.rpanel button').evaluateAll(function(btns, known) {
-      // A heading button can carry a badge after its title.
-      return btns.map(function(b) { const t = b.textContent.trim(); return known.find(function(k) { return t.indexOf(k) === 0; }) || null; })
-        .filter(Boolean);
-    }, SECTION_TITLES);
-    expect(titles[0]).toBe('Size & fabric');
-    expect(titles[1]).toBe('Colours');
+    await expect(page.locator('#convert-tab-picture')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#convert-panel h3')).toHaveText(['Picture type', 'Background', 'Adjust picture']);
+    // The background was found and left unstitched, so the switch is on.
+    await expect(page.getByRole('checkbox', { name: 'Leave background unstitched' })).toBeChecked();
   });
 });

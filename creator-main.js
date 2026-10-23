@@ -165,7 +165,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   return (
     <div>
       <div ref={containerRef} data-testid="cmp-box"
-        style={{position:"relative",width:"100%",aspectRatio:`${shownW}/${shownH}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:8,border:"0.5px solid #E5DCCB",userSelect:"none",touchAction:"none"}}
+        style={{position:"relative",width:"100%",aspectRatio:`${shownW}/${shownH}`,overflow:"hidden",cursor:altDown?"zoom-in":(zoomLocked?"crosshair":"ew-resize"),borderRadius:"var(--radius-md)",border:"1px solid var(--line)",userSelect:"none",touchAction:"none"}}
         onPointerDown={function(e){
           if(altHeld.current)return;
           dragging.current=true; setSweeping(false);
@@ -248,23 +248,23 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           );
         })()}
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
-        <button type="button" onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid #E5DCCB",borderRadius:6,background:sweeping?"#B85C38":"#FBF8F3",color:sweeping?"#fff":"#5C5448",fontWeight:500}}>
-          {sweeping?<>{Icons.pause()} Pause</>:<>{Icons.play()} Auto-sweep</>}
+      <div className="cvp-tools" style={{marginTop:8}}>
+        <button type="button" className={"cs-seltools__btn"+(sweeping?" cs-seltools__btn--on":"")} aria-pressed={sweeping?"true":"false"}
+          onClick={function(){setSweeping(function(s){if(!s){sweepDirRef.current=1;splitPosRef.current=splitPos;}return !s;});}}>
+          {sweeping?<>{Icons.pause()}<span>Pause</span></>:<>{Icons.play()}<span>Auto-sweep</span></>}
         </button>
-        <button type="button" onClick={function(){setZoomLocked(function(z){return !z;});}}
-          title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(zoomLocked?"#A04E11":"#E5DCCB"),borderRadius:6,background:zoomLocked?"#F8EFD8":"#FBF8F3",color:zoomLocked?"#A04E11":"#5C5448",fontWeight:500,display:"inline-flex",alignItems:"center",gap:4}}>
-          {Icons.magnify()} Magnifier
+        <button type="button" className={"cs-seltools__btn"+(zoomLocked?" cs-seltools__btn--on":"")} aria-pressed={zoomLocked?"true":"false"}
+          onClick={function(){setZoomLocked(function(z){return !z;});}}
+          title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}>
+          {Icons.magnify()}<span>Magnifier</span>
         </button>
-        {(diffUrl||showDiff)&&<button type="button" onClick={function(){setShowDiff(function(d){return !d;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showDiff?"#A04E11":"#E5DCCB"),borderRadius:6,background:showDiff?"#F8EFD8":"#FBF8F3",color:showDiff?"#A04E11":"#5C5448",fontWeight:500}}>
-          {showDiff?"Hide what changed":"Show what changed"}
+        {(diffUrl||showDiff)&&<button type="button" className={"cs-seltools__btn"+(showDiff?" cs-seltools__btn--on":"")} aria-pressed={showDiff?"true":"false"}
+          onClick={function(){setShowDiff(function(d){return !d;});}}>
+          {Icons.eye()}<span>{showDiff?"Hide what changed":"Show what changed"}</span>
         </button>}
-        {heatmapSrc&&<button type="button" onClick={function(){setShowHeatmap(function(h){return !h;});}}
-          style={{fontSize:11,padding:"3px 10px",cursor:"pointer",border:"0.5px solid "+(showHeatmap?"#A53D3D":"#E5DCCB"),borderRadius:6,background:showHeatmap?"#FCEFEF":"#FBF8F3",color:showHeatmap?"#A53D3D":"#5C5448",fontWeight:500}}>
-          {showHeatmap?"Hide heatmap":<>{Icons.fire()} Heatmap</>}
+        {heatmapSrc&&<button type="button" className={"cs-seltools__btn"+(showHeatmap?" cs-seltools__btn--on":"")} aria-pressed={showHeatmap?"true":"false"}
+          onClick={function(){setShowHeatmap(function(h){return !h;});}}>
+          {Icons.fire()}<span>Show confetti</span>
         </button>}
         {/* Touch screens have no Alt key, and the Magnifier button sits right here. */}
         {!zoomLocked&&!(window.Platform&&window.Platform.isCoarsePointer&&window.Platform.isCoarsePointer())&&<span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Hold Alt to zoom</span>}
@@ -273,6 +273,157 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
   );
 }
 window.ComparisonSlider = ComparisonSlider;
+
+// ── Convert preview (the card in the middle of Convert) ────────────────────
+// Three ways to look at the chart the current settings make:
+//   Stitched       crosses of thread on the chosen fabric (StitchedPreview.js),
+//                  the closest to the finished piece; the default.
+//   Flat           every stitch as a square of its thread colour, whole.
+//   Before / after the picture and the chart on either side of a slider.
+// Above it, a line says what the last change did (usePreview.js
+// describePreviewChange). Once a chart exists, Convert still shows this live
+// preview, and says when it differs from the chart until Regenerate.
+const PREVIEW_VIEWS = [
+  { id: 'stitched', label: 'Stitched', title: 'How the finished piece will look: crosses of thread on your fabric' },
+  { id: 'flat', label: 'Flat', title: 'Every stitch as a square of its thread colour' },
+  { id: 'compare', label: 'Before / after', title: 'Your picture and the chart either side of a slider' }
+];
+function loadPreviewView() {
+  try {
+    const v = window.UserPrefs && window.UserPrefs.get('creator.convertPreviewView');
+    if (PREVIEW_VIEWS.some(function(x){ return x.id === v; })) return v;
+  } catch (_) {}
+  return 'stitched';
+}
+function describeChangeText(change) {
+  if (!change) return null;
+  const names = change.settings.length > 3 ? change.settings.slice(0, 3).join(', ') + ' and more' : change.settings.join(', ');
+  const parts = [];
+  if (change.changedStitches != null) {
+    if (change.changedStitches === 0) parts.push('no stitches changed');
+    else parts.push(change.changedStitches.toLocaleString('en-GB') + ' stitch' + (change.changedStitches === 1 ? '' : 'es') + ' changed' +
+      (change.total ? ' (' + (change.changedStitches / change.total * 100).toFixed(change.changedStitches / change.total < 0.01 ? 1 : 0) + '%)' : ''));
+  }
+  change.stats.forEach(function(st) { parts.push(st.label + ' ' + st.from + ' to ' + st.to); });
+  return { names: names, detail: parts.length ? parts.join(', ') : 'no visible change to the chart' };
+}
+function ConvertPreview({state, onRetry}) {
+  const [view, setViewRaw] = useState(loadPreviewView);
+  const [closeUp, setCloseUp] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  // The stitched view is drawn at the size it is shown, in device pixels, so
+  // the browser never shrinks a big canvas (which shimmers into moire).
+  const bodyRef = useRef(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(function() {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = function() { setBodyW(el.clientWidth || 0); };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return function() { ro.disconnect(); };
+  }, []);
+  function setView(v) {
+    setViewRaw(v);
+    try { if (window.UserPrefs) window.UserPrefs.set('creator.convertPreviewView', v); } catch (_) {}
+  }
+  const dims = state.previewDims;
+  const pw = dims ? dims.pw : state.sW, ph = dims ? dims.ph : state.sH;
+  // The preview's cells, kept through an update so the stitched view never blanks.
+  const stitchData = useMemo(function() {
+    if (!state.previewMapped || !dims) return null;
+    return { pat: state.previewMapped, cmap: null, pal: null, sW: dims.pw, sH: dims.ph, fabricCt: state.fabricCt };
+  }, [state.previewMapped, dims, state.fabricCt]);
+  const lastStitchData = useRef(null);
+  if (stitchData) lastStitchData.current = stitchData;
+  const shownStitchData = stitchData || lastStitchData.current;
+  const fabricBg = state.fabricColour || 'var(--surface)';
+  const ct = state.fabricCt || 14;
+  const stale = !!state.pat && window.convertSettingsChangedSince && window.convertSettingsChangedSince(state.lastGenSnapshot, state, state);
+  const changeText = !state.previewLoading ? describeChangeText(state.previewChange) : null;
+  const loadingSpinner = state.previewLoading && <span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner cvp-spinner">{Icons.spinner()}</span>;
+
+  // Overlays share the chart's box: confetti, the stitches tidying changed,
+  // and the colour picked in the breakdown below.
+  const overlay = (src, testId) => src ? <img data-testid={testId} src={src} className="cvp-overlay" alt="" aria-hidden="true"/> : null;
+  const overlays = !state.previewLoading && <>
+    {showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap')}
+    {state.showTidied && overlay(state.previewTidied, 'cvp-tidied')}
+    {overlay(state.previewHighlight, 'cvp-highlight')}
+  </>;
+
+  let body;
+  if (view === 'compare') {
+    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+  } else if (view === 'flat') {
+    body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
+      <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
+      {overlays}
+    </div>;
+  } else {
+    body = <div className={'cvp-stitched' + (closeUp ? ' cvp-stitched--close' : '')} data-testid="cvp-stitched">
+      {shownStitchData && window.CreatorStitchedPreview
+        ? <div className="cvp-stitched__inner">
+            <window.CreatorStitchedPreview cells={shownStitchData.pat} width={shownStitchData.sW} height={shownStitchData.sH}
+              fabricColour={state.fabricColour} fabricCt={ct} displayWidth={Math.max(0, bodyW - 2)} closeUp={closeUp}/>
+            {overlays}
+          </div>
+        : <div className="cvp-wait">Updating preview…</div>}
+    </div>;
+  }
+
+  return (
+    <div className="card cvp" data-preview-view={view}>
+      {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
+        <div role="status" className="cvp-note cvp-note--warn">
+          <span className="cvp-note__icon" aria-hidden="true">{Icons.warning()}</span>
+          No threads marked as owned, so the preview uses every thread. Add threads in the Stash Manager to see a stash-only preview.
+        </div>
+      )}
+      <div className="cvp-head">
+        <div className="cvp-head__title">
+          <h2 className="cvp-title">Preview{loadingSpinner}</h2>
+          {dims && <span className="cvp-size" data-preview-size="">{dims.pw} × {dims.ph} stitches · {window.finishedSizeText(dims.pw, dims.ph, ct)} on {window.fabricShortLabel(ct)}{dims.pw !== state.sW ? ' (shown smaller)' : ''}</span>}
+        </div>
+        <div className="lp-segmented cvp-views" role="radiogroup" aria-label="Preview view">
+          {PREVIEW_VIEWS.map(function(v, i) {
+            const on = view === v.id;
+            return <button key={v.id} type="button" role="radio" aria-checked={on ? 'true' : 'false'} tabIndex={on ? 0 : -1}
+              className={'lp-seg' + (on ? ' lp-seg--on' : '')} title={v.title} data-preview-view={v.id}
+              onClick={function(){ setView(v.id); }}
+              onKeyDown={function(e){
+                const step = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+                if (!step) return;
+                e.preventDefault();
+                const next = PREVIEW_VIEWS[(i + step + PREVIEW_VIEWS.length) % PREVIEW_VIEWS.length];
+                setView(next.id);
+                const sib = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector('[data-preview-view="' + next.id + '"]');
+                if (sib) sib.focus();
+              }}>{v.label}</button>;
+          })}
+        </div>
+      </div>
+      {stale && <div role="status" className="cvp-note cvp-note--stale">
+        <span className="cvp-note__icon" aria-hidden="true">{Icons.info()}</span>
+        <span>This preview shows your new settings. Your chart changes when you Regenerate.</span>
+      </div>}
+      {changeText && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
+      <div className="cvp-body" ref={bodyRef}>{body}</div>
+      {view !== 'compare' && <div className="cvp-tools">
+        {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
+          {closeUp ? Icons.magnifyMinus() : Icons.magnifyPlus()}<span>{closeUp ? 'Fit' : 'Close up'}</span></button>}
+        {state.previewHeatmap && <button type="button" className={'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : '')} aria-pressed={showConfetti ? 'true' : 'false'}
+          onClick={function(){ setShowConfetti(function(c){ return !c; }); }}>{Icons.fire()}<span>Show confetti</span></button>}
+        {state.previewTidied && <button type="button" className={'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showTidied ? 'true' : 'false'}
+          onClick={function(){ state.setShowTidied(!state.showTidied); }}>{Icons.eye()}<span>Show tidied stitches</span></button>}
+      </div>}
+      {view === 'stitched' && <p className="cvp-caption">Simulated stitches: 2 strands on {window.fabricShortLabel(ct)} fabric in your fabric colour. Screens show thread colours only roughly.</p>}
+    </div>
+  );
+}
+window.ConvertPreview = ConvertPreview;
 
 
 
@@ -428,6 +579,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // picture to convert, Canvas for a design drawn from scratch (its size and
   // fabric), and neither for a chart imported without a picture.
   const _sourceTab = state.isScratchMode ? 'canvas' : ((state.img && state.img.src) ? 'convert' : null);
+  // Convert shows the live preview of the current settings, also once a chart
+  // exists: the chart itself is Edit's. Without a chart the preview is all
+  // there is to show.
+  const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
   const handleOpenCanvas = React.useCallback(function() {
     state.setAppMode("create");
     state.setTab("pattern");
@@ -581,12 +736,9 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     sidebarOpen: state.sidebarOpen, setSidebarOpen: state.setSidebarOpen,
     loadError: state.loadError, setLoadError: state.setLoadError,
     copied: state.copied, setCopied: state.setCopied, copyText: state.copyText,
-    dimOpen: state.dimOpen, setDimOpen: state.setDimOpen,
-    palOpen: state.palOpen, setPalOpen: state.setPalOpen,
-    adjOpen: state.adjOpen, setAdjOpen: state.setAdjOpen,
-    bgOpen: state.bgOpen, setBgOpen: state.setBgOpen,
-    palAdvanced: state.palAdvanced, setPalAdvanced: state.setPalAdvanced,
-    cleanupOpen: state.cleanupOpen, setCleanupOpen: state.setCleanupOpen,
+    convertTab: state.convertTab, setConvertTab: state.setConvertTab,
+    showTidied: state.showTidied, setShowTidied: state.setShowTidied,
+    previewChange: state.previewChange, previewTidied: state.previewTidied,
     splitPaneEnabled: state.splitPaneEnabled, setSplitPaneEnabled: state.setSplitPaneEnabled,
     splitPaneRatio: state.splitPaneRatio, setSplitPaneRatio: state.setSplitPaneRatio,
     splitPaneSyncEnabled: state.splitPaneSyncEnabled, setSplitPaneSyncEnabled: state.setSplitPaneSyncEnabled,
@@ -643,8 +795,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
     state.lastGenSnapshot,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
-    state.copied, state.dimOpen, state.palOpen,
-    state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen,
+    state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied,
     state.splitPaneEnabled, state.splitPaneRatio,
     state.splitPaneSyncEnabled, state.rightPaneMode,
     state.exportPage, state.pageMode,
@@ -1334,7 +1485,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         }} style={{display:"none"}}/>
         {(state.img||state.pat)&&<div className="cs-main">
           <div className="canvas-area">
-            {state.pat&&state.pal&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
+            {state.pat&&state.pal&&!showConvertView&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
               {/* Action plan §3.2: MaterialsHub lives in creator/extras-bundle.js
@@ -1342,11 +1493,11 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   before the deferred script finishes parsing. */}
               {typeof window.CreatorMaterialsHub!=="undefined"&&<window.CreatorMaterialsHub/>}
             </div>}
-            {!state.pat&&state.img&&<div style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
+            {showConvertView&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}
               <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
-                <div className="card" style={{overflow:"hidden"}}>
-                  <div style={{padding:"7px 12px 4px",fontSize:11,fontWeight:600,color:"var(--text-secondary)"}}>Original Image</div>
+                <div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
+                  <h2 className="cvp-title cvp-title--card">Your picture</h2>
                   {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--text-primary)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
                     <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:"var(--text-xs)",padding:"2px 7px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",cursor:"pointer",fontWeight:600}}>Cancel</button>
@@ -1366,35 +1517,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-secondary)",fontSize:12}}>
                   {state.previewError ? <><div role="alert">{state.previewError}</div><button type="button" onClick={preview.generatePreview}>Retry preview</button></> : state.previewLoading ? <span role="status" aria-label="Updating preview">Updating preview…</span> : "Choose an image and adjust the settings to see a preview here."}
                 </div>}
-                {state.previewUrl&&<div className="card">
-                  {state.conversionSettings&&state.conversionSettings.stashConstrained&&state.conversionSettings.stashCount===0&&(
-                    <div role="status" style={{margin:"8px 14px 0",padding:"6px 10px",fontSize:11,fontWeight:500,color:"var(--text-primary)",background:"var(--warning-soft)",border:"0.5px solid var(--line)",borderRadius:6,display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{display:"inline-flex",width:14,height:14}} aria-hidden="true">{Icons.warning()}</span>
-                      No threads marked as owned — preview is unconstrained. Add DMC or Anchor threads in the Stash Manager to see a stash-only preview.
-                    </div>
-                  )}
-                  <div style={{padding:"8px 14px 4px",fontSize:12,fontWeight:600,color:"var(--text-secondary)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
-                      Preview
-                      {state.previewLoading&&<span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner" style={{display:"inline-flex",width:12,height:12,color:"var(--text-secondary)"}}>{Icons.spinner()}</span>}
-                    </span>
-                    {state.previewDims&&<span style={{fontSize:"var(--text-xs)",fontWeight:500,color:"var(--text-secondary)"}}>{state.previewDims.pw}×{state.previewDims.ph} px{state.previewDims.pw===state.sW?" — full res":" — "+Math.round(state.previewDims.pw/state.sW*100)+"%"}</span>}
-                                {state.stitchCleanup&&state.stitchCleanup.enabled&&state.previewUrl&&<div style={{padding:"4px 14px 4px",display:"flex",alignItems:"center",gap:6}}>
-                                  <button
-                                    onClick={()=>state.setShowCleanupDiff(d=>!d)}
-                                    style={{fontSize:11,padding:"3px 8px",borderRadius:6,cursor:"pointer",
-                                      border:state.showCleanupDiff?"1px solid var(--accent)":"0.5px solid var(--line)",
-                                      background:state.showCleanupDiff?"var(--accent-soft)":"var(--surface)",
-                                      color:state.showCleanupDiff?"var(--accent)":"var(--text-secondary)",
-                                      fontWeight:state.showCleanupDiff?600:400,
-                                      display:"flex",alignItems:"center",gap:4,lineHeight:1.4}}
-                                  >{Icons.eye()} {state.showCleanupDiff?"Hide changes":"Show changes"}</button>
-                                </div>}
-                  </div>
-                  <div style={{padding:"0 14px 10px"}}>
-                    <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={state.previewDims&&state.previewDims.pw} previewPh={state.previewDims&&state.previewDims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>
-                  </div>
-                </div>}
+                {state.previewUrl&&<ConvertPreview state={state} onRetry={preview.generatePreview}/>}
                 {/* Compare options (audit IMG-05): neighbouring sizes or thread
                     counts, side by side; choosing one applies it. */}
                 {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip
@@ -1417,7 +1540,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     {state.previewStats.stashUsage&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
                     <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Thread Cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>£{(state.previewStats.estSkeins*state.skeinPrice).toFixed(2)}</div></div>
+                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Thread cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{(function(c){return window.AppPrefs&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(c):"\u00A3"+c.toFixed(2);})(state.previewStats.estSkeins*state.skeinPrice)}</div></div>
                   </div>
                   {state.previewStats.confettiPct!=null&&(()=>{
                     const t=confettiTier(state.previewStats.confettiPct);
@@ -1455,7 +1578,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
                       {state.previewColors.map(function(pcol){
                         var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
-                        var n=findThreadInCatalog('dmc',pcol.id);
+                        var n=findThreadInCatalog(state.convertBrand||'dmc',pcol.id);
                         return(
                           <div key={pcol.id}
                             style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
