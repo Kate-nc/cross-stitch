@@ -30,9 +30,23 @@ You can also open an image inside the Creator with **File > Open…**.
 
 ## Setting Up the Conversion
 
-Before a pattern exists, the right-hand sidebar shows the set-up tabs. The preview updates as you change settings.
+The panel on the right is laid out like Edit's: steps across the top, in the order you make the choices: **Picture**, **Size**, **Threads** and **Detail**, then **Project**. Each step ends with a **Next** button, and **Generate Pattern** stays at the bottom under a line saying what it will make, such as *Photo · 100 × 67 stitches · up to 24 DMC threads · Balanced*. Every setting has an information icon beside it.
 
-### What kind of picture is this?
+The preview in the middle updates as you change settings, and is the pattern Generate will make. It has three views:
+
+| View | Shows |
+|------|-------|
+| **Stitched** (the default) | Every stitch as a cross of thread on your fabric, in your fabric colour, with as much fabric between stitches as two strands leave on that count; blends as one strand of each thread. The closest view to the finished piece. **Close up** shows the stitches larger. |
+| **Flat** | Every stitch as a square of its thread colour. |
+| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Show what changed**, **Auto-sweep** and a magnifier. |
+
+**Show confetti** and **Show tidied stitches** mark those stitches without changing the preview itself. A line under the preview's size says what your last change did, for example *Threads (max): 4,349 stitches changed (65%), threads 24 to 12, confetti 4.6% to 2.6%*, or that nothing visible changed.
+
+Once a pattern exists, **Convert** still shows the live preview of its settings, and says when it differs from your pattern until you **Regenerate**.
+
+### Picture
+
+#### What kind of picture is this?
 
 The first setting picks good starting values for the picture:
 
@@ -44,15 +58,17 @@ The first setting picks good starting values for the picture:
 
 The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom** (changing **Detail and tidiness** keeps the type). To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
-### Image
+#### Background and Adjust picture
 
-- **Brightness / Contrast / Saturation** — tune the image before conversion.
+The rest of the **Picture** step:
+
+- **Brightness / Contrast / Saturation** — tune the image before conversion. **Reset adjustments** puts them back.
 - **Soften grainy photos** — blurs the picture at stitch size before the threads are chosen: fewer speckled stitches, softer edges. Shrinking a photo to stitches already smooths away grain, so most photos look best with it Off. The method is under **Advanced**.
 - **Sharpen details** — keeps fine lines crisp.
-- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Skip background** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Skip background**, press **Pick**, click the background colour, then adjust **Tolerance**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
+- **Background** — transparent pictures use their alpha mask automatically. After resizing, alpha below 128 becomes empty fabric; alpha 128 or above keeps its colour without compositing. Transparent pixels use no threads, and fully transparent pictures create empty patterns. In these pictures, **Leave background unstitched** preserves opaque details even when they match the background RGB. For opaque pictures, tick **Leave background unstitched**, press **Pick from picture**, click the background colour, then adjust **How close a match**. Only matching regions connected to the outside edge are removed; enclosed matching details remain.
 - **Crop** — crop the image to the part you want.
 
-### Dimensions
+### Size
 
 Set the size in **Stitches** (width and height, with an aspect-ratio lock) or as a **Finished size** in centimetres or inches on the chosen fabric: 18 cm wide on 14-count is 99 stitches. The fabric count is set alongside.
 
@@ -61,9 +77,9 @@ Set the size in **Stitches** (width and height, with an aspect-ratio lock) or as
 
 A new picture starts with its long side at 100 stitches, never more than the picture has pixels. The line underneath always shows the size in stitches and the finished size. A note appears when a very wide or tall picture leaves its short side under 20 stitches (try cropping), or when the pattern has more stitches than the picture has pixels and each pixel becomes a block. Larger patterns hold more detail but take longer to stitch.
 
-### Palette
+### Threads
 
-**Threads** — **DMC** or **Anchor**. The pattern's colours are matched to that brand's stranded cotton, and its key, shopping list, Stitch Tracker, PDF and `.oxs` files use that brand's numbers.
+**Thread brand** — **DMC** or **Anchor**. The pattern's colours are matched to that brand's stranded cotton, and its key, shopping list, Stitch Tracker, PDF and `.oxs` files use that brand's numbers.
 
 Screen colours are approximations; check physical threads when choosing materials. Catalogue corrections update patterns saved by thread number alone. Explicit imported or custom colours keep their saved colour when reopened. The [DMC catalogue audit](../reports/dmc-colour-audit.md) records source disagreements.
 
@@ -78,11 +94,13 @@ A blend stitches two threads together in one needle (one strand of each) and get
 | **20–40** | Complex photos, detailed artwork |
 | **50–100** | Photo-realistic patterns |
 
-**Use only stash threads** — match only to threads you own, in the brand chosen under **Threads**.
+**Use only stash threads** — match only to threads you own, in the brand chosen under **Thread brand**.
 
-### Detail and tidiness
+**Threads** says how many threads and chart symbols the preview uses.
 
-One choice sets shading and tidying together, from the most detail to the quickest chart to stitch. The preview shows how many confetti stitches (single stitches of a colour on their own; slow to stitch) the choice leaves.
+### Detail
+
+**Detail and tidiness** is one choice that sets shading and tidying together, from the most detail to the quickest chart to stitch. The preview shows how many confetti stitches (single stitches of a colour on their own; slow to stitch) the choice leaves.
 
 | Step | What it does | Photos, measured |
 |------|--------------|------------------|
@@ -91,9 +109,9 @@ One choice sets shading and tidying together, from the most detail to the quicke
 | **Tidier** | Merges nearly all confetti stitches; fine outlines soften a little | Under 1% |
 | **Easiest to stitch** | No shading: large blocks of colour, the least like the picture | Under 1%, far fewer colour changes |
 
-Photos keep their shading up to **Tidier**; graphics and pixel art are never shaded. **Fine-tune** holds the individual controls below; changing one shows **Custom**.
+Photos keep their shading up to **Tidier**; graphics and pixel art are never shaded. The individual controls are below the steps; changing one shows **Custom**.
 
-**Shading** (under **Fine-tune**) — mixes neighbouring threads to suggest in-between colours.
+**Shading** — mixes neighbouring threads to suggest in-between colours.
 
 | Setting | Effect | When to use |
 |---------|--------|------------|
@@ -104,7 +122,7 @@ Photos keep their shading up to **Tidier**; graphics and pixel art are never sha
 
 The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
-**Min stitches per colour** (in **Colours**) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
+**Min stitches per colour** (in the **Threads** step) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
 **Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and folds away in-between shades along edges.
 **Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
 **Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
@@ -208,7 +226,7 @@ Cross (`1`), Half / (`2`), Half \ (`3`), Backstitch (`4`) and Erase (`5`), plus 
 
 ### Recolouring the whole palette
 
-Once a pattern exists, the sidebar's **Shift Colours** section rotates every colour around the colour wheel, and **Palette Presets** applies a themed, harmonious or saved palette. **Revert to generated palette** undoes both.
+Once a pattern exists, **Edit > Palette > Recolour the chart** has **Shift Colours**, which rotates every colour around the colour wheel, and **Palette Presets** applies a themed, harmonious or saved palette. **Revert to generated palette** undoes both.
 
 ### Removing unused colours
 
@@ -305,7 +323,7 @@ The **Project** page estimates this from your own stitching speed.
 | **22-count** | Very small | 4.5 inches |
 | **28-count linen (over two)** | Same as 14-count | 7.1 inches |
 
-Set the fabric count before exporting so the finished size and thread estimates are right. You change it in **Convert > Size & fabric** or **Edit > Project > Fabric**; they are the same setting. **Materials** shows the count read-only with an **Edit** link back to Edit > Project > Fabric.
+Set the fabric count before exporting so the finished size and thread estimates are right. You change it in **Convert > Size** or **Edit > Project > Fabric**; they are the same setting. **Materials** shows the count read-only with an **Edit** link back to Edit > Project > Fabric.
 
 ## Next Steps
 

@@ -100,34 +100,31 @@ describe('defaults', () => {
 });
 
 describe('Convert panel order', () => {
-  const sb = loadSource('creator/Sidebar.js');
+  // The steps and their sections are rendered in tests/convertPanel.test.js;
+  // this pins the order in the source.
+  const cp = loadSource('creator/ConvertPanel.js');
 
-  test('sections are Size & fabric, Colours, Detail and tidiness, Background, Adjust image, palette swap, Project', () => {
-    const start = sb.indexOf('var createPanel = h("div"');
-    const block = sb.slice(start, sb.indexOf('createProjectSection\n', start) + 30);
-    const order = ['dimSection', 'palSection', 'tidySection', 'bgSection', 'adjSection', 'paletteSwap.shiftSection', 'createProjectSection']
-      .map((n) => block.indexOf(n));
-    order.forEach((i) => expect(i).toBeGreaterThan(-1));
-    expect(order.slice().sort((a, b) => a - b)).toEqual(order);
+  test('steps: Picture (type, background, adjust), Size (size, fabric), Threads, Detail, Project', () => {
+    expect(cp).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
+    expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
+    expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, blendSec, rareSec, stashSec\];/);
+    expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
+    expect(cp).toMatch(/else content = \[projectSec, estimates\];/);
   });
 
-  test('headings are renamed', () => {
-    expect(sb).toMatch(/var dimSection = h\(Section, \{title:"Size & fabric",/);
-    expect(sb).toMatch(/var palSection = !ctx\.isScratchMode \? h\(Section, \{title:"Colours",/);
-    expect(sb).toMatch(/var adjSection = !ctx\.isScratchMode \? h\(Section, \{title:"Adjust image",/);
+  test('section headings', () => {
+    ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", "Adjust picture"',
+     '"brand", "Thread brand"', '"count", "Number of threads"', '"blends", "Blends"', '"rare", "Rare colours"',
+     '"style", "Detail and tidiness"', '"shading", "Shading"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
+      .forEach((h) => expect(cp).toContain('sec(' + h));
+    // Min stitches per colour is a thread choice, in Threads.
+    const rare = cp.slice(cp.indexOf('var rareSec = '), cp.indexOf('var stashSec = '));
+    expect(rare).toMatch(/label: "Min stitches per colour"/);
   });
 
-  test('Adjust image and Project start collapsed; Size and Colours open', () => {
+  test('no accordion open-state is kept for Convert any more', () => {
     const st = loadSource('creator/useCreatorState.js');
-    expect(st).toMatch(/var _dimOpen\s*=\s*useState\(true\)/);
-    expect(st).toMatch(/var _palOpen\s*=\s*useState\(true\)/);
-    expect(st).toMatch(/var _adjOpen\s*=\s*useState\(false\)/);
-    // Detail and tidiness starts open: its one choice is for everyone.
-    expect(st).toMatch(/var _clOpen\s*=\s*useState\(true\)/);
-    expect(sb).toMatch(/title:"Detail and tidiness", isOpen:app\.cleanupOpen/);
-    // Min stitches per colour is a thread choice, in Colours.
-    const pal = sb.slice(sb.indexOf('var palSection = '), sb.indexOf('var tidySection = '));
-    expect(pal).toMatch(/label:"Min stitches per colour"/);
-    expect(sb).toMatch(/var createProjectSection = h\(Section, \{title:"Project", defaultOpen:false\}/);
+    expect(st).not.toMatch(/_dimOpen|_palOpen|_adjOpen|_clOpen|_bgOpen/);
+    expect(st).toMatch(/var _convertTab = useState\("picture"\);/);
   });
 });

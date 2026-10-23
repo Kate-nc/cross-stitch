@@ -1553,12 +1553,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
       state.setIsCropping(false);
       state.setCropRect(null);
-      state.setPat(null); state.setPal(null); state.setCmap(null);
-      // Annotations authored against the previous coordinate system are no
-      // longer meaningful after crop + regenerate; clear them so they aren't
-      // rendered at stale positions.
-      if (typeof state.setBsLines === "function") state.setBsLines([]);
-      if (typeof state.setParkMarkers === "function") state.setParkMarkers([]);
+      // An existing chart is kept, with its edits and progress: Convert's
+      // preview shows the cropped picture, and the chart changes only when
+      // Regenerate replaces it (which asks first when it was edited).
     };
     newImg.src = c.toDataURL();
   }
@@ -1576,42 +1573,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     ).data;
     state.setBgCol([p[0], p[1], p[2]]);
     state.setPickBg(false);
-  }
-
-  function autoCrop() {
-    var pat = state.pat, img = state.img, sW = state.sW, sH = state.sH;
-    if (!pat || !img) return;
-    var minX = sW, minY = sH, maxX = -1, maxY = -1, hasStitches = false;
-    for (var y = 0; y < sH; y++) {
-      for (var x = 0; x < sW; x++) {
-        var idx = y * sW + x;
-        if (pat[idx].id !== "__skip__") {
-          if (x < minX) minX = x; if (x > maxX) maxX = x;
-          if (y < minY) minY = y; if (y > maxY) maxY = y;
-          hasStitches = true;
-        }
-      }
-    }
-    if (!hasStitches || (minX === 0 && minY === 0 && maxX === sW - 1 && maxY === sH - 1)) return;
-    var pxStart = Math.floor(minX * (img.width / sW));
-    var pyStart = Math.floor(minY * (img.height / sH));
-    var pxEnd = Math.ceil((maxX + 1) * (img.width / sW));
-    var pyEnd = Math.ceil((maxY + 1) * (img.height / sH));
-    var cropW = pxEnd - pxStart, cropH = pyEnd - pyStart;
-    if (cropW <= 0 || cropH <= 0) return;
-    var c2 = document.createElement("canvas"); c2.width = cropW; c2.height = cropH;
-    var cx2 = c2.getContext("2d");
-    cx2.drawImage(img, pxStart, pyStart, cropW, cropH, 0, 0, cropW, cropH);
-    var newImg2 = new Image();
-    newImg2.onload = function() {
-      state.setImg(newImg2);
-      state.setOrigW(newImg2.width); state.setOrigH(newImg2.height);
-      var newAr2 = newImg2.width / newImg2.height;
-      state.setAr(newAr2);
-      state.setSW(maxX - minX + 1); state.setSH(maxY - minY + 1);
-      state.setPat(null); state.setPal(null); state.setCmap(null);
-    };
-    newImg2.src = c2.toDataURL();
   }
 
   return {
@@ -1635,7 +1596,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
     srcClick: srcClick,
-    autoCrop: autoCrop,
     isDraggingRef: isDraggingRef,
   };
 };

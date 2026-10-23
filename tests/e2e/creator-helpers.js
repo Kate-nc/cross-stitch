@@ -134,8 +134,32 @@ async function pickDarkSwatch(page) {
 
 const undoButton = (page) => page.getByRole('button', { name: 'Undo', exact: true }).first();
 
+// Convert's settings are in steps (Picture, Size, Threads, Detail, Project).
+// Opens the Settings drawer on phones, then the step.
+async function convertStep(page, id) {
+  const header = page.locator('.rpanel-drawer-header');
+  if (await header.isVisible().catch(function() { return false; })) {
+    if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+  }
+  const tab = page.locator('#convert-tab-' + id);
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+}
+
+// Regenerate asks before replacing a chart that was edited, or reopened (its
+// origin is unknown). Answers Regenerate when it asks.
+async function confirmReplaceChart(page) {
+  const dialog = page.getByRole('dialog').filter({ hasText: 'Replace your chart?' });
+  await expect(dialog).toBeVisible({ timeout: 5000 });
+  await dialog.getByRole('button', { name: 'Regenerate', exact: true }).click();
+}
+
+// The preview's view: 'stitched' (the default), 'flat' or 'compare'.
+async function previewView(page, id) {
+  await page.locator('.cvp-views [data-preview-view="' + id + '"]').click();
+}
+
 module.exports = {
   LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo,
   startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
-  zoomUntilScrollable, pickDarkSwatch, undoButton,
+  zoomUntilScrollable, pickDarkSwatch, undoButton, convertStep, previewView, confirmReplaceChart,
 };

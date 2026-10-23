@@ -49,7 +49,9 @@ describe('where the count is editable', () => {
   const sidebar = read('creator/Sidebar.js');
 
   test('Convert, Canvas and Edit > Project all render the one Fabric block', () => {
-    expect((sidebar.match(/fabricBlock\(\)/g) || []).length).toBe(4); // definition + three call sites
+    expect((sidebar.match(/fabricBlock\(\)/g) || []).length).toBe(3); // definition + Canvas and Edit > Project
+    // Convert > Size renders the same block (creator/ConvertPanel.js).
+    expect(read('creator/ConvertPanel.js')).toMatch(/h\(window\.CreatorFabricBlock, \{\s*fabricCt: ctx\.fabricCt, setFabricCt: ctx\.setFabricCt,/);
     expect(sidebar).toMatch(/function fabricBlock\(\) \{\s*return h\(window\.CreatorFabricBlock, \{\s*fabricCt: ctx\.fabricCt, setFabricCt: ctx\.setFabricCt,/);
   });
 

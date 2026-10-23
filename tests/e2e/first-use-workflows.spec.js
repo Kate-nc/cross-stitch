@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { installLocalCdn } = require('./local-cdn');
-const { device, quietOnboarding, LOGO, startBlankGrid, openConvertWithLogo } = require('./creator-helpers');
+const { device, quietOnboarding, LOGO, startBlankGrid, openConvertWithLogo, convertStep } = require('./creator-helpers');
 const { ensureTrackerProjectFixture, TRACKER_CANVAS, trackerCellPoint, trackerDoneCount } = require('./touch-helpers');
 test.beforeEach(async ({context}) => installLocalCdn(context));
 
@@ -74,6 +74,7 @@ test.describe('Workflow switching', () => {
   test.use(device('desktop'));
   test('rapid Back saves conversion settings; drawing and explicit project resume retain the draft', async ({page}) => {
     await openConvertWithLogo(page);
+    await convertStep(page,'size');
     const width=page.locator('.size-field').getByLabel('Width in stitches');
     await width.fill('123'); await width.press('Enter');
     await page.goBack();
@@ -93,13 +94,11 @@ test.describe('Workflow switching', () => {
     expect((await page.evaluate(()=>BlobStore.list('draft:')))).toHaveLength(1);
     await page.goto('/home.html?tab=projects');
     await page.locator('.home-draft-row').getByRole('button',{name:'Continue',exact:true}).click();
+    // A resumed draft opens on the first step; its size is in the Size step.
+    await expect(page.locator('#convert-tab-picture')).toHaveAttribute('aria-selected','true');
+    await convertStep(page,'size');
     await expect(width).toHaveValue('123');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    // Detail and tidiness starts open; Background opens with the rest.
-    await expect(page.getByRole('button',{name:'Detail and tidiness',exact:true})).toHaveAttribute('aria-expanded','true');
-    await expect(page.getByRole('button',{name:'Background',exact:true})).toHaveAttribute('aria-expanded','false');
-    await page.getByRole('button',{name:'Show all conversion controls'}).click();
-    await expect(page.getByRole('button',{name:'Background',exact:true})).toHaveAttribute('aria-expanded','true');
     await page.screenshot({path:'work/after-convert-desktop.png',fullPage:true});
   });
   test('tracker marks survive leaving for another workflow; Home leaves real records alone', async ({page}) => {

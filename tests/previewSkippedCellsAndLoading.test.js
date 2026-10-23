@@ -172,6 +172,26 @@ describe('usePreview scheduling', () => {
     expect(setters.setPreviewLoading).toHaveBeenLastCalledWith(false);
   });
 
+  test('the stats count threads to buy (a blend is two) and the stitches tidying changed, as an overlay of its own', () => {
+    const made = fakeWorkers();
+    setters.setPreviewTidied = jest.fn();
+    setters.setPreviewChange = jest.fn();
+    Object.assign(state, setters);
+    state.conversionSettings = Object.assign({}, state.conversionSettings, { sW: 2, sH: 2, stitchCleanup: { enabled: true } });
+    schedule();
+    jest.advanceTimersByTime(400);
+    const msg = made[0].posted[0];
+    const mapped = [{ id: '310', rgb: [0, 0, 0] }, { id: '310+550', type: 'blend', rgb: [90, 0, 90] }, { id: '666', rgb: [200, 0, 0] }, { id: '310', rgb: [0, 0, 0] }];
+    made[0].onmessage({ data: { type: 'result', reqId: msg.reqId, mapped, confettiData: { raw: { pct: 0, singles: 0, singlesPct: 0 }, clean: { pct: 0, singles: 0, singlesPct: 0 } }, preCleanupIds: ['310', '310+550', '310', '__skip__'] } });
+    const stats = setters.setPreviewStats.mock.calls.at(-1)[0];
+    expect(stats.threadsUsed).toBe(3);        // 310, 550, 666
+    expect(stats.uniqueColors).toBe(3);       // 310, 310+550, 666
+    expect(stats.tidiedStitches).toBe(1);     // 310 became 666; a skipped cell never counts
+    expect(setters.setPreviewTidied.mock.calls.at(-1)[0]).toMatch(/^data:/);
+    // The first result has nothing to compare with.
+    expect(setters.setPreviewChange).toHaveBeenLastCalledWith(null);
+  });
+
   test('a result for older settings is ignored, and a busy worker is replaced', () => {
     const made = fakeWorkers();
     const preview = global.window.usePreview(state);

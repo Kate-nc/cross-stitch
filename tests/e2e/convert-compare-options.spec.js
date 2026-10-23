@@ -2,7 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, openConvertWithLogo } = require('./creator-helpers');
+const { device, openConvertWithLogo, convertStep } = require('./creator-helpers');
 
 function strip(page) { return page.locator('.compare-strip'); }
 function option(page, id) { return strip(page).locator('[data-compare-option="' + id + '"]'); }
@@ -22,6 +22,7 @@ test.describe('Compare options on desktop', function() {
     await expect(option(page, 'plus')).toContainText(/\d+ threads? · (about [\d,]+ hours?|under an hour)/);
     await expect(option(page, 'plus')).toContainText(/Confetti: \w+/);
     await option(page, 'plus').click();
+    await convertStep(page, 'size');
     await expect(page.locator('.size-field').getByLabel('Width in stitches')).toHaveValue('125');
     // The strip moves on: 125 is now current.
     await expect(option(page, 'current')).toContainText('125 × 125');
@@ -32,7 +33,8 @@ test.describe('Compare options on desktop', function() {
     await strip(page).getByRole('radio', { name: 'Threads' }).click();
     await expect(option(page, 'plus')).toContainText('+5 threads');
     await expect(strip(page).locator('.compare-strip__option img')).toHaveCount(3, { timeout: 5000 });
-    const slider = page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
+    await convertStep(page, 'threads');
+    const slider = page.getByRole('slider', { name: 'Threads (max)' });
     const before = Number(await slider.inputValue());
     await option(page, 'plus').click();
     await expect(slider).toHaveValue(String(before + 5));

@@ -138,14 +138,15 @@ test.describe('Editing a stitched pattern (desktop)', function() {
         return p.done.filter(Boolean).length;
       });
     };
-    await page.getByRole('tab', { name: 'Convert' }).click();   // the swap lives in the Convert panel
+    await page.locator('.creator-sidebar-tab[data-tab-id="palette"]').click();   // Edit > Palette > Recolour the chart
     await page.getByText('Shift Colours', { exact: true }).first().click();
     await page.getByRole('button', { name: '180\u00B0', exact: true }).click();
     await page.getByRole('button', { name: 'Preview & Apply' }).click();
     await page.getByRole('button', { name: 'Apply Swap' }).click();
     await expect(page.getByText('200 stitched cells reset to not done.')).toBeVisible({ timeout: 15000 });
     await expect.poll(doneCount, { timeout: 10000 }).toBeLessThan(200);
-    await page.getByRole('button', { name: 'Undo', exact: true }).click();   // the toast's Undo, still in the Convert panel: one step undoes the swap and the reset
+    // The toast's Undo (Edit's toolbar has one too): one step undoes the swap and the reset.
+    await page.locator('.creator-toast-container').getByRole('button', { name: 'Undo', exact: true }).click();
     await expect.poll(doneCount, { timeout: 10000 }).toBe(200);
   });
 });

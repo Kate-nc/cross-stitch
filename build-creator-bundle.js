@@ -90,6 +90,8 @@ const ORDER = [
   'SizeField.js',
   'NewDesignSheet.js',
   'Sidebar.js',
+  'ConvertPanel.js',
+  'StitchedPreview.js',
   'Toast.js',
   'ContextMenu.js',
   'PatternTab.js',

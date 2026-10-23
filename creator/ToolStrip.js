@@ -511,61 +511,10 @@ window.CreatorToolStrip = function CreatorToolStrip() {
     );
   }
 
-  // The Canvas tab (a design drawn from scratch: size and fabric) has no
-  // tools; the image-conversion strip below doesn't apply to it.
-  if (app.appMode === "create" && app.sourceTab === "canvas") return null;
-
-  // ─── Create Mode: minimal toolbar ────────────────────────────────────────────
-  if (app.appMode === "create") {
-    var createZoomGrp = [
-      h("div", {key:"sdiv-cz", className:"tb-sdiv"}),
-      h("div", {key:"zoom-grp", className:"tb-grp"},
-        h(window.CreatorZoomSlider, {zoom:cv.zoom, setZoom:cv.setZoom, maxZoom:cv.maxZoom, style:{width:80}, title:"Zoom",
-          labelStyle:{fontSize:10,color:"var(--text-tertiary)",minWidth:28,textAlign:"center"}}),
-        h("button", {className:"tb-btn", onClick:function(){ if (cv.fitZ) cv.fitZ(); else cv.setZoom(1); }, title:"Fit (Home)", "aria-label":"Fit pattern to view"}, "Fit")
-      )
-    ];
-    return h("div", {className:"toolbar-row", role:"toolbar", "aria-label":"Create mode tools"},
-      h("div", {className:"pill-row"},
-        h("div", {ref:app.stripRef, className:"pill"},
-          // Overlay toggle — quick-access duplicate of the canonical
-          // "Source overlay" control in the sidebar's Image tab. The
-          // sidebar version owns opacity; this one just toggles on/off.
-          gen.img && h("button", {
-            className:"tb-btn"+(cv.showOverlay?" tb-btn--on":""),
-            onClick:function(){ cv.setShowOverlay(!cv.showOverlay); },
-            title:"Toggle source image overlay", "aria-label":"Toggle source image overlay"
-          }, Icons.image(), " Overlay"),
-          // Cleanup mode toggle — available in create mode to clean up
-          // lineart that was averaged into stitch colours during import.
-          ctx.pat && h("button", {
-            className:"tb-btn"+(cv.activeTool==="cleanup"?" tb-btn--on":""),
-            onClick:function(){
-              if (cv.activeTool==="cleanup") { if (cv.exitCleanup) cv.exitCleanup(); }
-              else { if (cv.enterCleanup) cv.enterCleanup(); }
-            },
-            title:"Fix outline colours: replace stitches where an outline was blended into the colours around it",
-            "aria-label":"Fix outline colours",
-            "aria-pressed": cv.activeTool==="cleanup" ? "true" : "false"
-          }, window.Icons && window.Icons.cleanup ? window.Icons.cleanup() : null, " Fix outline colours"),
-          // Denoise mode toggle — fix conversion artefacts (speckles, fringe, palette noise)
-          ctx.pat && h("button", {
-            className:"tb-btn"+(cv.activeTool==="denoise"?" tb-btn--on":""),
-            onClick:function(){
-              if (cv.activeTool==="denoise") { if (cv.exitDenoise) cv.exitDenoise(); }
-              else { if (cv.enterDenoise) cv.enterDenoise(); }
-            },
-            title:"Reduce confetti: merge confetti stitches (" + window.CONFETTI_HELP.definition + "), smooth ragged edges and combine near-duplicate threads",
-            "aria-label":"Reduce confetti",
-            "aria-pressed": cv.activeTool==="denoise" ? "true" : "false"
-          }, window.Icons && window.Icons.sparkles ? window.Icons.sparkles() : null, " Reduce confetti"),
-          // Zoom
-          createZoomGrp
-        )
-      ),
-      cv.activeTool === 'cleanup' ? cleanupRow : denoiseRow
-    );
-  }
+  // Convert and the Canvas tab have no chart tools: Convert shows the live
+  // preview of its settings (creator-main.js ConvertPreview), and the Canvas
+  // tab is the grid's size and fabric. The chart's tools are all in Edit.
+  if (app.appMode === "create") return null;
 
   // ─── Edit Mode: full editing toolbar (current behaviour) ──────────────────────
 

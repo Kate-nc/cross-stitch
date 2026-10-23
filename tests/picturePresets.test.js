@@ -174,12 +174,11 @@ describe('the hook', () => {
     expect(io).toMatch(/if \(guess && state\.applyPicturePreset[\s\S]{0,120}state\.applyPicturePreset\(window\.guessPictureType\(info\), info\);/);
   });
 
-  test('the picture-type radios have one Tab stop and arrow keys', () => {
-    const sb = loadSource('creator/Sidebar.js');
-    const sec = sb.slice(sb.indexOf('var pictureTypeSection'), sb.indexOf('// ── Palette section'));
-    expect(sec).toMatch(/tabIndex: tabbable \? 0 : -1/);
-    expect(sec).toMatch(/e\.key === "ArrowRight" \|\| e\.key === "ArrowDown"/);
-    expect(sec).toMatch(/gen\.applyPicturePreset\(next\);/);
+  test('the picture-type radios choose the preset (keyboard: tests/convertPanel.test.js)', () => {
+    const sb = loadSource('creator/ConvertPanel.js');
+    const sec = sb.slice(sb.indexOf('var pictureType = '), sb.indexOf('function armBgPick()'));
+    expect(sec).toMatch(/onChange: function \(id\) \{ gen\.applyPicturePreset\(id\); \}/);
+    expect(sec).toMatch(/attr: "data-picture-type"/);
   });
   test('the guess is applied on upload, before a resumed draft puts its own settings back', () => {
     const io = loadSource('creator/useProjectIO.js');
@@ -189,10 +188,11 @@ describe('the hook', () => {
     expect(src).toMatch(/setPictureInfo\(null\); setPresetApplied\(null\);/);
   });
   test('the Convert panel starts with the question', () => {
-    const sb = loadSource('creator/Sidebar.js');
+    const sb = loadSource('creator/ConvertPanel.js');
     expect(sb).toMatch(/"What kind of picture is this\?"/);
-    const panel = sb.slice(sb.indexOf('var createPanel = h("div"'));
-    expect(panel.indexOf('pictureTypeSection')).toBeLessThan(panel.indexOf('dimSection'));
+    // Picture is the first step, and the picture type its first section.
+    expect(sb).toMatch(/if \(tab === "picture"\) content = \[pictureType, background, adjust\];/);
+    expect(sb.indexOf('{ id: "picture"')).toBeLessThan(sb.indexOf('{ id: "size"'));
   });
 });
 
@@ -222,8 +222,9 @@ describe('threads and symbols', () => {
     expect(src).toMatch(/var tc = creatorThreadCounts\(result\.pal\);/);
     const sb = loadSource('creator/Sidebar.js');
     expect(sb).toMatch(/className:"palette-counts"[^\n]*window\.threadCountsShort\(window\.creatorThreadCounts\(displayPal\)\)/);
-    expect(sb).toMatch(/label:"Threads \(max\)"/);
-    expect(sb).toMatch(/helpText:"Each thread is one colour of stranded cotton/);
-    expect(sb).not.toMatch(/" colours used"/);
+    const cp = loadSource('creator/ConvertPanel.js');
+    expect(cp).toMatch(/label: "Threads \(max\)"/);
+    expect(cp).toMatch(/helpText: "Each thread is one colour of stranded cotton/);
+    expect(cp).not.toMatch(/" colours used"/);
   });
 });

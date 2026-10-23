@@ -156,6 +156,8 @@ var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange
       React.createElement("span", {style:{fontWeight:600,color:"var(--text-primary)"}}, format?format(value):value, suffix)
     ),
     React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"},
+      "aria-label":typeof label==="string"?label:undefined,
+      "aria-valuetext":format?String(format(value))+(suffix||""):undefined,
       onFocus:inlineHint?function(){clearTimeout(timer.current);setFocused(true);}:undefined,
       onBlur:inlineHint?function(){timer.current=setTimeout(function(){setFocused(false);},0);}:undefined
     }),

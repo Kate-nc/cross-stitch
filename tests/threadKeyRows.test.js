@@ -317,6 +317,6 @@ describe('"What\'s a blend?" under a key', () => {
   test('both keys and the Convert panel mount it only when it applies', () => {
     expect(has(read('creator/Sidebar.js'), /window\.BlendHelpNote && window\.creatorThreadCounts\(displayPal\)\.blends > 0/)).toBe(true);
     expect(has(read('tracker-app.js'), /pal\.some\(p=>p\.type==="blend"\)&&<div className="ppal-blend-note">/)).toBe(true);
-    expect(has(read('creator/Sidebar.js'), /h\(window\.BlendHelpNote, \{showSetting:false\}\)/)).toBe(true);
+    expect(has(read('creator/ConvertPanel.js'), /h\(window\.BlendHelpNote, \{ showSetting: false \}\)/)).toBe(true);
   });
 });

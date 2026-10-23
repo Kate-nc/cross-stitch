@@ -195,3 +195,48 @@ window.remapCanvasTracking = function(halfStitches, halfDone, partialDone, parti
     partialDone: Array.from(quarters, function(e) { return [e[0], ["TL", "TR", "BL", "BR"].filter(function(q) { return e[1].has(q); })]; })
   };
 };
+
+// The resize spec that crops a pattern to the smallest rectangle holding
+// everything on it: stitched cells, part stitches, backstitch and specialty
+// lines (lattice points), French knots and beads (half-cell points) and park
+// markers. Returns null when there is nothing on the pattern or nothing to
+// trim. Pass the result to the same resize as Resize canvas, so the crop is
+// one undo step and keeps progress (Edit > Tools > Crop to the stitches).
+window.cropToStitchesSpec = function cropToStitchesSpec(pat, sW, sH, extras) {
+  if (!pat || !sW || !sH) return null;
+  extras = extras || {};
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  function cell(x, y) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  // A point on the lattice (0..sW) must stay inside 0..newW: the crop starts
+  // at or before floor(x) and ends at or after ceil(x) - 1.
+  function point(px, py) {
+    if (typeof px !== "number" || typeof py !== "number") return;
+    var lx = Math.min(Math.floor(px), sW - 1), ly = Math.min(Math.floor(py), sH - 1);
+    var hx = Math.max(Math.ceil(px) - 1, 0), hy = Math.max(Math.ceil(py) - 1, 0);
+    if (lx < minX) minX = lx; if (hx > maxX) maxX = hx;
+    if (ly < minY) minY = ly; if (hy > maxY) maxY = hy;
+  }
+  for (var i = 0; i < pat.length; i++) {
+    var c = pat[i];
+    if (c && c.id && c.id !== "__skip__" && c.id !== "__empty__") cell(i % sW, Math.floor(i / sW));
+  }
+  if (extras.partialStitches && typeof extras.partialStitches.forEach === "function") {
+    extras.partialStitches.forEach(function (_v, idx) { cell(idx % sW, Math.floor(idx / sW)); });
+  }
+  (extras.bsLines || []).forEach(function (l) { point(l.x1, l.y1); point(l.x2, l.y2); });
+  (extras.specialty || []).forEach(function (o) {
+    if (o.type === "petite") { point(o.x, o.y); point(o.x + 0.5, o.y + 0.5); }
+    else { point(o.x1, o.y1); point(o.x2, o.y2); }
+  });
+  // Knots and beads sit on half-cell points (0..2 * sW).
+  (extras.knots || []).concat(extras.beads || []).forEach(function (k) { point(k.x / 2, k.y / 2); });
+  (extras.parkMarkers || []).forEach(function (m) { cell(m.x, m.y); });
+  if (minX === Infinity) return null;
+  minX = Math.max(0, minX); minY = Math.max(0, minY);
+  maxX = Math.min(sW - 1, maxX); maxY = Math.min(sH - 1, maxY);
+  if (minX === 0 && minY === 0 && maxX === sW - 1 && maxY === sH - 1) return null;
+  return { newW: maxX - minX + 1, newH: maxY - minY + 1, offsetX: -minX, offsetY: -minY };
+};

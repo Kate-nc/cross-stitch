@@ -3,7 +3,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });   // serves the CDN libraries locally when E2E_LOCAL_CDN=1; does nothing otherwise
-const { device, openConvertWithLogo, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, openConvertWithLogo, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
 
 const TINY = path.join(__dirname, '..', 'fixtures', 'tiny.png');
 
@@ -31,7 +31,7 @@ async function patternStats(page) {
 }
 
 function pictureType(page, label) {
-  return page.locator('.picture-type').getByRole('radio', { name: label });
+  return page.getByRole('radiogroup', { name: 'What kind of picture is this?' }).getByRole('radio', { name: label });
 }
 
 test.describe('Picture-type presets on desktop', function() {
@@ -40,9 +40,10 @@ test.describe('Picture-type presets on desktop', function() {
 
   test('a logo is guessed as a graphic and makes a clean pattern', async function({ page }) {
     await openConvertWithLogo(page);
-    await expect(page.locator('.picture-type')).toContainText('What kind of picture is this?');
+    await expect(page.locator('.cv-sec--picture-type')).toContainText('Picture type');
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByText('Threads (max)')).toBeVisible();
+    await convertStep(page, 'threads');
+    await expect(page.getByRole('slider', { name: 'Threads (max)' })).toBeVisible();
 
     await clickGenerate(page);
     await waitForEdit(page);
@@ -63,13 +64,18 @@ test.describe('Picture-type presets on desktop', function() {
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
     await pictureType(page, 'Photo').click();
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
-    const slider = page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
+    await convertStep(page, 'threads');
+    const slider = page.getByRole('slider', { name: 'Threads (max)' });
     await expect(slider).toHaveValue('24');
     await slider.fill('14');
+    // The footer summary and the Picture step both say Custom.
+    await expect(page.locator('[data-convert-summary]')).toContainText(/^Custom/);
+    await convertStep(page, 'picture');
     await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
     await pictureType(page, 'Graphic or logo').click();
-    await expect(slider).toHaveValue('8');
     await expect(pictureType(page, 'Graphic or logo')).toHaveAttribute('aria-checked', 'true');
+    await convertStep(page, 'threads');
+    await expect(slider).toHaveValue('8');
   });
 
   test('with guessing turned off in Preferences, a picture starts from the Preferences defaults', async function({ page }) {
@@ -78,13 +84,16 @@ test.describe('Picture-type presets on desktop', function() {
     });
     await openConvertWithLogo(page);
     await expect(pictureType(page, 'Custom')).toHaveAttribute('aria-checked', 'true');
-    const slider = page.locator('xpath=//span[normalize-space(text())="Threads (max)"]/ancestor::div[2]//input[@type="range"]').first();
+    await convertStep(page, 'threads');
+    const slider = page.getByRole('slider', { name: 'Threads (max)' });
     await expect(slider).toHaveValue('12');
     // Arrow keys still choose a type.
+    await convertStep(page, 'picture');
     await pictureType(page, 'Graphic or logo').focus();
     await page.keyboard.press('ArrowRight');
     await expect(pictureType(page, 'Photo')).toHaveAttribute('aria-checked', 'true');
     await expect(pictureType(page, 'Photo')).toBeFocused();
+    await convertStep(page, 'threads');
     await expect(slider).toHaveValue('24');
   });
 

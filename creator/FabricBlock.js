@@ -107,7 +107,7 @@
             return h("button", {
               key: f.id, type: "button",
               className: "fabric-block__swatch" + (on ? " fabric-block__swatch--on" : ""),
-              style: { background: f.hex },
+              style: { background: f.hex, "--swatch": f.hex },
               title: f.label, "aria-label": f.label, "aria-pressed": on ? "true" : "false",
               onClick: function () { if (props.setFabricColour) props.setFabricColour(f.hex); }
             });

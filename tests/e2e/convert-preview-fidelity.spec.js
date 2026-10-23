@@ -15,7 +15,7 @@ test.beforeEach(async ({ context, page }) => {
     } });
   });
 });
-const { device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit } = require('./creator-helpers');
+const { device, quietOnboarding, skipTourIfShown, clickGenerate, waitForEdit, convertStep } = require('./creator-helpers');
 
 const FABRIC = '#E8D9B5';
 const FABRIC_RGB = 'rgb(232, 217, 181)';
@@ -51,6 +51,8 @@ function borderedPng() {
 async function openConvert(page) {
   await quietOnboarding(page);
   await page.addInitScript(function(c) { try { localStorage.setItem('cs_pref_creatorFabricColour', JSON.stringify(c)); } catch (e) {} }, FABRIC);
+  // These checks are about the Before / after slider (the default view is Stitched).
+  await page.addInitScript(function() { try { localStorage.setItem('cs_pref_creator.convertPreviewView', JSON.stringify('compare')); } catch (e) {} });
   await page.goto('/home.html?tab=create');
   await skipTourIfShown(page);
   await page.locator('input.home-create-file-input').setInputFiles({ name: 'bordered.png', mimeType: 'image/png', buffer: borderedPng() });
@@ -85,6 +87,7 @@ test.describe('Convert preview fidelity', function() {
 
   test('the what-changed overlay never appears on its own, and covers only the preview half', async function({ page }) {
     await openConvert(page);
+    await convertStep(page, 'size');
     await page.getByLabel('Width in stitches').fill('70');
     await page.keyboard.press('Tab');
     for (let i = 0; i < 22; i++) {            // 2.2 s: past the debounce and the full pass
@@ -110,6 +113,7 @@ test.describe('Convert preview fidelity', function() {
       return { box: box.width / box.height, picture: img.naturalWidth / img.naturalHeight };
     });
     const before = await shape();
+    await convertStep(page, 'size');
     await page.getByRole('checkbox', { name: 'Lock aspect ratio' }).uncheck();
     await page.getByLabel('Height in stitches').fill('10');
     await page.keyboard.press('Tab');
@@ -183,6 +187,7 @@ test.describe('Convert preview fidelity', function() {
   // change under Fine-tune shows Custom; the picture type is unaffected.
   test('the Detail and tidiness choice sets shading and tidying together', async ({ page }) => {
     await openConvert(page);
+    await convertStep(page, 'detail');
     const step = (name) => page.getByRole('radiogroup', {name:'Detail and tidiness'}).getByRole('radio', {name, exact:true});
     const type = await page.evaluate(() => window.__previewState.pictureType);
     await step('Easiest to stitch').click();
@@ -283,7 +288,7 @@ test.describe('Comparison overlay lifecycle', () => {
       Object.assign(__cmpProps, {heatmapSrc:__pixelUrl('orange'),highlightSrc:__pixelUrl('white')});
       ReactDOM.flushSync(() => __cmpRoot.render(React.createElement(ComparisonSlider,__cmpProps)));
     });
-    await page.locator('#comparison-test').getByRole('button', {name:'Heatmap',exact:true}).click();
+    await page.locator('#comparison-test').getByRole('button', {name:'Show confetti',exact:true}).click();
     for(const id of ['cmp-heatmap','cmp-highlight']) await expect(page.locator('#comparison-test').getByTestId(id)).toHaveCSS('clip-path', /50%/);
     await update(page, {previewLoading:true});
     for(const id of ['cmp-heatmap','cmp-highlight']) await expect(page.locator('#comparison-test').getByTestId(id)).toHaveCount(0);

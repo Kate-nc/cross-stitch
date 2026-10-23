@@ -50,10 +50,14 @@ describe('finished size', () => {
 
   test('the Sidebar uses the shared helper, not sW / fabricCt', () => {
     const sidebar = read('creator/Sidebar.js');
+    const convert = read('creator/ConvertPanel.js');
     expect(sidebar).not.toMatch(/ctx\.sW\s*\/\s*\(?\s*(ctx\.)?fabricCt/);
-    // The two live summaries call it directly; Size & fabric, Canvas and
-    // Edit > Project use the Fabric block, which uses fabricSizes() (P2-2).
-    expect((sidebar.match(/window\.finishedSizeText\(/g) || []).length).toBeGreaterThanOrEqual(2);
+    expect(convert).not.toMatch(/ctx\.sW\s*\/\s*\(?\s*(ctx\.)?fabricCt/);
+    // Convert's Project summary and the preview's size line call it
+    // directly; Convert > Size, Canvas and Edit > Project use the Fabric
+    // block, which uses fabricSizes() (P2-2).
+    expect(convert).toMatch(/window\.finishedSizeText\(ctx\.sW, ctx\.sH, fabricCt\)/);
+    expect(read('creator-main.js')).toMatch(/window\.finishedSizeText\(dims\.pw, dims\.ph, ct\)/);
     expect(read('creator/FabricBlock.js')).toMatch(/window\.fabricSizes\(props\.sW, props\.sH, ct\)/);
   });
 });

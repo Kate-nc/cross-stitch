@@ -69,7 +69,9 @@ describe('Convert mode drawer header', () => {
   test('create mode renders a Settings row that toggles the panel', () => {
     expect(sidebar).toMatch(/className:"rpanel-drawer-header"/);
     expect(sidebar).toMatch(/app\.setPanelOpen\(!drawerOpen\)/);
-    expect(sidebar).toMatch(/drawerHeader,\s*createPanel,\s*createActions/);
+    // Convert puts it above its step tabs; the Canvas tab above its panel.
+    expect(sidebar).toMatch(/return h\(window\.CreatorConvertPanel, \{drawerHeader: drawerHeader\}\);/);
+    expect(read('creator/ConvertPanel.js')).toMatch(/return h\(React\.Fragment, null, props && props\.drawerHeader, tabBar, panel, footer\);/);
   });
 });
 

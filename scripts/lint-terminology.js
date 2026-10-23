@@ -41,6 +41,8 @@ const TARGET_FILES = [
   "backup-restore.js",
   // Convert and the pattern summaries count threads and chart symbols (P2-5).
   "creator/Sidebar.js",
+  "creator/ConvertPanel.js",
+  "creator/StitchedPreview.js",
   "creator/PreviewCanvas.js",
   "creator/PatternInfoPopover.js",
   "creator/useCreatorState.js",

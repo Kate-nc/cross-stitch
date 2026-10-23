@@ -479,6 +479,49 @@ function retireGenerateWorker(w) {
   try { w.terminate(); } catch (_) {}
 }
 
+// Everything in the conversion settings that changes the chart, as one
+// string: two equal signatures make the same chart from the same picture.
+// The fabric count only sizes it, and the palette is named by its threads.
+function conversionSignature(settings) {
+  if (!settings) return null;
+  var out = {};
+  Object.keys(settings).sort().forEach(function (k) {
+    if (k === "fabricCt") return;
+    var v = settings[k];
+    if (k === "allowedPalette") v = v ? v.map(function (t) { return t && (t.brand || "") + ":" + t.id; }).join(",") : null;
+    out[k] = v;
+  });
+  try { return JSON.stringify(out); } catch (_) { return null; }
+}
+if (typeof window !== "undefined") window.conversionSignature = conversionSignature;
+
+// How the chart relates to Convert's current settings, for Convert's footer
+// and preview: null (no chart), "unknown" (not generated this session, such
+// as a reopened project), "changed" (other settings or another picture), or
+// "same". lastGenSnapshot is { signature, img } from the last Generate.
+function convertChartState(pat, snap, settings, img) {
+  if (!pat) return null;
+  if (!snap || !snap.signature) return "unknown";
+  if (snap.img !== img) return "changed";
+  return snap.signature === conversionSignature(settings) ? "same" : "changed";
+}
+if (typeof window !== "undefined") window.convertChartState = convertChartState;
+
+// Whether the chart may differ from the one Generate made: edited since, or
+// unknown (no snapshot this session, as for a reopened project). Regenerate
+// asks before replacing such a chart (useCreatorState generate).
+function chartChangedSinceGenerated(pat, genSnap, editCount) {
+  if (!pat) return false;
+  if (editCount > 0) return true;
+  if (!genSnap || !genSnap.pat || genSnap.pat.length !== pat.length) return true;
+  for (var i = 0; i < pat.length; i++) {
+    var a = pat[i], b = genSnap.pat[i];
+    if ((a && a.id) !== (b && b.id)) return true;
+  }
+  return false;
+}
+if (typeof window !== "undefined") window.chartChangedSinceGenerated = chartChangedSinceGenerated;
+
 function generateStageInfo(stage) {
   return GENERATE_STAGES[stage] || { label: 'Generating pattern\u2026', pct: null };
 }
@@ -714,17 +757,18 @@ window.useCreatorState = function useCreatorState() {
   // pointer events without a circular hook dependency.
   var denoiseHandlersRef = useRef(null);
 
-  // Sidebar tab within current mode (mode-specific).
-  // Create mode tabs: "image" | "dimensions" | "palette" | "preview" | "project".
-  // Legacy "settings" (pre-2026-04 toolbar rework) is remapped to "image".
+  // Edit's panel tab: "palette" | "tools" | "view" | "preview" | "project".
+  // Convert has its own step tab (convertTab). Ids Edit no longer has (the
+  // old Convert tabs "image" and "dimensions", and the older "settings")
+  // open Palette.
+  var EDIT_SIDEBAR_TABS = ["palette", "tools", "view", "preview", "project"];
   var _sidebarTab = useState(function () {
     var v = loadUserPref("creator.sidebarTab", null);
-    if (v === "settings") return "image";
-    return v || "image";
+    return EDIT_SIDEBAR_TABS.indexOf(v) >= 0 ? v : "palette";
   });
   var sidebarTab = _sidebarTab[0], _setSidebarTabRaw = _sidebarTab[1];
   function setSidebarTab(v) {
-    if (v === "settings") v = "image"; // back-compat for any caller still passing the old id
+    if (EDIT_SIDEBAR_TABS.indexOf(v) < 0) v = "palette";
     _setSidebarTabRaw(v);
     try { if (typeof UserPrefs !== "undefined") UserPrefs.set("creator.sidebarTab", v); } catch (_) {}
   }
@@ -838,16 +882,13 @@ window.useCreatorState = function useCreatorState() {
   var _rpMode = useState(function() { return loadUserPref("rightPaneMode", "level2"); });
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
-  // Section open states
-  // Convert panel order (audit IMG-06): Size & fabric, Colours, Detail and
-  // tidiness, Background, Adjust image, palette swap, Project. Size, Colours
-  // and Detail and tidiness start open; the rest start collapsed.
-  var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
-  var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
-  var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
-  var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
-  var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  // Convert's step tab (creator/ConvertPanel.js): Picture, Size, Threads,
+  // Detail or Project. A new picture starts on Picture (resetAll).
+  var _convertTab = useState("picture"); var convertTab = _convertTab[0], _setConvertTabRaw = _convertTab[1];
+  function setConvertTab(v) {
+    var ok = (window.CONVERT_TABS || []).some(function (t) { return t.id === v; });
+    if (ok || !window.CONVERT_TABS) _setConvertTabRaw(v);
+  }
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -1118,6 +1159,13 @@ window.useCreatorState = function useCreatorState() {
   var _prevHigh   = useState(null);  var previewHighlight = _prevHigh[0], setPreviewHighlight = _prevHigh[1];
   var _prevLoad   = useState(false); var previewLoading = _prevLoad[0], setPreviewLoading = _prevLoad[1];
   var _prevError  = useState(null); var previewError = _prevError[0], setPreviewError = _prevError[1];
+  // The stitches Stitch Cleanup changed in the preview (an overlay picture),
+  // and whether Convert shows it.
+  var _prevTidied = useState(null); var previewTidied = _prevTidied[0], setPreviewTidied = _prevTidied[1];
+  var _showTidied = useState(false); var showTidied = _showTidied[0], setShowTidied = _showTidied[1];
+  // What the last settings change did to the preview (usePreview.js
+  // describePreviewChange): which settings, and the counts before and after.
+  var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -1659,8 +1707,8 @@ window.useCreatorState = function useCreatorState() {
     setParkMarkers([]); setHlRow(-1); setHlCol(-1); setTotalTime(0); setSessions([]);
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
-    setDimOpen(true); setPalOpen(true); setAdjOpen(false);
-    setBgOpen(false); setCleanupOpen(true); setIsCropping(false); setCropRect(null);
+    _setConvertTabRaw("picture"); setShowTidied(false); setPreviewChange(null); setPreviewTidied(null);
+    setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
@@ -1931,15 +1979,9 @@ window.useCreatorState = function useCreatorState() {
     // are about to be meaningless against the new pattern.
     if (wandClearRef.current) wandClearRef.current();
     if (lassoCancelRef.current) lassoCancelRef.current();
-    // Polish 13 step 4a — snapshot the source values that produced this
-    // pattern so the Dimensions / Palette tabs can detect drift and
-    // surface a "Re-generate (values changed)" CTA. Stored fields must
-    // match the comparator in Sidebar.js (genStaleReason).
-    setLastGenSnapshot({
-      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
-      bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
-      allowBlends: allowBlends, skipBg: skipBg
-    });
+    // Which settings and picture made this chart, so Convert can say when
+    // its preview differs from it (convertChartState).
+    setLastGenSnapshot({ signature: conversionSignature(conversionSettings), img: img });
     setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setDisambigData(result.disambigData || null);
@@ -1961,13 +2003,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setCleanupDiff(null);
     }
-    if (!hasGenerated) {
-      // First generation only: collapse all the settings accordions so
-      // they don't clutter the sidebar now that editing has started.
-      setDimOpen(false); setPalOpen(false);
-      setAdjOpen(false); setBgOpen(false); setCleanupOpen(false);
-      setHasGenerated(true);
-    }
+    if (!hasGenerated) setHasGenerated(true);
     // Always switch to Edit mode after any generation — first or re-generate.
     // Previously only the first generate did this; regenerating from the
     // Image / Dimensions / Palette sidebar tabs left users stranded in
@@ -2112,6 +2148,29 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
+    // A chart that was edited since Generate made it, or whose origin is
+    // unknown (a reopened project), is replaced only after asking. Every way
+    // to Regenerate comes through here: the top bars, Convert's footer and
+    // the stash variations.
+    if (!_hasProgress && !(overrides && overrides.__confirmed) &&
+        chartChangedSinceGenerated(pat, genPatSnapshot, editHistory ? editHistory.length : 0) &&
+        window.ConfirmDialog && window.ConfirmDialog.show) {
+      var _ovr2 = overrides;
+      var _edits = editHistory ? editHistory.length : 0;
+      window.ConfirmDialog.show({
+        title: "Replace your chart?",
+        message: (_edits > 0
+          ? "Regenerating makes a new chart from your picture and discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
+          : "Regenerating makes a new chart from your picture. Any changes made to this chart since it was generated will be lost.") +
+          " Undo cannot bring them back.",
+        confirmLabel: "Regenerate",
+        danger: true
+      }).then(function(ok) {
+        if (!ok) return;
+        generate(Object.assign({}, _ovr2 || {}, { __confirmed: true }));
+      });
+      return;
+    }
     setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setGenerateCancellable(true); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
@@ -2231,7 +2290,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2553,6 +2612,58 @@ window.useCreatorState = function useCreatorState() {
     setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
+  // ─── Canonical conversion settings bundle ────────────────────────────────
+  // ALL conversion settings flow through this useMemo. Any code path that
+  // generates pixels (preview, full Generate, gallery, worker) MUST consume
+  // this object instead of pulling individual state fields. See
+  // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+  // Declared here (not in the returned object) so Generate can record which
+  // settings made the chart (lastGenSnapshot.signature).
+  var conversionSettings = useMemo(function() {
+    var stashInfo = stashConstrained
+      ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
+      : { palette: null, count: 0, threads: [] };
+    var effMaxC = stashConstrained && stashInfo.count > 0
+      ? Math.min(maxC, stashInfo.count)
+      : maxC;
+    var effAllowBlends = stashConstrained && stashInfo.count < 6
+      ? false
+      : allowBlends;
+    return Object.freeze({
+      // Geometry
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt,
+      // Image adjustments
+      bri: bri, con: con, sat: sat,
+      smooth: smooth, smoothType: smoothType,
+      preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
+      // Quantisation
+      maxC: effMaxC,
+      dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
+      allowBlends: effAllowBlends,
+      // Another brand's catalogue when not stash-only (P4-5); null is DMC.
+      allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
+      convertBrand: convertBrand,
+      // Background
+      skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+      // Cleanup
+      minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+      disambig: disambig, disambigLevel: disambigLevel,
+      // Variation
+      seed: variationSeed, subset: variationSubset,
+      // Fabric (for stats, not pixels)
+      fabricCt: fabricCt,
+      // UI / diagnostic flags
+      stashConstrained: stashConstrained,
+      stashCount: stashInfo.count,
+    });
+  }, [
+    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+    maxC, dith, dithMode, dithStrength, allowBlends,
+    skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+    disambig, disambigLevel,
+    stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
+  ]);
+
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
@@ -2586,9 +2697,8 @@ window.useCreatorState = function useCreatorState() {
     highlightMode, setHighlightMode,
     tintColor, setTintColor, tintOpacity, setTintOpacity,
     spotDimOpacity, setSpotDimOpacity, antsOffset, setAntsOffset,
-    dimOpen, setDimOpen, palOpen, setPalOpen,
-    adjOpen, setAdjOpen, bgOpen, setBgOpen, palAdvanced, setPalAdvanced,
-    cleanupOpen, setCleanupOpen, stitchCleanup, setStitchCleanup,
+    convertTab, setConvertTab,
+    stitchCleanup, setStitchCleanup,
     hasGenerated, setHasGenerated, isCropping, setIsCropping,
     cropRect, setCropRect, cropStartRef, cropRef,
     activeTool: effActiveTool, setActiveTool: chooseActiveTool, activeToolRef: effActiveToolRef.current, previousToolRef,
@@ -2634,6 +2744,8 @@ window.useCreatorState = function useCreatorState() {
     previewDims, setPreviewDims, previewHighlight, setPreviewHighlight,
     previewLoading, setPreviewLoading,
     previewError, setPreviewError,
+    previewTidied, setPreviewTidied, showTidied, setShowTidied,
+    previewChange, setPreviewChange,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -2724,55 +2836,8 @@ window.useCreatorState = function useCreatorState() {
       return window.threadBrandPool ? window.threadBrandPool(brand) : null;
     }, [stashConstrained, globalStash]),
 
-    // ─── Canonical conversion settings bundle ────────────────────────────────
-    // ALL conversion settings flow through this useMemo. Any code path that
-    // generates pixels (preview, full Generate, gallery, worker) MUST consume
-    // this object instead of pulling individual state fields. See
-    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
-    conversionSettings: useMemo(function() {
-      var stashInfo = stashConstrained
-        ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
-        : { palette: null, count: 0, threads: [] };
-      var effMaxC = stashConstrained && stashInfo.count > 0
-        ? Math.min(maxC, stashInfo.count)
-        : maxC;
-      var effAllowBlends = stashConstrained && stashInfo.count < 6
-        ? false
-        : allowBlends;
-      return Object.freeze({
-        // Geometry
-        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
-        // Image adjustments
-        bri: bri, con: con, sat: sat,
-        smooth: smooth, smoothType: smoothType,
-        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
-        // Quantisation
-        maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
-        allowBlends: effAllowBlends,
-        // Another brand's catalogue when not stash-only (P4-5); null is DMC.
-        allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
-        convertBrand: convertBrand,
-        // Background
-        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-        // Cleanup
-        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
-        disambig: disambig, disambigLevel: disambigLevel,
-        // Variation
-        seed: variationSeed, subset: variationSubset,
-        // Fabric (for stats, not pixels)
-        fabricCt: fabricCt,
-        // UI / diagnostic flags
-        stashConstrained: stashConstrained,
-        stashCount: stashInfo.count,
-      });
-    }, [
-      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
-      maxC, dith, dithMode, dithStrength, allowBlends,
-      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
-      disambig, disambigLevel,
-      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
-    ]),
+    // The canonical conversion settings bundle (declared above).
+    conversionSettings: conversionSettings,
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
     setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
