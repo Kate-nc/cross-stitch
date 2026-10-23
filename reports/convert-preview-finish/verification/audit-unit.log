@@ -1,0 +1,16 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+> app@1.0.0 test
+> node --experimental-vm-modules node_modules/jest/bin/jest.js --maxWorkers=2
+
+(node:27404) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27405) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"fixture":"500x500, 100 colours","halfMarkUnmark100Ms":11.442794000002323,"fullMark100Ms":3.734167000002344}
+
+Test Suites: 1 skipped, 416 passed, 416 of 417 total
+Tests:       4 skipped, 6135 passed, 6139 total
+Snapshots:   1 passed, 1 total
+Time:        128.141 s, estimated 153 s
+Ran all test suites.

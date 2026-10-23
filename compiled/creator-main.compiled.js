@@ -921,7 +921,8 @@ function PatternEstimates({
   })), /*#__PURE__*/React.createElement("td", null, row.count)))))));
 }
 function PinnedComparison({
-  state
+  state,
+  compact
 }) {
   const [choice, setChoice] = useState('current');
   const pin = state.pinnedPreview,
@@ -961,10 +962,10 @@ function PinnedComparison({
   }, "Unpin")), /*#__PURE__*/React.createElement("p", {
     className: "cvp-change",
     "aria-live": "polite"
-  }, state.previewLoading ? 'Updating current preview…' : (changed == null ? 'Size changed; cells cannot be compared directly' : changed.toLocaleString('en-GB') + ' stitches changed') + (stats ? ', ' + stats.map(s => s.label + ' ' + s.from + ' to ' + s.to).join(', ') : ''), "."), /*#__PURE__*/React.createElement("div", {
+  }, state.previewLoading ? 'Updating current preview…' : (changed == null ? 'Size changed; cells cannot be compared directly' : (change && change.estimated ? 'About ' : '') + changed.toLocaleString('en-GB') + ' stitches changed') + (stats ? ', ' + stats.map(s => s.label + ' ' + s.from + ' to ' + s.to).join(', ') : ''), "."), /*#__PURE__*/React.createElement("div", {
     className: "cv-pin__pictures",
     "data-choice": choice
-  }, [['pinned', pin], ['current', current]].map(([id, snap]) => snap && /*#__PURE__*/React.createElement("figure", {
+  }, [['pinned', pin], ['current', current]].filter(([id]) => !compact || choice === id).map(([id, snap]) => snap && /*#__PURE__*/React.createElement("figure", {
     key: id,
     "data-version": id
   }, /*#__PURE__*/React.createElement("figcaption", null, id === 'pinned' ? 'Pinned: ' + pin.label : 'Current: ' + snap.label), /*#__PURE__*/React.createElement(window.CreatorStitchedPreview, {
@@ -2575,7 +2576,8 @@ function CreatorApp({
     state: state,
     onRetry: preview.generatePreview
   }), state.pinnedPreview && /*#__PURE__*/React.createElement(PinnedComparison, {
-    state: state
+    state: state,
+    compact: _compact
   }), state.previewUrl && window.CreatorCompareStrip && /*#__PURE__*/React.createElement(window.CreatorCompareStrip, {
     img: state.img,
     settings: state.conversionSettings,

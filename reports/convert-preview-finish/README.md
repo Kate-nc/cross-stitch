@@ -65,4 +65,29 @@ The stitched-edit regression was adjusted to allow a legitimate result of the lo
 
 The initial full browser sweep ran **186 checks: 172 passed, 14 failed**. Eight failed executions were resolved by correcting the exact-mode stash fixture, replacing retired slider-diff assertions, choosing a genuinely noisy fixture for tidied-overlay checks, and allowing a fully reset stitched region. The corresponding final checks pass on rerun. The remaining **six executions cover three pre-existing cases** run in both projects: the two legacy touch cases above and the PDF naming prompt case. The PDF case expects a `Name this pattern` heading that does not appear; the same failure was also reproduced with committed baseline assets. No PDF export code was changed.
 
-The full initial sweep and the final focused reruns are retained in [verification/](verification/). These baseline browser failures are not reported as green checks. A PR has not been opened.
+The full initial sweep and the final focused reruns are retained in [verification/](verification/). These baseline browser failures are not reported as green checks. [Draft PR #392](https://github.com/Kate-nc/cross-stitch/pull/392) was opened before the post-PR audit below.
+
+
+## Post-PR audit
+
+Audited after opening PR #392 at commit `406aeee38233aed3410a8da55642b8c95ed8a1b8`.
+
+Two additional defects were reproduced with browser tests on both desktop and Pixel 5:
+
+1. Replacing owned threads with a different set of the same size changed the preview but reported **0 stitches changed**. The change description returned early when no named setting changed. It now recognises a changed available palette and counts changed cells even when no named setting differs. Unit and browser tests compare against an independent count of the pinned/current cell identities.
+2. The phone Pinned / Current switch hid one figure in CSS but still mounted and drew both canvases. Compact comparisons now mount only the selected picture. A browser test switches versions and resizes from phone to desktop, checking one canvas on phones and two on wide screens.
+
+The audit also verifies the pound-sign fallback when the preferences formatter is absent. Smaller page previews now explicitly say **About** before their scaled changed-stitch counts; this is covered with Workers disabled and a chart larger than the page preview limit. The optional viewport-only close-up renderer remains deferred.
+
+The initial audit reproductions are retained alongside the final verification logs. The final post-audit verification is recorded below.
+
+
+Final post-audit results:
+
+- **6,135 unit tests passed**, 4 skipped; 416 suites passed, 1 skipped. The final full run exited successfully.
+- **28 desktop/phone browser checks passed**: the 26 combined audit and original pin/preview checks, plus two tests choosing Tidier and restoring Balanced through the visible controls.
+- Terminology lint, generated bundles, compiled files, service-worker fingerprints and whitespace checks all passed; see [audit-builds.json](verification/audit-builds.json).
+- The prior 20-photo baseline measurements and unchanged logo thread-budget regression remain valid; conversion code was not changed during this audit. The logo unit regression ran again in the full suite.
+- The three previously documented legacy browser cases remain baseline issues; they were not counted as passes or changed by this audit.
+
+The PR includes the corrective changes and regression tests. No merge or deployment was requested.

@@ -416,7 +416,7 @@ function PatternEstimates({state}) {
     </details>}
   </section>;
 }
-function PinnedComparison({state}) {
+function PinnedComparison({state, compact}) {
   const [choice,setChoice]=useState('current');
   const pin=state.pinnedPreview, current=state.previewSnapshot;
   const change=current&&window.describePreviewChange(pin,current);
@@ -428,8 +428,8 @@ function PinnedComparison({state}) {
       {['pinned','current'].map(v=><button type="button" className={'lp-seg'+(choice===v?' lp-seg--on':'')} aria-pressed={choice===v} key={v} onClick={()=>setChoice(v)}>{v==='pinned'?'Pinned':'Current'}</button>)}
     </div><button type="button" className="cs-seltools__btn" onClick={state.applyPinnedSettings}>Apply pinned settings</button>
     <button type="button" className="cs-seltools__btn" onClick={()=>state.setPinnedPreview(null)}>Unpin</button></div>
-    <p className="cvp-change" aria-live="polite">{state.previewLoading?'Updating current preview…':(changed==null?'Size changed; cells cannot be compared directly':changed.toLocaleString('en-GB')+' stitches changed')+(stats?', '+stats.map(s=>s.label+' '+s.from+' to '+s.to).join(', '):'')}.</p>
-    <div className="cv-pin__pictures" data-choice={choice}>{[['pinned',pin],['current',current]].map(([id,snap])=>snap&&<figure key={id} data-version={id}><figcaption>{id==='pinned'?'Pinned: '+pin.label:'Current: '+snap.label}</figcaption>
+    <p className="cvp-change" aria-live="polite">{state.previewLoading?'Updating current preview…':(changed==null?'Size changed; cells cannot be compared directly':(change&&change.estimated?'About ':'')+changed.toLocaleString('en-GB')+' stitches changed')+(stats?', '+stats.map(s=>s.label+' '+s.from+' to '+s.to).join(', '):'')}.</p>
+    <div className="cv-pin__pictures" data-choice={choice}>{[['pinned',pin],['current',current]].filter(([id])=>!compact||choice===id).map(([id,snap])=>snap&&<figure key={id} data-version={id}><figcaption>{id==='pinned'?'Pinned: '+pin.label:'Current: '+snap.label}</figcaption>
       <window.CreatorStitchedPreview cells={snap.mapped} width={snap.w} height={snap.h} fabricCt={snap.restore.fabricCt} fabricColour={snap.restore.fabricColour} displayWidth={Math.min(360,snap.w*8)}/>
     </figure>)}</div>
   </section>;
@@ -1554,7 +1554,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   {state.previewError ? <><div role="alert">{state.previewError}</div><button type="button" onClick={preview.generatePreview}>Retry preview</button></> : state.previewLoading ? <span role="status" aria-label="Updating preview">Updating preview…</span> : "Choose an image and adjust the settings to see a preview here."}
                 </div>}
                 {state.previewUrl&&<ConvertPreview state={state} onRetry={preview.generatePreview}/>}
-                {state.pinnedPreview&&<PinnedComparison state={state}/>}
+                {state.pinnedPreview&&<PinnedComparison state={state} compact={_compact}/>}
                 {/* Compare options (audit IMG-05): neighbouring sizes or thread
                     counts, side by side; choosing one applies it. */}
                 {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip

@@ -1,0 +1,40 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 2 tests using 1 worker
+
+(node:14700) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14700) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  ✓  1 work/baseline-tests/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it (16.9s)
+
+  ✘  2 work/baseline-tests/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas (1.7m)
+
+
+  1) work/baseline-tests/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+
+    [31mTest timeout of 100000ms exceeded.[39m
+
+    Error: page.waitForSelector: Test timeout of 100000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('text=Open file') to be visible[22m
+
+
+       at ../../tests/e2e/touch-helpers.js:110
+
+      108 | async function loadCreatorFixture(page, projectPath) {
+      109 |   await page.goto('/index.html');
+    > 110 |   await page.waitForSelector('text=Open file');
+          |              ^
+      111 |   const chooserPromise = page.waitForEvent('filechooser');
+      112 |   await page.getByText('Open file').first().click();
+      113 |   const chooser = await chooserPromise;
+        at loadCreatorFixture (/workspace/cross-stitch/tests/e2e/touch-helpers.js:110:14)
+        at /workspace/cross-stitch/work/baseline-tests/creator-touch.spec.js:17:5
+
+    Error Context: test-results/creator-touch-Creator-Touc-d549e--zoom-on-the-pattern-canvas/error-context.md
+
+  1 failed
+    work/baseline-tests/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+  1 passed (2.0m)

@@ -1,0 +1,32 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 18 tests using 2 workers
+
+(node:21117) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21116) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21117) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:21116) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › desktop › preview fills the phone and picture buttons fit (5.4s)
+  ✓   2 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › desktop › preview fills the phone and picture buttons fit (5.6s)
+  ✓   3 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › desktop › thread selection persists across all views and toggles off (8.2s)
+  ✓   4 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › desktop › thread selection persists across all views and toggles off (9.4s)
+  ✓   5 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › desktop › one change overlay works in all views (9.8s)
+  ✓   6 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › desktop › one change overlay works in all views (8.4s)
+  ✓   7 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › desktop › pin survives settings changes, restores all settings and clears for another source (8.4s)
+  ✓   8 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › desktop › pin survives settings changes, restores all settings and clears for another source (9.1s)
+  ✓   9 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › Pixel 5 › preview fills the phone and picture buttons fit (4.7s)
+  ✓  10 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › Pixel 5 › preview fills the phone and picture buttons fit (4.6s)
+  ✓  11 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › Pixel 5 › thread selection persists across all views and toggles off (4.3s)
+  ✓  12 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › Pixel 5 › thread selection persists across all views and toggles off (4.4s)
+  ✓  13 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › Pixel 5 › one change overlay works in all views (6.1s)
+  ✓  14 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › Pixel 5 › one change overlay works in all views (6.0s)
+  ✓  15 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (7.5s)
+  ✓  16 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (7.1s)
+  ✓  17 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (6.7s)
+  ✓  18 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (6.7s)
+
+  18 passed (1.0m)

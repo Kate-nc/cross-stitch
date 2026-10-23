@@ -1,0 +1,39 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 1 test using 1 worker
+
+(node:20510) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20510) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  ✘  1 work/baseline-tests/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project (13.1s)
+
+
+  1) work/baseline-tests/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Name this pattern' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Name this pattern' })[22m
+
+
+      119 |     };
+      120 |     await printPdf();
+    > 121 |     await expect(prompt).toBeVisible();
+          |                          ^
+      122 |     await expect(page.getByText('Give this pattern a name? It will appear on the PDF and in your library.')).toBeVisible();
+      123 |     await expect(page.locator('.name-prompt-input')).toHaveValue('logo');
+      124 |     await page.getByRole('button', { name: 'Skip', exact: true }).click();
+        at /workspace/cross-stitch/work/baseline-tests/creator-behaviour.spec.js:121:26
+
+    Error Context: test-results/creator-behaviour-Creator--d658b-e-for-an-auto-named-project/error-context.md
+
+  1 failed
+    work/baseline-tests/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 

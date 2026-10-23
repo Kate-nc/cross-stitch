@@ -43,7 +43,7 @@ function describePreviewChange(prev, next) {
   PREVIEW_CHANGE_LABELS.forEach(function (row) {
     if (row[0].some(function (k) { return !_sameSetting(prev.settings[k], next.settings[k]); })) settings.push(row[1]);
   });
-  if (!settings.length) return null;
+  if (!settings.length && !_sameSetting(prev.settings.allowedPalette, next.settings.allowedPalette)) settings.push('Available threads');
   var a = prev.summary || {}, b = next.summary || {};
   var stats = [];
   function add(label, from, to, fmt) {
@@ -71,6 +71,10 @@ function describePreviewChange(prev, next) {
     var scale = next.scale || 1;
     changed = Math.round(changed * scale);
     total = Math.round(next.ids.length * scale);
+  }
+  if (!settings.length) {
+    if (!stats.length && (changed === 0 || changed == null)) return null;
+    settings.push('Preview');
   }
   return { settings: settings, stats: stats, changedStitches: changed, total: total, estimated: !!next.estimated && changed != null };
 }
