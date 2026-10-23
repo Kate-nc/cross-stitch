@@ -18,6 +18,9 @@
        onCommitDrag,    // (Set<idx>, intent) => void
        onCommitRange,   // (Set<idx>, intent) => void
        isEditMode,      // boolean — when true, hook is a no-op
+       dragEnabled,     // false keeps taps but disables drag/range gestures
+       isolatedPreview, // true publishes paths through previewStore instead
+                        // of re-rendering the parent for every path change
      });
      // Spread handlers onto the grid container:
      //   <div {...handlers} />
@@ -40,12 +43,11 @@
 
    Behaviours
    ──────────
-   1. Single-cell tap (down + up on same cell within 200ms) → onToggleCell.
-   2. Drag-mark: after 200ms touch-start guard, if pointer crosses cells,
+   1. A stationary press released before range selection fires toggles a cell.
+   2. Drag-mark: after the touch paint-hold guard, if pointer crosses cells,
       collect them into a Set; intent fixed by FIRST cell's done state.
       __skip__/__empty__ cells excluded. Commit as ONE undo step.
-   3. 200ms multi-touch guard: a second pointer arriving inside the guard
-      window aborts (browser handles pinch-zoom natively).
+   3. A second touch abandons a single-finger gesture without marking.
    4. Long-press 500ms with no movement → set range anchor; next tap on a
       different cell commits the rectangular region as one undo step.
       Touch/pen only — see note in (5).
@@ -78,7 +80,6 @@
     return (typeof window !== 'undefined' && window.TouchConstants)
       ? window.TouchConstants : null;
   }
-  function tapHoldMs()      { var c = TC(); return c ? c.TAP_HOLD_MS : 200; }
   function longPressMs()    { var c = TC(); return c ? c.LONG_PRESS_MS : 500; }
   function multiTouchMs()   { var c = TC(); return c ? c.MULTI_TOUCH_GRACE_MS : 100; }
   function tapSlopPx()      { var c = TC(); return c ? c.TAP_SLOP_PX : 10; }
@@ -110,6 +111,35 @@
 
   function intentForCell(done, idx) {
     return (done && done[idx]) ? 'unmark' : 'mark';
+  }
+
+  // Walk the cells crossed by the segment between cell centres. A diagonal
+  // through a corner enters the diagonal cell, not the two beside it. Clone
+  // lazily so travelling over an existing part of the stroke costs no copy.
+  function extendDragPath(path, from, to, ctx) {
+    if (to < 0 || to >= ctx.w * ctx.h) return path;
+    if (from == null || from < 0 || from >= ctx.w * ctx.h) from = to;
+    var x = from % ctx.w, y = Math.floor(from / ctx.w);
+    var tx = to % ctx.w, ty = Math.floor(to / ctx.w);
+    var nx = Math.abs(tx - x), ny = Math.abs(ty - y);
+    var sx = tx > x ? 1 : -1, sy = ty > y ? 1 : -1;
+    var ix = 0, iy = 0, out = path;
+    function add() {
+      var idx = y * ctx.w + x;
+      if (isMarkableAt(ctx.pattern, idx) && !out.has(idx)) {
+        if (out === path) out = new Set(path);
+        out.add(idx);
+      }
+    }
+    add();
+    while (ix < nx || iy < ny) {
+      var a = (1 + 2 * ix) * ny, b = (1 + 2 * iy) * nx;
+      if (a === b) { x += sx; y += sy; ix++; iy++; }
+      else if (a < b) { x += sx; ix++; }
+      else { y += sy; iy++; }
+      add();
+    }
+    return out;
   }
 
   // ─── Pure state-machine reducer (extractable for tests) ──────────────
@@ -185,7 +215,7 @@
         // (state.path) updates as the pointer moves (POINTER_MOVE below)
         // and only commits on release (POINTER_UP below), so the user can
         // see exactly which cells will be marked before it happens.
-        if (action.shiftKey && s.lastAnchor != null
+        if (ctx.dragEnabled !== false && action.shiftKey && s.lastAnchor != null
             && isMarkableAt(ctx.pattern, s.lastAnchor)) {
           var anchorIdx = s.lastAnchor;
           var otherIdx0 = (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx))
@@ -238,7 +268,7 @@
         // turned into a range anchor and swallowed the click instead of
         // toggling the cell. See the pointerType==='mouse' bypass in the
         // POINTER_UP 'pending' branch below for the other half of this fix.
-        if (nonMouse) {
+        if (nonMouse && ctx.dragEnabled !== false) {
           effects.push({ type: 'START_LONG_PRESS' });
           // Touch paints only once the finger has rested; Paint mode paints at once.
           if (!ctx.paint) effects.push({ type: 'START_HOLD' });
@@ -250,6 +280,7 @@
             anchor: null,
             intent: null,
             startIdx: action.idx,
+            lastIdx: action.idx,
             startTime: action.time,
             startX: (typeof action.x === 'number' ? action.x : 0),
             startY: (typeof action.y === 'number' ? action.y : 0),
@@ -272,6 +303,15 @@
 
       case 'POINTER_MOVE': {
         if (s.mode === 'idle' || s.mode === 'range' || s.mode === 'scroll' || s.mode === 'multi') return { state: s, effects: effects };
+        // Turning off drag gestures preserves ordinary clicks/taps. Once a
+        // press moves away, it must not become a tap when it returns.
+        if (ctx.dragEnabled === false) {
+          var tapMoved = action.idx !== s.startIdx;
+          if (s.pointerType !== 'mouse' && typeof action.x === 'number' && typeof action.y === 'number') {
+            tapMoved = Math.hypot(action.x - s.startX, action.y - s.startY) >= tapSlopPx();
+          }
+          return { state: tapMoved ? next({ mode: 'scroll', moved: true }) : s, effects: effects };
+        }
         if (s.mode === 'shiftRange') {
           // Live rubber-band: keep the last valid cell under the pointer
           // (falls back to the previous one if it wanders over a
@@ -323,31 +363,26 @@
             return { state: next({ moved: true }), effects: effects };
           }
           var di = intentForCell(ctx.done, firstIdx);
-          var p = new Set();
-          if (isMarkableAt(ctx.pattern, s.startIdx)) p.add(s.startIdx);
-          if (isMarkableAt(ctx.pattern, action.idx)) p.add(action.idx);
+          var p = extendDragPath(s.path, s.startIdx, action.idx, ctx);
           effects.push({ type: 'CLEAR_LONG_PRESS' });
           return {
             state: next({
-              mode: 'drag', path: p, intent: di, moved: newMoved,
+              mode: 'drag', path: p, intent: di, moved: newMoved, lastIdx: action.idx,
             }),
             effects: effects,
           };
         }
         // Already in drag — accumulate.
         if (s.mode === 'drag') {
-          if (action.idx >= 0 && isMarkableAt(ctx.pattern, action.idx)
-              && !s.path.has(action.idx)) {
-            var np = new Set(s.path);
-            np.add(action.idx);
-            return { state: next({ path: np, moved: newMoved }), effects: effects };
-          }
-          return { state: next({ moved: newMoved }), effects: effects };
+          var np = extendDragPath(s.path, s.lastIdx, action.idx, ctx);
+          if (np === s.path && action.idx === s.lastIdx) return { state: s, effects: effects };
+          return { state: next({ path: np, moved: newMoved, lastIdx: action.idx }), effects: effects };
         }
         return { state: s, effects: effects };
       }
 
       case 'LONG_PRESS_FIRED': {
+        if (ctx.dragEnabled === false) return { state: s, effects: effects };
         if (s.mode !== 'pending' || s.moved) return { state: s, effects: effects };
         if (!isMarkableAt(ctx.pattern, s.startIdx)) {
           return { state: idle(), effects: effects };
@@ -364,6 +399,13 @@
 
       case 'POINTER_UP': {
         if (s.mode === 'idle') return { state: s, effects: effects };
+        // The release can carry a newer position than the last move (or be
+        // the only movement sample). Include it before committing the stroke.
+      if (s.mode === 'pending' || s.mode === 'drag') {
+          var release = dragMarkReducer(s, Object.assign({}, action, { type: 'POINTER_MOVE' }), ctx);
+          s = release.state;
+          effects = effects.concat(release.effects);
+        }
         effects.push({ type: 'CLEAR_LONG_PRESS' });
         if (s.mode === 'scroll') return { state: idle(), effects: effects };
         if (s.mode === 'multi') return { state: (action.touchCount || 0) > 0 ? s : idle(), effects: effects };   // over when the last finger lifts
@@ -420,13 +462,11 @@
 
         // pending → tap.
         if (s.mode === 'pending') {
-          var dt = action.time - s.startTime;
-          // Mouse never arms the long-press timer (see POINTER_DOWN), so
-          // there's no risk of this being a stale/duplicate range gesture —
-          // any mouse click that didn't move to a different cell is a tap,
-          // regardless of how long the button was held.
-          var isMouse = s.pointerType === 'mouse';
-          if ((isMouse || dt <= tapHoldMs()) && action.idx === s.startIdx
+          // A range is owned by the timer's actual transition to 'range'.
+          // Until that happens, releasing a stationary touch/pen is still
+          // a tap, including the former 200–500 ms dead zone. Tap-only
+          // mode and mouse presses have no long-press timer at all.
+          if (action.idx === s.startIdx
               && isMarkableAt(ctx.pattern, s.startIdx)) {
             // Record the direction THIS tap just applied (computed from the
             // pre-toggle done state) so a following shift+click continues
@@ -439,7 +479,7 @@
               effects: effects,
             };
           }
-          // Long press without movement OR up off-cell → discard.
+          // Release off-cell without starting a stroke → discard.
           return { state: idle(), effects: effects };
         }
         return { state: s, effects: effects };
@@ -551,6 +591,18 @@
     // TOUCH_STALE_MS is forgotten when the next one lands; a palm that rests longer than that stops counting too.
     var touchIdsRef = R.useRef(new Map());
     var bcastRef = R.useRef(0);
+    var previewListenersRef = R.useRef(new Set());
+    var publishedRef = R.useRef(null);
+    var previewApiRef = R.useRef(null);
+    if (!previewApiRef.current) {
+      previewApiRef.current = {
+        getSnapshot: function () { return stateRef.current; },
+        subscribe: function (listener) {
+          previewListenersRef.current.add(listener);
+          return function () { previewListenersRef.current.delete(listener); };
+        },
+      };
+    }
 
     var _ds = R.useState({ mode: 'idle', path: new Set(),
                             anchor: null, intent: null });
@@ -558,9 +610,24 @@
 
     function syncDragState() {
       var s = stateRef.current;
+      var prev = publishedRef.current;
+      // The Tracker's preview subscribes separately. Only gesture mode and
+      // anchor/intent changes need to reconcile its controls; path changes
+      // must not rebuild the whole TrackerApp on every pointer sample.
+      if (prev && prev.mode === s.mode && prev.anchor === s.anchor && prev.intent === s.intent
+          && (optsRef.current.isolatedPreview || prev.path === s.path)) return;
+      publishedRef.current = s;
       setDragState({
         mode: s.mode, path: s.path,
         anchor: s.anchor, intent: s.intent,
+      });
+    }
+
+    function queuePreview() {
+      if (!previewListenersRef.current.size || bcastRef.current) return;
+      bcastRef.current = requestAnimationFrame(function () {
+        bcastRef.current = 0;
+        previewListenersRef.current.forEach(function (listener) { listener(); });
       });
     }
 
@@ -616,16 +683,24 @@
         done: doneRef.current,
         paint: !!o.paintMode,
         locked: !!o.touchLocked,
+        dragEnabled: o.dragEnabled !== false,
       };
-      var r = dragMarkReducer(stateRef.current, action, ctx);
+      var before = stateRef.current;
+      var r = dragMarkReducer(before, action, ctx);
       stateRef.current = r.state;
       applyEffects(r.effects);
-      syncDragState();
+      if (stateRef.current !== before) {
+        syncDragState();
+        queuePreview();
+      }
     }
 
     // Cleanup on unmount.
     R.useEffect(function () {
-      return function () { clearLongPress(); };
+      return function () {
+        clearLongPress();
+        if (bcastRef.current) cancelAnimationFrame(bcastRef.current);
+      };
     }, []);
 
     var isEdit = !!opts.isEditMode;
@@ -691,7 +766,7 @@
       var idx = cellAtPoint(e.clientX, e.clientY);
       var t = (typeof performance !== 'undefined' && performance.now)
               ? performance.now() : Date.now();
-      dispatch({ type: 'POINTER_UP', idx: idx, time: t, touchCount: touchIdsRef.current.size });
+      dispatch({ type: 'POINTER_UP', idx: idx, x: e.clientX, y: e.clientY, time: t, touchCount: touchIdsRef.current.size });
     }, [isEdit, cellAtPoint]);
 
     var onPointerCancel = R.useCallback(function (e) {
@@ -764,6 +839,7 @@
         onExtraTouchEnd: onExtraTouchEnd,
       },
       dragState: dragState,
+      previewStore: previewApiRef.current,
       // The gesture's state right now (React state lags a render). Used to save a
       // drag that has not been released yet if the tab is hidden or closed.
       getDragState: function () {
