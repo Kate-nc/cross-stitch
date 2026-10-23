@@ -1166,6 +1166,9 @@ window.useCreatorState = function useCreatorState() {
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
+  var _changed = useState(null), previewChanged = _changed[0], setPreviewChanged = _changed[1];
+  var _snap = useState(null), previewSnapshot = _snap[0], setPreviewSnapshot = _snap[1];
+  var _pin = useState(null), pinnedPreview = _pin[0], setPinnedPreview = _pin[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -2664,6 +2667,46 @@ window.useCreatorState = function useCreatorState() {
     stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
   ]);
 
+  // Capture editable values, including those masked by stash constraints.
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
+  function pinPreview() {
+    if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
+  }
+  function applyPinnedSettings() {
+    if (!pinnedPreview) return;
+    var values = pinnedPreview.restore;
+    setSW(values.sW);
+    setSH(values.sH);
+    setBri(values.bri);
+    setCon(values.con);
+    setSat(values.sat);
+    setSmooth(values.smooth);
+    setSmoothType(values.smoothType);
+    setPreSharpen(values.preSharpen);
+    setPreSharpenAmount(values.preSharpenAmount);
+    setMaxC(values.maxC);
+    setDithMode(values.dithMode);
+    setAllowBlends(values.allowBlends);
+    setMinSt(values.minSt);
+    setSkipBg(values.skipBg);
+    setBgCol(values.bgCol);
+    setBgTh(values.bgTh);
+    setStitchCleanup(values.stitchCleanup);
+    setOrphans(values.orphans);
+    setStashConstrained(values.stashConstrained);
+    setGlobalStash(values.globalStash);
+    setConvertBrand(values.convertBrand);
+    setVariationSeed(values.variationSeed);
+    setVariationSubset(values.variationSubset);
+    setFabricCt(values.fabricCt);
+    setExactPixelArt(values.exactPixelArt);
+    setDisambig(values.disambig);
+    setDisambigLevel(values.disambigLevel);
+    setFabricColour(values.fabricColour);
+    setArLock(values.arLock);
+    setPresetApplied(values.presetApplied);
+  }
+
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
@@ -2746,6 +2789,8 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewChange, setPreviewChange,
+    previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
+    pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,

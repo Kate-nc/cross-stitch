@@ -19,7 +19,7 @@
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
     { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
-    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name and notes, and what it will take to stitch." }
+    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name, designer and notes." }
   ];
   var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
   window.CONVERT_TABS = CONVERT_TABS;
@@ -511,23 +511,12 @@
         placeholder: "Source, copyright, stitching notes…",
         onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
     );
-    var fabricCt = ctx.fabricCt || 14;
-    var estimates = sec("estimates", "From the preview", null,
-      h("dl", { className: "cv-stats" },
-        h("dt", null, "Size"), h("dd", null, ctx.sW + " × " + ctx.sH + " stitches"),
-        h("dt", null, "Finished"), h("dd", null, window.finishedSizeText(ctx.sW, ctx.sH, fabricCt) + " (" + window.fabricShortLabel(fabricCt) + ")"),
-        h("dt", null, "Threads"), h("dd", null, used != null ? used + " (" + ps.uniqueColors + " symbols)" : "—"),
-        h("dt", null, "Stitches"), h("dd", null, ps ? ps.stitchable.toLocaleString() : "—"),
-        h("dt", null, "Skeins"), h("dd", null, ps && ps.estSkeins ? "≈ " + ps.estSkeins : "—")),
-      hint("Updated as you change the settings; Generate makes the chart.")
-    );
-
     var content;
     if (tab === "picture") content = [pictureType, background, adjust];
     else if (tab === "size") content = [sizeSec, fabricSec];
     else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
     else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
-    else content = [projectSec, estimates];
+    else content = [projectSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },

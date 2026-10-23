@@ -3093,10 +3093,22 @@ function _mergeEdgeBlendPass(mapped, w, h, opts) {
   var ids = Object.keys(stats);
   var majors = ids.filter(function (id) { return stats[id].count >= total * minorShare && stats[id].entry.lab; });
   if (!majors.length) return 0;
+  // Small pale lettering may have no pure background-colour cell after
+  // downsampling. Keep its strongest near-background shade as an endpoint,
+  // so its darker antialiasing can fold between that thread and the field.
+  // Only the undithered, coverage-preserving caller supplies this option.
+  if (opts.preserveCoverage && opts.bgLab && source) {
+    var pale = ids.filter(function(id) {
+      var st = stats[id];
+      return st.entry.lab && st.count >= total * 0.02 && st.count < total * minorShare &&
+        dE2000(st.entry.lab, opts.bgLab) <= maxDeltaE;
+    }).sort(function(a, b) { return stats[b].count - stats[a].count; });
+    if (pale.length) majors.push(pale[0]);
+  }
   var eligible = {}, anyEligible = false;
   ids.forEach(function (id) {
     var st = stats[id];
-    if (st.count >= total * minorShare || !st.entry.lab || st.edge / st.count < thinShare) return;
+    if (majors.indexOf(id) >= 0 || st.count >= total * minorShare || !st.entry.lab || st.edge / st.count < thinShare) return;
     eligible[id] = true; anyEligible = true;
   });
   if (!anyEligible) return 0;
@@ -3142,11 +3154,14 @@ function _mergeEdgeBlendPass(mapped, w, h, opts) {
     // to it (an edge two shades wide: red | shade | shade | white).
     var near = directEnds(it), nearIds = {};
     near.forEach(function (e) { nearIds[e.id] = true; });
-    it.nbPatches.forEach(function (lbl) {
-      var other = info.get(+lbl);
-      if (!other) return;
-      directEnds(other).forEach(function (e) { if (!nearIds[e.id]) { nearIds[e.id] = true; near.push(e); } });
-    });
+    var pending = it.nbPatches.map(function(lbl) { return { label: +lbl, depth: 1 }; }), visited = new Set();
+    while (pending.length) {
+      var item = pending.shift(), other = info.get(item.label);
+      if (!other || visited.has(item.label)) continue;
+      visited.add(item.label);
+      directEnds(other).forEach(function(e) { if (!nearIds[e.id]) { nearIds[e.id] = true; near.push(e); } });
+      if (opts.preserveCoverage && opts.bgLab && source && item.depth < 3) other.nbPatches.forEach(function(lbl) { pending.push({ label: +lbl, depth: item.depth + 1 }); });
+    }
     if (!near.length) return;
     var points = [stats[it.comp.id].entry.lab];
     if (it.mean) points.push(it.mean);
@@ -3164,6 +3179,17 @@ function _mergeEdgeBlendPass(mapped, w, h, opts) {
     }
     // It borders only one main colour: a near-duplicate shade of it still folds in.
     if (!best && near.length === 1 && dist(near[0], near[0]) <= maxDeltaE) best = [near[0], near[0]];
+    // A near-white interior shade can lie just beyond the Lab segment's
+    // endpoint. Match near-duplicates perceptually, as thread matching does.
+    if (!best && opts.preserveCoverage && opts.bgLab && source) {
+      var closest = null, closestDE = maxDeltaE;
+      ends.filter(function(end) { return it.touch[end.id] > 0; }).forEach(function(end) {
+        if (end.id === SKIP) return;
+        var de = dE2000(stats[it.comp.id].entry.lab, end.lab);
+        if (de <= closestDE) { closest = end; closestDE = de; }
+      });
+      if (closest) best = [closest, closest];
+    }
     if (best) folds.push({ cells: it.comp.cells, pair: best });
   });
   if (!folds.length) return 0;
@@ -3190,6 +3216,10 @@ function _mergeEdgeBlendPass(mapped, w, h, opts) {
         var da = segDist(c.lab, pair[0].lab, pair[0].lab), db = segDist(c.lab, pair[1].lab, pair[1].lab);
         pick = da <= db ? pair[0] : pair[1];
       }
+      // When coverage is fixed, a background-edge shade belongs to its
+      // foreground endpoint. Do not turn stitched antialiasing into holes.
+      if (opts.preserveCoverage && pick.id === SKIP) pick = pair[0].id === SKIP ? pair[1] : pair[0];
+      if (opts.preserveCoverage && pick.id === SKIP) continue;
       mapped[i] = Object.assign({}, entryFor(pick.id));
     }
   });

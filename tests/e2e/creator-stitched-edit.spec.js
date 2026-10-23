@@ -75,11 +75,12 @@ test.describe('Editing a stitched pattern (desktop)', function() {
     await expect(toastEl).toBeVisible({ timeout: 5000 });
     await expect(toastEl).toContainText('stitched cell');
     await expect(undoButton(page)).toBeEnabled();
-    await expect(banner).toContainText('stitched.');
+    // Folding logo edge shades can join the entire marked region. If all
+    // marked cells were repainted, the banner correctly disappears.
     const reset = await page.evaluate(function() { return document.body.innerText.match(/(\d[\d,]*) stitched cells? reset to not done/); });
     expect(reset).not.toBeNull();
-    await expect(banner).not.toContainText('6% stitched');   // 200 of 3,290 stitches were 6%; fewer remain
-    // The reset is saved, not just shown: 177 of the 200 cells were reset.
+    await expect.poll(async () => !(await banner.count()) || !(await banner.innerText()).includes('6% stitched')).toBe(true);
+    // The reset is saved, not just shown; how many reset depends on the palette's connected regions.
     await expect.poll(async function() {
       return page.evaluate(async function() {
         var p = await window.ProjectStorage.get(localStorage.getItem('crossstitch_active_project'));

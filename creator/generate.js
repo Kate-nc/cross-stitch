@@ -214,7 +214,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
-      bgLab: null,
+      preserveCoverage: true,
+      bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
       source: (!dith || dithAlgo === "off") ? raw : null,

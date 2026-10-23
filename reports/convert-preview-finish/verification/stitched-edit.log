@@ -1,0 +1,11 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 1 test using 1 worker
+
+(node:17429) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17429) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it (18.1s)
+
+  1 passed (20.3s)

@@ -1,0 +1,150 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 6 tests using 2 workers
+
+(node:23937) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23938) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23937) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23938) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [creator-desktop] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells (17.2s)
+  ✘  1 [creator-phone] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells (17.5s)
+(node:24300) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24310) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24300) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24310) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [creator-desktop] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both (18.3s)
+(node:24635) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [creator-phone] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both (19.1s)
+(node:24649) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24635) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24649) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 [creator-desktop] › tests/e2e/convert-audit.spec.js:34:1 › cost fallback renders a pound sign when the currency formatter is unavailable (8.1s)
+  ✓  6 [creator-phone] › tests/e2e/convert-audit.spec.js:34:1 › cost fallback renders a pound sign when the currency formatter is unavailable (8.8s)
+
+
+  1) [creator-desktop] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.cv-pin .cvp-change')
+    Expected substring: [32m"[7m3,268[27m stitches changed"[39m
+    Received string:    [31m"[7m0[27m stitches changed[7m, confetti 0.1% to 0.0%, threads 2 to 2, skeins 4 to 4.[27m"[39m
+    Timeout: 10000ms
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 10000ms[22m
+    [2m  - waiting for locator('.cv-pin .cvp-change')[22m
+    [2m    13 × locator resolved to <p class="cvp-change" aria-live="polite">0 stitches changed, confetti 0.1% to 0.0%, thread…</p>[22m
+    [2m       - unexpected value "0 stitches changed, confetti 0.1% to 0.0%, threads 2 to 2, skeins 4 to 4."[22m
+
+
+      16 |  const changed=await page.evaluate(()=>{const a=__auditState.pinnedPreview.ids,b=__auditState.previewSnapshot.ids;return b.reduce((n,id,i)=>n+(id!==a[i]?1:0),0);});
+      17 |  expect(changed).toBeGreaterThan(0);
+    > 18 |  await expect(page.locator('.cv-pin .cvp-change')).toContainText(changed.toLocaleString('en-GB')+' stitches changed');
+         |                                                    ^
+      19 | });
+      20 |
+      21 | test('phone switching mounts only the selected picture, and resizing restores both',async({page})=>{
+        at /workspace/cross-stitch/tests/e2e/convert-audit.spec.js:18:52
+
+    Error Context: test-results/convert-audit-a-same-count-12d0a-ts-the-actual-changed-cells-creator-desktop/error-context.md
+
+  2) [creator-desktop] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveCount[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  getByRole('region', { name: 'Pinned comparison' }).locator('canvas')
+    Expected: [32m1[39m
+    Received: [31m2[39m
+    Timeout:  10000ms
+
+    Call log:
+    [2m  - Expect "toHaveCount" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('region', { name: 'Pinned comparison' }).locator('canvas')[22m
+    [2m    13 × locator resolved to 2 elements[22m
+    [2m       - unexpected value "2"[22m
+
+
+      23 |  const pin=page.getByRole('region',{name:'Pinned comparison'});
+      24 |  await page.setViewportSize({width:393,height:851});
+    > 25 |  await expect(pin.locator('canvas')).toHaveCount(1);
+         |                                      ^
+      26 |  await expect(pin.locator('figure[data-version="current"]')).toBeVisible();
+      27 |  await pin.getByRole('button',{name:'Pinned',exact:true}).click();
+      28 |  await expect(pin.locator('canvas')).toHaveCount(1);
+        at /workspace/cross-stitch/tests/e2e/convert-audit.spec.js:25:38
+
+    Error Context: test-results/convert-audit-phone-switch-252e9--and-resizing-restores-both-creator-desktop/error-context.md
+
+  3) [creator-phone] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.cv-pin .cvp-change')
+    Expected substring: [32m"[7m3,268[27m stitches changed"[39m
+    Received string:    [31m"[7m0[27m stitches changed[7m, confetti 0.1% to 0.0%, threads 2 to 2, skeins 4 to 4.[27m"[39m
+    Timeout: 10000ms
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 10000ms[22m
+    [2m  - waiting for locator('.cv-pin .cvp-change')[22m
+    [2m    14 × locator resolved to <p class="cvp-change" aria-live="polite">0 stitches changed, confetti 0.1% to 0.0%, thread…</p>[22m
+    [2m       - unexpected value "0 stitches changed, confetti 0.1% to 0.0%, threads 2 to 2, skeins 4 to 4."[22m
+
+
+      16 |  const changed=await page.evaluate(()=>{const a=__auditState.pinnedPreview.ids,b=__auditState.previewSnapshot.ids;return b.reduce((n,id,i)=>n+(id!==a[i]?1:0),0);});
+      17 |  expect(changed).toBeGreaterThan(0);
+    > 18 |  await expect(page.locator('.cv-pin .cvp-change')).toContainText(changed.toLocaleString('en-GB')+' stitches changed');
+         |                                                    ^
+      19 | });
+      20 |
+      21 | test('phone switching mounts only the selected picture, and resizing restores both',async({page})=>{
+        at /workspace/cross-stitch/tests/e2e/convert-audit.spec.js:18:52
+
+    Error Context: test-results/convert-audit-a-same-count-12d0a-ts-the-actual-changed-cells-creator-phone/error-context.md
+
+  4) [creator-phone] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveCount[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  getByRole('region', { name: 'Pinned comparison' }).locator('canvas')
+    Expected: [32m1[39m
+    Received: [31m2[39m
+    Timeout:  10000ms
+
+    Call log:
+    [2m  - Expect "toHaveCount" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('region', { name: 'Pinned comparison' }).locator('canvas')[22m
+    [2m    13 × locator resolved to 2 elements[22m
+    [2m       - unexpected value "2"[22m
+
+
+      23 |  const pin=page.getByRole('region',{name:'Pinned comparison'});
+      24 |  await page.setViewportSize({width:393,height:851});
+    > 25 |  await expect(pin.locator('canvas')).toHaveCount(1);
+         |                                      ^
+      26 |  await expect(pin.locator('figure[data-version="current"]')).toBeVisible();
+      27 |  await pin.getByRole('button',{name:'Pinned',exact:true}).click();
+      28 |  await expect(pin.locator('canvas')).toHaveCount(1);
+        at /workspace/cross-stitch/tests/e2e/convert-audit.spec.js:25:38
+
+    Error Context: test-results/convert-audit-phone-switch-252e9--and-resizing-restores-both-creator-phone/error-context.md
+
+  4 failed
+    [creator-desktop] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells 
+    [creator-desktop] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both 
+    [creator-phone] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells 
+    [creator-phone] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both 
+  2 passed (51.1s)

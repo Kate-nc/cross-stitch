@@ -38,7 +38,7 @@ The preview in the middle updates as you change settings, and is the pattern Gen
 |------|-------|
 | **Stitched** (the default) | Every stitch as a cross of thread on your fabric, in your fabric colour, with as much fabric between stitches as two strands leave on that count; blends as one strand of each thread. The closest view to the finished piece. **Close up** shows the stitches larger. |
 | **Flat** | Every stitch as a square of its thread colour. |
-| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Show what changed**, **Auto-sweep** and a magnifier. |
+| **Before / after** | Your picture and the pattern either side of a divider you can drag, with **Auto-sweep** and a magnifier. |
 
 **Show confetti** and **Show tidied stitches** mark those stitches without changing the preview itself. A line under the preview's size says what your last change did, for example *Threads (max): 4,349 stitches changed (65%), threads 24 to 12, confetti 4.6% to 2.6%*, or that nothing visible changed.
 
@@ -127,6 +127,16 @@ The technical names (Atkinson error diffusion, ordered Bayer dithering) are unde
 **Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
 **Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
 **Keep look-alike colours apart** (with **How strict**) — moves stitches away from a neighbour too similar to tell apart on a printed chart, at some cost to colour accuracy.
+
+### Try settings before generating
+
+**Show what changed** marks changed cells in Stitched, Flat and Before / after, using the last completed preview as its baseline. It is off until you choose it. When you change the chart dimensions there is no direct cell comparison; the next change at that size establishes one.
+
+Choose **Pin this preview** to keep a completed preview and all its settings. Its label includes the style, thread count, size and brand. Change your settings freely: **Pinned / Current** switches between the two pictures on phones; wide screens show both as stitched previews. The difference line compares changed stitches, confetti, threads and skeins. **Apply pinned settings** restores the complete choice, including picture adjustments, fabric, brand, thread limits, shading and tidying. Changing or cropping the picture clears the pin. **Unpin** removes it.
+
+**Pattern estimates** holds stitches, skipped stitches, chart symbols, threads, skeins, time and cost. Project holds the name and notes. In **Threads in this preview**, tap a thread to highlight its stitches in any view; tap it again to clear. Labels identify blends and the thread brand. The estimates use your stitching speed and skein price.
+
+On phones and tablets below 900 pixels wide, your picture appears as a short strip above the full-width preview, with **Crop** and **Change**.
 
 ### Compare options
 
@@ -303,7 +313,7 @@ A rough guide is **one stitch per minute**:
 - 100 × 100 pattern = ~10,000 stitches = ~170 hours
 - 50 × 50 pattern = ~2,500 stitches = ~42 hours
 
-The **Project** page estimates this from your own stitching speed.
+**Pattern estimates** below the Convert preview estimates this from your own stitching speed.
 
 ### Large patterns
 

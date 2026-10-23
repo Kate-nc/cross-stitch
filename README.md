@@ -533,3 +533,5 @@ Stash Manager > Project materials reserves thread for saved projects without con
 ### Guided image import (experimental)
 
 The experimental guided image importer (Preferences > Pattern Creator) provides a live processed preview before confirmation. Crop, orientation, palette and stash restrictions, blends, dimensions, shading, smoothing, contrast and background tolerance use the same settings for preview and generation.
+
+Convert lets you pin a preview, compare later settings and restore the complete pinned choice before generating. Pattern estimates and tappable thread highlights sit below the full-width phone preview; Show what changed works in every preview view. See the [Creator tutorial](wiki/Pattern-Creator-Tutorial.md#try-settings-before-generating).

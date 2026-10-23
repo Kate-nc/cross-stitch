@@ -99,7 +99,7 @@ describe('describePreviewChange', () => {
     expect(describePreviewChange(null, { settings: base, summary, ids: [] })).toBeNull();
   });
 
-  test('a settings bundle with no named change (for example, a new stash) says nothing', () => {
+  test('unchanged settings and cells say nothing', () => {
     expect(describePreviewChange({ settings: base, summary, ids: ['a'] }, { settings: Object.assign({}, base), summary, ids: ['a'] })).toBeNull();
   });
 
@@ -129,5 +129,18 @@ describe('describePreviewChange', () => {
     expect(out.settings).toEqual(['Size']);
     expect(out.changedStitches).toBeNull();
     expect(out.stats).toEqual([{ label: 'size', from: '10 \u00D7 10', to: '20 \u00D7 10' }, { label: 'stitches', from: '100', to: '200' }]);
+  });
+});
+
+describe('pinned comparison audit', () => {
+  const { describePreviewChange } = load('creator/usePreview.js', ['describePreviewChange']);
+  test('same-size available palettes still name and count changed stitches', () => {
+    const a={settings:{stashConstrained:true,stashCount:2,allowedPalette:[{id:'310'},{id:'321'}]},ids:['310','321'],w:2,h:1};
+    const b={settings:{stashConstrained:true,stashCount:2,allowedPalette:[{id:'742'},{id:'820'}]},ids:['742','820'],w:2,h:1};
+    expect(describePreviewChange(a,b)).toMatchObject({settings:['Available threads'],changedStitches:2,total:2});
+  });
+  test('pixel changes are counted even when no named setting changed', () => {
+    const a={settings:{},ids:['310'],w:1,h:1},b={settings:{},ids:['321'],w:1,h:1};
+    expect(describePreviewChange(a,b)).toMatchObject({settings:['Preview'],changedStitches:1});
   });
 });

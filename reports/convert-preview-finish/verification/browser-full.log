@@ -1,0 +1,574 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 186 tests using 2 workers
+
+(node:6564) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6565) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6564) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:6565) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓    2 [creator-desktop] › tests/e2e/convert-picture-presets.spec.js:41:3 › Picture-type presets on desktop › a logo is guessed as a graphic and makes a clean pattern (18.7s)
+  ✓    1 [creator-desktop] › tests/e2e/convert-compare-options.spec.js:14:3 › Compare options on desktop › three size options appear within 3 s, and choosing +25% sets the size (20.3s)
+  ✓    3 [creator-desktop] › tests/e2e/convert-picture-presets.spec.js:62:3 › Picture-type presets on desktop › changing a value shows Custom; choosing a type applies its preset (16.1s)
+  ✓    4 [creator-desktop] › tests/e2e/convert-compare-options.spec.js:31:3 › Compare options on desktop › Threads compares −5 and +5 threads; choosing one sets Threads (max) (19.5s)
+  ✓    5 [creator-desktop] › tests/e2e/convert-picture-presets.spec.js:81:3 › Picture-type presets on desktop › with guessing turned off in Preferences, a picture starts from the Preferences defaults (16.2s)
+  ✓    6 [creator-desktop] › tests/e2e/convert-compare-options.spec.js:48:3 › Compare options on Pixel 5 › collapsed by default; opens into a row that scrolls sideways (19.6s)
+  ✓    7 [creator-desktop] › tests/e2e/convert-picture-presets.spec.js:100:3 › Picture-type presets on desktop › a tiny picture is guessed as pixel art and generates at its own size (9.2s)
+  ✓    8 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:13:2 › desktop › preview fills the phone and picture buttons fit (11.6s)
+  ✓    9 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:81:3 › Convert preview fidelity › skipped cells are the fabric colour, not the original picture (11.5s)
+  ✓   10 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:20:2 › desktop › thread selection persists across all views and toggles off (11.6s)
+  ✓   11 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:88:3 › Convert preview fidelity › the what-changed overlay never appears on its own, and covers only the preview half (14.9s)
+  ✓   12 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:25:2 › desktop › one change overlay works in all views (9.9s)
+  ✓   13 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:106:3 › Convert preview fidelity › the comparison box keeps the picture's shape while a size change is pending (7.4s)
+  ✓   14 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:32:2 › desktop › pin survives settings changes, restores all settings and clears for another source (9.5s)
+  ✓   15 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:127:3 › Convert preview fidelity › a replacement or cropped source clears the old result before the next pass (6.5s)
+  ✓   16 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:13:2 › Pixel 5 › preview fills the phone and picture buttons fit (6.6s)
+  ✓   17 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:149:3 › Convert preview fidelity › a conversion exception shows recovery and Retry preview produces a complete result (7.7s)
+  ✓   18 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:20:2 › Pixel 5 › thread selection persists across all views and toggles off (6.0s)
+  ✓   20 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:25:2 › Pixel 5 › one change overlay works in all views (7.8s)
+  ✓   19 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:172:3 › Convert preview fidelity › a large chart is previewed at its own size and matches the generated chart (15.3s)
+  ✓   21 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:32:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (10.8s)
+  ✓   22 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:186:3 › Convert preview fidelity › the Detail and tidiness choice sets shading and tidying together (8.6s)
+  ✓   24 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:206:3 › Convert preview fidelity › adjusted preview agrees with generated cells (12.7s)
+  ✘   23 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:53:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (36.5s)
+(node:8743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   26 [creator-desktop] › tests/e2e/convert-saved-picture-type.spec.js:52:3 › The picture type survives a reload › a generated logo reopens as a graphic, and Balanced keeps it unshaded (9.1s)
+  ✓   27 [creator-desktop] › tests/e2e/convert-saved-picture-type.spec.js:74:3 › The picture type survives a reload › a project saved before picture types were kept follows what its picture looks like (8.8s)
+  ✓   28 [creator-desktop] › tests/e2e/convert-size-field.spec.js:31:3 › Size field on desktop › a new picture starts with its long side at 100 stitches; the readout shows stitches and finished size (2.8s)
+  ✓   29 [creator-desktop] › tests/e2e/convert-size-field.spec.js:38:3 › Size field on desktop › 18 cm wide at 14-count is 99 stitches (2.9s)
+  ✓   30 [creator-desktop] › tests/e2e/convert-size-field.spec.js:51:3 › Size field on desktop › a Card preset fits the picture into 5 × 7 in (2.9s)
+  ✓   31 [creator-desktop] › tests/e2e/convert-size-field.spec.js:60:3 › Size field on desktop › a panorama suggests cropping its thin short side (2.6s)
+  ✓   32 [creator-desktop] › tests/e2e/convert-size-field.spec.js:68:3 › Size field on desktop › enlarging a small picture says how big each pixel becomes (2.6s)
+  ✓   33 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:24:3 › Convert steps and preview on desktop › the steps run Picture, Size, Threads, Detail, and Next falls through them (2.7s)
+  ✓   34 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:43:3 › Convert steps and preview on desktop › the preview is stitched on the fabric by default, and Flat and Before / after show the same chart (2.9s)
+  ✓   35 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:71:3 › Convert steps and preview on desktop › a change says what it did to the preview (3.5s)
+  ✓   36 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:83:3 › Convert steps and preview on desktop › once a chart exists, Convert still shows the live preview and says when it differs (2.6s)
+  ✓   37 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:98:3 › Convert steps and preview on desktop › a new thread brand reads as a change from the chart (2.8s)
+  ✓   38 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:111:3 › Convert steps and preview on desktop › the top bar's Regenerate asks before replacing an edited chart (3.4s)
+  ✘   25 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass (1.5m)
+(node:9577) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9577) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   39 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view (21.5s)
+(node:10034) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10034) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   40 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline (11.3s)
+(node:10184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   41 [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:151:3 › Crop to the stitches on desktop › crops the chart, keeps its stitches and progress, and Undo puts the edges back (6.2s)
+  ✓   42 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:283:3 › Comparison overlay lifecycle › heatmap and highlight stay on the preview side and disappear while updating (2.8s)
+  ✓   44 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:295:3 › Comparison overlay lifecycle › the magnifier divider follows the sampled pixels and retains fabric behind empty cells (2.1s)
+  ✓   43 [creator-desktop] › tests/e2e/convert-style-outcome.spec.js:28:3 › The Detail and tidiness count › waits for the new preview instead of showing the last step's count (5.8s)
+  ✓   46 [creator-desktop] › tests/e2e/convert-style-outcome.spec.js:39:3 › The Detail and tidiness count › a large chart previewed on the page is labelled as an estimate (4.9s)
+  ✓   45 [creator-desktop] › tests/e2e/creator-behaviour.spec.js:42:3 › Creator behaviour on Pixel 5 › a fast diagonal swipe paints a continuous line (7.1s)
+  ✓   47 [creator-desktop] › tests/e2e/convert-style-outcome.spec.js:51:3 › The Detail and tidiness count › with the worker, a large chart is previewed at full size and counted exactly (5.0s)
+  ✓   48 [creator-desktop] › tests/e2e/creator-behaviour.spec.js:95:3 › Creator behaviour on Pixel 5 › generating names the project after the image, with no prompt (6.5s)
+  ✓   49 [creator-desktop] › tests/e2e/creator-defaults.spec.js:21:3 › Convert defaults on desktop › logo.png: background skipped, 8 or fewer colours (4.2s)
+  ✓   51 [creator-desktop] › tests/e2e/creator-defaults.spec.js:35:3 › Convert defaults on desktop › Convert opens on the Picture step: picture type, background, then picture fixes (1.8s)
+  ✓   50 [creator-desktop] › tests/e2e/creator-behaviour.spec.js:103:3 › Creator behaviour on Pixel 5 › a blank grid opens with no name prompt (5.3s)
+  ✓   52 [creator-desktop] › tests/e2e/creator-draw-navigate.spec.js:33:3 › Navigate | Draw on Pixel 5 › opens in Navigate; a swipe scrolls without an edit (3.2s)
+  ✓   54 [creator-desktop] › tests/e2e/creator-draw-navigate.spec.js:45:3 › Navigate | Draw on Pixel 5 › tapping Paint switches to Draw and a tap paints; Navigate then scrolls again (4.6s)
+  ✓   55 [creator-desktop] › tests/e2e/creator-draw-navigate.spec.js:65:3 › Desktop › opens in Navigate like touch does; choosing Paint switches to Draw (UX-009) (3.8s)
+  ✘   53 [creator-desktop] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project (13.7s)
+(node:10959) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10959) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   56 [creator-desktop] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on Pixel 5 › Convert settings are reachable and the chart is not covered (4.6s)
+  ✓   58 [creator-desktop] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on Pixel 5 › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (6.5s)
+  ✓   57 [creator-desktop] › tests/e2e/creator-palette.spec.js:25:5 › Palette on desktop › shows only the pattern's colours until Add colour is tapped (8.0s)
+  ✓   59 [creator-desktop] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on Pixel 5 landscape › Convert settings are reachable and the chart is not covered (7.9s)
+  ✓   60 [creator-desktop] › tests/e2e/creator-palette.spec.js:64:5 › Palette on desktop › changing a symbol updates the Materials legend, and Undo puts it back (8.6s)
+  ✓   61 [creator-desktop] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on Pixel 5 landscape › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (6.4s)
+  ✓   62 [creator-desktop] › tests/e2e/creator-palette.spec.js:25:5 › Palette on Pixel 5 › shows only the pattern's colours until Add colour is tapped (7.0s)
+  ✓   63 [creator-desktop] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on iPad Mini › Convert settings are reachable and the chart is not covered (7.7s)
+  ✓   64 [creator-desktop] › tests/e2e/creator-palette.spec.js:64:5 › Palette on Pixel 5 › changing a symbol updates the Materials legend, and Undo puts it back (10.3s)
+  ✓   65 [creator-desktop] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on iPad Mini › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (8.8s)
+  ✓   67 [creator-desktop] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on iPad Pro 11 landscape › Convert settings are reachable and the chart is not covered (8.1s)
+  ✓   68 [creator-desktop] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on desktop › Convert settings are reachable and the chart is not covered (7.4s)
+  ✓   66 [creator-desktop] › tests/e2e/creator-palette.spec.js:104:3 › Swatch symbols on Pixel 5 › tool-strip swatches show their symbol, and a long-press names the thread (22.6s)
+  ✓   69 [creator-desktop] › tests/e2e/creator-layout.spec.js:125:3 › Long project names on Pixel 5 › the top bar keeps every control on screen (8.1s)
+  ✓   71 [creator-desktop] › tests/e2e/creator-layout.spec.js:142:3 › Desktop keeps the action bar › header, action bar and tool strip are unchanged; no rail (9.9s)
+  ✓   72 [creator-desktop] › tests/e2e/creator-layout.spec.js:158:3 › Fit on desktop › fills the chart viewport after generating (9.6s)
+  ✓   73 [creator-desktop] › tests/e2e/creator-layout.spec.js:178:3 › iPad Pro 11 landscape side panel › tapping the chart paints once Paint is chosen (8.8s)
+  ✘   70 [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it (34.3s)
+(node:12235) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12235) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   74 [creator-desktop] › tests/e2e/creator-layout.spec.js:201:3 › Scratch grid on Pixel 5 › can add DMC 310 and paint a stitch (7.4s)
+  ✓   76 [creator-desktop] › tests/e2e/creator-touch-hints.spec.js:15:3 › Touch hints on Pixel 5 › no mouse or keyboard instructions after generating (10.3s)
+  ✓   77 [creator-desktop] › tests/e2e/creator-touch-hints.spec.js:33:3 › Desktop keeps keyboard hints › the shortcuts hint still shows (8.8s)
+  ✓   75 [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:104:3 › Editing a stitched pattern (desktop) › Replace colour resets the stitched cells it recolours; the toolbar Undo restores them (25.9s)
+  ✓   78 [creator-desktop] › tests/e2e/creator-touch-hints.spec.js:40:5 › Desktop keeps keyboard hints › estimate labels pass AA contrast (light) (9.2s)
+  ✓   80 [creator-desktop] › tests/e2e/creator-touch-hints.spec.js:40:5 › Desktop keeps keyboard hints › estimate labels pass AA contrast (dark) (7.9s)
+  ✓   79 [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:132:3 › Editing a stitched pattern (desktop) › A palette swap resets the stitched cells it recolours; the toast Undo restores them (22.7s)
+  ✓   82 [creator-desktop] › tests/e2e/creator-touch-no-auto-paint.spec.js:13:3 › Creator on a phone: no automatic Paint › a one-finger swipe on a new pattern scrolls instead of painting (8.7s)
+  ✓   81 [creator-desktop] › tests/e2e/creator-touch-magnifier.spec.js:62:3 › Touch placement on Pixel 5 › 20 jittered taps paint the intended cell at fitted zoom (20.0s)
+  ✓   84 [creator-desktop] › tests/e2e/creator-touch-magnifier.spec.js:131:3 › Touch placement on Pixel 5 › a second finger before lifting places nothing (9.4s)
+  ✓   83 [creator-desktop] › tests/e2e/creator-touch-no-auto-paint.spec.js:32:3 › Creator on a phone: no automatic Paint › tapping Paint then a cell paints; tapping Paint again goes back to Navigate (9.8s)
+  ✓   86 [creator-desktop] › tests/e2e/creator-touch-no-auto-paint.spec.js:54:3 › Creator on desktop: Navigate after generating (UX-009) › Paint is not active after generation until it is chosen (9.7s)
+  ✓   85 [creator-desktop] › tests/e2e/creator-touch-magnifier.spec.js:146:3 › Touch placement on Pixel 5 › the loupe does not appear in Navigate (10.7s)
+  ✓   88 [creator-desktop] › tests/e2e/creator-touch-magnifier.spec.js:156:3 › Touch placement on Pixel 5 › precision cursor places the stitch 40px above the finger (15.3s)
+  ✓   89 [creator-desktop] › tests/e2e/creator-touch-magnifier.spec.js:189:3 › Touch placement on Pixel 5 › double-tap in Navigate zooms to 300% on the tap, and back to Fit (11.5s)
+  ✓   90 [creator-desktop] › tests/e2e/creator-tours.spec.js:29:3 › Creator tours on Pixel 5 › a blank grid opens the drawing tour, once (9.0s)
+  ✓   91 [creator-desktop] › tests/e2e/creator-tours.spec.js:53:3 › Creator tours on Pixel 5 › someone who finished the old Creator tour is not shown a new one (5.4s)
+  ✓   92 [creator-desktop] › tests/e2e/creator-tours.spec.js:67:3 › Creator tours on a desktop › a picture opens the converting tour, in desktop words (5.6s)
+(node:13401) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13401) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   93 [creator-phone] › tests/e2e/convert-compare-options.spec.js:14:3 › Compare options on desktop › three size options appear within 3 s, and choosing +25% sets the size (8.9s)
+  ✓   94 [creator-phone] › tests/e2e/convert-compare-options.spec.js:31:3 › Compare options on desktop › Threads compares −5 and +5 threads; choosing one sets Threads (max) (8.5s)
+  ✓   95 [creator-phone] › tests/e2e/convert-compare-options.spec.js:48:3 › Compare options on Pixel 5 › collapsed by default; opens into a row that scrolls sideways (9.0s)
+  ✓   96 [creator-phone] › tests/e2e/convert-picture-presets.spec.js:41:3 › Picture-type presets on desktop › a logo is guessed as a graphic and makes a clean pattern (8.0s)
+  ✘   87 [creator-desktop] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas (1.5m)
+  ✓   97 [creator-phone] › tests/e2e/convert-picture-presets.spec.js:62:3 › Picture-type presets on desktop › changing a value shows Custom; choosing a type applies its preset (6.3s)
+(node:13894) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13894) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   98 [creator-phone] › tests/e2e/convert-picture-presets.spec.js:81:3 › Picture-type presets on desktop › with guessing turned off in Preferences, a picture starts from the Preferences defaults (6.5s)
+  ✓  100 [creator-phone] › tests/e2e/convert-picture-presets.spec.js:100:3 › Picture-type presets on desktop › a tiny picture is guessed as pixel art and generates at its own size (4.6s)
+  ✓  101 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:13:2 › desktop › preview fills the phone and picture buttons fit (5.2s)
+  ✓  102 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:20:2 › desktop › thread selection persists across all views and toggles off (6.7s)
+  ✓  103 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:25:2 › desktop › one change overlay works in all views (7.7s)
+  ✓  104 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:32:2 › desktop › pin survives settings changes, restores all settings and clears for another source (8.7s)
+  ✓  105 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:13:2 › Pixel 5 › preview fills the phone and picture buttons fit (2.5s)
+  ✓  106 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:20:2 › Pixel 5 › thread selection persists across all views and toggles off (2.5s)
+  ✓  107 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:25:2 › Pixel 5 › one change overlay works in all views (4.4s)
+  ✓  108 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:32:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (6.0s)
+  ✓  109 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:53:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (5.1s)
+  ✓  110 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:81:3 › Convert preview fidelity › skipped cells are the fabric colour, not the original picture (2.4s)
+  ✓  111 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:88:3 › Convert preview fidelity › the what-changed overlay never appears on its own, and covers only the preview half (7.7s)
+  ✓  112 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:106:3 › Convert preview fidelity › the comparison box keeps the picture's shape while a size change is pending (3.7s)
+  ✓  113 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:127:3 › Convert preview fidelity › a replacement or cropped source clears the old result before the next pass (3.1s)
+  ✓  114 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:149:3 › Convert preview fidelity › a conversion exception shows recovery and Retry preview produces a complete result (4.7s)
+  ✓  115 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:172:3 › Convert preview fidelity › a large chart is previewed at its own size and matches the generated chart (7.9s)
+  ✘   99 [creator-desktop] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags (1.5m)
+(node:15153) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15153) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  116 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:186:3 › Convert preview fidelity › the Detail and tidiness choice sets shading and tidying together (4.3s)
+  ✓  118 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:206:3 › Convert preview fidelity › adjusted preview agrees with generated cells (11.9s)
+  ✓  117 [creator-phone] › tests/e2e/convert-saved-picture-type.spec.js:52:3 › The picture type survives a reload › a generated logo reopens as a graphic, and Balanced keeps it unshaded (14.5s)
+  ✓  120 [creator-phone] › tests/e2e/convert-saved-picture-type.spec.js:74:3 › The picture type survives a reload › a project saved before picture types were kept follows what its picture looks like (7.9s)
+  ✓  121 [creator-phone] › tests/e2e/convert-size-field.spec.js:31:3 › Size field on desktop › a new picture starts with its long side at 100 stitches; the readout shows stitches and finished size (4.5s)
+  ✓  122 [creator-phone] › tests/e2e/convert-size-field.spec.js:38:3 › Size field on desktop › 18 cm wide at 14-count is 99 stitches (5.5s)
+  ✓  123 [creator-phone] › tests/e2e/convert-size-field.spec.js:51:3 › Size field on desktop › a Card preset fits the picture into 5 × 7 in (6.7s)
+  ✓  124 [creator-phone] › tests/e2e/convert-size-field.spec.js:60:3 › Size field on desktop › a panorama suggests cropping its thin short side (3.8s)
+  ✓  125 [creator-phone] › tests/e2e/convert-size-field.spec.js:68:3 › Size field on desktop › enlarging a small picture says how big each pixel becomes (5.2s)
+  ✓  126 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:24:3 › Convert steps and preview on desktop › the steps run Picture, Size, Threads, Detail, and Next falls through them (4.5s)
+  ✓  127 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:43:3 › Convert steps and preview on desktop › the preview is stitched on the fabric by default, and Flat and Before / after show the same chart (4.9s)
+  ✓  128 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:71:3 › Convert steps and preview on desktop › a change says what it did to the preview (4.8s)
+  ✓  129 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:83:3 › Convert steps and preview on desktop › once a chart exists, Convert still shows the live preview and says when it differs (4.7s)
+  ✓  130 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:98:3 › Convert steps and preview on desktop › a new thread brand reads as a change from the chart (4.6s)
+  ✓  131 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:111:3 › Convert steps and preview on desktop › the top bar's Regenerate asks before replacing an edited chart (7.5s)
+  ✘  119 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass (1.5m)
+(node:16877) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16877) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  133 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline (0ms)
+(node:16886) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16886) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  132 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view (24.5s)
+(node:17018) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17018) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  134 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:283:3 › Comparison overlay lifecycle › heatmap and highlight stay on the preview side and disappear while updating (2.6s)
+  ✓  136 [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:295:3 › Comparison overlay lifecycle › the magnifier divider follows the sampled pixels and retains fabric behind empty cells (2.4s)
+  ✓  135 [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:151:3 › Crop to the stitches on desktop › crops the chart, keeps its stitches and progress, and Undo puts the edges back (6.2s)
+  ✓  137 [creator-phone] › tests/e2e/convert-style-outcome.spec.js:28:3 › The Detail and tidiness count › waits for the new preview instead of showing the last step's count (6.0s)
+  ✓  138 [creator-phone] › tests/e2e/creator-behaviour.spec.js:42:3 › Creator behaviour on Pixel 5 › a fast diagonal swipe paints a continuous line (7.1s)
+  ✓  139 [creator-phone] › tests/e2e/convert-style-outcome.spec.js:39:3 › The Detail and tidiness count › a large chart previewed on the page is labelled as an estimate (4.8s)
+  ✓  141 [creator-phone] › tests/e2e/convert-style-outcome.spec.js:51:3 › The Detail and tidiness count › with the worker, a large chart is previewed at full size and counted exactly (8.3s)
+  ✓  140 [creator-phone] › tests/e2e/creator-behaviour.spec.js:95:3 › Creator behaviour on Pixel 5 › generating names the project after the image, with no prompt (9.7s)
+  ✓  142 [creator-phone] › tests/e2e/creator-defaults.spec.js:21:3 › Convert defaults on desktop › logo.png: background skipped, 8 or fewer colours (4.8s)
+  ✓  143 [creator-phone] › tests/e2e/creator-behaviour.spec.js:103:3 › Creator behaviour on Pixel 5 › a blank grid opens with no name prompt (5.0s)
+  ✓  144 [creator-phone] › tests/e2e/creator-defaults.spec.js:35:3 › Convert defaults on desktop › Convert opens on the Picture step: picture type, background, then picture fixes (4.8s)
+  ✓  146 [creator-phone] › tests/e2e/creator-draw-navigate.spec.js:33:3 › Navigate | Draw on Pixel 5 › opens in Navigate; a swipe scrolls without an edit (5.1s)
+  ✓  147 [creator-phone] › tests/e2e/creator-draw-navigate.spec.js:45:3 › Navigate | Draw on Pixel 5 › tapping Paint switches to Draw and a tap paints; Navigate then scrolls again (3.4s)
+  ✓  148 [creator-phone] › tests/e2e/creator-draw-navigate.spec.js:65:3 › Desktop › opens in Navigate like touch does; choosing Paint switches to Draw (UX-009) (2.5s)
+  ✘  145 [creator-phone] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project (16.7s)
+(node:17961) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17961) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  149 [creator-phone] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on Pixel 5 › Convert settings are reachable and the chart is not covered (4.4s)
+  ✓  150 [creator-phone] › tests/e2e/creator-palette.spec.js:25:5 › Palette on desktop › shows only the pattern's colours until Add colour is tapped (5.1s)
+  ✓  151 [creator-phone] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on Pixel 5 › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (3.9s)
+  ✓  152 [creator-phone] › tests/e2e/creator-palette.spec.js:64:5 › Palette on desktop › changing a symbol updates the Materials legend, and Undo puts it back (4.9s)
+  ✓  153 [creator-phone] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on Pixel 5 landscape › Convert settings are reachable and the chart is not covered (6.2s)
+  ✓  154 [creator-phone] › tests/e2e/creator-palette.spec.js:25:5 › Palette on Pixel 5 › shows only the pattern's colours until Add colour is tapped (4.9s)
+  ✓  155 [creator-phone] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on Pixel 5 landscape › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (5.0s)
+  ✓  156 [creator-phone] › tests/e2e/creator-palette.spec.js:64:5 › Palette on Pixel 5 › changing a symbol updates the Materials legend, and Undo puts it back (5.9s)
+  ✓  157 [creator-phone] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on iPad Mini › Convert settings are reachable and the chart is not covered (6.1s)
+  ✓  159 [creator-phone] › tests/e2e/creator-layout.spec.js:86:7 › Creator layout on iPad Mini › compact chrome: one top bar, a rail of 44px controls, Print and Track in two taps (3.6s)
+  ✓  160 [creator-phone] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on iPad Pro 11 landscape › Convert settings are reachable and the chart is not covered (2.8s)
+  ✓  161 [creator-phone] › tests/e2e/creator-layout.spec.js:57:5 › Creator layout on desktop › Convert settings are reachable and the chart is not covered (3.3s)
+  ✓  162 [creator-phone] › tests/e2e/creator-layout.spec.js:125:3 › Long project names on Pixel 5 › the top bar keeps every control on screen (2.3s)
+  ✓  163 [creator-phone] › tests/e2e/creator-layout.spec.js:142:3 › Desktop keeps the action bar › header, action bar and tool strip are unchanged; no rail (2.5s)
+  ✓  158 [creator-phone] › tests/e2e/creator-palette.spec.js:104:3 › Swatch symbols on Pixel 5 › tool-strip swatches show their symbol, and a long-press names the thread (18.7s)
+  ✓  164 [creator-phone] › tests/e2e/creator-layout.spec.js:158:3 › Fit on desktop › fills the chart viewport after generating (3.0s)
+  ✓  166 [creator-phone] › tests/e2e/creator-layout.spec.js:178:3 › iPad Pro 11 landscape side panel › tapping the chart paints once Paint is chosen (5.2s)
+  ✓  167 [creator-phone] › tests/e2e/creator-layout.spec.js:201:3 › Scratch grid on Pixel 5 › can add DMC 310 and paint a stitch (1.9s)
+  ✓  168 [creator-phone] › tests/e2e/creator-touch-hints.spec.js:15:3 › Touch hints on Pixel 5 › no mouse or keyboard instructions after generating (3.9s)
+  ✓  169 [creator-phone] › tests/e2e/creator-touch-hints.spec.js:33:3 › Desktop keeps keyboard hints › the shortcuts hint still shows (3.1s)
+  ✓  165 [creator-phone] › tests/e2e/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it (16.0s)
+  ✓  170 [creator-phone] › tests/e2e/creator-touch-hints.spec.js:40:5 › Desktop keeps keyboard hints › estimate labels pass AA contrast (light) (3.4s)
+  ✓  172 [creator-phone] › tests/e2e/creator-touch-hints.spec.js:40:5 › Desktop keeps keyboard hints › estimate labels pass AA contrast (dark) (3.0s)
+  ✓  173 [creator-phone] › tests/e2e/creator-touch-magnifier.spec.js:62:3 › Touch placement on Pixel 5 › 20 jittered taps paint the intended cell at fitted zoom (7.4s)
+  ✓  171 [creator-phone] › tests/e2e/creator-stitched-edit.spec.js:104:3 › Editing a stitched pattern (desktop) › Replace colour resets the stitched cells it recolours; the toolbar Undo restores them (14.6s)
+  ✓  174 [creator-phone] › tests/e2e/creator-touch-magnifier.spec.js:131:3 › Touch placement on Pixel 5 › a second finger before lifting places nothing (3.4s)
+  ✓  176 [creator-phone] › tests/e2e/creator-touch-magnifier.spec.js:146:3 › Touch placement on Pixel 5 › the loupe does not appear in Navigate (3.4s)
+  ✓  177 [creator-phone] › tests/e2e/creator-touch-magnifier.spec.js:156:3 › Touch placement on Pixel 5 › precision cursor places the stitch 40px above the finger (5.2s)
+  ✓  175 [creator-phone] › tests/e2e/creator-stitched-edit.spec.js:132:3 › Editing a stitched pattern (desktop) › A palette swap resets the stitched cells it recolours; the toast Undo restores them (12.8s)
+  ✓  178 [creator-phone] › tests/e2e/creator-touch-magnifier.spec.js:189:3 › Touch placement on Pixel 5 › double-tap in Navigate zooms to 300% on the tap, and back to Fit (4.0s)
+  ✓  179 [creator-phone] › tests/e2e/creator-touch-no-auto-paint.spec.js:13:3 › Creator on a phone: no automatic Paint › a one-finger swipe on a new pattern scrolls instead of painting (3.9s)
+  ✓  181 [creator-phone] › tests/e2e/creator-touch-no-auto-paint.spec.js:32:3 › Creator on a phone: no automatic Paint › tapping Paint then a cell paints; tapping Paint again goes back to Navigate (2.7s)
+  ✓  182 [creator-phone] › tests/e2e/creator-touch-no-auto-paint.spec.js:54:3 › Creator on desktop: Navigate after generating (UX-009) › Paint is not active after generation until it is chosen (2.6s)
+  ✓  183 [creator-phone] › tests/e2e/creator-tours.spec.js:29:3 › Creator tours on Pixel 5 › a blank grid opens the drawing tour, once (3.8s)
+  ✓  184 [creator-phone] › tests/e2e/creator-tours.spec.js:53:3 › Creator tours on Pixel 5 › someone who finished the old Creator tour is not shown a new one (3.0s)
+  ✓  185 [creator-phone] › tests/e2e/creator-tours.spec.js:67:3 › Creator tours on a desktop › a picture opens the converting tour, in desktop words (1.7s)
+  ✘  180 [creator-phone] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas (1.5m)
+(node:19943) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19943) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  186 [creator-phone] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags (1.5m)
+
+
+  1) [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:53:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    Call Log:
+    - Timeout 30000ms exceeded while waiting on the predicate
+
+       7 | });
+       8 | async function settled(page){await expect.poll(()=>page.evaluate(()=>{const s=window.__previewState;return !!(s&&s.previewSnapshot&&!s.previewLoading&&s.previewSnapshot.signature===window.conversionSignature(s.conversionSettings));}),{timeout:30000}).toBe(true);await expect(page.getByRole('button',{name:'Pin this preview',exact:true})).toBeEnabled({timeout:30000});}
+    >  9 | async function open(page){await openConvertWithLogo(page);await settled(page);}
+         |                              ^
+      10 | for(const name of ['desktop','Pixel 5'])test.describe(name,()=>{
+      11 |  test.use(device(name));
+      12 |  test('preview fills the phone and picture buttons fit',async({page})=>{
+        at settled (/workspace/cross-stitch/tests/e2e/convert-pin-and-overlay.spec.js:9:30)
+        at /workspace/cross-stitch/tests/e2e/convert-pin-and-overlay.spec.js:60:2
+
+    Error Context: test-results/convert-pin-and-overlay-a--a66d0-ead-limit-hidden-by-a-stash-creator-desktop/error-context.md
+
+  2) [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('#comparison-test').getByRole('button', { name: 'Show what changed' })[22m
+
+
+      253 |   }
+      254 |   async function changedPixels(page) {
+    > 255 |     await page.locator('#comparison-test').getByRole('button', {name:'Show what changed'}).click();
+          |                                                                                            ^
+      256 |     return page.locator('#comparison-test [data-testid="cmp-diff"] img').evaluate(async img => {
+      257 |       await img.decode(); const c = document.createElement('canvas'); c.width=4; c.height=4;
+      258 |       const x=c.getContext('2d'); x.drawImage(img,0,0);
+        at changedPixels (/workspace/cross-stitch/tests/e2e/convert-preview-fidelity.spec.js:255:92)
+        at /workspace/cross-stitch/tests/e2e/convert-preview-fidelity.spec.js:271:18
+
+    Error Context: test-results/convert-preview-fidelity-C-cc724-the-intermediate-quick-pass-creator-desktop/error-context.md
+
+  3) [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: locator('#comparison-test').getByRole('button', { name: 'Show what changed' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for locator('#comparison-test').getByRole('button', { name: 'Show what changed' })[22m
+
+
+      274 |     await mount(page);
+      275 |     await update(page, {colour:'black'});
+    > 276 |     await expect(page.locator('#comparison-test').getByRole('button', {name:'Show what changed'})).toBeVisible();
+          |                                                                                                    ^
+      277 |     await update(page, {colour:null});
+      278 |     expect(await changedPixels(page)).toBe(16);
+      279 |     await update(page, {colour:'green', originalColour:'yellow'});
+        at /workspace/cross-stitch/tests/e2e/convert-preview-fidelity.spec.js:276:100
+
+    Error Context: test-results/convert-preview-fidelity-C-160fa--source-resets-the-baseline-creator-desktop/error-context.md
+
+  4) [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    Call Log:
+    - Timeout 20000ms exceeded while waiting on the predicate
+
+      134 |     await page.evaluate(() => { window.__cs.setStitchCleanup({ enabled: true, protectDetails: false }); window.__cs.setOrphans(3); });
+      135 |     await settled(page);
+    > 136 |     await expect.poll(() => page.evaluate(() => !!window.__cs.previewTidied), { timeout: 20000 }).toBe(true);
+          |     ^
+      137 |     await page.getByRole('button', { name: 'Show tidied stitches' }).click();
+      138 |     await expect(page.getByTestId('cvp-stitched').getByTestId('cvp-tidied')).toHaveCount(1);
+      139 |     await previewView(page, 'flat');
+        at /workspace/cross-stitch/tests/e2e/convert-steps-and-preview.spec.js:136:5
+
+    Error Context: test-results/convert-steps-and-preview--a793b-shows-in-every-preview-view-creator-desktop/error-context.md
+
+  5) [creator-desktop] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Name this pattern' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Name this pattern' })[22m
+
+
+      119 |     };
+      120 |     await printPdf();
+    > 121 |     await expect(prompt).toBeVisible();
+          |                          ^
+      122 |     await expect(page.getByText('Give this pattern a name? It will appear on the PDF and in your library.')).toBeVisible();
+      123 |     await expect(page.locator('.name-prompt-input')).toHaveValue('logo');
+      124 |     await page.getByRole('button', { name: 'Skip', exact: true }).click();
+        at /workspace/cross-stitch/tests/e2e/creator-behaviour.spec.js:121:26
+
+    Error Context: test-results/creator-behaviour-Creator--d658b-e-for-an-auto-named-project-creator-desktop/error-context.md
+
+  6) [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoContainText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: locator('.stitched-banner')
+    Expected substring: [32m"stitched."[39m
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toContainText" with timeout 10000ms[22m
+    [2m  - waiting for locator('.stitched-banner')[22m
+
+
+      76 |     await expect(toastEl).toContainText('stitched cell');
+      77 |     await expect(undoButton(page)).toBeEnabled();
+    > 78 |     await expect(banner).toContainText('stitched.');
+         |                          ^
+      79 |     const reset = await page.evaluate(function() { return document.body.innerText.match(/(\d[\d,]*) stitched cells? reset to not done/); });
+      80 |     expect(reset).not.toBeNull();
+      81 |     await expect(banner).not.toContainText('6% stitched');   // 200 of 3,290 stitches were 6%; fewer remain
+        at /workspace/cross-stitch/tests/e2e/creator-stitched-edit.spec.js:78:26
+
+    Error Context: test-results/creator-stitched-edit-Edit-9a446-done-toast-Undo-restores-it-creator-desktop/error-context.md
+
+  7) [creator-desktop] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: page.waitForSelector: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('text=Open file') to be visible[22m
+
+
+       at touch-helpers.js:110
+
+      108 | async function loadCreatorFixture(page, projectPath) {
+      109 |   await page.goto('/index.html');
+    > 110 |   await page.waitForSelector('text=Open file');
+          |              ^
+      111 |   const chooserPromise = page.waitForEvent('filechooser');
+      112 |   await page.getByText('Open file').first().click();
+      113 |   const chooser = await chooserPromise;
+        at loadCreatorFixture (/workspace/cross-stitch/tests/e2e/touch-helpers.js:110:14)
+        at /workspace/cross-stitch/tests/e2e/creator-touch.spec.js:17:5
+
+    Error Context: test-results/creator-touch-Creator-Touc-d549e--zoom-on-the-pattern-canvas-creator-desktop/error-context.md
+
+  8) [creator-desktop] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: page.waitForSelector: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('text=Open file') to be visible[22m
+
+
+       at touch-helpers.js:110
+
+      108 | async function loadCreatorFixture(page, projectPath) {
+      109 |   await page.goto('/index.html');
+    > 110 |   await page.waitForSelector('text=Open file');
+          |              ^
+      111 |   const chooserPromise = page.waitForEvent('filechooser');
+      112 |   await page.getByText('Open file').first().click();
+      113 |   const chooser = await chooserPromise;
+        at loadCreatorFixture (/workspace/cross-stitch/tests/e2e/touch-helpers.js:110:14)
+        at /workspace/cross-stitch/tests/e2e/creator-touch.spec.js:55:5
+
+    Error Context: test-results/creator-touch-Creator-Touc-30c38-e-selection-and-paint-drags-creator-desktop/error-context.md
+
+  9) [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('#comparison-test').getByRole('button', { name: 'Show what changed' })[22m
+
+
+      253 |   }
+      254 |   test('the slider draws only the shared cell overlay supplied by Convert', async ({page}) => {
+    > 255 |     await mount(page);
+          |                       ^
+      256 |     await update(page, {colour:'blue', previewLoading:true});
+      257 |     await expect(page.locator('#comparison-test').getByRole('button', {name:'Show what changed'})).toHaveCount(0);
+      258 |     await page.evaluate(() => {
+        at changedPixels (/workspace/cross-stitch/tests/e2e/convert-preview-fidelity.spec.js:255:92)
+        at /workspace/cross-stitch/tests/e2e/convert-preview-fidelity.spec.js:271:18
+
+    Error Context: test-results/convert-preview-fidelity-C-cc724-the-intermediate-quick-pass-creator-phone/error-context.md
+
+  10) [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline 
+
+    Test not found in the worker process. Make sure test title does not change.
+
+  11) [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    Call Log:
+    - Timeout 20000ms exceeded while waiting on the predicate
+
+      134 |     await page.evaluate(() => { window.__cs.setStitchCleanup({ enabled: true, protectDetails: false }); window.__cs.setOrphans(3); });
+      135 |     await settled(page);
+    > 136 |     await expect.poll(() => page.evaluate(() => !!window.__cs.previewTidied), { timeout: 20000 }).toBe(true);
+          |     ^
+      137 |     await page.getByRole('button', { name: 'Show tidied stitches' }).click();
+      138 |     await expect(page.getByTestId('cvp-stitched').getByTestId('cvp-tidied')).toHaveCount(1);
+      139 |     await previewView(page, 'flat');
+        at /workspace/cross-stitch/tests/e2e/convert-steps-and-preview.spec.js:136:5
+
+    Error Context: test-results/convert-steps-and-preview--a793b-shows-in-every-preview-view-creator-phone/error-context.md
+
+  12) [creator-phone] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Name this pattern' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Name this pattern' })[22m
+
+
+      119 |     };
+      120 |     await printPdf();
+    > 121 |     await expect(prompt).toBeVisible();
+          |                          ^
+      122 |     await expect(page.getByText('Give this pattern a name? It will appear on the PDF and in your library.')).toBeVisible();
+      123 |     await expect(page.locator('.name-prompt-input')).toHaveValue('logo');
+      124 |     await page.getByRole('button', { name: 'Skip', exact: true }).click();
+        at /workspace/cross-stitch/tests/e2e/creator-behaviour.spec.js:121:26
+
+    Error Context: test-results/creator-behaviour-Creator--d658b-e-for-an-auto-named-project-creator-phone/error-context.md
+
+  13) [creator-phone] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: page.waitForSelector: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('text=Open file') to be visible[22m
+
+
+       at touch-helpers.js:110
+
+      108 | async function loadCreatorFixture(page, projectPath) {
+      109 |   await page.goto('/index.html');
+    > 110 |   await page.waitForSelector('text=Open file');
+          |              ^
+      111 |   const chooserPromise = page.waitForEvent('filechooser');
+      112 |   await page.getByText('Open file').first().click();
+      113 |   const chooser = await chooserPromise;
+        at loadCreatorFixture (/workspace/cross-stitch/tests/e2e/touch-helpers.js:110:14)
+        at /workspace/cross-stitch/tests/e2e/creator-touch.spec.js:17:5
+
+    Error Context: test-results/creator-touch-Creator-Touc-d549e--zoom-on-the-pattern-canvas-creator-phone/error-context.md
+
+  14) [creator-phone] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags 
+
+    [31mTest timeout of 90000ms exceeded.[39m
+
+    Error: page.waitForSelector: Test timeout of 90000ms exceeded.
+    Call log:
+    [2m  - waiting for locator('text=Open file') to be visible[22m
+
+
+       at touch-helpers.js:110
+
+      108 | async function loadCreatorFixture(page, projectPath) {
+      109 |   await page.goto('/index.html');
+    > 110 |   await page.waitForSelector('text=Open file');
+          |              ^
+      111 |   const chooserPromise = page.waitForEvent('filechooser');
+      112 |   await page.getByText('Open file').first().click();
+      113 |   const chooser = await chooserPromise;
+        at loadCreatorFixture (/workspace/cross-stitch/tests/e2e/touch-helpers.js:110:14)
+        at /workspace/cross-stitch/tests/e2e/creator-touch.spec.js:55:5
+
+    Error Context: test-results/creator-touch-Creator-Touc-30c38-e-selection-and-paint-drags-creator-phone/error-context.md
+
+  14 failed
+    [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:53:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash 
+    [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass 
+    [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline 
+    [creator-desktop] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view 
+    [creator-desktop] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 
+    [creator-desktop] › tests/e2e/creator-stitched-edit.spec.js:36:3 › Editing a stitched pattern (desktop) › banner, Show stitched, repaint resets done, toast Undo restores it 
+    [creator-desktop] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+    [creator-desktop] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags 
+    [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:262:3 › Comparison overlay lifecycle › the diff compares completed results and ignores the intermediate quick pass 
+    [creator-phone] › tests/e2e/convert-preview-fidelity.spec.js:273:3 › Comparison overlay lifecycle › changes in transparency are visible and a replacement source resets the baseline 
+    [creator-phone] › tests/e2e/convert-steps-and-preview.spec.js:131:3 › Convert steps and preview on desktop › Show tidied stitches shows in every preview view 
+    [creator-phone] › tests/e2e/creator-behaviour.spec.js:112:3 › Creator behaviour on Pixel 5 › Print PDF offers a name once for an auto-named project 
+    [creator-phone] › tests/e2e/creator-touch.spec.js:16:3 › Creator Touch Automation › supports single-finger panning and pinch zoom on the pattern canvas 
+    [creator-phone] › tests/e2e/creator-touch.spec.js:54:3 › Creator Touch Automation › supports touch palette selection and paint drags 
+  172 passed (17.9m)

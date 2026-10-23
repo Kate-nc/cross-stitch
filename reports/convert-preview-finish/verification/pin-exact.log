@@ -1,0 +1,16 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 2 tests using 2 workers
+
+(node:9746) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9747) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9747) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:9746) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (8.9s)
+  ✓  2 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (10.0s)
+
+  2 passed (11.7s)

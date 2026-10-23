@@ -10,7 +10,7 @@ const { device, openConvertWithLogo, clickGenerate, waitForEdit } = require('./c
 // The value under an estimate label in the Preview Estimates card.
 async function estimate(page, label) {
   return page.evaluate(function(l) {
-    const labels = Array.from(document.querySelectorAll('.card div')).filter(function(d) { return d.textContent === l && d.nextElementSibling; });
+    const labels = Array.from(document.querySelectorAll('.cv-estimates dt')).filter(function(d) { return d.textContent === l && d.nextElementSibling; });
     return labels.length ? labels[0].nextElementSibling.textContent : null;
   }, label);
 }

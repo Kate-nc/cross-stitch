@@ -56,7 +56,7 @@ describe('finished size', () => {
     // Convert's Project summary and the preview's size line call it
     // directly; Convert > Size, Canvas and Edit > Project use the Fabric
     // block, which uses fabricSizes() (P2-2).
-    expect(convert).toMatch(/window\.finishedSizeText\(ctx\.sW, ctx\.sH, fabricCt\)/);
+    expect(convert).not.toContain('From the preview');
     expect(read('creator-main.js')).toMatch(/window\.finishedSizeText\(dims\.pw, dims\.ph, ct\)/);
     expect(read('creator/FabricBlock.js')).toMatch(/window\.fabricSizes\(props\.sW, props\.sH, ct\)/);
   });

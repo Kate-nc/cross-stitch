@@ -61,12 +61,14 @@ describe('Convert preview block and generating overlay use tokens', () => {
     const block = main.slice(start, end + 40);
     expect(block).not.toMatch(/#[0-9A-Fa-f]{3,6}\b/);
     expect(block).not.toMatch(/fontSize:10\b/);
-    expect(block).toMatch(/<div style=\{\{fontSize:"var\(--text-xs\)",color:"var\(--text-secondary\)"\}\}>Skipped<\/div>/);
+    expect(main).toContain("['Skipped',ps.skipped.toLocaleString('en-GB')]");
+    expect(main).toContain('className="card cv-estimates"');
   });
 
-  test('confetti tier colours still come from confettiTier', () => {
-    expect(main).toMatch(/const t=confettiTier\(state\.previewStats\.confettiPct\);/);
-    expect(main).toMatch(/color:t\.color/);
+  test('estimates use shared section styles and no inline font sizes', () => {
+    const estimates = main.slice(main.indexOf('function PatternEstimates'), main.indexOf('function PinnedComparison'));
+    expect(estimates).toContain('cs-toolsec__title');
+    expect(estimates).not.toContain('fontSize');
   });
 });
 

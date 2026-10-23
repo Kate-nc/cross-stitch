@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, changedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -44,11 +44,6 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
   const [altDown, setAltDown] = useState(false);
   // magnifier toggle — stays active without holding Alt
   const [zoomLocked, setZoomLocked] = useState(false);
-  // diff overlay
-  const [showDiff, setShowDiff] = useState(false);
-  const [diffUrl, setDiffUrl] = useState(null);
-  const prevPreviewRef = useRef(null);
-  const prevOriginalRef = useRef(originalSrc);
   // heatmap overlay
   const [showHeatmap, setShowHeatmap] = useState(false);
 
@@ -91,54 +86,6 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
     window.addEventListener('keyup', onKeyUp, true);
     return function() { window.removeEventListener('keydown', onKeyDown, true); window.removeEventListener('keyup', onKeyUp, true); };
   }, []);
-
-  useEffect(function() {
-    if (prevOriginalRef.current !== originalSrc) {
-      prevOriginalRef.current = originalSrc;
-      prevPreviewRef.current = null;
-      setShowDiff(false);
-    }
-    setDiffUrl(null);
-    // The quick pass is an intermediate frame, not the user's previous result.
-    // Retain the last settled frame as the comparison baseline while loading.
-    if (previewLoading) return;
-    if (!previewSrc) { prevPreviewRef.current = null; setDiffUrl(null); return; }
-    if (!prevPreviewRef.current || prevPreviewRef.current === previewSrc) { prevPreviewRef.current = previewSrc; return; }
-    var prevSrc = prevPreviewRef.current;
-    prevPreviewRef.current = previewSrc;
-    var cancelled = false;
-    var imgA = new Image(), imgB = new Image();
-    var loaded = 0;
-    function onLoad() {
-      if (cancelled) return;
-      if (++loaded < 2) return;
-      var w = imgB.naturalWidth, h = imgB.naturalHeight;
-      if (!w || !h) return;
-      try {
-        var ca = document.createElement('canvas'); ca.width = w; ca.height = h;
-        var cxa = ca.getContext('2d'); cxa.imageSmoothingEnabled = false; cxa.drawImage(imgA, 0, 0, w, h);
-        var da = cxa.getImageData(0, 0, w, h).data;
-        var cb = document.createElement('canvas'); cb.width = w; cb.height = h;
-        var cxb = cb.getContext('2d'); cxb.drawImage(imgB, 0, 0, w, h);
-        var db = cxb.getImageData(0, 0, w, h).data;
-        var out = cxb.createImageData(w, h); var od = out.data;
-        for (var i = 0; i < da.length; i += 4) {
-          // Empty -> stitched is a change even for black pixels; RGB hidden in
-          // fully transparent cells must not create a false change.
-          if (da[i+3] !== db[i+3] || (da[i+3] && db[i+3] && Math.abs(da[i]-db[i]) + Math.abs(da[i+1]-db[i+1]) + Math.abs(da[i+2]-db[i+2]) > 12)) {
-            od[i] = 255; od[i+1] = 80; od[i+2] = 0; od[i+3] = 200;
-          }
-        }
-        cxb.putImageData(out, 0, 0);
-        setDiffUrl(cb.toDataURL());
-      } catch (_) { setDiffUrl(null); }
-    }
-    imgA.onload = onLoad; imgB.onload = onLoad;
-    imgA.onerror = function() { cancelled = true; };
-    imgB.onerror = function() { cancelled = true; };
-    imgA.src = prevSrc; imgB.src = previewSrc;
-    return function() { cancelled = true; };
-  }, [previewSrc, previewLoading, originalSrc]);
 
   useEffect(function() {
     return function() { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
@@ -198,9 +145,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
         <div data-testid="cmp-preview-layer" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,background:fabricBg}}>
           <img src={previewSrc} draggable={false} onDragStart={function(e){e.preventDefault();}} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated"}} alt="Preview"/>
         </div>
-        {!previewLoading&&showDiff&&diffUrl&&<div data-testid="cmp-diff" style={{position:"absolute",top:0,left:0,right:0,bottom:0,clipPath:`inset(0 0 0 ${splitPos}%)`,pointerEvents:"none",zIndex:4}} aria-hidden="true">
-          <img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt=""/>
-        </div>}
+        {!previewLoading&&changedSrc&&<img data-testid="cvp-changed" src={changedSrc} className="cvp-overlay" style={{clipPath:`inset(0 0 0 ${splitPos}%)`}} alt="" aria-hidden="true"/>}
         {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&tidiedSrc&&<img data-testid="cmp-tidied" src={tidiedSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&highlightSrc&&<img data-testid="cmp-highlight" src={highlightSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
@@ -259,10 +204,6 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, ti
           title={zoomLocked?"Turn off magnifier":"Turn on magnifier (or hold Alt)"}>
           {Icons.magnify()}<span>Magnifier</span>
         </button>
-        {(diffUrl||showDiff)&&<button type="button" className={"cs-seltools__btn"+(showDiff?" cs-seltools__btn--on":"")} aria-pressed={showDiff?"true":"false"}
-          onClick={function(){setShowDiff(function(d){return !d;});}}>
-          {Icons.eye()}<span>{showDiff?"Hide what changed":"Show what changed"}</span>
-        </button>}
         {heatmapSrc&&<button type="button" className={"cs-seltools__btn"+(showHeatmap?" cs-seltools__btn--on":"")} aria-pressed={showHeatmap?"true":"false"}
           onClick={function(){setShowHeatmap(function(h){return !h;});}}>
           {Icons.fire()}<span>Show confetti</span>
@@ -312,6 +253,7 @@ function ConvertPreview({state, onRetry}) {
   const [view, setViewRaw] = useState(loadPreviewView);
   const [closeUp, setCloseUp] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showChanged, setShowChanged] = useState(false);
   // The stitched view is drawn at the size it is shown, in device pixels, so
   // the browser never shrinks a big canvas (which shimmers into moire).
   const bodyRef = useRef(null);
@@ -352,12 +294,13 @@ function ConvertPreview({state, onRetry}) {
   const overlays = !state.previewLoading && <>
     {showConfetti && overlay(state.previewHeatmap, 'cvp-heatmap')}
     {state.showTidied && overlay(state.previewTidied, 'cvp-tidied')}
+    {showChanged && overlay(state.previewChanged, 'cvp-changed')}
     {overlay(state.previewHighlight, 'cvp-highlight')}
   </>;
 
   let body;
   if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} tidiedSrc={state.showTidied ? state.previewTidied : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} changedSrc={showChanged ? state.previewChanged : null} tidiedSrc={state.showTidied ? state.previewTidied : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
       <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
@@ -414,11 +357,14 @@ function ConvertPreview({state, onRetry}) {
       </div>}
       {changeText && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
       <div className="cvp-body" ref={bodyRef}>{body}</div>
-      {(view !== 'compare' || state.previewTidied) && <div className="cvp-tools">
+      {<div className="cvp-tools">
         {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
           {closeUp ? Icons.magnifyMinus() : Icons.magnifyPlus()}<span>{closeUp ? 'Fit' : 'Close up'}</span></button>}
         {view !== 'compare' && state.previewHeatmap && <button type="button" className={'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : '')} aria-pressed={showConfetti ? 'true' : 'false'}
           onClick={function(){ setShowConfetti(function(c){ return !c; }); }}>{Icons.fire()}<span>Show confetti</span></button>}
+        {state.previewChanged && <button type="button" className="cs-seltools__btn" aria-pressed={showChanged} disabled={state.previewLoading}
+          onClick={()=>setShowChanged(c=>!c)}>{Icons.eye()}<span>Show what changed</span></button>}
+        <button type="button" className="cs-seltools__btn" disabled={state.previewLoading || !state.previewSnapshot} onClick={state.pinPreview}>Pin this preview</button>
         {state.previewTidied && <button type="button" className={'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showTidied ? 'true' : 'false'}
           onClick={function(){ state.setShowTidied(!state.showTidied); }}>{Icons.eye()}<span>Show tidied stitches</span></button>}
       </div>}
@@ -429,6 +375,65 @@ function ConvertPreview({state, onRetry}) {
 window.ConvertPreview = ConvertPreview;
 
 
+
+function PatternEstimates({state}) {
+  const [selected, setSelected] = useState(null);
+  useEffect(()=>{setSelected(null);},[state.previewMapped]);
+  const ps = state.previewStats;
+  const money = c => window.AppPrefs?.formatCurrency ? window.AppPrefs.formatCurrency(c) : '\u00A3'+c.toFixed(2);
+  const rows = [['Stitches',ps.stitchable.toLocaleString('en-GB')],['Skipped',ps.skipped.toLocaleString('en-GB')],['Chart symbols',ps.uniqueColors],['Threads',ps.threadsUsed],['Skeins',ps.estSkeins],['Time',fmtTimeL(Math.round(ps.stitchable/state.stitchSpeed*3600))],['Cost',money(ps.estSkeins*state.skeinPrice)]];
+  function highlight(id) {
+    if(selected===id){setSelected(null);state.setPreviewHighlight(null);return;}
+    if(!state.previewMapped||!state.previewDims)return;
+    const {pw,ph}=state.previewDims, c=document.createElement('canvas');c.width=pw;c.height=ph;
+    const cx=c.getContext('2d'), data=cx.createImageData(pw,ph);
+    state.previewMapped.forEach((m,i)=>{const k=i*4;if(m.id===id){data.data[k]=255;data.data[k+1]=255;data.data[k+2]=255;data.data[k+3]=180;}else if(m.id!=='__skip__'&&m.id!=='__empty__'){data.data[k+3]=150;}});
+    cx.putImageData(data,0,0);state.setPreviewHighlight(c.toDataURL());setSelected(id);
+  }
+  return <section className="card cv-estimates" aria-label="Pattern estimates">
+    <div className="cs-toolsec cv-sec"><h2 className="cs-toolsec__title">Pattern estimates</h2>
+      <dl className="cv-stats">{rows.map(([label,value])=><React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>)}</dl>
+      <p className="cs-toolsec__hint">{ps.estimated?'Counts estimated from a smaller preview. ':''}Time and cost are estimates using your stitching speed and skein price.</p>
+    </div>
+    <div className="cs-toolsec cv-sec"><h3 className="cs-toolsec__title">Confetti stitches</h3>
+      <p>{ps.confettiFinalSingles.toLocaleString('en-GB')} ({(ps.stitchable ? ps.confettiFinalSingles / ps.stitchable * 100 : 0).toFixed(1)}% of stitches)</p>
+      <p className="cs-toolsec__hint">Confetti stitches are {window.CONFETTI_HELP.definition}.</p>
+    </div>
+    <div className="cs-toolsec cv-sec"><h3 className="cs-toolsec__title">Threads in this preview</h3>
+      <p className="cs-toolsec__hint">Tap a thread to highlight its stitches. Tap again to clear.</p>
+      <div className="cv-thread-list">{(state.previewColors||[]).map(pcol=>{
+        const entry=state.previewMapped.find(m=>m.id===pcol.id);
+        const label=formatThread(Object.assign({},entry,{brand:state.convertBrand||'dmc'}));
+        const sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
+        return <button type="button" key={pcol.id} className="cv-thread" aria-pressed={selected===pcol.id} onClick={()=>highlight(pcol.id)}>
+          <span className="cv-thread__swatch" style={{background:'rgb('+pcol.rgb.join(',')+')'}}/>
+          <span className="cv-thread__name">{label}</span><span>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
+        </button>;
+      })}</div>
+    </div>
+    {state.exactPixelArt&&ps.exactMappings&&<details className="cs-toolsec"><summary>Source colours mapped to threads ({ps.exactMappings.length})</summary>
+      <table><thead><tr><th>Source RGB</th><th>Thread</th><th>Pixels</th></tr></thead><tbody>{ps.exactMappings.map(row=><tr key={row.source.join(',')}><td>{row.source.join(', ')}</td><td>{formatThread({...row.thread,brand:state.convertBrand})}</td><td>{row.count}</td></tr>)}</tbody></table>
+    </details>}
+  </section>;
+}
+function PinnedComparison({state, compact}) {
+  const [choice,setChoice]=useState('current');
+  const pin=state.pinnedPreview, current=state.previewSnapshot;
+  const change=current&&window.describePreviewChange(pin,current);
+  const stats=current&&['confettiPct','threads','skeins'].map(key=>({label:key==='confettiPct'?'confetti':key,from:key==='confettiPct'?pin.summary[key].toFixed(1)+'%':pin.summary[key],to:key==='confettiPct'?current.summary[key].toFixed(1)+'%':current.summary[key]}));
+  const changed=change ? change.changedStitches : 0;
+  return <section className="card cv-pin" aria-label="Pinned comparison">
+    <h2 className="cvp-title">Pinned preview: {pin.label}</h2>
+    <div className="cvp-tools"><div role="group" className="lp-segmented cv-pin__switch" aria-label="Compare pinned and current">
+      {['pinned','current'].map(v=><button type="button" className={'lp-seg'+(choice===v?' lp-seg--on':'')} aria-pressed={choice===v} key={v} onClick={()=>setChoice(v)}>{v==='pinned'?'Pinned':'Current'}</button>)}
+    </div><button type="button" className="cs-seltools__btn" onClick={state.applyPinnedSettings}>Apply pinned settings</button>
+    <button type="button" className="cs-seltools__btn" onClick={()=>state.setPinnedPreview(null)}>Unpin</button></div>
+    <p className="cvp-change" aria-live="polite">{state.previewLoading?'Updating current preview…':(changed==null?'Size changed; cells cannot be compared directly':(change&&change.estimated?'About ':'')+changed.toLocaleString('en-GB')+' stitches changed')+(stats?', '+stats.map(s=>s.label+' '+s.from+' to '+s.to).join(', '):'')}.</p>
+    <div className="cv-pin__pictures" data-choice={choice}>{[['pinned',pin],['current',current]].filter(([id])=>!compact||choice===id).map(([id,snap])=>snap&&<figure key={id} data-version={id}><figcaption>{id==='pinned'?'Pinned: '+pin.label:'Current: '+snap.label}</figcaption>
+      <window.CreatorStitchedPreview cells={snap.mapped} width={snap.w} height={snap.h} fabricCt={snap.restore.fabricCt} fabricColour={snap.restore.fabricColour} displayWidth={Math.min(360,snap.w*8)}/>
+    </figure>)}</div>
+  </section>;
+}
 
 function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const useCreatorStateHook = window.useCreatorState;
@@ -1526,15 +1531,15 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             </div>}
             {showConvertView&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}
-              <div style={{flex:"0 0 auto",width:"min(30%,220px)",display:"flex",flexDirection:"column",gap:8}}>
-                <div id="bg-pick-target" className={"card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
+              <div className="cvp-source">
+                <div id="bg-pick-target" className={"card cvp-source__card"+(state.pickBg?" card--pickBg":"")} style={{overflow:"hidden"}}>
                   <h2 className="cvp-title cvp-title--card">Your picture</h2>
-                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:11,color:"var(--text-primary)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
+                  {state.pickBg&&<div style={{padding:"8px 12px",fontSize:"var(--text-sm)",color:"var(--text-primary)",fontWeight:600,background:"var(--warning-soft)",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",display:"flex",alignItems:"center",gap:8}}>
                     <span style={{flex:1}}>Click anywhere on the image to set the background colour.</span>
                     <button onClick={()=>state.setPickBg(false)} title="Cancel pick (Esc)" style={{fontSize:"var(--text-xs)",padding:"2px 7px",border:"1px solid var(--line)",borderRadius:6,background:"var(--surface)",color:"var(--text-primary)",cursor:"pointer",fontWeight:600}}>Cancel</button>
                   </div>}
                   <img src={state.img.src} alt="Original" style={{width:"100%",display:"block",cursor:state.pickBg?"crosshair":"default"}} onClick={canvas.srcClick}/>
-                  <div style={{padding:"5px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:"0.5px solid var(--line)"}}>
+                  <div className="cvp-source__controls">
                     <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>{state.origW}×{state.origH}px</span>
                     <div style={{display:"flex",gap:6}}>
                       <button onClick={()=>{state.setIsCropping(true);state.setCropRect(null);}} style={{fontSize:"var(--text-xs)",padding:"2px 7px",cursor:"pointer",border:"0.5px solid var(--line)",borderRadius:6,background:"var(--surface)"}}>Crop</button>
@@ -1544,11 +1549,12 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                 </div>
               </div>
               {/* Right: preview comparison or placeholder */}
-              <div style={{flex:1,display:"flex",flexDirection:"column",gap:16,overflowY:"auto"}}>
+              <div className="cvp-main">
                 {!state.previewUrl&&<div className="card" style={{padding:"24px 16px",textAlign:"center",color:"var(--text-secondary)",fontSize:12}}>
                   {state.previewError ? <><div role="alert">{state.previewError}</div><button type="button" onClick={preview.generatePreview}>Retry preview</button></> : state.previewLoading ? <span role="status" aria-label="Updating preview">Updating preview…</span> : "Choose an image and adjust the settings to see a preview here."}
                 </div>}
                 {state.previewUrl&&<ConvertPreview state={state} onRetry={preview.generatePreview}/>}
+                {state.pinnedPreview&&<PinnedComparison state={state} compact={_compact}/>}
                 {/* Compare options (audit IMG-05): neighbouring sizes or thread
                     counts, side by side; choosing one applies it. */}
                 {state.previewUrl&&window.CreatorCompareStrip&&<window.CreatorCompareStrip
@@ -1562,81 +1568,8 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                     state.chgW(v.sW);
                     if(!state.arLock)state.chgH(v.sH);
                   }}/>}
-                {state.previewUrl&&!state.previewLoading&&state.previewStats&&<div className="card" style={{padding:"12px 14px"}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:8}}>Preview Estimates</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 12px"}}>
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stitchable</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.stitchable.toLocaleString('en-GB')}</div></div>
-                    {state.skipBg&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skipped</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.skipped.toLocaleString('en-GB')}</div></div>}
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Chart symbols</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.uniqueColors}</div></div>
-                    {state.previewStats.stashUsage&&<div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Stash usage</div><div style={{fontSize:13,fontWeight:600,color:"var(--accent)"}}>{state.previewStats.stashUsage.used} of {state.previewStats.stashUsage.available}</div></div>}
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Skeins ({state.fabricCt}ct)</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{state.previewStats.estSkeins}</div></div>
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Time</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{fmtTimeL(Math.round(state.previewStats.stitchable/state.stitchSpeed*3600))}</div></div>
-                    <div><div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)"}}>Thread cost</div><div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{(function(c){return window.AppPrefs&&window.AppPrefs.formatCurrency?window.AppPrefs.formatCurrency(c):"\u00A3"+c.toFixed(2);})(state.previewStats.estSkeins*state.skeinPrice)}</div></div>
-                  </div>
-                  {state.previewStats.confettiPct!=null&&(()=>{
-                    const t=confettiTier(state.previewStats.confettiPct);
-                    const tips={"Excellent":"Great stitch flow","Good":"Few confetti stitches — pleasant to stitch","Moderate":"Some confetti stitches — try Reduce confetti","Challenging":"Lots of confetti — lower Threads (max) or use Reduce confetti","High confetti":"Very tedious — strongly consider Reduce confetti"};
-                    return(
-                      <div style={{marginTop:10,paddingTop:10,borderTop:"0.5px solid var(--line)"}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
-                          <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",textTransform:"uppercase",fontWeight:600}}>Confetti stitches</span>
-                          <span style={{fontSize:11,fontWeight:700,color:t.color,padding:"1px 7px",borderRadius:10,background:t.color+"18"}}>{t.label}</span>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <div style={{flex:1,height:5,background:"var(--line)",borderRadius:3,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:Math.min(100,state.previewStats.confettiPct*4)+"%",background:t.color,borderRadius:3}}/>
-                          </div>
-                          <span style={{fontSize:12,fontWeight:700,color:t.color,flexShrink:0}}>{state.previewStats.confettiSingles.toLocaleString('en-GB')} ({(state.previewStats.confettiSinglesPct!=null?state.previewStats.confettiSinglesPct:state.previewStats.confettiPct).toFixed(1)}%)</span>
-                        </div>
-                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",marginTop:4}}>{tips[t.label]||""}{state.previewStats.confettiCleanSingles!=null&&state.previewStats.confettiCleanSingles<state.previewStats.confettiSingles?` · ${state.previewStats.confettiCleanSingles.toLocaleString('en-GB')} after Reduce confetti`:""}</div>
-                        <div style={{fontSize:"var(--text-xs)",color:"var(--text-tertiary)",marginTop:2}}>Confetti stitches are {window.CONFETTI_HELP.definition}.</div>
-                      </div>
-                    );
-                  })()}
-                  {state.exactPixelArt && state.previewStats.exactMappings && <details style={{maxHeight:240,overflowY:"auto"}}>
-                    <summary>Source colours mapped to threads ({state.previewStats.exactMappings.length})</summary>
-                    <p>Geometry is exact. Colours use the nearest solid thread in the selected brand or stash. Several source colours may share a thread.</p>
-                    <table><thead><tr><th>Source RGB</th><th>Thread RGB</th><th>Thread</th><th>Pixels</th></tr></thead><tbody>
-                      {state.previewStats.exactMappings.map(row => <tr key={row.source.join(',')}>
-                        <td style={{borderLeft:'12px solid rgb('+row.source.join(',')+')'}}>{row.source.join(', ')}</td>
-                        <td style={{borderLeft:'12px solid rgb('+row.thread.rgb.join(',')+')'}}>{row.thread.rgb.join(', ')}</td>
-                        <td>{row.thread.id} {row.thread.name}</td><td>{row.count}</td>
-                      </tr>)}
-                    </tbody></table>
-                  </details>}
-                  {state.previewColors&&state.previewColors.length>0&&<div style={{marginTop:12,paddingTop:12,borderTop:"0.5px solid var(--line)"}}>
-                    <div style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",textTransform:"uppercase",marginBottom:6}}>Colour Breakdown <span style={{fontWeight:400,textTransform:"none"}}>(hover to highlight)</span></div>
-                    <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:1}}>
-                      {state.previewColors.map(function(pcol){
-                        var sf=state.previewDims?(state.sW*state.sH)/(state.previewDims.pw*state.previewDims.ph):1;
-                        var n=findThreadInCatalog(state.convertBrand||'dmc',pcol.id);
-                        return(
-                          <div key={pcol.id}
-                            style={{display:"flex",alignItems:"center",gap:6,padding:"3px 4px",borderRadius:4,cursor:"default"}}
-                            onMouseEnter={function(){
-                              if(!state.previewMapped||!state.previewDims)return;
-                              var pw=state.previewDims.pw,ph=state.previewDims.ph;
-                              var hc=document.createElement('canvas');hc.width=pw;hc.height=ph;
-                              var hcx=hc.getContext('2d');
-                              var hi=hcx.createImageData(pw,ph);var hd=hi.data;
-                              var tid=pcol.id;
-                              for(var k=0;k<state.previewMapped.length;k++){var kidx=k*4;var km=state.previewMapped[k];
-                                if(km.id===tid){hd[kidx]=255;hd[kidx+1]=255;hd[kidx+2]=255;hd[kidx+3]=180;}
-                                else if(km.id!=='__skip__'&&km.id!=='__empty__'){hd[kidx]=0;hd[kidx+1]=0;hd[kidx+2]=0;hd[kidx+3]=130;}
-                              }
-                              hcx.putImageData(hi,0,0);state.setPreviewHighlight(hc.toDataURL());
-                            }}
-                            onMouseLeave={function(){state.setPreviewHighlight(null);}}>
-                            <div style={{width:12,height:12,borderRadius:2,flexShrink:0,background:'rgb('+pcol.rgb[0]+','+pcol.rgb[1]+','+pcol.rgb[2]+')',border:"0.5px solid var(--line)"}}/>
-                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-secondary)",flexShrink:0,minWidth:28}}>{pcol.id}</span>
-                            <span style={{fontSize:"var(--text-xs)",color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n?n.name:''}</span>
-                            <span style={{fontSize:"var(--text-xs)",fontWeight:600,color:"var(--text-primary)",flexShrink:0}}>{Math.round(pcol.count*sf).toLocaleString('en-GB')}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>}
-                </div>}
+                {state.previewUrl&&!state.previewLoading&&state.previewStats&&<PatternEstimates state={state}/>}
+
               </div>
             </div>}
           </div>

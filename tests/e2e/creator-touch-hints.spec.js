@@ -40,7 +40,7 @@ test.describe('Desktop keeps keyboard hints', function() {
     test('estimate labels pass AA contrast (' + theme + ')', async function({ page }) {
       await openConvert(page);
       await page.evaluate(function(t) { document.documentElement.setAttribute('data-theme', t); }, theme);
-      await expect(page.getByText('Preview Estimates')).toBeVisible({ timeout: 20000 });
+      await expect(page.getByText('Pattern estimates')).toBeVisible({ timeout: 20000 });
       const worst = await page.evaluate(function() {
         function parse(c) { const m = c.match(/[\d.]+/g).map(Number); return m; }
         function lum(rgb) {
@@ -54,11 +54,11 @@ test.describe('Desktop keeps keyboard hints', function() {
           }
           return [255, 255, 255];
         }
-        const card = Array.from(document.querySelectorAll('.card')).find(function(c) { return /Preview Estimates/.test(c.textContent); });
+        const card = Array.from(document.querySelectorAll('.card')).find(function(c) { return /Pattern estimates/.test(c.textContent); });
         // The estimate labels and values (the confetti tier keeps its own colours).
-        const grid = card.querySelector('div[style*="grid"]');
+        const grid = card.querySelector('dl.cv-stats');
         let min = 99;
-        grid.querySelectorAll('div').forEach(function(el) {
+        grid.querySelectorAll('dt, dd').forEach(function(el) {
           const own = Array.from(el.childNodes).some(function(n) { return n.nodeType === 3 && n.textContent.trim(); });
           if (!own) return;
           const fg = parse(getComputedStyle(el).color), bg = bgOf(el);

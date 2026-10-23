@@ -1,0 +1,44 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 26 tests using 2 workers
+
+(node:25786) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25787) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25787) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:25786) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › desktop › preview fills the phone and picture buttons fit (9.5s)
+  ✓   2 [creator-desktop] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells (13.0s)
+  ✓   3 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › desktop › thread selection persists across all views and toggles off (11.2s)
+  ✓   4 [creator-desktop] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both (12.5s)
+  ✓   5 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › desktop › one change overlay works in all views (14.8s)
+  ✓   6 [creator-desktop] › tests/e2e/convert-audit.spec.js:34:1 › cost fallback renders a pound sign when the currency formatter is unavailable (9.8s)
+  ✓   8 [creator-desktop] › tests/e2e/convert-audit.spec.js:41:1 › pinned change counts from a smaller page preview are labelled as estimates (8.2s)
+(node:26480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26480) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › desktop › pin survives settings changes, restores all settings and clears for another source (10.0s)
+  ✓  10 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › Pixel 5 › preview fills the phone and picture buttons fit (4.4s)
+  ✓   9 [creator-phone] › tests/e2e/convert-audit.spec.js:11:1 › a same-count stash replacement reports the actual changed cells (6.4s)
+  ✓  11 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › Pixel 5 › thread selection persists across all views and toggles off (3.4s)
+  ✓  12 [creator-phone] › tests/e2e/convert-audit.spec.js:21:1 › phone switching mounts only the selected picture, and resizing restores both (4.7s)
+  ✓  13 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › Pixel 5 › one change overlay works in all views (6.0s)
+  ✓  14 [creator-phone] › tests/e2e/convert-audit.spec.js:34:1 › cost fallback renders a pound sign when the currency formatter is unavailable (4.4s)
+  ✓  16 [creator-phone] › tests/e2e/convert-audit.spec.js:41:1 › pinned change counts from a smaller page preview are labelled as estimates (4.9s)
+  ✓  15 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (6.9s)
+  ✓  17 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › desktop › preview fills the phone and picture buttons fit (4.4s)
+  ✓  18 [creator-desktop] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (7.1s)
+  ✓  19 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › desktop › thread selection persists across all views and toggles off (3.7s)
+  ✓  20 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › desktop › one change overlay works in all views (3.9s)
+  ✓  21 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › desktop › pin survives settings changes, restores all settings and clears for another source (6.1s)
+  ✓  22 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:12:2 › Pixel 5 › preview fills the phone and picture buttons fit (2.9s)
+  ✓  23 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:19:2 › Pixel 5 › thread selection persists across all views and toggles off (2.7s)
+  ✓  24 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:24:2 › Pixel 5 › one change overlay works in all views (5.0s)
+  ✓  25 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:31:2 › Pixel 5 › pin survives settings changes, restores all settings and clears for another source (9.9s)
+  ✓  26 [creator-phone] › tests/e2e/convert-pin-and-overlay.spec.js:52:1 › a pin restores exact mode, brand and the raw thread limit hidden by a stash (8.2s)
+
+  26 passed (1.9m)

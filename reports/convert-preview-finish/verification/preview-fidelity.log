@@ -1,0 +1,22 @@
+npm warn Unknown project config "min-release-age". This will stop working in the next major version of npm.
+
+Running 12 tests using 1 worker
+
+(node:15743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:81:3 › Convert preview fidelity › skipped cells are the fabric colour, not the original picture (7.8s)
+  ✓   2 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:88:3 › Convert preview fidelity › the what-changed overlay never appears on its own, and covers only the preview half (10.5s)
+  ✓   3 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:106:3 › Convert preview fidelity › the comparison box keeps the picture's shape while a size change is pending (8.3s)
+  ✓   4 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:127:3 › Convert preview fidelity › a replacement or cropped source clears the old result before the next pass (5.1s)
+  ✓   5 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:149:3 › Convert preview fidelity › a conversion exception shows recovery and Retry preview produces a complete result (6.9s)
+  ✓   6 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:172:3 › Convert preview fidelity › a large chart is previewed at its own size and matches the generated chart (12.4s)
+  ✓   7 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:186:3 › Convert preview fidelity › the Detail and tidiness choice sets shading and tidying together (6.6s)
+  ✓   8 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:206:3 › Convert preview fidelity › adjusted preview agrees with generated cells (5.3s)
+  ✓   9 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:254:3 › Comparison overlay lifecycle › the slider draws only the shared cell overlay supplied by Convert (1.2s)
+  ✓  10 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:268:3 › Comparison overlay lifecycle › the slider does not calculate an image diff when its preview or source changes (1.2s)
+  ✓  11 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:276:3 › Comparison overlay lifecycle › heatmap and highlight stay on the preview side and disappear while updating (1.2s)
+  ✓  12 [creator-desktop] › tests/e2e/convert-preview-fidelity.spec.js:288:3 › Comparison overlay lifecycle › the magnifier divider follows the sampled pixels and retains fabric behind empty cells (1.3s)
+
+  12 passed (1.2m)

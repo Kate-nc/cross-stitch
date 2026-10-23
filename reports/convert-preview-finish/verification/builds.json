@@ -1,0 +1,27 @@
+[
+  {
+    "command": "npm run lint:terminology",
+    "exitCode": 0,
+    "output": "\n> app@1.0.0 lint:terminology\n> node scripts/lint-terminology.js\n\nTerminology lint passed \u2014 no forbidden terms found in 29 files.\nnpm warn Unknown project config \"min-release-age\". This will stop working in the next major version of npm.\n"
+  },
+  {
+    "command": "node scripts/check-generated-bundles.js",
+    "exitCode": 0,
+    "output": "Generated bundles are up to date\n"
+  },
+  {
+    "command": "node build-runtime-js.js --check",
+    "exitCode": 0,
+    "output": "compiled/ is up to date\n[BABEL] Note: The code generator has deoptimised the styling of /workspace/cross-stitch/tracker-app.js as it exceeds the max of 500KB.\n"
+  },
+  {
+    "command": "node build-sw.js --check",
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": "git diff --check",
+    "exitCode": 0,
+    "output": ""
+  }
+]
