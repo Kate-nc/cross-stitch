@@ -87,21 +87,19 @@ test.describe('Convert preview fidelity', function() {
 
   test('the what-changed overlay never appears on its own, and covers only the preview half', async function({ page }) {
     await openConvert(page);
-    await convertStep(page, 'size');
-    await page.getByLabel('Width in stitches').fill('70');
-    await page.keyboard.press('Tab');
+    await page.evaluate(() => window.__previewState.setBri(30));
     for (let i = 0; i < 22; i++) {            // 2.2 s: past the debounce and the full pass
-      await expect(page.getByTestId('cmp-diff')).toHaveCount(0);
+      await expect(page.getByTestId('cvp-changed')).toHaveCount(0);
       await page.waitForTimeout(100);
     }
     await expect(page.getByRole('status', { name: 'Updating preview' })).toHaveCount(0, { timeout: 20000 });
     const toggle = page.getByRole('button', { name: 'Show what changed' });
     await expect(toggle).toBeVisible({ timeout: 10000 });
     await toggle.click();
-    const diff = page.getByTestId('cmp-diff');
+    const diff = page.getByTestId('cvp-changed');
     await expect(diff).toHaveCount(1);
     await expect(diff).toHaveCSS('clip-path', /inset\(0px 0px 0px 50%\)/);
-    await page.getByRole('button', { name: 'Hide what changed' }).click();
+    await page.getByRole('button', { name: 'Show what changed' }).click();
     await expect(diff).toHaveCount(0);
   });
 
@@ -253,33 +251,26 @@ test.describe('Comparison overlay lifecycle', () => {
       ReactDOM.flushSync(() => __cmpRoot.render(React.createElement(ComparisonSlider, __cmpProps)));
     }, values);
   }
-  async function changedPixels(page) {
-    await page.locator('#comparison-test').getByRole('button', {name:'Show what changed'}).click();
-    return page.locator('#comparison-test [data-testid="cmp-diff"] img').evaluate(async img => {
-      await img.decode(); const c = document.createElement('canvas'); c.width=4; c.height=4;
-      const x=c.getContext('2d'); x.drawImage(img,0,0);
-      return Array.from(x.getImageData(0,0,4,4).data).filter((v,i)=>i%4===3&&v>0).length;
-    });
-  }
-  test('the diff compares completed results and ignores the intermediate quick pass', async ({page}) => {
+  test('the slider draws only the shared cell overlay supplied by Convert', async ({page}) => {
     await mount(page);
     await update(page, {colour:'blue', previewLoading:true});
     await expect(page.locator('#comparison-test').getByRole('button', {name:'Show what changed'})).toHaveCount(0);
-    await update(page, {colour:'red', previewLoading:false});
-    // Identical settled results need no comparison overlay at all.
-    await expect(page.locator('#comparison-test').getByRole('button', {name:'Show what changed'})).toHaveCount(0);
-    await update(page, {colour:'blue', previewLoading:true});
-    await update(page, {colour:'green', previewLoading:false});
-    expect(await changedPixels(page)).toBe(16);
+    await page.evaluate(() => {
+      __cmpProps.changedSrc=__pixelUrl('orange');
+      ReactDOM.flushSync(() => __cmpRoot.render(React.createElement(ComparisonSlider,__cmpProps)));
+    });
+    await expect(page.locator('#comparison-test').getByTestId('cvp-changed')).toHaveCount(0);
+    await update(page, {previewLoading:false});
+    await expect(page.locator('#comparison-test').getByTestId('cvp-changed')).toHaveCSS('clip-path', /50%/);
+    await update(page, {changedSrc:null});
+    await expect(page.locator('#comparison-test').getByTestId('cvp-changed')).toHaveCount(0);
   });
-  test('changes in transparency are visible and a replacement source resets the baseline', async ({page}) => {
+  test('the slider does not calculate an image diff when its preview or source changes', async ({page}) => {
     await mount(page);
     await update(page, {colour:'black'});
-    await expect(page.locator('#comparison-test').getByRole('button', {name:'Show what changed'})).toBeVisible();
     await update(page, {colour:null});
-    expect(await changedPixels(page)).toBe(16);
     await update(page, {colour:'green', originalColour:'yellow'});
-    await expect(page.locator('#comparison-test [data-testid="cmp-diff"]')).toHaveCount(0);
+    await expect(page.locator('#comparison-test').getByTestId('cvp-changed')).toHaveCount(0);
     await expect(page.locator('#comparison-test').getByRole('button', {name:/what changed/})).toHaveCount(0);
   });
   test('heatmap and highlight stay on the preview side and disappear while updating', async ({page}) => {

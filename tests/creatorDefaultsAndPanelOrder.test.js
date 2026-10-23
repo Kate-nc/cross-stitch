@@ -109,7 +109,7 @@ describe('Convert panel order', () => {
     expect(cp).toMatch(/else if \(tab === "size"\) content = \[sizeSec, fabricSec\];/);
     expect(cp).toMatch(/else if \(tab === "threads"\) content = \[brandSec, countSec, blendSec, rareSec, stashSec\];/);
     expect(cp).toMatch(/else if \(tab === "detail"\) content = \[stepsSec, shadingSec, tidySec, lookSec\];/);
-    expect(cp).toMatch(/else content = \[projectSec, estimates\];/);
+    expect(cp).toMatch(/else content = \[projectSec\];/);
   });
 
   test('section headings', () => {

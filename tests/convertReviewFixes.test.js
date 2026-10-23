@@ -206,6 +206,6 @@ describe('the change line compares like with like', () => {
   });
   test('cells are compared by thread number and colour, so DMC 310 and Anchor 310 differ', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'creator', 'usePreview.js'), 'utf8');
-    expect(src).toMatch(/settledIds\[si\] = sm\.id \+ '\|' \+ \(sm\.rgb \? sm\.rgb\.join\(','\) : ''\);/);
+    expect(src).toContain("sm.id + '|' + (sm.id !== '__skip__' && sm.id !== '__empty__' && sm.rgb ? sm.rgb.join(',') : '')");
   });
 });

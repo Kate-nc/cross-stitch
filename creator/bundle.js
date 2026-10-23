@@ -1005,7 +1005,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   if (stitchCleanup && stitchCleanup.enabled && typeof mergeEdgeBlendColours === "function") {
     mergeEdgeBlendColours(mapped, width, height, {
       // Coverage is already decided. Colour cleanup must not create new holes.
-      bgLab: null,
+      preserveCoverage: true,
+      bgLab: (!dith || dithAlgo === 'off') && opts.skipBg ? rgbToLab(opts.bgCol[0], opts.bgCol[1], opts.bgCol[2]) : null,
       // Undithered, an edge shade is also judged by the pixels it was drawn from.
       // (Dithered stitches all lie between their neighbours' colours, so not then.)
       source: (!dith || dithAlgo === "off") ? raw : null,
@@ -7700,6 +7701,9 @@ window.useCreatorState = function useCreatorState() {
   // What the last settings change did to the preview (usePreview.js
   // describePreviewChange): which settings, and the counts before and after.
   var _prevChange = useState(null); var previewChange = _prevChange[0], setPreviewChange = _prevChange[1];
+  var _changed = useState(null), previewChanged = _changed[0], setPreviewChanged = _changed[1];
+  var _snap = useState(null), previewSnapshot = _snap[0], setPreviewSnapshot = _snap[1];
+  var _pin = useState(null), pinnedPreview = _pin[0], setPinnedPreview = _pin[1];
   var previewTimerRef = useRef(null);
   var wandClearRef   = useRef(null);   // set after wand hook is called
   var lassoCancelRef = useRef(null);   // set after lasso hook is called
@@ -9198,6 +9202,46 @@ window.useCreatorState = function useCreatorState() {
     stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
   ]);
 
+  // Capture editable values, including those masked by stash constraints.
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
+  function pinPreview() {
+    if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
+  }
+  function applyPinnedSettings() {
+    if (!pinnedPreview) return;
+    var values = pinnedPreview.restore;
+    setSW(values.sW);
+    setSH(values.sH);
+    setBri(values.bri);
+    setCon(values.con);
+    setSat(values.sat);
+    setSmooth(values.smooth);
+    setSmoothType(values.smoothType);
+    setPreSharpen(values.preSharpen);
+    setPreSharpenAmount(values.preSharpenAmount);
+    setMaxC(values.maxC);
+    setDithMode(values.dithMode);
+    setAllowBlends(values.allowBlends);
+    setMinSt(values.minSt);
+    setSkipBg(values.skipBg);
+    setBgCol(values.bgCol);
+    setBgTh(values.bgTh);
+    setStitchCleanup(values.stitchCleanup);
+    setOrphans(values.orphans);
+    setStashConstrained(values.stashConstrained);
+    setGlobalStash(values.globalStash);
+    setConvertBrand(values.convertBrand);
+    setVariationSeed(values.variationSeed);
+    setVariationSubset(values.variationSubset);
+    setFabricCt(values.fabricCt);
+    setExactPixelArt(values.exactPixelArt);
+    setDisambig(values.disambig);
+    setDisambigLevel(values.disambigLevel);
+    setFabricColour(values.fabricColour);
+    setArLock(values.arLock);
+    setPresetApplied(values.presetApplied);
+  }
+
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
@@ -9280,6 +9324,8 @@ window.useCreatorState = function useCreatorState() {
     previewError, setPreviewError,
     previewTidied, setPreviewTidied, showTidied, setShowTidied,
     previewChange, setPreviewChange,
+    previewChanged, setPreviewChanged, previewSnapshot, setPreviewSnapshot,
+    pinnedPreview, setPinnedPreview, pinPreview, applyPinnedSettings, previewRestoreSettings,
     previewTimerRef, projectName, setProjectName,
     projectDesigner, setProjectDesigner,
     projectDescription, setProjectDescription,
@@ -14785,6 +14831,19 @@ function describePreviewChange(prev, next) {
 }
 window.describePreviewChange = describePreviewChange;
 
+// Identical geometry only: a size change has no cell-for-cell correspondence.
+function previewChangedPixels(prev, next) {
+  if (!prev || !next || prev.w !== next.w || prev.h !== next.h || prev.ids.length !== next.ids.length) return null;
+  var pixels = new Uint8ClampedArray(next.ids.length * 4);
+  for (var i = 0; i < next.ids.length; i++) {
+    if (prev.ids[i] !== next.ids[i]) {
+      var k = i * 4; pixels[k] = 255; pixels[k + 1] = 80; pixels[k + 3] = 200;
+    }
+  }
+  return pixels;
+}
+window.previewChangedPixels = previewChangedPixels;
+
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
@@ -14817,7 +14876,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Changed', 'Snapshot'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -15046,7 +15105,7 @@ window.usePreview = function usePreview(state) {
         var settledIds = new Array(mapped.length);
         for (var si = 0; si < mapped.length; si++) {
           var sm = mapped[si];
-          settledIds[si] = sm.id + '|' + (sm.rgb ? sm.rgb.join(',') : '');
+          settledIds[si] = sm.id + '|' + (sm.id !== '__skip__' && sm.id !== '__empty__' && sm.rgb ? sm.rgb.join(',') : '');
         }
         var settled = {
           settings: settings,
@@ -15058,6 +15117,22 @@ window.usePreview = function usePreview(state) {
             confettiPct: stitchable > 0 ? confettiFinal.singles / stitchable * 100 : 0
           }
         };
+        // These arrays and settings belong to this completed job; later jobs
+        // allocate new ones. A pin therefore keeps its exact picture and values.
+        settled.mapped = mapped;
+        settled.restore = JSON.parse(JSON.stringify(state.previewRestoreSettings || settings));
+        settled.signature = typeof conversionSignature === 'function' ? conversionSignature(settings) : JSON.stringify(settings);
+        var styleName = { detail: 'More detail', balanced: 'Balanced', tidier: 'Tidier', easiest: 'Easiest to stitch' }[state.stitchStyle] || 'Custom';
+        settled.label = styleName + ', ' + threadsUsed + ' threads, ' + sW + ' × ' + sH + ', ' + (settings.convertBrand || 'dmc').toUpperCase();
+        if (state.setPreviewSnapshot) state.setPreviewSnapshot(settled);
+        if (state.setPreviewChanged) {
+          var changedPixels = previewChangedPixels(settledRef.current, settled);
+          if (changedPixels && changedPixels.some(function(v) { return v !== 0; })) {
+            var cc = document.createElement('canvas'); cc.width = pw; cc.height = ph;
+            var cx = cc.getContext('2d'), ci = cx.createImageData(pw, ph); ci.data.set(changedPixels);
+            cx.putImageData(ci, 0, 0); state.setPreviewChanged(cc.toDataURL());
+          } else state.setPreviewChanged(null);
+        }
         if (state.setPreviewChange) {
           var change = describePreviewChange(settledRef.current, settled);
           if (change) state.setPreviewChange(change);
@@ -15123,7 +15198,7 @@ window.usePreview = function usePreview(state) {
       }
     } catch (err) { failPreview(); }
   }, [
-    state.img, state.conversionSettings, state.globalStash,
+    state.img, state.conversionSettings, state.globalStash, JSON.stringify(state.previewRestoreSettings),
   ]);
 
   React.useEffect(function() {
@@ -15142,6 +15217,7 @@ window.usePreview = function usePreview(state) {
       rawCacheRef.current = null;
       settledRef.current = null;
       if (state.setPreviewChange) state.setPreviewChange(null);
+      if (state.setPinnedPreview) state.setPinnedPreview(null);
       clearPreview();
     }
     if (state.setPreviewError) state.setPreviewError(null);
@@ -21144,7 +21220,7 @@ window.CreatorSidebar = function CreatorSidebar() {
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
     { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
-    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name and notes, and what it will take to stitch." }
+    { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name, designer and notes." }
   ];
   var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
   window.CONVERT_TABS = CONVERT_TABS;
@@ -21636,23 +21712,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         placeholder: "Source, copyright, stitching notes…",
         onChange: function (e) { if (typeof app.setProjectDescription === "function") app.setProjectDescription(e.target.value.slice(0, 500)); } }))
     );
-    var fabricCt = ctx.fabricCt || 14;
-    var estimates = sec("estimates", "From the preview", null,
-      h("dl", { className: "cv-stats" },
-        h("dt", null, "Size"), h("dd", null, ctx.sW + " × " + ctx.sH + " stitches"),
-        h("dt", null, "Finished"), h("dd", null, window.finishedSizeText(ctx.sW, ctx.sH, fabricCt) + " (" + window.fabricShortLabel(fabricCt) + ")"),
-        h("dt", null, "Threads"), h("dd", null, used != null ? used + " (" + ps.uniqueColors + " symbols)" : "—"),
-        h("dt", null, "Stitches"), h("dd", null, ps ? ps.stitchable.toLocaleString() : "—"),
-        h("dt", null, "Skeins"), h("dd", null, ps && ps.estSkeins ? "≈ " + ps.estSkeins : "—")),
-      hint("Updated as you change the settings; Generate makes the chart.")
-    );
-
     var content;
     if (tab === "picture") content = [pictureType, background, adjust];
     else if (tab === "size") content = [sizeSec, fabricSec];
     else if (tab === "threads") content = [brandSec, countSec, blendSec, rareSec, stashSec];
     else if (tab === "detail") content = [stepsSec, shadingSec, tidySec, lookSec];
-    else content = [projectSec, estimates];
+    else content = [projectSec];
 
     // ── Tab strip (the Edit panel's) ────────────────────────────────────────
     var tabBar = h("div", { role: "tablist", "aria-label": "Convert steps", className: "cv-tabs" },

@@ -76,6 +76,19 @@ function describePreviewChange(prev, next) {
 }
 window.describePreviewChange = describePreviewChange;
 
+// Identical geometry only: a size change has no cell-for-cell correspondence.
+function previewChangedPixels(prev, next) {
+  if (!prev || !next || prev.w !== next.w || prev.h !== next.h || prev.ids.length !== next.ids.length) return null;
+  var pixels = new Uint8ClampedArray(next.ids.length * 4);
+  for (var i = 0; i < next.ids.length; i++) {
+    if (prev.ids[i] !== next.ids[i]) {
+      var k = i * 4; pixels[k] = 255; pixels[k + 1] = 80; pixels[k + 3] = 200;
+    }
+  }
+  return pixels;
+}
+window.previewChangedPixels = previewChangedPixels;
+
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
@@ -108,7 +121,7 @@ window.usePreview = function usePreview(state) {
   }
 
   function clearDetails() {
-    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied'].forEach(function(key) {
+    ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight', 'Tidied', 'Changed', 'Snapshot'].forEach(function(key) {
       if (state['setPreview' + key]) state['setPreview' + key](null);
     });
   }
@@ -337,7 +350,7 @@ window.usePreview = function usePreview(state) {
         var settledIds = new Array(mapped.length);
         for (var si = 0; si < mapped.length; si++) {
           var sm = mapped[si];
-          settledIds[si] = sm.id + '|' + (sm.rgb ? sm.rgb.join(',') : '');
+          settledIds[si] = sm.id + '|' + (sm.id !== '__skip__' && sm.id !== '__empty__' && sm.rgb ? sm.rgb.join(',') : '');
         }
         var settled = {
           settings: settings,
@@ -349,6 +362,22 @@ window.usePreview = function usePreview(state) {
             confettiPct: stitchable > 0 ? confettiFinal.singles / stitchable * 100 : 0
           }
         };
+        // These arrays and settings belong to this completed job; later jobs
+        // allocate new ones. A pin therefore keeps its exact picture and values.
+        settled.mapped = mapped;
+        settled.restore = JSON.parse(JSON.stringify(state.previewRestoreSettings || settings));
+        settled.signature = typeof conversionSignature === 'function' ? conversionSignature(settings) : JSON.stringify(settings);
+        var styleName = { detail: 'More detail', balanced: 'Balanced', tidier: 'Tidier', easiest: 'Easiest to stitch' }[state.stitchStyle] || 'Custom';
+        settled.label = styleName + ', ' + threadsUsed + ' threads, ' + sW + ' × ' + sH + ', ' + (settings.convertBrand || 'dmc').toUpperCase();
+        if (state.setPreviewSnapshot) state.setPreviewSnapshot(settled);
+        if (state.setPreviewChanged) {
+          var changedPixels = previewChangedPixels(settledRef.current, settled);
+          if (changedPixels && changedPixels.some(function(v) { return v !== 0; })) {
+            var cc = document.createElement('canvas'); cc.width = pw; cc.height = ph;
+            var cx = cc.getContext('2d'), ci = cx.createImageData(pw, ph); ci.data.set(changedPixels);
+            cx.putImageData(ci, 0, 0); state.setPreviewChanged(cc.toDataURL());
+          } else state.setPreviewChanged(null);
+        }
         if (state.setPreviewChange) {
           var change = describePreviewChange(settledRef.current, settled);
           if (change) state.setPreviewChange(change);
@@ -414,7 +443,7 @@ window.usePreview = function usePreview(state) {
       }
     } catch (err) { failPreview(); }
   }, [
-    state.img, state.conversionSettings, state.globalStash,
+    state.img, state.conversionSettings, state.globalStash, JSON.stringify(state.previewRestoreSettings),
   ]);
 
   React.useEffect(function() {
@@ -433,6 +462,7 @@ window.usePreview = function usePreview(state) {
       rawCacheRef.current = null;
       settledRef.current = null;
       if (state.setPreviewChange) state.setPreviewChange(null);
+      if (state.setPinnedPreview) state.setPinnedPreview(null);
       clearPreview();
     }
     if (state.setPreviewError) state.setPreviewError(null);

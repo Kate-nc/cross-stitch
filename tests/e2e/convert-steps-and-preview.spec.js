@@ -131,7 +131,16 @@ test.describe('Convert steps and preview on desktop', function() {
   test('Show tidied stitches shows in every preview view', async function({ page }) {
     await openConvertWithLogo(page);
     await settled(page);
-    await page.evaluate(() => { window.__cs.setStitchCleanup({ enabled: true, protectDetails: false }); window.__cs.setOrphans(3); });
+    // The logo no longer needs this cleanup after edge folding. Use a
+    // deterministic field of similar grey shades that actually gets tidied.
+    await page.evaluate(async () => {
+      const canvas=document.createElement('canvas');canvas.width=40;canvas.height=40;
+      const ctx=canvas.getContext('2d');
+      for(let y=0;y<40;y++)for(let x=0;x<40;x++){const v=100+(x*17+y*31+x*y*7)%61;ctx.fillStyle='rgb('+v+','+v+','+v+')';ctx.fillRect(x,y,1,1);}
+      const image=new Image();image.src=canvas.toDataURL();await image.decode();
+      const state=window.__cs;state.setImg(image);state.setSW(40);state.setSH(40);state.setSkipBg(false);state.setDithMode('off');
+      state.setStitchCleanup({enabled:true,strength:'balanced',protectDetails:false});state.setOrphans(3);
+    });
     await settled(page);
     await expect.poll(() => page.evaluate(() => !!window.__cs.previewTidied), { timeout: 20000 }).toBe(true);
     await page.getByRole('button', { name: 'Show tidied stitches' }).click();

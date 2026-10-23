@@ -146,7 +146,7 @@ describe('each setting once, each with a named hint', () => {
     detail: { headings: ['Detail and tidiness', 'Shading', 'Tidying', 'Look-alike colours'],
       hints: ['About Detail and tidiness', 'About Shading', 'About Stitch Cleanup', 'About Reduce confetti', 'About Protect fine details',
         'About Keep look-alike colours apart', 'About How strict'] },
-    project: { headings: ['Project info', 'From the preview'] }
+    project: { headings: ['Project info'] }
   };
   test.each(Object.keys(byTab))('the %s step', (tab) => {
     app.convertTab = tab; draw();

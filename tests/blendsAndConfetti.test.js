@@ -172,7 +172,7 @@ describe('Reduce confetti is the one name', () => {
 
   test('the Convert preview shows singles with their own percentage', () => {
     const main = read('creator-main.js');
-    expect(has(main, 'confettiSinglesPct')).toBe(true);
+    expect(has(main, 'ps.confettiFinalSingles / ps.stitchable * 100')).toBe(true);
     expect(has(read('creator/usePreview.js'), 'confettiSinglesPct: confettiRaw.singlesPct')).toBe(true);
   });
 

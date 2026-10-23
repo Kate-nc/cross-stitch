@@ -8,12 +8,12 @@ const { createCanvas, loadImage } = require('canvas');
 
 const REPO = process.cwd();
 
-function runtime() {
+function runtime(readSource) {
   const messages = [];
   const c = { console, postMessage: (m) => messages.push(m) };
   c.window = c; c.self = c; c.globalThis = c;
   vm.createContext(c);
-  const load = (f) => vm.runInContext(fs.readFileSync(path.join(REPO, f), 'utf8'), c, { filename: f });
+  const load = (f) => vm.runInContext((readSource ? readSource(f) : fs.readFileSync(path.join(REPO, f), 'utf8')), c, { filename: f });
   c.importScripts = (...files) => files.forEach(load);
   load('generate-worker.js');
   c.messages = messages;
@@ -104,11 +104,11 @@ function edgeMask(refLab, w, h) {
 }
 
 // ── run the worker pipeline ─────────────────────────────────────────────────
-function runWorker(rgba, w, h, settings) {
-  W.messages.length = 0;
+function runWorker(rgba, w, h, settings, worker = W) {
+  worker.messages.length = 0;
   const buf = new Uint8ClampedArray(rgba).buffer;
-  W.self.onmessage({ data: { type: 'generate', reqId: 1, pixels: buf, width: w, height: h, settings } });
-  const res = W.messages.find((m) => m.type === 'result' || m.type === 'error');
+  worker.self.onmessage({ data: { type: 'generate', reqId: 1, pixels: buf, width: w, height: h, settings } });
+  const res = worker.messages.find((m) => m.type === 'result' || m.type === 'error');
   if (!res || res.type === 'error') throw new Error(res ? res.message : 'no result');
   return res;
 }
@@ -148,4 +148,4 @@ async function prepare(file, longSide) {
   return { file: path.basename(file), w, h, gamma, linear, ref: { lab, blLab, edge: edgeMask(lab, w, h) } };
 }
 
-module.exports = { W, prepare, runWorker, score, areaDownscale, labImage, dE00, LIN, linToLab, blurLin };
+module.exports = { W, runtime, prepare, runWorker, score, areaDownscale, labImage, dE00, LIN, linToLab, blurLin };

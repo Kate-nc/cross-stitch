@@ -1,0 +1,542 @@
+[
+  {
+    "file": "astronaut.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.446892830713426,
+      "viewDE": 3.2765587870205004,
+      "edgeDE": 9.028857015330189,
+      "singles": 6.49,
+      "small": 13.11,
+      "comps": 12.34,
+      "changes": 32.17171717171718,
+      "symbols": 44,
+      "threads": 24
+    },
+    "after": {
+      "cellDE": 5.446892830713426,
+      "viewDE": 3.2765587870205004,
+      "edgeDE": 9.028857015330189,
+      "singles": 6.49,
+      "small": 13.11,
+      "comps": 12.34,
+      "changes": 32.17171717171718,
+      "symbols": 44,
+      "threads": 24
+    }
+  },
+  {
+    "file": "astronaut.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 6.540816112722047,
+      "viewDE": 4.019988411669961,
+      "edgeDE": 10.307774800243445,
+      "singles": 3.46,
+      "small": 7.000000000000001,
+      "comps": 7.23,
+      "changes": 25.217171717171716,
+      "symbols": 24,
+      "threads": 24
+    },
+    "after": {
+      "cellDE": 6.540816112722047,
+      "viewDE": 4.019988411669961,
+      "edgeDE": 10.307774800243445,
+      "singles": 3.46,
+      "small": 7.000000000000001,
+      "comps": 7.23,
+      "changes": 25.217171717171716,
+      "symbols": 24,
+      "threads": 24
+    }
+  },
+  {
+    "file": "chelsea.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.174924307745801,
+      "viewDE": 3.1346312784492008,
+      "edgeDE": 5.732649577660893,
+      "singles": 1.537313432835821,
+      "small": 4.388059701492537,
+      "comps": 5.716417910447761,
+      "changes": 28.020856948537748,
+      "symbols": 25,
+      "threads": 13
+    },
+    "after": {
+      "cellDE": 5.174924307745801,
+      "viewDE": 3.1346312784492008,
+      "edgeDE": 5.732649577660893,
+      "singles": 1.537313432835821,
+      "small": 4.388059701492537,
+      "comps": 5.716417910447761,
+      "changes": 28.020856948537748,
+      "symbols": 25,
+      "threads": 13
+    }
+  },
+  {
+    "file": "chelsea.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 5.495672268656174,
+      "viewDE": 3.4480783664094172,
+      "edgeDE": 7.66329931359218,
+      "singles": 0.9253731343283581,
+      "small": 3.4776119402985075,
+      "comps": 4.343283582089552,
+      "changes": 25.330612861784928,
+      "symbols": 13,
+      "threads": 13
+    },
+    "after": {
+      "cellDE": 5.495672268656174,
+      "viewDE": 3.4480783664094172,
+      "edgeDE": 7.66329931359218,
+      "singles": 0.9253731343283581,
+      "small": 3.4776119402985075,
+      "comps": 4.343283582089552,
+      "changes": 25.330612861784928,
+      "symbols": 13,
+      "threads": 13
+    }
+  },
+  {
+    "file": "coffee.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.025035889760122,
+      "viewDE": 3.1853630428103648,
+      "edgeDE": 6.793063225234724,
+      "singles": 4.567164179104478,
+      "small": 8.17910447761194,
+      "comps": 8.328358208955224,
+      "changes": 28.255119776316782,
+      "symbols": 21,
+      "threads": 11
+    },
+    "after": {
+      "cellDE": 5.025035889760122,
+      "viewDE": 3.1853630428103648,
+      "edgeDE": 6.793063225234724,
+      "singles": 4.567164179104478,
+      "small": 8.17910447761194,
+      "comps": 8.328358208955224,
+      "changes": 28.255119776316782,
+      "symbols": 21,
+      "threads": 11
+    }
+  },
+  {
+    "file": "coffee.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 5.243781801898922,
+      "viewDE": 3.4498630559903143,
+      "edgeDE": 6.7664650704019955,
+      "singles": 4.298507462686567,
+      "small": 6.8955223880597005,
+      "comps": 7.417910447761194,
+      "changes": 26.90244086752815,
+      "symbols": 13,
+      "threads": 13
+    },
+    "after": {
+      "cellDE": 5.243781801898922,
+      "viewDE": 3.4498630559903143,
+      "edgeDE": 6.7664650704019955,
+      "singles": 4.298507462686567,
+      "small": 6.8955223880597005,
+      "comps": 7.417910447761194,
+      "changes": 26.90244086752815,
+      "symbols": 13,
+      "threads": 13
+    }
+  },
+  {
+    "file": "kodim03.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.047467145389592,
+      "viewDE": 3.745418237528278,
+      "edgeDE": 6.336591892792047,
+      "singles": 2.4626865671641793,
+      "small": 4.835820895522388,
+      "comps": 4.955223880597015,
+      "changes": 20.297740497241744,
+      "symbols": 33,
+      "threads": 23
+    },
+    "after": {
+      "cellDE": 5.047467145389592,
+      "viewDE": 3.745418237528278,
+      "edgeDE": 6.336591892792047,
+      "singles": 2.4626865671641793,
+      "small": 4.835820895522388,
+      "comps": 4.955223880597015,
+      "changes": 20.297740497241744,
+      "symbols": 33,
+      "threads": 23
+    }
+  },
+  {
+    "file": "kodim03.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 5.234043853601492,
+      "viewDE": 3.8649059804623525,
+      "edgeDE": 6.1835855501496395,
+      "singles": 2.283582089552239,
+      "small": 3.746268656716418,
+      "comps": 4.2388059701492535,
+      "changes": 19.285120532003326,
+      "symbols": 24,
+      "threads": 24
+    },
+    "after": {
+      "cellDE": 5.234043853601492,
+      "viewDE": 3.8649059804623525,
+      "edgeDE": 6.1835855501496395,
+      "singles": 2.283582089552239,
+      "small": 3.746268656716418,
+      "comps": 4.2388059701492535,
+      "changes": 19.285120532003326,
+      "symbols": 24,
+      "threads": 24
+    }
+  },
+  {
+    "file": "kodim05.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 6.285576522983636,
+      "viewDE": 3.2506036883996656,
+      "edgeDE": 7.214239480113067,
+      "singles": 10.791044776119403,
+      "small": 22.074626865671643,
+      "comps": 21.52238805970149,
+      "changes": 48.31104058036726,
+      "symbols": 36,
+      "threads": 21
+    },
+    "after": {
+      "cellDE": 6.285576522983636,
+      "viewDE": 3.2506036883996656,
+      "edgeDE": 7.214239480113067,
+      "singles": 10.791044776119403,
+      "small": 22.074626865671643,
+      "comps": 21.52238805970149,
+      "changes": 48.31104058036726,
+      "symbols": 36,
+      "threads": 21
+    }
+  },
+  {
+    "file": "kodim05.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 7.11611566763703,
+      "viewDE": 4.16709608996949,
+      "edgeDE": 8.328037739646936,
+      "singles": 6.537313432835822,
+      "small": 14.1044776119403,
+      "comps": 14.80597014925373,
+      "changes": 41.80457946043981,
+      "symbols": 21,
+      "threads": 21
+    },
+    "after": {
+      "cellDE": 7.11611566763703,
+      "viewDE": 4.16709608996949,
+      "edgeDE": 8.328037739646936,
+      "singles": 6.537313432835822,
+      "small": 14.1044776119403,
+      "comps": 14.80597014925373,
+      "changes": 41.80457946043981,
+      "symbols": 21,
+      "threads": 21
+    }
+  },
+  {
+    "file": "kodim07.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.544223570022984,
+      "viewDE": 3.454473471408688,
+      "edgeDE": 6.11548248762269,
+      "singles": 5.402985074626866,
+      "small": 12.492537313432836,
+      "comps": 11.567164179104477,
+      "changes": 31.633038615582254,
+      "symbols": 30,
+      "threads": 16
+    },
+    "after": {
+      "cellDE": 5.544223570022984,
+      "viewDE": 3.454473471408688,
+      "edgeDE": 6.11548248762269,
+      "singles": 5.402985074626866,
+      "small": 12.492537313432836,
+      "comps": 11.567164179104477,
+      "changes": 31.633038615582254,
+      "symbols": 30,
+      "threads": 16
+    }
+  },
+  {
+    "file": "kodim07.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 6.583805451314155,
+      "viewDE": 4.685257994276193,
+      "edgeDE": 8.43228982881229,
+      "singles": 1.9253731343283582,
+      "small": 4.91044776119403,
+      "comps": 5.223880597014925,
+      "changes": 22.421219678077534,
+      "symbols": 18,
+      "threads": 18
+    },
+    "after": {
+      "cellDE": 6.583805451314155,
+      "viewDE": 4.685257994276193,
+      "edgeDE": 8.43228982881229,
+      "singles": 1.9253731343283582,
+      "small": 4.91044776119403,
+      "comps": 5.223880597014925,
+      "changes": 22.421219678077534,
+      "symbols": 18,
+      "threads": 18
+    }
+  },
+  {
+    "file": "kodim15.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 6.023205250026475,
+      "viewDE": 4.1292754010601,
+      "edgeDE": 8.573128242330919,
+      "singles": 3.7164179104477615,
+      "small": 7.955223880597015,
+      "comps": 7.835820895522389,
+      "changes": 26.033401345122044,
+      "symbols": 40,
+      "threads": 23
+    },
+    "after": {
+      "cellDE": 6.023205250026475,
+      "viewDE": 4.1292754010601,
+      "edgeDE": 8.573128242330919,
+      "singles": 3.7164179104477615,
+      "small": 7.955223880597015,
+      "comps": 7.835820895522389,
+      "changes": 26.033401345122044,
+      "symbols": 40,
+      "threads": 23
+    }
+  },
+  {
+    "file": "kodim15.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 7.010036055703444,
+      "viewDE": 5.123825888993267,
+      "edgeDE": 10.000051812516979,
+      "singles": 2,
+      "small": 4.462686567164179,
+      "comps": 4.597014925373134,
+      "changes": 20.690697498677547,
+      "symbols": 22,
+      "threads": 22
+    },
+    "after": {
+      "cellDE": 7.010036055703444,
+      "viewDE": 5.123825888993267,
+      "edgeDE": 10.000051812516979,
+      "singles": 2,
+      "small": 4.462686567164179,
+      "comps": 4.597014925373134,
+      "changes": 20.690697498677547,
+      "symbols": 22,
+      "threads": 22
+    }
+  },
+  {
+    "file": "kodim20.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.084990586354539,
+      "viewDE": 3.6674426342092112,
+      "edgeDE": 9.612286374789901,
+      "singles": 1.7014925373134329,
+      "small": 4.582089552238806,
+      "comps": 4.686567164179104,
+      "changes": 18.763696818559662,
+      "symbols": 22,
+      "threads": 13
+    },
+    "after": {
+      "cellDE": 5.084990586354539,
+      "viewDE": 3.6674426342092112,
+      "edgeDE": 9.612286374789901,
+      "singles": 1.7014925373134329,
+      "small": 4.582089552238806,
+      "comps": 4.686567164179104,
+      "changes": 18.763696818559662,
+      "symbols": 22,
+      "threads": 13
+    }
+  },
+  {
+    "file": "kodim20.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 5.2963744497808305,
+      "viewDE": 3.703949081523972,
+      "edgeDE": 10.569279349439041,
+      "singles": 1,
+      "small": 2.0597014925373136,
+      "comps": 2.8507462686567164,
+      "changes": 16.050782135570167,
+      "symbols": 18,
+      "threads": 18
+    },
+    "after": {
+      "cellDE": 5.2963744497808305,
+      "viewDE": 3.703949081523972,
+      "edgeDE": 10.569279349439041,
+      "singles": 1,
+      "small": 2.0597014925373136,
+      "comps": 2.8507462686567164,
+      "changes": 16.050782135570167,
+      "symbols": 18,
+      "threads": 18
+    }
+  },
+  {
+    "file": "kodim23.png",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.348274002566588,
+      "viewDE": 3.5283098554877266,
+      "edgeDE": 7.093629361784494,
+      "singles": 4.641791044776119,
+      "small": 9.55223880597015,
+      "comps": 9.298507462686567,
+      "changes": 27.78659412075871,
+      "symbols": 48,
+      "threads": 24
+    },
+    "after": {
+      "cellDE": 5.348274002566588,
+      "viewDE": 3.5283098554877266,
+      "edgeDE": 7.093629361784494,
+      "singles": 4.641791044776119,
+      "small": 9.55223880597015,
+      "comps": 9.298507462686567,
+      "changes": 27.78659412075871,
+      "symbols": 48,
+      "threads": 24
+    }
+  },
+  {
+    "file": "kodim23.png",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 5.422832241799731,
+      "viewDE": 3.660339530797084,
+      "edgeDE": 7.354760823760246,
+      "singles": 3.537313432835821,
+      "small": 6.940298507462686,
+      "comps": 7.08955223880597,
+      "changes": 25.0132245144714,
+      "symbols": 24,
+      "threads": 24
+    },
+    "after": {
+      "cellDE": 5.422832241799731,
+      "viewDE": 3.660339530797084,
+      "edgeDE": 7.354760823760246,
+      "singles": 3.537313432835821,
+      "small": 6.940298507462686,
+      "comps": 7.08955223880597,
+      "changes": 25.0132245144714,
+      "symbols": 24,
+      "threads": 24
+    }
+  },
+  {
+    "file": "rocket.jpg",
+    "shading": true,
+    "identical": true,
+    "before": {
+      "cellDE": 5.293413408330547,
+      "viewDE": 4.016864942904792,
+      "edgeDE": 6.8609218903229,
+      "singles": 1.2537313432835822,
+      "small": 3.582089552238806,
+      "comps": 4.029850746268656,
+      "changes": 18.93750472304088,
+      "symbols": 16,
+      "threads": 12
+    },
+    "after": {
+      "cellDE": 5.293413408330547,
+      "viewDE": 4.016864942904792,
+      "edgeDE": 6.8609218903229,
+      "singles": 1.2537313432835822,
+      "small": 3.582089552238806,
+      "comps": 4.029850746268656,
+      "changes": 18.93750472304088,
+      "symbols": 16,
+      "threads": 12
+    }
+  },
+  {
+    "file": "rocket.jpg",
+    "shading": false,
+    "identical": true,
+    "before": {
+      "cellDE": 6.0866915875685015,
+      "viewDE": 4.9516161749515515,
+      "edgeDE": 8.461081330832313,
+      "singles": 0.7611940298507462,
+      "small": 2.626865671641791,
+      "comps": 2.582089552238806,
+      "changes": 13.625028338245295,
+      "symbols": 11,
+      "threads": 11
+    },
+    "after": {
+      "cellDE": 6.0866915875685015,
+      "viewDE": 4.9516161749515515,
+      "edgeDE": 8.461081330832313,
+      "singles": 0.7611940298507462,
+      "small": 2.626865671641791,
+      "comps": 2.582089552238806,
+      "changes": 13.625028338245295,
+      "symbols": 11,
+      "threads": 11
+    }
+  }
+]
