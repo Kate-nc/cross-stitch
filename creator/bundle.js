@@ -935,7 +935,10 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
- * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap, preCleanupIds, disambigData }} or null
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, confettiFinal, saliencyMap, preCleanupIds, disambigData }} or null
+ *   confettiRaw/confettiClean are measured before and after Reduce confetti
+ *   (for cleanup comparisons); confettiFinal is the finished chart's, after
+ *   look-alike separation and the thread limit, which can change stitches.
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
@@ -1043,8 +1046,37 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
+  // Threads (max) is a hard limit: a chart over it keeps its most used
+  // threads and redraws the rest in the closest of them. Here, not only in
+  // runGenerationPipeline, so the preview on the page is the chart Generate
+  // makes (generate-worker.js does the same).
+  var limited = enforceMaxColours(mapped, p, raw, maxC);
+
+  // The finished chart's confetti. Measured again only when a stage after
+  // Reduce confetti changed stitches.
+  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+    ? analyzeConfetti(mapped, width, height)
+    : (confettiClean || confettiRaw);
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
 };
+
+// Keep at most maxC threads (a blend counts its two). Mutates mapped; true
+// when any stitch changed.
+function enforceMaxColours(mapped, p, raw, maxC) {
+  var changed = false;
+  for (var safe = 0; safe < 5; safe++) {
+    var ids = collectPaletteIds(mapped);
+    if (ids.size <= maxC) break;
+    var tu = buildPaletteUsageMap(mapped);
+    var ks = findTopThreads(tu, maxC);
+    var kp = p.filter(function(t) { return ks.has(t.id); });
+    if (!kp.length) break;
+    migrateNonKeptColors(mapped, ks, kp, raw);
+    changed = true;
+  }
+  return changed;
+}
 
 // Collect the unique set of thread ids referenced by a mapped pattern.
 // Blend cells expand to their constituent thread ids.
@@ -1126,29 +1158,18 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
-  var p = pipelineResult.palette;
   var rawConfetti = pipelineResult.confettiRaw;
   var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
-  // (minSt rebucket lives inside runCleanupPipeline so the preview honours it too.)
-
-  // Safety check: enforce maxC
-  for (var safe = 0; safe < 5; safe++) {
-    var ids = collectPaletteIds(mapped);
-    if (ids.size <= maxC) break;
-    var tu = buildPaletteUsageMap(mapped);
-    var ks = findTopThreads(tu, maxC);
-    var kp = p.filter(function(t) { return ks.has(t.id); });
-    if (!kp.length) break;
-    migrateNonKeptColors(mapped, ks, kp, raw);
-  }
+  // (minSt rebucket and the Threads (max) limit live inside
+  // runCleanupPipeline so the preview honours them too.)
 
   var palResult = buildPalette(mapped);
   return {
     pat: mapped,
     pal: palResult.pal,
     cmap: palResult.cmap,
-    confettiData: { raw: rawConfetti, clean: cleanConfetti },
+    confettiData: { raw: rawConfetti, clean: cleanConfetti, final: pipelineResult.confettiFinal },
     preCleanupIds: pipelineResult.preCleanupIds,
     disambigData: pipelineResult.disambigData,
   };
@@ -13243,6 +13264,44 @@ window.CREATOR_DRAFT_SETTING_KEYS = DRAFT_SETTING_KEYS;
 window.creatorDraftSettings = creatorDraftSettings;
 window.creatorApplyDraftSettings = creatorApplyDraftSettings;
 
+// The picture type a generated pattern was made as ({ id, values }, the
+// Creator's presetApplied), saved in project settings as pictureType so
+// Detail and tidiness reads its steps in that type after a reload: without
+// it a logo reopened as a photo and choosing a step shaded it. Undefined
+// when no type was chosen.
+function creatorSavedPictureType(p) {
+  if (!p || typeof p.id !== 'string' || !p.values || typeof p.values !== 'object') return undefined;
+  return { id: p.id, values: p.values };
+}
+// The saved picture type, or null when it is missing or not a known type.
+function creatorRestoredPictureType(saved) {
+  if (!saved || typeof saved !== 'object' || typeof saved.id !== 'string') return null;
+  if (typeof PICTURE_PRESETS !== 'undefined' && !PICTURE_PRESETS[saved.id]) return null;
+  if (!saved.values || typeof saved.values !== 'object' || Array.isArray(saved.values)) return null;
+  return { id: saved.id, values: saved.values };
+}
+window.creatorSavedPictureType = creatorSavedPictureType;
+window.creatorRestoredPictureType = creatorRestoredPictureType;
+
+// Look at a picture once (analysePicture, useCreatorState.js) from a copy at
+// most 400 pixels across. Null when it can't be read.
+function creatorExaminePicture(imgEl) {
+  var maxSide = 400;
+  var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
+  var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
+  var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
+  var c2 = cnv.getContext("2d");
+  if (!c2) return null;
+  // Exact colours, so pixel art keeps its own palette.
+  c2.imageSmoothingEnabled = false;
+  c2.drawImage(imgEl, 0, 0, cw, ch);
+  var data = c2.getImageData(0, 0, cw, ch);
+  return typeof window.analysePicture === "function"
+    ? window.analysePicture(data, imgEl.width, imgEl.height)
+    : { border: typeof window.detectUniformBorder === "function" ? window.detectUniformBorder(data) : null };
+}
+window.creatorExaminePicture = creatorExaminePicture;
+
 // A design drawn from scratch with a tracing picture (audit DRAW-02): the
 // picture is the Creator's image, but only drawn faintly under the grid.
 function creatorHasTrace(state) {
@@ -13378,7 +13437,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
@@ -13444,7 +13503,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -13570,7 +13629,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     if (state.isProjectLoadRef) state.isProjectLoadRef.current = true;
     state.setSW(s.sW); state.setSH(s.sH); state.setMaxC(s.maxC);
     state.setBri(s.bri || 0); state.setCon(s.con || 0); state.setSat(s.sat || 0);
-    state.setDith(!!s.dith); state.setSkipBg(!!s.skipBg); state.setBgTh(s.bgTh || 15);
+    // The shading mode itself (Subtle, Coarse ...); older projects saved only
+    // whether shading was on, which reads as Balanced.
+    if (typeof s.dithMode === "string" && state.setDithMode) state.setDithMode(s.dithMode);
+    else state.setDith(!!s.dith);
+    state.setSkipBg(!!s.skipBg); state.setBgTh(s.bgTh || 15);
     state.setBgCol(s.bgCol || [255, 255, 255]); state.setMinSt(s.minSt || 0);
     state.setArLock(s.arLock !== false); state.setAr(s.ar || 1);
     state.setBsLines(project.bsLines || []);
@@ -13595,6 +13658,12 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       state.setFabricColour(/^#[0-9a-fA-F]{6}$/.test(s.fabricColour || "") ? s.fabricColour
         : (window.creatorDefaultFabricColour ? window.creatorDefaultFabricColour() : "#FFFFFF"));
     }
+    // The picture type it was made as, set every time so switching projects
+    // never keeps the last one's. Older projects have none: their picture is
+    // looked at once it loads (below), so the steps follow what it looks like.
+    var savedPictureType = creatorRestoredPictureType(s.pictureType);
+    if (state.setPresetApplied) state.setPresetApplied(savedPictureType);
+    if (state.setPictureInfo) state.setPictureInfo(null);
     if (s.skeinPrice != null) state.setSkeinPrice(s.skeinPrice);
     if (s.stitchSpeed) state.setStitchSpeed(s.stitchSpeed);
 
@@ -13759,6 +13828,11 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       li.onload = function() {
         if (sourceRestoreRef.current === restoreToken && !state.userActedRef.current) {
           state.setImg(li); state.setOrigW(li.width); state.setOrigH(li.height);
+          if (!savedPictureType && state.setPictureInfo) {
+            var info = null;
+            try { info = creatorExaminePicture(li); } catch (err) { console.warn("useProjectIO: picture check failed", err); }
+            if (info && info.w) state.setPictureInfo(info);
+          }
         }
       };
       li.onerror = function() {
@@ -13902,22 +13976,8 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     // the picture type is guessed and its preset applied (audit IMG-01).
     function examinePicture(imgEl) {
       var info = null;
-      try {
-        var maxSide = 400;
-        var sc = Math.min(1, maxSide / Math.max(imgEl.width, imgEl.height));
-        var cw = Math.max(1, Math.round(imgEl.width * sc)), ch = Math.max(1, Math.round(imgEl.height * sc));
-        var cnv = document.createElement("canvas"); cnv.width = cw; cnv.height = ch;
-        var c2 = cnv.getContext("2d");
-        if (c2) {
-          // Exact colours, so pixel art keeps its own palette.
-          c2.imageSmoothingEnabled = false;
-          c2.drawImage(imgEl, 0, 0, cw, ch);
-          var data = c2.getImageData(0, 0, cw, ch);
-          info = typeof window.analysePicture === "function"
-            ? window.analysePicture(data, imgEl.width, imgEl.height)
-            : { border: typeof window.detectUniformBorder === "function" ? window.detectUniformBorder(data) : null };
-        }
-      } catch (err) { console.warn("useProjectIO: picture check failed", err); }
+      try { info = creatorExaminePicture(imgEl); }
+      catch (err) { console.warn("useProjectIO: picture check failed", err); }
       autoSkipBackground(info ? info.border : null);
       if (info && info.w && state.setPictureInfo) {
         state.setPictureInfo(info);
@@ -14406,7 +14466,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -14787,6 +14847,7 @@ window.usePreview = function usePreview(state) {
               confettiRaw: msg.confettiData.raw,
               // The worker reports the raw counts as "clean" when nothing was tidied.
               confettiClean: msg.preCleanupIds ? msg.confettiData.clean : null,
+              confettiFinal: msg.confettiData.final || null,
               preCleanupIds: msg.preCleanupIds || null
             });
           } catch (err) { failPreview(); }
@@ -14835,6 +14896,9 @@ window.usePreview = function usePreview(state) {
         var mapped = pipelineResult.mapped;
         var confettiRaw = pipelineResult.confettiRaw;
         var confettiClean = pipelineResult.confettiClean;
+        // The chart as shown: after look-alike separation and the thread
+        // limit (exact pixel art has no later stages).
+        var confettiFinal = pipelineResult.confettiFinal || confettiClean || confettiRaw;
         var preCleanupIds = pipelineResult.preCleanupIds || null;
 
         var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
@@ -14870,6 +14934,11 @@ window.usePreview = function usePreview(state) {
           confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
           confettiSinglesPct: confettiRaw.singlesPct,
           confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+          // The finished chart's confetti stitches, for "In the preview".
+          confettiFinalSingles: Math.round(confettiFinal.singles * scaleFactor),
+          // A smaller preview than the chart (on the page, without a worker):
+          // the counts are scaled up, so they are estimates.
+          estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
         });
@@ -20638,7 +20707,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     var styleDescs = (window.STITCH_STYLE_DESCRIPTIONS || {})[styleBasis] || {};
     // What the preview chart has now (the worker converts it at full size).
     var ps = app.previewStats;
-    var confettiNow = ps ? (ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
+    // The finished chart's count (after look-alike separation and the thread
+    // limit); older stats objects only have the cleanup counts.
+    var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
+      : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
     var styleChooser = h("div", {className:"stitch-style"},
       h("div", {className:"stitch-style__lead"},
         "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch. ",
@@ -20666,9 +20738,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("p", {className:"stitch-style__desc"}, styleNow === "custom"
         ? "Custom: your own mix of shading and tidying, set under Fine-tune. Pick a step to start again from it."
         : styleDescs[styleNow]),
-      confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome"},
-        "In the preview: " + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
-        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches).")
+      // The count is for the preview on screen: while a new one is worked out
+      // it would be the previous step's, so it waits. A preview smaller than
+      // the chart (no background worker) gives scaled-up estimates.
+      app.previewLoading && ps ? h("p", {className:"stitch-style__outcome", "data-outcome":"updating", "aria-live":"polite"},
+        "Updating preview\u2026")
+      : confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome", "data-outcome":ps.estimated ? "estimate" : "count", "aria-live":"polite"},
+        "In the preview: " + (ps.estimated ? "about " : "") + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
+        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches)" +
+        (ps.estimated ? ", estimated from a smaller preview." : "."))
       ,
       // A small grid with heavy tidying can lose eyes and lettering: say so
       // here, not only under Fine-tune, because a step can set it.

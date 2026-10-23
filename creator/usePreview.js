@@ -163,6 +163,7 @@ window.usePreview = function usePreview(state) {
               confettiRaw: msg.confettiData.raw,
               // The worker reports the raw counts as "clean" when nothing was tidied.
               confettiClean: msg.preCleanupIds ? msg.confettiData.clean : null,
+              confettiFinal: msg.confettiData.final || null,
               preCleanupIds: msg.preCleanupIds || null
             });
           } catch (err) { failPreview(); }
@@ -211,6 +212,9 @@ window.usePreview = function usePreview(state) {
         var mapped = pipelineResult.mapped;
         var confettiRaw = pipelineResult.confettiRaw;
         var confettiClean = pipelineResult.confettiClean;
+        // The chart as shown: after look-alike separation and the thread
+        // limit (exact pixel art has no later stages).
+        var confettiFinal = pipelineResult.confettiFinal || confettiClean || confettiRaw;
         var preCleanupIds = pipelineResult.preCleanupIds || null;
 
         var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
@@ -246,6 +250,11 @@ window.usePreview = function usePreview(state) {
           confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
           confettiSinglesPct: confettiRaw.singlesPct,
           confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+          // The finished chart's confetti stitches, for "In the preview".
+          confettiFinalSingles: Math.round(confettiFinal.singles * scaleFactor),
+          // A smaller preview than the chart (on the page, without a worker):
+          // the counts are scaled up, so they are estimates.
+          estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
         });

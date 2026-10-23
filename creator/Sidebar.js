@@ -1082,7 +1082,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     var styleDescs = (window.STITCH_STYLE_DESCRIPTIONS || {})[styleBasis] || {};
     // What the preview chart has now (the worker converts it at full size).
     var ps = app.previewStats;
-    var confettiNow = ps ? (ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
+    // The finished chart's count (after look-alike separation and the thread
+    // limit); older stats objects only have the cleanup counts.
+    var confettiNow = ps ? (ps.confettiFinalSingles != null ? ps.confettiFinalSingles
+      : ps.confettiCleanSingles != null ? ps.confettiCleanSingles : ps.confettiSingles) : null;
     var styleChooser = h("div", {className:"stitch-style"},
       h("div", {className:"stitch-style__lead"},
         "How much shading and small detail to keep. Tidier charts have fewer confetti stitches, so they are quicker to stitch. ",
@@ -1110,9 +1113,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       h("p", {className:"stitch-style__desc"}, styleNow === "custom"
         ? "Custom: your own mix of shading and tidying, set under Fine-tune. Pick a step to start again from it."
         : styleDescs[styleNow]),
-      confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome"},
-        "In the preview: " + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
-        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches).")
+      // The count is for the preview on screen: while a new one is worked out
+      // it would be the previous step's, so it waits. A preview smaller than
+      // the chart (no background worker) gives scaled-up estimates.
+      app.previewLoading && ps ? h("p", {className:"stitch-style__outcome", "data-outcome":"updating", "aria-live":"polite"},
+        "Updating preview\u2026")
+      : confettiNow != null && ps.stitchable > 0 && h("p", {className:"stitch-style__outcome", "data-outcome":ps.estimated ? "estimate" : "count", "aria-live":"polite"},
+        "In the preview: " + (ps.estimated ? "about " : "") + confettiNow.toLocaleString() + " confetti stitch" + (confettiNow === 1 ? "" : "es") +
+        " (" + (confettiNow / ps.stitchable * 100).toFixed(1) + "% of stitches)" +
+        (ps.estimated ? ", estimated from a smaller preview." : "."))
       ,
       // A small grid with heavy tidying can lose eyes and lettering: say so
       // here, not only under Fine-tune, because a step can set it.

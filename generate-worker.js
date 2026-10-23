@@ -197,6 +197,7 @@ self.onmessage = function(e) {
     }
 
     // ── maxC enforcement pass ──────────────────────────────────────────────────
+    var limited = false;
     for (var safe = 0; safe < 5; safe++) {
       var ids = new Set();
       for (var k = 0; k < mapped.length; k++) {
@@ -231,9 +232,17 @@ self.onmessage = function(e) {
           : !ks.has(m3.id);
         if (nr) {
           mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
+          limited = true;
         }
       }
     }
+
+    // The finished chart's confetti (runCleanupPipeline's confettiFinal):
+    // look-alike separation and the thread limit can change stitches after
+    // Reduce confetti was measured.
+    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+      ? analyzeConfetti(mapped, width, height)
+      : (confettiClean || confettiRaw);
 
     // ── 5. Build final palette ────────────────────────────────────────────────
     postProgress('finalizing', 'Building palette\u2026');
@@ -246,7 +255,7 @@ self.onmessage = function(e) {
       mapped: mapped,
       pal: palResult.pal,
       cmap: palResult.cmap,
-      confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw },
+      confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw, final: confettiFinal },
       preCleanupIds: preCleanupIds,
       disambigData: disambigData,
     });

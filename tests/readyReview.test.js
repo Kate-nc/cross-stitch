@@ -51,13 +51,14 @@ test('project source restore clears missing/corrupt sources and ignores an older
   const images = [], state = {userActedRef:{current:false},setImg:jest.fn(),setOrigW:jest.fn(),setOrigH:jest.fn()};
   function Image() { images.push(this); }
   const token={current:0};
-  const restore=new Function('state','project','s','Image','sourceRestoreRef','window',block.slice(0,block.lastIndexOf('\n  }')));
-  restore(state,{imgData:'data:image/png;base64,old'}, {}, Image, token, {});
+  // savedPictureType: the project's saved picture type (none here).
+  const restore=new Function('state','project','s','Image','sourceRestoreRef','window','savedPictureType',block.slice(0,block.lastIndexOf('\n  }')));
+  restore(state,{imgData:'data:image/png;base64,old'}, {}, Image, token, {}, null);
   expect(state.setImg).toHaveBeenLastCalledWith(null);
-  restore(state,{}, {}, Image, token, {});
+  restore(state,{}, {}, Image, token, {}, null);
   images[0].onload();
   expect(state.setImg.mock.calls.map(c=>c[0])).toEqual([null,null]);
-  restore(state,{imgData:'data:image/png;base64,current'}, {}, Image, token, {});
+  restore(state,{imgData:'data:image/png;base64,current'}, {}, Image, token, {}, null);
   images[1].onload();
   expect(state.setImg).toHaveBeenLastCalledWith(images[1]);
 });

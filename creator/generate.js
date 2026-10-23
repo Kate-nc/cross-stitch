@@ -144,7 +144,10 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
  * @param {number}            width  Grid width in stitches
  * @param {number}            height Grid height in stitches
  * @param {object}            opts   Pipeline settings
- * @returns {{ mapped, palette, confettiRaw, confettiClean, saliencyMap, preCleanupIds, disambigData }} or null
+ * @returns {{ mapped, palette, confettiRaw, confettiClean, confettiFinal, saliencyMap, preCleanupIds, disambigData }} or null
+ *   confettiRaw/confettiClean are measured before and after Reduce confetti
+ *   (for cleanup comparisons); confettiFinal is the finished chart's, after
+ *   look-alike separation and the thread limit, which can change stitches.
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
   var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
@@ -252,8 +255,37 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     disambigData = { swaps: dr.totalSwaps, iterations: dr.iterations };
   }
 
-  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
+  // Threads (max) is a hard limit: a chart over it keeps its most used
+  // threads and redraws the rest in the closest of them. Here, not only in
+  // runGenerationPipeline, so the preview on the page is the chart Generate
+  // makes (generate-worker.js does the same).
+  var limited = enforceMaxColours(mapped, p, raw, maxC);
+
+  // The finished chart's confetti. Measured again only when a stage after
+  // Reduce confetti changed stitches.
+  var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+    ? analyzeConfetti(mapped, width, height)
+    : (confettiClean || confettiRaw);
+
+  return { mapped: mapped, palette: p, confettiRaw: confettiRaw, confettiClean: confettiClean, confettiFinal: confettiFinal, saliencyMap: saliencyMap, preCleanupIds: preCleanupIds, disambigData: disambigData };
 };
+
+// Keep at most maxC threads (a blend counts its two). Mutates mapped; true
+// when any stitch changed.
+function enforceMaxColours(mapped, p, raw, maxC) {
+  var changed = false;
+  for (var safe = 0; safe < 5; safe++) {
+    var ids = collectPaletteIds(mapped);
+    if (ids.size <= maxC) break;
+    var tu = buildPaletteUsageMap(mapped);
+    var ks = findTopThreads(tu, maxC);
+    var kp = p.filter(function(t) { return ks.has(t.id); });
+    if (!kp.length) break;
+    migrateNonKeptColors(mapped, ks, kp, raw);
+    changed = true;
+  }
+  return changed;
+}
 
 // Collect the unique set of thread ids referenced by a mapped pattern.
 // Blend cells expand to their constituent thread ids.
@@ -335,29 +367,18 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   if (!pipelineResult) return null;
 
   var mapped = pipelineResult.mapped;
-  var p = pipelineResult.palette;
   var rawConfetti = pipelineResult.confettiRaw;
   var cleanConfetti = pipelineResult.confettiClean || pipelineResult.confettiRaw;
 
-  // (minSt rebucket lives inside runCleanupPipeline so the preview honours it too.)
-
-  // Safety check: enforce maxC
-  for (var safe = 0; safe < 5; safe++) {
-    var ids = collectPaletteIds(mapped);
-    if (ids.size <= maxC) break;
-    var tu = buildPaletteUsageMap(mapped);
-    var ks = findTopThreads(tu, maxC);
-    var kp = p.filter(function(t) { return ks.has(t.id); });
-    if (!kp.length) break;
-    migrateNonKeptColors(mapped, ks, kp, raw);
-  }
+  // (minSt rebucket and the Threads (max) limit live inside
+  // runCleanupPipeline so the preview honours them too.)
 
   var palResult = buildPalette(mapped);
   return {
     pat: mapped,
     pal: palResult.pal,
     cmap: palResult.cmap,
-    confettiData: { raw: rawConfetti, clean: cleanConfetti },
+    confettiData: { raw: rawConfetti, clean: cleanConfetti, final: pipelineResult.confettiFinal },
     preCleanupIds: pipelineResult.preCleanupIds,
     disambigData: pipelineResult.disambigData,
   };
