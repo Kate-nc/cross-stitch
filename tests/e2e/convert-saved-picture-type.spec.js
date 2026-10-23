@@ -4,7 +4,7 @@
 const { test, expect } = require('@playwright/test');
 const { installLocalCdn } = require('./local-cdn');
 test.beforeEach(async ({ context }) => { await installLocalCdn(context); });
-const { device, generateLogo, clickGenerate, waitForEdit, skipTourIfShown, convertStep } = require('./creator-helpers');
+const { device, generateLogo, clickGenerate, waitForEdit, skipTourIfShown, convertStep, confirmReplaceChart } = require('./creator-helpers');
 
 function savedSettings(page) {
   return page.evaluate(async function() {
@@ -65,6 +65,7 @@ test.describe('The picture type survives a reload', function() {
     await step(page, 'Balanced').click();
     await watchNextSave(page);
     await clickGenerate(page);
+    await confirmReplaceChart(page);   // a reopened chart: Regenerate asks first
     await waitForEdit(page);
     await expect.poll(function() { return nextSaved(page); }, { timeout: 15000 }).not.toBeNull();
     expect(await nextSaved(page)).toEqual({ pictureType: 'graphic', dithMode: 'off', dith: false });
@@ -88,6 +89,7 @@ test.describe('The picture type survives a reload', function() {
     await expect(step(page, 'Balanced')).toHaveAttribute('aria-checked', 'true');
     await watchNextSave(page);
     await clickGenerate(page);
+    await confirmReplaceChart(page);   // a reopened chart: Regenerate asks first
     await waitForEdit(page);
     await expect.poll(function() { return nextSaved(page); }, { timeout: 15000 }).not.toBeNull();
     // The graphic's Balanced has no shading (a photo's would).

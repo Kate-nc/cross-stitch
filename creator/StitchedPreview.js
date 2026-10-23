@@ -10,7 +10,9 @@
 
    The canvas is drawn at the size it is shown, in device pixels, so the
    browser never shrinks a large canvas (which shimmers). "Close up" draws
-   16 screen pixels per stitch in a scrolling box.
+   16 screen pixels per stitch in a scrolling box. Both canvases keep within
+   the device's canvas budget (stitchedSizes); a close-up of a large chart
+   on a phone is drawn smaller and shown stretched.
 
    window.CreatorStitchedPreview(props):
      cells        the preview's cells ({ id, rgb, threads? }), row by row
@@ -97,7 +99,25 @@
   }
 
   var MAX_OFFSCREEN = 4096;   // the drawn chart's longest side, in pixels
-  var MAX_DISPLAY = 8192;     // the canvas on the page, in device pixels
+
+  // Pixels per stitch for the two canvases (the drawn chart and the one on
+  // the page), within the device's canvas budget (useCanvasOverlays.js
+  // canvasSizeLimits: 16.7 million pixels on iOS). The two exist at once, so
+  // each may take half of the area; each side stays within the side limit.
+  // The page canvas may come out smaller than asked; it is then shown
+  // stretched to the asked size rather than made bigger than the budget.
+  function stitchedSizes(W, H, wantDevCell, limits) {
+    limits = limits || { side: 4096, area: 16777216 };
+    var cells = Math.max(1, W * H), long = Math.max(1, W, H);
+    var areaEach = limits.area / 2;
+    var maxCell = Math.min(limits.side / long, Math.sqrt(areaEach / cells));
+    var devCell = Math.max(0.25, Math.min(wantDevCell, maxCell));
+    // Stitches are drawn at least 4 pixels wide where the budget allows, so
+    // a small one still has its fabric gaps when it is shrunk onto the page.
+    var tile = Math.floor(Math.min(32, MAX_OFFSCREEN / long, maxCell, Math.max(4, Math.round(devCell))));
+    return { devCell: devCell, tile: Math.max(1, tile) };
+  }
+  window.stitchedPreviewSizes = stitchedSizes;
 
   window.CreatorStitchedPreview = function CreatorStitchedPreview(props) {
     var h = React.createElement;
@@ -106,11 +126,9 @@
     var dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
     // CSS pixels per stitch on screen.
     var cssCell = props.closeUp ? 16 : (props.displayWidth > 0 ? props.displayWidth / W : 8);
-    var devCell = Math.min(cssCell * dpr, MAX_DISPLAY / Math.max(W, H));
+    var sizes = stitchedSizes(W, H, cssCell * dpr, window.canvasSizeLimits ? window.canvasSizeLimits() : null);
+    var devCell = sizes.devCell, tile = sizes.tile;
     var dispW = Math.max(1, Math.round(W * devCell)), dispH = Math.max(1, Math.round(H * devCell));
-    // The stitches are drawn at least 4 pixels wide, so a small one still has
-    // its fabric gaps when it is shrunk onto the page.
-    var tile = Math.max(2, Math.min(32, Math.floor(MAX_OFFSCREEN / Math.max(W, H)), Math.max(4, Math.round(devCell))));
     var coverage = stitchCoverage(props.fabricCt);
     var fabric = props.fabricColour || "#FFFFFF";
 
@@ -121,14 +139,17 @@
       var off = document.createElement("canvas");
       off.width = W * tile; off.height = H * tile;
       var oc = off.getContext("2d");
-      if (!oc) return;
+      // No drawing context (the browser refused the canvas): leave the
+      // last picture rather than fail.
+      if (!oc) { off.width = off.height = 0; return; }
       var tiles = {};
       function tileFor(cell) {
         var key = cell && cell.id && cell.rgb && cell.id !== "__skip__" && cell.id !== "__empty__" ? cell.id + "|" + cell.rgb.join(",") : "__fabric__";
         if (tiles[key]) return tiles[key];
         var t = document.createElement("canvas"); t.width = tile; t.height = tile;
         var strands = key === "__fabric__" ? null : strandsFor(cell);
-        drawStitchTile(t.getContext("2d"), tile, fab, strands, strands, coverage);
+        var tc = t.getContext("2d");
+        if (tc) drawStitchTile(tc, tile, fab, strands, strands, coverage);
         tiles[key] = t;
         return t;
       }
@@ -137,15 +158,19 @@
       }
       canvas.width = dispW; canvas.height = dispH;
       var dc = canvas.getContext("2d");
-      dc.imageSmoothingEnabled = true;
-      if ("imageSmoothingQuality" in dc) dc.imageSmoothingQuality = "high";
-      dc.drawImage(off, 0, 0, dispW, dispH);
+      if (dc) {
+        dc.imageSmoothingEnabled = true;
+        if ("imageSmoothingQuality" in dc) dc.imageSmoothingQuality = "high";
+        dc.drawImage(off, 0, 0, dispW, dispH);
+      }
+      // Free the drawn chart's memory now rather than at collection.
+      off.width = off.height = 0;
     }, [cells, W, H, tile, dispW, dispH, coverage, fabric]);
 
     return h("canvas", {
       ref: canvasRef, className: "cvp-stitched__canvas", role: "img",
       "aria-label": "The pattern as cross stitches on " + (typeof fabricShortLabel === "function" ? fabricShortLabel(props.fabricCt || 14) : "") + " fabric",
-      style: { width: dispW / dpr + "px", height: dispH / dpr + "px" }
+      style: { width: Math.round(W * cssCell) + "px", height: Math.round(H * cssCell) + "px" }
     });
   };
 })();

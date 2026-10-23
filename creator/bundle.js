@@ -7013,6 +7013,49 @@ function retireGenerateWorker(w) {
   try { w.terminate(); } catch (_) {}
 }
 
+// Everything in the conversion settings that changes the chart, as one
+// string: two equal signatures make the same chart from the same picture.
+// The fabric count only sizes it, and the palette is named by its threads.
+function conversionSignature(settings) {
+  if (!settings) return null;
+  var out = {};
+  Object.keys(settings).sort().forEach(function (k) {
+    if (k === "fabricCt") return;
+    var v = settings[k];
+    if (k === "allowedPalette") v = v ? v.map(function (t) { return t && (t.brand || "") + ":" + t.id; }).join(",") : null;
+    out[k] = v;
+  });
+  try { return JSON.stringify(out); } catch (_) { return null; }
+}
+if (typeof window !== "undefined") window.conversionSignature = conversionSignature;
+
+// How the chart relates to Convert's current settings, for Convert's footer
+// and preview: null (no chart), "unknown" (not generated this session, such
+// as a reopened project), "changed" (other settings or another picture), or
+// "same". lastGenSnapshot is { signature, img } from the last Generate.
+function convertChartState(pat, snap, settings, img) {
+  if (!pat) return null;
+  if (!snap || !snap.signature) return "unknown";
+  if (snap.img !== img) return "changed";
+  return snap.signature === conversionSignature(settings) ? "same" : "changed";
+}
+if (typeof window !== "undefined") window.convertChartState = convertChartState;
+
+// Whether the chart may differ from the one Generate made: edited since, or
+// unknown (no snapshot this session, as for a reopened project). Regenerate
+// asks before replacing such a chart (useCreatorState generate).
+function chartChangedSinceGenerated(pat, genSnap, editCount) {
+  if (!pat) return false;
+  if (editCount > 0) return true;
+  if (!genSnap || !genSnap.pat || genSnap.pat.length !== pat.length) return true;
+  for (var i = 0; i < pat.length; i++) {
+    var a = pat[i], b = genSnap.pat[i];
+    if ((a && a.id) !== (b && b.id)) return true;
+  }
+  return false;
+}
+if (typeof window !== "undefined") window.chartChangedSinceGenerated = chartChangedSinceGenerated;
+
 function generateStageInfo(stage) {
   return GENERATE_STAGES[stage] || { label: 'Generating pattern\u2026', pct: null };
 }
@@ -8470,15 +8513,9 @@ window.useCreatorState = function useCreatorState() {
     // are about to be meaningless against the new pattern.
     if (wandClearRef.current) wandClearRef.current();
     if (lassoCancelRef.current) lassoCancelRef.current();
-    // Polish 13 step 4a — snapshot the source values that produced this
-    // pattern so the Dimensions / Palette tabs can detect drift and
-    // surface a "Re-generate (values changed)" CTA. Stored fields must
-    // match the comparator in Sidebar.js (genStaleReason).
-    setLastGenSnapshot({
-      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
-      bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
-      allowBlends: allowBlends, skipBg: skipBg
-    });
+    // Which settings and picture made this chart, so Convert can say when
+    // its preview differs from it (convertChartState).
+    setLastGenSnapshot({ signature: conversionSignature(conversionSettings), img: img });
     setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setDisambigData(result.disambigData || null);
@@ -8645,6 +8682,29 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
+    // A chart that was edited since Generate made it, or whose origin is
+    // unknown (a reopened project), is replaced only after asking. Every way
+    // to Regenerate comes through here: the top bars, Convert's footer and
+    // the stash variations.
+    if (!_hasProgress && !(overrides && overrides.__confirmed) &&
+        chartChangedSinceGenerated(pat, genPatSnapshot, editHistory ? editHistory.length : 0) &&
+        window.ConfirmDialog && window.ConfirmDialog.show) {
+      var _ovr2 = overrides;
+      var _edits = editHistory ? editHistory.length : 0;
+      window.ConfirmDialog.show({
+        title: "Replace your chart?",
+        message: (_edits > 0
+          ? "Regenerating makes a new chart from your picture and discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
+          : "Regenerating makes a new chart from your picture. Any changes made to this chart since it was generated will be lost.") +
+          " Undo cannot bring them back.",
+        confirmLabel: "Regenerate",
+        danger: true
+      }).then(function(ok) {
+        if (!ok) return;
+        generate(Object.assign({}, _ovr2 || {}, { __confirmed: true }));
+      });
+      return;
+    }
     setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setGenerateCancellable(true); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
@@ -8764,7 +8824,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -9086,6 +9146,58 @@ window.useCreatorState = function useCreatorState() {
     setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
+  // ─── Canonical conversion settings bundle ────────────────────────────────
+  // ALL conversion settings flow through this useMemo. Any code path that
+  // generates pixels (preview, full Generate, gallery, worker) MUST consume
+  // this object instead of pulling individual state fields. See
+  // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+  // Declared here (not in the returned object) so Generate can record which
+  // settings made the chart (lastGenSnapshot.signature).
+  var conversionSettings = useMemo(function() {
+    var stashInfo = stashConstrained
+      ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
+      : { palette: null, count: 0, threads: [] };
+    var effMaxC = stashConstrained && stashInfo.count > 0
+      ? Math.min(maxC, stashInfo.count)
+      : maxC;
+    var effAllowBlends = stashConstrained && stashInfo.count < 6
+      ? false
+      : allowBlends;
+    return Object.freeze({
+      // Geometry
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt,
+      // Image adjustments
+      bri: bri, con: con, sat: sat,
+      smooth: smooth, smoothType: smoothType,
+      preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
+      // Quantisation
+      maxC: effMaxC,
+      dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
+      allowBlends: effAllowBlends,
+      // Another brand's catalogue when not stash-only (P4-5); null is DMC.
+      allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
+      convertBrand: convertBrand,
+      // Background
+      skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+      // Cleanup
+      minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+      disambig: disambig, disambigLevel: disambigLevel,
+      // Variation
+      seed: variationSeed, subset: variationSubset,
+      // Fabric (for stats, not pixels)
+      fabricCt: fabricCt,
+      // UI / diagnostic flags
+      stashConstrained: stashConstrained,
+      stashCount: stashInfo.count,
+    });
+  }, [
+    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+    maxC, dith, dithMode, dithStrength, allowBlends,
+    skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+    disambig, disambigLevel,
+    stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
+  ]);
+
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
@@ -9258,55 +9370,8 @@ window.useCreatorState = function useCreatorState() {
       return window.threadBrandPool ? window.threadBrandPool(brand) : null;
     }, [stashConstrained, globalStash]),
 
-    // ─── Canonical conversion settings bundle ────────────────────────────────
-    // ALL conversion settings flow through this useMemo. Any code path that
-    // generates pixels (preview, full Generate, gallery, worker) MUST consume
-    // this object instead of pulling individual state fields. See
-    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
-    conversionSettings: useMemo(function() {
-      var stashInfo = stashConstrained
-        ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
-        : { palette: null, count: 0, threads: [] };
-      var effMaxC = stashConstrained && stashInfo.count > 0
-        ? Math.min(maxC, stashInfo.count)
-        : maxC;
-      var effAllowBlends = stashConstrained && stashInfo.count < 6
-        ? false
-        : allowBlends;
-      return Object.freeze({
-        // Geometry
-        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
-        // Image adjustments
-        bri: bri, con: con, sat: sat,
-        smooth: smooth, smoothType: smoothType,
-        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
-        // Quantisation
-        maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
-        allowBlends: effAllowBlends,
-        // Another brand's catalogue when not stash-only (P4-5); null is DMC.
-        allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
-        convertBrand: convertBrand,
-        // Background
-        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-        // Cleanup
-        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
-        disambig: disambig, disambigLevel: disambigLevel,
-        // Variation
-        seed: variationSeed, subset: variationSubset,
-        // Fabric (for stats, not pixels)
-        fabricCt: fabricCt,
-        // UI / diagnostic flags
-        stashConstrained: stashConstrained,
-        stashCount: stashInfo.count,
-      });
-    }, [
-      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
-      maxC, dith, dithMode, dithStrength, allowBlends,
-      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
-      disambig, disambigLevel,
-      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
-    ]),
+    // The canonical conversion settings bundle (declared above).
+    conversionSettings: conversionSettings,
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
     setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,
@@ -12861,12 +12926,9 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
       if (state.arLock) state.setSH(Math.max(10, Math.round(state.sW / newAr)));
       state.setIsCropping(false);
       state.setCropRect(null);
-      state.setPat(null); state.setPal(null); state.setCmap(null);
-      // Annotations authored against the previous coordinate system are no
-      // longer meaningful after crop + regenerate; clear them so they aren't
-      // rendered at stale positions.
-      if (typeof state.setBsLines === "function") state.setBsLines([]);
-      if (typeof state.setParkMarkers === "function") state.setParkMarkers([]);
+      // An existing chart is kept, with its edits and progress: Convert's
+      // preview shows the cropped picture, and the chart changes only when
+      // Regenerate replaces it (which asks first when it was edited).
     };
     newImg.src = c.toDataURL();
   }
@@ -12884,42 +12946,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     ).data;
     state.setBgCol([p[0], p[1], p[2]]);
     state.setPickBg(false);
-  }
-
-  function autoCrop() {
-    var pat = state.pat, img = state.img, sW = state.sW, sH = state.sH;
-    if (!pat || !img) return;
-    var minX = sW, minY = sH, maxX = -1, maxY = -1, hasStitches = false;
-    for (var y = 0; y < sH; y++) {
-      for (var x = 0; x < sW; x++) {
-        var idx = y * sW + x;
-        if (pat[idx].id !== "__skip__") {
-          if (x < minX) minX = x; if (x > maxX) maxX = x;
-          if (y < minY) minY = y; if (y > maxY) maxY = y;
-          hasStitches = true;
-        }
-      }
-    }
-    if (!hasStitches || (minX === 0 && minY === 0 && maxX === sW - 1 && maxY === sH - 1)) return;
-    var pxStart = Math.floor(minX * (img.width / sW));
-    var pyStart = Math.floor(minY * (img.height / sH));
-    var pxEnd = Math.ceil((maxX + 1) * (img.width / sW));
-    var pyEnd = Math.ceil((maxY + 1) * (img.height / sH));
-    var cropW = pxEnd - pxStart, cropH = pyEnd - pyStart;
-    if (cropW <= 0 || cropH <= 0) return;
-    var c2 = document.createElement("canvas"); c2.width = cropW; c2.height = cropH;
-    var cx2 = c2.getContext("2d");
-    cx2.drawImage(img, pxStart, pyStart, cropW, cropH, 0, 0, cropW, cropH);
-    var newImg2 = new Image();
-    newImg2.onload = function() {
-      state.setImg(newImg2);
-      state.setOrigW(newImg2.width); state.setOrigH(newImg2.height);
-      var newAr2 = newImg2.width / newImg2.height;
-      state.setAr(newAr2);
-      state.setSW(maxX - minX + 1); state.setSH(maxY - minY + 1);
-      state.setPat(null); state.setPal(null); state.setCmap(null);
-    };
-    newImg2.src = c2.toDataURL();
   }
 
   return {
@@ -12943,7 +12969,6 @@ window.useCanvasInteraction = function useCanvasInteraction(state, history) {
     handleCropPointerCancel: handleCropPointerCancel,
     applyCrop: applyCrop,
     srcClick: srcClick,
-    autoCrop: autoCrop,
     isDraggingRef: isDraggingRef,
   };
 };
@@ -14701,8 +14726,11 @@ var PREVIEW_PAGE_MAX_AREA = 40000;
 
 // What a settings change did to the preview, for the line under it in
 // Convert ("Threads (max): threads 24 to 18, confetti 4.3% to 3.1%").
-// prev/next are { settings, summary, ids }; summary holds the counts shown.
-// Returns null when there is nothing to compare.
+// prev/next are { settings, summary, ids, w, h, scale, estimated }: ids
+// name each cell's thread (number and colour, as DMC and Anchor share
+// numbers), w × h is the preview's size, and scale turns a smaller preview's
+// counts into the chart's (estimated). Returns null when there is nothing to
+// compare.
 var PREVIEW_CHANGE_LABELS = [
   [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
@@ -14732,18 +14760,28 @@ function describePreviewChange(prev, next) {
     var f = fmt ? fmt(from) : String(from), t = fmt ? fmt(to) : String(to);
     if (f !== t) stats.push({ label: label, from: f, to: t });
   }
+  if (prev.settings.sW != null && next.settings.sW != null) {
+    add('size', prev.settings.sW + ' \u00D7 ' + prev.settings.sH, next.settings.sW + ' \u00D7 ' + next.settings.sH);
+  }
   add('threads', a.threads, b.threads);
   add('chart symbols', a.symbols, b.symbols);
   add('stitches', a.stitchable, b.stitchable, function (v) { return v.toLocaleString('en-GB'); });
   add('confetti', a.confettiPct, b.confettiPct, function (v) { return v.toFixed(1) + '%'; });
   add('skeins', a.skeins, b.skeins);
-  // Stitches whose thread changed, when both charts are the same size.
-  var changed = null;
-  if (prev.ids && next.ids && prev.ids.length === next.ids.length) {
+  // Stitches whose thread changed, only when both previews have the same
+  // width and height (a 10 × 20 and a 20 × 10 chart have as many cells, but
+  // not the same ones).
+  var changed = null, total = null;
+  var sameShape = prev.ids && next.ids && prev.ids.length === next.ids.length &&
+    (prev.w == null || next.w == null || (prev.w === next.w && prev.h === next.h));
+  if (sameShape) {
     changed = 0;
     for (var i = 0; i < next.ids.length; i++) if (prev.ids[i] !== next.ids[i]) changed++;
+    var scale = next.scale || 1;
+    changed = Math.round(changed * scale);
+    total = Math.round(next.ids.length * scale);
   }
-  return { settings: settings, stats: stats, changedStitches: changed, total: next.ids ? next.ids.length : null };
+  return { settings: settings, stats: stats, changedStitches: changed, total: total, estimated: !!next.estimated && changed != null };
 }
 window.describePreviewChange = describePreviewChange;
 
@@ -15006,10 +15044,14 @@ window.usePreview = function usePreview(state) {
         });
         // What this change did, compared with the last finished preview.
         var settledIds = new Array(mapped.length);
-        for (var si = 0; si < mapped.length; si++) settledIds[si] = mapped[si].id;
+        for (var si = 0; si < mapped.length; si++) {
+          var sm = mapped[si];
+          settledIds[si] = sm.id + '|' + (sm.rgb ? sm.rgb.join(',') : '');
+        }
         var settled = {
           settings: settings,
-          ids: settledIds,
+          ids: settledIds, w: pw, h: ph, scale: scaleFactor,
+          estimated: !exactResult && pw * ph !== sW * sH,
           summary: {
             threads: threadsUsed, symbols: uniqueColors, skeins: estSkeins,
             stitchable: Math.round(stitchable * scaleFactor),
@@ -20931,10 +20973,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         cursor:"pointer",fontFamily:"inherit",textAlign:"left"
       }
     }, "Resize canvas\u2026"),
-    // Trims rows and columns with no stitches from the chart's edges.
-    gen.autoCrop && h("button", {
+    // Trims rows and columns with nothing on them from the chart's edges:
+    // one undo step that keeps progress, backstitches and knots
+    // (creator-main.js cropToStitches).
+    app.cropToStitches && h("button", {
       type:"button", className:"cs-seltools__btn", style:{width:"100%",marginTop:6},
-      onClick:gen.autoCrop,
+      onClick:function(){ app.cropToStitches(); },
       title:"Remove empty rows and columns around the stitches"
     }, window.Icons.crop(), h("span", null, "Crop to the stitches"))
   );
@@ -21099,10 +21143,10 @@ window.CreatorSidebar = function CreatorSidebar() {
     { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
-    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
     { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name and notes, and what it will take to stitch." }
   ];
-  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
   window.CONVERT_TABS = CONVERT_TABS;
 
   // Hover text for each picture type.
@@ -21139,16 +21183,18 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
   window.convertCleanupWarning = cleanupWarning;
 
-  // Settings the last Generate used that differ from now (lastGenSnapshot).
-  function settingsChangedSince(snap, gen, ctx) {
-    if (!snap) return false;
-    return !!snap.exactPixelArt !== !!gen.exactPixelArt ||
-      snap.sW !== ctx.sW || snap.sH !== ctx.sH || snap.fabricCt !== ctx.fabricCt ||
-      snap.bri !== gen.bri || snap.con !== gen.con || snap.sat !== gen.sat ||
-      snap.maxC !== gen.maxC || snap.dithMode !== gen.dithMode ||
-      snap.allowBlends !== gen.allowBlends || snap.skipBg !== gen.skipBg;
+  // What the footer says about an existing chart (state from
+  // useCreatorState convertChartState; edits from the undo history).
+  function chartStateText(state, editCount) {
+    var edits = editCount > 0 ? " and its " + editCount + " edit" + (editCount === 1 ? "" : "s") : "";
+    if (state === "changed") return "The preview shows new settings. Regenerate to replace your chart" + edits + ".";
+    if (state === "unknown") return "Regenerate replaces your chart with one made from these settings.";
+    if (state === "same") return editCount > 0
+      ? "Your chart was made with these settings, then edited. Regenerate starts again from the picture."
+      : "Your chart was made with these settings.";
+    return null;
   }
-  window.convertSettingsChangedSince = settingsChangedSince;
+  window.convertChartStateText = chartStateText;
 
   window.CreatorConvertPanel = function CreatorConvertPanel(props) {
     var ctx = window.usePatternData();
@@ -21648,18 +21694,15 @@ window.CreatorSidebar = function CreatorSidebar() {
       : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
-    var stale = !!ctx.pat && settingsChangedSince(app.lastGenSnapshot, gen, ctx);
+    var chartState = ctx.pat ? app.convertChartState : null;
+    var stateText = chartStateText(chartState, editCount);
     var footer = h("footer", { className: "cv-footer" },
       hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
-      hasImg && ctx.pat && h("p", { className: "cv-footer__state" }, stale
-        ? "The preview shows the new settings. Regenerate to replace your chart" + (editCount > 0 ? " and its " + editCount + " edit" + (editCount === 1 ? "" : "s") : "") + "."
-        : "Your chart matches these settings."),
+      hasImg && stateText && h("p", { className: "cv-footer__state", "data-chart-state": chartState }, stateText),
       hasImg ? h("button", {
-        type: "button", className: "cv-generate" + (gen.hasGenerated && !stale ? " cv-generate--quiet" : ""),
-        onClick: function () {
-          if (editCount > 0 && ctx.pat && !window.confirm("Regenerating replaces your chart and discards " + editCount + " edit" + (editCount === 1 ? "" : "s") + ". Continue?")) return;
-          gen.generate();
-        },
+        type: "button", className: "cv-generate" + (chartState === "same" ? " cv-generate--quiet" : ""),
+        // Generate asks before replacing an edited or unknown chart.
+        onClick: function () { gen.generate(); },
         disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
       }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
         : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })
@@ -21683,7 +21726,9 @@ window.CreatorSidebar = function CreatorSidebar() {
 
    The canvas is drawn at the size it is shown, in device pixels, so the
    browser never shrinks a large canvas (which shimmers). "Close up" draws
-   16 screen pixels per stitch in a scrolling box.
+   16 screen pixels per stitch in a scrolling box. Both canvases keep within
+   the device's canvas budget (stitchedSizes); a close-up of a large chart
+   on a phone is drawn smaller and shown stretched.
 
    window.CreatorStitchedPreview(props):
      cells        the preview's cells ({ id, rgb, threads? }), row by row
@@ -21770,7 +21815,25 @@ window.CreatorSidebar = function CreatorSidebar() {
   }
 
   var MAX_OFFSCREEN = 4096;   // the drawn chart's longest side, in pixels
-  var MAX_DISPLAY = 8192;     // the canvas on the page, in device pixels
+
+  // Pixels per stitch for the two canvases (the drawn chart and the one on
+  // the page), within the device's canvas budget (useCanvasOverlays.js
+  // canvasSizeLimits: 16.7 million pixels on iOS). The two exist at once, so
+  // each may take half of the area; each side stays within the side limit.
+  // The page canvas may come out smaller than asked; it is then shown
+  // stretched to the asked size rather than made bigger than the budget.
+  function stitchedSizes(W, H, wantDevCell, limits) {
+    limits = limits || { side: 4096, area: 16777216 };
+    var cells = Math.max(1, W * H), long = Math.max(1, W, H);
+    var areaEach = limits.area / 2;
+    var maxCell = Math.min(limits.side / long, Math.sqrt(areaEach / cells));
+    var devCell = Math.max(0.25, Math.min(wantDevCell, maxCell));
+    // Stitches are drawn at least 4 pixels wide where the budget allows, so
+    // a small one still has its fabric gaps when it is shrunk onto the page.
+    var tile = Math.floor(Math.min(32, MAX_OFFSCREEN / long, maxCell, Math.max(4, Math.round(devCell))));
+    return { devCell: devCell, tile: Math.max(1, tile) };
+  }
+  window.stitchedPreviewSizes = stitchedSizes;
 
   window.CreatorStitchedPreview = function CreatorStitchedPreview(props) {
     var h = React.createElement;
@@ -21779,11 +21842,9 @@ window.CreatorSidebar = function CreatorSidebar() {
     var dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
     // CSS pixels per stitch on screen.
     var cssCell = props.closeUp ? 16 : (props.displayWidth > 0 ? props.displayWidth / W : 8);
-    var devCell = Math.min(cssCell * dpr, MAX_DISPLAY / Math.max(W, H));
+    var sizes = stitchedSizes(W, H, cssCell * dpr, window.canvasSizeLimits ? window.canvasSizeLimits() : null);
+    var devCell = sizes.devCell, tile = sizes.tile;
     var dispW = Math.max(1, Math.round(W * devCell)), dispH = Math.max(1, Math.round(H * devCell));
-    // The stitches are drawn at least 4 pixels wide, so a small one still has
-    // its fabric gaps when it is shrunk onto the page.
-    var tile = Math.max(2, Math.min(32, Math.floor(MAX_OFFSCREEN / Math.max(W, H)), Math.max(4, Math.round(devCell))));
     var coverage = stitchCoverage(props.fabricCt);
     var fabric = props.fabricColour || "#FFFFFF";
 
@@ -21794,14 +21855,17 @@ window.CreatorSidebar = function CreatorSidebar() {
       var off = document.createElement("canvas");
       off.width = W * tile; off.height = H * tile;
       var oc = off.getContext("2d");
-      if (!oc) return;
+      // No drawing context (the browser refused the canvas): leave the
+      // last picture rather than fail.
+      if (!oc) { off.width = off.height = 0; return; }
       var tiles = {};
       function tileFor(cell) {
         var key = cell && cell.id && cell.rgb && cell.id !== "__skip__" && cell.id !== "__empty__" ? cell.id + "|" + cell.rgb.join(",") : "__fabric__";
         if (tiles[key]) return tiles[key];
         var t = document.createElement("canvas"); t.width = tile; t.height = tile;
         var strands = key === "__fabric__" ? null : strandsFor(cell);
-        drawStitchTile(t.getContext("2d"), tile, fab, strands, strands, coverage);
+        var tc = t.getContext("2d");
+        if (tc) drawStitchTile(tc, tile, fab, strands, strands, coverage);
         tiles[key] = t;
         return t;
       }
@@ -21810,15 +21874,19 @@ window.CreatorSidebar = function CreatorSidebar() {
       }
       canvas.width = dispW; canvas.height = dispH;
       var dc = canvas.getContext("2d");
-      dc.imageSmoothingEnabled = true;
-      if ("imageSmoothingQuality" in dc) dc.imageSmoothingQuality = "high";
-      dc.drawImage(off, 0, 0, dispW, dispH);
+      if (dc) {
+        dc.imageSmoothingEnabled = true;
+        if ("imageSmoothingQuality" in dc) dc.imageSmoothingQuality = "high";
+        dc.drawImage(off, 0, 0, dispW, dispH);
+      }
+      // Free the drawn chart's memory now rather than at collection.
+      off.width = off.height = 0;
     }, [cells, W, H, tile, dispW, dispH, coverage, fabric]);
 
     return h("canvas", {
       ref: canvasRef, className: "cvp-stitched__canvas", role: "img",
       "aria-label": "The pattern as cross stitches on " + (typeof fabricShortLabel === "function" ? fabricShortLabel(props.fabricCt || 14) : "") + " fabric",
-      style: { width: dispW / dpr + "px", height: dispH / dpr + "px" }
+      style: { width: Math.round(W * cssCell) + "px", height: Math.round(H * cssCell) + "px" }
     });
   };
 })();
@@ -23883,6 +23951,51 @@ window.remapCanvasTracking = function(halfStitches, halfDone, partialDone, parti
     halfStitches: Array.from(halves), halfDone: Array.from(marks),
     partialDone: Array.from(quarters, function(e) { return [e[0], ["TL", "TR", "BL", "BR"].filter(function(q) { return e[1].has(q); })]; })
   };
+};
+
+// The resize spec that crops a pattern to the smallest rectangle holding
+// everything on it: stitched cells, part stitches, backstitch and specialty
+// lines (lattice points), French knots and beads (half-cell points) and park
+// markers. Returns null when there is nothing on the pattern or nothing to
+// trim. Pass the result to the same resize as Resize canvas, so the crop is
+// one undo step and keeps progress (Edit > Tools > Crop to the stitches).
+window.cropToStitchesSpec = function cropToStitchesSpec(pat, sW, sH, extras) {
+  if (!pat || !sW || !sH) return null;
+  extras = extras || {};
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  function cell(x, y) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  // A point on the lattice (0..sW) must stay inside 0..newW: the crop starts
+  // at or before floor(x) and ends at or after ceil(x) - 1.
+  function point(px, py) {
+    if (typeof px !== "number" || typeof py !== "number") return;
+    var lx = Math.min(Math.floor(px), sW - 1), ly = Math.min(Math.floor(py), sH - 1);
+    var hx = Math.max(Math.ceil(px) - 1, 0), hy = Math.max(Math.ceil(py) - 1, 0);
+    if (lx < minX) minX = lx; if (hx > maxX) maxX = hx;
+    if (ly < minY) minY = ly; if (hy > maxY) maxY = hy;
+  }
+  for (var i = 0; i < pat.length; i++) {
+    var c = pat[i];
+    if (c && c.id && c.id !== "__skip__" && c.id !== "__empty__") cell(i % sW, Math.floor(i / sW));
+  }
+  if (extras.partialStitches && typeof extras.partialStitches.forEach === "function") {
+    extras.partialStitches.forEach(function (_v, idx) { cell(idx % sW, Math.floor(idx / sW)); });
+  }
+  (extras.bsLines || []).forEach(function (l) { point(l.x1, l.y1); point(l.x2, l.y2); });
+  (extras.specialty || []).forEach(function (o) {
+    if (o.type === "petite") { point(o.x, o.y); point(o.x + 0.5, o.y + 0.5); }
+    else { point(o.x1, o.y1); point(o.x2, o.y2); }
+  });
+  // Knots and beads sit on half-cell points (0..2 * sW).
+  (extras.knots || []).concat(extras.beads || []).forEach(function (k) { point(k.x / 2, k.y / 2); });
+  (extras.parkMarkers || []).forEach(function (m) { cell(m.x, m.y); });
+  if (minX === Infinity) return null;
+  minX = Math.max(0, minX); minY = Math.max(0, minY);
+  maxX = Math.min(sW - 1, maxX); maxY = Math.min(sH - 1, maxY);
+  if (minX === 0 && minY === 0 && maxX === sW - 1 && maxY === sH - 1) return null;
+  return { newW: maxX - minX + 1, newH: maxY - minY + 1, offsetX: -minX, offsetY: -minY };
 };
 
 

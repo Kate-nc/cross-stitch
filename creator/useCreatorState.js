@@ -479,6 +479,49 @@ function retireGenerateWorker(w) {
   try { w.terminate(); } catch (_) {}
 }
 
+// Everything in the conversion settings that changes the chart, as one
+// string: two equal signatures make the same chart from the same picture.
+// The fabric count only sizes it, and the palette is named by its threads.
+function conversionSignature(settings) {
+  if (!settings) return null;
+  var out = {};
+  Object.keys(settings).sort().forEach(function (k) {
+    if (k === "fabricCt") return;
+    var v = settings[k];
+    if (k === "allowedPalette") v = v ? v.map(function (t) { return t && (t.brand || "") + ":" + t.id; }).join(",") : null;
+    out[k] = v;
+  });
+  try { return JSON.stringify(out); } catch (_) { return null; }
+}
+if (typeof window !== "undefined") window.conversionSignature = conversionSignature;
+
+// How the chart relates to Convert's current settings, for Convert's footer
+// and preview: null (no chart), "unknown" (not generated this session, such
+// as a reopened project), "changed" (other settings or another picture), or
+// "same". lastGenSnapshot is { signature, img } from the last Generate.
+function convertChartState(pat, snap, settings, img) {
+  if (!pat) return null;
+  if (!snap || !snap.signature) return "unknown";
+  if (snap.img !== img) return "changed";
+  return snap.signature === conversionSignature(settings) ? "same" : "changed";
+}
+if (typeof window !== "undefined") window.convertChartState = convertChartState;
+
+// Whether the chart may differ from the one Generate made: edited since, or
+// unknown (no snapshot this session, as for a reopened project). Regenerate
+// asks before replacing such a chart (useCreatorState generate).
+function chartChangedSinceGenerated(pat, genSnap, editCount) {
+  if (!pat) return false;
+  if (editCount > 0) return true;
+  if (!genSnap || !genSnap.pat || genSnap.pat.length !== pat.length) return true;
+  for (var i = 0; i < pat.length; i++) {
+    var a = pat[i], b = genSnap.pat[i];
+    if ((a && a.id) !== (b && b.id)) return true;
+  }
+  return false;
+}
+if (typeof window !== "undefined") window.chartChangedSinceGenerated = chartChangedSinceGenerated;
+
 function generateStageInfo(stage) {
   return GENERATE_STAGES[stage] || { label: 'Generating pattern\u2026', pct: null };
 }
@@ -1936,15 +1979,9 @@ window.useCreatorState = function useCreatorState() {
     // are about to be meaningless against the new pattern.
     if (wandClearRef.current) wandClearRef.current();
     if (lassoCancelRef.current) lassoCancelRef.current();
-    // Polish 13 step 4a — snapshot the source values that produced this
-    // pattern so the Dimensions / Palette tabs can detect drift and
-    // surface a "Re-generate (values changed)" CTA. Stored fields must
-    // match the comparator in Sidebar.js (genStaleReason).
-    setLastGenSnapshot({
-      sW: sW, sH: sH, exactPixelArt: exactPixelArt, fabricCt: fabricCt, maxC: maxC,
-      bri: bri, con: con, sat: sat, dith: dith, dithMode: dithMode,
-      allowBlends: allowBlends, skipBg: skipBg
-    });
+    // Which settings and picture made this chart, so Convert can say when
+    // its preview differs from it (convertChartState).
+    setLastGenSnapshot({ signature: conversionSignature(conversionSettings), img: img });
     setGenPatSnapshot({ pat: result.mapped.slice(), pal: result.pal.slice(), cmap: Object.assign({}, result.cmap) });
     // Compute cleanup diff mask from preCleanupIds
     setDisambigData(result.disambigData || null);
@@ -2111,6 +2148,29 @@ window.useCreatorState = function useCreatorState() {
       // No ConfirmDialog available (e.g. early boot) — fall through and
       // proceed; the legacy behaviour is at least no-worse than before.
     }
+    // A chart that was edited since Generate made it, or whose origin is
+    // unknown (a reopened project), is replaced only after asking. Every way
+    // to Regenerate comes through here: the top bars, Convert's footer and
+    // the stash variations.
+    if (!_hasProgress && !(overrides && overrides.__confirmed) &&
+        chartChangedSinceGenerated(pat, genPatSnapshot, editHistory ? editHistory.length : 0) &&
+        window.ConfirmDialog && window.ConfirmDialog.show) {
+      var _ovr2 = overrides;
+      var _edits = editHistory ? editHistory.length : 0;
+      window.ConfirmDialog.show({
+        title: "Replace your chart?",
+        message: (_edits > 0
+          ? "Regenerating makes a new chart from your picture and discards the " + _edits + " edit" + (_edits === 1 ? "" : "s") + " you made to this one."
+          : "Regenerating makes a new chart from your picture. Any changes made to this chart since it was generated will be lost.") +
+          " Undo cannot bring them back.",
+        confirmLabel: "Regenerate",
+        danger: true
+      }).then(function(ok) {
+        if (!ok) return;
+        generate(Object.assign({}, _ovr2 || {}, { __confirmed: true }));
+      });
+      return;
+    }
     setBusy(true); setProgressMessage(""); setProgressStage("preparing"); setGenerateCancellable(true); setHiId(null); setExportPage(0);
     // C-8: if a previous generation is still running, terminate it. The
     // reqId guard already discards its result, but the worker would keep
@@ -2230,7 +2290,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -2552,6 +2612,58 @@ window.useCreatorState = function useCreatorState() {
     setPat(newPat); setPal(result.pal); setCmap(result.cmap); setDone(newDone);
   }, [sW, sH, isScratchMode]);
 
+  // ─── Canonical conversion settings bundle ────────────────────────────────
+  // ALL conversion settings flow through this useMemo. Any code path that
+  // generates pixels (preview, full Generate, gallery, worker) MUST consume
+  // this object instead of pulling individual state fields. See
+  // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
+  // Declared here (not in the returned object) so Generate can record which
+  // settings made the chart (lastGenSnapshot.signature).
+  var conversionSettings = useMemo(function() {
+    var stashInfo = stashConstrained
+      ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
+      : { palette: null, count: 0, threads: [] };
+    var effMaxC = stashConstrained && stashInfo.count > 0
+      ? Math.min(maxC, stashInfo.count)
+      : maxC;
+    var effAllowBlends = stashConstrained && stashInfo.count < 6
+      ? false
+      : allowBlends;
+    return Object.freeze({
+      // Geometry
+      sW: sW, sH: sH, exactPixelArt: exactPixelArt,
+      // Image adjustments
+      bri: bri, con: con, sat: sat,
+      smooth: smooth, smoothType: smoothType,
+      preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
+      // Quantisation
+      maxC: effMaxC,
+      dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
+      allowBlends: effAllowBlends,
+      // Another brand's catalogue when not stash-only (P4-5); null is DMC.
+      allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
+      convertBrand: convertBrand,
+      // Background
+      skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
+      // Cleanup
+      minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
+      disambig: disambig, disambigLevel: disambigLevel,
+      // Variation
+      seed: variationSeed, subset: variationSubset,
+      // Fabric (for stats, not pixels)
+      fabricCt: fabricCt,
+      // UI / diagnostic flags
+      stashConstrained: stashConstrained,
+      stashCount: stashInfo.count,
+    });
+  }, [
+    exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
+    maxC, dith, dithMode, dithStrength, allowBlends,
+    skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
+    disambig, disambigLevel,
+    stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
+  ]);
+
   // ─── Return everything ───────────────────────────────────────────────────────
   return {
     img, setImg, isUploading, setIsUploading, isDragging, setIsDragging,
@@ -2724,55 +2836,8 @@ window.useCreatorState = function useCreatorState() {
       return window.threadBrandPool ? window.threadBrandPool(brand) : null;
     }, [stashConstrained, globalStash]),
 
-    // ─── Canonical conversion settings bundle ────────────────────────────────
-    // ALL conversion settings flow through this useMemo. Any code path that
-    // generates pixels (preview, full Generate, gallery, worker) MUST consume
-    // this object instead of pulling individual state fields. See
-    // CONVERSION_STATE_KEYS at the top of this file for the full manifest.
-    conversionSettings: useMemo(function() {
-      var stashInfo = stashConstrained
-        ? _buildAllowedPaletteFromStash(globalStash, variationSubset, convertBrand)
-        : { palette: null, count: 0, threads: [] };
-      var effMaxC = stashConstrained && stashInfo.count > 0
-        ? Math.min(maxC, stashInfo.count)
-        : maxC;
-      var effAllowBlends = stashConstrained && stashInfo.count < 6
-        ? false
-        : allowBlends;
-      return Object.freeze({
-        // Geometry
-        sW: sW, sH: sH, exactPixelArt: exactPixelArt,
-        // Image adjustments
-        bri: bri, con: con, sat: sat,
-        smooth: smooth, smoothType: smoothType,
-        preSharpen: preSharpen, preSharpenAmount: preSharpenAmount,
-        // Quantisation
-        maxC: effMaxC,
-        dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
-        allowBlends: effAllowBlends,
-        // Another brand's catalogue when not stash-only (P4-5); null is DMC.
-        allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
-        convertBrand: convertBrand,
-        // Background
-        skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
-        // Cleanup
-        minSt: minSt, stitchCleanup: stitchCleanup, orphans: orphans,
-        disambig: disambig, disambigLevel: disambigLevel,
-        // Variation
-        seed: variationSeed, subset: variationSubset,
-        // Fabric (for stats, not pixels)
-        fabricCt: fabricCt,
-        // UI / diagnostic flags
-        stashConstrained: stashConstrained,
-        stashCount: stashInfo.count,
-      });
-    }, [
-      exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
-      maxC, dith, dithMode, dithStrength, allowBlends,
-      skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
-      disambig, disambigLevel,
-      stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
-    ]),
+    // The canonical conversion settings bundle (declared above).
+    conversionSettings: conversionSettings,
     // Functions
     buildPaletteWithScratch, chgW, chgH, slRsz, selectStitchType: chooseStitchType,
     setBrushAndActivate: chooseBrush, setTool: chooseTool, setHsTool: chooseHsTool, setPsTool: chooseHsTool, fitZ, copyText,

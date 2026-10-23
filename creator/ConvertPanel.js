@@ -18,10 +18,10 @@
     { id: "picture", label: "Picture", icon: "image",    next: "size",    lead: "What the picture is, its background, and fixes to the picture itself." },
     { id: "size",    label: "Size",    icon: "ruler",    next: "threads", lead: "How big the pattern is, and the fabric it is stitched on." },
     { id: "threads", label: "Threads", icon: "palette",  next: "detail",  lead: "Which threads the colours are matched to, and how many." },
-    { id: "detail",  label: "Detail",  icon: "sparkles", next: null,      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
+    { id: "detail",  label: "Detail",  icon: "sparkles", next: "project",      lead: "How much shading and small detail to keep. Tidier charts are quicker to stitch." },
     { id: "project", label: "Project", icon: "folder",   next: null,      lead: "The pattern's name and notes, and what it will take to stitch." }
   ];
-  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness" };
+  var NEXT_LABELS = { size: "Size and fabric", threads: "Threads", detail: "Detail and tidiness", project: "Project" };
   window.CONVERT_TABS = CONVERT_TABS;
 
   // Hover text for each picture type.
@@ -58,16 +58,18 @@
   }
   window.convertCleanupWarning = cleanupWarning;
 
-  // Settings the last Generate used that differ from now (lastGenSnapshot).
-  function settingsChangedSince(snap, gen, ctx) {
-    if (!snap) return false;
-    return !!snap.exactPixelArt !== !!gen.exactPixelArt ||
-      snap.sW !== ctx.sW || snap.sH !== ctx.sH || snap.fabricCt !== ctx.fabricCt ||
-      snap.bri !== gen.bri || snap.con !== gen.con || snap.sat !== gen.sat ||
-      snap.maxC !== gen.maxC || snap.dithMode !== gen.dithMode ||
-      snap.allowBlends !== gen.allowBlends || snap.skipBg !== gen.skipBg;
+  // What the footer says about an existing chart (state from
+  // useCreatorState convertChartState; edits from the undo history).
+  function chartStateText(state, editCount) {
+    var edits = editCount > 0 ? " and its " + editCount + " edit" + (editCount === 1 ? "" : "s") : "";
+    if (state === "changed") return "The preview shows new settings. Regenerate to replace your chart" + edits + ".";
+    if (state === "unknown") return "Regenerate replaces your chart with one made from these settings.";
+    if (state === "same") return editCount > 0
+      ? "Your chart was made with these settings, then edited. Regenerate starts again from the picture."
+      : "Your chart was made with these settings.";
+    return null;
   }
-  window.convertSettingsChangedSince = settingsChangedSince;
+  window.convertChartStateText = chartStateText;
 
   window.CreatorConvertPanel = function CreatorConvertPanel(props) {
     var ctx = window.usePatternData();
@@ -567,18 +569,15 @@
       : [typeLabel, ctx.sW + " × " + ctx.sH + " stitches", "up to " + (gen.effectiveMaxC || gen.maxC) + " " + brandLabel + " threads",
          window.STITCH_STYLE_LABELS && window.STITCH_STYLE_LABELS[styleNow] ? window.STITCH_STYLE_LABELS[styleNow] : "Custom detail"].join(" · ");
     var editCount = (cv.editHistory && cv.editHistory.length) || 0;
-    var stale = !!ctx.pat && settingsChangedSince(app.lastGenSnapshot, gen, ctx);
+    var chartState = ctx.pat ? app.convertChartState : null;
+    var stateText = chartStateText(chartState, editCount);
     var footer = h("footer", { className: "cv-footer" },
       hasImg && h("p", { className: "cv-footer__summary", "data-convert-summary": "" }, summary),
-      hasImg && ctx.pat && h("p", { className: "cv-footer__state" }, stale
-        ? "The preview shows the new settings. Regenerate to replace your chart" + (editCount > 0 ? " and its " + editCount + " edit" + (editCount === 1 ? "" : "s") : "") + "."
-        : "Your chart matches these settings."),
+      hasImg && stateText && h("p", { className: "cv-footer__state", "data-chart-state": chartState }, stateText),
       hasImg ? h("button", {
-        type: "button", className: "cv-generate" + (gen.hasGenerated && !stale ? " cv-generate--quiet" : ""),
-        onClick: function () {
-          if (editCount > 0 && ctx.pat && !window.confirm("Regenerating replaces your chart and discards " + editCount + " edit" + (editCount === 1 ? "" : "s") + ". Continue?")) return;
-          gen.generate();
-        },
+        type: "button", className: "cv-generate" + (chartState === "same" ? " cv-generate--quiet" : ""),
+        // Generate asks before replacing an edited or unknown chart.
+        onClick: function () { gen.generate(); },
         disabled: gen.busy, "aria-label": gen.hasGenerated ? "Regenerate pattern" : "Generate pattern"
       }, gen.busy ? (gen.progressMessage || "Generating…") : h(React.Fragment, null, Icons.refresh(), gen.hasGenerated ? " Regenerate" : " Generate Pattern"))
         : hint("Upload an image to get started", { className: "cs-toolsec__hint cv-footer__empty" })

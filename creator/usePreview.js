@@ -17,8 +17,11 @@ var PREVIEW_PAGE_MAX_AREA = 40000;
 
 // What a settings change did to the preview, for the line under it in
 // Convert ("Threads (max): threads 24 to 18, confetti 4.3% to 3.1%").
-// prev/next are { settings, summary, ids }; summary holds the counts shown.
-// Returns null when there is nothing to compare.
+// prev/next are { settings, summary, ids, w, h, scale, estimated }: ids
+// name each cell's thread (number and colour, as DMC and Anchor share
+// numbers), w × h is the preview's size, and scale turns a smaller preview's
+// counts into the chart's (estimated). Returns null when there is nothing to
+// compare.
 var PREVIEW_CHANGE_LABELS = [
   [['sW', 'sH'], 'Size'], [['fabricCt'], 'Fabric count'], [['exactPixelArt'], 'Exact pixel-art import'],
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
@@ -48,18 +51,28 @@ function describePreviewChange(prev, next) {
     var f = fmt ? fmt(from) : String(from), t = fmt ? fmt(to) : String(to);
     if (f !== t) stats.push({ label: label, from: f, to: t });
   }
+  if (prev.settings.sW != null && next.settings.sW != null) {
+    add('size', prev.settings.sW + ' \u00D7 ' + prev.settings.sH, next.settings.sW + ' \u00D7 ' + next.settings.sH);
+  }
   add('threads', a.threads, b.threads);
   add('chart symbols', a.symbols, b.symbols);
   add('stitches', a.stitchable, b.stitchable, function (v) { return v.toLocaleString('en-GB'); });
   add('confetti', a.confettiPct, b.confettiPct, function (v) { return v.toFixed(1) + '%'; });
   add('skeins', a.skeins, b.skeins);
-  // Stitches whose thread changed, when both charts are the same size.
-  var changed = null;
-  if (prev.ids && next.ids && prev.ids.length === next.ids.length) {
+  // Stitches whose thread changed, only when both previews have the same
+  // width and height (a 10 × 20 and a 20 × 10 chart have as many cells, but
+  // not the same ones).
+  var changed = null, total = null;
+  var sameShape = prev.ids && next.ids && prev.ids.length === next.ids.length &&
+    (prev.w == null || next.w == null || (prev.w === next.w && prev.h === next.h));
+  if (sameShape) {
     changed = 0;
     for (var i = 0; i < next.ids.length; i++) if (prev.ids[i] !== next.ids[i]) changed++;
+    var scale = next.scale || 1;
+    changed = Math.round(changed * scale);
+    total = Math.round(next.ids.length * scale);
   }
-  return { settings: settings, stats: stats, changedStitches: changed, total: next.ids ? next.ids.length : null };
+  return { settings: settings, stats: stats, changedStitches: changed, total: total, estimated: !!next.estimated && changed != null };
 }
 window.describePreviewChange = describePreviewChange;
 
@@ -322,10 +335,14 @@ window.usePreview = function usePreview(state) {
         });
         // What this change did, compared with the last finished preview.
         var settledIds = new Array(mapped.length);
-        for (var si = 0; si < mapped.length; si++) settledIds[si] = mapped[si].id;
+        for (var si = 0; si < mapped.length; si++) {
+          var sm = mapped[si];
+          settledIds[si] = sm.id + '|' + (sm.rgb ? sm.rgb.join(',') : '');
+        }
         var settled = {
           settings: settings,
-          ids: settledIds,
+          ids: settledIds, w: pw, h: ph, scale: scaleFactor,
+          estimated: !exactResult && pw * ph !== sW * sH,
           summary: {
             threads: threadsUsed, symbols: uniqueColors, skeins: estSkeins,
             stitchable: Math.round(stitchable * scaleFactor),

@@ -108,15 +108,15 @@ describe('laid out like Edit, in the order the choices are made', () => {
     expect(headings()).toEqual(['Picture type', 'Background', 'Adjust picture']);
   });
 
-  test('Next falls through Picture, Size, Threads to Detail', () => {
+  test('Next falls through Picture, Size, Threads and Detail to Project', () => {
     const seen = [];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const next = all('.cv-next__btn')[0];
       seen.push(next.textContent);
       act(() => next.click());
     }
-    expect(seen).toEqual(['Next: Size and fabric', 'Next: Threads', 'Next: Detail and tidiness']);
-    expect(app.convertTab).toBe('detail');
+    expect(seen).toEqual(['Next: Size and fabric', 'Next: Threads', 'Next: Detail and tidiness', 'Next: Project']);
+    expect(app.convertTab).toBe('project');
     expect(q('.cv-next__btn')).toBeNull();
   });
 
@@ -220,18 +220,22 @@ describe('Generate', () => {
     expect(gen.generate).toHaveBeenCalled();
   });
 
-  test('with a chart, says whether the settings have moved on and confirms before discarding edits', () => {
+  test('with a chart, says how it relates to these settings, without claiming more than it knows', () => {
     ctx.pat = [{}];
     gen.hasGenerated = true;
-    app.lastGenSnapshot = { sW: 100, sH: 75, fabricCt: 14, bri: 0, con: 0, sat: 0, maxC: 24, dithMode: 'weak', allowBlends: true, skipBg: false };
-    draw();
-    expect(q('.cv-footer__state').textContent).toBe('Your chart matches these settings.');
-    gen.maxC = 12; cv.editHistory = [1, 2];
-    draw();
-    expect(q('.cv-footer__state').textContent).toBe('The preview shows the new settings. Regenerate to replace your chart and its 2 edits.');
-    window.confirm = jest.fn(() => false);
+    const state = () => [q('.cv-footer__state').getAttribute('data-chart-state'), q('.cv-footer__state').textContent];
+    app.convertChartState = 'same'; draw();
+    expect(state()).toEqual(['same', 'Your chart was made with these settings.']);
+    cv.editHistory = [1, 2]; draw();
+    expect(state()).toEqual(['same', 'Your chart was made with these settings, then edited. Regenerate starts again from the picture.']);
+    app.convertChartState = 'changed'; draw();
+    expect(state()).toEqual(['changed', 'The preview shows new settings. Regenerate to replace your chart and its 2 edits.']);
+    // A reopened project: nothing is known about how its chart was made.
+    app.convertChartState = 'unknown'; cv.editHistory = []; draw();
+    expect(state()).toEqual(['unknown', 'Regenerate replaces your chart with one made from these settings.']);
+    // The button goes straight to Generate, which asks before replacing an
+    // edited or unknown chart (one check for every Regenerate button).
     act(() => q('.cv-generate').click());
-    expect(window.confirm).toHaveBeenCalled();
-    expect(gen.generate).not.toHaveBeenCalled();
+    expect(gen.generate).toHaveBeenCalledTimes(1);
   });
 });

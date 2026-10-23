@@ -1268,10 +1268,12 @@ window.CreatorSidebar = function CreatorSidebar() {
         cursor:"pointer",fontFamily:"inherit",textAlign:"left"
       }
     }, "Resize canvas\u2026"),
-    // Trims rows and columns with no stitches from the chart's edges.
-    gen.autoCrop && h("button", {
+    // Trims rows and columns with nothing on them from the chart's edges:
+    // one undo step that keeps progress, backstitches and knots
+    // (creator-main.js cropToStitches).
+    app.cropToStitches && h("button", {
       type:"button", className:"cs-seltools__btn", style:{width:"100%",marginTop:6},
-      onClick:gen.autoCrop,
+      onClick:function(){ app.cropToStitches(); },
       title:"Remove empty rows and columns around the stitches"
     }, window.Icons.crop(), h("span", null, "Crop to the stitches"))
   );

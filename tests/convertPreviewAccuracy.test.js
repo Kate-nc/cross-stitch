@@ -109,7 +109,7 @@ describe('describePreviewChange', () => {
     expect(describePreviewChange(prev, next)).toEqual({
       settings: ['Threads (max)'],
       stats: [{ label: 'threads', from: '24', to: '12' }, { label: 'chart symbols', from: '40', to: '20' }, { label: 'confetti', from: '4.3%', to: '3.1%' }],
-      changedStitches: 1, total: 4
+      changedStitches: 1, total: 4, estimated: false
     });
   });
 
@@ -128,6 +128,6 @@ describe('describePreviewChange', () => {
     const out = describePreviewChange(prev, next);
     expect(out.settings).toEqual(['Size']);
     expect(out.changedStitches).toBeNull();
-    expect(out.stats).toEqual([{ label: 'stitches', from: '100', to: '200' }]);
+    expect(out.stats).toEqual([{ label: 'size', from: '10 \u00D7 10', to: '20 \u00D7 10' }, { label: 'stitches', from: '100', to: '200' }]);
   });
 });

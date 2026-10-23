@@ -145,6 +145,14 @@ async function convertStep(page, id) {
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
 
+// Regenerate asks before replacing a chart that was edited, or reopened (its
+// origin is unknown). Answers Regenerate when it asks.
+async function confirmReplaceChart(page) {
+  const dialog = page.getByRole('dialog').filter({ hasText: 'Replace your chart?' });
+  await expect(dialog).toBeVisible({ timeout: 5000 });
+  await dialog.getByRole('button', { name: 'Regenerate', exact: true }).click();
+}
+
 // The preview's view: 'stitched' (the default), 'flat' or 'compare'.
 async function previewView(page, id) {
   await page.locator('.cvp-views [data-preview-view="' + id + '"]').click();
@@ -153,5 +161,5 @@ async function previewView(page, id) {
 module.exports = {
   LOGO, DESKTOP, device, quietOnboarding, skipTourIfShown, openConvertWithLogo,
   startBlankGrid, clickGenerate, waitForEdit, generateLogo, isCompact, closeMorePanel,
-  zoomUntilScrollable, pickDarkSwatch, undoButton, convertStep, previewView,
+  zoomUntilScrollable, pickDarkSwatch, undoButton, convertStep, previewView, confirmReplaceChart,
 };

@@ -26,7 +26,7 @@ describe('Convert and Edit each have their own tabs', () => {
     const ids = Array.from(m[1].matchAll(/id: "([^"]+)"/g)).map(x => x[1]);
     expect(ids).toEqual(['picture', 'size', 'threads', 'detail', 'project']);
     const next = Array.from(m[1].matchAll(/next: (null|"[^"]+")/g)).map(x => x[1]);
-    expect(next).toEqual(['"size"', '"threads"', '"detail"', 'null', 'null']);
+    expect(next).toEqual(['"size"', '"threads"', '"detail"', '"project"', 'null']);
   });
 
   it('no longer ships the legacy single-Settings tab, nor the old Convert ids in Edit', () => {

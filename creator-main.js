@@ -27,7 +27,7 @@ function confettiTier(pct){
   return{color:"#A53D3D",label:"High confetti"};
 }
 
-function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
+function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, tidiedSrc, width, height, previewPw, previewPh, leftLabel, rightLabel, fabricColour, previewLoading = false}) {
   const [splitPos, setSplitPos] = useState(50);
   const splitPosRef = useRef(50);
   const containerRef = useRef(null);
@@ -202,6 +202,7 @@ function ComparisonSlider({originalSrc, previewSrc, heatmapSrc, highlightSrc, wi
           <img src={diffUrl} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill"}} alt=""/>
         </div>}
         {!previewLoading&&showHeatmap&&heatmapSrc&&<img data-testid="cmp-heatmap" src={heatmapSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
+        {!previewLoading&&tidiedSrc&&<img data-testid="cmp-tidied" src={tidiedSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:5}} alt="" aria-hidden="true"/>}
         {!previewLoading&&highlightSrc&&<img data-testid="cmp-highlight" src={highlightSrc} style={{clipPath:`inset(0 0 0 ${splitPos}%)`,position:"absolute",top:0,left:0,width:"100%",height:"100%",objectFit:"fill",imageRendering:"pixelated",pointerEvents:"none",zIndex:6}} alt="" aria-hidden="true"/>}
         <div
           role="slider"
@@ -301,7 +302,7 @@ function describeChangeText(change) {
   const parts = [];
   if (change.changedStitches != null) {
     if (change.changedStitches === 0) parts.push('no stitches changed');
-    else parts.push(change.changedStitches.toLocaleString('en-GB') + ' stitch' + (change.changedStitches === 1 ? '' : 'es') + ' changed' +
+    else parts.push((change.estimated ? 'about ' : '') + change.changedStitches.toLocaleString('en-GB') + ' stitch' + (change.changedStitches === 1 ? '' : 'es') + ' changed' +
       (change.total ? ' (' + (change.changedStitches / change.total * 100).toFixed(change.changedStitches / change.total < 0.01 ? 1 : 0) + '%)' : ''));
   }
   change.stats.forEach(function(st) { parts.push(st.label + ' ' + st.from + ' to ' + st.to); });
@@ -341,7 +342,7 @@ function ConvertPreview({state, onRetry}) {
   const shownStitchData = stitchData || lastStitchData.current;
   const fabricBg = state.fabricColour || 'var(--surface)';
   const ct = state.fabricCt || 14;
-  const stale = !!state.pat && window.convertSettingsChangedSince && window.convertSettingsChangedSince(state.lastGenSnapshot, state, state);
+  const chartState = window.convertChartState ? window.convertChartState(state.pat, state.lastGenSnapshot, state.conversionSettings, state.img) : null;
   const changeText = !state.previewLoading ? describeChangeText(state.previewChange) : null;
   const loadingSpinner = state.previewLoading && <span role="status" aria-label="Updating preview" title="Updating preview" className="preview-spinner cvp-spinner">{Icons.spinner()}</span>;
 
@@ -356,7 +357,7 @@ function ConvertPreview({state, onRetry}) {
 
   let body;
   if (view === 'compare') {
-    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
+    body = <ComparisonSlider originalSrc={state.img.src} previewSrc={state.previewUrl} heatmapSrc={state.previewHeatmap} highlightSrc={state.previewHighlight} tidiedSrc={state.showTidied ? state.previewTidied : null} width={state.sW} height={state.sH} previewPw={dims&&dims.pw} previewPh={dims&&dims.ph} fabricColour={state.fabricColour} previewLoading={state.previewLoading}/>;
   } else if (view === 'flat') {
     body = <div className="cvp-box" data-testid="cvp-flat" style={{aspectRatio:pw+'/'+ph,background:fabricBg}}>
       <img src={state.previewUrl} alt="Preview" className="cvp-flat"/>
@@ -405,16 +406,18 @@ function ConvertPreview({state, onRetry}) {
           })}
         </div>
       </div>
-      {stale && <div role="status" className="cvp-note cvp-note--stale">
+      {(chartState === 'changed' || chartState === 'unknown') && <div role="status" className="cvp-note cvp-note--stale">
         <span className="cvp-note__icon" aria-hidden="true">{Icons.info()}</span>
-        <span>This preview shows your new settings. Your chart changes when you Regenerate.</span>
+        <span>{chartState === 'changed'
+          ? 'This preview shows your new settings. Your chart changes when you Regenerate.'
+          : 'This preview shows these settings; your chart may differ. It changes only when you Regenerate.'}</span>
       </div>}
       {changeText && <p className="cvp-change" data-preview-change="" aria-live="polite"><strong>{changeText.names}:</strong> {changeText.detail}.</p>}
       <div className="cvp-body" ref={bodyRef}>{body}</div>
-      {view !== 'compare' && <div className="cvp-tools">
+      {(view !== 'compare' || state.previewTidied) && <div className="cvp-tools">
         {view === 'stitched' && <button type="button" className="cs-seltools__btn" aria-pressed={closeUp ? 'true' : 'false'} onClick={function(){ setCloseUp(function(c){ return !c; }); }}>
           {closeUp ? Icons.magnifyMinus() : Icons.magnifyPlus()}<span>{closeUp ? 'Fit' : 'Close up'}</span></button>}
-        {state.previewHeatmap && <button type="button" className={'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : '')} aria-pressed={showConfetti ? 'true' : 'false'}
+        {view !== 'compare' && state.previewHeatmap && <button type="button" className={'cs-seltools__btn' + (showConfetti ? ' cs-seltools__btn--on' : '')} aria-pressed={showConfetti ? 'true' : 'false'}
           onClick={function(){ setShowConfetti(function(c){ return !c; }); }}>{Icons.fire()}<span>Show confetti</span></button>}
         {state.previewTidied && <button type="button" className={'cs-seltools__btn' + (state.showTidied ? ' cs-seltools__btn--on' : '')} aria-pressed={state.showTidied ? 'true' : 'false'}
           onClick={function(){ state.setShowTidied(!state.showTidied); }}>{Icons.eye()}<span>Show tidied stitches</span></button>}
@@ -583,6 +586,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
+  // How the chart relates to the settings in Convert (null, unknown, changed, same).
+  const convertChartState = useMemo(function() {
+    return window.convertChartState ? window.convertChartState(state.pat, state.lastGenSnapshot, state.conversionSettings, state.img) : null;
+  }, [state.pat, state.lastGenSnapshot, state.conversionSettings, state.img]);
   const handleOpenCanvas = React.useCallback(function() {
     state.setAppMode("create");
     state.setTab("pattern");
@@ -607,7 +614,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   const stableShapePreview = React.useCallback(function(){return _cvHRef.current.shapePreview?_cvHRef.current.shapePreview():null;},[]);
   const stableApplyCrop              = React.useCallback(function()  {_cvHRef.current.applyCrop();},               []);
   const stableSrcClick               = React.useCallback(function(e){_cvHRef.current.srcClick(e);},               []);
-  const stableAutoCrop               = React.useCallback(function()  {_cvHRef.current.autoCrop();},               []);
 
   const stableSaveProject         = React.useCallback(function()  {_ioRef.current.saveProject();},         []);
   const stableDoSaveProject       = React.useCallback(function(n) {_ioRef.current.doSaveProject(n);},      []);
@@ -631,6 +637,102 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
 
   // Request to switch from Edit → Convert tab.  Fires the confirmation
   // modal when manual edits exist; otherwise switches immediately.
+  // Resize or crop the chart by a resize spec (creator/canvasResize.js):
+  // stitches, progress, backstitches, knots, beads and part stitches move
+  // with their cells, and the change is one undo step. Used by Resize canvas
+  // and by Edit > Tools > Crop to the stitches. Returns false when the spec
+  // is not valid.
+  function applyResizeSpec(spec){
+    // French knots and their Tracker done marks move with the cells.
+    var tf=state.trackerFieldsRef&&state.trackerFieldsRef.current;
+    function knotsDoneNow(){return tf&&Array.isArray(tf.knotsDone)?tf.knotsDone.slice():[];}
+    var resizedKnots=window.Knots?window.Knots.offset(state.knots,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):(state.knots||[]);
+    function bsDoneNow(){return tf&&Array.isArray(tf.bsDone)?tf.bsDone.slice():[];}
+    function partialDoneNow(){return tf&&Array.isArray(tf.partialDone)?tf.partialDone:[];}
+    // Backstitch marks move with their lines; quarter marks move with their cells and are dropped if the cell is cropped away.
+    var resizedBsDone=window.Backstitch?window.Backstitch.offsetDone(bsDoneNow(),spec.offsetX||0,spec.offsetY||0):bsDoneNow();
+    function beadsNow(){return window.Beads.normalise(tf&&tf.beads);}
+    function beadsDoneNow(){return tf&&Array.isArray(tf.beadsDone)?tf.beadsDone.slice():[];}
+    var resizedBeads=window.Knots?window.Knots.offset(beadsNow(),spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):beadsNow();
+    var resizedKnotsDone=window.Knots?window.Knots.offsetDone(knotsDoneNow(),spec.offsetX||0,spec.offsetY||0):knotsDoneNow();
+    var result=window.applyCanvasResize(
+      state.pat,state.bsLines,state.done,state.partialStitches,
+      state.parkMarkers,state.sW,state.sH,spec
+    );
+    if(!result)return false;
+    var tracking=window.remapCanvasTracking(tf&&tf.halfStitches,tf&&tf.halfDone,partialDoneNow(),result.newPartialStitches,state.sW,state.sH,spec,state.threadBrand);
+    var resizedPartialDone=tracking.partialDone;
+    var prevSnap={
+      sW:state.sW, sH:state.sH,
+      pat:state.pat.slice(), bsLines:state.bsLines.slice(),
+      done:state.done?Array.from(state.done):null,
+      ps:[...state.partialStitches.entries()],
+      parkMarkers:state.parkMarkers.slice(),
+      specialtyStitches:state.specialtyStitches,
+      knots:(state.knots||[]).slice(),
+      knotsDone:knotsDoneNow(),
+      bsDone:bsDoneNow(),
+      partialDone:partialDoneNow(),
+      beads:beadsNow(), beadsDone:beadsDoneNow(),
+      halfStitches:tf&&tf.halfStitches||[],
+      halfDone:tf&&tf.halfDone||[]
+    };
+    var nextSnap={
+      sW:spec.newW, sH:spec.newH,
+      pat:result.newPat, bsLines:result.newBsLines,
+      done:result.newDone?Array.from(result.newDone):null,
+      ps:[...result.newPartialStitches.entries()],
+      parkMarkers:result.newParkMarkers,
+      specialtyStitches:ProgressUnits.specialty.offset(state.specialtyStitches,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH),
+      knots:resizedKnots,
+      knotsDone:resizedKnotsDone,
+      bsDone:resizedBsDone,
+      partialDone:resizedPartialDone,
+      beads:resizedBeads, beadsDone:window.Beads.live(resizedBeads,beadsDoneNow()),
+      halfStitches:tracking.halfStitches,
+      halfDone:tracking.halfDone
+    };
+    var builtPal=state.buildPaletteWithScratch(result.newPat);
+    state.setSW(spec.newW); state.setSH(spec.newH);
+    state.setPat(result.newPat); state.setBsLines(result.newBsLines);
+    state.setDone(result.newDone);
+    state.setPartialStitches(result.newPartialStitches);
+    state.setParkMarkers(result.newParkMarkers);
+    state.setSpecialtyStitches(nextSnap.specialtyStitches);
+    if(state.setKnots)state.setKnots(resizedKnots);
+    if(tf){
+      tf.knotsDone=resizedKnotsDone;
+      tf.beadsDone=window.Beads.live(resizedBeads,beadsDoneNow());
+      tf.halfStitches=tracking.halfStitches;
+      tf.halfDone=tracking.halfDone;
+      if(resizedBsDone.length)tf.bsDone=resizedBsDone;else delete tf.bsDone;
+      if(resizedPartialDone.length)tf.partialDone=resizedPartialDone;else delete tf.partialDone;
+      if(resizedBeads.length)tf.beads=resizedBeads;else delete tf.beads;
+    }
+    state.setPal(builtPal.pal); state.setCmap(builtPal.cmap);
+    state.setRedoHistory([]);
+    state.setEditHistory(function(prev){
+      var n=prev.concat([{type:"canvasResize",prev:prevSnap,next:nextSnap}]);
+      if(n.length>state.EDIT_HISTORY_MAX)n=n.slice(n.length-state.EDIT_HISTORY_MAX);
+      return n;
+    });
+    return true;
+  }
+  // Crop to the stitches: the smallest rectangle holding everything on the
+  // chart, through the same resize, so it can be undone and keeps progress.
+  const cropToStitchesRef = useRef(null);
+  cropToStitchesRef.current = function(){
+    if(!state.pat)return;
+    var tf=state.trackerFieldsRef&&state.trackerFieldsRef.current;
+    var spec=window.cropToStitchesSpec(state.pat,state.sW,state.sH,{
+      partialStitches:state.partialStitches, bsLines:state.bsLines, specialty:state.specialtyStitches,
+      knots:state.knots, beads:window.Beads?window.Beads.normalise(tf&&tf.beads):[], parkMarkers:state.parkMarkers
+    });
+    if(!spec){ if(state.addToast)state.addToast("Nothing to crop: the stitches already reach every edge.",{type:"info",duration:2500}); return; }
+    if(applyResizeSpec(spec)&&state.addToast)state.addToast("Cropped to the stitches: now "+spec.newW+"\u00D7"+spec.newH+". Undo puts the edges back.",{type:"success",duration:3500});
+  };
+  const stableCropToStitches = useCallback(function(){ cropToStitchesRef.current(); }, []);
+
   const handleRequestBackToConvert = React.useCallback(function() {
     if (state.editHistory && state.editHistory.length > 0) {
       state.setConfirmBackToConvert(true);
@@ -704,7 +806,6 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleCropPointerCancel: stableHandleCropPointerCancel,
     applyCrop: stableApplyCrop,
     srcClick: stableSrcClick,
-    autoCrop: stableAutoCrop,
   }; }, [
     state.img, state.isUploading, state.isDragging,
     state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
@@ -729,7 +830,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     confirmBackToConvert: state.confirmBackToConvert, setConfirmBackToConvert: state.setConfirmBackToConvert,
     requestBackToConvert: handleRequestBackToConvert,
     sidebarTab: state.sidebarTab, setSidebarTab: state.setSidebarTab,
-    lastGenSnapshot: state.lastGenSnapshot,
+    lastGenSnapshot: state.lastGenSnapshot, convertChartState: convertChartState,
     tab: state.tab, setTab: state.setTab,
     materialsTab: state.materialsTab, setMaterialsTab: state.setMaterialsTab,
     modal: state.modal, setModal: state.setModal,
@@ -786,6 +887,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     handleFile: stableHandleFile, loadProject: stableLoadProject,
     handleOpenInTracker: stableHandleOpenInTracker,
     openResizeCanvas: () => state.setResizeCanvasOpen(true),
+    cropToStitches: stableCropToStitches,
     isScratchMode: state.isScratchMode,
     sourceTab: _sourceTab, openCanvas: handleOpenCanvas,
     setTracePicture: io.setTracePicture, removeTracePicture: io.removeTracePicture,
@@ -793,7 +895,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   }; }, [
     _sourceTab, handleOpenCanvas,
     state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab,
-    state.lastGenSnapshot,
+    state.lastGenSnapshot, convertChartState,
     state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError,
     state.copied, state.convertTab, state.showTidied, state.previewChange, state.previewTidied,
     state.splitPaneEnabled, state.splitPaneRatio,
@@ -1250,81 +1352,10 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         done:state.done,
         onClose:()=>state.setResizeCanvasOpen(false),
         onApply:function(spec){
-          // French knots and their Tracker done marks move with the cells.
-          var tf=state.trackerFieldsRef&&state.trackerFieldsRef.current;
-          function knotsDoneNow(){return tf&&Array.isArray(tf.knotsDone)?tf.knotsDone.slice():[];}
-          var resizedKnots=window.Knots?window.Knots.offset(state.knots,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):(state.knots||[]);
-          function bsDoneNow(){return tf&&Array.isArray(tf.bsDone)?tf.bsDone.slice():[];}
-          function partialDoneNow(){return tf&&Array.isArray(tf.partialDone)?tf.partialDone:[];}
-          // Backstitch marks move with their lines; quarter marks move with their cells and are dropped if the cell is cropped away.
-          var resizedBsDone=window.Backstitch?window.Backstitch.offsetDone(bsDoneNow(),spec.offsetX||0,spec.offsetY||0):bsDoneNow();
-          function beadsNow(){return window.Beads.normalise(tf&&tf.beads);}
-          function beadsDoneNow(){return tf&&Array.isArray(tf.beadsDone)?tf.beadsDone.slice():[];}
-          var resizedBeads=window.Knots?window.Knots.offset(beadsNow(),spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH):beadsNow();
-          var resizedKnotsDone=window.Knots?window.Knots.offsetDone(knotsDoneNow(),spec.offsetX||0,spec.offsetY||0):knotsDoneNow();
-          var result=window.applyCanvasResize(
-            state.pat,state.bsLines,state.done,state.partialStitches,
-            state.parkMarkers,state.sW,state.sH,spec
-          );
-          if(!result)return;
-          var tracking=window.remapCanvasTracking(tf&&tf.halfStitches,tf&&tf.halfDone,partialDoneNow(),result.newPartialStitches,state.sW,state.sH,spec,state.threadBrand);
-          var resizedPartialDone=tracking.partialDone;
-          var prevSnap={
-            sW:state.sW, sH:state.sH,
-            pat:state.pat.slice(), bsLines:state.bsLines.slice(),
-            done:state.done?Array.from(state.done):null,
-            ps:[...state.partialStitches.entries()],
-            parkMarkers:state.parkMarkers.slice(),
-            specialtyStitches:state.specialtyStitches,
-            knots:(state.knots||[]).slice(),
-            knotsDone:knotsDoneNow(),
-            bsDone:bsDoneNow(),
-            partialDone:partialDoneNow(),
-            beads:beadsNow(), beadsDone:beadsDoneNow(),
-            halfStitches:tf&&tf.halfStitches||[],
-            halfDone:tf&&tf.halfDone||[]
-          };
-          var nextSnap={
-            sW:spec.newW, sH:spec.newH,
-            pat:result.newPat, bsLines:result.newBsLines,
-            done:result.newDone?Array.from(result.newDone):null,
-            ps:[...result.newPartialStitches.entries()],
-            parkMarkers:result.newParkMarkers,
-            specialtyStitches:ProgressUnits.specialty.offset(state.specialtyStitches,spec.offsetX||0,spec.offsetY||0,spec.newW,spec.newH),
-            knots:resizedKnots,
-            knotsDone:resizedKnotsDone,
-            bsDone:resizedBsDone,
-            partialDone:resizedPartialDone,
-            beads:resizedBeads, beadsDone:window.Beads.live(resizedBeads,beadsDoneNow()),
-            halfStitches:tracking.halfStitches,
-            halfDone:tracking.halfDone
-          };
-          var builtPal=state.buildPaletteWithScratch(result.newPat);
-          state.setSW(spec.newW); state.setSH(spec.newH);
-          state.setPat(result.newPat); state.setBsLines(result.newBsLines);
-          state.setDone(result.newDone);
-          state.setPartialStitches(result.newPartialStitches);
-          state.setParkMarkers(result.newParkMarkers);
-          state.setSpecialtyStitches(nextSnap.specialtyStitches);
-          if(state.setKnots)state.setKnots(resizedKnots);
-          if(tf){
-            tf.knotsDone=resizedKnotsDone;
-            tf.beadsDone=window.Beads.live(resizedBeads,beadsDoneNow());
-            tf.halfStitches=tracking.halfStitches;
-            tf.halfDone=tracking.halfDone;
-            if(resizedBsDone.length)tf.bsDone=resizedBsDone;else delete tf.bsDone;
-            if(resizedPartialDone.length)tf.partialDone=resizedPartialDone;else delete tf.partialDone;
-            if(resizedBeads.length)tf.beads=resizedBeads;else delete tf.beads;
+          if(applyResizeSpec(spec)){
+            state.setResizeCanvasOpen(false);
+            if(state.addToast)state.addToast("Canvas resized to "+spec.newW+"\u00D7"+spec.newH,{type:"success",duration:2500});
           }
-          state.setPal(builtPal.pal); state.setCmap(builtPal.cmap);
-          state.setRedoHistory([]);
-          state.setEditHistory(function(prev){
-            var n=prev.concat([{type:"canvasResize",prev:prevSnap,next:nextSnap}]);
-            if(n.length>state.EDIT_HISTORY_MAX)n=n.slice(n.length-state.EDIT_HISTORY_MAX);
-            return n;
-          });
-          state.setResizeCanvasOpen(false);
-          if(state.addToast)state.addToast("Canvas resized to "+spec.newW+"\u00D7"+spec.newH,{type:"success",duration:2500});
         }
       })}
       {state.colourReplaceModal&&typeof window.ColourReplaceModal==='undefined'&&(function(){
