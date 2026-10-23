@@ -222,27 +222,101 @@ var CONVERSION_STATE_KEYS = [
 // sets values; every control stays editable, and once a value differs from
 // what the preset set the control shows Custom. Pixel art takes its thread
 // count and size from the picture itself (picturePresetValues).
+// `style` is the Detail and tidiness step the type starts on (STITCH_STYLES).
 var PICTURE_PRESETS = {
-  graphic: { label: 'Graphic or logo', maxC: 8, dithMode: 'off', allowBlends: false, skipBorderBackground: true },
+  graphic: { label: 'Graphic or logo', maxC: 8, allowBlends: false, style: 'balanced', skipBorderBackground: true },
   // 24 threads: at 20 the palette spent its threads on big areas and drew
   // faces in a grey beige (reports/photo-conversion-accuracy-review.md).
-  photo:   { label: 'Photo', maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true },
-  // Stitch Cleanup off: at its own size every pixel of pixel art is deliberate,
-  // and merging small patches changed highlights, shadows and hand dithering.
-  pixel:   { label: 'Pixel art', maxCFromSource: 30, dithMode: 'off', allowBlends: false, cleanup: false, sizeFromSourceMax: 500 }
+  photo:   { label: 'Photo', maxC: 24, allowBlends: true, style: 'balanced' },
+  // More detail: at its own size every pixel of pixel art is deliberate, and
+  // merging small patches changed highlights, shadows and hand dithering.
+  pixel:   { label: 'Pixel art', maxCFromSource: 30, allowBlends: false, style: 'detail', sizeFromSourceMax: 500 }
 };
 var PICTURE_PRESET_ORDER = ['graphic', 'photo', 'pixel'];
 
+// ── Detail and tidiness (the Convert style choice) ───────────────────────────
+// One choice from More detail to Easiest to stitch sets shading and tidying
+// together: [shading mode, Stitch Cleanup on, Reduce confetti level, Protect
+// fine details]. What each step means depends on the picture type, because
+// logos and pixel art are never shaded. Photo steps were measured on ten
+// photos at 100 stitches (scripts/conversion-accuracy; confetti stitches,
+// stitches in patches of 3 or fewer, colour error per stitch):
+//   More detail   9.8%  18.4%  5.28      Tidier            0.13%  5.8%  5.60
+//   Balanced      4.3%   9.1%  5.41      Easiest to stitch 0.11%  1.1%  6.27
+var STITCH_STYLE_ORDER = ['detail', 'balanced', 'tidier', 'easiest'];
+var STITCH_STYLE_LABELS = { detail: 'More detail', balanced: 'Balanced', tidier: 'Tidier', easiest: 'Easiest to stitch' };
+var STITCH_STYLES = {
+  photo: {
+    detail:   ['weak', true, 0, true],
+    balanced: ['weak', true, 2, true],
+    tidier:   ['weak', true, 1, false],
+    easiest:  ['off',  true, 2, false]
+  },
+  graphic: {
+    detail:   ['off', true, 0, true],
+    balanced: ['off', true, 2, true],
+    tidier:   ['off', true, 2, false],
+    easiest:  ['off', true, 3, false]
+  },
+  pixel: {
+    detail:   ['off', false, 0, true],
+    balanced: ['off', true, 0, true],
+    tidier:   ['off', true, 1, true],
+    easiest:  ['off', true, 2, false]
+  }
+};
+var STITCH_STYLE_DESCRIPTIONS = {
+  photo: {
+    detail: 'Keeps every shade the shading makes. The most confetti stitches.',
+    balanced: 'Smooth shading, with most confetti stitches merged and outlines kept.',
+    tidier: 'Keeps the shading but merges nearly every confetti stitch. Fine outlines soften a little.',
+    easiest: 'No shading: large blocks of colour, the quickest to stitch, and the least like the picture.'
+  },
+  graphic: {
+    detail: 'Keeps every small shape. Only the blurry in-between shades along edges are folded away.',
+    balanced: 'Merges confetti stitches, keeping outlines and lettering.',
+    tidier: 'Merges confetti stitches along outlines too.',
+    easiest: 'Merges small groups of stitches as well: the simplest blocks of colour.'
+  },
+  pixel: {
+    detail: 'Keeps every pixel exactly as drawn.',
+    balanced: 'Folds away in-between shades along edges; every other pixel stays.',
+    tidier: 'Also merges single stray pixels, except along outlines.',
+    easiest: 'Merges small groups of pixels too: simpler, but it changes the drawing.'
+  }
+};
+// The settings keys a style sets (useCreatorState setters' names without "set";
+// cleanup and protectDetails are Stitch Cleanup's enabled and protectDetails).
+var STITCH_STYLE_KEYS = ['dithMode', 'cleanup', 'orphans', 'protectDetails']; // terminology-lint-allow (state keys, not UI text)
+// The settings for a step of a picture type's styles (photo when unknown).
+function stitchStyleValues(basis, step) {
+  var t = (STITCH_STYLES[basis] || STITCH_STYLES.photo)[step];
+  return t ? { dithMode: t[0], cleanup: t[1], orphans: t[2], protectDetails: t[3] } : null;
+}
+// Which step `cur` ({ dithMode, cleanup, orphans, protectDetails }) is, or
+// 'custom'. Settings that do nothing are not compared: with Stitch Cleanup off
+// the level and protection, and at level 0 the protection.
+function stitchStyleOf(basis, cur) {
+  for (var i = 0; i < STITCH_STYLE_ORDER.length; i++) {
+    var step = STITCH_STYLE_ORDER[i], t = stitchStyleValues(basis, step);
+    if (cur.dithMode !== t.dithMode || !!cur.cleanup !== t.cleanup) continue;
+    if (!t.cleanup) return step;
+    if ((cur.orphans || 0) !== t.orphans) continue;
+    if (t.orphans > 0 && !!cur.protectDetails !== t.protectDetails) continue;
+    return step;
+  }
+  return 'custom';
+}
+
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set" (cleanup is Stitch Cleanup on or off): maxC, dithMode, allowBlends, cleanup, skipBg, bgCol,
-// sW, sH.
+// without "set": maxC, allowBlends, skipBg, bgCol, sW, sH, plus the starting
+// Detail and tidiness step's dithMode, cleanup, orphans and protectDetails.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
   if (!p) return null;
-  var v = { dithMode: p.dithMode, allowBlends: p.allowBlends };
+  var v = Object.assign({ allowBlends: p.allowBlends }, stitchStyleValues(id, p.style));
   if (p.maxC) v.maxC = p.maxC;
-  if (p.cleanup != null) v.cleanup = p.cleanup;
   if (p.skipBorderBackground && info && info.border) { v.skipBg = true; v.bgCol = info.border.rgb.slice(0, 3); }
   if (p.maxCFromSource) {
     var n = info && info.distinct ? info.distinct : p.maxCFromSource;
@@ -416,6 +490,11 @@ if (typeof window !== 'undefined') {
   window.CONVERSION_STATE_KEYS = CONVERSION_STATE_KEYS;
   window.PICTURE_PRESETS = PICTURE_PRESETS;
   window.PICTURE_PRESET_ORDER = PICTURE_PRESET_ORDER;
+  window.STITCH_STYLE_ORDER = STITCH_STYLE_ORDER;
+  window.STITCH_STYLE_LABELS = STITCH_STYLE_LABELS;
+  window.STITCH_STYLE_DESCRIPTIONS = STITCH_STYLE_DESCRIPTIONS;
+  window.stitchStyleValues = stitchStyleValues;
+  window.stitchStyleOf = stitchStyleOf;
   window.picturePresetValues = picturePresetValues;
   window.analysePicture = analysePicture;
   window.guessPictureType = guessPictureType;
@@ -464,8 +543,6 @@ function defaultFabricColour() {
 }
 window.creatorDefaultFabricColour = defaultFabricColour;
 
-// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
-// (e.g. SSR or test environments) never throws during render.
 // A shading mode the Creator offers: "off", "weak", "balanced", "bayer2",
 // "bayer4" or "bayer8". The retired "strong" and any other "on" value become
 // "balanced"; anything falsy is "off".
@@ -476,6 +553,8 @@ function normaliseDithMode(v) {
 }
 window.normaliseDithMode = normaliseDithMode;
 
+// Reads a UserPrefs key with try/catch fallback so missing/broken UserPrefs
+// (e.g. SSR or test environments) never throws during render.
 function loadUserPref(key, fallback) {
   try {
     if (typeof UserPrefs === "undefined") return fallback;
@@ -760,15 +839,15 @@ window.useCreatorState = function useCreatorState() {
   var rightPaneMode = _rpMode[0], setRightPaneMode = _rpMode[1];
 
   // Section open states
-  // Convert panel order (audit IMG-06): Size & fabric, Colours, Background,
-  // Quality, Adjust image, palette swap, Project. Size and Colours start open;
-  // Adjust image and Project start collapsed.
+  // Convert panel order (audit IMG-06): Size & fabric, Colours, Detail and
+  // tidiness, Background, Adjust image, palette swap, Project. Size, Colours
+  // and Detail and tidiness start open; the rest start collapsed.
   var _dimOpen  = useState(true);    var dimOpen  = _dimOpen[0],  setDimOpen  = _dimOpen[1];
   var _palOpen  = useState(true);    var palOpen  = _palOpen[0],  setPalOpen  = _palOpen[1];
   var _adjOpen  = useState(false);   var adjOpen  = _adjOpen[0],  setAdjOpen  = _adjOpen[1];
   var _bgOpen   = useState(false);   var bgOpen   = _bgOpen[0],   setBgOpen   = _bgOpen[1];
   var _palAdv   = useState(false);   var palAdvanced = _palAdv[0], setPalAdvanced = _palAdv[1];
-  var _clOpen   = useState(false);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
+  var _clOpen   = useState(true);    var cleanupOpen = _clOpen[0], setCleanupOpen = _clOpen[1];
   var _sc       = useState(function () {
     var savedStrength = loadUserPref("creatorStitchCleanupStrength", "balanced");
     if (savedStrength !== "gentle" && savedStrength !== "balanced" && savedStrength !== "thorough") {
@@ -806,19 +885,22 @@ window.useCreatorState = function useCreatorState() {
     if (v.maxC != null) setMaxC(v.maxC);
     if (v.dithMode != null) setDithMode(v.dithMode);
     if (v.allowBlends != null) setAllowBlends(v.allowBlends);
-    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup }); });
+    if (v.cleanup != null) setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    if (v.orphans != null) setOrphans(v.orphans);
     if (v.skipBg) { setSkipBg(true); if (v.bgCol) setBgCol(v.bgCol); }
     if (v.sW && v.sH) { setSW(v.sW); setSH(v.sH); }
     setPresetApplied({ id: id, values: v });
   }, []);
+  // The Detail and tidiness step is its own choice: changing it keeps the
+  // picture type, so its keys are not compared here.
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
-      maxC: maxC, dithMode: dithMode, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
-      cleanup: !!(stitchCleanup && stitchCleanup.enabled),
+      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
       bgCol: bgCol
     };
     for (var k in v) {
+      if (STITCH_STYLE_KEYS.indexOf(k) !== -1) continue;
       // The background colour is an [r, g, b] array: compare by value.
       if (k === 'bgCol') {
         if (!cur.bgCol || String(cur.bgCol.slice(0, 3)) !== String(v.bgCol)) return 'custom';
@@ -828,6 +910,24 @@ window.useCreatorState = function useCreatorState() {
     }
     return presetApplied.id;
   })();
+  // Detail and tidiness: steps are read in the last picture type chosen, even
+  // after another value made the type Custom. With none chosen (Guess the
+  // picture type off in Preferences), in the type the picture looks like, so
+  // a logo or pixel art is never shaded by choosing a step; photo without a picture.
+  var stitchStyleBasis = presetApplied && STITCH_STYLES[presetApplied.id] ? presetApplied.id
+    : pictureInfo ? guessPictureType(pictureInfo) : 'photo';
+  var stitchStyle = stitchStyleOf(stitchStyleBasis, {
+    dithMode: dithMode, orphans: orphans,
+    cleanup: !!(stitchCleanup && stitchCleanup.enabled),
+    protectDetails: !!(stitchCleanup && stitchCleanup.protectDetails)
+  });
+  var applyStitchStyle = useCallback(function (step) {
+    var v = stitchStyleValues(stitchStyleBasis, step);
+    if (!v) return;
+    setDithMode(v.dithMode);
+    setStitchCleanup(function (sc) { return Object.assign({}, sc, { enabled: v.cleanup, protectDetails: v.protectDetails }); });
+    setOrphans(v.orphans);
+  }, [stitchStyleBasis]);
 
   // Crop state
   var _isCrop  = useState(false);    var isCropping = _isCrop[0], setIsCropping = _isCrop[1];
@@ -1560,7 +1660,7 @@ window.useCreatorState = function useCreatorState() {
     setLastGenSnapshot(null); setGenPatSnapshot(null);
     setThreadOwned({}); setConfettiData(null); setHasGenerated(false);
     setDimOpen(true); setPalOpen(true); setAdjOpen(false);
-    setBgOpen(false); setCleanupOpen(false); setIsCropping(false); setCropRect(null);
+    setBgOpen(false); setCleanupOpen(true); setIsCropping(false); setCropRect(null);
     setPartialStitches(new Map()); setPartialStitchTool(null); setBrushMode("paint");
     setIsScratchMode(false); setScratchPalette([]); setDmcSearch(""); setSymbolOverrides({});
     _setFabricColourRaw(defaultFabricColour());
@@ -2459,7 +2559,8 @@ window.useCreatorState = function useCreatorState() {
     sW, setSW, sH, setSH, arLock, setArLock, ar, setAr,
     maxC, setMaxC, bri, setBri, con, setCon, sat, setSat,
     exactPixelArt, setExactPixelArt,
-    pictureInfo, setPictureInfo, pictureType, presetApplied, applyPicturePreset, threadCounts,
+    pictureInfo, setPictureInfo, pictureType, presetApplied, setPresetApplied, applyPicturePreset, threadCounts,
+    stitchStyle, stitchStyleBasis, applyStitchStyle,
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,

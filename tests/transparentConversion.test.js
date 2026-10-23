@@ -71,7 +71,7 @@ test.each(['off', 'atkinson', 'bayer', 'riemersma'])('%s: alpha cutoff, cleanup 
     const main = c.runCleanupPipeline(raw, 24, 8, opts);
     const wr = workerResult(worker, raw, 24, 8, opts);
     expect(ids(wr.mapped)).toEqual(ids(main.mapped));
-    expect(plain(wr.confettiData)).toEqual(plain({ raw: main.confettiRaw, clean: main.confettiClean || main.confettiRaw }));
+    expect(plain(wr.confettiData)).toEqual(plain({ raw: main.confettiRaw, clean: main.confettiClean || main.confettiRaw, final: main.confettiFinal }));
     expect(stitchCount(main.mapped)).toBe(128);
     for (let i = 0; i < 192; i++) expect(main.mapped[i].id === '__skip__').toBe((i % 24) < 8);
     expect(raw).toEqual(before);

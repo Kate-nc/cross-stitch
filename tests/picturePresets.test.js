@@ -10,6 +10,7 @@ const shortFn = src.match(/function threadCountsShort\(c\) \{[\s\S]*?\n\}/)[0];
 // eslint-disable-next-line no-new-func
 const api = new Function('window', block + shortFn + `
   return { PICTURE_PRESETS, PICTURE_PRESET_ORDER, picturePresetValues, analysePicture,
+    STITCH_STYLES, STITCH_STYLE_ORDER, STITCH_STYLE_LABELS, STITCH_STYLE_DESCRIPTIONS, STITCH_STYLE_KEYS, stitchStyleValues, stitchStyleOf,
     guessPictureType, creatorThreadCounts, threadCountsSentence, threadCountsShort };`)({ detectUniformBorder });
 
 function image(w, h, fn) {
@@ -79,14 +80,16 @@ describe('preset values', () => {
   });
   test('Graphic: 8 threads, no shading, no blends, background skipped when the border is one colour', () => {
     const v = api.picturePresetValues('graphic', api.analysePicture(logo));
-    expect(v).toEqual({ maxC: 8, dithMode: 'off', allowBlends: false, skipBg: true, bgCol: [255, 255, 255] });
+    // Detail and tidiness starts on Balanced: no shading for a graphic.
+    expect(v).toEqual({ maxC: 8, dithMode: 'off', cleanup: true, orphans: 2, protectDetails: true, allowBlends: false, skipBg: true, bgCol: [255, 255, 255] });
     expect(api.picturePresetValues('graphic', api.analysePicture(photo)).skipBg).toBeUndefined();
   });
   test('Photo: 24 threads, subtle shading, blends, Stitch Cleanup on', () => {
-    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', allowBlends: true, cleanup: true });
+    expect(api.picturePresetValues('photo', null)).toEqual({ maxC: 24, dithMode: 'weak', cleanup: true, orphans: 2, protectDetails: true, allowBlends: true });
   });
   test('Pixel art: the picture\'s colours (at most 30) at its own size (up to 500)', () => {
-    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', allowBlends: false, cleanup: false, maxC: 6, sW: 24, sH: 24 });
+    // More detail: Stitch Cleanup off, so every pixel is kept.
+    expect(api.picturePresetValues('pixel', api.analysePicture(pixel))).toEqual({ dithMode: 'off', cleanup: false, orphans: 0, protectDetails: true, allowBlends: false, maxC: 6, sW: 24, sH: 24 });
     expect(api.picturePresetValues('pixel', { w: 64, h: 64, distinct: 300 }).maxC).toBe(30);
     expect(api.picturePresetValues('pixel', { w: 800, h: 600, distinct: 12 }).sW).toBeUndefined();
     expect(api.picturePresetValues('pixel', { w: 40, h: 40, distinct: 1 }).maxC).toBe(2);
@@ -96,27 +99,61 @@ describe('preset values', () => {
   });
 });
 
+describe('Detail and tidiness steps', () => {
+  const types = ['photo', 'graphic', 'pixel'];
+  test('four steps, from More detail to Easiest to stitch, for every picture type', () => {
+    expect(api.STITCH_STYLE_ORDER.map((id) => api.STITCH_STYLE_LABELS[id])).toEqual(['More detail', 'Balanced', 'Tidier', 'Easiest to stitch']);
+    for (const t of types) for (const step of api.STITCH_STYLE_ORDER) {
+      expect(api.stitchStyleValues(t, step)).not.toBeNull();
+      expect(api.STITCH_STYLE_DESCRIPTIONS[t][step]).toMatch(/\S/);
+    }
+  });
+  test('each step reads back as itself, so a step is always shown as chosen', () => {
+    for (const t of types) for (const step of api.STITCH_STYLE_ORDER) {
+      expect(api.stitchStyleOf(t, api.stitchStyleValues(t, step))).toBe(step);
+    }
+  });
+  test('graphics and pixel art are never shaded', () => {
+    for (const t of ['graphic', 'pixel']) for (const step of api.STITCH_STYLE_ORDER) expect(api.stitchStyleValues(t, step).dithMode).toBe('off');
+  });
+  test('the presets start on their step: Photo and Graphic on Balanced, Pixel art on More detail', () => {
+    const at = (id) => api.stitchStyleOf(id, api.picturePresetValues(id, null));
+    expect([at('photo'), at('graphic'), at('pixel')]).toEqual(['balanced', 'balanced', 'detail']);
+  });
+  test('settings no step has read as Custom; settings that do nothing are ignored', () => {
+    expect(api.stitchStyleOf('photo', { dithMode: 'bayer4', cleanup: true, orphans: 2, protectDetails: true })).toBe('custom');
+    expect(api.stitchStyleOf('photo', { dithMode: 'weak', cleanup: true, orphans: 3, protectDetails: true })).toBe('custom');
+    // With Stitch Cleanup off the level and protection do nothing.
+    expect(api.stitchStyleOf('pixel', { dithMode: 'off', cleanup: false, orphans: 3, protectDetails: false })).toBe('detail');
+    // At level 0 protection does nothing.
+    expect(api.stitchStyleOf('photo', { dithMode: 'weak', cleanup: true, orphans: 0, protectDetails: false })).toBe('detail');
+    // An unknown type reads as a photo.
+    expect(api.stitchStyleOf('custom', api.stitchStyleValues('photo', 'tidier'))).toBe('tidier');
+  });
+});
+
 describe('the hook', () => {
   test('choosing a preset only sets values, and changing one shows Custom', () => {
     expect(src).toMatch(/setPresetApplied\(\{ id: id, values: v \}\);/);
     const derive = src.match(/var pictureType = \(function \(\) \{[\s\S]*?\n {2}\}\)\(\);/)[0];
-    const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', 'bgCol', // eslint-disable-line no-new-func
-      derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol);
+    const run = (applied, cur) => new Function('presetApplied', 'maxC', 'dithMode', 'allowBlends', 'skipBg', 'sW', 'sH', 'stitchCleanup', 'bgCol', 'STITCH_STYLE_KEYS', // eslint-disable-line no-new-func
+      derive + ' return pictureType;')(applied, cur.maxC, cur.dithMode, cur.allowBlends, cur.skipBg, cur.sW, cur.sH, cur.stitchCleanup, cur.bgCol, api.STITCH_STYLE_KEYS);
     const photoV = api.picturePresetValues('photo', null);
     const cur = { maxC: 24, dithMode: 'weak', allowBlends: true, skipBg: false, sW: 80, sH: 80, stitchCleanup: { enabled: true, strength: 'balanced' } };
     expect(run({ id: 'photo', values: photoV }, cur)).toBe('photo');
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { maxC: 21 }))).toBe('custom');
-    expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { stitchCleanup: { enabled: false, strength: 'balanced' } }))).toBe('custom');
+    // Detail and tidiness is its own choice: changing it keeps the type.
+    expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { dithMode: 'off', stitchCleanup: { enabled: false, strength: 'balanced' } }))).toBe('photo');
     // Size isn't part of the Photo preset.
     expect(run({ id: 'photo', values: photoV }, Object.assign({}, cur, { sW: 120 }))).toBe('photo');
     expect(run(null, cur)).toBe('custom');
 
-    // Pixel art turns Stitch Cleanup off: every pixel is deliberate. Turning
-    // it back on is a change.
+    // So does moving pixel art from More detail to a tidier step.
     const pixelV = api.picturePresetValues('pixel', { w: 24, h: 24, distinct: 6 });
     const p = { maxC: 6, dithMode: 'off', allowBlends: false, skipBg: false, sW: 24, sH: 24, stitchCleanup: { enabled: false, strength: 'balanced' } };
     expect(run({ id: 'pixel', values: pixelV }, p)).toBe('pixel');
-    expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { stitchCleanup: { enabled: true, strength: 'balanced' } }))).toBe('custom');
+    expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { stitchCleanup: { enabled: true, strength: 'balanced' } }))).toBe('pixel');
+    expect(run({ id: 'pixel', values: pixelV }, Object.assign({}, p, { maxC: 7 }))).toBe('custom');
 
     // Graphic records the skipped background colour; picking another one is
     // a change (compared by value, not by array identity).
@@ -186,7 +223,7 @@ describe('threads and symbols', () => {
     const sb = loadSource('creator/Sidebar.js');
     expect(sb).toMatch(/className:"palette-counts"[^\n]*window\.threadCountsShort\(window\.creatorThreadCounts\(displayPal\)\)/);
     expect(sb).toMatch(/label:"Threads \(max\)"/);
-    expect(sb).toMatch(/helpText:"Each thread is one colour of stranded cotton"/);
+    expect(sb).toMatch(/helpText:"Each thread is one colour of stranded cotton/);
     expect(sb).not.toMatch(/" colours used"/);
   });
 });

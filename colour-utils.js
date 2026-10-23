@@ -1571,19 +1571,6 @@ function applyBilateralFilter(data, w, h, opts) {
   return data;
 }
 
-// ---------------------------------------------------------------------------
-// Pre-downscale detail enhancement: Lab-L unsharp mask
-// ---------------------------------------------------------------------------
-
-/**
- * Inverse of rgbToLab (defined in dmc-data.js): converts CIE L*a*b* to sRGB.
- * Clamps output to [0, 255] and rounds to integers.
- *
- * @param {number} L   L* (0–100)
- * @param {number} a   a* (approximately −128 to +127)
- * @param {number} b   b* (approximately −128 to +127)
- * @returns {[number, number, number]}  [R, G, B] each 0–255
- */
 // ── Shrinking a picture to the stitch grid, averaged as light ───────────────
 // A stitch shows the average of the picture under it as light, so pixels are
 // linearised before averaging and re-encoded after. Averaging the stored sRGB
@@ -1594,6 +1581,11 @@ function applyBilateralFilter(data, w, h, opts) {
 // finding 2). Each output pixel is the exact area average of the source pixels
 // it covers, fractional edges included, weighted by alpha (premultiplied, as
 // the canvas does) so hidden RGB under transparency never tints a stitch.
+// Pictures with more pixels than this are first drawn smaller by the browser
+// before the light-correct average (gridPixels in creator/generate.js and
+// parseImagePattern in import-formats.js). Uploads are already capped at
+// 2000 x 2000; this only guards very large sources, far finer than a stitch.
+var LINEAR_SHRINK_MAX_SOURCE_AREA = 4096 * 4096;
 var _SRGB8_TO_LINEAR = (function () {
   var t = new Float32Array(256);
   for (var i = 0; i < 256; i++) { var v = i / 255; t[i] = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
@@ -1655,6 +1647,19 @@ function linearAreaDownscale(src, sw, sh, dw, dh) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Pre-downscale detail enhancement: Lab-L unsharp mask
+// ---------------------------------------------------------------------------
+
+/**
+ * Inverse of rgbToLab (defined in dmc-data.js): converts CIE L*a*b* to sRGB.
+ * Clamps output to [0, 255] and rounds to integers.
+ *
+ * @param {number} L   L* (0–100)
+ * @param {number} a   a* (approximately −128 to +127)
+ * @param {number} b   b* (approximately −128 to +127)
+ * @returns {[number, number, number]}  [R, G, B] each 0–255
+ */
 function labToRgb(L, a, b) {
   var fy = (L + 16) / 116;
   var fx = a / 500 + fy;
@@ -3270,4 +3275,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }

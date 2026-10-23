@@ -119,7 +119,8 @@ self.onmessage = function(e) {
     }
 
     var saliencyMap = generateSaliencyMap(raw, width, height);
-    var cdt = dith && dithAlgo === "atkinson" && stitchCleanup && stitchCleanup.smoothDithering ? 4.0 : 0.0;
+    // Always on in Smooth blend (mirrors runCleanupPipeline).
+    var cdt = dith && dithAlgo === "atkinson" ? 4.0 : 0.0;
     postProgress(dith ? 'dithering' : 'mapping', dith ? 'Dithering colours…' : 'Mapping colours…');
     var mapped;
     if (!dith) {
@@ -171,9 +172,9 @@ self.onmessage = function(e) {
 
     // Reduce confetti: runs when Stitch Cleanup is on and the level is above 0
     // (mirrors runCleanupPipeline).
-    if (confettiCleanupPlan(stitchCleanup, settings.orphans)) {
-      postProgress('cleanup', 'Cleaning up stitches…');
-      var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    if (confettiCleanupPlan(stitchCleanup, settings.orphans)) postProgress('cleanup', 'Cleaning up stitches…');
+    var cleaned = runConfettiCleanup(mapped, raw, width, height, saliencyMap, preLabels, stitchCleanup, settings.orphans);
+    if (cleaned) {
       mapped = cleaned.mapped;
       preCleanupIds = cleaned.preCleanupIds;
       confettiClean = cleaned.confettiClean;
@@ -196,6 +197,7 @@ self.onmessage = function(e) {
     }
 
     // ── maxC enforcement pass ──────────────────────────────────────────────────
+    var limited = false;
     for (var safe = 0; safe < 5; safe++) {
       var ids = new Set();
       for (var k = 0; k < mapped.length; k++) {
@@ -230,9 +232,17 @@ self.onmessage = function(e) {
           : !ks.has(m3.id);
         if (nr) {
           mapped[k3] = findSolid(m3.lab || rgbToLab(raw[k3 * 4], raw[k3 * 4 + 1], raw[k3 * 4 + 2]), kp);
+          limited = true;
         }
       }
     }
+
+    // The finished chart's confetti (runCleanupPipeline's confettiFinal):
+    // look-alike separation and the thread limit can change stitches after
+    // Reduce confetti was measured.
+    var confettiFinal = (disambigData && disambigData.swaps > 0) || limited
+      ? analyzeConfetti(mapped, width, height)
+      : (confettiClean || confettiRaw);
 
     // ── 5. Build final palette ────────────────────────────────────────────────
     postProgress('finalizing', 'Building palette\u2026');
@@ -245,7 +255,7 @@ self.onmessage = function(e) {
       mapped: mapped,
       pal: palResult.pal,
       cmap: palResult.cmap,
-      confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw },
+      confettiData: { raw: confettiRaw, clean: confettiClean || confettiRaw, final: confettiFinal },
       preCleanupIds: preCleanupIds,
       disambigData: disambigData,
     });

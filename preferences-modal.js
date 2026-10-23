@@ -334,17 +334,17 @@
       ),
 
       h(Section, { title: "Tidying up the pattern" },
-        h(Row, { label: "Stitch Cleanup", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them, and folds away the in-between shades along edges. Off keeps every stitch as matched." },
+        h(Row, { label: "Stitch Cleanup", desc: "Merges confetti stitches (single stitches of a colour on their own; slow to stitch) into the colour around them, and folds away the in-between shades along edges. Off keeps every stitch as matched. Used when the picture type isn't guessed; otherwise the type's Detail and tidiness step sets it." },
           h(Switch, { checked: cleanup[0], onChange: cleanup[1] })
         ),
-        h(Row, { label: "Reduce confetti", desc: "How much Stitch Cleanup merges. 0 merges none; 1 merges single confetti stitches; 3 merges groups of up to 3. Plain areas allow groups three times larger." },
+        h(Row, { label: "Reduce confetti", desc: "How much Stitch Cleanup merges. 0 merges none; 1 merges single confetti stitches; 3 merges groups of up to 3. Plain areas allow groups three times larger. Used when the picture type isn't guessed." },
           h("input", { type: "range", min: 0, max: 3, value: orphan[0], onChange: function (e) { orphan[1](parseInt(e.target.value, 10)); }, style: { width: 120 } }),
           h("span", { style: { fontSize: 12, color: COLOURS.slate, width: 16, textAlign: "right" } }, String(orphan[0]))
         ),
         h(Row, { label: "Minimum stitches per colour", desc: "Drops any colour used fewer times than this. At 0 (the default) stray colours are still folded away automatically, keeping small bright accents such as catchlights." },
           h("input", { type: "number", inputMode: "numeric", min: 0, max: 500, value: minStit[0], onChange: function (e) { minStit[1](Math.max(0, parseInt(e.target.value, 10) || 0)); }, style: Object.assign({}, styles.input, { width: 80 }) })
         ),
-        h(Row, { last: true, label: "Protect detailed areas", desc: "Keeps small groups of stitches that touch an outline, such as eyes and lettering. Off gives the tidiest chart. Bright accents are kept either way." },
+        h(Row, { last: true, label: "Protect detailed areas", desc: "Keeps small groups of stitches that touch an outline, such as eyes and lettering. Off gives the tidiest chart. Bright accents are kept either way. Used when the picture type isn't guessed." },
           h(Switch, { checked: protect[0], onChange: protect[1] })
         )
       ),

@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "e50e833a2d50649934f8910ce234a6b1664d481410774e8175ca70e8a2b40a81";
+var BUILD_ID = "f1fd5a3d39728e377d87f84c19fc0060016a602804ff2f3c535c1012135b2a2f";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -319,10 +319,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "e6eb85c63f550a144711119400be10329d751552dae19c745a3e530d5f199448"
+    "sha256": "4c6325105c2d2cf8c6e0fd5e31b2bfe03806e69473adbb405e841fd160823bd7"
   },
   "./version.js": {
-    "sha256": "d5764fbd5811576dc7898a805923b65f976e41a8e45bc7802a5cc79186d0bf42"
+    "sha256": "21a61d01e101fea9e800d77c0f8f730cb59c6d372b81801e235f03417e28203a"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -349,7 +349,7 @@ var BUILD_ASSETS = {
     "sha256": "5b0d7792c6a6759211b8db8c2e611a0da3fbc4ee0d8c7fc87efa698f1da6c2b3"
   },
   "./colour-utils.js": {
-    "sha256": "a82f8883675bb6bee3b1a5cecbef994efb410b912dd9ef113d1e8e05a0e192d8"
+    "sha256": "639752b1bd27771326430d22ce4e6bc3ea4ebaffc2290cc0671ec1fd6c0e4c3b"
   },
   "./symbol-glyphs.js": {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
@@ -388,10 +388,10 @@ var BUILD_ASSETS = {
     "sha256": "091b228defb48ce03701ddaff9fa792d89bd139f7a203fca387c05041024fa0b"
   },
   "./import-formats.js": {
-    "sha256": "c070c0cb4a01773c8a2ab33b55c756e2ee2a9a9e2ed76a984e0eb9e780157bb9"
+    "sha256": "1c2c7e65d1d4e81db1b550789e5d3f8f950d896e5e6b0430089555aca407eb9f"
   },
   "./components.js": {
-    "sha256": "a541a43c0c5f3d56cd7a41ce98e06a8d49e4a0180b96f23d993ece5466b9d78d"
+    "sha256": "02b6a7223c653db0d463aac28042bc3e8ddf7bc9b9f8e22591b43c9c6c954b3b"
   },
   "./components-stats.js": {
     "sha256": "79bb8fabc308d500fc1a5a332f2000228a867bc8030bdf2e2b6a81aa173c3473"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "53875ed624d431cafd95e50c8f4a23b58dd670effec0767651974d091a246319"
+    "sha256": "94ab2527213a026f2eb4341940a54c26558ccd4000f8f231950c5a3f004377d9"
   },
   "./creator/extras-bundle.js": {
     "sha256": "afc7560011b56919ff231b805b5977d3e675d08a7fcee0d6a5b26d4b9e0da6ab"
@@ -481,7 +481,7 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "f96ca41de47f06045c037b6d70bb0ca43983bef045dad957360c0c219595cebc"
+    "sha256": "1597ae9869b155f7be100955af4b4ef07def4d347a44f1df0750a477bafd6071"
   },
   "./compiled/tracker-app.compiled.js": {
     "sha256": "8ba9684bbc95c297f952674a5d93afbc613aea3ad2269d1bf63d349d27be3a3a"
@@ -499,7 +499,7 @@ var BUILD_ASSETS = {
     "sha256": "a0d3b9526ec89bef46ff8d716915854502b25aab8885583811080e37cf04ef7b"
   },
   "./generate-worker.js": {
-    "sha256": "93080da65950d5a4faed09d4fa7f86fac02220c4dbe5761e05bc7962833f4bbc"
+    "sha256": "71e4a97069ac16360e444c089f802cf8e5cda76c5375ca9ef6da91fbc4e19042"
   },
   "./cleanup-worker.js": {
     "sha256": "400f297c33328632690d56fe926ad82623f561c3d83fc445fd8ce5152cfaa96e"
@@ -574,7 +574,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "c85ebc517af363eb649f7dfb6cf3e902113cf4bf68d5e26a95eeca741276fd6e"
+    "sha256": "6a5af9a2eba1d0c7aaab84d6db2d4dfeac9b3328ba07227edbe4c11b7d3d5727"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
@@ -649,7 +649,7 @@ var BUILD_ASSETS = {
     "sha256": "939ac378ce06c86a18c8e42cefc4907ec8c065edf51cb898eaead75db24a8ae7"
   },
   "./preferences-modal.js": {
-    "sha256": "007f1f1c84c1f42a14ea0a8b213f9fcc04eaa335bb28c4cfc858bdc594a8ada9"
+    "sha256": "1f52ffab99e894d7c00de7b5efc4a02b5994d58a0e137b1d5bb2f2b463584c77"
   },
   "./coaching.js": {
     "sha256": "fdd2a7cea5a5780f52b6c3f5e240344d3dabe1faa6a4d8f2ad76db47f319ab4c"

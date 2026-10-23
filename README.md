@@ -505,7 +505,7 @@ reliably distinguish the stylus, leave it off and switch explicitly between
 **Navigate** and **Draw**. Mixed pen/finger contact interrupts drawing; a remaining
 finger cannot resume it. Interrupted brush strokes can be undone as one action.
 
-In Convert, **Exact pixel-art import** preserves the source dimensions (up to
+In Convert, **Exact pixel-art import** (shown when the picture type is Pixel art) preserves the source dimensions (up to
 500 by 500), one source pixel per stitch, without smoothing, dithering or cleanup.
 It uses the existing alpha cutoff: below 128 is empty, otherwise stitched.
 Colours still map to solid threads in the chosen brand or stash. Expand

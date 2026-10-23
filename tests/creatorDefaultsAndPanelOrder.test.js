@@ -102,10 +102,10 @@ describe('defaults', () => {
 describe('Convert panel order', () => {
   const sb = loadSource('creator/Sidebar.js');
 
-  test('sections are Size & fabric, Colours, Background, Quality, Adjust image, palette swap, Project', () => {
+  test('sections are Size & fabric, Colours, Detail and tidiness, Background, Adjust image, palette swap, Project', () => {
     const start = sb.indexOf('var createPanel = h("div"');
     const block = sb.slice(start, sb.indexOf('createProjectSection\n', start) + 30);
-    const order = ['dimSection', 'palSection', 'bgSection', 'tidySection', 'adjSection', 'paletteSwap.shiftSection', 'createProjectSection']
+    const order = ['dimSection', 'palSection', 'tidySection', 'bgSection', 'adjSection', 'paletteSwap.shiftSection', 'createProjectSection']
       .map((n) => block.indexOf(n));
     order.forEach((i) => expect(i).toBeGreaterThan(-1));
     expect(order.slice().sort((a, b) => a - b)).toEqual(order);
@@ -122,6 +122,12 @@ describe('Convert panel order', () => {
     expect(st).toMatch(/var _dimOpen\s*=\s*useState\(true\)/);
     expect(st).toMatch(/var _palOpen\s*=\s*useState\(true\)/);
     expect(st).toMatch(/var _adjOpen\s*=\s*useState\(false\)/);
+    // Detail and tidiness starts open: its one choice is for everyone.
+    expect(st).toMatch(/var _clOpen\s*=\s*useState\(true\)/);
+    expect(sb).toMatch(/title:"Detail and tidiness", isOpen:app\.cleanupOpen/);
+    // Min stitches per colour is a thread choice, in Colours.
+    const pal = sb.slice(sb.indexOf('var palSection = '), sb.indexOf('var tidySection = '));
+    expect(pal).toMatch(/label:"Min stitches per colour"/);
     expect(sb).toMatch(/var createProjectSection = h\(Section, \{title:"Project", defaultOpen:false\}/);
   });
 });

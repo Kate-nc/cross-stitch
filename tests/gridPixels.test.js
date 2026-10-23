@@ -9,7 +9,7 @@
  * for prescaleForGrid, the gamma-space halving chain this removes.
  */
 const { loadSource } = require('./_helpers/loadSource');
-const { linearAreaDownscale } = require('../colour-utils.js');
+const { linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA } = require('../colour-utils.js');
 
 const genSrc = loadSource('creator/generate.js');
 
@@ -77,9 +77,9 @@ describe('gridPixels', () => {
         return c;
       },
     };
-    const fn = new Function('document', 'linearAreaDownscale', 'applyPreSharpenCanvas', '_applyImageFilters',
-      genSrc.slice(genSrc.indexOf('var GRID_PIXELS_MAX_SOURCE_AREA'), genSrc.indexOf('/**\n * Apply a pre-downscale luminance unsharp mask')) + '\nreturn { gridPixels, GRID_PIXELS_MAX_SOURCE_AREA };');
-    return fn(document, linearAreaDownscale, (s) => s, (id, b, c, s) => applied.push([id.width, b, c, s]));
+    const fn = new Function('document', 'linearAreaDownscale', 'applyPreSharpenCanvas', '_applyImageFilters', 'LINEAR_SHRINK_MAX_SOURCE_AREA',
+      genSrc.slice(genSrc.indexOf('// The averaged picture for each picture element'), genSrc.indexOf('/**\n * Apply a pre-downscale luminance unsharp mask')) + '\nreturn { gridPixels, GRID_PIXELS_CACHE_SIZES };');
+    return Object.assign(fn(document, linearAreaDownscale, (s) => s, (id, b, c, s) => applied.push([id.width, b, c, s]), LINEAR_SHRINK_MAX_SOURCE_AREA), { LINEAR_SHRINK_MAX_SOURCE_AREA });
   }
   const checker = () => ({ width: 2, height: 2, pixels: px([0, 0, 0], [255, 255, 255], [255, 255, 255], [0, 0, 0]) });
 
@@ -111,9 +111,9 @@ describe('gridPixels', () => {
   });
 
   test('a very large picture is first drawn within the size limit', () => {
-    const { gridPixels, GRID_PIXELS_MAX_SOURCE_AREA } = load();
+    const { gridPixels, LINEAR_SHRINK_MAX_SOURCE_AREA } = load();
     gridPixels({ width: 9000, height: 6000 }, 90, 60);
-    expect(draws[0].w * draws[0].h).toBeLessThanOrEqual(GRID_PIXELS_MAX_SOURCE_AREA);
+    expect(draws[0].w * draws[0].h).toBeLessThanOrEqual(LINEAR_SHRINK_MAX_SOURCE_AREA);
     expect(draws[0].w / draws[0].h).toBeCloseTo(1.5, 2);
   });
 
@@ -135,6 +135,29 @@ describe('gridPixels', () => {
     Object.assign(img, { width: 4, height: 2, pixels: px([0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]) });
     expect(Array.from(gridPixels(img, 1, 1).data)).toEqual([0, 0, 0, 255]);
     expect(draws.length).toBe(2);
+  });
+
+  test('a few sizes are kept per picture: going back to the chart size reads nothing', () => {
+    // The stash gallery and Compare options ask for other sizes between the
+    // preview's and Generate's.
+    const { gridPixels, GRID_PIXELS_CACHE_SIZES } = load();
+    const img = { width: 8, height: 4, pixels: new Uint8ClampedArray(8 * 4 * 4).fill(200) };
+    gridPixels(img, 4, 2); gridPixels(img, 2, 1); gridPixels(img, 6, 3);
+    expect(draws.length).toBe(3);
+    gridPixels(img, 4, 2);
+    expect(draws.length).toBe(3);
+    for (let i = 0; i < GRID_PIXELS_CACHE_SIZES + 1; i++) gridPixels(img, 1 + (i % 8), 1);
+    gridPixels(img, 4, 2);   // evicted by then: read again
+    expect(draws.length).toBeGreaterThan(3 + GRID_PIXELS_CACHE_SIZES);
+  });
+
+  test('shrinking one way and enlarging the other still averages the shrinking axis', () => {
+    // 2 x 1 black and white, to 1 x 3: drawn at 2 x 3, then averaged across.
+    const { gridPixels } = load();
+    const img = { width: 2, height: 1, pixels: null };
+    const out = gridPixels(img, 1, 3);
+    expect(draws[0]).toMatchObject({ w: 2, h: 3 });
+    expect(out.data.length).toBe(12);
   });
 
   test('a new size, or a canvas source, is read again', () => {

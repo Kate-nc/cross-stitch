@@ -1,24 +1,45 @@
 function calculateTooltipPosition(x, width){
   return Math.max(width/2+8,Math.min(x,window.innerWidth-width/2-8));
 }
-function Tooltip({text,children,width=180}){
+// A hint shown above its child on hover, on keyboard focus within it, and
+// (with openOnClick, or a touch tap) on click. Escape, scrolling, leaving
+// and clicking elsewhere close it. It is fixed to the screen, so scrolling
+// closes it rather than leaving it behind. A hint opened by a tap ignores
+// the mouse-leave that touch screens can send straight after the tap.
+function Tooltip({text,children,width=180,openOnClick=false}){
   const[show,setShow]=React.useState(false);
   const[pos,setPos]=React.useState({x:0,y:0});
+  const pinned=React.useRef(false);
+  const close=()=>{pinned.current=false;setShow(false);};
+  const place=el=>{const r=el.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});};
   React.useEffect(()=>{
     if(!show) return;
-    const dismiss=()=>setShow(false);
+    const dismiss=close;
+    const onKey=e=>{if(e.key==='Escape')close();};
     document.addEventListener('click',dismiss);
-    return ()=>document.removeEventListener('click',dismiss);
+    document.addEventListener('keydown',onKey);
+    window.addEventListener('scroll',dismiss,true);
+    return ()=>{
+      document.removeEventListener('click',dismiss);
+      document.removeEventListener('keydown',onKey);
+      window.removeEventListener('scroll',dismiss,true);
+    };
   },[show]);
   return React.createElement("div",{
     style:{position:"relative",display:"inline-flex"},
-    onMouseEnter:e=>{const r=e.currentTarget.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});setShow(true);},
-    onMouseLeave:()=>setShow(false),
-    onClick:e=>{if(e.pointerType==='touch'||e.pointerType==='pen'){const r=e.currentTarget.getBoundingClientRect();setPos({x:r.left+r.width/2,y:r.top});setShow(s=>!s);}}
+    onMouseEnter:e=>{place(e.currentTarget);setShow(true);},
+    onMouseLeave:()=>{if(!pinned.current)setShow(false);},
+    onFocus:e=>{place(e.currentTarget);setShow(true);},
+    onBlur:close,
+    onClick:e=>{
+      const touch=e.nativeEvent&&(e.nativeEvent.pointerType==='touch'||e.nativeEvent.pointerType==='pen');
+      if(openOnClick){place(e.currentTarget);pinned.current=touch;setShow(true);}
+      else if(touch){place(e.currentTarget);pinned.current=!show;setShow(!show);}
+    }
   },
     children,
     show&&ReactDOM.createPortal(
-      React.createElement("div",{style:{
+      React.createElement("div",{role:"tooltip",style:{
         position:"fixed",left:calculateTooltipPosition(pos.x,width),top:pos.y-10,
         transform:"translate(-50%,-100%)",
         background:"var(--text-primary)",color:"var(--surface)",fontSize:'var(--text-xs)',lineHeight:"1.45",
@@ -38,11 +59,21 @@ function Tooltip({text,children,width=180}){
     )
   );
 }
-function InfoIcon({text,width}){
-  return React.createElement("span",{style:{display:"inline-flex",alignItems:"center",flexShrink:0},onClick:function(e){e.preventDefault();e.stopPropagation();}},
-    React.createElement(Tooltip,{text:text,width:width||200},
-      React.createElement("span",{role:"img","aria-label":"Information",style:{cursor:"help",color:"var(--text-tertiary)",lineHeight:1,display:"inline-flex",alignItems:"center"}},window.Icons&&window.Icons.info?window.Icons.info():null)
-    )
+// The (i) hint icon: hover, tab to it or tap it to read what a setting does.
+// It is a real button, so keyboards reach it, and the hint is its
+// description, so screen readers read it out. `label` names the setting
+// ("About Threads (max)").
+var _infoIconSeq=0;
+function InfoIcon({text,width,label}){
+  const idRef=React.useRef(null);
+  if(!idRef.current) idRef.current="info-hint-"+(++_infoIconSeq);
+  return React.createElement("span",{className:"info-icon",onClick:function(e){e.preventDefault();e.stopPropagation();}},
+    React.createElement(Tooltip,{text:text,width:width||220,openOnClick:true},
+      React.createElement("button",{type:"button",className:"info-icon__btn",
+        "aria-label":label?"About "+label:"More information","aria-describedby":idRef.current},
+        window.Icons&&window.Icons.info?window.Icons.info():null)
+    ),
+    React.createElement("span",{id:idRef.current,className:"info-icon__text"},text)
   );
 }
 
@@ -121,7 +152,7 @@ var SliderRow=React.memo(function SliderRow({label,value,min,max,step=1,onChange
   React.useEffect(function(){return function(){clearTimeout(timer.current);};}, []);
   return React.createElement("div", {style:{marginBottom:2}},
     React.createElement("div", {style:{display:"flex",justifyContent:"space-between",fontSize:'var(--text-sm)',color:"var(--text-secondary)",marginBottom:3}},
-      React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText})),
+      React.createElement("span", {style:{display:"flex",alignItems:"center",gap:3}}, label, helpText&&React.createElement(InfoIcon,{text:helpText,label:typeof label==="string"?label:null})),
       React.createElement("span", {style:{fontWeight:600,color:"var(--text-primary)"}}, format?format(value):value, suffix)
     ),
     React.createElement("input", {type:"range", min:min, max:max, step:step, value:value, onChange:e=>onChange(Number(e.target.value)), style:{width:"100%"},

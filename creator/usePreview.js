@@ -1,13 +1,49 @@
-/* creator/usePreview.js — Generates a fast preview thumbnail and stats while
+/* creator/usePreview.js — Generates the preview picture and stats while
    the user adjusts settings. Debounced 400 ms.
    Expects state object from useCreatorState. The single source of truth for
    what settings affect the preview is state.conversionSettings (built by
-   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js. */
+   useCreatorState) — see CONVERSION_STATE_KEYS in useCreatorState.js.
+
+   The conversion runs in a background worker (generate-worker.js, the one
+   Generate uses) at the chart's own size, so the page never freezes while it
+   works (about 1 s for 40 000 stitches, 3 s for 500 x 333 in Chromium) and
+   the preview is the chart Generate will make, counts and all. Without
+   workers (file://) it runs on the page, at most PREVIEW_PAGE_MAX_AREA
+   stitches, scaled up for the counts. */
+
+// Stitches the preview converts on the page when there is no worker. A
+// bigger chart is previewed smaller, so its counts are estimates.
+var PREVIEW_PAGE_MAX_AREA = 40000;
 
 window.usePreview = function usePreview(state) {
   var rawCacheRef = React.useRef(null); // { sig, raw, pw, ph } — geometric cache
   var fullPassTimerRef = React.useRef(null); // pending setTimeout for full dither pass
   var sourceRef = React.useRef(state.img);
+  // The preview worker: null (not made yet), a Worker, or 'unavailable'.
+  var workerRef = React.useRef(null);
+  var busyRef = React.useRef(false);      // a job is running in the worker
+  var jobRef = React.useRef(0);           // id of the latest job; older results are ignored
+
+  function getWorker() {
+    if (workerRef.current === 'unavailable') return null;
+    if (workerRef.current) return workerRef.current;
+    if (typeof Worker === 'undefined') { workerRef.current = 'unavailable'; return null; }
+    try { workerRef.current = new Worker('generate-worker.js'); }
+    catch (_) { workerRef.current = 'unavailable'; return null; }
+    return workerRef.current;
+  }
+  // Stop the worker (a job for old settings is no longer wanted). Handlers are
+  // detached first so a stopped worker never reaches the page's error handler.
+  function stopWorker() {
+    var w = workerRef.current;
+    if (w && w !== 'unavailable') {
+      w.onmessage = null;
+      w.onerror = function (ev) { if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); };
+      try { w.terminate(); } catch (_) {}
+      workerRef.current = null;
+    }
+    busyRef.current = false;
+  }
 
   function clearDetails() {
     ['Stats', 'Colors', 'Mapped', 'Heatmap', 'Highlight'].forEach(function(key) {
@@ -35,6 +71,9 @@ window.usePreview = function usePreview(state) {
       stopLoading();
     }
     if (state.setPreviewError) state.setPreviewError(null);
+    // Any result still on its way is for older settings.
+    var job = ++jobRef.current;
+    if (busyRef.current) stopWorker();
     if (!settings || !img || !img.src) { clearPreview(); stopLoading(); return; }
     if (state.setPreviewLoading) state.setPreviewLoading(true);
     try {
@@ -52,9 +91,11 @@ window.usePreview = function usePreview(state) {
       var dith = settings.dith;
       var showCleanupDiff = state.showCleanupDiff;
 
-      var MAX_PREVIEW_AREA = 40000;
+      // The chart's own size in the worker; on the page, at most
+      // PREVIEW_PAGE_MAX_AREA stitches.
+      var worker = settings.exactPixelArt ? null : getWorker();
       var pw = sW, ph = sH;
-      if (!settings.exactPixelArt && pw * ph > MAX_PREVIEW_AREA) { var scale = Math.sqrt(MAX_PREVIEW_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
+      if (!worker && !settings.exactPixelArt && pw * ph > PREVIEW_PAGE_MAX_AREA) { var scale = Math.sqrt(PREVIEW_PAGE_MAX_AREA / (pw * ph)); pw = Math.round(pw * scale); ph = Math.round(ph * scale); }
       if (pw < 1) pw = 1;
       if (ph < 1) ph = 1;
 
@@ -103,6 +144,43 @@ window.usePreview = function usePreview(state) {
         pcx.putImageData(imgData, 0, 0); return pc.toDataURL();
       }
 
+      // In the worker: the same job Generate posts, at the chart's size. The
+      // picture shown until it answers is the previous one, with the
+      // Updating preview status.
+      if (worker && !exactResult) {
+        var pixels = new Uint8ClampedArray(raw);   // the cached copy stays here
+        busyRef.current = true;
+        worker.onmessage = function (e) {
+          var msg = e.data || {};
+          if (msg.reqId !== job) return;
+          if (msg.type === 'progress') return;
+          busyRef.current = false;
+          if (job !== jobRef.current) return;
+          if (msg.type === 'error') { failPreview(); return; }
+          try {
+            runFull({
+              mapped: msg.mapped,
+              confettiRaw: msg.confettiData.raw,
+              // The worker reports the raw counts as "clean" when nothing was tidied.
+              confettiClean: msg.preCleanupIds ? msg.confettiData.clean : null,
+              confettiFinal: msg.confettiData.final || null,
+              preCleanupIds: msg.preCleanupIds || null
+            });
+          } catch (err) { failPreview(); }
+        };
+        // A worker that fails to run (a script that didn't load) is no use, so
+        // from now on the preview runs on the page, starting with this one. (A
+        // conversion error inside a working worker arrives as an 'error' message.)
+        worker.onerror = function (ev) {
+          if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+          stopWorker();
+          workerRef.current = 'unavailable';
+          if (job === jobRef.current) setTimeout(function () { generatePreview(); }, 0);
+        };
+        worker.postMessage({ type: 'generate', reqId: job, pixels: pixels.buffer, width: pw, height: ph, settings: pipelineOpts() }, [pixels.buffer]);
+        return;
+      }
+
       // Progressive preview: if dithering is on, show a fast map-only result immediately,
       // then let React commit that frame before running the full dither pass.
       if (dith && !exactResult) {
@@ -127,13 +205,16 @@ window.usePreview = function usePreview(state) {
       }
       runFull();
 
-      function runFull() {
+      function runFull(workerResult) {
         fullPassTimerRef.current = null;
-        var pipelineResult = exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
+        var pipelineResult = workerResult || exactResult || runCleanupPipeline(raw, pw, ph, pipelineOpts());
         if (!pipelineResult) { failPreview(); return; }
         var mapped = pipelineResult.mapped;
         var confettiRaw = pipelineResult.confettiRaw;
         var confettiClean = pipelineResult.confettiClean;
+        // The chart as shown: after look-alike separation and the thread
+        // limit (exact pixel art has no later stages).
+        var confettiFinal = pipelineResult.confettiFinal || confettiClean || confettiRaw;
         var preCleanupIds = pipelineResult.preCleanupIds || null;
 
         var stitchable = 0, skipped = 0, colorCounts = {}, colorRgbs = {};
@@ -169,6 +250,11 @@ window.usePreview = function usePreview(state) {
           confettiSingles: Math.round(confettiRaw.singles * scaleFactor),
           confettiSinglesPct: confettiRaw.singlesPct,
           confettiCleanSingles: confettiClean ? Math.round(confettiClean.singles * scaleFactor) : null,
+          // The finished chart's confetti stitches, for "In the preview".
+          confettiFinalSingles: Math.round(confettiFinal.singles * scaleFactor),
+          // A smaller preview than the chart (on the page, without a worker):
+          // the counts are scaled up, so they are estimates.
+          estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
         });
@@ -228,7 +314,11 @@ window.usePreview = function usePreview(state) {
   ]);
 
   React.useEffect(function() {
-    return function() { if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; } };
+    return function() {
+      if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
+      jobRef.current++;
+      stopWorker();
+    };
   }, []);
 
   React.useEffect(function() {
@@ -257,8 +347,11 @@ window.usePreview = function usePreview(state) {
       if (state.previewTimerRef.current) { clearTimeout(state.previewTimerRef.current); state.previewTimerRef.current = null; }
       // A full pass queued by the previous settings must not land after they
       // changed: it would commit a stale picture and drop the spinner while
-      // the new pass is still waiting out its debounce.
+      // the new pass is still waiting out its debounce. The same goes for a
+      // job in the worker: its result is ignored and the worker is stopped.
       if (fullPassTimerRef.current) { clearTimeout(fullPassTimerRef.current); fullPassTimerRef.current = null; }
+      jobRef.current++;
+      if (busyRef.current) stopWorker();
     };
   }, [generatePreview]); // eslint-disable-line react-hooks/exhaustive-deps
 

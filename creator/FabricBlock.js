@@ -62,6 +62,7 @@
     );
   };
 
+  var fabricBlockSeq = 0;
   window.CreatorFabricBlock = function CreatorFabricBlock(props) {
     var h = React.createElement;
     var Icons = window.Icons || {};
@@ -73,11 +74,22 @@
     var sizes = (props.showSizes !== false && props.sW > 0 && props.sH > 0 && typeof window.fabricSizes === "function")
       ? window.fabricSizes(props.sW, props.sH, ct) : null;
     function opt(f) { return h("option", { key: f.ct, value: f.ct }, f.label.replace(/\s*\(over 2\)/, "")); }
+    function hint(label, text) {
+      return typeof InfoIcon === "function" ? h(InfoIcon, { label: label, text: text, width: 240 }) : null;
+    }
+    // A unique id per block: the sheet and the sidebar can both show one.
+    var idRef = React.useRef(null);
+    if (!idRef.current) idRef.current = "fabric-count-" + (++fabricBlockSeq);
+    var countId = idRef.current;
 
     return h("div", { className: "fabric-block" },
-      h("label", { className: "fabric-block__field" },
-        h("span", { className: "fabric-block__label" }, "Fabric count"),
+      // The hints sit outside the <label> so pressing one never opens the list.
+      h("div", { className: "fabric-block__field" },
+        h("div", { className: "convert-label" },
+          h("label", { className: "fabric-block__label", htmlFor: countId }, "Fabric count"),
+          hint("Fabric count", "How many stitches fit in an inch of fabric. A higher count gives smaller stitches, so the same pattern comes out smaller. 14-count Aida is the usual choice for beginners. Evenweave and linen are stitched over two threads.")),
         h("select", {
+          id: countId,
           className: "fabric-block__select", value: ct,
           onChange: function (e) { if (props.setFabricCt) props.setFabricCt(Number(e.target.value)); }
         },
@@ -86,7 +98,9 @@
         )
       ),
       h("div", { className: "fabric-block__field" },
-        h("span", { className: "fabric-block__label", id: "fabric-colour-label" }, "Fabric colour"),
+        h("div", { className: "convert-label" },
+          h("span", { className: "fabric-block__label", id: "fabric-colour-label" }, "Fabric colour"),
+          hint("Fabric colour", "The colour of the fabric you will stitch on. The pattern, the preview and the Stitch Tracker show it where there are no stitches. It does not change which threads are chosen.")),
         h("div", { className: "fabric-block__swatches", role: "group", "aria-labelledby": "fabric-colour-label" },
           FABRIC_COLOURS.map(function (f) {
             var on = colour.toUpperCase() === f.hex.toUpperCase();

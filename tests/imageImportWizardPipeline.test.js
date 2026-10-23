@@ -142,3 +142,14 @@ test('shrinking averages the picture as light, so a fine checker becomes one eve
   expect(lum).toBeGreaterThan(165);
   expect(lum).toBeLessThan(210);
 });
+
+test('pixel art at its own size keeps its pixels: a half-pixel crop offset invents no blended colours', () => {
+  // 101 x 100 alternating red and blue columns, cropped 1:1 to 100 x 100 at
+  // its own size: the crop starts half a pixel in. With smoothing on, every
+  // stitch became a red-blue mix, a colour the picture doesn't have.
+  const c = runtime(), img = createCanvas(101, 100), x = img.getContext('2d');
+  for (let i = 0; i < 101; i++) { x.fillStyle = i % 2 ? '#0055ff' : '#e4002b'; x.fillRect(i, 0, 1, 100); }
+  const result = c.parseImagePattern(img, { ...base, maxWidth: 100, maxHeight: 100, crop: { ...base.crop, aspect: '1:1' } });
+  expect(result.width).toBe(100);
+  expect(new Set(result.pattern.map((cell) => cell.id)).size).toBe(2);
+});

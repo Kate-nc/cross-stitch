@@ -95,9 +95,11 @@ test.describe('Workflow switching', () => {
     await page.locator('.home-draft-row').getByRole('button',{name:'Continue',exact:true}).click();
     await expect(width).toHaveValue('123');
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByRole('button',{name:'Clean-up',exact:true})).toHaveAttribute('aria-expanded','false');
+    // Detail and tidiness starts open; Background opens with the rest.
+    await expect(page.getByRole('button',{name:'Detail and tidiness',exact:true})).toHaveAttribute('aria-expanded','true');
+    await expect(page.getByRole('button',{name:'Background',exact:true})).toHaveAttribute('aria-expanded','false');
     await page.getByRole('button',{name:'Show all conversion controls'}).click();
-    await expect(page.getByRole('button',{name:'Clean-up',exact:true})).toHaveAttribute('aria-expanded','true');
+    await expect(page.getByRole('button',{name:'Background',exact:true})).toHaveAttribute('aria-expanded','true');
     await page.screenshot({path:'work/after-convert-desktop.png',fullPage:true});
   });
   test('tracker marks survive leaving for another workflow; Home leaves real records alone', async ({page}) => {

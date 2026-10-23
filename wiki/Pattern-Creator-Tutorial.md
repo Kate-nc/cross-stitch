@@ -38,11 +38,11 @@ The first setting picks good starting values for the picture:
 
 | Type | Starting values |
 |------|-----------------|
-| **Graphic or logo** | Up to 8 threads, no shading, no blends; a plain border background is left unstitched |
-| **Photo** | Up to 24 threads, subtle shading, blends, Stitch Cleanup on |
-| **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across), Stitch Cleanup off so every pixel is kept |
+| **Graphic or logo** | Up to 8 threads, no blends; a plain border background is left unstitched; **Detail and tidiness** at Balanced |
+| **Photo** | Up to 24 threads, blends; **Detail and tidiness** at Balanced |
+| **Pixel art** | The picture's own colours (up to 30) at its own size, one stitch per pixel (pictures up to 500 pixels across); **Detail and tidiness** at More detail, so every pixel is kept. **Exact pixel-art import** appears here |
 
-The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom**. To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
+The Creator guesses the type when you add the picture; choose another at any time. Every setting stays editable, and once you change one the choice shows **Custom** (changing **Detail and tidiness** keeps the type). To start every picture from your own defaults (threads, blends and shading) instead, turn off **Guess the picture type** in **Preferences > Pattern Creator**.
 
 ### Image
 
@@ -80,7 +80,20 @@ A blend stitches two threads together in one needle (one strand of each) and get
 
 **Use only stash threads** — match only to threads you own, in the brand chosen under **Threads**.
 
-**Shading** (in **Clean-up**) — mixes neighbouring threads to suggest in-between colours.
+### Detail and tidiness
+
+One choice sets shading and tidying together, from the most detail to the quickest chart to stitch. The preview shows how many confetti stitches (single stitches of a colour on their own; slow to stitch) the choice leaves.
+
+| Step | What it does | Photos, measured |
+|------|--------------|------------------|
+| **More detail** | Keeps every shade and small shape | About 10% confetti stitches |
+| **Balanced** | Merges most confetti stitches, keeps outlines (where photos and graphics start) | About 4% |
+| **Tidier** | Merges nearly all confetti stitches; fine outlines soften a little | Under 1% |
+| **Easiest to stitch** | No shading: large blocks of colour, the least like the picture | Under 1%, far fewer colour changes |
+
+Photos keep their shading up to **Tidier**; graphics and pixel art are never shaded. **Fine-tune** holds the individual controls below; changing one shows **Custom**.
+
+**Shading** (under **Fine-tune**) — mixes neighbouring threads to suggest in-between colours.
 
 | Setting | Effect | When to use |
 |---------|--------|------------|
@@ -91,7 +104,7 @@ A blend stitches two threads together in one needle (one strand of each) and get
 
 The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 
-**Min stitches per colour** — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
+**Min stitches per colour** (in **Colours**) — colours used fewer times than this are dropped. Off (the default) still folds away stray colours automatically, keeping small bright accents such as catchlights.
 **Stitch Cleanup** — the on/off switch for tidying: merges confetti stitches and folds away in-between shades along edges.
 **Reduce confetti** — how much Stitch Cleanup merges (Off, 1–3): level 1 merges single confetti stitches, level 3 groups of up to 3. Plain areas allow groups three times larger.
 **Protect fine details** — keeps small groups that touch an outline (eyes, lettering). Off gives the tidiest chart; bright accents are kept either way.
@@ -263,7 +276,7 @@ Your pattern saves **automatically** on this device and appears in **Home > Proj
 
 ### Too many confetti stitches?
 
-Raise **Reduce confetti** or **Min stitches per colour**, use less shading, or run **Reduce confetti** (More tools) on the finished pattern. Compare the current chart and representative regions in Ready to stitch before applying it: single stitches can be intentional detail.
+Move **Detail and tidiness** towards **Tidier** or **Easiest to stitch**, or run **Reduce confetti** (More tools) on the finished pattern. Compare the current chart and representative regions in Ready to stitch before applying it: single stitches can be intentional detail.
 
 ### Stitching time
 
@@ -313,7 +326,7 @@ In Creator, use **More tools > Petite and long stitches** to add objects with a 
 ## Exact pixel-art import
 
 The editable **Pixel art** preset is a starting point. For pixel-for-pixel
-geometry, enable **Exact pixel-art import** in Convert. Sources up to 500 by
+geometry, choose **Pixel art** and turn on **Exact pixel-art import** under it in Convert. Sources up to 500 by
 500 pixels retain their original dimensions, including small motifs below
 10 pixels. Larger sources must be resized explicitly before import.
 

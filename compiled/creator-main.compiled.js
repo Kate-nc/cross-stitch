@@ -993,6 +993,9 @@ function CreatorApp({
       pictureType: state.pictureType,
       pictureInfo: state.pictureInfo,
       applyPicturePreset: state.applyPicturePreset,
+      stitchStyle: state.stitchStyle,
+      stitchStyleBasis: state.stitchStyleBasis,
+      applyStitchStyle: state.applyStitchStyle,
       bri: state.bri,
       setBri: state.setBri,
       con: state.con,
@@ -1091,7 +1094,7 @@ function CreatorApp({
       srcClick: stableSrcClick,
       autoCrop: stableAutoCrop
     };
-  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
+  }, [state.img, state.isUploading, state.isDragging, state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength, state.skipBg, state.bgTh, state.bgCol, state.pickBg, state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount, state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage, state.origW, state.origH, state.hasGenerated, state.stitchCleanup, state.isCropping, state.cropRect, state.generate, state.randomise, state.generateGallery, state.promoteVariation, state.applyVariationSeed, state.variationSeed, state.variationSubset, state.variationHistory, state.gallerySlots, state.galleryOpen, state.stashConstrained, state.convertBrand, state.coverageGaps, state.cleanupDiff, state.showCleanupDiff, state.stashThreadCount, state.effectiveMaxC, state.stashPalette, state.blendsAutoDisabled, state.effectiveAllowBlends]);
 
   // ── AppContext value (UI housekeeping: tabs, modals, panels, toasts, refs, export, preview) ──
   const appCtx = useMemo(function () {
@@ -1204,6 +1207,7 @@ function CreatorApp({
       setPreviewUrl: state.setPreviewUrl,
       previewStats: state.previewStats,
       setPreviewStats: state.setPreviewStats,
+      previewLoading: state.previewLoading,
       confettiData: state.confettiData,
       setConfettiData: state.setConfettiData,
       previewHeatmap: state.previewHeatmap,
@@ -1230,7 +1234,7 @@ function CreatorApp({
       removeTracePicture: io.removeTracePicture,
       isActive: isActive
     };
-  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
+  }, [_sourceTab, handleOpenCanvas, state.appMode, state.confirmBackToConvert, handleRequestBackToConvert, state.sidebarTab, state.lastGenSnapshot, state.tab, state.materialsTab, state.modal, state.sidebarOpen, state.loadError, state.copied, state.dimOpen, state.palOpen, state.adjOpen, state.bgOpen, state.palAdvanced, state.cleanupOpen, state.splitPaneEnabled, state.splitPaneRatio, state.splitPaneSyncEnabled, state.rightPaneMode, state.exportPage, state.pageMode, state.pdfDisplayMode, state.pdfCellSize, state.pdfSinglePage, state.toasts, state.chartFitH, state.overflowOpen, state.morePanelOpen, state.panelOpen, state.stripCollapsed, state.shortcutsHintDismissed, state.namePromptOpen, state.projectName, state.projectDesigner, state.projectDescription, state.eyedropperEmpty, state.pxX, state.pxY, state.totPg, state.previewActive, state.previewShowGrid, state.previewFabricBg, state.previewMode, state.realisticLevel, state.coverageOverride, state.fabricColour, state.canvasTexture, state.previewUrl, state.previewStats, state.previewLoading, state.confettiData, state.previewHeatmap, state.previewMapped, state.previewColors, state.previewDims, state.previewHighlight, state.isScratchMode, isActive]);
 
   // ── CanvasContext value (tools, view, zoom, highlight, selection, edit history, interactions) ──
   const cvCtx = useMemo(function () {
