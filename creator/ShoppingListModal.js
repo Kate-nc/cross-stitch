@@ -70,74 +70,26 @@
     }, [anchorDataReady, ctx.pal]);
 
     var stash = ctx.globalStash || {};
-    var fabricCt = (profile && profile.fabric_count) || ctx.fabricCt || 14;
+    var fabricCt = ctx.fabricCt || (profile && profile.fabric_count) || 14;
     var strandsUsed = (profile && profile.strands_used) || 2;
-    var wasteFactor = (profile && profile.waste_factor) || 0.20;
+    var wasteFactor = profile && profile.waste_factor != null ? profile.waste_factor : 0.20;
 
     // Build per-component shopping rows. Blends contribute half-stitches to each
     // component, summed across all palette entries that include that component.
     var rows = useMemo(function () {
       if (!(ctx.pat && ctx.pal)) return [];
-      var perId = {};   // id -> { stitches, isBlendOnly }
-      ctx.pal.forEach(function (p) {
-        if (!p || p.id === '__skip__' || p.id === '__empty__') return;
-        var stitches = p.count || 0;
-        var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-          ? splitBlendId(p.id)
-          : [p.id];
-        ids.forEach(function (id) {
-          // Keyed by brand too: an Anchor pattern's 403 isn't DMC 403 (P4-5).
-          var k = (p.brand || '') + ':' + id;
-          if (!perId[k]) perId[k] = { id: id, brand: p.brand || null, stitches: 0, fromBlend: ids.length > 1 };
-          // Blends use roughly half the thread of each component.
-          perId[k].stitches += ids.length > 1 ? stitches / 2 : stitches;
-        });
-      });
-      return Object.keys(perId).map(function (k) {
-        var id = perId[k].id;
-        var stitches = Math.round(perId[k].stitches);
-        var needed = 1;
-        if (typeof stitchesToSkeins === 'function') {
-          var r = stitchesToSkeins({
-            stitchCount: stitches, fabricCount: fabricCt,
-            strandsUsed: strandsUsed, wasteFactor: wasteFactor
-          });
-          needed = Math.max(1, r.skeinsToBuy || 0);
-        }
-        // Brand resolution: the entry's own brand when it has one (cells of
-        // an Anchor project carry it), else DMC first, then Anchor. The
-        // matching brand's composite stash key is used to look up owned counts.
-        var info = null, brand = perId[k].brand || 'dmc';
-        info = findThreadInCatalog(brand, id);
-        if (!info && !perId[k].brand) {
-          // PERF (action plan §2E.1): O(1) lookup instead of ANCHOR.find scan.
-          info = (typeof getAnchorById === 'function')
-            ? getAnchorById(id)
-            : (typeof ANCHOR !== 'undefined' ? ANCHOR.find(function (d) { return d.id === id; }) : null);
-          if (info) brand = 'anchor';
-        }
-        var entry = stash[brand + ':' + id] || {};
-        var owned = entry.owned || 0;
-        var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
-        return {
-          id: id,
-          brand: brand,
-          brandLabel: window.threadBrandLabel ? window.threadBrandLabel(brand) : (brand === 'anchor' ? 'Anchor' : 'DMC'),
-          name: info ? info.name : id,
-          rgb: info ? info.rgb : [128, 128, 128],
-          stitches: stitches,
-          needed: needed,
-          owned: owned,
-          status: status,
-          missing: Math.max(0, needed - owned)
-        };
+      return (ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash,
+        strandsUsed: strandsUsed, wasteFactor: wasteFactor, project: ctx})).map(function(r) {
+        return {id: r.p.id, brand: r.p.brand, brandLabel: window.threadBrandLabel ? window.threadBrandLabel(r.p.brand) : r.p.brand,
+          name: r.name, rgb: r.p.rgb, stitches: r.p.count, estimatedNeeded: r.estimatedNeeded,
+          needed: r.needed, owned: r.owned, status: r.status, missing: r.missing};
       }).sort(function (a, b) {
         var an = /^\d+$/.test(a.id) ? Number(a.id) : Infinity;
         var bn = /^\d+$/.test(b.id) ? Number(b.id) : Infinity;
         if (an !== bn) return an - bn;
         return String(a.id).localeCompare(String(b.id));
       });
-    }, [ctx.pat, ctx.pal, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
+    }, [ctx, stash, fabricCt, strandsUsed, wasteFactor, anchorDataReady]);
 
     var ownedRows = rows.filter(function (r) { return r.status === 'owned'; });
     var buyRows = rows.filter(function (r) { return r.status !== 'owned'; });
@@ -150,7 +102,7 @@
         lines.push('Need to buy:');
         buyRows.forEach(function (r) {
           var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' \u2014 need ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+          lines.push('\u25cb ' + r.brandLabel + ' ' + r.id + ' ' + r.name + ' — estimated use ' + formatSkeins(r.estimatedNeeded) + '; buy ' + r.missing + ' whole skeins' + own);
         });
         lines.push('');
       }
@@ -216,7 +168,7 @@
       var border = kind === 'owned' ? 'var(--success-soft)' : 'var(--danger-soft)';
       var note = kind === 'owned'
         ? 'own ' + r.owned + ', need ~' + r.needed
-        : 'need ~' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
+        : 'buy ' + r.missing + ' whole skeins; estimated use ' + formatSkeins(r.estimatedNeeded) + (r.owned > 0 ? ' (own ' + r.owned + ')' : '');
       return h('div', {
         key: r.brand + ':' + r.id,
         style: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: bg, borderRadius:'var(--radius-sm)', border: '1px solid ' + border, marginBottom:'var(--s-1)' }

@@ -1,3 +1,5 @@
+> Superseded thread diagnosis: the thread claims below were incorrect. Six times an 8 m skein is the correct capacity in single-strand units; the claim that 5,000 crosses need 27 skeins must not be used. The 1.4 anchor and 200–250 reference range were not validated. See `thread-estimation-audit.md` and `thread-estimation-plan.md` for the corrected units, calibration and implementation. The remaining text is retained as historical evidence of the regression's origin.
+
 # Size Calculator Diagnosis
 
 **Date:** May 2026  

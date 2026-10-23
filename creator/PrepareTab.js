@@ -23,10 +23,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var fabricCt = ctx.fabricCt || 14;
 
   // Shopping rows: one per thread, blends folded into their component threads.
-  var rows = useMemo(function() {
-    if (!(ctx.pat && ctx.pal)) return [];
-    return window.buildThreadShoppingRows(ctx.pal, { fabricCt: fabricCt, stash: stash });
-  }, [ctx.pat, ctx.pal, stash, fabricCt]);
+  var rows = ctx.materialThreadRows || window.buildThreadShoppingRows(ctx.pal, {fabricCt: fabricCt, stash: stash, project: ctx});
 
   // Sort
   function compareThreadIds(aId, bId) {
@@ -64,7 +61,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   var ownedColours = rows.filter(function(r) { return r.status === 'owned'; }).length;
   var partialColours = rows.filter(function(r) { return r.status === 'partial'; }).length;
   var needSkeins = rows.reduce(function(acc, r) {
-    return acc + Math.max(0, r.needed - r.owned);
+    return acc + r.missing;
   }, 0);
 
   // Early returns AFTER all hooks
@@ -97,7 +94,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
       var mark = r.status === 'owned' ? '\u2713' : r.status === 'partial' ? '~' : '\u25cb';
-      lines.push(mark + ' ' + formatThread(r.p, {variant: 'title'}) + ' \u2014 ' + r.needed + ' skein' + (r.needed !== 1 ? 's' : '') + own);
+      lines.push(formatThread(r.p, {variant: 'title'}) + ' — estimated use ' + formatSkeins(r.estimatedNeeded) + own + '; buy ' + r.missing + ' whole skeins');
     });
     lines.push('');
     lines.push('Total: ' + ownedColours + '/' + totalColours + ' colours owned');
@@ -116,7 +113,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
     sortedRows.forEach(function(r) {
       if (r.status !== 'owned') {
         var own = r.owned > 0 ? ' (own ' + r.owned + ')' : '';
-        lines.push(formatThread(r.p, {variant: 'title'}) + ' \u2014 need ' + Math.max(0, r.needed - r.owned) + ' skein' + (Math.max(0, r.needed - r.owned) !== 1 ? 's' : '') + own);
+        lines.push(formatThread(r.p, {variant: 'title'}) + ' \u2014 need ' + r.missing + ' skein' + (r.missing !== 1 ? 's' : '') + own);
       }
     });
     navigator.share({ title: 'Cross Stitch Shopping List', text: lines.join('\n') }).catch(function() {});
@@ -126,8 +123,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
   function handleAddAll() {
     if (typeof StashBridge === 'undefined') return;
     var promises = rows.filter(function(r) { return r.status !== 'owned'; }).map(function(r) {
-      var newOwned = r.needed;
-      return StashBridge.updateThreadOwned(r.p.id, newOwned);
+      var newOwned = ((stash[r.key] || {}).owned || 0) + r.missing;
+      return StashBridge.updateThreadOwned(r.key, newOwned);
     });
     Promise.all(promises).then(function() {
       setAddedAll(true);
@@ -171,7 +168,7 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
         partialColours + ' partial.'
       ),
       (ownedColours < totalColours) && h('span', {style: {color: 'var(--danger)'}},
-        'Still need: ' + (totalColours - ownedColours - partialColours) + ' colours, ~' + needSkeins + ' skeins.'
+        'Buy ' + needSkeins + ' whole skeins across ' + (totalColours - ownedColours) + ' colours.'
       ),
       h('div', {style: {marginLeft: 'auto', display: 'flex', gap:'var(--s-2)'}},
         h('button', {
@@ -226,7 +223,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, threadBrandLabel(ctx.threadBrand)),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Name'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Stitches'),
-            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Skeins'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Estimated use'),
+            h('th', {style: {padding: '7px 10px', textAlign: 'right'}}, 'Buy whole skeins'),
             h('th', {style: {padding: '7px 10px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'In stash'),
             h('th', {style: {padding: '7px 10px', textAlign: 'left', borderBottom: '2px solid var(--border)', color: 'var(--text-secondary)', fontWeight: 600, fontSize:'var(--text-xs)', textTransform: 'uppercase'}}, 'Status')
           )
@@ -247,7 +245,8 @@ window.CreatorPrepareTab = function CreatorPrepareTab() {
               h('td', {style: {padding: '6px 10px', fontWeight: 600}}, r.p.id),
               h('td', {style: {padding: '6px 10px', color: 'var(--text-secondary)'}}, r.name),
               h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.p.count.toLocaleString()),
-              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, r.needed),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right', fontWeight: 600}}, formatSkeins(r.estimatedNeeded)),
+              h('td', {style: {padding: '6px 10px', textAlign: 'right'}}, r.missing),
               h('td', {style: {padding: '6px 10px', textAlign: 'right', color: r.owned > 0 ? 'var(--success)' : 'var(--text-tertiary)'}},
                 r.owned > 0 ? r.owned : '\u2014'
               ),

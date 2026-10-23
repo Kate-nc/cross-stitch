@@ -3870,108 +3870,65 @@ function PatternDetailsModal({
 
     // Default fallback settings
     const settings = {
-      fabricCount: pattern.project_overrides?.fabric_count || userProfile?.fabric_count || 14,
-      strandsUsed: pattern.project_overrides?.strands_used || userProfile?.strands_used || 2,
+      fabricCount: pattern.project_overrides?.fabric_count ?? pattern.fabricCt ?? userProfile?.fabric_count ?? 14,
+      strandsUsed: pattern.project_overrides?.strands_used ?? (pattern.linkedProjectId ? 2 : userProfile?.strands_used) ?? 2,
       threadBrand: pattern.project_overrides?.thread_brand || userProfile?.thread_brand || "DMC",
-      wasteFactor: pattern.project_overrides?.waste_factor || userProfile?.waste_factor || 0.20
+      wasteFactor: pattern.project_overrides?.waste_factor ?? (pattern.linkedProjectId ? 0.20 : userProfile?.waste_factor) ?? 0.20
     };
     return pattern.threads.map(t => {
       const info = findThreadInCatalog(libraryThreadBrand(t), t.id);
-      let skExact = 0;
-      let skToBuy = 0;
-      let skBExact = 0;
-      let skBToBuy = 0;
-      let isApprox = false;
-      let stApprox = 0;
-      if (t.unit === "stitches") {
-        const res = stitchesToSkeins({
-          stitchCount: t.qty,
-          fabricCount: settings.fabricCount,
-          strandsUsed: settings.strandsUsed,
-          skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
-          wasteFactor: settings.wasteFactor,
-          isBlended: t.is_blended,
-          blendRatio: t.blend_ratio
-        });
-        if (!t.is_blended) {
-          skExact = res.skeinsExact;
-          skToBuy = res.skeinsToBuy;
-        } else {
-          skExact = res.colorA.skeinsExact;
-          skToBuy = res.colorA.skeinsToBuy;
-          skBExact = res.colorB.skeinsExact;
-          skBToBuy = res.colorB.skeinsToBuy;
-        }
-      } else if (t.unit === "skeins" && !t.is_blended) {
-        skToBuy = t.qty;
-        skExact = t.qty;
-        const res = skeinsToStitches({
+      const key = libraryThreadKey(t),
+        colon = key.indexOf(':');
+      const entry = {
+        ...t,
+        id: key.slice(colon + 1),
+        brand: key.slice(0, colon),
+        unit: t.unit || 'skeins',
+        count: t.qty
+      };
+      const isBlend = threadConstituents(entry).length > 1;
+      const keyUsage = t.unit === 'stitches' ? threadKeyUsage(entry, settings) : null;
+      let stApprox = 0,
+        isApprox = false;
+      if (t.unit === 'skeins' && !isBlend) {
+        const inverse = skeinsToStitches({
           skeinCount: t.qty,
           fabricCount: settings.fabricCount,
           strandsUsed: settings.strandsUsed,
-          skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0,
+          skeinLengthM: skeinLengthForBrand(t.brand || settings.threadBrand),
           wasteFactor: settings.wasteFactor
         });
-        stApprox = res.stitchesApprox;
-        isApprox = res.isApproximate;
-      } else if (t.unit === "skeins" && t.is_blended) {
-        skToBuy = t.qty;
-        skExact = t.qty;
-      } else {
-        // Fallback for older projects that had no unit but were implicit skeins
-        skToBuy = t.qty;
-        skExact = t.qty;
+        stApprox = inverse.stitchesApprox;
+        isApprox = true;
       }
-
-      // The strands and skeins each thread takes, as the Creator and Tracker keys show them (UX-014). A project's blend
-      // arrives as one combined id ("341+826") without the is_blended fields.
-      const keyUsage = t.unit === "stitches" && typeof threadKeyUsage === "function" ? threadKeyUsage({
-        ...t,
-        count: t.qty
-      }, {
-        fabricCount: settings.fabricCount,
-        strandsUsed: settings.strandsUsed,
-        wasteFactor: settings.wasteFactor,
-        skeinLengthM: BRAND_SKEIN_LENGTH[t.brand || settings.threadBrand] || 8.0
-      }) : null;
       return {
         ...t,
         name: t.name || info?.name || "Unknown",
         keyUsage,
         rgb: info ? info.rgb : [128, 128, 128],
-        skExact,
-        skToBuy,
-        skBExact,
-        skBToBuy,
         isApprox,
         stApprox,
         settings
       };
     });
-  }, [pattern.threads, pattern.project_overrides, userProfile]);
+  }, [pattern.threads, pattern.fabricCt, pattern.linkedProjectId, pattern.project_overrides, userProfile]);
   const missingThreadsCount = useMemo(() => {
-    if (!derivedThreads) return 0;
-    let missingCount = 0;
-
-    // We only accurately check non-blended ones for simple missing display, or check both sides
-    const requiredColors = {};
-    derivedThreads.forEach(t => {
-      if (!requiredColors[t.id]) requiredColors[t.id] = 0;
-      requiredColors[t.id] += t.skToBuy;
-      if (t.is_blended && t.blend_id) {
-        if (!requiredColors[t.blend_id]) requiredColors[t.blend_id] = 0;
-        requiredColors[t.blend_id] += t.skBToBuy;
-      }
-    });
-    Object.entries(requiredColors).forEach(([id, qty]) => {
-      const invState = inventoryThreads[id] || {
-        owned: 0
+    const entries = derivedThreads.map(t => {
+      const key = libraryThreadKey(t),
+        colon = key.indexOf(':');
+      return {
+        ...t,
+        id: key.slice(colon + 1),
+        brand: key.slice(0, colon),
+        unit: t.unit || 'skeins',
+        count: t.qty
       };
-      if (invState.owned < qty) {
-        missingCount++;
-      }
     });
-    return missingCount;
+    const settings = derivedThreads[0]?.settings || {};
+    return threadDemandRows(entries, {
+      ...settings,
+      stash: inventoryThreads
+    }).filter(r => r.missing > 0).length;
   }, [derivedThreads, inventoryThreads]);
   return /*#__PURE__*/React.createElement("div", {
     className: "modal-overlay",
@@ -4136,7 +4093,7 @@ function PatternDetailsModal({
     }
     const settingsUsed = t.settings;
     const isOverride = !!pattern.project_overrides;
-    const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
+    const settingsBadge = `Based on: ${settingsUsed.fabricCount}ct · ${settingsUsed.strandsUsed} default strands · ${settingsUsed.threadBrand} · ${Math.round(settingsUsed.wasteFactor * 100)}% waste ${isOverride ? "(project settings)" : ""}`;
     return /*#__PURE__*/React.createElement("div", {
       key: idx,
       style: {
@@ -4514,7 +4471,7 @@ function ProjectMaterials({
       padding: 20
     },
     "aria-label": "Project materials"
-  }, /*#__PURE__*/React.createElement("h2", null, "Project materials and shopping lists"), /*#__PURE__*/React.createElement("p", null, "Owned is usable stash, including opened skeins. Reserved is held for a project; available excludes every reservation. Reserving never consumes stock. Earlier project IDs have allocation priority."), /*#__PURE__*/React.createElement("p", null, "Needs cover unfinished chart units using saved project count, strands, tails and waste (or live-deduction defaults). One skein is 1,890 single-strand inches, approximately 8 metres of six-strand cotton. These are estimates, not measured lengths. Fabric and beads are excluded."), /*#__PURE__*/React.createElement("p", null, "Shortages share remaining free stock once in project order. Buy from the combined list: individual lists must not be rounded and added together. After purchasing, add the quantity to your stash and refresh; this list records no orders."), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("h2", null, "Project materials and shopping lists"), /*#__PURE__*/React.createElement("p", null, "Owned is usable stash, including opened skeins. Reserved is held for a project; available excludes every reservation. Reserving never consumes stock. Earlier project IDs have allocation priority."), /*#__PURE__*/React.createElement("p", null, "Needs cover unfinished chart units using the same planning model as Materials: project fabric count, two strands for crosses and 20% allowance unless project settings specify otherwise. Skein lengths follow each thread brand. Outlines use one strand unless specified. Estimates include fractional stitches and approximate knot and specialty-stitch lengths. Fabric and beads are excluded. Recorded consumption and stock balances are unchanged."), /*#__PURE__*/React.createElement("p", null, "Shortages share remaining free stock once in project order. Buy from the combined list: individual lists must not be rounded and added together. After purchasing, add the quantity to your stash and refresh; this list records no orders."), /*#__PURE__*/React.createElement("button", {
     onClick: refresh,
     disabled: busy
   }, "Refresh estimates"), ' ', /*#__PURE__*/React.createElement("button", {

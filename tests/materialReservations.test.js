@@ -1,9 +1,32 @@
-const {A,bridge,store,op,cost,key,prefs,clone}=require('./support/consumption-harness');
+const {A,bridge,store,op,cost:consumptionCost,key,prefs,clone}=require('./support/consumption-harness');
 const R=require('../material-reservations');
+// Independent planning benchmark: 1 aggregate inch/cross, 20%, 48 m/skein.
+const cost=1.2/(48/0.0254);
 const FDBFactory=require('fake-indexeddb/lib/FDBFactory');
 const project=(id,n=100)=>({id,name:id,settings:{fabricCt:14,wastePrefs:prefs},pattern:Array.from({length:n},()=>({id:'310',brand:'dmc'})),done:null});
 const request=(extra={})=>({enabled:true,limits:{},substitutions:{},revision:0,...extra});
 const requests=(...ids)=>({version:1,projects:Object.fromEntries(ids.map(id=>[id,request()]))});
+
+test('substituting a longer skein converts material length before purchases and preserves accounting units',()=>{
+ const p=project('p',5000);
+ const intent=request({substitutions:{[key]:{key:'madeira:1000',confirmed:true}}});
+ const r=R.plan({}, {version:1,projects:{p:intent}},[p]);
+ expect(r.groups[0].rows[0].estimatedNeeded).toBeCloseTo(2.54,12);
+ expect(r.groups[0].rows[0].skeinLengthM).toBe(10);
+ expect(r.combined[0].buySkeins).toBe(3);
+ // Event remapping keeps historical model-2 quantities unchanged.
+ expect(R.remap({[key]:3.175},intent)['madeira:1000']).toBe(3.175);
+});
+
+test('shorter-skein replacements and shared replacement identities conserve material length',()=>{
+ const p=project('p',5000);p.pattern=p.pattern.map(t=>({...t,brand:'madeira',id:'1000'}));
+ const intent=request({substitutions:{'madeira:1000':{key,confirmed:true}}});
+ const r=R.plan({}, {version:1,projects:{p:intent}},[p]);
+ expect(r.groups[0].rows[0].estimatedNeeded).toBeCloseTo(3.175,12);
+ expect(r.combined[0].buySkeins).toBe(4);
+ const merged=R.remap({[key]:1,'madeira:1000':1},request({substitutions:{[key]:{key:'madeira:1000',confirmed:true}}}),true);
+ expect(merged['madeira:1000']).toBeCloseTo(1.8,12);
+});
 let idb,projects,a,b;
 beforeEach(async()=>{
  idb=new FDBFactory();projects=[project('p'),project('q')];
@@ -13,8 +36,8 @@ beforeEach(async()=>{
 test('several projects share fractional stock once; combined purchases round only after summing',()=>{
  const ps=[project('q',1000),project('p',1000),project('r',1000)];const r=R.plan({[key]:{owned:0,partialStatus:'about-half'}},requests('p','q','r'),ps,prefs);
  expect(r.groups.map(g=>g.id)).toEqual(['p','q','r']);expect(r.reserved[key]).toBeCloseTo(.5,14);expect(r.available[key]).toBe(0);
- expect(r.groups[0].rows[0].reserved).toBeCloseTo(1000*cost,14);expect(r.groups[1].rows[0].reserved).toBeCloseTo(.5-1000*cost,14);expect(r.groups[2].rows[0].reserved).toBe(0);
- expect(r.combined[0].shortage).toBeCloseTo(3000*cost-.5,12);expect(r.combined[0].buySkeins).toBe(1);
+ expect(r.groups[0].rows[0].reserved).toBeCloseTo(.5,14);expect(r.groups[1].rows[0].reserved).toBe(0);expect(r.groups[2].rows[0].reserved).toBe(0);
+ expect(r.combined[0].shortage).toBeCloseTo(3000*cost-.5,12);expect(r.combined[0].buySkeins).toBe(2);
 });
 test('reserving, adjusting and releasing never debit stock or create consumption history',async()=>{
  const original=(await store(idb)).threads;
@@ -60,23 +83,23 @@ test('stitching cannot consume another project reservation; own stock and correc
  await b.applyConsumptionEvents('q',{},[op(1,'mark','d:0',undefined,'q')]);
  expect(A.quantity((await store(idb)).threads[key])).toBe(.5);
  expect(Object.values((await store(idb))[A.KEY].events)[0].debit[key]).toBe(0);
- await a.applyConsumptionEvents('p',{},[op(1)]);expect(A.quantity((await store(idb)).threads[key])).toBeCloseTo(.5-cost,14);
+ await a.applyConsumptionEvents('p',{},[op(1)]);expect(A.quantity((await store(idb)).threads[key])).toBeCloseTo(.5-consumptionCost,14);
  await a.applyConsumptionEvents('p',{},[op(2,'correction')]);expect(A.quantity((await store(idb)).threads[key])).toBeCloseTo(.5,14);
 });
 test('confirmed replacement consumption and correction use replacement stock without rewriting original chart',async()=>{
  await store(idb,{threads:{[key]:{owned:1},'anchor:310':{owned:1}}});
  await a.projectMaterials('p',request({substitutions:{[key]:{key:'anchor:310',confirmed:true}}}));
  await a.applyConsumptionEvents('p',{},[op(1)]);let data=await store(idb);
- expect(data.threads[key].owned).toBe(1);expect(data.threads['anchor:310'].owned).toBeCloseTo(1-cost,14);A.validate(data[A.KEY]);
+ expect(data.threads[key].owned).toBe(1);expect(data.threads['anchor:310'].owned).toBeCloseTo(1-consumptionCost,14);A.validate(data[A.KEY]);
  await a.applyConsumptionEvents('p',{},[op(2,'correction')]);expect((await store(idb)).threads['anchor:310'].owned).toBeCloseTo(1,14);
 });
 test('fractional, blends, lines, over-two and dimensions use unrounded single-strand inch accounting',()=>{
  const p=project('p',1);p.pattern=[{id:'310+403',type:'blend',threads:[{id:'310',brand:'dmc'},{id:'403',brand:'anchor'}],blendRatio:[1,3]}];
- let needed=R.estimate(p,prefs);expect(needed[key]).toBeCloseTo(cost/4,14);expect(needed['anchor:403']).toBeCloseTo(cost*3/4,14);
+ let needed=R.estimate(p,prefs);expect(needed[key]).toBeCloseTo(cost/2,14);expect(needed['anchor:403']).toBeCloseTo(cost*3/2,14);
  p.settings.fabricCt=28;expect(R.estimate(p,prefs)).toEqual(needed);
  const q={id:'q',settings:{fabricCt:14},halfStitches:[[0,{fwd:{id:'310'}}]],partialStitches:[[1,{TL:{id:'310'}}]],bsLines:[{x1:0,y1:0,x2:3,y2:4,colorId:'310'}]};
- expect(R.estimate(q,prefs)[key]).toBeCloseTo(cost*.75+20/14/1890,14);
- q.halfDone=[[0,{fwd:true}]];expect(R.estimate(q,prefs)[key]).toBeCloseTo(cost*.25+20/14/1890,14);
+ expect(R.estimate(q,prefs)[key]).toBeCloseTo(cost*.75+10/14/(48/0.0254)*1.2,14);
+ q.halfDone=[[0,{fwd:true}]];expect(R.estimate(q,prefs)[key]).toBeCloseTo(cost*.25+10/14/(48/0.0254)*1.2,14);
 });
 test('old stash migration preserves partial skeins and legacy shopping flags exactly',async()=>{
  const legacy={'310':{owned:2,partialStatus:'remnant',tobuy:true,tobuy_qty:3}};
@@ -106,7 +129,7 @@ test('bug hunt: concurrent stitching cannot overdraw stock protected for a third
  projects=[project('p',1000),project('q',1000),project('r',1000)];await a.projectMaterials('p',request());
  const large={...require('./support/consumption-harness').estimate,amounts:{[key]:.5}};
  await Promise.all([a.applyConsumptionEvents('q',{},[op(1,'mark','d:0',large,'q')]),b.applyConsumptionEvents('r',{},[op(1,'mark','d:0',large,'r')])]);
- const data=await store(idb);expect(A.quantity(data.threads[key])).toBeCloseTo(1000*cost,12);A.validate(data[A.KEY]);
+ const data=await store(idb);expect(A.quantity(data.threads[key])).toBeCloseTo(.5,12);A.validate(data[A.KEY]);
  expect((await a.projectMaterials()).available[key]).toBeGreaterThanOrEqual(0);
 });
 test('bug hunt: corrections return the recorded replacement after the substitution was removed',async()=>{
@@ -129,7 +152,7 @@ test('custom catalogue identities retain slug digits, case, spaces, leading zero
  expect(p.groups[0].rows[0].reserved).toBeCloseTo(cost,14);
  const estimate=A.snapshot({...projects[0],done:[1]},prefs)['d:0'];
  await a.applyConsumptionEvents('p',{},[op(1,'mark','d:0',estimate)]);
- const data=await store(idb);expect(data.threads[custom].owned).toBeCloseTo(1-cost,14);A.validate(data[A.KEY]);
+ const data=await store(idb);expect(data.threads[custom].owned).toBeCloseTo(1-consumptionCost,14);A.validate(data[A.KEY]);
 });
 test('no reservations means consumption does not hydrate or estimate the project library',async()=>{
  const c=bridge(idb,{MaterialReservations:R,ProjectStorage:{listProjects(){throw Error('must not hydrate');}}});

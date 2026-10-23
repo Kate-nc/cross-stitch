@@ -5,13 +5,12 @@
 // function bodies.
 // ════════════════════════════════════════════════════════════════════
 
-// Base thread per full cross stitch in inches, at the reference
-// parameters (14-count, 2 strands, no waste).  Calibrated to satisfy
-// the published stitches-per-skein reference ranges:
-//   14-ct ≈ 200–250, 16-ct ≈ 250–280, 18-ct ≈ 280–300 (all 2 strands).
-// Community references cite "~1.5 inches"; 1.4 satisfies all three
-// ranges simultaneously at no-waste baseline.
-const BASE_THREAD_PER_STITCH_IN = 1.4;  // inches, 14-ct, 2 strands, no waste
+// Planning model: 0.5 inches per used strand at 14-count, including ordinary
+// travel on the back (geometric path is about 0.345 inches). Add the chosen
+// allowance once for tails, rework and other waste. With 20%, an 8 m skein
+// covers about 1,575 full crosses using two strands. This is a planning
+// benchmark, not a measured guarantee; see reports/thread-estimation-plan.md.
+const BASE_THREAD_PER_STITCH_IN = 1.0; // aggregate SINGLE-STRAND inches, 14ct/2 strands
 const BASE_FABRIC_COUNT         = 14;   // reference fabric count (count)
 const BASE_STRANDS              = 2;    // reference strand count
 
@@ -19,15 +18,20 @@ const BASE_STRANDS              = 2;    // reference strand count
 const INCHES_PER_METRE  = 100 / 2.54; // 1 m = 100 cm
 const FLOSS_STRANDS_PER_SKEIN = 6;    // standard stranded cotton skein
 
-// Default waste factor — 15 %.  Applied as a MULTIPLIER: if you need X inches
+// Default waste factor — 20 %.  Applied as a MULTIPLIER: if you need X inches
 // of thread, buy X × (1 + wasteFactor) worth of skein capacity.
 // Convention: 10 % (experienced), 15–20 % (beginners).  Configurable.
-const DEFAULT_WASTE_FACTOR = 0.15;
+const DEFAULT_WASTE_FACTOR = 0.20;
 
 // Threads each stitch covers, when the caller doesn't say: stitchOverFor()
 // from constants.js knows the "(over 2)" fabrics; without it, 1 (Aida).
 function defaultStitchOver(fabricCount) {
   return (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : 1;
+}
+// Planning also works when required directly by Node without constants.js.
+// Keep the legacy helper's fallback separate so consumption is unchanged.
+function planningStitchOver(fabricCount) {
+  return (typeof stitchOverFor === 'function') ? stitchOverFor(fabricCount) : ([25, 28, 32].includes(Number(fabricCount)) ? 2 : 1);
 }
 
 const BRAND_SKEIN_LENGTH = {
@@ -37,10 +41,115 @@ const BRAND_SKEIN_LENGTH = {
   Cosmo:   8.0
 };
 
+// Ignore floating-point noise only, never a percentage or a display rounding.
+function wholeSkeins(amount) { return Math.max(0, Math.ceil(amount - 1e-12)); }
+
+// Ratios on imported blends are actual strand counts (2+1 means three in the
+// needle). Otherwise split the chosen total equally. Preserve component brands.
+function threadConstituents(entry, strandsUsed) {
+  const e = entry || {}, brand = String(e.brand || 'dmc').toLowerCase();
+  const blend = e.type === 'blend' || e.is_blended || (!e.type && ['dmc','anchor'].includes(brand) && String(e.id || '').includes('+'));
+  let parts = blend ? (e.threads && e.threads.length ? e.threads :
+    (e.blend_id ? [e.id, e.blend_id] : e.id == null ? [null, null] : String(e.id).split('+')).map(id => ({id: id}))) : [e];
+  const ratio = e.blendRatio || e.blend_ratio;
+  return parts.map(function(t, i) {
+    const n = ratio && ratio[i] != null ? ratio[i] : t.strands;
+    return Object.assign({}, t, {brand: String(t.brand || brand).toLowerCase(),
+      strands: Number.isFinite(n) && n > 0 ? n : (strandsUsed || 2) / parts.length});
+  });
+}
+
+// Shared purchasing model. Entries may carry fractional full-cross equivalents,
+// or an explicit skein requirement from a library key. Never round demand before
+// aggregating a physical thread and subtracting usable stock.
+function threadDemandRows(entries, opts) {
+  opts = opts || {};
+  const byKey = new Map(), stash = opts.stash || {};
+  (entries || []).forEach(function(e) {
+    if (!e || e.id == null || String(e.id) === '' || String(e.id).startsWith('__')) return;
+    const count = Number(e.count != null ? e.count : e.qty) || 0;
+    if (count <= 0) return;
+    threadConstituents(e, opts.strandsUsed).forEach(function(t) {
+      const key = t.brand + ':' + t.id;
+      let r = byKey.get(key);
+      if (!r) {
+        r = {p: {id: t.id, brand: t.brand, type: 'solid', name: t.name || '', rgb: t.rgb, count: 0},
+          key: key, estimatedNeeded: 0, threadStitches: 0};
+        byKey.set(key, r);
+      }
+      r.p.count += count;
+      r.threadStitches += count * t.strands / 2;
+      if (!r.p.name && t.name) r.p.name = t.name;
+      r.estimatedNeeded += e.unit === 'skeins' ? count : stitchesToSkeins({stitchCount: count,
+        fabricCount: opts.fabricCount || opts.fabricCt || 14, stitchOver: opts.stitchOver,
+        strandsUsed: t.strands, skeinLengthM: opts.skeinLengthM || skeinLengthForBrand(t.brand),
+        wasteFactor: opts.wasteFactor == null ? DEFAULT_WASTE_FACTOR : opts.wasteFactor}).skeinsRaw;
+    });
+  });
+  return Array.from(byKey.values()).map(function(r) {
+    if (!Number.isFinite(r.estimatedNeeded)) throw new Error('Cannot estimate thread demand with these settings');
+    const e = stash[r.key];
+    r.owned = typeof stashEffectiveQty === 'function' ? stashEffectiveQty(e) :
+      (e && Number.isFinite(e.owned) ? Math.max(0, e.owned) : 0) +
+      ({'mostly-full': .75, 'about-half': .5, remnant: .25}[e && e.partialStatus] || 0);
+    r.needed = wholeSkeins(r.estimatedNeeded); // whole skeins from scratch
+    r.missing = wholeSkeins(Math.max(0, r.estimatedNeeded - r.owned));
+    r.status = r.missing === 0 ? 'owned' : r.owned > 0 ? 'partial' : 'needed';
+    r.name = r.p.name || String(r.p.id);
+    return r;
+  });
+}
+
+// Convert chart units to fractional full-cross equivalents for planning. This
+// never edits progress or consumption events. Backstitch/long stitches use
+// twice their path length (front and return), relative to seven widths per
+// full cross in the planning model. Knots use one cross equivalent; petite
+// crosses use half, matching the existing material geometry convention.
+function projectThreadEntries(project, remaining) {
+  const p = project || {}, out = [], groups = new Map();
+  const brand = p.threadBrand || (p.settings && p.settings.threadBrand) || 'dmc';
+  function add(t, weight, marked) {
+    if (!t || (remaining && marked)) return;
+    if (Array.isArray(t)) t = {id: t[1] === 'k' ? '__skip__' : t[0], type: t[1] === 'b' ? 'blend' : 'solid'};
+    if (t.id == null || String(t.id) === '' || String(t.id).startsWith('__') || !(weight > 0)) return;
+    t = Object.assign({}, t, {brand: t.brand || brand});
+    const key = JSON.stringify([t.id, t.brand, t.type, t.blendRatio, t.blend_ratio, t.threads, t.strands]);
+    let e = groups.get(key);
+    if (!e) { e = Object.assign({}, t, {count: 0}); groups.set(key, e); out.push(e); }
+    e.count += weight;
+  }
+  const map = x => x instanceof Map ? x : new Map(x || []);
+  (p.pattern || p.pat || p.p || []).forEach((t, i) => add(t, 1, p.done && p.done[i] === 1));
+  const halves = map(p.halfStitches), hd = map(p.halfDone), pd = map(p.partialDone);
+  halves.forEach((c, i) => ['fwd', 'bck'].forEach(side => add(c[side], .5, (hd.get(i) || {})[side])));
+  let partials = map(p.partialStitches);
+  if (typeof ProgressUnits !== 'undefined') partials = ProgressUnits.partialWithoutLegacyHalves(partials, halves, brand);
+  partials.forEach((c, i) => ['TL', 'TR', 'BL', 'BR'].forEach(pos => {
+    const marks = pd.get(i) || [];
+    add(c[pos], .25, marks instanceof Set ? marks.has(pos) : marks.includes(pos));
+  }));
+  const sd = new Set(p.specialtyDone || []), kd = new Set(p.knotsDone || []), bd = new Set(p.bsDone || []);
+  (p.specialtyStitches || []).forEach(st => {
+    const weight = st.type === 'petite' ? .5 : st.type === 'long_stitch' ? 2 * Math.hypot(st.x2-st.x1, st.y2-st.y1) / 7 : 0;
+    add(st.thread, weight, sd.has(st.uid));
+  });
+  (p.knots || []).forEach(k => add(k, 1, kd.has(k.x + ',' + k.y)));
+  (p.bsLines || []).forEach(l => {
+    let {x1, y1, x2, y2} = l;
+    if (![x1,y1,x2,y2].every(Number.isFinite)) return;
+    const distance = Math.hypot(x2-x1, y2-y1);
+    if (x2 < x1 || (x2 === x1 && y2 < y1)) { [x1,x2] = [x2,x1]; [y1,y2] = [y2,y1]; }
+    const id = l.colorId != null ? l.colorId : l.color;
+    // Backstitch is normally one strand; an explicit line strand count wins.
+    add({id: id, brand: l.brand || brand, strands: l.strands || 1}, 2 * distance / 7, bd.has([x1,y1,x2,y2,id].join(',')));
+  });
+  return out;
+}
+
 function stitchesToSkeins({
   stitchCount,
   fabricCount = 14,
-  stitchOver = defaultStitchOver(fabricCount),
+  stitchOver = planningStitchOver(fabricCount),
   strandsUsed = 2,
   skeinLengthM = 8.0,
   wasteFactor = DEFAULT_WASTE_FACTOR,
@@ -55,7 +164,8 @@ function stitchesToSkeins({
   if (!Number.isFinite(fabricCount) || fabricCount <= 0) {
     throw new Error("stitchesToSkeins: fabricCount must be a positive finite number");
   }
-  if (strandsUsed <= 0) strandsUsed = 2;
+  if (!Number.isFinite(strandsUsed) || strandsUsed <= 0) strandsUsed = 2;
+  if (!Number.isFinite(skeinLengthM) || skeinLengthM <= 0) skeinLengthM = 8;
   if (!Number.isFinite(wasteFactor) || wasteFactor < 0 || wasteFactor >= 1) {
     wasteFactor = DEFAULT_WASTE_FACTOR;
   }
@@ -73,19 +183,18 @@ function stitchesToSkeins({
   const skeinLengthIn  = skeinLengthM * INCHES_PER_METRE * FLOSS_STRANDS_PER_SKEIN;
 
   if (!isBlended) {
-    let skeinsRaw = totalWithWasteIn / skeinLengthIn;
-    // Epsilon guard: tiny patterns (e.g. a single pixel) should not demand a
-    // full skein. Treat near-zero exact values as zero.
-    if (skeinsRaw < 0.01) skeinsRaw = 0;
+    const skeinsRaw = totalWithWasteIn / skeinLengthIn;
     return {
-      skeinsExact:  Math.round(skeinsRaw * 100) / 100,
-      skeinsToBuy:  Math.ceil(skeinsRaw),
+      skeinsExact:  Math.round(skeinsRaw * 100) / 100, // legacy display precision
+      skeinsRaw: skeinsRaw, // use this unrounded value for all planning arithmetic
+      skeinsToBuy:  wholeSkeins(skeinsRaw),
       totalThreadM: Math.round(flossLengthIn / INCHES_PER_METRE * 10) / 10
     };
   }
 
   // Blended — split floss proportionally by strand ratio before applying waste.
-  const [strandsA, strandsB] = blendRatio || [1, 1];
+  const validRatio = Array.isArray(blendRatio) && blendRatio.length === 2 && blendRatio.every(n => Number.isFinite(n) && n > 0);
+  const [strandsA, strandsB] = validRatio ? blendRatio : [strandsUsed / 2, strandsUsed / 2];
   const threadA_in = flossLengthIn * (strandsA / strandsUsed);
   const threadB_in = flossLengthIn * (strandsB / strandsUsed);
 
@@ -95,26 +204,29 @@ function stitchesToSkeins({
   return {
     colorA: {
       skeinsExact: Math.round(skeinsA * 100) / 100,
-      skeinsToBuy: Math.ceil(skeinsA)
+      skeinsRaw: skeinsA,
+      skeinsToBuy: wholeSkeins(skeinsA)
     },
     colorB: {
       skeinsExact: Math.round(skeinsB * 100) / 100,
-      skeinsToBuy: Math.ceil(skeinsB)
+      skeinsRaw: skeinsB,
+      skeinsToBuy: wholeSkeins(skeinsB)
     },
-    totalThreadM: Math.round(flossLengthIn / INCHES_PER_METRE * 10) / 10
+    totalThreadM: Math.round((threadA_in + threadB_in) / INCHES_PER_METRE * 10) / 10
   };
 }
 
 function skeinsToStitches({
   skeinCount,
   fabricCount = 14,
-  stitchOver = defaultStitchOver(fabricCount),
+  stitchOver = planningStitchOver(fabricCount),
   strandsUsed = 2,
   skeinLengthM = 8.0,
   wasteFactor = DEFAULT_WASTE_FACTOR
 }) {
   if (fabricCount <= 0) fabricCount = 14;
-  if (strandsUsed <= 0) strandsUsed = 2;
+  if (!Number.isFinite(strandsUsed) || strandsUsed <= 0) strandsUsed = 2;
+  if (!Number.isFinite(skeinLengthM) || skeinLengthM <= 0) skeinLengthM = 8;
   if (!Number.isFinite(wasteFactor) || wasteFactor < 0 || wasteFactor >= 1) {
     wasteFactor = DEFAULT_WASTE_FACTOR;
   }
@@ -160,10 +272,10 @@ function threadCostPerStitch(fabricCount, strandCount, wastePrefs) {
                    ? wp.strandCountOverride
                    : sc;
   if (runLen <= 0) runLen = 30;
-  // Same calibrated anchor as stitchesToSkeins (BASE_THREAD_PER_STITCH_IN,
-  // BASE_FABRIC_COUNT, BASE_STRANDS); tail waste and general waste are added
-  // on top for the real-time tracker's finer-grained model.
-  var baseCostIn         = BASE_THREAD_PER_STITCH_IN * BASE_FABRIC_COUNT / (fc / defaultStitchOver(fc)) * strands / BASE_STRANDS;
+  // Legacy helper: retain its original 1.4 anchor for compatibility. Durable
+  // recorded consumption uses thread-accounting.js model 2; recalibrating
+  // future shopping estimates must never revalue historical debits.
+  var baseCostIn         = 1.4 * BASE_FABRIC_COUNT / (fc / defaultStitchOver(fc)) * strands / BASE_STRANDS;
   var tailWastePerStitch = (tailIn * 2) / runLen;
   return (baseCostIn + tailWastePerStitch) * genWaste;
 }
@@ -227,7 +339,7 @@ function skeinLengthForBrand(brand) {
 // entry: a palette entry ({ count, type, blendRatio? }) or a library thread
 // ({ qty... } is not read; pass count). opts: { fabricCount, strandsUsed,
 // wasteFactor, skeinLengthM }. The skein length is opts.skeinLengthM when
-// given (the Manager passes its own), else the entry's brand's (a Madeira
+// given, else each constituent brand's (a Madeira
 // skein is 10 m), else 8 m. Returns { isBlend, count, strands: [n] | [a, b],
 // skeins: [exact] | [a, b], toBuy: [whole skeins, at least 1 once stitched] }.
 function threadKeyUsage(entry, opts) {
@@ -237,21 +349,15 @@ function threadKeyUsage(entry, opts) {
   const strandsUsed = Number.isFinite(opts.strandsUsed) && opts.strandsUsed > 0 ? opts.strandsUsed : BASE_STRANDS;
   const wasteFactor = opts.wasteFactor == null ? KEY_WASTE_FACTOR : opts.wasteFactor;
   const count = Number.isFinite(Number(e.count)) && Number(e.count) > 0 ? Number(e.count) : 0;
-  const skeinLengthM = Number.isFinite(opts.skeinLengthM) && opts.skeinLengthM > 0 ? opts.skeinLengthM : skeinLengthForBrand(e.brand);
-  const isBlend = e.type === 'blend' || !!e.is_blended || (typeof e.id === 'string' && e.id.indexOf('+') > 0);
-  let strands;
-  if (isBlend) {
-    const r = e.blendRatio || e.blend_ratio;
-    strands = Array.isArray(r) && r.length >= 2 && r[0] > 0 && r[1] > 0 ? [r[0], r[1]] : [strandsUsed / 2, strandsUsed / 2];
-  } else {
-    strands = [strandsUsed];
-  }
-  // A symbol with any stitches never reads as exactly zero skeins, however few (stitchesToSkeins rounds a tiny amount to 0).
-  const skeins = strands.map(function (n) {
-    const exact = stitchesToSkeins({ stitchCount: count, fabricCount: fabricCount, strandsUsed: n, wasteFactor: wasteFactor, skeinLengthM: skeinLengthM }).skeinsExact;
-    return count > 0 ? Math.max(exact, 0.001) : exact;
+  const parts = threadConstituents(e, strandsUsed);
+  const isBlend = parts.length > 1;
+  const strands = parts.map(function(t) { return t.strands; });
+  const skeins = parts.map(function (t) {
+    return stitchesToSkeins({ stitchCount: count, fabricCount: fabricCount, stitchOver: opts.stitchOver,
+      strandsUsed: t.strands, wasteFactor: wasteFactor,
+      skeinLengthM: opts.skeinLengthM || skeinLengthForBrand(t.brand) }).skeinsRaw;
   });
-  const toBuy = skeins.map(function (x) { return count > 0 ? Math.max(1, Math.ceil(x)) : 0; });
+  const toBuy = skeins.map(wholeSkeins);
   return { isBlend: isBlend, count: count, strands: strands, skeins: skeins, toBuy: toBuy };
 }
 
@@ -260,6 +366,7 @@ function formatSkeins(n) {
   if (!Number.isFinite(n) || n <= 0) return '0 skeins';
   if (n < 0.05) return 'under 0.1 skein';
   const r = Math.round(n * 10) / 10;
+  if (r >= 1 && Number.isInteger(r) && n > r + 1e-12) return 'just over ' + r + (r === 1 ? ' skein' : ' skeins');
   return r + (r === 1 ? ' skein' : ' skeins');
 }
 
@@ -287,16 +394,16 @@ function threadUsageText(u) {
 }
 
 // "about 1.3 skeins", but "under 0.1 skein" rather than "about under 0.1 skein".
-function _aboutSkeins(n) { return n < 0.05 && n > 0 ? formatSkeins(n) : 'about ' + formatSkeins(n); }
+function _aboutSkeins(n) { return (n < 0.05 && n > 0) || formatSkeins(n).indexOf('just over') === 0 ? formatSkeins(n) : 'about ' + formatSkeins(n); }
 
 // The same figures in full, for a tooltip or screen reader.
 function threadUsageTitle(u) {
   if (!u) return '';
   if (!u.isBlend) {
-    return _strandsWord(u.strands[0]) + ' in the needle; ' + _aboutSkeins(u.skeins[0]) + ' of thread' + (u.toBuy[0] ? ' (buy ' + u.toBuy[0] + ')' : '');
+    return _strandsWord(u.strands[0]) + ' in the needle; ' + _aboutSkeins(u.skeins[0]) + ' of thread' + (u.toBuy[0] ? ' (from scratch: buy ' + u.toBuy[0] + ')' : '');
   }
   const even = u.strands[0] === u.strands[1];
-  const st = even ? 'One strand of each thread in the needle' : u.strands[0] + ' and ' + u.strands[1] + ' strands in the needle';
+  const st = even ? (u.strands[0] === 1 ? 'One strand' : _strandsWord(u.strands[0])) + ' of each thread in the needle' : u.strands[0] + ' and ' + u.strands[1] + ' strands in the needle';
   const sk = u.skeins[0] === u.skeins[1]
     ? _aboutSkeins(u.skeins[0]) + ' of each thread'
     : _aboutSkeins(u.skeins[0]) + ' and ' + formatSkeins(u.skeins[1]) + ' of the two threads';
@@ -312,6 +419,10 @@ if (typeof module !== 'undefined' && module.exports) {
         FLOSS_STRANDS_PER_SKEIN,
         DEFAULT_WASTE_FACTOR,
         BRAND_SKEIN_LENGTH,
+        wholeSkeins,
+        threadConstituents,
+        threadDemandRows,
+        projectThreadEntries,
         stitchesToSkeins,
         skeinsToStitches,
         threadCostPerStitch,

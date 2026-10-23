@@ -1778,7 +1778,8 @@ function HomeScreen({ onOpenCreatorWithImage, onOpenCreatorBlank, onOpenFile, on
         if (!pat.threads || pat.status === 'completed' || pat.status === 'wishlist') return;
         var patFabricCt = Number(pat.fabricCt);
         if (!(patFabricCt > 0)) patFabricCt = 14;
-        var needsThread = pat.threads.some(function(t) {
+        var planned = typeof threadDemandRows === 'function' ? threadDemandRows(pat.threads.map(function(t) { var k=normKey(t), c=k.indexOf(':'); return Object.assign({},t,{id:k.slice(c+1),brand:k.slice(0,c),unit:t.unit||'skeins',count:t.qty}); }), {fabricCount:patFabricCt,stash:stash}) : null;
+        var needsThread = planned ? planned.some(function(r) { return r.missing>0; }) : pat.threads.some(function(t) {
           var s = stash[normKey(t)];
           if (!s) return true;
           // Pattern threads from auto-sync store qty as raw stitches; convert to skeins.

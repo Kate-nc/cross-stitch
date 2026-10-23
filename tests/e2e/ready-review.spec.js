@@ -41,7 +41,7 @@ async function setFabricCount(page, review, ct) {
   await expect(page.locator('.creator-sidebar-tab[data-tab-id="project"]')).toHaveAttribute('aria-selected','true');
   await page.locator('.fabric-block__select').selectOption(String(ct));
   // On a phone the settings open as a drawer over the page; tap outside to close it.
-  if (await page.locator('.rpanel-backdrop').count()) await page.locator('.rpanel-backdrop').click({position:{x:5,y:5}});
+  if (await page.locator('.rpanel-backdrop').isVisible()) await page.locator('.rpanel-backdrop').click({position:{x:5,y:5}});
   await page.getByRole('tab',{name:'Materials',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Ready to stitch',exact:true})).toBeVisible();
 }
@@ -62,7 +62,7 @@ for (const kind of ['pixel-art','low-colour','sparse','blends','no-source']) {
     await review.getByLabel('Width (stitches)',{exact:true}).fill('8');
     await review.getByLabel('Height (stitches)',{exact:true}).fill('6');
     await expect(page.getByTestId('sample-bounds')).toContainText('Columns 6–13, rows 8–13');
-    await expect(review).toContainText('28 count, over 2; 2 strands; 20% waste; 8 m skeins');
+    await expect(review).toContainText('28ct over 2; crosses: 2 strands; outlines: 1; 20% allowance; skeins by brand');
     await expect(review).toContainText('48 × 40 stitches; finished 3.4 × 2.9 in');
     const downloadEvent=page.waitForEvent('download');
     await review.getByRole('button',{name:'Export sample chart PNG',exact:true}).click();

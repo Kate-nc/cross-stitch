@@ -24,7 +24,7 @@ describe('threadCostPerStitch — defaults', () => {
     const c18 = threadCostPerStitch(18, 2, {});
     const c28 = threadCostPerStitch(28, 2, {});
     expect(c18).toBeLessThan(c14);
-    expect(c28).toBeLessThan(c18);
+    expect(c28).toBeLessThan(c18); // legacy fallback without page constants is over one
   });
 
   test('more strands raises per-stitch cost roughly linearly in base term', () => {

@@ -65,7 +65,7 @@ const PATTERN = [
 describe('threadKeyUsage: the strands and skeins a symbol takes', () => {
   test('a solid is two strands, with the 20% allowance the shopping list uses', () => {
     const u = calc.threadKeyUsage({ count: 900, type: 'solid' }, { fabricCount: 14 });
-    expect(u).toEqual({ isBlend: false, count: 900, strands: [2], skeins: [0.8], toBuy: [1] });
+    expect(u).toEqual({ isBlend: false, count: 900, strands: [2], skeins: [expect.closeTo(0.5715, 6)], toBuy: [1] });
     expect(calc.KEY_WASTE_FACTOR).toBe(0.2);
   });
 
@@ -73,33 +73,33 @@ describe('threadKeyUsage: the strands and skeins a symbol takes', () => {
     const solid = calc.threadKeyUsage({ count: 5000 }, { fabricCount: 14 });
     const blend = calc.threadKeyUsage({ count: 5000, type: 'blend' }, { fabricCount: 14 });
     expect(blend.strands).toEqual([1, 1]);
-    expect(blend.skeins).toEqual([2.22, 2.22]);
+    expect(blend.skeins).toEqual([expect.closeTo(1.5875, 6), expect.closeTo(1.5875, 6)]);
     expect(blend.skeins[0]).toBeCloseTo(solid.skeins[0] / 2, 1);
-    expect(blend.toBuy).toEqual([3, 3]);
+    expect(blend.toBuy).toEqual([2, 2]);
   });
 
   test('the fabric count on the project changes the amount', () => {
-    expect(calc.threadKeyUsage({ count: 900 }, { fabricCount: 18 }).skeins).toEqual([0.62]);
-    expect(calc.threadKeyUsage({ count: 900 }, { fabricCount: 11 }).skeins[0]).toBeGreaterThan(0.8);
+    expect(calc.threadKeyUsage({ count: 900 }, { fabricCount: 18 }).skeins).toEqual([expect.closeTo(0.4445, 6)]);
+    expect(calc.threadKeyUsage({ count: 900 }, { fabricCount: 11 }).skeins[0]).toBeGreaterThan(0.5715);
   });
 
   test('a brand\'s own skein length is used: a 10 m Madeira skein goes further than an 8 m DMC one', () => {
     const dmc = calc.threadKeyUsage({ count: 900, brand: 'dmc' }, { fabricCount: 14, wasteFactor: 0.2 });
     const madeira = calc.threadKeyUsage({ count: 900, brand: 'Madeira' }, { fabricCount: 14, wasteFactor: 0.2 });
-    expect(dmc.skeins).toEqual([0.8]);
-    expect(madeira.skeins).toEqual([0.64]);
-    expect(calc.threadKeyUsage({ count: 900, brand: 'madeira' }, { fabricCount: 14 }).skeins).toEqual([0.64]);
-    expect(calc.threadKeyUsage({ count: 900, brand: 'anchor' }, { fabricCount: 14 }).skeins).toEqual([0.8]);
+    expect(dmc.skeins).toEqual([expect.closeTo(0.5715, 6)]);
+    expect(madeira.skeins).toEqual([expect.closeTo(0.4572, 6)]);
+    expect(calc.threadKeyUsage({ count: 900, brand: 'madeira' }, { fabricCount: 14 }).skeins).toEqual([expect.closeTo(0.4572, 6)]);
+    expect(calc.threadKeyUsage({ count: 900, brand: 'anchor' }, { fabricCount: 14 }).skeins).toEqual([expect.closeTo(0.5715, 6)]);
     // An explicit length wins, as the Manager passes its own.
-    expect(calc.threadKeyUsage({ count: 900, brand: 'dmc' }, { fabricCount: 14, skeinLengthM: 10 }).skeins).toEqual([0.64]);
-    expect(calc.threadKeyUsage({ count: 900, type: 'blend', brand: 'Madeira' }, { fabricCount: 14 }).skeins).toEqual([0.32, 0.32]);
+    expect(calc.threadKeyUsage({ count: 900, brand: 'dmc' }, { fabricCount: 14, skeinLengthM: 10 }).skeins).toEqual([expect.closeTo(0.4572, 6)]);
+    expect(calc.threadKeyUsage({ count: 900, type: 'blend', brand: 'Madeira' }, { fabricCount: 14 }).skeins).toEqual([expect.closeTo(0.2286, 6), expect.closeTo(0.2286, 6)]);
     expect(calc.skeinLengthForBrand('Cosmo')).toBe(8);
     expect(calc.skeinLengthForBrand('unknown')).toBe(8);
     expect(calc.skeinLengthForBrand(undefined)).toBe(8);
   });
 
   test('the Manager hands its brand skein length to the key usage', () => {
-    expect(/skeinLengthM: BRAND_SKEIN_LENGTH\[t\.brand \|\| settings\.threadBrand\] \|\| 8\.0 \}\)\s*: null;/.test(read('manager-app.js'))).toBe(true);
+    expect(read('manager-app.js')).toMatch(/skeinLengthM:\s*skeinLengthForBrand\(t\.brand \|\| settings\.threadBrand\)/);
   });
 
   test('an uneven blend ratio sets the strands of each thread', () => {
@@ -139,11 +139,11 @@ describe('threadKeyUsage: the strands and skeins a symbol takes', () => {
   test('the usage line and the full tooltip', () => {
     const solid = calc.threadKeyUsage({ count: 900 }, { fabricCount: 14 });
     const blend = calc.threadKeyUsage({ count: 900, type: 'blend' }, { fabricCount: 14 });
-    expect(calc.threadUsageText(solid)).toBe('2 strands · 0.8 skeins');
-    expect(calc.threadUsageText(blend)).toBe('1 strand of each · 0.4 skeins each');
-    expect(calc.threadUsageTitle(solid)).toBe('2 strands in the needle; about 0.8 skeins of thread (buy 1)');
-    expect(calc.threadUsageTitle(blend)).toBe('One strand of each thread in the needle; about 0.4 skeins of each thread');
-    expect(calc.threadUsageParts(blend)).toEqual({ strands: '1 strand of each', skeins: '0.4 skeins each' });
+    expect(calc.threadUsageText(solid)).toBe('2 strands · 0.6 skeins');
+    expect(calc.threadUsageText(blend)).toBe('1 strand of each · 0.3 skeins each');
+    expect(calc.threadUsageTitle(solid)).toBe('2 strands in the needle; about 0.6 skeins of thread (from scratch: buy 1)');
+    expect(calc.threadUsageTitle(blend)).toBe('One strand of each thread in the needle; about 0.3 skeins of each thread');
+    expect(calc.threadUsageParts(blend)).toEqual({ strands: '1 strand of each', skeins: '0.3 skeins each' });
   });
 });
 
@@ -155,8 +155,8 @@ describe('threadKeyRow: one key row as plain strings', () => {
       name: 'Pewter Very Dark',
       isBlend: false,
       title: 'DMC 3799 Pewter Very Dark',
-      usage: '2 strands · 0.8 skeins',
-      usageTitle: '2 strands in the needle; about 0.8 skeins of thread (buy 1)'
+      usage: '2 strands · 0.6 skeins',
+      usageTitle: '2 strands in the needle; about 0.6 skeins of thread (from scratch: buy 1)'
     });
   });
 
@@ -167,8 +167,8 @@ describe('threadKeyRow: one key row as plain strings', () => {
       name: 'Blue Violet Light + Blue Medium',
       isBlend: true,
       title: 'DMC 341 Blue Violet Light + DMC 826 Blue Medium (blend: one strand of each thread)',
-      usage: '1 strand of each · 0.4 skeins each',
-      usageTitle: 'One strand of each thread in the needle; about 0.4 skeins of each thread'
+      usage: '1 strand of each · 0.3 skeins each',
+      usageTitle: 'One strand of each thread in the needle; about 0.3 skeins of each thread'
     });
   });
 
@@ -182,7 +182,7 @@ describe('threadKeyRow: one key row as plain strings', () => {
   test('a long catalogue name is whole in the row', () => {
     const r = keyRow(PATTERN[2], { fabricCount: 14 });
     expect(r.label).toBe('DMC 3802 Antique Mauve Very Dark');
-    expect(r.usage).toBe('2 strands · 4.5 skeins');
+    expect(r.usage).toBe('2 strands · 3.2 skeins');
   });
 
   test('nothing gives null', () => {
@@ -196,7 +196,7 @@ describe('the key row, rendered (snapshot-style)', () => {
       '<span class="pal-row__label">' +
       '<span class="pal-row__id">DMC 3799</span>' +
       '<span class="pal-row__name">Pewter Very Dark</span>' +
-      '<span class="pal-row__use" title="2 strands in the needle; about 0.8 skeins of thread (buy 1)">2 strands · 0.8 skeins</span>' +
+      '<span class="pal-row__use" title="2 strands in the needle; about 0.6 skeins of thread (from scratch: buy 1)">2 strands · 0.6 skeins</span>' +
       '</span>');
   });
 
@@ -205,7 +205,7 @@ describe('the key row, rendered (snapshot-style)', () => {
       '<span class="pal-row__label">' +
       '<span class="pal-row__id">DMC 341 + 826 <span class="pal-row__tag">blend</span></span>' +
       '<span class="pal-row__name">Blue Violet Light + Blue Medium</span>' +
-      '<span class="pal-row__use" title="One strand of each thread in the needle; about 0.4 skeins of each thread">1 strand of each · 0.4 skeins each</span>' +
+      '<span class="pal-row__use" title="One strand of each thread in the needle; about 0.3 skeins of each thread">1 strand of each · 0.3 skeins each</span>' +
       '</span>');
   });
 
@@ -214,7 +214,7 @@ describe('the key row, rendered (snapshot-style)', () => {
       '<span class="ppal-tile-text">' +
       '<span class="ppal-tile-id">DMC 341 + 826 <span class="ppal-tile-tag">blend</span></span>' +
       '<span class="ppal-tile-name">Blue Violet Light + Blue Medium</span>' +
-      '<span class="ppal-tile-use" title="One strand of each thread in the needle; about 0.4 skeins of each thread">1 strand of each · 0.4 skeins each</span>' +
+      '<span class="ppal-tile-use" title="One strand of each thread in the needle; about 0.3 skeins of each thread">1 strand of each · 0.3 skeins each</span>' +
       '</span>');
   });
 

@@ -6639,59 +6639,13 @@ window.creatorFitBox = creatorFitBox;
 //            status, name }] in first-seen order.
 window.buildThreadShoppingRows = function buildThreadShoppingRows(pal, opts) {
   opts = opts || {};
-  var fabricCt = opts.fabricCt || 14;
-  var stash = opts.stash || {};
-  var order = [], byKey = {};
-  (pal || []).forEach(function(p) {
-    if (!p || p.id === '__skip__' || p.id === '__empty__') return;
-    var count = p.count || 0;
-    var parts;
-    if (p.type === 'blend') {
-      parts = (p.threads && p.threads.length)
-        ? p.threads.map(function(t) { return { id: t.id, name: t.name, rgb: t.rgb, brand: t.brand || p.brand || 'dmc' }; })
-        : String(p.id).split('+').map(function(id) { return { id: id, brand: p.brand || 'dmc' }; });
-    } else {
-      parts = [{ id: p.id, name: p.name, rgb: p.rgb, brand: p.brand || 'dmc' }];
-    }
-    parts.forEach(function(t) {
-      var key = t.brand + ':' + t.id;
-      var r = byKey[key];
-      if (!r) {
-        r = byKey[key] = { id: t.id, name: t.name || '', rgb: t.rgb, brand: t.brand, stitches: 0, threadStitches: 0 };
-        order.push(key);
-      }
-      if (!r.name && t.name) r.name = t.name;
-      if (!r.rgb && t.rgb) r.rgb = t.rgb;
-      r.stitches += count;
-      r.threadStitches += parts.length > 1 ? count / parts.length : count;
-    });
-  });
-  return order.map(function(key) {
-    var r = byKey[key];
-    if (!r.rgb || !r.name) {
-      var cat = (typeof findThreadInCatalog === 'function') ? findThreadInCatalog(r.brand, r.id) : null;
-      if (cat) { if (!r.rgb) r.rgb = cat.rgb; if (!r.name) r.name = cat.name; }
-    }
-    var needed;
-    if (typeof stitchesToSkeins === 'function') {
-      var sk = stitchesToSkeins({ stitchCount: Math.round(r.threadStitches), fabricCount: fabricCt,
-        strandsUsed: opts.strandsUsed || 2, wasteFactor: opts.wasteFactor == null ? 0.20 : opts.wasteFactor });
-      needed = sk.skeinsToBuy || 0;
-    } else {
-      needed = Math.ceil(r.threadStitches / 800) || 0;
-    }
-    // Any thread with stitches needs at least one skein.
-    if (r.stitches > 0) needed = Math.max(1, needed);
-    var stashKey = (typeof threadKey === 'function') ? threadKey(r.brand, r.id) : (r.brand + ':' + r.id);
-    var entry = stash[stashKey];
-    var owned = typeof stashEffectiveQty === 'function'
-      ? stashEffectiveQty(entry)
-      : ((entry && entry.owned) || 0);
-    var status = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
-    return {
-      p: { id: r.id, type: 'solid', count: r.stitches, rgb: r.rgb || [128, 128, 128], name: r.name, brand: r.brand },
-      key: stashKey, owned: owned, needed: needed, status: status, name: r.name || r.id
-    };
+  var entries = opts.project ? projectThreadEntries(opts.project) : pal;
+  return threadDemandRows(entries, opts).map(function(r) {
+    var cat = typeof findThreadInCatalog === 'function' ? findThreadInCatalog(r.p.brand, r.p.id) : null;
+    if (!r.p.name && cat) r.p.name = cat.name;
+    if (!r.p.rgb) r.p.rgb = cat ? cat.rgb : [128, 128, 128];
+    r.name = r.p.name || r.p.id;
+    return r;
   });
 };
 
@@ -7925,14 +7879,18 @@ window.useCreatorState = function useCreatorState() {
   var pxY = Math.ceil(sH / (typeof A4H !== "undefined" ? A4H : 91));
   var totPg = pxX * pxY;
 
-  var skeinData = useMemo(function() {
+  var materialThreadRows = useMemo(function() {
     if (!pal) return [];
-    var withKnots = window.Knots ? window.Knots.withKnotCounts(pal, knots, typeof restoreStitch === "function" ? restoreStitch : null) : pal;
-    return window.buildThreadShoppingRows(withKnots, { fabricCt: fabricCt }).map(function(row) {
-      return { id: row.p.id, brand: row.p.brand, name: row.p.name, rgb: row.p.rgb,
-        stitches: row.p.count, skeins: row.needed };
+    return window.buildThreadShoppingRows(pal, { fabricCt: fabricCt, stash: globalStash,
+      project: {pattern: pat, partialStitches: partialStitches, bsLines: bsLines, knots: knots,
+        specialtyStitches: specialtyStitches, threadBrand: threadBrand} });
+  }, [pal, pat, fabricCt, globalStash, partialStitches, bsLines, knots, specialtyStitches, threadBrand]);
+  var skeinData = useMemo(function() {
+    return materialThreadRows.map(function(row) {
+      return {id: row.p.id, brand: row.p.brand, name: row.p.name, rgb: row.p.rgb,
+        stitches: row.threadStitches, skeins: row.needed, estimatedSkeins: row.estimatedNeeded};
     });
-  }, [pal, fabricCt, knots]);
+  }, [materialThreadRows]);
 
   var totalSkeins = useMemo(function() { return skeinData.reduce(function(s, d) { return s + d.skeins; }, 0); }, [skeinData]);
   var blendCount  = useMemo(function() { return pal ? pal.filter(function(p) { return p.type === "blend"; }).length : 0; }, [pal]);
@@ -9362,7 +9320,7 @@ window.useCreatorState = function useCreatorState() {
     G, EDIT_HISTORY_MAX,
     // Derived
     totalStitchable, cs, fitZ, requestFitZoom, chartFitH, pxX, pxY, totPg,
-    skeinData, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
+    skeinData, materialThreadRows, totalSkeins, blendCount, difficulty, confettiStats: difficultyMetrics.confetti || null, doneCount, dmcFiltered,
     displayPal, progressPct, colourDoneCounts, stitchType,
     ownedCount, toBuyCount, toBuyList,
 
@@ -19873,25 +19831,16 @@ window.CreatorSidebar = function CreatorSidebar() {
       if (typeof getAnchorById === 'function' ? getAnchorById(id) : (typeof ANCHOR !== 'undefined' && ANCHOR.find(function(d){ return d.id === id; }))) return 'anchor';
       return 'dmc';
     }
+    var demands = ctx.materialThreadRows || threadDemandRows(displayPal, {fabricCount:fabricCtForStash,stash:stash});
+    var demandByKey = Object.fromEntries(demands.map(function(r) { return [r.key,r]; }));
     function stashStatusForChip(p) {
       if (!stashHas) return null;
-      // Blend: status = worst component status.
-      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? splitBlendId(p.id)
-        : [p.id];
-      var worst = 'owned';
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        if (!id || id === '__skip__' || id === '__empty__') continue;
-        var brand = p.brand || resolveBrand(id);
-        var key = brand + ':' + id;
-        var entry = stash[key];
-        var owned = stashEffectiveQty(entry);
-        var needed = (typeof skeinEst === 'function' && p.count) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
-        var s = owned >= needed ? 'owned' : owned > 0 ? 'partial' : 'needed';
-        if (s === 'needed') return 'needed';
-        if (s === 'partial' && worst === 'owned') worst = 'partial';
-      }
+      var parts = threadConstituents(p), worst = 'owned';
+      parts.forEach(function(t) {
+        var r = demandByKey[t.brand + ':' + t.id];
+        if (r && r.status === 'needed') worst = 'needed';
+        else if (r && r.status === 'partial' && worst === 'owned') worst = 'partial';
+      });
       return worst;
     }
     var STASH_DOT = { owned: 'var(--success)', partial: 'var(--warning)', needed: 'var(--danger)' };
@@ -19902,21 +19851,12 @@ window.CreatorSidebar = function CreatorSidebar() {
     var unownedSeen = Object.create(null);
     function _trackUnowned(p) {
       if (!stashHas) return;
-      var ids = (p.type === 'blend' && typeof p.id === 'string' && p.id.indexOf('+') !== -1)
-        ? splitBlendId(p.id)
-        : [p.id];
-      for (var i = 0; i < ids.length; i++) {
-        var id = ids[i];
-        if (!id || id === '__skip__' || id === '__empty__') continue;
-        var brand = p.brand || resolveBrand(id);
-        var key = brand + ':' + id;
-        if (unownedSeen[key]) continue;
-        var entry = stash[key];
-        var owned = stashEffectiveQty(entry);
-        var needed = (typeof skeinEst === 'function' && p.count != null) ? skeinEst(p.count, fabricCtForStash) : LOW_STASH_SKEIN_THRESHOLD;
-        if (owned < needed) { unownedSeen[key] = true; unownedKeys.push(key); }
-      }
+      threadConstituents(p).forEach(function(t) {
+        var key = t.brand + ':' + t.id, r = demandByKey[key];
+        if (r && r.missing > 0 && !unownedSeen[key]) { unownedSeen[key] = true; unownedKeys.push(key); }
+      });
     }
+
     var chips = displayPal.map(function(p) {
       var ips = isPaintMode && cv.selectedColorId === p.id;
       var ihs = cv.hiId === p.id;

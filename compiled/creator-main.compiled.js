@@ -1980,6 +1980,7 @@ function CreatorApp({
       displayPal: state.displayPal,
       totalStitchable: state.totalStitchable,
       skeinData: state.skeinData,
+      materialThreadRows: state.materialThreadRows,
       totalSkeins: state.totalSkeins,
       blendCount: state.blendCount,
       threadCounts: state.threadCounts,
@@ -1992,7 +1993,7 @@ function CreatorApp({
       toBuyCount: state.toBuyCount,
       toBuyList: state.toBuyList
     };
-  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.specialtySelected, state.specialtyStitches, state.knots, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
+  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.isScratchMode, state.scratchPalette, state.dmcSearch, state.colPickerOpen, state.symbolOverrides, state.parkMarkers, state.hlRow, state.hlCol, state.totalTime, state.sessions, state.partialStitches, state.partialStitchTool, state.specialtySelected, state.specialtyStitches, state.knots, state.threadOwned, state.globalStash, state.kittingResult, state.altOpen, state.adaptModalOpen, state.adaptModalMode, state.adaptMaxDeltaE, state.creatorStashFilter, state.displayPal, state.totalStitchable, state.skeinData, state.materialThreadRows, state.totalSkeins, state.blendCount, state.threadCounts, state.difficulty, state.doneCount, state.dmcFiltered, state.colourDoneCounts, state.progressPct, state.ownedCount, state.toBuyCount, state.toBuyList]);
 
   // Full merged state for exportPDF (which reads a mix of pattern + derived values)
   // File > Export PDF… and Print PDF use the Export tab's saved settings
@@ -2070,6 +2071,7 @@ function CreatorApp({
       threadOwned: state.threadOwned,
       totalStitchable: state.totalStitchable,
       skeinData: state.skeinData,
+      materialThreadRows: state.materialThreadRows,
       totalSkeins: state.totalSkeins,
       blendCount: state.blendCount,
       difficulty: state.difficulty,
@@ -2077,7 +2079,7 @@ function CreatorApp({
       totalTime: state.totalTime,
       sessions: state.sessions
     };
-  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.specialtyStitches, state.knots, state.threadOwned, state.totalStitchable, state.skeinData, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
+  }, [state.pat, state.pal, state.cmap, state.threadBrand, state.sW, state.sH, state.fabricCt, state.skeinPrice, state.stitchSpeed, state.done, state.bsLines, state.partialStitches, state.specialtyStitches, state.knots, state.threadOwned, state.totalStitchable, state.skeinData, state.materialThreadRows, state.totalSkeins, state.blendCount, state.difficulty, state.doneCount, state.totalTime, state.sessions]);
 
   // ── Coachmark tips (Creator) ────────────────────────────────────────
   // One-off tips, only for a pattern made in this visit — never just for

@@ -95,15 +95,14 @@
     var sample = React.useMemo(function () {
       return Object.assign({}, ctx, { pat: crop(ctx.pat, ctx.sW, r), sW: r.w, sH: r.h });
     }, [ctx, r.x, r.y, r.w, r.h]);
-    var matPal = window.Knots ? window.Knots.withKnotCounts(m.pal, ctx.knots, typeof restoreStitch === 'function' ? restoreStitch : null) : m.pal;
-    var rows = window.buildThreadShoppingRows(matPal, { fabricCt: ctx.fabricCt, stash: ctx.globalStash });
+    var rows = ctx.materialThreadRows || window.buildThreadShoppingRows(m.pal, {fabricCt: ctx.fabricCt, stash: ctx.globalStash, project: ctx});
     var skeins = rows.reduce(function (n, row) { return n + row.needed; }, 0);
     var bounds = { x: 0, y: 0, w: ctx.sW, h: ctx.sH };
     var source = gen.img && gen.img.src;
     var other = (ctx.bsLines || []).length || (ctx.partialStitches && ctx.partialStitches.size) ||
       (ctx.knots || []).length || (ctx.specialtyStitches || []).length;
     var coords = 'Columns ' + (r.x + 1) + '–' + (r.x + r.w) + ', rows ' + (r.y + 1) + '–' + (r.y + r.h);
-    var assumptions = ctx.fabricCt + ' count, over ' + stitchOverFor(ctx.fabricCt) + '; 2 strands; 20% waste; 8 m skeins';
+    var assumptions = ctx.fabricCt + 'ct over ' + stitchOverFor(ctx.fabricCt) + '; crosses: 2 strands; outlines: 1; 20% allowance; skeins by brand';
     function go(sub) { app.setMaterialsTab(sub); }
     function controls() { app.setTab('pattern'); app.setAppMode('edit'); app.setSidebarTab('tools'); app.setSidebarOpen(true); }
     function adjustments() { app.requestBackToConvert(); }
@@ -155,13 +154,13 @@
         figure('Current chart', h(Chart, { ctx: ctx, fabric: app.fabricColour, region: bounds, cell: Math.min(12, 1200 / Math.max(ctx.sW, ctx.sH)), label: 'Current generated or drawn chart' })),
         figure('Stitches from the current chart', Math.max(ctx.sW, ctx.sH) <= 1600 ? h(window.CreatorRealisticCanvas, { patternData: ctx, review: true, inputLevel: 2 }) : h('p', null, 'This chart is too large for a full stitch simulation. Inspect the selected sample below.'))),
       h('p', null, 'Overview images are scaled to fit, not shown at physical size. The stitch simulation uses actual full-cross cells and approximate screen thread colours. It cannot calibrate physical colours or predict lighting, tension, fabric coverage or guaranteed results. Blends show component colours where available. Inspect a stitched sample for important colours and detail.'),
-      other ? h('p', { className: 'ready-review-note' }, 'This chart also contains other stitch types. The stitch simulation shows full crosses only; inspect the chart and Export for fractional stitches, backstitch, knots and specialty stitches. Existing material estimates may not cover all these objects.') : null,
+      other ? h('p', { className: 'ready-review-note' }, 'This chart also contains other stitch types. The stitch simulation shows full crosses only; inspect the chart and Export for fractional stitches, backstitch, knots and specialty stitches. Material estimates include these objects using approximate thread lengths. Beads and fabric are separate.') : null,
       h('div', { className: 'ready-review-summary' },
         h('div', null, h('h3', null, 'Size and materials'),
           h('p', null, ctx.sW + ' × ' + ctx.sH + ' stitches; finished ' + size(ctx.sW, ctx.sH, ctx.fabricCt) + '.'),
           h('p', null, 'Finished size covers the whole grid, including empty cells. Add your own framing and finishing margins.'),
           h(window.CreatorFabricSummary, { fabricCt: ctx.fabricCt, app: app }),
-          h('p', null, assumptions + '. Equal strand shares assumed for blends; confirm unusual blend ratios.'),
+          h('p', null, assumptions + '. Imported blend strand ratios are used when supplied. Confirm unusual thread requirements.'),
           h('p', null, window.threadCountsShort({ threads: rows.length, symbols: m.pal.length }) + '. Estimated full-project materials: ' + skeins + ' whole skeins, £' + (skeins * ctx.skeinPrice).toFixed(2) + ' at £' + ctx.skeinPrice.toFixed(2) + ' per skein, before stash deductions.'),
           button('Inspect threads and estimates', function () { go('threads'); }), button('Check stash', function () { go('stash'); })),
         h('div', null, h('h3', null, 'Stitching effort and detail'),
