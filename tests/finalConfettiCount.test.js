@@ -93,7 +93,7 @@ describe('the finished chart\'s confetti count', () => {
 describe('Threads (max) on the page preview', () => {
   test('the page pipeline keeps to the limit, as Generate and the worker do', async () => {
     const page = runtime(false), worker = runtime(true);
-    const raw = await pixels('scripts/conversion-accuracy/img/astronaut.png', 50);
+    const raw = await pixels('tests/fixtures/panorama.jpg', 50);
     for (const maxC of [4, 6, 10]) {
       const opts = Object.assign({}, PHOTO_STRONG, { maxC, disambig: false });
       const r = page.runCleanupPipeline(new Uint8ClampedArray(raw), 50, 50, opts);
