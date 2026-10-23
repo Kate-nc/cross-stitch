@@ -112,14 +112,14 @@ test('tap (down + up same cell within 200ms) emits TOGGLE_CELL', () => {
   expect(s.mode).toBe('idle');
 });
 
-test('tap > 200ms is NOT a toggle (becomes long-press candidate)', () => {
+test('touch released between the old tap cutoff and long-press still toggles', () => {
   const ctx = makeCtx(4, 4, makePattern(4, 4));
   let s = initialState();
   const fx = [];
   s = step(s, { type: 'POINTER_DOWN', idx: 5, time: 0,
                 pointerId: 1, shiftKey: false, pointerType: 'touch' }, ctx, fx);
   s = step(s, { type: 'POINTER_UP', idx: 5, time: 350 }, ctx, fx);
-  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(0);
+  expect(fx.filter(e => e.type === 'TOGGLE_CELL')).toHaveLength(1);
 });
 
 // ─── 2b. Mouse has no long-press dead zone ───────────────────────────────

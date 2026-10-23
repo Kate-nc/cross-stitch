@@ -857,6 +857,35 @@ function TrackerProjectPicker({list,currentId,onPick,onClose}){
   );
 }
 
+// The high-frequency stroke preview has its own subscription and render tree.
+// Controls still receive mode/anchor changes from useDragMark immediately.
+const DragMarkOverlay=React.memo(function DragMarkOverlay({store,pulse,w,h,scs,G}){
+  const state=React.useSyncExternalStore(store.subscribe,store.getSnapshot,store.getSnapshot);
+  if(!state.path.size&&state.anchor==null&&!pulse)return null;
+  return (
+    <div className={"drag-mark-overlay drag-mark-overlay--"+(state.intent||'mark')}
+         style={{position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none",
+                 width:w*scs+G,height:h*scs+G}}>
+      {[...state.path].map(function(idx){
+        var x=(idx%w)*scs+G, y=Math.floor(idx/w)*scs+G;
+        return <div key={"p"+idx} className="drag-mark-cell"
+                    style={{left:x,top:y,width:scs,height:scs}}/>;
+      })}
+      {state.anchor!=null&&(function(){
+        var idx=state.anchor;
+        var x=(idx%w)*scs+G, y=Math.floor(idx/w)*scs+G;
+        return <div key={"a"+idx} className="drag-mark-anchor"
+                    style={{left:x,top:y,width:scs,height:scs}}/>;
+      })()}
+      {pulse&&[...pulse].map(function(idx){
+        var x=(idx%w)*scs+G, y=Math.floor(idx/w)*scs+G;
+        return <div key={"x"+idx} className="drag-mark-pulse cell-pulse"
+                    style={{left:x,top:y,width:scs,height:scs}}/>;
+      })}
+    </div>
+  );
+});
+
 // ─── Event-log timing engine ─────────────────────────────────────────────────
 // computeActiveMs: pure function — active stitching duration from an event log.
 // Events each carry {kind, t} (t = Unix ms). Recognised kinds:
@@ -6770,56 +6799,12 @@ function handleStitchMouseDown(e){
   // A press on a French knot is the knot's (stitchPointerHandlers).
   if(knotPressRef.current||bsPressRef.current)return;
 
-  // ═══ Tracker: Marking half stitches as done (track mode) ═══
-  // If cell has half stitches and NO full stitch (or full is done), handle half marking
-  const cellHasHalf=halfStitches.has(idx);
-  const m2=pat[idx];
-  const isFullCell=m2&&m2.id!=="__skip__"&&m2.id!=="__empty__";
-
-  if(cellHasHalf&&(!isFullCell||(done&&done[idx]))){
-    const hs=halfStitches.get(idx);
-    const hasBoth=hs.fwd&&hs.bck;
-    if(hasBoth){
-      // Two halves: hit-test which triangle was tapped
-      const rect=stitchRef.current.getBoundingClientRect();
-      // +tile origin: the canvas is a tile, so its pixel 0 is chart pixel
-      // tile.x/y rather than 0 (see chartTileFor).
-      const _ct=chartTileRef.current;
-      const localX=e.clientX-rect.left+_ct.x-G-gx*scs;
-      const localY=e.clientY-rect.top +_ct.y-G-gy*scs;
-      const hitDir=hitTestHalfStitch(localX,localY,scs,8);
-      if(hitDir==="ambiguous"){
-        // Show disambiguation popup
-        if (isColourLocked()) {
-          const fwdMatch = halfStitchMatchesFocus(idx, "fwd");
-          const bckMatch = halfStitchMatchesFocus(idx, "bck");
-          if (!fwdMatch && !bckMatch) { e.preventDefault(); return; }
-          if (fwdMatch && !bckMatch) { _toggleHalfDone(idx, "fwd"); e.preventDefault(); return; }
-          if (!fwdMatch && bckMatch) { _toggleHalfDone(idx, "bck"); e.preventDefault(); return; }
-          // Both match — fall through to normal disambiguation popup
-        }
-        setHalfDisambig({idx,x:e.clientX,y:e.clientY});
-        e.preventDefault();
-        return;
-      }
-      if (isColourLocked() && !halfStitchMatchesFocus(idx, hitDir)) { e.preventDefault(); return; }
-      _toggleHalfDone(idx,hitDir);
-    } else {
-      // Single half: toggle it
-      const dir=hs.fwd?"fwd":"bck";
-      if (isColourLocked() && !halfStitchMatchesFocus(idx, dir)) { e.preventDefault(); return; }
-      _toggleHalfDone(idx,dir);
-    }
-    e.preventDefault();
-    return;
-  }
-
   if(pat[idx].id==="__skip__"||pat[idx].id==="__empty__")return;
 
   // C3: cell tap / drag-mark / shift+click range / long-press range are all
   // owned by useDragMark (see _dragMarkOnToggle / _dragMarkOnCommitDrag /
   // _dragMarkOnCommitRange below). The mousedown handler keeps only the
-  // pan, edit-mode popover, navigate-mode, and half-stitch branches above.
+  // pan, edit-mode popover and navigate-mode branches above.
   e.preventDefault();
 }
 function handleStitchMouseMove(e){
@@ -6939,6 +6924,7 @@ function chartOwnsGesture(e){
   // Locked: a stray finger neither marks nor scrolls.
   if(touchLocked)return true;
   if(!_dragMarkActive)return false;
+  if(!_dragMarkFlag)return false;
   if(paintMode)return true;
   // One finger in Mark mode scrolls natively (a quick swipe marks nothing) until it has rested on a stitch long
   // enough to paint; from then on the page must not scroll under it. See useDragMark.js, "Touch intent".
@@ -7625,18 +7611,18 @@ useEffect(()=>{
 },[]);
 
 // ═══ B2: Drag-Mark + Long-Press Range Select ═══════════════════════════
-// useDragMark owns tap / drag / long-press routing for TOUCH input on the
-// canvas. Mouse input continues to flow through handleStitchMouseDown so
-// the existing pinch / pan / shift+click / range-mode pathways are intact.
+// useDragMark owns full-stitch tap / drag / range routing for mouse, touch
+// and pen. Pan and specialty presses are claimed before they reach it.
 const _dragMarkCellAtPoint=useCallback(function(cx,cy){
   if(!stitchRef.current||!pat||layerVis.full===false)return -1;
-  const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
-  if(!gc)return -1;
-  if(gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return -1;
+  const rect=stitchRef.current.getBoundingClientRect(),tile=chartTileRef.current;
+  const x=(cx-rect.left+tile.x-G)/scs,y=(cy-rect.top+tile.y-G)/scs;
+  const gx=Math.floor(x),gy=Math.floor(y);
+  if(gx<0||gx>=sW||gy<0||gy>=sH)return -1;
   // Margin stitches around a work area are context, not part of it: no tap,
   // drag or range can mark them.
-  if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return -1;
-  return gc.gy*sW+gc.gx;
+  if(areaOn&&!window.WorkArea.contains(workArea,gx,gy))return -1;
+  return {idx:gy*sW+gx,x,y};
 },[pat,sW,sH,scs,areaOn,workArea,layerVis.full]);
 
 const _pulseCells=useCallback(function(idxList){
@@ -7778,7 +7764,7 @@ const _dragMarkOnCommitRange=useCallback(function(set,intent){
 const _dragMarkPref=(typeof window!=='undefined'&&window.UserPrefs&&typeof window.UserPrefs.get==='function')?window.UserPrefs.get('trackerDragMark'):true;
 const _dragMarkOverrideOff=(typeof window!=='undefined'&&window.B2_DRAG_MARK_ENABLED===false);
 const _dragMarkFlag=!_dragMarkOverrideOff&&_dragMarkPref!==false;
-const _dragMarkActive=_dragMarkFlag&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
+const _dragMarkActive=!_dragMarkOverrideOff&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
 const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   ?window.useDragMark({
     w:sW,h:sH,pattern:pat,done:done,
@@ -7787,6 +7773,8 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
     onCommitDrag:_dragMarkOnCommitDrag,
     onCommitRange:_dragMarkOnCommitRange,
     isEditMode:!_dragMarkActive,
+    dragEnabled:_dragMarkFlag,
+    isolatedPreview:true,
     paintMode:paintMode,
     touchLocked:touchLocked,
   })
@@ -7794,6 +7782,8 @@ const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
 const _dragMarkHandlers=_dragMark.handlers;
 const dragMarkState=_dragMark.dragState;
 const dragMarkReset=_dragMark.reset||(()=>{});
+// Disabling gestures also dismisses a rectangle awaiting its second corner.
+useEffect(()=>{if(!_dragMarkFlag)dragMarkReset();},[_dragMarkFlag]);
 // "Unpick area" only lasts while the rectangle is waiting for its second corner.
 useEffect(()=>{if(unpickPending&&!(dragMarkState&&dragMarkState.mode==='range'))setUnpickIntent(false);},[dragMarkState&&dragMarkState.mode,unpickPending]);
 // Keep the keyup/blur listener (registered once, on mount, above) calling
@@ -7819,6 +7809,56 @@ function knotAtPoint(cx,cy){
   if(isColourLocked()&&k.id!==focusColour)return null;
   if(areaOn&&!window.WorkArea.contains(workArea,Math.min(sW-1,k.x>>1),Math.min(sH-1,k.y>>1)))return null;
   return k;
+}
+// Half stitches claim a pointer press exclusively, just like quarters and knots.
+function halfAtPoint(cx,cy){
+  if(!_dragMarkActive||!stitchRef.current||layerVis.half===false)return null;
+  const gc=gridCoord(stitchRef,{clientX:cx,clientY:cy},scs,G,false,chartTileRef.current);
+  if(!gc||gc.gx<0||gc.gx>=sW||gc.gy<0||gc.gy>=sH)return null;
+  if(areaOn&&!window.WorkArea.contains(workArea,gc.gx,gc.gy))return null;
+  const idx=gc.gy*sW+gc.gx,hs=halfStitches.get(idx),cell=pat[idx];
+  if(!hs||(!hs.fwd&&!hs.bck))return null;
+  const full=cell&&cell.id!=="__skip__"&&cell.id!=="__empty__";
+  if(full&&!(doneRef.current&&doneRef.current[idx]))return null;
+  return {idx,gx:gc.gx,gy:gc.gy};
+}
+function toggleHalfAtPoint(hit,e){
+  const {idx,gx,gy}=hit;
+  const hs=halfStitches.get(idx);
+  const hasBoth=hs.fwd&&hs.bck;
+  if(hasBoth){
+    // Two halves: hit-test which triangle was tapped
+    const rect=stitchRef.current.getBoundingClientRect();
+    // +tile origin: the canvas is a tile, so its pixel 0 is chart pixel
+    // tile.x/y rather than 0 (see chartTileFor).
+    const _ct=chartTileRef.current;
+    const localX=e.clientX-rect.left+_ct.x-G-gx*scs;
+    const localY=e.clientY-rect.top +_ct.y-G-gy*scs;
+    const hitDir=hitTestHalfStitch(localX,localY,scs,8);
+    if(hitDir==="ambiguous"){
+      // Show disambiguation popup
+      if (isColourLocked()) {
+        const fwdMatch = halfStitchMatchesFocus(idx, "fwd");
+        const bckMatch = halfStitchMatchesFocus(idx, "bck");
+        if (!fwdMatch && !bckMatch) { e.preventDefault(); return; }
+        if (fwdMatch && !bckMatch) { _toggleHalfDone(idx, "fwd"); e.preventDefault(); return; }
+        if (!fwdMatch && bckMatch) { _toggleHalfDone(idx, "bck"); e.preventDefault(); return; }
+        // Both match — fall through to normal disambiguation popup
+      }
+      setHalfDisambig({idx,x:e.clientX,y:e.clientY});
+      e.preventDefault();
+      return;
+    }
+    if (isColourLocked() && !halfStitchMatchesFocus(idx, hitDir)) { e.preventDefault(); return; }
+    _toggleHalfDone(idx,hitDir);
+  } else {
+    // Single half: toggle it
+    const dir=hs.fwd?"fwd":"bck";
+    if (isColourLocked() && !halfStitchMatchesFocus(idx, dir)) { e.preventDefault(); return; }
+    _toggleHalfDone(idx,dir);
+  }
+  e.preventDefault();
+  return;
 }
 // Quarter stitches (fractional.js): in Mark mode a press on a cell that holds quarter stitches marks the nearest one,
 // once the cell's whole stitch (if it has one) is done, the way half stitches are. A colour lock refuses a quarter of
@@ -8043,6 +8083,22 @@ function toggleKnotDone(k){
 const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
   onPointerDown:e=>{
     if(e.button===2||isMacSecondaryClick(e))return;
+    // Space-pan owns the press before any full or specialty stitch can
+    // claim it. Keep capture so the mouse pan continues off the canvas.
+    if(e.button===0&&isSpaceDownRef.current){
+      dragMarkReset();
+      try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
+      return;
+    }
+    // A finger landing during a fling is stopping navigation, not marking.
+    // Claim it explicitly rather than relying on the old touch-tap cutoff.
+    if(e.pointerType==="touch"&&panMomentumRafRef.current){
+      stopPanMomentum();
+      knotPressRef.current={stopPan:true,id:e.pointerId,x:e.clientX,y:e.clientY};
+      if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);
+      return;
+    }
+    if(touchLocked&&e.pointerType&&e.pointerType!=="mouse")return;
     const plain=(e.button===undefined||e.button===0)&&!e.altKey&&!e.shiftKey;
     if(plain&&_dragMarkActive&&beads.length&&stitchRef.current){
       const rect=stitchRef.current.getBoundingClientRect(),ct=chartTileRef.current||{x:0,y:0};
@@ -8072,6 +8128,13 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
       return;
     }
     bsPressRef.current=null;
+    const half=plain&&!k?halfAtPoint(e.clientX,e.clientY):null;
+    if(half){
+      knotPressRef.current={half,id:e.pointerId,x:e.clientX,y:e.clientY};
+      try{e.currentTarget.setPointerCapture(e.pointerId);}catch(_){}
+      if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);
+      return;
+    }
     const q=plain&&!k?quarterAtPoint(e.clientX,e.clientY):null;
     if(k||q){knotPressRef.current={k,q,id:e.pointerId,x:e.clientX,y:e.clientY};if(_dragMarkHandlers.onExtraTouchDown)_dragMarkHandlers.onExtraTouchDown(e);return;}
     knotPressRef.current=null;
@@ -8112,9 +8175,13 @@ const dragMarkHandlers=Object.assign({},_dragMarkHandlers,{
     }
     const p=knotPressRef.current;
     if(p&&p.id===e.pointerId){
+      // Read before ending the contact: the last lift clears 'multi', but
+      // must not turn a cancelled half/specialty press back into a tap.
+      const cancelled=e.pointerType==="touch"&&dragMarkGetStateRef.current&&dragMarkGetStateRef.current().mode==="multi";
       knotPressRef.current=null;
       if(_dragMarkHandlers.onExtraTouchEnd)_dragMarkHandlers.onExtraTouchEnd(e);
-      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.bead){setSelectedBead(p.bead.uid);setBeadPanelOpen(true);}else if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
+      if(p.stopPan||cancelled)return;
+      if(Math.hypot(e.clientX-p.x,e.clientY-p.y)<12){if(p.bead){setSelectedBead(p.bead.uid);setBeadPanelOpen(true);}else if(p.specialty)toggleSpecialtyDone(p.specialty);else if(p.half)toggleHalfAtPoint(p.half,e);else if(p.q)toggleQuarterDone(p.q);else toggleKnotDone(p.k);}
       return;
     }
     if(_dragMarkHandlers.onPointerUp)_dragMarkHandlers.onPointerUp(e);
@@ -8679,7 +8746,7 @@ return(
 
     <div className={"ppal-canvas-col"+(handedness==="left"?" ppal-canvas-col--left":"")}>
     <div className="canvas-area" style={{padding:"12px 16px",position:"relative"}}>
-    {isShiftDown&&_dragMarkActive&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
+    {isShiftDown&&_dragMarkActive&&_dragMarkFlag&&<div style={{position:"absolute",top:4,right:20,zIndex:30,pointerEvents:"none",display:"flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:'var(--radius-md)',background:"var(--accent)",color:"var(--surface)",fontSize:'var(--text-xs)',fontWeight:600,boxShadow:'var(--shadow-sm)'}}>
       <span aria-hidden="true" style={{display:"inline-flex"}}>{Icons.crop?Icons.crop():null}</span>
       <span>{dragMarkState&&dragMarkState.mode==='shiftRange'?(altDownRef.current?"Release to unpick the rectangle":"Drag to select a rectangle, release to apply (hold Alt to unpick)"):"Shift held — drag from a cell to select a rectangle"}</span>
     </div>}
@@ -8813,7 +8880,7 @@ return(
         a tablet with 1300 CSS px of height showed the chart through the same
         letterbox as a phone. */}
     <p id="tracker-chart-summary" className="tracker-chart-summary">{sW} columns by {sH} rows. {Math.round(stitchZoom*100)}% zoom. Focus the chart and use arrow keys to move the guide; Enter marks or unmarks in Mark mode. Ctrl+Z undoes. {layerVis.full===false?"Full crosses are hidden.":""}</p>
-    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive&&_dragMarkFlag?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div aria-hidden="true" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}
@@ -8835,31 +8902,9 @@ return(
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
         <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
-          <canvas ref={stitchRef} role="application" tabIndex="0" aria-describedby="tracker-chart-summary tracker-chart-status" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
+          <canvas ref={stitchRef} role="application" tabIndex="0" aria-describedby="tracker-chart-summary tracker-chart-status" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&_dragMarkFlag&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
-          {/* B2 — drag-mark / range-select visual overlay (touch) */}
-          {_dragMarkActive&&dragMarkState&&(dragMarkState.path.size>0||dragMarkState.anchor!=null||dragMarkPulse)&&(
-            <div className={"drag-mark-overlay drag-mark-overlay--"+(dragMarkState.intent||'mark')}
-                 style={{position:"absolute",top:-G,left:-G,zIndex:6,pointerEvents:"none",
-                         width:sW*scs+G,height:sH*scs+G}}>
-              {[...dragMarkState.path].map(function(idx){
-                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
-                return <div key={"p"+idx} className="drag-mark-cell"
-                            style={{left:x,top:y,width:scs,height:scs}}/>;
-              })}
-              {dragMarkState.anchor!=null&&(function(){
-                var idx=dragMarkState.anchor;
-                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
-                return <div key={"a"+idx} className="drag-mark-anchor"
-                            style={{left:x,top:y,width:scs,height:scs}}/>;
-              })()}
-              {dragMarkPulse&&[...dragMarkPulse].map(function(idx){
-                var x=(idx%sW)*scs+G, y=Math.floor(idx/sW)*scs+G;
-                return <div key={"x"+idx} className="drag-mark-pulse cell-pulse"
-                            style={{left:x,top:y,width:scs,height:scs}}/>;
-              })}
-            </div>
-          )}
+          {_dragMarkActive&&_dragMark.previewStore&&<DragMarkOverlay store={_dragMark.previewStore} pulse={dragMarkPulse} w={sW} h={sH} scs={scs} G={G}/>}
 
           {/* Outline highlight's marching ants (SVG, browser-animated) */}
           {antsOn&&<svg ref={antsSvgRef} className="tracker-ants" aria-hidden="true" focusable="false" style={{display:"block",position:"absolute",top:-G,left:-G,zIndex:3,pointerEvents:"none",overflow:"hidden"}}><path fill="none" strokeWidth="2"/><path fill="none" strokeWidth="2"/></svg>}
