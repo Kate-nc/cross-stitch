@@ -20,6 +20,7 @@ for(const name of ['desktop','iPad Mini','Pixel 5']) {
     const search=picker.getByRole('textbox',{name:'Search DMC threads',exact:true});
     async function choose(id){await search.fill(id);const button=picker.getByRole('button',{name:new RegExp('^Choose DMC '+id+' ')});await button.focus();await button.press('Enter');}
     await choose('317');await choose('3799');
+    await expect(picker.getByText('Thread 2: DMC 3799 Pewter Very Dark',{exact:true})).toBeVisible();
     await expect(picker.getByRole('group',{name:'Blend appearance preview'})).toBeVisible();
     await expect(picker.getByText('1 strand of each; 2 strands total.',{exact:false})).toBeVisible();
     await picker.getByRole('button',{name:'Remove thread 2',exact:true}).focus();

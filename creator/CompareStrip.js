@@ -134,7 +134,7 @@
               var raw = px.data;
               var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
-              resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
+              resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiFinal || r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
           }, 0);
           return;
@@ -143,7 +143,7 @@
         w.onmessage = function (e) {
           var msg = e.data || {};
           if (msg.reqId !== reqId) return;
-          if (msg.type === "result") resolve({ mapped: msg.mapped, pal: msg.pal, confettiPct: msg.confettiData && msg.confettiData.clean ? msg.confettiData.clean.pct : null });
+          if (msg.type === "result") resolve({ mapped: msg.mapped, pal: msg.pal, confettiPct: msg.confettiData ? (msg.confettiData.final || msg.confettiData.clean || msg.confettiData.raw || {}).pct : null });
           else if (msg.type === "error") reject(new Error(msg.message));
         };
         // A worker that fails (for example a script that didn't load) is

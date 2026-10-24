@@ -127,3 +127,12 @@ test.each([false,true])('worker and fallback agree with shading=%s and blend bud
   const result=messages.find(m=>m.type==='result');expect(Array.from(result.mapped,m=>m.id)).toEqual(Array.from(expected));
   expect(result.mapped.some(m=>m.type==='blend')).toBe(false);
 });
+test('a conversion owns its candidate table even after another palette is prepared', () => {
+  const c=context();
+  expect(vm.runInContext(`(() => {
+    const p=['317','3799'].map(id=>DMC.find(t=>t.id===id));
+    const table=findBest.precomputeBlends(p);
+    findBest.precomputeBlends(DMC.slice(0,4));
+    return findBest(rgbToLab(87,87,87),p,true,table).id;
+  })()`,c)).toBe('317+3799');
+});

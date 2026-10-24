@@ -106,7 +106,7 @@ self.onmessage = function(e) {
     var dithStrength = (typeof settings.dithStrength === "number") ? settings.dithStrength : 1.0;
     var dithAlgo     = settings.dithAlgo || (dith ? "atkinson" : "off");
     var dithBayerSize = settings.dithBayerSize || 4;
-    var allowBlends  = settings.allowBlends;
+    var allowBlends  = settings.allowBlends && settings.maxBlends !== 0;
     var stitchCleanup = settings.stitchCleanup;
 
     var allowedPalette = settings.allowedPalette || null;

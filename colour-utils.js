@@ -19,9 +19,10 @@ function findSolid(lab,p){
 // Lets a nearest-colour search skip threads that cannot beat the best so far
 // without changing which thread it finds.
 function _dE2000LightnessBound(L1,L2){const m=(L1+L2)/2-50,m2=m*m;return Math.abs(L1-L2)/(1+0.015*m2/Math.sqrt(20+m2));}
-function findBest(lab, palette, allowBlends = true) {
+function findBest(lab, palette, allowBlends = true, blendTable = null) {
   const solidMatch = findSolid(lab, palette);
-  if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
+  const blends = blendTable || (findBest._blendPalette === palette ? findBest._blends : null);
+  if (!allowBlends || !blends) return solidMatch;
 
   // CIEDE2000 throughout, like findSolid. The uncached core: nearly every call
   // here has a new input colour, so the cache would only add cost.
@@ -34,7 +35,6 @@ function findBest(lab, palette, allowBlends = true) {
 
   let bestBlendDist00 = solidDist00 - 3;
   let bestBlendIdx = -1;
-  const blends = findBest._blends;
   for (let i = 0; i < blends.length; i++) {
     const bl = blends[i].lab;
     if (_dE2000LightnessBound(L, bl[0]) >= bestBlendDist00) continue;
@@ -94,6 +94,7 @@ findBest.precomputeBlends = function(palette) {
     }
   }
   findBest._blends = blends;
+  return blends;
 };
 // Bound generated recipes independently of physical thread count. Reserve a
 // symbol for every selected solid so remapping cannot overflow the PDF key.
@@ -820,7 +821,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
   // Pre-compute blend table once for the whole dithering pass
   // precomputeBlends is attached lazily on first use
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   // PERF (deferred-4): default-on feature flag for the secondBest id-map
   // short-circuit. ON replaces the per-pixel O(palette) scan inside the
@@ -857,7 +858,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
       // --- Stage 2: confetti-aware color selection ---
       // Find best color via the normal path first.
-      const best = findBest(targetLab, pal, allowBlends);
+      const best = findBest(targetLab, pal, allowBlends, blendTable);
 
       // Compute the effective threshold, scaled by (1 - saliency).
       const saliency = saliencyMap ? saliencyMap[idx] : 0;
@@ -1023,7 +1024,7 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
   else                      { matrix = B4; n = 4; spread = 48; } // default 4×4
 
   // Pre-compute blend table once (same as Atkinson path).
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   const N = w * h;
   const r = new Array(N);
@@ -1043,7 +1044,7 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
       const adj_g = Math.max(0, Math.min(255, data[base + 1] + t * spread));
       const adj_b = Math.max(0, Math.min(255, data[base + 2] + t * spread));
 
-      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends);
+      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends, blendTable);
     }
   }
 
@@ -1074,7 +1075,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
   var QUEUE_LEN = (opts && opts.queueLen != null) ? opts.queueLen : 16;
 
   // Pre-compute blend table once per palette
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   // Exponential decay weights: weight[0] = most recent, weight[QUEUE_LEN-1] = oldest
   // mult chosen so the oldest weight = 1/QUEUE_LEN of the newest.
@@ -1147,7 +1148,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
     var cg = Math.max(0, Math.min(255, buf[idx * 3 + 1] + accG));
     var cb = Math.max(0, Math.min(255, buf[idx * 3 + 2] + accB));
 
-    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends);
+    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends, blendTable);
     result[idx] = chosen;
 
     // Saliency-aware error decay: high-saliency (edge) pixels absorb their own
@@ -1165,7 +1166,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
 }
 
 function doMap(data, w, h, pal, allowBlends = true) {
-  if (allowBlends) findBest.precomputeBlends(pal);
+  const blendTable = allowBlends ? findBest.precomputeBlends(pal) : [];
   let r = new Array(w * h);
   let cache = new Map();
   for (let i = 0; i < w * h; i++) {
@@ -1178,7 +1179,7 @@ function doMap(data, w, h, pal, allowBlends = true) {
     if (cached !== undefined) {
       r[i] = cached;
     } else {
-      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal, allowBlends);
+      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal, allowBlends, blendTable);
       cache.set(key, mapped);
       r[i] = mapped;
     }

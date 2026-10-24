@@ -150,7 +150,7 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
  *   look-alike separation and the thread limit, which can change stitches.
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
-  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
+  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
@@ -347,7 +347,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var bri = opts.bri, con = opts.con, sat = opts.sat;
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
-  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
+  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
 
   // Boundary validation: a 0-width or 0-height grid produces no stitches and
   // would crash quantize() when it indexes data[i*4]. Bail out early so the

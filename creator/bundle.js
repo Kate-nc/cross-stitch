@@ -941,7 +941,7 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
  *   look-alike separation and the thread limit, which can change stitches.
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
-  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
+  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
@@ -1138,7 +1138,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var bri = opts.bri, con = opts.con, sat = opts.sat;
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
-  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
+  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
 
   // Boundary validation: a 0-width or 0-height grid produces no stitches and
   // would crash quantize() when it indexes data[i*4]. Bail out early so the
@@ -15517,7 +15517,7 @@ window.usePreview = function usePreview(state) {
               var raw = px.data;
               var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
-              resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
+              resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiFinal || r.confettiClean || r.confettiRaw || {}).pct });
             } catch (err) { reject(err); }
           }, 0);
           return;
@@ -15526,7 +15526,7 @@ window.usePreview = function usePreview(state) {
         w.onmessage = function (e) {
           var msg = e.data || {};
           if (msg.reqId !== reqId) return;
-          if (msg.type === "result") resolve({ mapped: msg.mapped, pal: msg.pal, confettiPct: msg.confettiData && msg.confettiData.clean ? msg.confettiData.clean.pct : null });
+          if (msg.type === "result") resolve({ mapped: msg.mapped, pal: msg.pal, confettiPct: msg.confettiData ? (msg.confettiData.final || msg.confettiData.clean || msg.confettiData.raw || {}).pct : null });
           else if (msg.type === "error") reject(new Error(msg.message));
         };
         // A worker that fails (for example a script that didn't load) is
@@ -20304,7 +20304,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
             blendThread1 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, "Thread 1: " + blendThread1.id + " " + blendThread1.name),
+              h("span", {style:{fontWeight:600}}, "Thread 1: " + formatThread(Object.assign({},blendThread1,{brand:patBrand}))),
               h("button", {type:"button", "aria-label":"Remove thread 1", onClick:function(){setBlendThread1(null);}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
@@ -20312,7 +20312,7 @@ window.CreatorSidebar = function CreatorSidebar() {
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread2?"var(--accent-light)":"var(--surface)"}},
             blendThread2 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, "Thread 2: " + blendThread2.id + " " + blendThread2.name),
+              h("span", {style:{fontWeight:600}}, "Thread 2: " + formatThread(Object.assign({},blendThread2,{brand:patBrand}))),
               h("button", {type:"button", "aria-label":"Remove thread 2", onClick:function(){setBlendThread2(null);}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
@@ -20335,7 +20335,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             var isSel1 = blendThread1 && blendThread1.id === d.id;
             var isSel2 = blendThread2 && blendThread2.id === d.id;
             return h("button", {
-              type:"button", "aria-pressed":!!(isSel1||isSel2), "aria-label":"Choose " + brandName + " " + d.id + " " + d.name,
+              type:"button", "aria-pressed":!!(isSel1||isSel2), "aria-label":"Choose " + formatThread(Object.assign({},d,{brand:patBrand})),
               key:d.id,
               onClick:function(){
                 if (isSel1) setBlendThread1(null);
@@ -20350,7 +20350,7 @@ window.CreatorSidebar = function CreatorSidebar() {
             },
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
-              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
+              h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, formatThread(Object.assign({},d,{brand:patBrand}),{variant:"name"})),
               (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"1":"2") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
