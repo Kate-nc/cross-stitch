@@ -894,7 +894,7 @@ window.useCreatorState = function useCreatorState() {
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
-      maxC: maxC, allowBlends: allowBlends, maxBlends: maxBlends, skipBg: skipBg, sW: sW, sH: sH,
+      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
       bgCol: bgCol
     };
     for (var k in v) {

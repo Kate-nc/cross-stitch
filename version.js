@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: the blend picker has keyboard buttons, full component names, combined-colour and stitch previews, nearby partner suggestions and access to every search result. Existing recipes are selected rather than duplicated.',
       'Improved: two-thread blends and spatial shading have distinct names. Compare options now shows blends on/off with recipe and stitch coverage counts. Stash conversion supports useful pairs from two threads, and disabled blend controls show the effective state.',
       'Added: a separate limit for generated blend recipes, ranked by overall colour benefit and confetti stitches within the printed symbol budget.',
       'Fixed: blend matching, palette selection and restored colours use the same approximate screen colour model.',

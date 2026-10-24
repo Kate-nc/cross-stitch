@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "5799726052c732a4aa91b753cf4bbc2cfef98283b98d283b0fb242345a615f3e";
+var BUILD_ID = "4b34711a27f97eb97e1d5b805056595ef76e76580a79c2bf7646eacf91dcd804";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -319,10 +319,10 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "75f4014d8578f0e5c72d231b87fc93aa31c673ab9b06a8af2b0d5c67f236f75b"
+    "sha256": "1aeb736b00204d41ab09bef4b530195a6b7741f112b13707274841db79ceb06f"
   },
   "./version.js": {
-    "sha256": "727af8fcc41af56915f2877e1cfaf4727d890d5ba670e673fc81e0ccb8113bc3"
+    "sha256": "059ae147c6bc6a97e2fbc1f7c47141608f78f7b0b8b71a9ed468f0f0962e71c1"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "b267c0759a6ae242d40be7b65e67a0c90ee823c2d39c9d7c36db43627efcc490"
+    "sha256": "59df53627033f00ef60f42397f47c31cc29f1fe792350b1b99c10b8db4224467"
   },
   "./creator/extras-bundle.js": {
     "sha256": "07cbb1bd4b3b0449f62166dc1eb20425d462401a5138ddd226d2afea22205386"
@@ -574,7 +574,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "fc3fcd2ecb974938bb4485ef93d8474fcaa3b659b3b9326cdf1722815284c676"
+    "sha256": "20c198d7e345762630836d62d56534a1f0b4249443ff345b200149a5a9764c56"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

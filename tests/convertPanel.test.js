@@ -143,8 +143,8 @@ describe('each setting once, each with a named hint', () => {
     size: { headings: [], stubs: ['size-field', 'fabric-block'] },
     threads: { headings: ['Thread brand', 'Number of threads', 'Blends', 'Rare colours', 'Stash'],
       hints: ['About Thread brand', 'About Threads (max)', 'About Allow two-thread blends', 'About Min stitches per colour', 'About Use only stash threads'] },
-    detail: { headings: ['Detail and tidiness', 'Shading', 'Tidying', 'Look-alike colours'],
-      hints: ['About Detail and tidiness', 'About Shading', 'About Stitch Cleanup', 'About Reduce confetti', 'About Protect fine details',
+    detail: { headings: ['Detail and tidiness', 'Shading pattern', 'Tidying', 'Look-alike colours'],
+      hints: ['About Detail and tidiness', 'About Shading pattern', 'About Stitch Cleanup', 'About Reduce confetti', 'About Protect fine details',
         'About Keep look-alike colours apart', 'About How strict'] },
     project: { headings: ['Project info'] }
   };
@@ -195,9 +195,9 @@ describe('each setting once, each with a named hint', () => {
 describe('the counts come from the preview', () => {
   test('Threads says how many the preview uses', () => {
     app.convertTab = 'threads';
-    app.previewStats = { threadsUsed: 18, uniqueColors: 30, stitchable: 7500 };
+    app.previewStats = { threadsUsed: 18, uniqueColors: 30, stitchable: 7500, blendsUsed: 12, blendPct: 25 };
     draw();
-    expect(q('[data-threads-used]').textContent).toBe('In the preview: 18 threads and 30 chart symbols.');
+    expect(q('[data-threads-used]').textContent).toBe('In the preview: 18 threads and 30 chart symbols; 12 blends, 25% of stitches. ');
   });
 
   test('Detail says how many stitches tidying changed and can show them', () => {

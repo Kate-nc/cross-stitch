@@ -3,6 +3,23 @@
    Concatenated into creator/bundle.js, which the page loads before creator-main.
    Depends on: Section, SliderRow, Tooltip (components.js), CreatorContext, GenerationContext (context.js) */
 
+// Use the same stitch renderer as Ready to stitch, alongside the flat swatch.
+window.BlendRecipePreview = function BlendRecipePreview(props) {
+  var ref = React.useRef(null), recipe = props.recipe;
+  React.useEffect(function() {
+    var c=ref.current && ref.current.getContext('2d');
+    if(!c || !window.drawStitchTile)return;
+    var hex=(props.fabricColour||'').replace('#','');
+    var fabric=/^[0-9a-f]{6}$/i.test(hex)?[0,2,4].map(function(i){return parseInt(hex.slice(i,i+2),16);}):[255,255,255];
+    var strands=recipe.threads.map(function(t){return t.rgb;});
+    window.drawStitchTile(c,48,fabric,strands,strands,window.stitchCoverage?window.stitchCoverage(props.fabricCt):0.9);
+  }, [recipe.id, props.fabricColour, props.fabricCt]);
+  return React.createElement('div',{className:'blend-recipe-preview',role:'group','aria-label':'Blend appearance preview'},
+    React.createElement('span',{className:'blend-recipe-preview__swatch',style:{background:'rgb('+recipe.rgb+')'},role:'img','aria-label':'Approximate combined colour'}),
+    React.createElement('canvas',{ref:ref,width:48,height:48,role:'img','aria-label':'Approximate two-thread stitch preview'}),
+    React.createElement('span',null,'1 strand of each; 2 strands total. Screen colours are approximate.'));
+};
+
 window.CreatorSidebar = function CreatorSidebar() {
   var ctx = window.usePatternData();
   var cv = window.useCanvas();
@@ -349,6 +366,8 @@ window.CreatorSidebar = function CreatorSidebar() {
   var _blSearch = React.useState(""); var blendSearch = _blSearch[0], setBlendSearch = _blSearch[1];
   var _blMode = React.useState(false); var blendMode = _blMode[0], setBlendMode = _blMode[1];
 
+  var _blendShown = React.useState(60), blendShown = _blendShown[0], setBlendShown = _blendShown[1];
+
   // The pattern's thread brand (P4-5): new colours and blends come from that
   // brand's catalogue, and stash lookups use its brand:id keys.
   var patBrand = window.normaliseThreadBrand ? window.normaliseThreadBrand(ctx.threadBrand) : "dmc";
@@ -363,10 +382,15 @@ window.CreatorSidebar = function CreatorSidebar() {
         return isColorOwned(entry);
       });
     }
-    if (!blendSearch.trim()) return base;
+    if (!blendSearch.trim()) return blendThread1 ? base.slice().sort(function(a,b){
+      return dE2000(blendThread1.lab,a.lab)-dE2000(blendThread1.lab,b.lab);
+    }) : base;
     var q = blendSearch.toLowerCase();
     return base.filter(function(d) { return d.id.toLowerCase().includes(q) || d.name.toLowerCase().includes(q); });
-  }, [blendSearch, ctx.creatorStashFilter, ctx.globalStash, catList, patBrand]);
+  }, [blendSearch, blendThread1, ctx.creatorStashFilter, ctx.globalStash, catList, patBrand]);
+  var blendPreview = blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id ? makeThreadBlend(blendThread1,blendThread2) : null;
+  if (blendPreview && patBrand !== 'dmc') blendPreview.brand=patBrand;
+  var existingBlend = blendPreview && (ctx.pal || []).find(function(p){return blendRecipeKey(p)===blendRecipeKey(blendPreview);});
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
@@ -503,13 +527,13 @@ window.CreatorSidebar = function CreatorSidebar() {
       // Toggle between single thread and blend mode
       h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:'var(--s-2)'}},
         h("button", {
-          onClick:function(){ setBlendMode(false); },
+          type:"button", "aria-pressed":!blendMode, onClick:function(){ setBlendMode(false); },
           style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?500:700,cursor:"pointer",
             border:blendMode?"1px solid var(--border)":"1px solid var(--accent)",borderRadius:'var(--radius-sm)',
             background:blendMode?"var(--surface)":"var(--accent-light)",color:blendMode?"var(--text-secondary)":"var(--accent)"}
         }, "Single thread"),
         h("button", {
-          onClick:function(){ setBlendMode(true); },
+          type:"button", "aria-pressed":blendMode, onClick:function(){ setBlendMode(true); },
           style:{flex:1,padding:"4px 8px",fontSize:'var(--text-xs)',fontWeight:blendMode?700:500,cursor:"pointer",
             border:blendMode?"1px solid var(--accent)":"1px solid var(--border)",borderRadius:'var(--radius-sm)',
             background:blendMode?"var(--accent-light)":"var(--surface)",color:blendMode?"var(--accent)":"var(--text-secondary)"}
@@ -517,45 +541,50 @@ window.CreatorSidebar = function CreatorSidebar() {
       ),
       !blendMode ? singlePicker : h(React.Fragment, null,
         // Blend mode UI: pick two threads
-        h("div", {style:{display:"flex",gap:'var(--s-1)',marginBottom:6,alignItems:"center"}},
+        h("div", {className:"blend-component-slots",style:{display:"flex",flexDirection:"column",gap:'var(--s-1)',marginBottom:6}},
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread1?"var(--accent-light)":"var(--surface)"}},
             blendThread1 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread1.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, blendThread1.id),
-              h("span", {onClick:function(){setBlendThread1(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {style:{fontWeight:600}}, "Thread 1: " + blendThread1.id + " " + blendThread1.name),
+              h("button", {type:"button", "aria-label":"Remove thread 1", onClick:function(){setBlendThread1(null);}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 1\u2026")
           ),
           h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",fontWeight:600}}, "+"),
           h("div", {style:{flex:1,padding:"4px 8px",borderRadius:'var(--radius-sm)',border:"1px solid var(--border)",fontSize:'var(--text-xs)',minHeight:24,display:"flex",alignItems:"center",gap:'var(--s-1)',background:blendThread2?"var(--accent-light)":"var(--surface)"}},
             blendThread2 ? h(React.Fragment, null,
               h("span", {style:{width:12,height:12,borderRadius:2,background:"rgb("+blendThread2.rgb+")",border:"1px solid var(--border)",flexShrink:0}}),
-              h("span", {style:{fontWeight:600}}, blendThread2.id),
-              h("span", {onClick:function(){setBlendThread2(null);},style:{cursor:"pointer",color:"var(--text-tertiary)",marginLeft:2}}, "\u2715")
+              h("span", {style:{fontWeight:600}}, "Thread 2: " + blendThread2.id + " " + blendThread2.name),
+              h("button", {type:"button", "aria-label":"Remove thread 2", onClick:function(){setBlendThread2(null);}}, window.Icons.x())
             ) : h("span", {style:{color:"var(--text-tertiary)"}}, "Thread 2\u2026")
           )
         ),
+        blendPreview && h(window.BlendRecipePreview, {recipe:blendPreview, fabricColour:app.fabricColour, fabricCt:ctx.fabricCt}),
+        blendPreview && dE2000(blendThread1.lab,blendThread2.lab)>20 && h("p",{className:"cs-toolsec__hint"},"These colours are far apart and may look speckled together. Automatic conversion uses closer partners; you can still add this recipe."),
         blendThread1 && blendThread2 && blendThread1.id !== blendThread2.id && h("button", {
-          onClick:addBlend,
+          type:"button", onClick:addBlend,
           style:{width:"100%",padding:"6px 0",fontSize:'var(--text-sm)',fontWeight:600,cursor:"pointer",
             border:"1px solid var(--accent)",borderRadius:'var(--radius-sm)',background:"var(--accent-light)",color:"var(--accent)",marginBottom:'var(--s-2)'}
-        }, "Add blend " + blendThread1.id + "+" + blendThread2.id),
+        }, existingBlend ? "Select existing blend" : "Add blend " + blendPreview.id),
         blendThread1 && blendThread2 && blendThread1.id === blendThread2.id && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--danger)",marginBottom:'var(--s-2)'}}, "Pick two different threads"),
         h("input", {
           type:"text", "aria-label":"Search " + brandName + " threads", placeholder:"Search " + brandName + " threads\u2026",
-          value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);},
+          value:blendSearch, onChange:function(e){setBlendSearch(e.target.value);setBlendShown(60);},
           style:{width:"100%",padding:"6px 10px",border:"0.5px solid var(--border)",borderRadius:'var(--radius-md)',fontSize:'var(--text-sm)',marginBottom:'var(--s-2)',boxSizing:"border-box"}
         }),
         h("div", {style:{maxHeight:200,overflow:"auto",display:"flex",flexDirection:"column",gap:2}},
-          blendFiltered.slice(0,60).map(function(d) {
+          blendFiltered.slice(0,blendShown).map(function(d) {
             var isSel1 = blendThread1 && blendThread1.id === d.id;
             var isSel2 = blendThread2 && blendThread2.id === d.id;
-            return h("div", {
+            return h("button", {
+              type:"button", "aria-pressed":!!(isSel1||isSel2), "aria-label":"Choose " + brandName + " " + d.id + " " + d.name,
               key:d.id,
               onClick:function(){
-                if (!blendThread1) setBlendThread1(d);
+                if (isSel1) setBlendThread1(null);
+                else if (isSel2) setBlendThread2(null);
+                else if (!blendThread1) {setBlendThread1(d);setBlendShown(60);}
                 else if (!blendThread2 && d.id !== blendThread1.id) setBlendThread2(d);
               },
-              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
+              style:{display:"flex",alignItems:"center",gap:'var(--s-2)',textAlign:"left",minHeight:40,padding:"4px 8px",borderRadius:'var(--radius-sm)',cursor:"pointer",
                 background:(isSel1||isSel2)?"var(--accent-light)":"var(--surface)",
                 border:(isSel1||isSel2)?"1px solid var(--accent-border)":"1px solid transparent",
                 opacity:(isSel1||isSel2)?0.7:1,width:"100%"}
@@ -563,9 +592,10 @@ window.CreatorSidebar = function CreatorSidebar() {
               h("span", {style:{width:16,height:16,borderRadius:3,flexShrink:0,background:"rgb("+d.rgb[0]+","+d.rgb[1]+","+d.rgb[2]+")",border:"1px solid var(--border)"}}),
               h("span", {style:{fontFamily:"monospace",fontSize:'var(--text-sm)',fontWeight:600,minWidth:36,color:"var(--text-primary)"}}, d.id),
               h("span", {style:{fontSize:'var(--text-xs)',color:"var(--text-secondary)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}, d.name),
-              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"\u27981":"\u27982") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
+              (isSel1||isSel2) ? h("span", {style:{fontSize:10,color:"var(--accent)"}}, isSel1?"1":"2") : h("span", {style:{fontSize:10,color:"var(--text-tertiary)"}}, "+")
             );
           }),
+          blendShown < blendFiltered.length && h("button",{type:"button",onClick:function(){setBlendShown(blendShown+60);}},"Show more threads ("+Math.min(blendShown,blendFiltered.length)+" of "+blendFiltered.length+")"),
           blendFiltered.length === 0 && h("div", {style:{fontSize:'var(--text-xs)',color:"var(--text-tertiary)",padding:"8px 0",textAlign:"center"}}, "No colours found")
         )
       )
