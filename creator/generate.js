@@ -167,9 +167,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     else applyMedianFilter(raw, width, height, opts.smooth);
   }
 
-  // blends: the palette will be used with blends (only shading draws them
-  // here; doMap is not given a blend table), so threads a blend needs stay.
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!(allowBlends && dith)});
+  // Physical blends work independently of spatial shading. Keep their components.
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 

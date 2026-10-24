@@ -1120,6 +1120,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
 }
 
 function doMap(data, w, h, pal, allowBlends = true) {
+  if (allowBlends) findBest.precomputeBlends(pal);
   let r = new Array(w * h);
   let cache = new Map();
   for (let i = 0; i < w * h; i++) {
