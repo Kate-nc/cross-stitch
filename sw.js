@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "16424f4929d707ea97dc6a72779d9a07694a87665caa65c939859bde3cc28561";
+var BUILD_ID = "5a3e735efb257365f7f489c976b28f0c56580bc85ccbd1b1a459eb443016f01b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -322,7 +322,7 @@ var BUILD_ASSETS = {
     "sha256": "75f4014d8578f0e5c72d231b87fc93aa31c673ab9b06a8af2b0d5c67f236f75b"
   },
   "./version.js": {
-    "sha256": "a0b81dd2a008fd4824290e6b88b57033a6979c787613a84b77ddc76b560da08c"
+    "sha256": "cd050ff25f7390ddedb7e112206fbc1f2ac50a796b9723c8edc4109fea69d6a8"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -349,13 +349,13 @@ var BUILD_ASSETS = {
     "sha256": "5b0d7792c6a6759211b8db8c2e611a0da3fbc4ee0d8c7fc87efa698f1da6c2b3"
   },
   "./colour-utils.js": {
-    "sha256": "a5883535f54b5ca8c429bbf6e66c96a83aac640e4df9c98df371541f249bc537"
+    "sha256": "e3300a598212e45ca59cc2d2d0b30ab98033ab2cdea7a648c17430eb06f07e3d"
   },
   "./symbol-glyphs.js": {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "4c18410b64a84f548dc64e97105e7433bb604cb3ae023fc553aa04a09da9e08b"
+    "sha256": "75a18547c483925e84c286aca7a42cd0fe7caecf759ddff5e75f2b0659c3d1a7"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -457,7 +457,7 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "b978f7bf7d56d8afaf340e8569fd8fcef1fb1027cec63592c5889c8389ccb6af"
+    "sha256": "f9baa7eab17fb00254c3b49e7d5088f42728b1c6991d7b4807ae9b5d162fb481"
   },
   "./creator/extras-bundle.js": {
     "sha256": "07cbb1bd4b3b0449f62166dc1eb20425d462401a5138ddd226d2afea22205386"

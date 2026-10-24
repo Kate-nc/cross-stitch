@@ -1238,7 +1238,7 @@ function buildPalette(patArr,extraCells){
   function tally(list,isStitch){
     for(let i=0;i<list.length;i++){
       let m=list[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
+      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;['blendRatio','blend_ratio'].forEach(function(k){if(m[k])usage[m.id][k]=m[k];});}
       usage[m.id].count++;
       if(isStitch)stitched[m.id]=true;
       // A symbol buildPalette handed out itself (autoSymbol) isn't a choice, even
@@ -1304,6 +1304,32 @@ function restoreStitch(m,brand){
   var b=m.brand?norm(m.brand):norm(brand);
   var tag=b==="dmc"?null:b;
   if(m.type==="blend"){
+    // New saves carry the recipe. Preserve its ordering and quantities; the
+    // legacy id still owns its symbol and progress references.
+    if ((Array.isArray(m.threads) && m.threads.length === 2) || m.blendRatio || m.blend_ratio) {
+      const ratio = m.blendRatio || m.blend_ratio;
+      const parts = m.threads && m.threads.length === 2 ? m.threads : splitBlendId(m.id).map(id => ({id:id}));
+      const threads = parts.map(function(part) {
+        const partBrand = part.brand || b;
+        const cat = findThreadInCatalog(partBrand, part.id);
+        const t = Object.assign({}, cat || {}, part);
+        t.rgb = (part.rgb || (cat && cat.rgb) || m.rgb || [128,128,128]).slice();
+        t.lab = rgbToLab(...t.rgb);
+        if (partBrand !== 'dmc') t.brand = partBrand;
+        return t;
+      });
+      if (threads.length === 2) {
+        const weights = threads.map((t,i) => ratio && ratio[i] > 0 ? ratio[i] : (t.strands > 0 ? t.strands : 1));
+        const total = weights[0] + weights[1];
+        const rgb = m.rgb ? m.rgb.slice() : threads[0].rgb.map((v,i) => Math.round((v*weights[0]+threads[1].rgb[i]*weights[1])/total));
+        const out = {type:'blend', id:m.id, name:m.name||m.id, rgb:rgb, lab:rgbToLab(...rgb), threads:threads, dist:0, symbol:m.symbol};
+        ['blendRatio','blend_ratio'].forEach(function(k){if(Array.isArray(m[k]))out[k]=m[k].slice();});
+        ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
+        if(tag)out.brand=tag;
+        if(m.autoSymbol)out.autoSymbol=true;
+        return out;
+      }
+    }
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
     if(ids.length===2&&t0&&t1){
       let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};

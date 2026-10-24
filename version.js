@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Fixed: saved blends retain their component identities, colour snapshots and strand ratios when reloaded and shown in the palette.',
       'Fixed: adding the same two-thread blend in reverse order selects the existing palette colour and keeps its symbol.',
       'Fixed: two-thread blends work independently of spatial shading, including conversions with shading off.',
       'Fixed: Track no longer skips cells in fast strokes or the release cell, and off-centre diagonal strokes follow the actual path. Two fingers cannot accidentally mark half stitches. Space-drag pans without marking, turning off drag gestures keeps plain clicks and taps working, and half-stitch clicks preserve a completed full stitch underneath. Slower touch and pen taps no longer disappear before long-press selection begins. Stroke previews update separately once per frame and unchanged pointer moves no longer rebuild the tracker.',

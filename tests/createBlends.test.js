@@ -49,3 +49,25 @@ test('recipe identity keeps brands and quantities attached to their component', 
     return blendRecipeKey(a)===blendRecipeKey(b) && blendRecipeKey(a)!==blendRecipeKey(other);
   })()`,c)).toBe(true);
 });
+test('JSON save/reload and palette rebuilding preserve unequal mixed-brand recipes', () => {
+  const c=context();
+  const result=vm.runInContext(`(() => {
+    const original={type:'blend',id:'310+550',rgb:[42,15,30],blendRatio:[2,1],
+      threads:[{id:'310',brand:'anchor',rgb:[8,9,10],strands:2},{id:'550',brand:'dmc',rgb:[92,24,78],strands:1}]};
+    const saved=JSON.parse(JSON.stringify(serializePattern([original])));
+    const loaded=restoreStitch(saved[0]);
+    const palette=buildPalette([loaded]).pal[0];
+    return {saved:saved[0],loaded:loaded,palette:palette};
+  })()`,c);
+  for(const entry of [result.saved,result.loaded,result.palette]) {
+    expect(Array.from(entry.blendRatio)).toEqual([2,1]);
+    expect(entry.threads[0]).toMatchObject({id:'310',brand:'anchor',strands:2,rgb:[8,9,10]});
+    expect(entry.threads[1].strands).toBe(1);
+    expect(Array.from(entry.rgb)).toEqual([42,15,30]);
+  }
+});
+test('legacy equal blend records and explicit custom component snapshots still restore', () => {
+  const c=context();
+  expect(vm.runInContext(`restoreStitch({type:'blend',id:'317+3799'}).threads.length`,c)).toBe(2);
+  expect(vm.runInContext(`restoreStitch({type:'blend',id:'custom+310',threads:[{id:'custom',rgb:[12,34,56]},{id:'310'}]}).threads[0].rgb.join(',')`,c)).toBe('12,34,56');
+});

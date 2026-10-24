@@ -1788,7 +1788,7 @@ window.useCreatorState = function useCreatorState() {
     var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
-      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, count: 0, symbol: sym, autoSymbol: true };
+      entry = { id: d.id, type: "blend", name: d.id, rgb: d.rgb, lab: d.lab, threads: d.threads, blendRatio: d.blendRatio, blend_ratio: d.blend_ratio, count: 0, symbol: sym, autoSymbol: true };
     } else {
       entry = { id: d.id, type: "solid", name: d.name, rgb: d.rgb, lab: d.lab, count: 0, symbol: sym, autoSymbol: true };
     }
