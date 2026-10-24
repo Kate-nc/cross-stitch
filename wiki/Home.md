@@ -24,7 +24,9 @@ Inside the app, press **?** (or the **Help** button) for help on every tool and 
 
 ## The Home Page
 
-Open `home.html` (or your deployment's address). Four tabs:
+Open `home.html` (or your deployment's address). When you return, **Start something new** sits directly below **Welcome back**, above the Continue card and project list. Choose **A pattern I already have**, **A photo or picture**, or **A blank canvas**.
+
+Home also gives you access to:
 
 - **Projects** — your active project and every other project, with Track, Edit and Export actions
 - **Create new** — **Stitch an existing chart** (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), **Convert a picture** (image), or **Draw a pattern**

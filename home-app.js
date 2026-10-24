@@ -15,10 +15,10 @@
 //   4. Practice pattern card — visible, not hidden in a disclosure (F8).
 //   5. "How stitchx fits together" — names the three tools once (F1).
 //   Returning (one or more projects):
-//   2. Continue card — one primary action for the open project (F12).
-//   3. Your projects — cards with a preview, size, progress and status, one
+//   2. Start something new — the same three cards, compact.
+//   3. Continue card — one primary action for the open project (F12).
+//   4. Your projects — cards with a preview, size, progress and status, one
 //      action each plus a More menu (F12, F13), filters, "Show all" (F14).
-//   4. Start something new — the same three cards, compact.
 //
 // Files can be dropped anywhere on the page. A picture whose purpose is
 // unclear (dropped, or chosen under "A pattern I already have") gets one
@@ -1184,16 +1184,16 @@
             h('h1', { className: 'home-welcome__title' }, 'Welcome back'),
             h('p', { className: 'home-muted' }, welcomeSub)
           ),
-          current && h(ContinueCard, { project: current, meta: currentMeta, onDetails: setDetails }),
-          h(ProjectGrid, {
-            projects: gridProjects, drafts: drafts, readyIds: readyIds, hiddenDone: hiddenDone,
-            onDetails: setDetails, onDiscardDraft: discardDraft
-          }),
           h('section', { className: 'home-section', 'aria-labelledby': 'home-start-title' },
             h('h2', { id: 'home-start-title', className: 'home-section__heading' }, 'Start something new'),
             h(IntentCards, { flow: flow, compact: true }),
             h(FilesHelp, null)
-          )
+          ),
+          current && h(ContinueCard, { project: current, meta: currentMeta, onDetails: setDetails }),
+          h(ProjectGrid, {
+            projects: gridProjects, drafts: drafts, readyIds: readyIds, hiddenDone: hiddenDone,
+            onDetails: setDetails, onDiscardDraft: discardDraft
+          })
         ),
         loaded && h(HomeFooter, { hasProjects: hasProjects, onAbout: function () { setAboutOpen(true); } }),
         flow.overlays
