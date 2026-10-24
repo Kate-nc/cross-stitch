@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: Home puts Start something new directly below Welcome back, above the Continue card and project list, so you can import a chart, convert a picture or start a blank canvas without scrolling past saved projects.',
       'Improved: the blend picker has keyboard buttons, full component names, combined-colour and stitch previews, nearby partner suggestions and access to every search result. Existing recipes are selected rather than duplicated.',
       'Improved: two-thread blends and spatial shading have distinct names. Compare options now shows blends on/off with recipe and stitch coverage counts. Stash conversion supports useful pairs from two threads, and disabled blend controls show the effective state.',
       'Added: a separate limit for generated blend recipes, ranked by overall colour benefit and confetti stitches within the printed symbol budget.',

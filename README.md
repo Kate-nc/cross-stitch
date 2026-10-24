@@ -83,7 +83,7 @@ Thread inventory and pattern library.
 The default landing page and project hub.
 
 - **Projects:** greeting, the active project card (progress, last edited), and every other project with Track, Edit and Export actions.
-- **Create new:** Stitch an existing chart (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), Convert a picture, or Draw a pattern. Empty Home shows these paths immediately. Converting an image chooses thread colours; it does not read a photograph of a printed chart. Try a sample project offers memory-only marking and undo without changing real progress or inventory.
+- **Create new:** Stitch an existing chart (PDF, `.oxs`, supported `.xsd`, PCStitch 7 `.pat` or project `.json`), Convert a picture, or Draw a pattern. These paths appear directly below Welcome back, above the Continue card and project list, for returning users. Empty Home shows these paths immediately. Converting an image chooses thread colours; it does not read a photograph of a printed chart. Try a sample project offers memory-only marking and undo without changing real progress or inventory.
 - **Stash:** skeins, threads and patterns in your stash, a Shopping list that matches the Stash Manager's To buy panels, and the patterns ready to start, linking to the Stash Manager.
 - **Stats:** lifetime stitches, recent activity and your oldest work in progress, linking to the Stats page.
 - Refreshes live on `cs:projectsChanged`, `cs:backupRestored`, `cs:stashChanged` and `visibilitychange`, so changes made in another tab show up.
