@@ -155,7 +155,7 @@ describe('the palette has no near-copies and gives distinct small features a thr
 
   test('every pipeline tells the quantiser when blends will be used', () => {
     for (const f of ['creator/generate.js', 'generate-worker.js']) {
-      expect(fs.readFileSync(f, 'utf8')).toMatch(/blends: !!\(allowBlends && dith\)/);
+      expect(fs.readFileSync(f, 'utf8')).toMatch(/blends: !!allowBlends/);
     }
     expect(fs.readFileSync('import-formats.js', 'utf8')).toMatch(/\{ blends: allowBlends \}/);
   });

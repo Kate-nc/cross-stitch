@@ -775,6 +775,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     disambigData: state.disambigData, setDisambigData: state.setDisambigData,
     disambiguateNow: state.disambiguateNow,
     allowBlends: state.allowBlends, setAllowBlends: state.setAllowBlends,
+    maxBlends: state.maxBlends, setMaxBlends: state.setMaxBlends,
     busy: state.busy, setBusy: state.setBusy,
     progressMessage: state.progressMessage, setProgressMessage: state.setProgressMessage,
     origW: state.origW, setOrigW: state.setOrigW,
@@ -816,7 +817,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
     state.exactPixelArt, state.maxC, state.pictureType, state.pictureInfo, state.applyPicturePreset, state.stitchStyle, state.stitchStyleBasis, state.applyStitchStyle, state.bri, state.con, state.sat, state.dith, state.dithMode, state.dithStrength,
     state.skipBg, state.bgTh, state.bgCol, state.pickBg,
     state.minSt, state.smooth, state.smoothType, state.preSharpen, state.preSharpenAmount,
-    state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.busy, state.progressMessage,
+    state.orphans, state.disambig, state.disambigLevel, state.disambigData, state.disambiguateNow, state.allowBlends, state.maxBlends, state.busy, state.progressMessage,
     state.origW, state.origH, state.hasGenerated,
     state.stitchCleanup, state.isCropping, state.cropRect,
     state.generate, state.randomise, state.generateGallery,
@@ -1563,6 +1564,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   stitchSpeed={state.stitchSpeed} compact={_compact}
                   paletteFor={state.convertPaletteFor}
                   onApply={function(v){
+                    if(v.allowBlends!=null){state.setAllowBlends(v.allowBlends);return;}
                     if(v.convertBrand){state.setConvertBrand(v.convertBrand);return;}
                     if(v.maxC!=null){state.setMaxC(v.maxC);return;}
                     state.chgW(v.sW);

@@ -116,9 +116,9 @@ Photos keep their shading up to **Tidier**; graphics and pixel art are never sha
 | Setting | Effect | When to use |
 |---------|--------|------------|
 | **Off** | Each area takes its closest thread | Logos, simple graphics |
-| **Smooth blend — Subtle** | Gentle blending, few confetti stitches | Most photos (the Photo default) |
-| **Smooth blend — Balanced** | Smoother gradients, more confetti stitches | Soft, detailed photos |
-| **Pattern blend — Coarse / Medium / Fine** | A regular geometric blending pattern | Graphics and a deliberate textured look; on photos it adds many confetti stitches |
+| **Smooth shading — Subtle** | Gentle blending, few confetti stitches | Most photos (the Photo default) |
+| **Smooth shading — Balanced** | Smoother gradients, more confetti stitches | Soft, detailed photos |
+| **Regular pattern — Coarse / Medium / Fine** | A regular geometric blending pattern | Graphics and a deliberate textured look; on photos it adds many confetti stitches |
 
 The technical names (Atkinson error diffusion, ordered Bayer dithering) are under **Advanced**.
 

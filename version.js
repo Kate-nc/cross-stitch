@@ -11,6 +11,13 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: the blend picker has keyboard buttons, full component names, combined-colour and stitch previews, nearby partner suggestions and access to every search result. Existing recipes are selected rather than duplicated.',
+      'Improved: two-thread blends and spatial shading have distinct names. Compare options now shows blends on/off with recipe and stitch coverage counts. Stash conversion supports useful pairs from two threads, and disabled blend controls show the effective state.',
+      'Added: a separate limit for generated blend recipes, ranked by overall colour benefit and confetti stitches within the printed symbol budget.',
+      'Fixed: blend matching, palette selection and restored colours use the same approximate screen colour model.',
+      'Fixed: saved blends retain their component identities, colour snapshots and strand ratios when reloaded and shown in the palette.',
+      'Fixed: adding the same two-thread blend in reverse order selects the existing palette colour and keeps its symbol.',
+      'Fixed: two-thread blends work independently of spatial shading, including conversions with shading off.',
       'Fixed: Track no longer skips cells in fast strokes or the release cell, and off-centre diagonal strokes follow the actual path. Two fingers cannot accidentally mark half stitches. Space-drag pans without marking, turning off drag gestures keeps plain clicks and taps working, and half-stitch clicks preserve a completed full stitch underneath. Slower touch and pen taps no longer disappear before long-press selection begins. Stroke previews update separately once per frame and unchanged pointer moves no longer rebuild the tracker.',
       'Fixed: project material planning converts thread length when substituting between brands with different skein lengths, so an 8 m requirement does not become a full 10 m requirement. Recorded consumption amounts are preserved.',
       'Fixed: thread planning uses a documented, lower estimate (about 1,575 full crosses per 8 m skein on 14-count with two strands and 20% allowance). Materials, Stash and library sync share unrounded per-thread demand, brand lengths and unequal blend ratios. Usable partial stash is subtracted before rounding whole-skein purchases. Fractional stitches and outlines contribute thread, and estimates just above a whole skein are explained. Future project reservations use the same planning model; recorded consumption and stock balances are preserved.',

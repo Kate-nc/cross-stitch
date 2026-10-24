@@ -32,7 +32,7 @@ describe('Creator auto-save isActive guard', () => {
     // Find the dependency array for the auto-save effect.
     // The relevant tail of the deps list ends with state.isActive after some
     // optional metadata fields (projectDesigner/projectDescription).
-    const depMatch = creatorIOSrc.match(/state\.projectName,\s*state\.allowBlends,[\s\S]{0,200}state\.isActive,/);
+    const depMatch = creatorIOSrc.match(/state\.projectName,\s*state\.allowBlends,[\s\S]{0,300}state\.isActive,/);
     expect(depMatch).not.toBeNull();
   });
 });

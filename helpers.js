@@ -2797,6 +2797,15 @@ function serializePattern(pat,projectBrand){
     var o=stripCellForSave(m,pb);
     if(m&&m.id!=='__skip__'&&m.id!=='__empty__'){
       if(m.rgb)o.rgb=m.rgb.slice();
+      if(m.type==='blend'){
+        ['blendRatio','blend_ratio'].forEach(function(k){if(Array.isArray(m[k]))o[k]=m[k].slice();});
+        if(Array.isArray(m.threads))o.threads=m.threads.map(function(t){
+          var part={id:t.id};
+          ['brand','name','strands','provenance','status'].forEach(function(k){if(t[k]!==undefined)part[k]=t[k];});
+          if(t.rgb)part.rgb=t.rgb.slice();
+          return part;
+        });
+      }
       ['name','provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)o[k]=m[k];});
     }
     return o;

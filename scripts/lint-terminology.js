@@ -84,8 +84,8 @@ const JARGON = [
   { bad: "luminance", re: /\bluminance\b/i, good: "brightness", note: "Say 'brightness' or 'light and dark'." },
   { bad: "chroma", re: /\bchroma\b/i, good: "colour", note: "Say 'colour' or 'how vivid'." },
   { bad: "Gaussian", re: /\bGaussian\b/, good: "Soften grainy photos", note: "Name what it does, not the filter." },
-  { bad: "Bayer", re: /\bBayer\b/, good: "Pattern blend", note: "The ordered dither is 'Pattern blend'." },
-  { bad: "Atkinson", re: /\bAtkinson\b/, good: "Smooth blend", note: "The error-diffusion dither is 'Smooth blend'." }
+  { bad: "Bayer", re: /\bBayer\b/, good: "Regular pattern", note: "The ordered dither is 'Regular pattern'." },
+  { bad: "Atkinson", re: /\bAtkinson\b/, good: "Smooth shading", note: "The error-diffusion dither is 'Smooth shading'." }
 ];
 
 // One user-facing term for each idea (audit UX-012, UX-013). Matched only inside

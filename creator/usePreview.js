@@ -27,7 +27,7 @@ var PREVIEW_CHANGE_LABELS = [
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
   [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
-  [['allowBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
+  [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
   [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
@@ -199,7 +199,7 @@ window.usePreview = function usePreview(state) {
         var o = {
           maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
           dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
-          allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+          allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
           minSt: settings.minSt, seed: settings.seed,
@@ -306,6 +306,8 @@ window.usePreview = function usePreview(state) {
         var threadSet = {};
         Object.keys(colorCounts).forEach(function(id) { String(id).split('+').forEach(function(t) { threadSet[t] = true; }); });
         var threadsUsed = Object.keys(threadSet).length;
+        var blendIds = Object.keys(colorCounts).filter(function(id){return id.indexOf('+')>=0;});
+        var blendStitches = blendIds.reduce(function(n,id){return n+colorCounts[id];},0);
         // Stitches that tidying (and look-alike separation) changed.
         var tidiedCount = null;
         if (preCleanupIds && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0)) {
@@ -347,7 +349,7 @@ window.usePreview = function usePreview(state) {
           estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
-          threadsUsed: threadsUsed,
+          threadsUsed: threadsUsed, blendsUsed: blendIds.length, blendPct: stitchable ? Math.round(100*blendStitches/stitchable) : 0,
           tidiedStitches: tidiedCount == null ? null : Math.round(tidiedCount * scaleFactor),
         });
         // What this change did, compared with the last finished preview.
