@@ -30,3 +30,22 @@ test('conversion retains blend components and uses them with shading off', () =>
   })()`, c);
   expect(r.mapped.every(m => m.id === '317+3799')).toBe(true);
 });
+test('manual and automatic recipes share an identity, including reverse selections', () => {
+  const c = context();
+  expect(vm.runInContext(`(() => {
+    const a=DMC.find(t=>t.id==='317'), b=DMC.find(t=>t.id==='3799');
+    const manual=makeThreadBlend(b,a);
+    findBest.precomputeBlends([a,b]);
+    return manual.id === findBest._blends[0].id && manual.threads[0].id === '317' &&
+      blendRecipeKey(manual) === blendRecipeKey({type:'blend',id:'3799+317'});
+  })()`,c)).toBe(true);
+});
+test('recipe identity keeps brands and quantities attached to their component', () => {
+  const c = context();
+  expect(vm.runInContext(`(() => {
+    const a={type:'blend',id:'310+550',threads:[{id:'310',brand:'anchor'},{id:'550',brand:'dmc'}],blendRatio:[2,1]};
+    const b={type:'blend',id:'550+310',threads:[{id:'550',brand:'dmc'},{id:'310',brand:'anchor'}],blendRatio:[1,2]};
+    const other=Object.assign({},b,{blendRatio:[2,1]});
+    return blendRecipeKey(a)===blendRecipeKey(b) && blendRecipeKey(a)!==blendRecipeKey(other);
+  })()`,c)).toBe(true);
+});

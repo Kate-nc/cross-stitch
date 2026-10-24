@@ -8315,7 +8315,10 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function addScratchColour(d) {
-    if (cmap && cmap[d.id]) return;
+    var existing = pal && pal.find(function(p) {
+      return p.id === d.id || (d.type === "blend" && blendRecipeKey(p) === blendRecipeKey(d));
+    });
+    if (existing) { setSelectedColorId(existing.id); return; }
     var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {
@@ -20112,15 +20115,7 @@ window.CreatorSidebar = function CreatorSidebar() {
 
   function addBlend() {
     if (!blendThread1 || !blendThread2 || blendThread1.id === blendThread2.id) return;
-    var blendId = blendThread1.id + "+" + blendThread2.id;
-    var blendEntry = {
-      type: "blend",
-      id: blendId,
-      name: blendId,
-      rgb: [Math.round((blendThread1.rgb[0] + blendThread2.rgb[0]) / 2), Math.round((blendThread1.rgb[1] + blendThread2.rgb[1]) / 2), Math.round((blendThread1.rgb[2] + blendThread2.rgb[2]) / 2)],
-      lab: [(blendThread1.lab[0] + blendThread2.lab[0]) / 2, (blendThread1.lab[1] + blendThread2.lab[1]) / 2, (blendThread1.lab[2] + blendThread2.lab[2]) / 2],
-      threads: [blendThread1, blendThread2]
-    };
+    var blendEntry = makeThreadBlend(blendThread1, blendThread2);
     if (patBrand !== "dmc") blendEntry.brand = patBrand;
     ctx.addScratchColour(blendEntry);
     setBlendThread1(null); setBlendThread2(null); setBlendSearch(""); setBlendMode(false);

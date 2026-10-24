@@ -1781,7 +1781,10 @@ window.useCreatorState = function useCreatorState() {
   }
 
   function addScratchColour(d) {
-    if (cmap && cmap[d.id]) return;
+    var existing = pal && pal.find(function(p) {
+      return p.id === d.id || (d.type === "blend" && blendRecipeKey(p) === blendRecipeKey(d));
+    });
+    if (existing) { setSelectedColorId(existing.id); return; }
     var sym = nextChartSymbol({ id: d.id, type: d.type }, pal);
     var entry;
     if (d.type === "blend" && d.threads && d.threads.length === 2) {

@@ -57,6 +57,25 @@ function findBest(lab, palette, allowBlends = true) {
 
   return solidMatch;
 }
+// One constructor for new equal two-thread recipes. Existing saved IDs stay
+// intact so their symbols and progress references never need a migration.
+function makeThreadBlend(a, b) {
+  const threads = [a, b].sort((x, y) => String(x.id).localeCompare(String(y.id), 'en'));
+  const id = threads.map(t => String(t.id)).join('+');
+  return { type: 'blend', id: id, name: id, threads: threads,
+    rgb: a.rgb.map((v, i) => Math.round((v + b.rgb[i]) / 2)),
+    lab: a.lab.map((v, i) => (v + b.lab[i]) / 2) };
+}
+// Compare recipes without rewriting legacy IDs. Keep quantities with their
+// components, including when an imported recipe is in the opposite order.
+function blendRecipeKey(entry) {
+  if (!entry || entry.type !== 'blend') return null;
+  const parts = entry.threads || String(entry.id).split('+').map(id => ({ id: id }));
+  const ratio = entry.blendRatio || entry.blend_ratio;
+  return JSON.stringify(parts.map((t, i) => [String(t.brand || entry.brand || 'dmc').toLowerCase(), String(t.id),
+    ratio && ratio[i] != null ? ratio[i] : (t.strands != null ? t.strands : 1)])
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en')));
+}
 // Two threads further apart than this (ΔE2000) are never paired in a blend.
 // A blend is two strands in one needle, so it reads as a mix only when the
 // strands are close; a far pair is a tweed of two unrelated colours. Without
@@ -72,15 +91,7 @@ findBest.precomputeBlends = function(palette) {
       const a = palette[i], b = palette[j];
       if (!a.lab || !b.lab) continue;
       if (_dE2000Core(a.lab[0], a.lab[1], a.lab[2], b.lab[0], b.lab[1], b.lab[2]) > BLEND_MAX_PARTNER_DE) continue;
-      const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
-      // Canonicalise blend ID so [a,b] and [b,a] always produce the same string.
-      const blendId = [String(a.id), String(b.id)].sort().join("+");
-      blends.push({
-        id: blendId,
-        lab: lab,
-        rgb: [Math.round((a.rgb[0]+b.rgb[0])/2), Math.round((a.rgb[1]+b.rgb[1])/2), Math.round((a.rgb[2]+b.rgb[2])/2)],
-        threads: [a, b]
-      });
+      blends.push(makeThreadBlend(a, b));
     }
   }
   findBest._blends = blends;
