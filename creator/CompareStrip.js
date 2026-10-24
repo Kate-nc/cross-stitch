@@ -46,9 +46,9 @@
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
+      allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
-      minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
+      seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
@@ -84,7 +84,7 @@
     var failuresRef = React.useRef(0);
 
     var s = props.settings;
-    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand });
+    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand, allowBlends: s && s.allowBlends });
     // A brand's thread list loads on demand: until it has, its option waits.
     var _cat = React.useState(0); var setCatTick = _cat[1];
     var waiting = dimension === "brand" ? options.filter(function (o) {
@@ -132,11 +132,6 @@
           setTimeout(function () {
             try {
               var raw = px.data;
-              if (s.smooth > 0) {
-                if (s.smoothType === "gaussian") applyGaussianBlur(raw, dims.pw, dims.ph, s.smooth);
-                else if (s.smoothType === "bilateral" && typeof applyBilateralFilter === "function") applyBilateralFilter(raw, dims.pw, dims.ph);
-                else applyMedianFilter(raw, dims.pw, dims.ph, s.smooth);
-              }
               var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
@@ -212,7 +207,7 @@
       return function () { clearTimeout(timer); };
     }, [open, keySig, props.img, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }];
+    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }, { id: "blends", label: "Blends" }];
     var dimSwitch = h("div", { className: "lp-segmented compare-strip__dim", role: "radiogroup", "aria-label": "Compare by" },
       dims.map(function (d, i) {
         var on = dimension === d.id;
@@ -239,6 +234,8 @@
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
         r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
+        r.stats.symbols + " symbols · " + r.stats.blends + " blends · " + r.stats.blendPct + "% blend stitches",
+        r.stats.estimated ? "Reduced preview; counts and blend coverage are approximate" : "",
         r.stats.tier ? "Confetti: " + r.stats.tier : ""
       ] : [size + " stitches", "Working…"];
       var disabled = o.current || o.same || !r;

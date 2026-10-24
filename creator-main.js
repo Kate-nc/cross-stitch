@@ -1564,6 +1564,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
                   stitchSpeed={state.stitchSpeed} compact={_compact}
                   paletteFor={state.convertPaletteFor}
                   onApply={function(v){
+                    if(v.allowBlends!=null){state.setAllowBlends(v.allowBlends);return;}
                     if(v.convertBrand){state.setConvertBrand(v.convertBrand);return;}
                     if(v.maxC!=null){state.setMaxC(v.maxC);return;}
                     state.chgW(v.sW);

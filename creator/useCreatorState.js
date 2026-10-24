@@ -2184,7 +2184,7 @@ window.useCreatorState = function useCreatorState() {
         addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
       }
       effMaxC = Math.min(maxC, allowedPalette.length);
-      if (allowedPalette.length < 6) effAllowBlends = false;
+      if (allowedPalette.length < 2) effAllowBlends = false;
     }
 
     var startGeneration = function() {
@@ -2358,7 +2358,7 @@ window.useCreatorState = function useCreatorState() {
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
           smooth: smooth, smoothType: smoothType,
-          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6, maxBlends: maxBlends,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -2593,7 +2593,7 @@ window.useCreatorState = function useCreatorState() {
     var effMaxC = stashConstrained && stashInfo.count > 0
       ? Math.min(maxC, stashInfo.count)
       : maxC;
-    var effAllowBlends = stashConstrained && stashInfo.count < 6
+    var effAllowBlends = stashConstrained && stashInfo.count < 2
       ? false
       : allowBlends;
     return Object.freeze({
@@ -2828,13 +2828,13 @@ window.useCreatorState = function useCreatorState() {
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count < 6;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count < 2;
     }, [stashConstrained, globalStash, convertBrand]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
       var count = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
-      if (count < 6) return false;
+      if (count < 2) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, convertBrand, allowBlends]),
 

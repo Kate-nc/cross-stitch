@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: two-thread blends and spatial shading have distinct names. Compare options now shows blends on/off with recipe and stitch coverage counts. Stash conversion supports useful pairs from two threads, and disabled blend controls show the effective state.',
       'Added: a separate limit for generated blend recipes, ranked by overall colour benefit and confetti stitches within the printed symbol budget.',
       'Fixed: blend matching, palette selection and restored colours use the same approximate screen colour model.',
       'Fixed: saved blends retain their component identities, colour snapshots and strand ratios when reloaded and shown in the palette.',

@@ -8719,7 +8719,7 @@ window.useCreatorState = function useCreatorState() {
         addToast("Only " + allowedPalette.length + " thread(s) in stash — results may be limited.", {type: "warning", duration: 3000});
       }
       effMaxC = Math.min(maxC, allowedPalette.length);
-      if (allowedPalette.length < 6) effAllowBlends = false;
+      if (allowedPalette.length < 2) effAllowBlends = false;
     }
 
     var startGeneration = function() {
@@ -8893,7 +8893,7 @@ window.useCreatorState = function useCreatorState() {
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
           smooth: smooth, smoothType: smoothType,
-          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6, maxBlends: maxBlends,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 2, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -9128,7 +9128,7 @@ window.useCreatorState = function useCreatorState() {
     var effMaxC = stashConstrained && stashInfo.count > 0
       ? Math.min(maxC, stashInfo.count)
       : maxC;
-    var effAllowBlends = stashConstrained && stashInfo.count < 6
+    var effAllowBlends = stashConstrained && stashInfo.count < 2
       ? false
       : allowBlends;
     return Object.freeze({
@@ -9363,13 +9363,13 @@ window.useCreatorState = function useCreatorState() {
 
     blendsAutoDisabled: useMemo(function() {
       if (!stashConstrained) return false;
-      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count < 6;
+      return _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count < 2;
     }, [stashConstrained, globalStash, convertBrand]),
 
     effectiveAllowBlends: useMemo(function() {
       if (!stashConstrained) return allowBlends;
       var count = _buildAllowedPaletteFromStash(globalStash, null, convertBrand).count;
-      if (count < 6) return false;
+      if (count < 2) return false;
       return allowBlends;
     }, [stashConstrained, globalStash, convertBrand, allowBlends]),
 
@@ -15027,6 +15027,8 @@ window.usePreview = function usePreview(state) {
         var threadSet = {};
         Object.keys(colorCounts).forEach(function(id) { String(id).split('+').forEach(function(t) { threadSet[t] = true; }); });
         var threadsUsed = Object.keys(threadSet).length;
+        var blendIds = Object.keys(colorCounts).filter(function(id){return id.indexOf('+')>=0;});
+        var blendStitches = blendIds.reduce(function(n,id){return n+colorCounts[id];},0);
         // Stitches that tidying (and look-alike separation) changed.
         var tidiedCount = null;
         if (preCleanupIds && ((stitchCleanup && stitchCleanup.enabled) || orphans > 0)) {
@@ -15068,7 +15070,7 @@ window.usePreview = function usePreview(state) {
           estimated: !exactResult && pw * ph !== sW * sH,
           stashUsage: stashUsage,
           exactMappings: exactResult ? exactResult.mappings : null,
-          threadsUsed: threadsUsed,
+          threadsUsed: threadsUsed, blendsUsed: blendIds.length, blendPct: stitchable ? Math.round(100*blendStitches/stitchable) : 0,
           tidiedStitches: tidiedCount == null ? null : Math.round(tidiedCount * scaleFactor),
         });
         // What this change did, compared with the last finished preview.
@@ -15262,6 +15264,11 @@ window.usePreview = function usePreview(state) {
 
   function compareOptionsFor(dimension, s) {
     var opts;
+    if (dimension === 'blends') {
+      return [false,true].map(function(on) {
+        return {id:on?'with':'without',label:on?'With blends':'Without blends',current:on===!!s.allowBlends,same:false,values:{allowBlends:on}};
+      });
+    }
     if (dimension === 'brand') {
       // One option per thread brand; the current one first.
       var brands = root.THREAD_BRANDS ? Object.keys(root.THREAD_BRANDS) : ['dmc', 'anchor'];
@@ -15352,7 +15359,11 @@ window.usePreview = function usePreview(state) {
       ? root.creatorThreadCounts(pal).threads
       : (pal || []).filter(function (p) { return p && p.id !== '__skip__'; }).length;
     var tier = (typeof root.confettiTier === 'function' && confettiPct != null) ? root.confettiTier(confettiPct).label : null;
-    return { stitches: stitches, threads: threads, tier: tier };
+    var blends = (pal || []).filter(function(p){return p && p.type === 'blend';});
+    var blendStitches = blends.reduce(function(n,p){return n+(p.count||0);},0);
+    return { stitches: stitches, threads: threads, tier: tier, symbols:(pal||[]).length,
+      blends:blends.length, blendPct:stitchedCells ? Math.round(100*blendStitches/stitchedCells) : 0,
+      estimated: dims.pw !== full.w || dims.ph !== full.h };
   }
 
   function compareHours(stitches, stitchSpeed) {
@@ -15418,9 +15429,9 @@ window.usePreview = function usePreview(state) {
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
+      allowBlends: values.allowBlends != null ? values.allowBlends : s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
-      minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
+      seed: s.seed, minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
       disambig: s.disambig, disambigLevel: s.disambigLevel
     };
@@ -15456,7 +15467,7 @@ window.usePreview = function usePreview(state) {
     var failuresRef = React.useRef(0);
 
     var s = props.settings;
-    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand });
+    var options = window.compareOptionsFor(dimension, { sW: props.sW, sH: props.sH, maxC: props.maxC, arLock: props.arLock, ar: props.ar, convertBrand: s && s.convertBrand, allowBlends: s && s.allowBlends });
     // A brand's thread list loads on demand: until it has, its option waits.
     var _cat = React.useState(0); var setCatTick = _cat[1];
     var waiting = dimension === "brand" ? options.filter(function (o) {
@@ -15504,11 +15515,6 @@ window.usePreview = function usePreview(state) {
           setTimeout(function () {
             try {
               var raw = px.data;
-              if (s.smooth > 0) {
-                if (s.smoothType === "gaussian") applyGaussianBlur(raw, dims.pw, dims.ph, s.smooth);
-                else if (s.smoothType === "bilateral" && typeof applyBilateralFilter === "function") applyBilateralFilter(raw, dims.pw, dims.ph);
-                else applyMedianFilter(raw, dims.pw, dims.ph, s.smooth);
-              }
               var r = window.runCleanupPipeline(raw, dims.pw, dims.ph, pipelineSettings(s, job.values, props.paletteFor));
               if (!r) { reject(new Error("no result")); return; }
               resolve({ mapped: r.mapped, pal: buildPalette(r.mapped).pal, confettiPct: (r.confettiClean || r.confettiRaw || {}).pct });
@@ -15584,7 +15590,7 @@ window.usePreview = function usePreview(state) {
       return function () { clearTimeout(timer); };
     }, [open, keySig, props.img, waiting.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }];
+    var dims = [{ id: "size", label: "Size" }, { id: "threads", label: "Threads" }, { id: "brand", label: "Brand" }, { id: "blends", label: "Blends" }];
     var dimSwitch = h("div", { className: "lp-segmented compare-strip__dim", role: "radiogroup", "aria-label": "Compare by" },
       dims.map(function (d, i) {
         var on = dimension === d.id;
@@ -15611,6 +15617,8 @@ window.usePreview = function usePreview(state) {
       var lines = r ? [
         r.stats.stitches.toLocaleString("en-GB") + " stitches (" + size + ")",
         r.stats.threads + " thread" + (r.stats.threads === 1 ? "" : "s") + " · " + fmtHours(window.compareHours(r.stats.stitches, props.stitchSpeed)),
+        r.stats.symbols + " symbols · " + r.stats.blends + " blends · " + r.stats.blendPct + "% blend stitches",
+        r.stats.estimated ? "Reduced preview; counts and blend coverage are approximate" : "",
         r.stats.tier ? "Confetti: " + r.stats.tier : ""
       ] : [size + " stitches", "Working…"];
       var disabled = o.current || o.same || !r;
@@ -21426,21 +21434,21 @@ window.CreatorSidebar = function CreatorSidebar() {
         helpTopic: "palette" }),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
       used != null
-        ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + ".", { "data-threads-used": "" })
+        ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + ps.blendsUsed + " blends, " + ps.blendPct + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
     );
 
     var blendSec = sec("blends", "Blends", null,
-      check({ checked: gen.allowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
+      check({ checked: gen.effectiveAllowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
         onChange: function (v) { gen.setAllowBlends(v); },
         info: "A blend puts one strand of each of two " + brandLabel + " threads in the needle to make an in-between shade, for smoother gradients." }),
-      hint(gen.allowBlends
+      hint(gen.effectiveAllowBlends
         ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
         : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.", { className: "cs-toolsec__hint convert-blend-effect" }),
-      gen.allowBlends && h(SliderRow, { label: "Blend recipes (max)", value: gen.maxBlends, min: 0, max: 100, step: 1,
+      gen.effectiveAllowBlends && h(SliderRow, { label: "Blend recipes (max)", value: gen.maxBlends, min: 0, max: 100, step: 1,
         onChange: gen.setMaxBlends, helpText: "Limits extra two-thread combinations, independently of threads to buy. Default 12. Conversion keeps useful blends with fewer confetti stitches and stays within the printed symbol limit. Manual palette additions are not removed." }),
       window.BlendHelpNote && h(window.BlendHelpNote, { showSetting: false }),
-      gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 6 threads.")
+      gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 2 threads.")
     );
 
     var rareSec = sec("rare", "Rare colours", null,
@@ -21575,26 +21583,26 @@ window.CreatorSidebar = function CreatorSidebar() {
 
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.indexOf("bayer") === 0 ? "bayer" : "atkinson";
-    var shadingSec = sec("shading", "Shading",
-      "Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.",
+    var shadingSec = sec("shading", "Shading pattern",
+      "Mixes colours across neighbouring stitches. This is separate from two-thread blends in one needle. None gives the tidiest chart; more shading means more confetti stitches.",
       hint("The steps above set this and the controls below; changing one here shows Custom."),
-      seg({ label: "Shading", value: dithAlgo, onChange: function (algo) {
+      seg({ label: "Shading pattern", value: dithAlgo, onChange: function (algo) {
           if (algo === "off") gen.setDith("off");
           else if (algo === "atkinson" && dithAlgo !== "atkinson") gen.setDith("balanced");
           else if (algo === "bayer" && dithAlgo !== "bayer") gen.setDith("bayer4");
         },
         options: [
-          { id: "off", label: "Off", title: "Each stitch takes its closest thread. The tidiest chart and the easiest to stitch." },
-          { id: "atkinson", label: "Smooth blend", title: "Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos." },
-          { id: "bayer", label: "Pattern blend", title: "Mixes threads in a regular, repeating pattern. Suits graphics and pixel-style pictures; on a photo it adds many confetti stitches." }
+          { id: "off", label: "None", title: "Each stitch takes its closest thread or enabled two-thread blend. The tidiest chart and the easiest to stitch." },
+          { id: "atkinson", label: "Smooth shading", title: "Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos." },
+          { id: "bayer", label: "Regular pattern", title: "Mixes threads in a regular, repeating pattern. Suits graphics and pixel-style pictures; on a photo it adds many confetti stitches." }
         ] }),
-      dithAlgo === "atkinson" && seg({ label: "Smooth blend strength", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
+      dithAlgo === "atkinson" && seg({ label: "Smooth shading strength", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
         options: [{ id: "weak", label: "Subtle", title: "Light blending, with very few confetti stitches." }, { id: "balanced", label: "Balanced", title: "Smoother gradients, with more confetti stitches." }] }),
       dithAlgo === "bayer" && seg({ label: "Pattern size", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
         options: [{ id: "bayer2", label: "Coarse", title: "A bold, chequered pattern." }, { id: "bayer4", label: "Medium", title: "A balanced, regular pattern." }, { id: "bayer8", label: "Fine", title: "A fine, detailed pattern." }] }),
       h("details", { className: "convert-advanced" },
         h("summary", null, "Advanced"),
-        h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
+        h("p", null, "Smooth shading is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Regular pattern is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
     );
 
     var tidied = ps && ps.tidiedStitches != null ? ps.tidiedStitches : null;

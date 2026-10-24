@@ -39,6 +39,11 @@
 
   function compareOptionsFor(dimension, s) {
     var opts;
+    if (dimension === 'blends') {
+      return [false,true].map(function(on) {
+        return {id:on?'with':'without',label:on?'With blends':'Without blends',current:on===!!s.allowBlends,same:false,values:{allowBlends:on}};
+      });
+    }
     if (dimension === 'brand') {
       // One option per thread brand; the current one first.
       var brands = root.THREAD_BRANDS ? Object.keys(root.THREAD_BRANDS) : ['dmc', 'anchor'];
@@ -129,7 +134,11 @@
       ? root.creatorThreadCounts(pal).threads
       : (pal || []).filter(function (p) { return p && p.id !== '__skip__'; }).length;
     var tier = (typeof root.confettiTier === 'function' && confettiPct != null) ? root.confettiTier(confettiPct).label : null;
-    return { stitches: stitches, threads: threads, tier: tier };
+    var blends = (pal || []).filter(function(p){return p && p.type === 'blend';});
+    var blendStitches = blends.reduce(function(n,p){return n+(p.count||0);},0);
+    return { stitches: stitches, threads: threads, tier: tier, symbols:(pal||[]).length,
+      blends:blends.length, blendPct:stitchedCells ? Math.round(100*blendStitches/stitchedCells) : 0,
+      estimated: dims.pw !== full.w || dims.ph !== full.h };
   }
 
   function compareHours(stitches, stitchSpeed) {

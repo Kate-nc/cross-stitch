@@ -2594,6 +2594,10 @@ function CreatorApp({
     compact: _compact,
     paletteFor: state.convertPaletteFor,
     onApply: function (v) {
+      if (v.allowBlends != null) {
+        state.setAllowBlends(v.allowBlends);
+        return;
+      }
       if (v.convertBrand) {
         state.setConvertBrand(v.convertBrand);
         return;
