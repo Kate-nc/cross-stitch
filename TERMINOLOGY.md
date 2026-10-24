@@ -123,7 +123,7 @@ algorithm behind them. The technical name may appear only inside an
 | Detail and tidiness steps | **More detail**, **Balanced**, **Tidier**, **Easiest to stitch**; the individual controls below them in the Detail step | Style, Quality levels |
 | Background removal | **Leave background unstitched**, **Pick from picture**, **How close a match** | Skip background, Tolerance |
 | Convert preview views | **Stitched** (the default), **Flat**, **Before / after**; **Close up**, **Show confetti**, **Show tidied stitches** | Realistic, Pixel, Heatmap |
-| Dither setting | **Shading**: Off, **Smooth blend** (Subtle, Balanced), **Pattern blend** (Coarse, Medium, Fine) | Dithering, Atkinson, Bayer, 2×2/4×4/8×8, Strong |
+| Dither setting | **Shading**: Off, **Smooth shading** (Subtle, Balanced), **Regular pattern** (Coarse, Medium, Fine) | Dithering, Atkinson, Bayer, 2×2/4×4/8×8, Strong |
 | Clean-up switch and amount | **Stitch Cleanup**, **Reduce confetti** (Off, 1–3) | Cleanup strength, Gentle/Thorough, Fewer confetti stitches in shading, Smooth dithering |
 | Pre-smoothing | **Soften grainy photos** | Smooth, Median, Gaussian |
 | Pre-sharpening | **Sharpen details** | Pre-sharpen, luminance, chroma |

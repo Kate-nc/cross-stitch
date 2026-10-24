@@ -91,7 +91,7 @@ describe('reduced preview size and stats', () => {
   test('stats scale stitches to the full size; hours come from the current stitching speed', () => {
     const pal = [{ id: '310', count: 10 }, { id: '310+550', type: 'blend', count: 5 }];
     const s = C.compareStats(pal, 5000, 1, { w: 200, h: 200 }, { pw: 100, ph: 100 });
-    expect(s).toEqual({ stitches: 20000, threads: 2, tier: 'Excellent' });
+    expect(s).toEqual({ stitches: 20000, threads: 2, tier: 'Excellent', symbols:2, blends:1, blendPct:0, estimated:true });
     // Not cached with the preview, so changing the speed shows at once.
     expect(C.compareHours(20000, 40)).toBe(500);
     expect(C.compareHours(20000, 80)).toBe(250);
@@ -124,7 +124,7 @@ describe('wiring', () => {
 
   test('choosing an option applies its brand, size or thread count', () => {
     const main = loadSource('creator-main.js');
-    expect(main).toMatch(/<window\.CreatorCompareStrip[\s\S]{0,500}onApply=\{function\(v\)\{\s*if\(v\.convertBrand\)\{state\.setConvertBrand\(v\.convertBrand\);return;\}\s*if\(v\.maxC!=null\)\{state\.setMaxC\(v\.maxC\);return;\}\s*state\.chgW\(v\.sW\);\s*if\(!state\.arLock\)state\.chgH\(v\.sH\);/);
+    expect(main).toMatch(/<window\.CreatorCompareStrip[\s\S]{0,500}onApply=\{function\(v\)\{\s*if\(v\.allowBlends!=null\)\{state\.setAllowBlends\(v\.allowBlends\);return;\}\s*if\(v\.convertBrand\)\{state\.setConvertBrand\(v\.convertBrand\);return;\}\s*if\(v\.maxC!=null\)\{state\.setMaxC\(v\.maxC\);return;\}\s*state\.chgW\(v\.sW\);\s*if\(!state\.arLock\)state\.chgH\(v\.sH\);/);
   });
 });
 
@@ -137,4 +137,12 @@ describe('brand options (P4-5)', () => {
     expect(opts[1].values).toEqual({ convertBrand: 'dmc' });
     expect(opts.every((o) => !o.same)).toBe(true);
   });
+});
+
+test('blend comparison keeps size and thread budget and changes only blend policy', () => {
+  const options=C.compareOptionsFor('blends',{allowBlends:true,sW:80,sH:60,maxC:24});
+  expect(options.map(o=>o.values)).toEqual([{allowBlends:false},{allowBlends:true}]);
+  expect(options.map(o=>o.current)).toEqual([false,true]);
+  const stats=C.compareStats([{id:'317+3799',type:'blend',count:40},{id:'317',count:60}],100,0,{w:10,h:10},{pw:10,ph:10});
+  expect(stats).toMatchObject({symbols:2,blends:1,blendPct:40,estimated:false});
 });

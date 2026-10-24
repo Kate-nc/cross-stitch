@@ -281,19 +281,21 @@
         helpTopic: "palette" }),
       gen.stashConstrained && gen.stashThreadCount && gen.maxC > gen.stashThreadCount && hint("Limited to " + gen.stashThreadCount + ", the threads in your stash."),
       used != null
-        ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + ".", { "data-threads-used": "" })
+        ? hint("In the preview: " + used + " thread" + (used === 1 ? "" : "s") + " and " + ps.uniqueColors + " chart symbol" + (ps.uniqueColors === 1 ? "" : "s") + "; " + (ps.blendsUsed || 0) + " blends, " + (ps.blendPct || 0) + "% of stitches. " + (ps.estimated ? "Counts are approximate." : ""), { "data-threads-used": "" })
         : hint("A limit, not a target: simpler pictures use fewer.")
     );
 
     var blendSec = sec("blends", "Blends", null,
-      check({ checked: gen.allowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
+      check({ checked: gen.effectiveAllowBlends, disabled: gen.blendsAutoDisabled, label: "Allow two-thread blends",
         onChange: function (v) { gen.setAllowBlends(v); },
         info: "A blend puts one strand of each of two " + brandLabel + " threads in the needle to make an in-between shade, for smoother gradients." }),
-      hint(gen.allowBlends
+      hint(gen.effectiveAllowBlends
         ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
         : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.", { className: "cs-toolsec__hint convert-blend-effect" }),
+      gen.effectiveAllowBlends && h(SliderRow, { label: "Blend recipes (max)", value: gen.maxBlends, min: 0, max: 100, step: 1,
+        onChange: gen.setMaxBlends, helpText: "Limits extra two-thread combinations, independently of threads to buy. Default 12. Conversion keeps useful blends with fewer confetti stitches and stays within the printed symbol limit. Manual palette additions are not removed." }),
       window.BlendHelpNote && h(window.BlendHelpNote, { showSetting: false }),
-      gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 6 threads.")
+      gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 2 threads.")
     );
 
     var rareSec = sec("rare", "Rare colours", null,
@@ -428,26 +430,26 @@
 
     var dithCur = gen.dithMode || (gen.dith ? "balanced" : "off");
     var dithAlgo = dithCur === "off" ? "off" : dithCur.indexOf("bayer") === 0 ? "bayer" : "atkinson";
-    var shadingSec = sec("shading", "Shading",
-      "Mixes threads across neighbouring stitches to suggest in-between colours. Off gives the tidiest chart; more shading means more confetti stitches.",
+    var shadingSec = sec("shading", "Shading pattern",
+      "Mixes colours across neighbouring stitches. This is separate from two-thread blends in one needle. None gives the tidiest chart; more shading means more confetti stitches.",
       hint("The steps above set this and the controls below; changing one here shows Custom."),
-      seg({ label: "Shading", value: dithAlgo, onChange: function (algo) {
+      seg({ label: "Shading pattern", value: dithAlgo, onChange: function (algo) {
           if (algo === "off") gen.setDith("off");
           else if (algo === "atkinson" && dithAlgo !== "atkinson") gen.setDith("balanced");
           else if (algo === "bayer" && dithAlgo !== "bayer") gen.setDith("bayer4");
         },
         options: [
-          { id: "off", label: "Off", title: "Each stitch takes its closest thread. The tidiest chart and the easiest to stitch." },
-          { id: "atkinson", label: "Smooth blend", title: "Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos." },
-          { id: "bayer", label: "Pattern blend", title: "Mixes threads in a regular, repeating pattern. Suits graphics and pixel-style pictures; on a photo it adds many confetti stitches." }
+          { id: "off", label: "None", title: "Each stitch takes its closest thread or enabled two-thread blend. The tidiest chart and the easiest to stitch." },
+          { id: "atkinson", label: "Smooth shading", title: "Mixes neighbouring threads so gradients look smooth, keeping colours in tidy patches. Suits photos." },
+          { id: "bayer", label: "Regular pattern", title: "Mixes threads in a regular, repeating pattern. Suits graphics and pixel-style pictures; on a photo it adds many confetti stitches." }
         ] }),
-      dithAlgo === "atkinson" && seg({ label: "Smooth blend strength", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
+      dithAlgo === "atkinson" && seg({ label: "Smooth shading strength", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
         options: [{ id: "weak", label: "Subtle", title: "Light blending, with very few confetti stitches." }, { id: "balanced", label: "Balanced", title: "Smoother gradients, with more confetti stitches." }] }),
       dithAlgo === "bayer" && seg({ label: "Pattern size", className: "cv-seg--sub", value: dithCur, onChange: function (id) { gen.setDith(id); },
         options: [{ id: "bayer2", label: "Coarse", title: "A bold, chequered pattern." }, { id: "bayer4", label: "Medium", title: "A balanced, regular pattern." }, { id: "bayer8", label: "Fine", title: "A fine, detailed pattern." }] }),
       h("details", { className: "convert-advanced" },
         h("summary", null, "Advanced"),
-        h("p", null, "Smooth blend is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Pattern blend is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
+        h("p", null, "Smooth shading is Atkinson error diffusion at 50% (Subtle) or 100% (Balanced) strength. Regular pattern is ordered Bayer dithering with a 2×2 (Coarse), 4×4 (Medium) or 8×8 (Fine) matrix.")) // terminology-lint-allow
     );
 
     var tidied = ps && ps.tidiedStitches != null ? ps.tidiedStitches : null;

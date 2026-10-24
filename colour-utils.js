@@ -19,9 +19,10 @@ function findSolid(lab,p){
 // Lets a nearest-colour search skip threads that cannot beat the best so far
 // without changing which thread it finds.
 function _dE2000LightnessBound(L1,L2){const m=(L1+L2)/2-50,m2=m*m;return Math.abs(L1-L2)/(1+0.015*m2/Math.sqrt(20+m2));}
-function findBest(lab, palette, allowBlends = true) {
+function findBest(lab, palette, allowBlends = true, blendTable = null) {
   const solidMatch = findSolid(lab, palette);
-  if (!allowBlends || !findBest._blends || findBest._blendPalette !== palette) return solidMatch;
+  const blends = blendTable || (findBest._blendPalette === palette ? findBest._blends : null);
+  if (!allowBlends || !blends) return solidMatch;
 
   // CIEDE2000 throughout, like findSolid. The uncached core: nearly every call
   // here has a new input colour, so the cache would only add cost.
@@ -34,7 +35,6 @@ function findBest(lab, palette, allowBlends = true) {
 
   let bestBlendDist00 = solidDist00 - 3;
   let bestBlendIdx = -1;
-  const blends = findBest._blends;
   for (let i = 0; i < blends.length; i++) {
     const bl = blends[i].lab;
     if (_dE2000LightnessBound(L, bl[0]) >= bestBlendDist00) continue;
@@ -57,6 +57,24 @@ function findBest(lab, palette, allowBlends = true) {
 
   return solidMatch;
 }
+// One constructor for new equal two-thread recipes. Existing saved IDs stay
+// intact so their symbols and progress references never need a migration.
+function makeThreadBlend(a, b) {
+  const threads = [a, b].sort((x, y) => String(x.id).localeCompare(String(y.id), 'en'));
+  const id = threads.map(t => String(t.id)).join('+');
+  const rgb = a.rgb.map((v, i) => Math.round((v + b.rgb[i]) / 2));
+  return { type: 'blend', id: id, name: id, threads: threads, rgb: rgb, lab: rgbToLab(...rgb) };
+}
+// Compare recipes without rewriting legacy IDs. Keep quantities with their
+// components, including when an imported recipe is in the opposite order.
+function blendRecipeKey(entry) {
+  if (!entry || entry.type !== 'blend') return null;
+  const parts = entry.threads || String(entry.id).split('+').map(id => ({ id: id }));
+  const ratio = entry.blendRatio || entry.blend_ratio;
+  return JSON.stringify(parts.map((t, i) => [String(t.brand || entry.brand || 'dmc').toLowerCase(), String(t.id),
+    ratio && ratio[i] != null ? ratio[i] : (t.strands != null ? t.strands : 1)])
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en')));
+}
 // Two threads further apart than this (ΔE2000) are never paired in a blend.
 // A blend is two strands in one needle, so it reads as a mix only when the
 // strands are close; a far pair is a tweed of two unrelated colours. Without
@@ -72,19 +90,46 @@ findBest.precomputeBlends = function(palette) {
       const a = palette[i], b = palette[j];
       if (!a.lab || !b.lab) continue;
       if (_dE2000Core(a.lab[0], a.lab[1], a.lab[2], b.lab[0], b.lab[1], b.lab[2]) > BLEND_MAX_PARTNER_DE) continue;
-      const lab = [(a.lab[0]+b.lab[0])/2, (a.lab[1]+b.lab[1])/2, (a.lab[2]+b.lab[2])/2];
-      // Canonicalise blend ID so [a,b] and [b,a] always produce the same string.
-      const blendId = [String(a.id), String(b.id)].sort().join("+");
-      blends.push({
-        id: blendId,
-        lab: lab,
-        rgb: [Math.round((a.rgb[0]+b.rgb[0])/2), Math.round((a.rgb[1]+b.rgb[1])/2), Math.round((a.rgb[2]+b.rgb[2])/2)],
-        threads: [a, b]
-      });
+      blends.push(makeThreadBlend(a, b));
     }
   }
   findBest._blends = blends;
+  return blends;
 };
+// Bound generated recipes independently of physical thread count. Reserve a
+// symbol for every selected solid so remapping cannot overflow the PDF key.
+// Only called by conversion: never simplify a manually edited chart silently.
+function limitGeneratedBlends(mapped, raw, w, h, palette, requestedLimit) {
+  const limit = Math.min(Math.max(0, 112 - palette.length),
+    Number.isFinite(requestedLimit) ? Math.max(0, Math.floor(requestedLimit)) : 12);
+  const recipes = new Map(), replacements = new Map(), cache = new Map();
+  for (let i = 0; i < mapped.length; i++) {
+    const cell = mapped[i];
+    if (cell.type !== 'blend') continue;
+    const k = i * 4, key = (raw[k] << 16) | (raw[k+1] << 8) | raw[k+2];
+    let sample = cache.get(key);
+    if (!sample) {
+      const lab = rgbToLab(raw[k],raw[k+1],raw[k+2]);
+      sample = {lab:lab, solid:findSolid(lab,palette)}; cache.set(key,sample);
+    }
+    replacements.set(i,sample.solid);
+    let r = recipes.get(cell.id);
+    if (!r) { r = {id:cell.id,gain:0,count:0,isolated:0}; recipes.set(cell.id,r); }
+    r.count++;
+    // Charge the existing 3 ΔE minimum benefit on each stitch, now measured
+    // against the original image rather than error-diffused target pixels.
+    r.gain += sample.solid.dist - dE2000(sample.lab,cell.lab) - 3;
+    const x=i%w;
+    if (!(x>0 && mapped[i-1].id===cell.id) && !(x<w-1 && mapped[i+1].id===cell.id) &&
+        !(i>=w && mapped[i-w].id===cell.id) && !(i+w<mapped.length && mapped[i+w].id===cell.id)) r.isolated++;
+  }
+  const ranked = Array.from(recipes.values()).map(r => Object.assign(r,{score:r.gain/(1+r.isolated/r.count)}))
+    .filter(r => r.score > 0).sort((a,b) => b.score-a.score || a.id.localeCompare(b.id,'en'));
+  const kept = new Set(ranked.slice(0,limit).map(r=>r.id));
+  let changed=false;
+  replacements.forEach((solid,i)=>{if(!kept.has(mapped[i].id)){mapped[i]=solid;changed=true;}});
+  return changed;
+}
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
 // ── How a stitch looks done and not done in the Tracker (Phase 5, TRACK-09) ──────────────────────────────────────
@@ -438,7 +483,8 @@ function _blendUse(uc, pal, as) {
     for (let j = i + 1; j < pal.length; j++) {
       const a = pal[i].lab, b = pal[j].lab;
       if (_dE2000Core(a[0], a[1], a[2], b[0], b[1], b[2]) > BLEND_MAX_PARTNER_DE) continue;
-      pairs.push({ i: i, j: j, lab: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] });
+      const rgb = pal[i].rgb.map((v,k) => Math.round((v + pal[j].rgb[k]) / 2));
+      pairs.push({ i: i, j: j, lab: rgbToLab(...rgb) });
     }
   }
   if (!pairs.length) return { dist: dist, a: ta, b: tb };
@@ -775,7 +821,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
   // Pre-compute blend table once for the whole dithering pass
   // precomputeBlends is attached lazily on first use
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   // PERF (deferred-4): default-on feature flag for the secondBest id-map
   // short-circuit. ON replaces the per-pixel O(palette) scan inside the
@@ -812,7 +858,7 @@ function doDither(data, w, h, pal, allowBlends = true, saliencyMap = null, { con
 
       // --- Stage 2: confetti-aware color selection ---
       // Find best color via the normal path first.
-      const best = findBest(targetLab, pal, allowBlends);
+      const best = findBest(targetLab, pal, allowBlends, blendTable);
 
       // Compute the effective threshold, scaled by (1 - saliency).
       const saliency = saliencyMap ? saliencyMap[idx] : 0;
@@ -978,7 +1024,7 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
   else                      { matrix = B4; n = 4; spread = 48; } // default 4×4
 
   // Pre-compute blend table once (same as Atkinson path).
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   const N = w * h;
   const r = new Array(N);
@@ -998,7 +1044,7 @@ function doBayerDither(data, w, h, pal, allowBlends = true, bayerSize = 4) {
       const adj_g = Math.max(0, Math.min(255, data[base + 1] + t * spread));
       const adj_b = Math.max(0, Math.min(255, data[base + 2] + t * spread));
 
-      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends);
+      r[idx] = findBest(rgbToLab(adj_r, adj_g, adj_b), pal, allowBlends, blendTable);
     }
   }
 
@@ -1029,7 +1075,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
   var QUEUE_LEN = (opts && opts.queueLen != null) ? opts.queueLen : 16;
 
   // Pre-compute blend table once per palette
-  if (allowBlends && typeof findBest.precomputeBlends === 'function') findBest.precomputeBlends(pal);
+  const blendTable = allowBlends && typeof findBest.precomputeBlends === 'function' ? findBest.precomputeBlends(pal) : [];
 
   // Exponential decay weights: weight[0] = most recent, weight[QUEUE_LEN-1] = oldest
   // mult chosen so the oldest weight = 1/QUEUE_LEN of the newest.
@@ -1102,7 +1148,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
     var cg = Math.max(0, Math.min(255, buf[idx * 3 + 1] + accG));
     var cb = Math.max(0, Math.min(255, buf[idx * 3 + 2] + accB));
 
-    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends);
+    var chosen = findBest(rgbToLab(cr, cg, cb), pal, allowBlends, blendTable);
     result[idx] = chosen;
 
     // Saliency-aware error decay: high-saliency (edge) pixels absorb their own
@@ -1120,6 +1166,7 @@ function doRiemersma(data, w, h, pal, allowBlends, saliencyMap, opts) {
 }
 
 function doMap(data, w, h, pal, allowBlends = true) {
+  const blendTable = allowBlends ? findBest.precomputeBlends(pal) : [];
   let r = new Array(w * h);
   let cache = new Map();
   for (let i = 0; i < w * h; i++) {
@@ -1132,7 +1179,7 @@ function doMap(data, w, h, pal, allowBlends = true) {
     if (cached !== undefined) {
       r[i] = cached;
     } else {
-      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal, allowBlends);
+      let mapped = findBest(rgbToLab(r_val, g_val, b_val), pal, allowBlends, blendTable);
       cache.set(key, mapped);
       r[i] = mapped;
     }
@@ -1226,7 +1273,7 @@ function buildPalette(patArr,extraCells){
   function tally(list,isStitch){
     for(let i=0;i<list.length;i++){
       let m=list[i];if(m.id==="__skip__"||m.id==="__empty__")continue;
-      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;}
+      if(!usage[m.id]){usage[m.id]={id:m.id,type:m.type,name:m.name,rgb:m.rgb,lab:m.lab,threads:m.threads,count:0};if(m.brand)usage[m.id].brand=m.brand;['blendRatio','blend_ratio'].forEach(function(k){if(m[k])usage[m.id][k]=m[k];});}
       usage[m.id].count++;
       if(isStitch)stitched[m.id]=true;
       // A symbol buildPalette handed out itself (autoSymbol) isn't a choice, even
@@ -1292,9 +1339,35 @@ function restoreStitch(m,brand){
   var b=m.brand?norm(m.brand):norm(brand);
   var tag=b==="dmc"?null:b;
   if(m.type==="blend"){
+    // New saves carry the recipe. Preserve its ordering and quantities; the
+    // legacy id still owns its symbol and progress references.
+    if ((Array.isArray(m.threads) && m.threads.length === 2) || m.blendRatio || m.blend_ratio) {
+      const ratio = m.blendRatio || m.blend_ratio;
+      const parts = m.threads && m.threads.length === 2 ? m.threads : splitBlendId(m.id).map(id => ({id:id}));
+      const threads = parts.map(function(part) {
+        const partBrand = part.brand || b;
+        const cat = findThreadInCatalog(partBrand, part.id);
+        const t = Object.assign({}, cat || {}, part);
+        t.rgb = (part.rgb || (cat && cat.rgb) || m.rgb || [128,128,128]).slice();
+        t.lab = rgbToLab(...t.rgb);
+        if (partBrand !== 'dmc') t.brand = partBrand;
+        return t;
+      });
+      if (threads.length === 2) {
+        const weights = threads.map((t,i) => ratio && ratio[i] > 0 ? ratio[i] : (t.strands > 0 ? t.strands : 1));
+        const total = weights[0] + weights[1];
+        const rgb = m.rgb ? m.rgb.slice() : threads[0].rgb.map((v,i) => Math.round((v*weights[0]+threads[1].rgb[i]*weights[1])/total));
+        const out = {type:'blend', id:m.id, name:m.name||m.id, rgb:rgb, lab:rgbToLab(...rgb), threads:threads, dist:0, symbol:m.symbol};
+        ['blendRatio','blend_ratio'].forEach(function(k){if(Array.isArray(m[k]))out[k]=m[k].slice();});
+        ['provenance','status','substitute'].forEach(function(k){if(m[k]!==undefined)out[k]=m[k];});
+        if(tag)out.brand=tag;
+        if(m.autoSymbol)out.autoSymbol=true;
+        return out;
+      }
+    }
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
     if(ids.length===2&&t0&&t1){
-      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:rgbToLab(Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)),threads:[t0,t1],dist:0};
       // Explicit RGB is retained by the saver for custom/imported colours.
       // Bare IDs follow catalogue updates; legacy explicit RGB stays intact
       // because its origin cannot safely be inferred from the thread number.

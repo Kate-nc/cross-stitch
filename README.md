@@ -535,3 +535,7 @@ Stash Manager > Project materials reserves thread for saved projects without con
 The experimental guided image importer (Preferences > Pattern Creator) provides a live processed preview before confirmation. Crop, orientation, palette and stash restrictions, blends, dimensions, shading, smoothing, contrast and background tolerance use the same settings for preview and generation.
 
 Convert lets you pin a preview, compare later settings and restore the complete pinned choice before generating. Pattern estimates and tappable thread highlights sit below the full-width phone preview; Show what changed works in every preview view. See the [Creator tutorial](wiki/Pattern-Creator-Tutorial.md#try-settings-before-generating).
+
+### Two-thread blends in Create
+
+Two-thread blends work independently of the Shading pattern (None, Smooth shading or Regular pattern). Threads (max) limits physical thread colours; Blend recipes (max) separately limits generated combinations, starting at 12. Compare options > Blends compares both policies and shows chart symbols, recipe counts and stitch coverage. Reduced previews are approximate. Materials aggregates the physical threads shared by recipes.

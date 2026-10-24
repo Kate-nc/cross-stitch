@@ -106,13 +106,13 @@ self.onmessage = function(e) {
     var dithStrength = (typeof settings.dithStrength === "number") ? settings.dithStrength : 1.0;
     var dithAlgo     = settings.dithAlgo || (dith ? "atkinson" : "off");
     var dithBayerSize = settings.dithBayerSize || 4;
-    var allowBlends  = settings.allowBlends;
+    var allowBlends  = settings.allowBlends && settings.maxBlends !== 0;
     var stitchCleanup = settings.stitchCleanup;
 
     var allowedPalette = settings.allowedPalette || null;
     postProgress('quantizing', 'Choosing colours…');
-    // blends: as in runCleanupPipeline, only shading draws blends here.
-    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!(allowBlends && dith)});
+    // Physical blends work with or without spatial shading, as in the fallback.
+    var p = quantizeConstrained(raw, width, height, maxC, allowedPalette, {seed: settings.seed, blends: !!allowBlends});
     if (!p.length && coverageMask.some(function(v) { return v !== 0; })) {
       self.postMessage({ type: 'error', reqId: reqId, message: 'Could not find enough distinct colours in your image. Try increasing the maximum colours, or use a clearer image.' });
       return;
@@ -237,6 +237,8 @@ self.onmessage = function(e) {
         }
       }
     }
+
+    limited = limitGeneratedBlends(mapped, raw, width, height, p, settings.maxBlends) || limited;
 
     // The finished chart's confetti (runCleanupPipeline's confettiFinal):
     // look-alike separation and the thread limit can change stitches after

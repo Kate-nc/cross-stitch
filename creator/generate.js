@@ -150,7 +150,7 @@ function applyPreSharpenCanvas(source, targetW, targetH, opts) {
  *   look-alike separation and the thread limit, which can change stitches.
  */
 window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts) {
-  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends;
+  var maxC = opts.maxC, dith = opts.dith, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
   var stitchCleanup = opts.stitchCleanup;
   var dithStrength = (typeof opts.dithStrength === "number") ? opts.dithStrength : 1.0;
   var dithAlgo = opts.dithAlgo || (dith ? "atkinson" : "off");
@@ -167,9 +167,8 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
     else applyMedianFilter(raw, width, height, opts.smooth);
   }
 
-  // blends: the palette will be used with blends (only shading draws them
-  // here; doMap is not given a blend table), so threads a blend needs stay.
-  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!(allowBlends && dith)});
+  // Physical blends work independently of spatial shading. Keep their components.
+  var p = quantizeConstrained(raw, width, height, maxC, opts.allowedPalette, {seed: opts.seed, blends: !!allowBlends});
   // An all-transparent image is a valid empty pattern, not a quantiser error.
   if (!p.length && coverageMask.some(function(v) { return v !== 0; })) return null;
 
@@ -261,6 +260,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
   var limited = enforceMaxColours(mapped, p, raw, maxC);
+  limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
   // The finished chart's confetti. Measured again only when a stage after
   // Reduce confetti changed stitches.
@@ -347,7 +347,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var bri = opts.bri, con = opts.con, sat = opts.sat;
   var dith = opts.dith, skipBg = opts.skipBg, bgCol = opts.bgCol, bgTh = opts.bgTh;
   var minSt = opts.minSt, smooth = opts.smooth, smoothType = opts.smoothType;
-  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends;
+  var stitchCleanup = opts.stitchCleanup, allowBlends = opts.allowBlends && opts.maxBlends !== 0;
 
   // Boundary validation: a 0-width or 0-height grid produces no stitches and
   // would crash quantize() when it indexes data[i*4]. Bail out early so the
@@ -359,7 +359,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
-    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,

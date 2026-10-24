@@ -115,7 +115,7 @@ describe('Convert panel order', () => {
   test('section headings', () => {
     ['"picture-type", "Picture type"', '"background", "Background"', '"adjust", "Adjust picture"',
      '"brand", "Thread brand"', '"count", "Number of threads"', '"blends", "Blends"', '"rare", "Rare colours"',
-     '"style", "Detail and tidiness"', '"shading", "Shading"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
+     '"style", "Detail and tidiness"', '"shading", "Shading pattern"', '"tidying", "Tidying"', '"lookalike", "Look-alike colours"']
       .forEach((h) => expect(cp).toContain('sec(' + h));
     // Min stitches per colour is a thread choice, in Threads.
     const rare = cp.slice(cp.indexOf('var rareSec = '), cp.indexOf('var stashSec = '));
