@@ -62,9 +62,8 @@ function findBest(lab, palette, allowBlends = true) {
 function makeThreadBlend(a, b) {
   const threads = [a, b].sort((x, y) => String(x.id).localeCompare(String(y.id), 'en'));
   const id = threads.map(t => String(t.id)).join('+');
-  return { type: 'blend', id: id, name: id, threads: threads,
-    rgb: a.rgb.map((v, i) => Math.round((v + b.rgb[i]) / 2)),
-    lab: a.lab.map((v, i) => (v + b.lab[i]) / 2) };
+  const rgb = a.rgb.map((v, i) => Math.round((v + b.rgb[i]) / 2));
+  return { type: 'blend', id: id, name: id, threads: threads, rgb: rgb, lab: rgbToLab(...rgb) };
 }
 // Compare recipes without rewriting legacy IDs. Keep quantities with their
 // components, including when an imported recipe is in the opposite order.
@@ -449,7 +448,8 @@ function _blendUse(uc, pal, as) {
     for (let j = i + 1; j < pal.length; j++) {
       const a = pal[i].lab, b = pal[j].lab;
       if (_dE2000Core(a[0], a[1], a[2], b[0], b[1], b[2]) > BLEND_MAX_PARTNER_DE) continue;
-      pairs.push({ i: i, j: j, lab: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2] });
+      const rgb = pal[i].rgb.map((v,k) => Math.round((v + pal[j].rgb[k]) / 2));
+      pairs.push({ i: i, j: j, lab: rgbToLab(...rgb) });
     }
   }
   if (!pairs.length) return { dist: dist, a: ta, b: tb };
@@ -1332,7 +1332,7 @@ function restoreStitch(m,brand){
     }
     let ids=splitBlendId(m.id),t0=findThreadInCatalog(b,ids[0]),t1=findThreadInCatalog(b,ids[1]);
     if(ids.length===2&&t0&&t1){
-      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:[(t0.lab[0]+t1.lab[0])/2,(t0.lab[1]+t1.lab[1])/2,(t0.lab[2]+t1.lab[2])/2],threads:[t0,t1],dist:0};
+      let out={type:"blend",id:m.id,name:m.name||m.id,rgb:[Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)],lab:rgbToLab(Math.round((t0.rgb[0]+t1.rgb[0])/2),Math.round((t0.rgb[1]+t1.rgb[1])/2),Math.round((t0.rgb[2]+t1.rgb[2])/2)),threads:[t0,t1],dist:0};
       // Explicit RGB is retained by the saver for custom/imported colours.
       // Bare IDs follow catalogue updates; legacy explicit RGB stays intact
       // because its origin cannot safely be inferred from the thread number.

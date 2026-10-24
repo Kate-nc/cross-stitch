@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Fixed: blend matching, palette selection and restored colours use the same approximate screen colour model.',
       'Fixed: saved blends retain their component identities, colour snapshots and strand ratios when reloaded and shown in the palette.',
       'Fixed: adding the same two-thread blend in reverse order selects the existing palette colour and keeps its symbol.',
       'Fixed: two-thread blends work independently of spatial shading, including conversions with shading off.',

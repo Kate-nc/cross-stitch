@@ -71,3 +71,19 @@ test('legacy equal blend records and explicit custom component snapshots still r
   expect(vm.runInContext(`restoreStitch({type:'blend',id:'317+3799'}).threads.length`,c)).toBe(2);
   expect(vm.runInContext(`restoreStitch({type:'blend',id:'custom+310',threads:[{id:'custom',rgb:[12,34,56]},{id:'310'}]}).threads[0].rgb.join(',')`,c)).toBe('12,34,56');
 });
+test('every eligible DMC pair uses exactly its displayed colour for matching', () => {
+  const c=context();
+  expect(vm.runInContext(`(() => {
+    findBest.precomputeBlends(DMC);
+    return findBest._blends.every(b => dE2000(b.lab,rgbToLab(...b.rgb)) < 1e-9);
+  })()`,c)).toBe(true);
+});
+test('new and legacy blend Lab values stay consistent through saving and reloading', () => {
+  const c=context();
+  expect(vm.runInContext(`(() => {
+    const b=makeThreadBlend(DMC.find(t=>t.id==='633'),DMC.find(t=>t.id==='817'));
+    const restored=restoreStitch(JSON.parse(JSON.stringify(serializePattern([b])))[0]);
+    const legacy=restoreStitch({id:b.id,type:'blend'});
+    return dE2000(b.lab,restored.lab)<1e-9 && dE2000(b.lab,legacy.lab)<1e-9;
+  })()`,c)).toBe(true);
+});
