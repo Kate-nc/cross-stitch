@@ -87,3 +87,43 @@ test('new and legacy blend Lab values stay consistent through saving and reloadi
     return dE2000(b.lab,restored.lab)<1e-9 && dE2000(b.lab,legacy.lab)<1e-9;
   })()`,c)).toBe(true);
 });
+test('generated blend budget ranks useful coverage and replaces recipes beyond the limit', () => {
+  const c=context();
+  const r=vm.runInContext(`(() => {
+    const p=['3799','317','414'].map(id=>DMC.find(t=>t.id===id));
+    const a=makeThreadBlend(p[0],p[1]), b=makeThreadBlend(p[0],p[2]);
+    const raw=new Uint8ClampedArray(40*4);
+    const mapped=Array.from({length:40},(_,i)=>i<30?a:b);
+    mapped.forEach((m,i)=>raw.set([...m.rgb,255],i*4));
+    limitGeneratedBlends(mapped,raw,40,1,p,1);
+    const used=[...new Set(mapped.filter(m=>m.type==='blend').map(m=>m.id))];
+    limitGeneratedBlends(mapped,raw,40,1,p,0);
+    return {used:used,remaining:mapped.filter(m=>m.type==='blend').length};
+  })()`,c);
+  expect(Array.from(r.used)).toEqual(['317+3799']);
+  expect(r.remaining).toBe(0);
+});
+test('blend recipe budget reserves solid symbols within the 112-symbol ceiling', () => {
+  const c=context();
+  expect(vm.runInContext(`(() => {
+    const a=DMC.find(t=>t.id==='317'),b=DMC.find(t=>t.id==='3799');
+    const m=makeThreadBlend(a,b), p=Array(112).fill(a);
+    const mapped=Array(20).fill(m),raw=new Uint8ClampedArray(80);
+    mapped.forEach((cell,i)=>raw.set([...cell.rgb,255],4*i));
+    limitGeneratedBlends(mapped,raw,20,1,p,100);
+    return mapped.every(cell=>cell.type==='solid');
+  })()`,c)).toBe(true);
+});
+test.each([false,true])('worker and fallback agree with shading=%s and blend budget zero', dith => {
+  const c=context();
+  const settings={maxC:2,dith,allowBlends:true,maxBlends:0,allowedPalette:vm.runInContext("['3799','317'].map(id=>DMC.find(t=>t.id===id))",c),stitchCleanup:{enabled:false},orphans:0};
+  const raw=new Uint8ClampedArray(400*4);for(let i=0;i<400;i++)raw.set([87,87,87,255],4*i);
+  const expected=c.runCleanupPipeline(raw,20,20,settings).mapped.map(m=>m.id);
+  const messages=[];
+  c.self=c;c.postMessage=m=>messages.push(m);c.importScripts=()=>{};
+  vm.runInContext(fs.readFileSync('generate-worker.js','utf8'),c);
+  c.onmessage({data:{type:'generate',reqId:1,pixels:raw.buffer,width:20,height:20,settings}});
+  const error=messages.find(m=>m.type==='error');expect(error).toBeUndefined();
+  const result=messages.find(m=>m.type==='result');expect(Array.from(result.mapped,m=>m.id)).toEqual(Array.from(expected));
+  expect(result.mapped.some(m=>m.type==='blend')).toBe(false);
+});

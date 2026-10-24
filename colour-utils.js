@@ -95,6 +95,40 @@ findBest.precomputeBlends = function(palette) {
   }
   findBest._blends = blends;
 };
+// Bound generated recipes independently of physical thread count. Reserve a
+// symbol for every selected solid so remapping cannot overflow the PDF key.
+// Only called by conversion: never simplify a manually edited chart silently.
+function limitGeneratedBlends(mapped, raw, w, h, palette, requestedLimit) {
+  const limit = Math.min(Math.max(0, 112 - palette.length),
+    Number.isFinite(requestedLimit) ? Math.max(0, Math.floor(requestedLimit)) : 12);
+  const recipes = new Map(), replacements = new Map(), cache = new Map();
+  for (let i = 0; i < mapped.length; i++) {
+    const cell = mapped[i];
+    if (cell.type !== 'blend') continue;
+    const k = i * 4, key = (raw[k] << 16) | (raw[k+1] << 8) | raw[k+2];
+    let sample = cache.get(key);
+    if (!sample) {
+      const lab = rgbToLab(raw[k],raw[k+1],raw[k+2]);
+      sample = {lab:lab, solid:findSolid(lab,palette)}; cache.set(key,sample);
+    }
+    replacements.set(i,sample.solid);
+    let r = recipes.get(cell.id);
+    if (!r) { r = {id:cell.id,gain:0,count:0,isolated:0}; recipes.set(cell.id,r); }
+    r.count++;
+    // Charge the existing 3 ΔE minimum benefit on each stitch, now measured
+    // against the original image rather than error-diffused target pixels.
+    r.gain += sample.solid.dist - dE2000(sample.lab,cell.lab) - 3;
+    const x=i%w;
+    if (!(x>0 && mapped[i-1].id===cell.id) && !(x<w-1 && mapped[i+1].id===cell.id) &&
+        !(i>=w && mapped[i-w].id===cell.id) && !(i+w<mapped.length && mapped[i+w].id===cell.id)) r.isolated++;
+  }
+  const ranked = Array.from(recipes.values()).map(r => Object.assign(r,{score:r.gain/(1+r.isolated/r.count)}))
+    .filter(r => r.score > 0).sort((a,b) => b.score-a.score || a.id.localeCompare(b.id,'en'));
+  const kept = new Set(ranked.slice(0,limit).map(r=>r.id));
+  let changed=false;
+  replacements.forEach((solid,i)=>{if(!kept.has(mapped[i].id)){mapped[i]=solid;changed=true;}});
+  return changed;
+}
 function luminance(rgb){return rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114;}
 
 // ── How a stitch looks done and not done in the Tracker (Phase 5, TRACK-09) ──────────────────────────────────────

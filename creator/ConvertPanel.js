@@ -292,6 +292,8 @@
       hint(gen.allowBlends
         ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
         : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.", { className: "cs-toolsec__hint convert-blend-effect" }),
+      gen.allowBlends && h(SliderRow, { label: "Blend recipes (max)", value: gen.maxBlends, min: 0, max: 100, step: 1,
+        onChange: gen.setMaxBlends, helpText: "Limits extra two-thread combinations, independently of threads to buy. Default 12. Conversion keeps useful blends with fewer confetti stitches and stays within the printed symbol limit. Manual palette additions are not removed." }),
       window.BlendHelpNote && h(window.BlendHelpNote, { showSetting: false }),
       gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 6 threads.")
     );

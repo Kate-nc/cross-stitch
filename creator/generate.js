@@ -260,6 +260,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
   var limited = enforceMaxColours(mapped, p, raw, maxC);
+  limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
   // The finished chart's confetti. Measured again only when a stage after
   // Reduce confetti changed stitches.
@@ -358,7 +359,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
-    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,

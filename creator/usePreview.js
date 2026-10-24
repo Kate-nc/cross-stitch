@@ -27,7 +27,7 @@ var PREVIEW_CHANGE_LABELS = [
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
   [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
-  [['allowBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
+  [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
   [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
@@ -199,7 +199,7 @@ window.usePreview = function usePreview(state) {
         var o = {
           maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
           dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
-          allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+          allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
           minSt: settings.minSt, seed: settings.seed,

@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Added: a separate limit for generated blend recipes, ranked by overall colour benefit and confetti stitches within the printed symbol budget.',
       'Fixed: blend matching, palette selection and restored colours use the same approximate screen colour model.',
       'Fixed: saved blends retain their component identities, colour snapshots and strand ratios when reloaded and shown in the palette.',
       'Fixed: adding the same two-thread blend in reverse order selects the existing palette colour and keeps its symbol.',

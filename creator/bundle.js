@@ -1051,6 +1051,7 @@ window.runCleanupPipeline = function runCleanupPipeline(raw, width, height, opts
   // runGenerationPipeline, so the preview on the page is the chart Generate
   // makes (generate-worker.js does the same).
   var limited = enforceMaxColours(mapped, p, raw, maxC);
+  limited = limitGeneratedBlends(mapped, raw, width, height, p, opts.maxBlends) || limited;
 
   // The finished chart's confetti. Measured again only when a stage after
   // Reduce confetti changed stitches.
@@ -1149,7 +1150,7 @@ window.runGenerationPipeline = function runGenerationPipeline(img, opts) {
   var pipelineResult = runCleanupPipeline(raw, sW, sH, {
     maxC: maxC, dith: dith, dithStrength: opts.dithStrength,
     dithAlgo: opts.dithAlgo, dithBayerSize: opts.dithBayerSize,
-    allowBlends: allowBlends, allowedPalette: opts.allowedPalette || null,
+    allowBlends: allowBlends, maxBlends: opts.maxBlends, allowedPalette: opts.allowedPalette || null,
     skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
     stitchCleanup: stitchCleanup, orphans: opts.orphans,
     minSt: minSt, seed: opts.seed, smooth: smooth, smoothType: smoothType,
@@ -6697,7 +6698,7 @@ function _applyImageFilters(imageData, bri, con, sat) {
 // Used by the preview-coverage tests.
 var CONVERSION_STATE_KEYS = [
   'sW', 'sH', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
-  'maxC', 'dithMode', 'allowBlends', 'minSt',
+  'maxC', 'dithMode', 'allowBlends', 'maxBlends', 'minSt',
   'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans', // terminology-lint-allow (a state key, not UI text)
   'stashConstrained', 'globalStash', 'convertBrand',
   'variationSeed', 'variationSubset',
@@ -6798,7 +6799,7 @@ function stitchStyleOf(basis, cur) {
 
 // The values a preset sets for a picture. info is analysePicture's result
 // (null before a picture is loaded). Keys are useCreatorState setters' names
-// without "set": maxC, allowBlends, skipBg, bgCol, sW, sH, plus the starting
+// without "set": maxC, allowBlends, maxBlends, skipBg, bgCol, sW, sH, plus the starting
 // Detail and tidiness step's dithMode, cleanup, orphans and protectDetails.
 function picturePresetValues(id, info) {
   var p = PICTURE_PRESETS[id];
@@ -7157,6 +7158,9 @@ window.useCreatorState = function useCreatorState() {
   var _blends = useState(function () { var v = loadUserPref("creatorAllowBlends", true); return v !== false; });
   var allowBlends = _blends[0], setAllowBlends = _blends[1];
 
+  var _maxBlends = useState(12);
+  var maxBlends = _maxBlends[0], setMaxBlends = _maxBlends[1];
+
   // Pattern data
   var _pat  = useState(null);         var pat  = _pat[0],  setPat  = _pat[1];
   var _pal  = useState(null);         var pal  = _pal[0],  setPal  = _pal[1];
@@ -7425,7 +7429,7 @@ window.useCreatorState = function useCreatorState() {
   var pictureType = (function () {
     if (!presetApplied) return 'custom';
     var v = presetApplied.values, cur = {
-      maxC: maxC, allowBlends: allowBlends, skipBg: skipBg, sW: sW, sH: sH,
+      maxC: maxC, allowBlends: allowBlends, maxBlends: maxBlends, skipBg: skipBg, sW: sW, sH: sH,
       bgCol: bgCol
     };
     for (var k in v) {
@@ -8753,7 +8757,7 @@ window.useCreatorState = function useCreatorState() {
               sW: sW, sH: sH, exactPixelArt: exactPixelArt, maxC: effMaxC, bri: bri, con: con, sat: sat,
               dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
               minSt: minSt, smooth: smooth, smoothType: smoothType,
-              stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends,
+              stitchCleanup: stitchCleanup, orphans: orphans, allowBlends: effAllowBlends, maxBlends: maxBlends,
               allowedPalette: allowedPalette, seed: _seed,
               disambig: disambig, disambigLevel: disambigLevel,
               preSharpenOpts: preSharpen ? { amount: preSharpenAmount } : null,
@@ -8773,7 +8777,7 @@ window.useCreatorState = function useCreatorState() {
         width: sW,
         height: sH,
         settings: {
-          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends,
+          maxC: effMaxC, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: effAllowBlends, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh,
           minSt: minSt, smooth: smooth, smoothType: smoothType,
           stitchCleanup: stitchCleanup, orphans: orphans,
@@ -8788,7 +8792,7 @@ window.useCreatorState = function useCreatorState() {
     } else {
       setTimeout(startGeneration, 0);
     }
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, disambig, disambigLevel, hasGenerated, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand, variationSeed, variationSubset, pat, done, parkMarkers, editHistory, genPatSnapshot]);
 
   // Cancel a generation (audit IMG-07): a new request id makes its result,
   // progress and errors stale, so they are ignored; the worker is stopped
@@ -8889,7 +8893,7 @@ window.useCreatorState = function useCreatorState() {
 
         var res = runCleanupPipeline(rawPx, gw, gh, {
           smooth: smooth, smoothType: smoothType,
-          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6,
+          maxC: effN, dith: dith, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize, allowBlends: allowBlends && slotSubset.length >= 6, maxBlends: maxBlends,
           skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, minSt: minSt,
           allowedPalette: slotSubset, seed: slotSeed,
         });
@@ -8916,7 +8920,7 @@ window.useCreatorState = function useCreatorState() {
       }, 0);
     }
     genSlot(0);
-  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, stashConstrained, globalStash, convertBrand]);
+  }, [exactPixelArt, img, sW, sH, maxC, bri, con, sat, dithMode, skipBg, bgCol, bgTh, minSt, smooth, smoothType, preSharpen, preSharpenAmount, stitchCleanup, orphans, allowBlends, maxBlends, stashConstrained, globalStash, convertBrand]);
 
   var disambiguateNow = useCallback(function() {
     if (!pat || !pal || busy) return;
@@ -9137,7 +9141,7 @@ window.useCreatorState = function useCreatorState() {
       // Quantisation
       maxC: effMaxC,
       dith: dith, dithMode: dithMode, dithStrength: dithStrength, dithAlgo: dithAlgo, dithBayerSize: dithBayerSize,
-      allowBlends: effAllowBlends,
+      allowBlends: effAllowBlends, maxBlends: maxBlends,
       // Another brand's catalogue when not stash-only (P4-5); null is DMC.
       allowedPalette: stashConstrained ? stashInfo.palette : (window.threadBrandPool ? window.threadBrandPool(convertBrand) : null),
       convertBrand: convertBrand,
@@ -9156,14 +9160,14 @@ window.useCreatorState = function useCreatorState() {
     });
   }, [
     exactPixelArt, sW, sH, bri, con, sat, smooth, smoothType, preSharpen, preSharpenAmount,
-    maxC, dith, dithMode, dithStrength, allowBlends,
+    maxC, dith, dithMode, dithStrength, allowBlends, maxBlends,
     skipBg, bgCol, bgTh, minSt, stitchCleanup, orphans,
     disambig, disambigLevel,
     stashConstrained, globalStash, variationSeed, variationSubset, fabricCt, convertBrand,
   ]);
 
   // Capture editable values, including those masked by stash constraints.
-  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
+  var previewRestoreSettings = {sW: sW, sH: sH, bri: bri, con: con, sat: sat, smooth: smooth, smoothType: smoothType, preSharpen: preSharpen, preSharpenAmount: preSharpenAmount, maxC: maxC, dithMode: dithMode, dithStrength: dithStrength, allowBlends: allowBlends, maxBlends: maxBlends, minSt: minSt, skipBg: skipBg, bgCol: bgCol, bgTh: bgTh, stitchCleanup: stitchCleanup, orphans: orphans, stashConstrained: stashConstrained, globalStash: globalStash, convertBrand: convertBrand, variationSeed: variationSeed, variationSubset: variationSubset, fabricCt: fabricCt, exactPixelArt: exactPixelArt, disambig: disambig, disambigLevel: disambigLevel, fabricColour: fabricColour, arLock: arLock, presetApplied: presetApplied};
   function pinPreview() {
     if (!previewLoading && previewSnapshot) setPinnedPreview(previewSnapshot);
   }
@@ -9182,6 +9186,7 @@ window.useCreatorState = function useCreatorState() {
     setMaxC(values.maxC);
     setDithMode(values.dithMode);
     setAllowBlends(values.allowBlends);
+    setMaxBlends(values.maxBlends == null ? 12 : values.maxBlends);
     setMinSt(values.minSt);
     setSkipBg(values.skipBg);
     setBgCol(values.bgCol);
@@ -9213,7 +9218,7 @@ window.useCreatorState = function useCreatorState() {
     dith, dithMode, dithStrength, dithAlgo, dithBayerSize, setDith, setDithMode, skipBg, setSkipBg, bgAutoSkippedRef, bgTh, setBgTh, bgCol, setBgCol,
     pickBg, setPickBg, minSt, setMinSt, smooth, setSmooth, smoothType, setSmoothType,
     preSharpen, setPreSharpen, preSharpenAmount, setPreSharpenAmount,
-    orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, setAllowBlends,
+    orphans, setOrphans, disambig, setDisambig, disambigLevel, setDisambigLevel, allowBlends, maxBlends, setAllowBlends, setMaxBlends,
     pat, setPat, pal, setPal, cmap, setCmap, busy, setBusy, patternCreatedThisVisit, patternGeneratedThisVisit, progressMessage, setProgressMessage, progressStage, cancelGenerate, generateCancellable,
     origW, setOrigW, origH, setOrigH,
     fabricCt, setFabricCt, skeinPrice, setSkeinPrice, stitchSpeed, setStitchSpeed,
@@ -13272,7 +13277,7 @@ window.creatorSavedSymbols = creatorSavedSymbols;
 // (creator/useCreatorState.js) that a person sets, plus the fabric colour.
 var DRAFT_SETTING_KEYS = [
   'sW', 'sH', 'arLock', 'ar', 'bri', 'con', 'sat', 'smooth', 'smoothType', 'preSharpen', 'preSharpenAmount',
-  'maxC', 'dithMode', 'allowBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
+  'maxC', 'dithMode', 'allowBlends', 'maxBlends', 'minSt', 'skipBg', 'bgCol', 'bgTh', 'stitchCleanup', 'orphans',
   'exactPixelArt', 'stashConstrained', 'fabricCt', 'fabricColour', 'disambig', 'disambigLevel', 'convertBrand',
   // The picture type chosen ({ id, values }): restored after the guess made on
   // reload, so Detail and tidiness keeps following the type the person chose.
@@ -13468,7 +13473,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): serializePattern strips redundant rgb for cells whose colour
       // can be reconstructed from the DMC catalogue at load time. See
       // reports/deferred-1-rgb-stripping-analysis.md. Toggleable via
@@ -13534,7 +13539,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       namePromptShown: !!state.namePromptShown,
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, pal),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: sW, sH: sH, maxC: maxC, bri: bri, con: con, sat: sat, dith: dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: skipBg, bgTh: bgTh, bgCol: bgCol, minSt: minSt, arLock: arLock, ar: ar, fabricCt: fabricCt, skeinPrice: skeinPrice, stitchSpeed: stitchSpeed, smooth: smooth, smoothType: smoothType, orphans: orphans, isScratchMode: state.isScratchMode, allowBlends: allowBlends, maxBlends: state.maxBlends, stitchCleanup: stitchCleanup, stashConstrained: !!stashConstrained, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: bsLines, done: done ? Array.from(done) : null,
@@ -13673,6 +13678,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.setExactPixelArt(!!s.exactPixelArt);
     state.setSmooth(s.smooth || 0); state.setSmoothType(s.smoothType || "median");
     state.setOrphans(s.orphans || 0); state.setAllowBlends(s.allowBlends !== false);
+    state.setMaxBlends(Number.isFinite(s.maxBlends) ? Math.max(0, Math.min(100, s.maxBlends)) : 12);
     state.setStashConstrained(!!s.stashConstrained);
     if (s.stitchCleanup) {
       state.setStitchCleanup({
@@ -14497,7 +14503,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
       nameAutoGenerated: !!state.nameAutoGenerated,
       symbols: creatorSavedSymbols(state.symbolOverrides, state.pal),
       createdAt: state.createdAtRef.current, updatedAt: new Date().toISOString(),
-      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
+      settings: { exactPixelArt: state.exactPixelArt || undefined, sW: state.sW, sH: state.sH, maxC: state.maxC, bri: state.bri, con: state.con, sat: state.sat, dith: state.dith, dithMode: state.dithMode, pictureType: creatorSavedPictureType(state.presetApplied), skipBg: state.skipBg, bgTh: state.bgTh, bgCol: state.bgCol, minSt: state.minSt, arLock: state.arLock, ar: state.ar, fabricCt: state.fabricCt, skeinPrice: state.skeinPrice, stitchSpeed: state.stitchSpeed, smooth: state.smooth, smoothType: state.smoothType, orphans: state.orphans, isScratchMode: state.isScratchMode, allowBlends: state.allowBlends, maxBlends: state.maxBlends, stitchCleanup: state.stitchCleanup, fabricColour: state.fabricColour, threadBrand: window.threadBrandForSave ? window.threadBrandForSave(state.threadBrand) : undefined, traceImage: creatorHasTrace(state) || undefined, overlayOpacity: creatorHasTrace(state) ? state.overlayOpacity : undefined, traceVisible: creatorHasTrace(state) ? !!state.showOverlay : undefined },
       // PERF (deferred-1): see helpers.js / serializePattern.
       pattern: (window.PatternIO ? window.PatternIO.serializePattern(pat, state.threadBrand) : pat.map(function(m) { return m.id === "__skip__" ? { id: "__skip__" } : { id: m.id, type: m.type, rgb: m.rgb }; })),
       bsLines: state.bsLines, done: state.done ? Array.from(state.done) : null,
@@ -14576,7 +14582,7 @@ window.useProjectIO = function useProjectIO(state, history, options) {
     state.minSt, state.arLock, state.ar, state.fabricCt, state.skeinPrice, state.stitchSpeed,
     state.exactPixelArt, state.smooth, state.smoothType, state.orphans, state.bsLines, state.done,
     state.parkMarkers, state.totalTime, state.sessions, state.hlRow, state.hlCol,
-    state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends,
+    state.threadOwned, state.img, state.partialStitches, state.specialtyStitches, state.knots, state.projectName, state.allowBlends, state.maxBlends,
     state.projectDesigner, state.projectDescription, state.namePromptShown, state.nameAutoGenerated,
     state.symbolOverrides, state.fabricColour, state.overlayOpacity, state.showOverlay, state.isActive,
   ]);
@@ -14742,7 +14748,7 @@ var PREVIEW_CHANGE_LABELS = [
   [['bri'], 'Brightness'], [['con'], 'Contrast'], [['sat'], 'Saturation'],
   [['smooth', 'smoothType'], 'Soften grainy photos'], [['preSharpen', 'preSharpenAmount'], 'Sharpen details'],
   [['maxC'], 'Threads (max)'], [['dith', 'dithMode', 'dithStrength', 'dithAlgo', 'dithBayerSize'], 'Shading'],
-  [['allowBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
+  [['allowBlends', 'maxBlends'], 'Blends'], [['minSt'], 'Min stitches per colour'],
   [['skipBg', 'bgCol', 'bgTh'], 'Background'], [['stitchCleanup', 'orphans'], 'Tidying'],
   [['disambig', 'disambigLevel'], 'Look-alike colours'], [['stashConstrained', 'stashCount'], 'Stash'],
   [['convertBrand'], 'Thread brand'], [['seed', 'subset'], 'Variation']
@@ -14914,7 +14920,7 @@ window.usePreview = function usePreview(state) {
         var o = {
           maxC: settings.maxC, dith: settings.dith, dithStrength: settings.dithStrength,
           dithAlgo: settings.dithAlgo, dithBayerSize: settings.dithBayerSize,
-          allowBlends: settings.allowBlends, allowedPalette: settings.allowedPalette,
+          allowBlends: settings.allowBlends, maxBlends: settings.maxBlends, allowedPalette: settings.allowedPalette,
           skipBg: settings.skipBg, bgCol: settings.bgCol, bgTh: settings.bgTh,
           stitchCleanup: settings.stitchCleanup, orphans: settings.orphans,
           minSt: settings.minSt, seed: settings.seed,
@@ -15412,7 +15418,7 @@ window.usePreview = function usePreview(state) {
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, allowedPalette: pool,
+      allowBlends: s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
@@ -21431,6 +21437,8 @@ window.CreatorSidebar = function CreatorSidebar() {
       hint(gen.allowBlends
         ? "On: smoother shading, but more chart symbols to follow and two threads in some needles."
         : "Off: every stitch is one thread, so there are fewer symbols, but shading is coarser.", { className: "cs-toolsec__hint convert-blend-effect" }),
+      gen.allowBlends && h(SliderRow, { label: "Blend recipes (max)", value: gen.maxBlends, min: 0, max: 100, step: 1,
+        onChange: gen.setMaxBlends, helpText: "Limits extra two-thread combinations, independently of threads to buy. Default 12. Conversion keeps useful blends with fewer confetti stitches and stays within the printed symbol limit. Manual palette additions are not removed." }),
       window.BlendHelpNote && h(window.BlendHelpNote, { showSetting: false }),
       gen.blendsAutoDisabled && hint("Turned off: your stash has fewer than 6 threads.")
     );

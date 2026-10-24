@@ -238,6 +238,8 @@ self.onmessage = function(e) {
       }
     }
 
+    limited = limitGeneratedBlends(mapped, raw, width, height, p, settings.maxBlends) || limited;
+
     // The finished chart's confetti (runCleanupPipeline's confettiFinal):
     // look-alike separation and the thread limit can change stitches after
     // Reduce confetti was measured.

@@ -46,7 +46,7 @@
     return {
       maxC: values.maxC != null ? values.maxC : s.maxC,
       dith: s.dith, dithStrength: s.dithStrength, dithAlgo: s.dithAlgo, dithBayerSize: s.dithBayerSize,
-      allowBlends: s.allowBlends, allowedPalette: pool,
+      allowBlends: s.allowBlends, maxBlends: s.maxBlends, allowedPalette: pool,
       skipBg: s.skipBg, bgCol: s.bgCol, bgTh: s.bgTh,
       minSt: s.minSt, smooth: s.smooth, smoothType: s.smoothType,
       stitchCleanup: s.stitchCleanup, orphans: s.orphans, seed: s.seed,
