@@ -760,7 +760,7 @@
       h('h1', { id: 'home-hero-title', className: 'home-hero__title' }, 'Make, follow and track cross-stitch patterns.'),
       h('p', { className: 'home-hero__lede' }, 'Turn a picture into a pattern, stitch from a chart you already own, and keep count of every stitch and every skein.'),
       h('ul', { className: 'home-hero__trust' },
-        ['Free, no account needed', 'Saves automatically on this device', 'Your files are never uploaded'].map(function (t) {
+        ['Free, no account needed', 'Saves automatically on this device', 'Nothing is uploaded unless you turn on sync'].map(function (t) {
           return h('li', { key: t }, h('span', { 'aria-hidden': 'true' }, icon('check')), t);
         })
       )

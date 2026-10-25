@@ -1,13 +1,40 @@
 # Cross-Device Sync Guide
 
-Keep your projects in step across devices — design on a laptop, stitch on a tablet. Sync needs no account: it travels through a folder your cloud drive already syncs, or through files you move yourself.
+Keep your projects in step across devices — design on a laptop, stitch on a tablet. Sync needs no account: pair your devices with a code, or move changes through a folder your cloud drive already syncs, or through files you move yourself.
 
 ## Overview
 
 | Method | How it works | Where it works |
 |--------|--------------|----------------|
+| **Pairing sync** | Pair devices with a code once; changes travel, encrypted, through the stitchx sync relay while the app is open | Every browser, including iPhone and iPad |
 | **Folder sync** | The app writes and reads `.csync` files in a cloud-synced folder automatically | Desktop Chrome and Edge (and other Chromium browsers with folder access) |
 | **Sync by file** | You export a `.csync` file and import it on the other device | Every browser, including iPhone and iPad |
+
+## Pairing sync
+
+The easiest set-up, and the only automatic one that works on iPhone and iPad without a server of your own.
+
+### Pair two devices
+
+1. On the first device, open **File > Preferences > Sync, backup & data** and, under **Sync by pairing**, press **Show a pairing code**. A QR code and a code like `ABCD-EFGH-JKMN` appear.
+2. On the other device, open the same place and press **Enter a pairing code**. Scan the QR code with **Scan the QR code**, or type the code. Scan it inside stitchx, not with the Camera app: on iPad, the Camera app opens Safari, which keeps its data separate from the Home Screen app.
+3. The dialog on the first device shows when the other device has joined. To add a third device, show a code again on either paired device.
+
+The code works for 10 minutes. Anyone with it can join, so only show it to your own devices.
+
+### How it works
+
+- Each device sends its projects, encrypted on the device, to the stitchx sync relay. Only your paired devices hold the key; the relay cannot read your projects.
+- While stitchx is open, each device checks for the others' changes about every 90 seconds and whenever you come back to it. Your changes are sent shortly after you make them, at most every 5 minutes while you keep stitching, and when you switch away from the app or close it.
+- **Sync now** in the cloud popover sends and checks straight away. The popover also shows when this device last sent and received changes.
+- Changes merge exactly as they do with folder sync, and conflicts wait in **Review sync**.
+
+### Good to know
+
+- Up to 10 devices can be paired together.
+- Libraries over 4 MB cannot sync this way. That usually only happens with **Source photos** on in **What to sync**; turn it off, or use folder or file sync.
+- If none of your devices syncs for 30 days, the relay deletes its copies. Your devices keep their own, and send them again the next time you open stitchx.
+- **Unpair** stops a device syncing and removes its copy from the relay. Its projects stay on the device, and your other devices keep syncing.
 
 ## Method 1: Folder Sync
 

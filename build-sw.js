@@ -38,7 +38,7 @@ for (const url of required) {
 }
 // These features are not needed to open and edit/track a project. Still bind
 // their bytes to this build so first use after a deployment cannot mix versions.
-for (const url of ['./embroidery.html', './embroidery.js', './assets/fontkit.umd.min.js', './pdf-export-worker.js', './creator/symbolFontSpec.js', './creator/pdfChartLayout.js']) addLocal(url);
+for (const url of ['./embroidery.html', './embroidery.js', './assets/fontkit.umd.min.js', './assets/qrcode-generator.js', './assets/jsqr.js', './pdf-export-worker.js', './creator/symbolFontSpec.js', './creator/pdfChartLayout.js']) addLocal(url);
 // Optional PDF export library is pinned, separate from the core offline set.
 const pinnedIntegrity = {
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs': 'sha384-ZCFxELU1bvPx4evkYZ+4CxkApXPjaMxGVdWGuBjqwJe5aBdx8oSItpalx5V4e5Yh',

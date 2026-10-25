@@ -665,7 +665,9 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
   // WebDAV connection) has to send its work by hand. Once it has synced at
   // least once, say when there is work its other devices have not seen.
   const webdavConnected = !!(window.WebDAVSync && window.WebDAVSync.getStatus().connected);
-  const fileSyncUnsent = !!(syncStatus && !syncStatus.hasWatchDir && !webdavConnected
+  // Pairing sync (relay-sync.js) sends and receives by itself while open.
+  const relayStatus = (window.SyncRelay && window.SyncRelay.isPaired()) ? window.SyncRelay.getStatus() : null;
+  const fileSyncUnsent = !!(syncStatus && !syncStatus.hasWatchDir && !webdavConnected && !relayStatus
     && syncStatus.hasUnsentChanges && (syncStatus.lastExportAt || syncStatus.lastImportAt));
 
   function handleReconnectFolder() {
@@ -986,6 +988,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
               }
               var parts = [];
+              if (relayStatus) parts.push('Paired sync: ' + relayStatus.message);
               if (fileSyncUnsent) parts.push('Changes on this device not shared yet');
               if (window.WebDAVSync) parts.push('WebDAV: ' + window.WebDAVSync.getStatus().message);
               if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
@@ -997,6 +1000,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             (function() {
               if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
               if (window.WebDAVSync && window.WebDAVSync.getStatus().connected) return Icons.cloudSync();
+              if (relayStatus) return relayStatus.state === 'idle' ? Icons.cloudCheck() : Icons.cloudSync();
               if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
               if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
               // A tick would claim this device is up to date when it is not.
@@ -1025,6 +1029,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               (function() {
                 if (syncStatus && syncStatus.protocol && ['pending','failed','conflicted'].indexOf(syncStatus.protocol.state) >= 0) return Icons.cloudSync();
                 if (window.WebDAVSync && window.WebDAVSync.getStatus().connected) return Icons.cloudSync();
+                if (relayStatus) return relayStatus.state === 'idle' ? React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck()) : Icons.cloudSync();
                 if (!syncStatus || !syncStatus.hasWatchDir) return Icons.cloudOff();
                 if (syncStatus.autoSync) return React.createElement('span', { style: { color: 'var(--success)' } }, Icons.cloudCheck());
                 return React.createElement('span', { style: { color: 'var(--accent)' } }, Icons.cloudSync());
@@ -1046,9 +1051,18 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 // "set one up" is an instruction the user cannot carry out.
                 // Describe the workflow that does work on this device instead.
                 var noFolderText = (window.Platform && window.Platform.isIOS())
-                  ? 'You can connect WebDAV in Preferences for foreground sync, or sync by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
-                  : 'No sync folder connected. Set one up in Preferences > Sync, backup & data to sync across devices.';
-                if (!webdavConnected) {
+                  ? 'To sync automatically, pair this device with your others in Preferences > Sync, backup & data. Or sync by file: use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
+                  : 'Not syncing yet. Pair your devices, or connect a sync folder, in Preferences > Sync, backup & data.';
+                if (relayStatus) {
+                  rows.push(React.createElement('div', { key: 'relay', className: 'sync-popover-row' + (relayStatus.state === 'idle' ? ' sync-popover-row--ok' : (/conflict|too-large|unpaired|retrying/.test(relayStatus.state) ? ' sync-popover-row--warn' : '')), role: 'status' },
+                    /conflict|too-large|unpaired|retrying/.test(relayStatus.state) ? Icons.warning() : Icons.cloudSync(),
+                    React.createElement('span', null, 'Paired sync: ' + relayStatus.message)
+                  ));
+                  if (relayStatus.lastUploadAt) rows.push(React.createElement('div', { key: 'relay-sent', className: 'sync-popover-row' },
+                    Icons.cloudSync(), React.createElement('span', null, 'Last sent: ' + new Date(relayStatus.lastUploadAt).toLocaleString('en-GB'))));
+                  if (relayStatus.lastDownloadAt) rows.push(React.createElement('div', { key: 'relay-received', className: 'sync-popover-row' },
+                    Icons.cloudSync(), React.createElement('span', null, 'Last received: ' + new Date(relayStatus.lastDownloadAt).toLocaleString('en-GB'))));
+                } else if (!webdavConnected) {
                   rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
                     Icons.cloudOff(),
                     React.createElement('span', null, noFolderText)
@@ -1088,6 +1102,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   Icons.folder(),
                   React.createElement('span', null, folderName)
                 ));
+                if (relayStatus) rows.push(React.createElement('div', { key: 'relay', className: 'sync-popover-row', role: 'status' },
+                  Icons.cloudSync(), React.createElement('span', null, 'Paired sync: ' + relayStatus.message)));
                 // Permission loss stops both directions dead — lead with it.
                 if (permissionNeeded) {
                   rows.push(React.createElement('div', { key: 'perm', className: 'sync-popover-row sync-popover-row--warn' },
@@ -1165,6 +1181,10 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   }
                 }
               }, Icons.cloudSync(), 'Export now'),
+              relayStatus && React.createElement('button', {
+                className: 'sync-popover-btn sync-popover-btn--primary',
+                onClick: () => { setSyncPopoverOpen(false); window.SyncRelay.syncNow(); }
+              }, Icons.cloudSync(), 'Sync now'),
               // Without a watch folder the popover previously offered import
               // but no way to send — which on iPad, where a folder can never
               // be connected, meant half the workflow was missing from the
@@ -1174,7 +1194,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 // On desktop the better next step is still connecting a
                 // folder, so this stays a secondary action there.
                 className: 'sync-popover-btn'
-                  + ((window.Platform && window.Platform.isIOS()) ? ' sync-popover-btn--primary' : ''),
+                  + ((window.Platform && window.Platform.isIOS() && !relayStatus) ? ' sync-popover-btn--primary' : ''),
                 onClick: () => {
                   setSyncPopoverOpen(false);
                   if (typeof SyncEngine === 'undefined') return;

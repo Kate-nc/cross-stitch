@@ -839,11 +839,14 @@ const SyncEngine = (() => {
     // (download buttons, folder writers) can prompt without having to
     // sniff the message string. The plaintext envelope fields are kept
     // visible — see the rationale block above _encryptSyncObj.
-    if (isEncryptionEnabled()) {
-      if (!_sessionPassphrase) throw EncryptionError("passphrase_required", "Encryption is enabled but no passphrase has been set this session");
+    // opts.encryptWith: a transport's own key (the sync relay) replaces the
+    // user's folder passphrase and is used whatever the folder setting.
+    var encryptWith = opts.encryptWith || (isEncryptionEnabled() ? _sessionPassphrase : null);
+    if (opts.encryptWith || isEncryptionEnabled()) {
+      if (!encryptWith) throw EncryptionError("passphrase_required", "Encryption is enabled but no passphrase has been set this session");
       var encrypted;
       try {
-        encrypted = await _encryptSyncObj(syncObj, _sessionPassphrase);
+        encrypted = await _encryptSyncObj(syncObj, encryptWith);
       } catch (e) {
         if (e && e.name === "EncryptionError") throw e;
         throw EncryptionError("unavailable", (e && e.message) || "Encryption failed");
@@ -1217,6 +1220,12 @@ const SyncEngine = (() => {
       try { localStorage.setItem(LS_SENT_CHANGE_REV, String(coversChangeRev)); } catch (e) {}
     }
     _setProtocolState('completed','Sync file handed to the transport; receipt by another device is not confirmed.','export');
+  }
+
+  // For transports that deliver exportSync() output themselves (the sync
+  // relay): record the delivery exactly as a folder or file export does.
+  function markDelivered(syncObj) {
+    if (syncObj) _markExportComplete(syncObj._createdAt, syncObj._coversChangeRev);
   }
 
   function _notifyStatusChanged(reason) {
@@ -3360,7 +3369,12 @@ const SyncEngine = (() => {
   // options.origin === "import": the write came from applying another
   // device's sync file, so it is not this device's unshared work.
   function triggerAutoExport(options) {
-    if (!(options && options.origin === SYNC_ORIGIN_IMPORT)) _noteLocalChange();
+    if (!(options && options.origin === SYNC_ORIGIN_IMPORT)) {
+      _noteLocalChange();
+      // The sync relay sends this device's own changes; imported ones are
+      // already on the device they came from.
+      if (window.SyncRelay && window.SyncRelay.changed) { try { window.SyncRelay.changed(); } catch (_) {} }
+    }
     if (window.WebDAVSync) window.WebDAVSync.changed();
     if (!isAutoSyncEnabled()) return;
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
@@ -4244,7 +4258,9 @@ const SyncEngine = (() => {
         webdavConnected: !!(window.WebDAVSync && window.WebDAVSync.getStatus && window.WebDAVSync.getStatus().connected),
         lastImportAt: lastImportAt
       });
-      if (!due || !window.Toast || !window.Toast.show || !window.UnifiedSyncImportModal) return false;
+      // A paired relay brings changes in by itself.
+    if (window.SyncRelay && window.SyncRelay.isPaired && window.SyncRelay.isPaired()) return false;
+    if (!due || !window.Toast || !window.Toast.show || !window.UnifiedSyncImportModal) return false;
       try { sessionStorage.setItem("cs_sync_importReminded", "1"); } catch (e) {}
       var when = new Date(lastImportAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
       window.Toast.show({
@@ -4520,6 +4536,8 @@ const SyncEngine = (() => {
 
   return {
     receiveAutomatic: receiveAutomatic,
+    markDelivered: markDelivered,
+    getLocalChangeRev: function () { return _readNum(LS_LOCAL_CHANGE_REV); },
     // Export
     exportSync: exportSync,
     downloadSync: downloadSync,
