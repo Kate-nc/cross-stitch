@@ -71,7 +71,7 @@ Works in any browser, and is the way to sync on iPhone and iPad, whose browsers 
 ### Export
 
 - **Desktop:** **File > Export Sync (.csync)** downloads a `.csync` file.
-- **iPhone / iPad:** **Share sync file** in the cloud icon's menu opens the share sheet — save it straight into OneDrive, Dropbox or Files.
+- **iPhone / iPad:** **Share sync file** in the cloud icon's menu opens the share sheet — save it straight into OneDrive, Dropbox or Files. The file always has the same name for this device, so saving it into the same folder replaces the previous copy.
 
 ### Move the file
 
@@ -87,6 +87,13 @@ Projects and progress are merged in the same way as folder sync, with a review s
 ### iPad with a desktop computer
 
 The smoothest set-up: put the sync folder inside OneDrive (or another cloud drive) on the computer and use folder sync there. On the iPad, use **Share sync file** to save into that same folder, and **Import file** to pick up the computer's file. **Preferences > Sync, backup & data** shows these steps on an iPad.
+
+The app helps you keep up:
+
+- A **dot on the cloud icon** means this device has changes your other devices have not seen yet. Share a sync file to send them.
+- The cloud popover shows when you **last sent** and **last received** a sync file.
+- When you open the app and your last import is more than 12 hours old, it offers to **import** the latest file. Turn this off with **Remind me to import** in **Preferences > Sync, backup & data**.
+- In a Safari tab, the popover reminds you to **add stitchx to your Home Screen**. iPadOS can clear a Safari tab's data after a week without a visit; the Home Screen app keeps it.
 
 ---
 

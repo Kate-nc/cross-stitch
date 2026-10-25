@@ -661,6 +661,12 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
     && syncStatus.lastExportAt
     && (Date.now() - new Date(syncStatus.lastExportAt).getTime()) > SYNC_STALE_EXPORT_MS);
   const showSyncBadge = (pendingConflicts > 0 && !reviewOpen) || permissionNeeded;
+  // A device that syncs by file (every iPad, and desktops with no folder or
+  // WebDAV connection) has to send its work by hand. Once it has synced at
+  // least once, say when there is work its other devices have not seen.
+  const webdavConnected = !!(window.WebDAVSync && window.WebDAVSync.getStatus().connected);
+  const fileSyncUnsent = !!(syncStatus && !syncStatus.hasWatchDir && !webdavConnected
+    && syncStatus.hasUnsentChanges && (syncStatus.lastExportAt || syncStatus.lastImportAt));
 
   function handleReconnectFolder() {
     if (typeof SyncEngine === 'undefined' || !SyncEngine.requestFolderPermission) return;
@@ -956,7 +962,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             className: 'tb-nav-link tb-sync-indicator' + (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync
               ? ' tb-sync-indicator--active'
               : (syncStatus && syncStatus.hasWatchDir ? ' tb-sync-indicator--folder' : ''))
-              + (showSyncBadge ? ' tb-sync-indicator--has-pending' : ''),
+              + (showSyncBadge ? ' tb-sync-indicator--has-pending' : '')
+              + (!showSyncBadge && fileSyncUnsent ? ' tb-sync-indicator--unsent' : ''),
             onClick: () => {
               // Pending conflicts: open the review gate directly (highest priority).
               if (showSyncBadge && window.SyncReviewGate && typeof window.SyncReviewGate.open === 'function') {
@@ -972,13 +979,14 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
             },
             'aria-label': showSyncBadge
               ? ('Sync \u2014 ' + pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending')
-              : 'Sync status',
+              : (fileSyncUnsent ? 'Sync status \u2014 changes not shared yet' : 'Sync status'),
             'aria-expanded': syncPopoverOpen ? 'true' : 'false',
             title: (function() {
               if (showSyncBadge) {
                 return pendingConflicts + ' conflict' + (pendingConflicts === 1 ? '' : 's') + ' pending review';
               }
               var parts = [];
+              if (fileSyncUnsent) parts.push('Changes on this device not shared yet');
               if (window.WebDAVSync) parts.push('WebDAV: ' + window.WebDAVSync.getStatus().message);
               if (syncStatus && syncStatus.hasWatchDir) parts.push('Sync folder connected' + (syncStatus.autoSync ? ' (auto-sync on)' : ''));
               if (syncStatus && syncStatus.lastExportAt) parts.push('Last export: ' + new Date(syncStatus.lastExportAt).toLocaleString('en-GB'));
@@ -991,13 +999,18 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
               if (window.WebDAVSync && window.WebDAVSync.getStatus().connected) return Icons.cloudSync();
               if (syncStatus && syncStatus.hasWatchDir && syncStatus.autoSync) return Icons.cloudCheck();
               if (syncStatus && syncStatus.hasWatchDir) return Icons.cloudSync();
+              // A tick would claim this device is up to date when it is not.
+              if (fileSyncUnsent) return Icons.cloudSync();
               if (syncStatus && (syncStatus.lastExportAt || syncStatus.lastImportAt)) return Icons.cloudCheck();
               return Icons.cloudOff();
             })(),
             showSyncBadge ? React.createElement('span', {
               className: 'tb-sync-indicator-badge',
               'aria-hidden': 'true'
-            }) : null
+            }) : (fileSyncUnsent ? React.createElement('span', {
+              className: 'tb-sync-indicator-badge tb-sync-indicator-badge--unsent',
+              'aria-hidden': 'true'
+            }) : null)
           ),
 
           // ── Status popover ──────────────────────────────────────────────
@@ -1035,10 +1048,40 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 var noFolderText = (window.Platform && window.Platform.isIOS())
                   ? 'You can connect WebDAV in Preferences for foreground sync, or sync by file. Use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
                   : 'No sync folder connected. Set one up in Preferences > Sync, backup & data to sync across devices.';
-                if (!(window.WebDAVSync && window.WebDAVSync.getStatus().connected)) rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
-                  Icons.cloudOff(),
-                  React.createElement('span', null, noFolderText)
-                ));
+                if (!webdavConnected) {
+                  rows.push(React.createElement('div', { key: 'no-folder', className: 'sync-popover-row' },
+                    Icons.cloudOff(),
+                    React.createElement('span', null, noFolderText)
+                  ));
+                  // Syncing by file: the timestamps are the only way to tell
+                  // what the other devices have, so show them here too.
+                  if (fileSyncUnsent) {
+                    rows.push(React.createElement('div', { key: 'unsent', className: 'sync-popover-row sync-popover-row--warn' },
+                      Icons.warning(),
+                      React.createElement('span', null, 'This device has changes your other devices have not seen yet. Share a sync file to send them.')
+                    ));
+                  }
+                  if (syncStatus && syncStatus.lastExportAt) {
+                    rows.push(React.createElement('div', { key: 'file-export', className: 'sync-popover-row' },
+                      Icons.cloudSync(),
+                      React.createElement('span', null, 'Last sent: ' + new Date(syncStatus.lastExportAt).toLocaleString('en-GB'))
+                    ));
+                  }
+                  if (syncStatus && syncStatus.lastImportAt) {
+                    rows.push(React.createElement('div', { key: 'file-import', className: 'sync-popover-row' },
+                      Icons.cloudSync(),
+                      React.createElement('span', null, 'Last received: ' + new Date(syncStatus.lastImportAt).toLocaleString('en-GB'))
+                    ));
+                  }
+                }
+                // In a Safari tab iPadOS can clear everything after a week
+                // without a visit, and the toast that says so is easy to miss.
+                if (window.Platform && window.Platform.isIOS() && !window.Platform.isStandalone()) {
+                  rows.push(React.createElement('div', { key: 'home-screen', className: 'sync-popover-row sync-popover-row--warn' },
+                    Icons.warning(),
+                    React.createElement('span', null, 'Add stitchx to your Home Screen so iPadOS keeps your projects: in Safari, tap Share, then Add to Home Screen, and open it from there.')
+                  ));
+                }
               } else {
                 var folderName = (syncStatus.watchDirName) || 'Sync folder';
                 rows.push(React.createElement('div', { key: 'folder', className: 'sync-popover-row sync-popover-row--ok' },
@@ -1148,16 +1191,7 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                 className: 'sync-popover-btn',
                 onClick: () => {
                   setSyncPopoverOpen(false);
-                  if (window.UnifiedSyncImportModal && typeof window.UnifiedSyncImportModal.show === 'function') {
-                    window.UnifiedSyncImportModal.show().then(function(res) {
-                      if (!res || !res.plan) return;
-                      if (typeof window.SyncReviewGate !== 'undefined') {
-                        window.SyncReviewGate.open(res.plan, { autoTrigger: false });
-                      }
-                    }).catch(function(err) {
-                      if (window.Toast) window.Toast.show({ message: 'Sync import failed: ' + (err && err.message || err), type: 'error' });
-                    });
-                  }
+                  if (SyncEngine.openImportFlow) SyncEngine.openImportFlow();
                 }
               }, Icons.folder(), 'Import file'),
               typeof window !== 'undefined' && window.SyncReviewGate && React.createElement('button', {

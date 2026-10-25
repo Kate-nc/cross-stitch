@@ -996,6 +996,10 @@
       try { return (window.SyncEngine && window.SyncEngine.getDeviceName) ? (window.SyncEngine.getDeviceName() || "") : ""; }
       catch (_) { return ""; }
     });
+    var importReminder = useState(function () {
+      try { return !(window.SyncEngine && window.SyncEngine.isImportReminderEnabled) || window.SyncEngine.isImportReminderEnabled(); }
+      catch (_) { return true; }
+    });
 
     useEffect(function () {
       function refresh() {
@@ -1300,8 +1304,19 @@
         // never do anything there. Explain the workflow that does work before
         // the user hits two permanently greyed-out buttons.
         isIOSDevice ? h(Row, { label: "How to sync this iPad",
-          desc: "Put your sync folder in OneDrive on your computer. On this iPad: tap \"Export Sync\" in the File menu, then Share and save into that same OneDrive folder. Your computer picks it up on its own. Coming back the other way, use \"Import Sync\" and choose the newest file from OneDrive." },
+          desc: "Put your sync folder in OneDrive (or another cloud drive) on your computer. On this iPad: tap the cloud icon, then Share sync file, and save into that same folder. This iPad always uses the same file name, so each copy replaces the last one, and your computer picks it up on its own. Coming back the other way, tap Import file and choose your computer's file from that folder. The cloud icon shows a dot when this iPad has changes you have not shared yet." },
           h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "By file")
+        ) : null,
+        !folderSupported ? h(Row, { label: "Remind me to import",
+          desc: "When you open the app and your last import is more than 12 hours old, offer to import the latest sync file from your other devices." },
+          h(Switch, {
+            checked: !!importReminder[0],
+            onChange: function (next) {
+              var on = !!next;
+              if (window.SyncEngine && window.SyncEngine.setImportReminderEnabled) window.SyncEngine.setImportReminderEnabled(on);
+              importReminder[1](on);
+            }
+          })
         ) : null,
         h(Row, { label: "Pair another device",
           desc: isIOSDevice

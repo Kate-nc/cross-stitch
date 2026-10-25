@@ -3621,6 +3621,9 @@ kbd {
   box-shadow: 0 0 0 2px var(--surface, #fff);
   pointer-events: none;
 }
+/* Unshared-changes dot for devices that sync by file. Accent, not danger:
+   nothing is wrong, there is just work to send. */
+.tb-sync-indicator-badge--unsent { background: var(--accent); }
 
 /* ── Sync status popover (header cloud button) ───────────────────────── */
 .sync-popover-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }

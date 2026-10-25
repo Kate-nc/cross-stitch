@@ -424,7 +424,7 @@
             ["Older sync files", "Version-1 files still open, but cannot prove attachment completeness. New files use version 2: update every device before exchanging them. Without removal history, empty or missing marks do not mean unpicked. Update every device for reliable unpicking; older apps cannot preserve the new removal history."],
             ["Notes and parking", "Notes, session edits and parking changes retain removal and edit history. Concurrent incompatible edits need an explicit choice; timestamps do not decide which text survives."],
             ["Conflicts", "Different chart structures, concurrent notes and incompatible stash baselines need review. Consumption events merge once with the selected stash baseline. Deleted projects stay deleted until you explicitly restore them, even if another device has a later clock."],
-            ["iPad and iPhone", "These browsers cannot watch a folder. Use Share sync file and Import file in the cloud popover to move changes by hand."]
+            ["iPad and iPhone", "These browsers cannot watch a folder. Use Share sync file and Import file in the cloud popover to move changes by hand. Each shared file has the same name, so saving it into your sync folder replaces the last copy. A dot on the cloud icon means this device has changes you have not shared yet, and the popover shows when you last sent and received. When your last import is more than 12 hours old, the app offers to import when you open it; turn this off in Preferences > Sync, backup & data."]
           ]
         },
         {
