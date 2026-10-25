@@ -789,6 +789,13 @@ window.Icons = (function() {
     rotateCcw: function() {
       return svg(p('M4 12a8 8 0 1 0 2.34-5.66'), pl('4 4 4 9 9 9'));
     },
+    // List size toggle in the Tracker colour list: two tall rows (comfortable) and four thin lines (compact).
+    listComfortable: function() {
+      return svg16(rc(4, 4, 16, 7, 1.5), rc(4, 13, 16, 7, 1.5));
+    },
+    listCompact: function() {
+      return svg16(l(4, 6, 20, 6), l(4, 10, 20, 10), l(4, 14, 20, 14), l(4, 18, 20, 18));
+    },
     settings: function() {
       return svg(
         c(12,12,3),
