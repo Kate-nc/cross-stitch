@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "22ea312443602509abaa4deb147cdd1165e55748f0a0cf71b3bd2f57332c45a4";
+var BUILD_ID = "e88e4ba47dff1822202728c748ed10ab11ff162c13c42a24d771a7ce9b9a92b6";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -320,7 +320,7 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "4165ea7ae562230b82a60b34f4840d5f272bd9d006a0ca86acf1fb56f5b08731"
+    "sha256": "f992201e4d06c89fe2b0922e56ff32d592d9a6b8dae1584dcbb1c5517958ec3b"
   },
   "./version.js": {
     "sha256": "94fa6b3b5c4e0b50686609026ec1e664795a7476a3a238377f8e863a4ba1f20b"

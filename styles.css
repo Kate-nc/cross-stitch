@@ -4277,7 +4277,7 @@ html.pref-dark .sidebar { background: var(--surface) !important; color: var(--te
 html.pref-dark input,
 html.pref-dark select,
 html.pref-dark textarea,
-html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch) {
+html.pref-dark button:not(.btn-primary):not([data-pref-modal] *):not(.ppal-tile-swatch):not(.ppal-size-btn) {
   background: var(--surface-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border) !important;
 }
 html.pref-dark a { color: var(--accent); }

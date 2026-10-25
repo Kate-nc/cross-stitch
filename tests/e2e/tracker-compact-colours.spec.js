@@ -87,3 +87,19 @@ test('in the compact list the selected colour\'s card holds Mark all done, which
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test.describe('dark theme', () => {
+  test.use({ colorScheme: 'dark' });
+
+  test('the selected list size looks different from the other one', async ({ page }) => {
+    await openTracker(page);
+    await expect(page.locator('html')).toHaveClass(/pref-dark/);
+    const look = (name) => page.getByRole('button', { name }).evaluate(b => { const s = getComputedStyle(b); return s.backgroundColor + ' ' + s.color; });
+    await page.getByRole('button', { name: 'Compact list' }).click();
+    await expect(page.getByRole('button', { name: 'Compact list' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await look('Compact list')).not.toBe(await look('Comfortable list'));
+    await page.getByRole('button', { name: 'Comfortable list' }).click();
+    await expect(page.getByRole('button', { name: 'Comfortable list' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await look('Comfortable list')).not.toBe(await look('Compact list'));
+  });
+});
