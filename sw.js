@@ -141,7 +141,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "acd5db051354243391da24c501458610d35be29dcb0dbee786899949d54a99b9";
+var BUILD_ID = "56e196a418cf62a52931b5b41d61330f113cc544262eb4690b1753988abee6c3";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -401,7 +401,7 @@ var BUILD_ASSETS = {
     "sha256": "ee35e3e194037dc9bdc9c74591fd4945db28fe3df53aea0398e9703f768fb0f8"
   },
   "./header.js": {
-    "sha256": "8a851fb51abebb9dffbe580d1353d11b2989b1148728e2d9f08e05a8d8b3c562"
+    "sha256": "d69ec0a18a53bd7690a5e1b8e14e3f1ae2acd5e925e2c46cf7d0549f88e85b90"
   },
   "./modals.js": {
     "sha256": "29d6fb7f1db9a638c923f52629dfff8d6b5a9cc77442acfceeaa957dc3533790"
@@ -575,7 +575,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "029b255595da11093e1a7bbfa4ffb2f1df80dff7e238e001d95af8799ac4a45b"
+    "sha256": "59d65ca3270dd48b28f1474f8f2615a37ac13fe983f2ebc1603ff7ee3d43686f"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
@@ -638,7 +638,7 @@ var BUILD_ASSETS = {
     "sha256": "370fc0640b77d07fd2d307d6071c822719ea7bee5721968db4e63f8ad9c963f8"
   },
   "./relay-sync.js": {
-    "sha256": "a9e1382697ebb76cc4f69205a9e462bf6bea51b431c3956fdc4d890fe46ecc59"
+    "sha256": "f8d66513fa882219dfeaa905c351cc3f00c1e6367fa0f078d7a20ee7361b04af"
   },
   "./apply-prefs.js": {
     "sha256": "a8346e4d9ed2ee8d74714f8bf048a3a53365e195c620eb5473e5af35a7801c62"
@@ -653,7 +653,7 @@ var BUILD_ASSETS = {
     "sha256": "939ac378ce06c86a18c8e42cefc4907ec8c065edf51cb898eaead75db24a8ae7"
   },
   "./preferences-modal.js": {
-    "sha256": "3525555d705a521764dc18472c5e75e997acd224323e203731df38504554398f"
+    "sha256": "42a621af84c3b97dd36890c055364c9bde92d554a685e1f62ebb3e7e32a6a075"
   },
   "./coaching.js": {
     "sha256": "fdd2a7cea5a5780f52b6c3f5e240344d3dabe1faa6a4d8f2ad76db47f319ab4c"

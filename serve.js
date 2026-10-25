@@ -13,8 +13,8 @@ const ROOT = __dirname;
 // The sync relay function (api/relay.js), backed by Upstash when its
 // environment variables are set and by an in-memory store otherwise.
 const relay = require('./api/relay.js');
-const relayStores = require('./api/_relay-store.js');
-const relayStore = relayStores.upstashStore(process.env) || relayStores.memoryStore();
+const relayStore = require('./api/_relay-store.js').upstashStore(process.env)
+  || require('./api/_relay-memory-store.js').memoryStore();
 function acceptsGzipValue(headerValue) {
   if (!headerValue) return false;
   for (const part of headerValue.split(',')) {

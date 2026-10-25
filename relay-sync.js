@@ -25,10 +25,15 @@
 
   var ENDPOINT = 'api/relay';
   var LS_STATE = 'cs_relay_v1';        // { space, key, pairedAt }
-  // { space, sentRev, seen: {device: etag}, lastUploadAt, lastDownloadAt, hadPartner }
+  // { space, sentRev, seen: {device: etag}, lastUploadAt, lastDownloadAt,
+  //   hadPartner, ownEtag, pendingEtag }
   // hadPartner: this device knows another device shares the space (it joined
   // one, or has seen another device's file). Until then it does not upload:
   // a code shown but never used should not put a library on the relay.
+  // ownEtag: the version of this device's file it last wrote. pendingEtag: the
+  // version of an upload whose answer has not arrived yet. Anything else in
+  // this device's slot was written by another browser using the same device
+  // identity (a copied browser profile), which must not be overwritten blindly.
   var LS_PROGRESS = 'cs_relay_progress_v1';
   var POLL_MS = 90000, CHANGE_DELAY_MS = 30000, UPLOAD_COOLDOWN_MS = 5 * 60000, CYCLE_TIMEOUT_MS = 45000;
   var MAX_FILE = 4 * 1024 * 1024;
@@ -142,10 +147,11 @@
   }
 
   // ── Sync loop ────────────────────────────────────────────────────────────
-  var running = null, timer = null, controller = null, paused = false, failures = 0, collisions = 0;
+  var running = null, timer = null, controller = null, paused = false, failures = 0;
   var forceUpload = false, lastUploadStarted = 0;
   var status = { state: 'unpaired', message: 'Not paired. Local work stays on this device.' };
 
+  async function sha256hexOf(bytes) { return hex(await sha256(bytes)); }
   function emit(state, message) {
     status.state = state; status.message = message;
     try { window.dispatchEvent(new CustomEvent('cs:syncStatusChanged', { detail: { reason: 'relay' } })); } catch (_) {}
@@ -155,11 +161,19 @@
     return Object.assign({}, status, { paired: !!state, lastUploadAt: state ? p.lastUploadAt : null, lastDownloadAt: state ? p.lastDownloadAt : null });
   }
   function visible() { return document.visibilityState !== 'hidden' && navigator.onLine !== false; }
-  function stopTimer() { clearTimeout(timer); timer = null; }
+  var timerAt = 0;
+  function stopTimer() { clearTimeout(timer); timer = null; timerAt = 0; }
   function schedule(delay) {
     stopTimer();
-    if (getState() && !paused && visible()) timer = setTimeout(function () { run(); }, delay);
+    if (getState() && !paused && visible()) { timerAt = Date.now() + delay; timer = setTimeout(function () { run(); }, delay); }
   }
+  // Brings the next cycle forward if needed, never pushes it back: a stream of
+  // saves must not keep postponing uploads and checks for other devices' work.
+  function scheduleNoLaterThan(delay) {
+    if (timer && timerAt <= Date.now() + delay) return;
+    schedule(delay);
+  }
+  function uploadWait() { return Math.max(0, UPLOAD_COOLDOWN_MS - (Date.now() - lastUploadStarted)); }
   function localRev() { return (window.SyncEngine && SyncEngine.getLocalChangeRev) ? SyncEngine.getLocalChangeRev() : 0; }
   function needsUpload(p) { return !!p.hadPartner && (forceUpload || localRev() > (p.sentRev || 0) || !p.lastUploadAt); }
 
@@ -185,11 +199,27 @@
       // the key, so whichever comes back first quietly recreates it.
       if (e.code !== 'space-missing') throw e;
       await ensureSpace(state, token, signal);
-      p.seen = {}; forceUpload = true;
+      p.seen = {};
       listing = { devices: {} };
     }
     var devices = listing.devices || {};
     if (!p.hadPartner && Object.keys(devices).some(function (d) { return d !== me; })) { p.hadPartner = true; writeJSON(LS_PROGRESS, p); }
+
+    // Check this device's own slot before anything else.
+    var own = devices[me];
+    if (own) {
+      if (p.pendingEtag && own.etag === p.pendingEtag) {
+        // An upload landed but its answer was lost.
+        p.ownEtag = own.etag; p.pendingEtag = null; writeJSON(LS_PROGRESS, p);
+      } else if (own.etag !== p.ownEtag) {
+        throw err('identity-clash');
+      }
+    }
+    // This device uploaded here before but its file is gone: the space
+    // expired and was recreated, or the file was removed. Send it again in
+    // full even without new local changes, or work the others never received
+    // would stay out of reach. Stays true across reloads until it succeeds.
+    var restore = !own && !!(p.ownEtag || p.lastUploadAt);
 
     // Bring in other devices' changes.
     for (var id of (opts.uploadOnly ? [] : Object.keys(devices).sort())) {
@@ -198,6 +228,7 @@
       var got;
       try { got = await api('get', { token: token, query: { space: state.space, device: id }, signal: signal }); }
       catch (e) { if (e.code === 'no-file') continue; throw e; }
+      var gotTag = /^"([0-9a-f]{64})"$/.exec(got.res.headers.get('ETag') || '');
       var bytes = new Uint8Array(await got.res.arrayBuffer());
       if (bytes.length > MAX_FILE) throw err('too-large');
       var obj = SyncEngine.decompress(bytes.buffer);
@@ -207,23 +238,26 @@
       var result = await SyncEngine.receiveAutomatic(obj, 'relay:' + state.space, function () { return !signal.aborted; });
       if (result === 'cancelled') throw err('cancelled');
       if (result === 'review') break;
-      p.seen[id] = devices[id].etag;
+      // The version actually read, which may be newer than the listing's.
+      p.seen[id] = gotTag ? gotTag[1] : devices[id].etag;
       if (result === 'applied') p.lastDownloadAt = new Date().toISOString();
       writeJSON(LS_PROGRESS, p);
     }
 
     // Send this device's changes.
-    if (needsUpload(p) && (forceUpload || opts.uploadOnly || Date.now() - lastUploadStarted >= UPLOAD_COOLDOWN_MS)) {
+    if (p.hadPartner && (restore || (needsUpload(p) && (forceUpload || opts.uploadOnly || uploadWait() === 0)))) {
       var snapshot = await SyncEngine.exportSync({ mode: 'full', encryptWith: pass });
       if (signal.aborted) throw err('cancelled');
       var payload = SyncEngine.compress(snapshot);
       if (payload.length > MAX_FILE) throw err('too-large');
-      var own = devices[me];
       var conditions = { 'Content-Type': 'application/octet-stream' };
       if (own) conditions['If-Match'] = '"' + own.etag + '"'; else conditions['If-None-Match'] = '*';
+      p.pendingEtag = await sha256hexOf(payload);
+      writeJSON(LS_PROGRESS, p);
       lastUploadStarted = Date.now();
       await api('put', { method: 'PUT', token: token, query: { space: state.space, device: me }, headers: conditions, body: payload, signal: signal });
-      forceUpload = false; collisions = 0;
+      forceUpload = false;
+      p.ownEtag = p.pendingEtag; p.pendingEtag = null;
       p.sentRev = Math.max(p.sentRev || 0, snapshot._coversChangeRev || 0);
       p.lastUploadAt = new Date().toISOString();
       writeJSON(LS_PROGRESS, p);
@@ -259,11 +293,15 @@
       } catch (e) {
         var code = e && (e.code || (e.name === 'EncryptionError' ? 'key' : null));
         if (!getState()) return;
-        if (code === 'collision') {
-          collisions++;
-          if (collisions >= 3) { paused = true; emit('conflict', 'Another browser is writing as this device. Unpair one of them, then pair it again.'); return; }
-          forceUpload = true;
-          emit('retrying', 'Sync clashed with another tab or device. Retrying.');
+        if (code === 'identity-clash') {
+          paused = true;
+          emit('identity-clash', 'Another browser is syncing as this device, probably a copy of this browser. Choose Give this browser its own identity in Preferences > Sync, backup & data.');
+        } else if (code === 'collision') {
+          // Something wrote this device's file since the listing. The next
+          // cycle's check of this device's slot tells a lost answer from a
+          // copied identity.
+          failures++;
+          emit('retrying', 'Sync clashed with another write. Checking again.');
         } else if (code === 'forbidden') {
           paused = true;
           emit('unpaired-remotely', 'This pairing is no longer valid. Unpair this device and pair it again.');
@@ -281,7 +319,13 @@
         }
       } finally {
         clearTimeout(timeout); running = null;
-        if (getState() && !paused) schedule(Math.min(300000, failures ? 5000 * Math.pow(2, Math.min(failures, 6)) : POLL_MS));
+        if (getState() && !paused) {
+          var next = failures ? Math.min(300000, 5000 * Math.pow(2, Math.min(failures, 6))) : POLL_MS;
+          // Changes made while this cycle ran still go out once the cooldown ends.
+          var st = getState(), pp = st && getProgress(st);
+          if (!failures && pp && needsUpload(pp)) next = Math.min(next, Math.max(CHANGE_DELAY_MS, uploadWait()));
+          schedule(next);
+        }
       }
     })();
     return running;
@@ -293,11 +337,22 @@
     if (!running && visible()) {
       emit('pending', 'Your latest changes will be sent shortly.');
       // After a quiet spell, send soon; during a burst, wait out the cooldown.
-      var wait = Math.max(CHANGE_DELAY_MS, UPLOAD_COOLDOWN_MS - (Date.now() - lastUploadStarted));
-      if (!timer || wait <= CHANGE_DELAY_MS) schedule(wait);
+      scheduleNoLaterThan(Math.max(CHANGE_DELAY_MS, uploadWait()));
     }
   }
-  function syncNow() { paused = false; failures = 0; collisions = 0; forceUpload = true; if (running) return running.then(run); return run(); }
+  function syncNow() { paused = false; failures = 0; forceUpload = true; if (running) return running.then(function () { return run(); }); return run(); }
+
+  // After a clash: give this browser a fresh device identity, so it and the
+  // copy it was made from each keep their own file.
+  function fixIdentity() {
+    var state = getState();
+    if (!state || !SyncEngine.regenerateDeviceId) return Promise.resolve();
+    SyncEngine.regenerateDeviceId();
+    var p = getProgress(state);
+    p.ownEtag = null; p.pendingEtag = null; p.lastUploadAt = null;
+    writeJSON(LS_PROGRESS, p);
+    return syncNow();
+  }
 
   // ── Pairing ──────────────────────────────────────────────────────────────
   async function createSpace() {
@@ -308,7 +363,7 @@
   function adopt(state, joined) {
     writeJSON(LS_STATE, state);
     writeJSON(LS_PROGRESS, { space: state.space, sentRev: 0, seen: {}, lastUploadAt: null, lastDownloadAt: null, hadPartner: !!joined });
-    paused = false; failures = 0; collisions = 0; forceUpload = true;
+    paused = false; failures = 0; forceUpload = true;
     emit('pending', 'Paired. Syncing with your other devices.');
   }
 
@@ -373,7 +428,7 @@
 
   window.SyncRelay = {
     isPaired: function () { return !!getState(); },
-    getStatus: getStatus, changed: changed, syncNow: syncNow, startPairing: startPairing,
+    getStatus: getStatus, changed: changed, syncNow: syncNow, fixIdentity: fixIdentity, startPairing: startPairing,
     joinWithCode: joinWithCode, unpair: unpair, deviceCount: deviceCount,
     _test: { normalizeCode: normalizeCode, formatCode: formatCode, newCode: newCode, sealBundle: sealBundle, openBundle: openBundle, pairId: pairId, accessToken: accessToken, run: run }
   };

@@ -1285,7 +1285,9 @@
               : "Keep this device and your others in step automatically, with no folder or account. Show a code on one device and scan or type it on the other. Your projects are encrypted on this device before they leave it; the stitchx sync relay only passes them on and cannot read them." },
             relay.paired
               ? h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
-                  h("button", { style: styles.btn, onClick: function () { window.SyncRelay.syncNow(); } }, "Sync now"),
+                  relay.state === "identity-clash"
+                    ? h("button", { style: styles.btnPrimary, onClick: function () { window.SyncRelay.fixIdentity(); } }, "Give this browser its own identity")
+                    : h("button", { style: styles.btn, onClick: function () { window.SyncRelay.syncNow(); } }, "Sync now"),
                   h("button", { style: styles.btnDanger, onClick: function () {
                     if (!window.confirm("Unpair this device? It stops syncing and its copy is removed from the relay. Projects on this device stay here, and your other devices keep syncing.")) return;
                     window.SyncRelay.unpair().then(function () { notify("This device is no longer paired."); });

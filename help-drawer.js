@@ -406,6 +406,7 @@
             ["When it syncs", "While stitchx is open, it checks for changes from your other devices about every 90 seconds and when you come back to it. Your changes are sent shortly after you make them, at most every 5 minutes while you keep stitching, and when you switch away or close the app. Sync now in the cloud popover sends and checks straight away."],
             ["Conflicts", "Changes merge with the same rules as folder sync. Anything that needs a choice waits in Review sync."],
             ["Unpairing", "Unpair stops this device syncing and removes its copy from the relay. Projects on the device stay, and your other devices keep syncing."],
+            ["Copied browsers", "If a browser was copied from another one (for example by copying a browser profile), both would sync as the same device. The copy stops and offers Give this browser its own identity in Preferences; choose it and both keep syncing."],
             ["Limits", "Up to 10 devices. Libraries over 4 MB cannot sync this way, which usually only happens when Source photos is on in What to sync. If none of your devices syncs for 30 days, the relay deletes its copies; your devices keep theirs and send them again next time."]
           ]
         },

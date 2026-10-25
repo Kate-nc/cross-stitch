@@ -3,7 +3,8 @@
 // and rate limits. Runs against the in-memory store that local development uses.
 const crypto = require('crypto');
 const { handle, TTL_SECONDS, MAX_FILE_BYTES, MAX_DEVICES } = require('../api/_relay-core');
-const { memoryStore, hashResult } = require('../api/_relay-store');
+const { hashResult } = require('../api/_relay-store');
+const { memoryStore } = require('../api/_relay-memory-store');
 
 const b64url = buf => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const newSpace = () => b64url(crypto.randomBytes(16));
@@ -104,6 +105,44 @@ describe('device files', () => {
   });
 });
 
+describe('simultaneous requests', () => {
+  // The in-memory store yields between commands like a network round trip, so
+  // a check made outside the write would let both requests through.
+  test('two writes from the same version: exactly one wins', async () => {
+    const s = await makeSpace();
+    const first = await put(s, 'dev_A', 'one');
+    const cond = { 'if-match': '"' + first.body.etag + '"' };
+    const results = await Promise.all([put(s, 'dev_A', 'two', cond), put(s, 'dev_A', 'three', cond)]);
+    expect(results.map(r => r.status).sort()).toEqual([200, 412]);
+    const read = await call('get', { token: s.token, query: { space: s.space, device: 'dev_A' } });
+    const winner = results.find(r => r.status === 200);
+    expect(read.headers.ETag).toBe('"' + winner.body.etag + '"');
+  });
+
+  test('two first writes for one device: exactly one wins', async () => {
+    const s = await makeSpace();
+    const results = await Promise.all([put(s, 'dev_A', 'one'), put(s, 'dev_A', 'two')]);
+    expect(results.map(r => r.status).sort()).toEqual([200, 412]);
+  });
+
+  test('many devices joining at once cannot pass the device limit', async () => {
+    const s = await makeSpace();
+    const results = await Promise.all(Array.from({ length: 15 }, (_, i) => put(s, 'dev_' + i, 'x' + i)));
+    expect(results.filter(r => r.status === 200)).toHaveLength(MAX_DEVICES);
+    expect(results.filter(r => r.status === 409)).toHaveLength(15 - MAX_DEVICES);
+    const list = await call('list', { token: s.token, query: { space: s.space } });
+    expect(Object.keys(list.body.devices)).toHaveLength(MAX_DEVICES);
+  });
+
+  test('a wrong token cannot renew someone else\'s space', async () => {
+    const s = await makeSpace();
+    clock += (TTL_SECONDS - 10) * 1000;
+    expect((await call('create', { method: 'POST', token: newToken(), query: { space: s.space } })).status).toBe(409);
+    clock += 20 * 1000;
+    expect((await call('list', { token: s.token, query: { space: s.space } })).status).toBe(404);
+  });
+});
+
 describe('expiry', () => {
   test('an idle space disappears after 30 days and can be recreated with its token', async () => {
     const s = await makeSpace();
@@ -113,7 +152,7 @@ describe('expiry', () => {
     expect((await call('create', { method: 'POST', token: s.token, query: { space: s.space } })).status).toBe(201);
   });
 
-  test('a write by any device keeps every device file alive', async () => {
+  test("a write by any device keeps every device's file alive", async () => {
     const s = await makeSpace();
     await put(s, 'dev_A', 'a');
     const b = await put(s, 'dev_B', 'b');

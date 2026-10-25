@@ -13,6 +13,8 @@ The relay is a small Vercel function (`api/relay.js`) in front of an Upstash Red
 | Files | The normal `.csync` v2 export, encrypted on the device with the existing AES-GCM-256 code (`exportSync({ encryptWith })`), using a passphrase derived from the space key. The user's folder-encryption setting does not affect relay files. |
 | Access token | SHA-256 of a label and the space key. Sent as `Authorization: Bearer …` on every request. The relay stores only a SHA-256 of the token, so neither its database nor its logs can be used to read or write a space. |
 | Pairing code | 12 characters (60 random bits), shown as `XXXX-XXXX-XXXX` and as a QR code reading `STITCHX-PAIR:XXXXXXXXXXXX`. The code unlocks a pairing bundle (space ID and key) that the relay keeps for 10 minutes, encrypted under a key derived from the code (PBKDF2-SHA256, 310,000 iterations). The relay sees only a hash of the code. |
+| Writes | Each upload is conditional on the version of that device's file the device last wrote (If-Match), or on there being none (If-None-Match). The relay checks the condition, the device limit and the token and stores the file in one Lua script, so two simultaneous uploads can never both succeed from the same version. |
+| Device identity | A device remembers the version it last wrote (and, while an upload is in flight, the version it is sending). If its own slot holds anything else, another browser is using the same device identity, usually a copied browser profile. That device stops syncing and offers **Give this browser its own identity**, which gives it a new device ID; the original carries on untouched. |
 | Merging | Unchanged: incoming files go through `SyncEngine.receiveAutomatic`, the same path as folder and WebDAV sync, with the same review screen for conflicts. |
 
 Plaintext the relay can see: the space ID, device IDs, file sizes and times, and the unencrypted envelope fields of each file (`_deviceId`, `_deviceName`, `_createdAt`, `_deliveryId`, format and version). Project names, patterns, progress, stash and photos are all inside the ciphertext.
@@ -27,7 +29,7 @@ Writes that apply another device's file are tagged as imports and are not upload
 
 ### Retention
 
-Every key in a space expires 30 days after the last upload by any device in it. Devices keep their own data, so the next device to open stitchx recreates the space from its key and uploads again; the others follow on their next check. Unpairing a device deletes its file at once; the last device to leave deletes the space.
+A space is two Redis keys: `rl:s:<space>` (the token hash and one small entry per device) and `rl:d:<space>` (the files). Both expire 30 days after the last upload by any device in the space. Devices keep their own data, so the next device to open stitchx recreates the space from its key and uploads again. Every other device that had a file there notices its file is missing and uploads in full on its next check, even with no new changes, so nothing it held is lost; this survives reloads until the upload succeeds. Unpairing a device deletes its file at once; the last device to leave deletes the space.
 
 ## Setting up the store (once per deployment)
 
@@ -56,13 +58,20 @@ A rough budget for one stitcher with two devices, stitching two hours a day with
 
 ## Local development
 
-`node serve.js` serves `/api/relay` too. Without the Upstash variables it uses an in-memory store (`api/_relay-store.js`), lost when the server stops. `tests/e2e/relay-sync.spec.js` pairs two browser contexts through it.
+`node serve.js` serves `/api/relay` too. Without the Upstash variables it uses an in-memory store (`api/_relay-memory-store.js`), lost when the server stops. That store runs the relay's Lua scripts with `fengari` (a Lua VM in JavaScript, a dev dependency), so tests exercise the same scripts Upstash runs.
+
+Tests:
+
+- `tests/syncRelayServer.test.js`: access, conditional writes, limits, expiry, pairing, and simultaneous requests.
+- `tests/syncRelayLoop.test.js`: runs `relay-sync.js` itself for several simulated devices with fake timers: continuous saving, copied identities, lost upload answers and staggered returns after expiry.
+- `tests/e2e/relay-sync.spec.js`: pairs two browser contexts through the real UI.
 
 ## Files
 
 - `api/relay.js`: the Vercel function (also used by `serve.js`).
 - `api/_relay-core.js`: request handling, access checks, limits and expiry. Files starting with `_` in `api/` are not deployed as routes.
-- `api/_relay-store.js`: Upstash REST adapter and the in-memory store.
+- `api/_relay-store.js`: the Upstash REST adapter (the only store the deployed function loads).
+- `api/_relay-memory-store.js`: the in-memory store for development and tests.
 - `relay-sync.js`: the browser side: sync loop, pairing, and the Show code / Enter code dialogs.
 - `assets/qrcode-generator.js` (MIT) and `assets/jsqr.js` (Apache-2.0, `assets/jsqr.LICENSE`): QR drawing and camera scanning, loaded on first use and self-hosted so they work offline.
 

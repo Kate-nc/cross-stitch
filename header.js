@@ -1054,8 +1054,8 @@ function Header({ page, tab, onPageChange, onOpen, onSave, onTrack, onExportPDF,
                   ? 'To sync automatically, pair this device with your others in Preferences > Sync, backup & data. Or sync by file: use "Share sync file" below, save it into the folder your computer watches, and use "Import file" to bring changes back.'
                   : 'Not syncing yet. Pair your devices, or connect a sync folder, in Preferences > Sync, backup & data.';
                 if (relayStatus) {
-                  rows.push(React.createElement('div', { key: 'relay', className: 'sync-popover-row' + (relayStatus.state === 'idle' ? ' sync-popover-row--ok' : (/conflict|too-large|unpaired|retrying/.test(relayStatus.state) ? ' sync-popover-row--warn' : '')), role: 'status' },
-                    /conflict|too-large|unpaired|retrying/.test(relayStatus.state) ? Icons.warning() : Icons.cloudSync(),
+                  rows.push(React.createElement('div', { key: 'relay', className: 'sync-popover-row' + (relayStatus.state === 'idle' ? ' sync-popover-row--ok' : (/conflict|clash|too-large|unpaired|retrying/.test(relayStatus.state) ? ' sync-popover-row--warn' : '')), role: 'status' },
+                    /conflict|clash|too-large|unpaired|retrying/.test(relayStatus.state) ? Icons.warning() : Icons.cloudSync(),
                     React.createElement('span', null, 'Paired sync: ' + relayStatus.message)
                   ));
                   if (relayStatus.lastUploadAt) rows.push(React.createElement('div', { key: 'relay-sent', className: 'sync-popover-row' },
