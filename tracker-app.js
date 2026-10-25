@@ -1950,6 +1950,14 @@ leftSidebarPinnedRef.current=leftSidebarPinned;
 useEffect(()=>{
   try{localStorage.setItem("cs_pref_trackerLeftSidebarPinned",leftSidebarPinned?"1":"0");}catch(_){}
 },[leftSidebarPinned]);
+// Compact colour list: one slim line per colour, the selected colour's buttons in the card above. Kept per device
+// (a tablet and a laptop can differ), so it lives in localStorage only, outside the cs_pref_ keys sync watches.
+const[compactColours,setCompactColours]=useState(()=>{
+  try{return localStorage.getItem("cs_trackerCompactColours")==="1";}catch(_){return false;}
+});
+useEffect(()=>{
+  try{localStorage.setItem("cs_trackerCompactColours",compactColours?"1":"0");}catch(_){}
+},[compactColours]);
 const cycleLeftSidebar = useCallback(()=>{
   // The "rail" collapsed-strip state is CSS-hidden at >=900px (see the
   // "Desktop-only: always show palette panel" rule in styles.css, which
@@ -8276,6 +8284,36 @@ useEffect(()=>{
   return()=>{delete window.__navigateToEditor;};
 },[!!pat,!!pal]); // eslint-disable-line react-hooks/exhaustive-deps
 
+// A colour's action chips: go to its park marker, mark its backstitch lines, mark all its stitches. Shown on each
+// colour row, or (in the compact list) once, in the selected colour's card.
+function renderColourActions(row,kr){
+  const {p,dc,kn,qt,bsc,complete}=row;
+  const swRgb="rgb("+p.rgb+")";
+  return <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
+    {parkCountsByColour[p.id]>0&&<button
+      className="ppal-tile-park-btn"
+      onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
+      title={"Go to where "+kr.label+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
+      aria-label={"Go to where "+kr.label+" is parked"}
+      style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
+    >P{parkCountsByColour[p.id]>1?"×"+parkCountsByColour[p.id]:""}</button>}
+    {bsc&&bsc.total>0&&<button
+      className="ppal-tile-done-btn ppal-tile-bs-btn"
+      onClick={e=>{e.stopPropagation();confirmAndMarkBsOfColour(p);}}
+      style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
+      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsc.done>=bsc.total?" as not done":" as done")}
+      aria-label={(bsc.done>=bsc.total?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
+    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
+    {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
+      className="ppal-tile-done-btn"
+      onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
+      style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
+      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
+      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
+    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
+  </div>;
+}
+
 return(
 <>
 {/* Platform.fileAccept drops the filter on iOS, where .oxs resolves to no UTI
@@ -8617,7 +8655,7 @@ return(
         old controls remain wired during phase 1 to avoid disrupting
         in-flight sessions during the migration. */}
     {leftSidebarMode==="open"&&<div className={"lpanel lpanel--open"} role="complementary" aria-label="Colour palette">
-    <div className="ppal-wrap">
+    <div className={"ppal-wrap"+(compactColours?" ppal-wrap--compact":"")}>
       {/* ─ Header ─ */}
       <div className="ppal-header">
         <div className="ppal-header-top">
@@ -8642,20 +8680,26 @@ return(
               {Icons.play?Icons.play():null}{" "}Start timer
             </button>}
         </div>
-        {stitchKey&&<div className="ppal-key" role="group" aria-label="Key to stitch colours">
+        {stitchKey&&!compactColours&&<div className="ppal-key" role="group" aria-label="Key to stitch colours">
           <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:stitchKey.pend}} aria-hidden="true"/>To stitch</span>
           <span className="ppal-key-item"><span className="ppal-key-swatch" style={{background:doneStyle==="tick"?stitchKey.pend:stitchKey.done}} aria-hidden="true">{doneStyle==="tick"&&<span className="ppal-key-tick"/>}</span>Stitched{doneStyle==="tick"?" (corner tick)":""}</span>
           {stitchKey.pale&&doneStyle!=="tick"&&<span className="ppal-key-note">Very pale threads such as white and ecru look light grey once stitched. For a corner tick instead, choose Corner tick in More &gt; View.</span>}
         </div>}
       </div>
       {/* ─ Sort row ─ */}
-      <div className="ppal-sort-row" role="group" aria-label="Sort colour list">
-        {[["count","Remaining"],["done","% done"],["id","Number"]].map(([k,l])=>
-          <button key={k} className={"ppal-sort-btn"+(legendSort===k?" ppal-sort-btn--on":"")} onClick={()=>setLegendSort(k)} aria-pressed={legendSort===k}>{l}</button>
-        )}
+      <div className="ppal-sort-row">
+        <div className="ppal-sort-group" role="group" aria-label="Sort colour list">
+          {[["count","Remaining"],["done","% done"],["id","Number"]].map(([k,l])=>
+            <button key={k} className={"ppal-sort-btn"+(legendSort===k?" ppal-sort-btn--on":"")} onClick={()=>setLegendSort(k)} aria-pressed={legendSort===k}>{l}</button>
+          )}
+        </div>
+        <div className="ppal-size-toggle" role="group" aria-label="Colour list size">
+          <button type="button" className={"ppal-size-btn"+(!compactColours?" ppal-size-btn--on":"")} onClick={()=>setCompactColours(false)} aria-pressed={!compactColours} aria-label="Comfortable list" title="Comfortable list">{Icons.listComfortable()}</button>
+          <button type="button" className={"ppal-size-btn"+(compactColours?" ppal-size-btn--on":"")} onClick={()=>setCompactColours(true)} aria-pressed={compactColours} aria-label="Compact list" title="Compact list: one line per colour">{Icons.listCompact()}</button>
+        </div>
       </div>
-      {pal&&pal.length>0&&<p className="ppal-use-note">Each colour shows the strands in the needle and the skeins it takes.</p>}
-      {pal&&window.BlendHelpNote&&pal.some(p=>p.type==="blend")&&<div className="ppal-blend-note">{React.createElement(window.BlendHelpNote)}</div>}
+      {pal&&pal.length>0&&!compactColours&&<p className="ppal-use-note">Each colour shows the strands in the needle and the skeins it takes.</p>}
+      {pal&&window.BlendHelpNote&&!compactColours&&pal.some(p=>p.type==="blend")&&<div className="ppal-blend-note">{React.createElement(window.BlendHelpNote)}</div>}
       {/* ─ Active colour tile ─ */}
       {focusColour&&cmap&&cmap[focusColour]&&(!areaColourCounts||((scopedColourCounts[focusColour]||{}).total+(scopedColourCounts[focusColour]||{}).halfTotal>0))?(()=>{
         const fc=cmap[focusColour];
@@ -8665,10 +8709,26 @@ return(
         const pct=row?row.pct:cp.percent;
         const complete=row?row.complete:cp.complete;
         const swRgb="rgb("+fc.rgb+")";
+        const findBtn=<button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of "+formatThread((cmap&&cmap[focusColour])||{id:focusColour})}>{Icons.magnify()}</button>;
+        if(compactColours){
+          // Compact list: the rows carry no buttons, so the selected colour's card holds them, with its usage line.
+          const kr=keyRowsById[focusColour]||threadKeyRow(fc,{fabricCount:fabricCt});
+          return <div className={"ppal-active-tile ppal-active-tile--compact"+(complete?" ppal-active-tile--done":"")}>
+            <div className="ppal-active-top">
+              <div className="ppal-active-swatch-wrap"><span className="ppal-active-swatch" style={{background:swRgb}}/></div>
+              <div className="ppal-active-info">
+                <span className="ppal-active-id" title={formatThread(fc,{variant:"title"})}>{formatThread(fc,{variant:"short"})}{fc.type==="blend"&&<span className="ppal-tile-tag">blend</span>}{" "}<span className="ppal-active-name">{formatThread(fc,{variant:"name"})}</span></span>
+                <span className="ppal-active-count">{row?legendCountText(row.dc,row.kn,row.qt,row.bsc):dc.done+"/"+dc.total} · {pct}%{kr&&kr.usage?" \u00B7 "+kr.usage:""}</span>
+              </div>
+              {findBtn}
+            </div>
+            {row&&kr&&renderColourActions(row,kr)}
+          </div>;
+        }
         return <div className={"ppal-active-tile"+(complete?" ppal-active-tile--done":"")}>
           <div className="ppal-active-swatch-wrap">
             {window.ProgressRing
-              ?React.createElement(window.ProgressRing,{pct:pct,size:56,strokeWidth:5,colour:swRgb,trackColour:"var(--border)"})
+              ?React.createElement(window.ProgressRing,{percent:pct,size:56})
               :<span className="ppal-active-swatch" style={{background:swRgb}}/>}
           </div>
           <div className="ppal-active-info">
@@ -8676,7 +8736,7 @@ return(
             <span className="ppal-active-name">{formatThread(fc,{variant:"name"})}</span>
             <span className="ppal-active-count">{dc.done}/{dc.total} · {pct}%</span>
           </div>
-          <button className="ppal-find-btn" onClick={jumpToNextStitch} title="Jump to next remaining stitch" aria-label={"Find next unfinished stitch of "+formatThread((cmap&&cmap[focusColour])||{id:focusColour})}>{Icons.magnify()}</button>
+          {findBtn}
         </div>;
       })()
       :<div className="ppal-active-none">{Icons.pointing?Icons.pointing():null}{" Tap a colour below to select it"}</div>}
@@ -8684,10 +8744,30 @@ return(
       {pal&&<div className="ppal-tile-list" role="list">
         {(()=>{
           const rows=legendRows||[];
-          return rows.map(({p,dc,kn,qt,bsc,pct,complete})=>{
+          return rows.map(row=>{
+            const {p,dc,kn,qt,bsc,pct,complete}=row;
             const isFocused=focusColour===p.id;
             const swRgb="rgb("+p.rgb+")";
             const kr=keyRowsById[p.id]||threadKeyRow(p,{fabricCount:fabricCt});
+            const openDetail=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setPaletteDetail({id:p.id,type:p.type,brand:p.brand,threads:p.threads,name:p.name,rgb:p.rgb,anchorRect:{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height}});};
+            const pick=e=>{e.stopPropagation();if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);};
+            if(compactColours){
+              // One line: swatch, number and name, then % (a tick once finished), over a thin progress line.
+              return <div key={p.id} role="listitem"
+                className={"ppal-tile ppal-tile--compact"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
+                onClick={pick}>
+                <button type="button" className="ppal-tile-swatch" style={{background:swRgb}} aria-label={"View "+kr.title+" detail"} onClick={openDetail}/>
+                <button type="button" className="ppal-tile-select ppal-row-select" title={kr.title}
+                  aria-pressed={isFocused} aria-label={"Select "+kr.title+", "+pct+" percent complete. "+kr.usageTitle}
+                  onClick={pick}>
+                  <ThreadKeyLabel row={{...kr,usage:""}} classes={TILE_KEY_CLASSES}/>
+                  {complete
+                    ?<span className="ppal-row-done" aria-hidden="true">{Icons.check()}</span>
+                    :<span className="ppal-tile-pct">{pct}%</span>}
+                  <span className="ppal-row-bar" aria-hidden="true"><span className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></span>
+                </button>
+              </div>;
+            }
             return <div key={p.id} role="listitem"
               className={"ppal-tile"+(isFocused?" ppal-tile--on":"")+(complete?" ppal-tile--done":"")}
               onClick={()=>{if(isEditMode){setEditModalColor(p);return;}selectTrackerColour(p.id);}}>
@@ -8705,29 +8785,7 @@ return(
                 <div className="ppal-tile-bar"><div className="ppal-tile-bar-fill" style={{width:pct+"%"}}/></div>
                 <div className="ppal-tile-count-row">
                   <span className="ppal-tile-count">{legendCountText(dc,kn,qt,bsc)}</span>
-                  <div className="ppal-tile-actions" onClick={e=>e.stopPropagation()}>
-                    {parkCountsByColour[p.id]>0&&<button
-                      className="ppal-tile-park-btn"
-                      onClick={e=>{e.stopPropagation();goToParkedThread(p.id);}}
-                      title={"Go to where "+kr.label+" is parked"+(parkCountsByColour[p.id]>1?" ("+parkCountsByColour[p.id]+" places; press again for the next)":"")}
-                      aria-label={"Go to where "+kr.label+" is parked"}
-                      style={{background:isParkLayerVisible(p.id)?swRgb:undefined,borderColor:isParkLayerVisible(p.id)?swRgb:"var(--border)",color:isParkLayerVisible(p.id)?(luminance(p.rgb)>140?"#000":"#fff"):"var(--text-tertiary)"}}
-                    >P{parkCountsByColour[p.id]>1?"\u00D7"+parkCountsByColour[p.id]:""}</button>}
-                    {bsc&&bsc.total>0&&<button
-                      className="ppal-tile-done-btn ppal-tile-bs-btn"
-                      onClick={e=>{e.stopPropagation();confirmAndMarkBsOfColour(p);}}
-                      style={{borderColor:"var(--line)",background:"var(--surface-secondary)",color:"var(--text-secondary)"}}
-                      title={"Mark all backstitch lines of "+colourDoneName(p)+(bsc.done>=bsc.total?" as not done":" as done")}
-                      aria-label={(bsc.done>=bsc.total?"Mark all lines not done: ":"Mark all lines done: ")+colourDoneName(p)}
-                    >{bsc.done>=bsc.total?<>{Icons.x?Icons.x():null}<span>Mark all lines not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all lines done</span></>}</button>}
-                    {!(dc.total===0&&dc.halfTotal===0&&kn.total===0&&qt.total===0&&bsc&&bsc.total>0)&&<button
-                      className="ppal-tile-done-btn"
-                      onClick={e=>{e.stopPropagation();confirmAndMarkColour(p,!complete);}}
-                      style={{borderColor:complete?"var(--danger-soft)":"var(--success-soft)",background:complete?"var(--danger-soft)":"var(--success-soft)",color:complete?"var(--danger)":"var(--success)"}}
-                      title={"Mark all stitches of "+colourDoneName(p)+(complete?" as not done":" as done")}
-                      aria-label={(complete?"Mark all not done: ":"Mark all done: ")+colourDoneName(p)}
-                    >{complete?<>{Icons.x?Icons.x():null}<span>Mark all not done</span></>:<>{Icons.check?Icons.check():null}<span>Mark all done</span></>}</button>}
-                  </div>
+                  {renderColourActions(row,kr)}
                 </div>
               </div>
             </div>;
