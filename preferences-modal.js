@@ -1275,6 +1275,42 @@
       h(PageHeader, { title: "Sync, backup & data",
         subtitle: "Move your patterns and stash between devices, or keep a safety copy of everything." }),
 
+      window.SyncRelay ? (function () {
+        var relay = window.SyncRelay.getStatus();
+        var fmt = function (iso) { return iso ? new Date(iso).toLocaleString('en-GB') : "Not yet"; };
+        return h(Section, { title: "Sync by pairing" },
+          h(Row, { label: relay.paired ? "Paired" : "Pair your devices",
+            desc: relay.paired
+              ? relay.message + " Last sent: " + fmt(relay.lastUploadAt) + ". Last received: " + fmt(relay.lastDownloadAt) + "."
+              : "Keep this device and your others in step automatically, with no folder or account. Show a code on one device and scan or type it on the other. Your projects are encrypted on this device before they leave it; the stitchx sync relay only passes them on and cannot read them." },
+            relay.paired
+              ? h("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+                  relay.state === "identity-clash"
+                    ? h("button", { style: styles.btnPrimary, onClick: function () { window.SyncRelay.fixIdentity(); } }, "Give this browser its own identity")
+                    : h("button", { style: styles.btn, onClick: function () { window.SyncRelay.syncNow(); } }, "Sync now"),
+                  h("button", { style: styles.btnDanger, onClick: function () {
+                    if (!window.confirm("Unpair this device? It stops syncing and its copy is removed from the relay. Projects on this device stay here, and your other devices keep syncing.")) return;
+                    window.SyncRelay.unpair().then(function () { notify("This device is no longer paired."); });
+                  } }, "Unpair")
+                )
+              : null
+          ),
+          h(Row, { label: relay.paired ? "Add another device" : "Start on this device",
+            desc: relay.paired
+              ? "Show a code to pair a phone, tablet or computer with this one."
+              : "Shows a code for your other device. It works for 10 minutes." },
+            h("button", { style: relay.paired ? styles.btn : styles.btnPrimary, onClick: function () { if (window.SyncRelayDialogs) window.SyncRelayDialogs.showCode(); } }, "Show a pairing code")
+          ),
+          h(Row, { label: "Join from another device",
+            desc: relay.paired
+              ? "Entering a code from a different pairing moves this device to it."
+              : "Have a code showing on your other device? Scan it with this device's camera, or type it in." },
+            h("button", { style: styles.btn, onClick: function () { if (window.SyncRelayDialogs) window.SyncRelayDialogs.join(); } }, "Enter a pairing code")
+          ),
+          h(Row, { label: "Good to know", last: true,
+            desc: "Sync runs while stitchx is open. If none of your paired devices syncs for 30 days, the relay deletes its copies; your devices keep theirs and send them again next time. Libraries over 4 MB cannot sync this way, which usually only happens when Source photos are on in What to sync." })
+        );
+      })() : null,
       window.WebDAVSyncPanel && h(window.WebDAVSyncPanel),
       h(Section, { title: "Sync folder" },
         h(Row, { label: "Sync folder",
@@ -1304,7 +1340,7 @@
         // never do anything there. Explain the workflow that does work before
         // the user hits two permanently greyed-out buttons.
         isIOSDevice ? h(Row, { label: "How to sync this iPad",
-          desc: "Put your sync folder in OneDrive (or another cloud drive) on your computer. On this iPad: tap the cloud icon, then Share sync file, and save into that same folder. This iPad always uses the same file name, so each copy replaces the last one, and your computer picks it up on its own. Coming back the other way, tap Import file and choose your computer's file from that folder. The cloud icon shows a dot when this iPad has changes you have not shared yet." },
+          desc: "Easiest: pair this iPad with your computer in Sync by pairing above, and changes move by themselves. To use files instead, put your sync folder in OneDrive (or another cloud drive) on your computer. On this iPad: tap the cloud icon, then Share sync file, and save into that same folder. This iPad always uses the same file name, so each copy replaces the last one, and your computer picks it up on its own. Coming back the other way, tap Import file and choose your computer's file from that folder. The cloud icon shows a dot when this iPad has changes you have not shared yet." },
           h("span", { style: { fontSize: 11, color: COLOURS.hint, fontStyle: "italic" } }, "By file")
         ) : null,
         !folderSupported ? h(Row, { label: "Remind me to import",

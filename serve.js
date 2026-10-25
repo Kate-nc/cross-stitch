@@ -10,6 +10,11 @@ const argvPort = parseInt(process.argv[2], 10);
 const envPort = parseInt(process.env.PORT, 10);
 const PORT = !Number.isNaN(argvPort) ? argvPort : !Number.isNaN(envPort) ? envPort : 8000;
 const ROOT = __dirname;
+// The sync relay function (api/relay.js), backed by Upstash when its
+// environment variables are set and by an in-memory store otherwise.
+const relay = require('./api/relay.js');
+const relayStore = require('./api/_relay-store.js').upstashStore(process.env)
+  || require('./api/_relay-memory-store.js').memoryStore();
 function acceptsGzipValue(headerValue) {
   if (!headerValue) return false;
   for (const part of headerValue.split(',')) {
@@ -55,6 +60,14 @@ const COMPRESSIBLE = new Set(['.js', '.css', '.html', '.json', '.svg', '.map']);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
+
+  if (url.pathname === '/api/relay') {
+    relay.serve(req, res, relayStore).catch(() => {
+      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('500 Relay error');
+    });
+    return;
+  }
 
   let decoded;
   try {

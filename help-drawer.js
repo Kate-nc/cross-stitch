@@ -399,6 +399,18 @@
           ]
         },
         {
+          heading: "Pairing sync",
+          body: "The simplest way to keep devices in step, including an iPad with a computer. No folder, account or server of your own is needed. Open Preferences > Sync, backup & data > Sync by pairing on one device and choose Show a pairing code. On the other device choose Enter a pairing code, then scan the QR code with its camera or type the code in.",
+          bullets: [
+            ["Private", "Your projects are encrypted on each device before they leave it. The stitchx sync relay only passes them between your paired devices and cannot read them. The pairing code works for 10 minutes; only show it to your own devices."],
+            ["When it syncs", "While stitchx is open, it checks for changes from your other devices about every 90 seconds and when you come back to it. Your changes are sent shortly after you make them, at most every 5 minutes while you keep stitching, and when you switch away or close the app. Sync now in the cloud popover sends and checks straight away."],
+            ["Conflicts", "Changes merge with the same rules as folder sync. Anything that needs a choice waits in Review sync."],
+            ["Unpairing", "Unpair stops this device syncing and removes its copy from the relay. Projects on the device stay, and your other devices keep syncing."],
+            ["Copied browsers", "If a browser was copied from another one (for example by copying a browser profile), both would sync as the same device. The copy stops and offers Give this browser its own identity in Preferences; choose it and both keep syncing."],
+            ["Limits", "Up to 10 devices. Libraries over 4 MB cannot sync this way, which usually only happens when Source photos is on in What to sync. If none of your devices syncs for 30 days, the relay deletes its copies; your devices keep theirs and send them again next time."]
+          ]
+        },
+        {
           heading: "Automatic WebDAV sync",
           body: "Open Preferences > Sync, backup & data > Automatic WebDAV sync. Use a private collection on an existing or self-hosted WebDAV server, such as Nextcloud. Enter its HTTPS collection URL, username and an app password, then Connect and sync on each device. This shares your whole local library plus enabled stash/settings; keep unrelated accounts in separate browser profiles. No account or server is created by stitchx.",
           bullets: [
@@ -424,7 +436,7 @@
             ["Older sync files", "Version-1 files still open, but cannot prove attachment completeness. New files use version 2: update every device before exchanging them. Without removal history, empty or missing marks do not mean unpicked. Update every device for reliable unpicking; older apps cannot preserve the new removal history."],
             ["Notes and parking", "Notes, session edits and parking changes retain removal and edit history. Concurrent incompatible edits need an explicit choice; timestamps do not decide which text survives."],
             ["Conflicts", "Different chart structures, concurrent notes and incompatible stash baselines need review. Consumption events merge once with the selected stash baseline. Deleted projects stay deleted until you explicitly restore them, even if another device has a later clock."],
-            ["iPad and iPhone", "These browsers cannot watch a folder. Use Share sync file and Import file in the cloud popover to move changes by hand. Each shared file has the same name, so saving it into your sync folder replaces the last copy. A dot on the cloud icon means this device has changes you have not shared yet, and the popover shows when you last sent and received. When your last import is more than 12 hours old, the app offers to import when you open it; turn this off in Preferences > Sync, backup & data."]
+            ["iPad and iPhone", "These browsers cannot watch a folder. Pairing sync works on them, or use Share sync file and Import file in the cloud popover to move changes by hand. Each shared file has the same name, so saving it into your sync folder replaces the last copy. A dot on the cloud icon means this device has changes you have not shared yet, and the popover shows when you last sent and received. When your last import is more than 12 hours old, the app offers to import when you open it; turn this off in Preferences > Sync, backup & data."]
           ]
         },
         {
