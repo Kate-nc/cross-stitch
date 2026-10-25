@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: syncing an iPad by file is easier to keep up with. A dot on the cloud icon shows when the iPad has changes your other devices have not seen, and the cloud popover shows when you last sent and received a sync file. When your last import is more than 12 hours old, the app offers to import the latest file when you open it (turn this off in Preferences > Sync, backup & data). Sync files shared from an iPad or iPhone now always have the same name, so saving one into your sync folder replaces the last copy instead of adding a new file each day. In a Safari tab, the popover also reminds you to add stitchx to your Home Screen so iPadOS keeps your projects.',
       'Improved: Home puts Start something new directly below Welcome back, above the Continue card and project list, so you can import a chart, convert a picture or start a blank canvas without scrolling past saved projects.',
       'Improved: the blend picker has keyboard buttons, full component names, combined-colour and stitch previews, nearby partner suggestions and access to every search result. Existing recipes are selected rather than duplicated.',
       'Improved: two-thread blends and spatial shading have distinct names. Compare options now shows blends on/off with recipe and stitch coverage counts. Stash conversion supports useful pairs from two threads, and disabled blend controls show the effective state.',
