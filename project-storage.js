@@ -623,9 +623,11 @@ const ProjectStorage = (() => {
                 if(left.length)localStorage.setItem(key,JSON.stringify(left));else localStorage.removeItem(key);
               }
             }catch(_){}
-            // Trigger auto-export to sync folder if enabled
+            // Trigger auto-export to sync folder if enabled. opts.syncOrigin
+            // ("import") marks a write that applies another device's sync
+            // file, so it is not counted as this device's unshared work.
             if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
-              try { SyncEngine.triggerAutoExport(); } catch (e) {}
+              try { SyncEngine.triggerAutoExport(opts.syncOrigin ? { origin: opts.syncOrigin } : undefined); } catch (e) {}
             }
             // Brief D — sync this project's thread requirements into the
             // Stash Manager's pattern library so the inventory & shopping
@@ -641,7 +643,8 @@ const ProjectStorage = (() => {
                   id:r.p.id,brand:r.p.brand,name:r.name,stitches:r.threadStitches,skeins:r.needed,rgb:r.p.rgb
                 }));
                 StashBridge.syncProjectToLibrary(
-                  project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc
+                  project.id, project.name || "Untitled pattern", skeinData, "inprogress", fc,
+                  opts.syncOrigin ? { syncOrigin: opts.syncOrigin } : undefined
                 ).catch(function(err) {
                   // Don't block save on sync errors, but do surface them in
                   // the console so a broken bridge doesn't silently desync
@@ -1255,8 +1258,10 @@ const ProjectStorage = (() => {
       return { metas, fulls };
     },
 
-    // Delete a project by ID.
-    async delete(id) {
+    // Delete a project by ID. options.syncOrigin ("import") marks a deletion
+    // applied from another device's sync file.
+    async delete(id, options) {
+      const syncOrigin = options && options.syncOrigin;
       writeTombstones([id]);
       try {
         // Record the deletion so in-flight auto-saves from Tracker/Creator
@@ -1292,7 +1297,12 @@ const ProjectStorage = (() => {
             // Brief D — remove any auto-synced Manager pattern entry that was
             // linked to this project so the library doesn't show stale entries.
             if (typeof StashBridge !== "undefined" && StashBridge.unlinkProjectFromLibrary) {
-              try { StashBridge.unlinkProjectFromLibrary(id).catch(() => {}); } catch (e) {}
+              try { StashBridge.unlinkProjectFromLibrary(id, syncOrigin ? { syncOrigin: syncOrigin } : undefined).catch(() => {}); } catch (e) {}
+            }
+            // The deletion (and its tombstone) is sync content: send it, and
+            // count it as unshared work unless it came from an import.
+            if (typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
+              try { SyncEngine.triggerAutoExport(syncOrigin ? { origin: syncOrigin } : undefined); } catch (e) {}
             }
             // Notify listeners (Home dashboard, Manager pattern library, etc.) that
             // the project list changed so they can refresh without a page reload.
@@ -1418,6 +1428,11 @@ const ProjectStorage = (() => {
               }
             }
           } catch (e) {}
+        }
+        // A deliberate deletion is sync content (its tombstones travel).
+        // A resync wipe is not: the same projects are about to come back.
+        if (tombstone && projectIds.length && typeof SyncEngine !== "undefined" && SyncEngine.triggerAutoExport) {
+          try { SyncEngine.triggerAutoExport(); } catch (e) {}
         }
         try {
           if (typeof window !== "undefined" && window.dispatchEvent) {
@@ -1913,11 +1928,11 @@ const ProjectStorage = (() => {
     // ── Bulk helpers (B5 — multi-select dashboard) ──
     // Thin wrappers over the per-id methods. Behaviour is identical to a
     // sequential loop; provided so dashboard bulk actions read clearly.
-    async deleteMany(ids) {
+    async deleteMany(ids, options) {
       if (!Array.isArray(ids) || ids.length === 0) return [];
       var results = [];
       for (var i = 0; i < ids.length; i++) {
-        try { await this.delete(ids[i]); results.push({ id: ids[i], ok: true }); }
+        try { await this.delete(ids[i], options); results.push({ id: ids[i], ok: true }); }
         catch (e) { results.push({ id: ids[i], ok: false, error: e }); }
       }
       return results;

@@ -132,12 +132,12 @@ describe('ProjectStorage bulk helpers', () => {
   test('deleteMany([]) is a no-op (returns empty array)', async () => {
     // Exercise the helper logic via a tiny stub: emulate the same control flow
     // by re-implementing the public contract from the source.
-    expect(storage).toMatch(/async deleteMany\(ids\)/);
+    expect(storage).toMatch(/async deleteMany\(ids(?:,\s*options)?\)/);
     expect(storage).toMatch(/if \(!Array\.isArray\(ids\) \|\| ids\.length === 0\) return \[\]/);
   });
   test('deleteMany loops per id via this.delete(id)', () => {
     expect(storage).toMatch(/for \(var i\s*=\s*0; i < ids\.length; i\+\+\)/);
-    expect(storage).toMatch(/await this\.delete\(ids\[i\]\)/);
+    expect(storage).toMatch(/await this\.delete\(ids\[i\](?:,\s*options)?\)/);
   });
   test('setStateMany loops setProjectState per id', () => {
     expect(storage).toMatch(/setStateMany\(ids,\s*state\)/);

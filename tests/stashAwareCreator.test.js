@@ -11,7 +11,7 @@ const projectStorageSrc = fs.readFileSync(path.join(__dirname, '..', 'project-st
 
 describe('Brief D — Stash-aware Creator wiring', () => {
   it('stash-bridge.js exposes unlinkProjectFromLibrary on StashBridge', () => {
-    expect(stashBridgeSrc).toMatch(/async unlinkProjectFromLibrary\(projectId\)/);
+    expect(stashBridgeSrc).toMatch(/async unlinkProjectFromLibrary\(projectId(?:,\s*options)?\)/);
     // It must filter the patterns array by linkedProjectId.
     expect(stashBridgeSrc).toMatch(/linkedProjectId\s*!==\s*projectId/);
   });
@@ -39,7 +39,8 @@ describe('Brief D — Stash-aware Creator wiring', () => {
 
   it('save sync wraps StashBridge call in try/catch so errors never block save', () => {
     // Find the save() block and assert the sync block is wrapped.
-    const saveIdx = projectStorageSrc.indexOf('StashBridge.syncProjectToLibrary');
+    // The call itself, not the feature check in the if-condition above it.
+    const saveIdx = projectStorageSrc.indexOf('StashBridge.syncProjectToLibrary(');
     expect(saveIdx).toBeGreaterThan(0);
     // Look back ≤500 chars for a try { and forward for catch.
     const before = projectStorageSrc.slice(Math.max(0, saveIdx - 500), saveIdx);

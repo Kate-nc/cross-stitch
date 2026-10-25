@@ -14,7 +14,7 @@ const managerSrc = fs.readFileSync(path.resolve(__dirname, '..', 'manager-app.js
 describe('ProjectStorage deletion guards (source analysis)', () => {
   test('delete() records the ID in _deletedIds before deleting', () => {
     // The delete method should add to _deletedIds BEFORE issuing the IDB transaction
-    const deleteMethod = storageSrc.match(/async delete\(id\)\s*\{[\s\S]*?\n    \}/);
+    const deleteMethod = storageSrc.match(/async delete\(id(?:,\s*options)?\)\s*\{[\s\S]*?\n    \}/);
     expect(deleteMethod).not.toBeNull();
     const body = deleteMethod[0];
     expect(body).toContain('_deletedIds.add(id)');
@@ -25,7 +25,7 @@ describe('ProjectStorage deletion guards (source analysis)', () => {
   });
 
   test('delete() also removes the legacy auto_save key', () => {
-    const deleteMethod = storageSrc.match(/async delete\(id\)\s*\{[\s\S]*?\n    \}/);
+    const deleteMethod = storageSrc.match(/async delete\(id(?:,\s*options)?\)\s*\{[\s\S]*?\n    \}/);
     expect(deleteMethod).not.toBeNull();
     expect(deleteMethod[0]).toContain("store.get(\"auto_save\")");
     expect(deleteMethod[0]).toContain("autoSave && autoSave.id === id");

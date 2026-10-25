@@ -27,11 +27,13 @@ global.sessionStorage = (() => {
 global.pako = pako;
 global.indexedDB = new (require('fake-indexeddb').IDBFactory)();
 
-// A project save fires triggerAutoExport, exactly as ProjectStorage does.
+// Mirrors ProjectStorage: a save fires triggerAutoExport, passing on the
+// write's sync origin. Tests can hook listProjects to act during an export.
+let onListProjects = null;
 global.ProjectStorage = {
-  listProjects: async () => [],
+  listProjects: async () => { if (onListProjects) onListProjects(); return []; },
   get: async () => null,
-  save: async p => { SE.triggerAutoExport(); return p.id; }
+  save: async (p, o) => { SE.triggerAutoExport(o && o.syncOrigin ? { origin: o.syncOrigin } : undefined); return p.id; }
 };
 
 eval(fs.readFileSync('./sync-engine.js', 'utf8'));
@@ -48,7 +50,11 @@ beforeAll(() => {
 });
 afterAll(() => { console.warn = _origWarn; });
 
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); delete window.Toast; delete window.UnifiedSyncImportModal; });
+beforeEach(() => {
+  localStorage.clear(); sessionStorage.clear();
+  delete window.Toast; delete window.UnifiedSyncImportModal; delete window.__flushProjectToIDB;
+  onListProjects = null;
+});
 
 function mkProject(id) {
   const pattern = [];
@@ -56,23 +62,50 @@ function mkProject(id) {
   return { id, name: id, updatedAt: '2026-10-01T00:00:00.000Z', settings: { sW: 10, sH: 10 }, pattern, done: new Array(100).fill(0) };
 }
 
+// A folder handle that accepts writes, so exportToFolder can deliver.
+function fakeFolder() {
+  return {
+    name: 'sync',
+    queryPermission: async () => 'granted',
+    requestPermission: async () => 'granted',
+    getFileHandle: async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) })
+  };
+}
+const unsent = () => SE.getSyncStatus().hasUnsentChanges;
+const importOne = id => SE.executeImport({
+  newRemote: [{ id, remote: { data: mkProject(id) } }],
+  mergeTracking: [], conflicts: [],
+  syncObj: { _deviceId: 'dev_A' }
+});
+
 describe('unshared changes', () => {
   test('a fresh device has nothing unsent', () => {
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(false);
+    expect(unsent()).toBe(false);
   });
 
-  test('a local save marks changes as unsent until an export covers them', () => {
+  test('a local change is unsent until a delivered export covers it', async () => {
     SE.triggerAutoExport();
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(true);
-    // An export snapshot taken after the change covers it.
-    localStorage.setItem('cs_sync_lastExportAt', new Date(Date.now() + 1000).toISOString());
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(false);
+    expect(unsent()).toBe(true);
+    await SE.exportToFolder(fakeFolder());
+    expect(unsent()).toBe(false);
+    SE.triggerAutoExport();
+    expect(unsent()).toBe(true);
   });
 
-  test('a change after the last export is unsent again', () => {
-    localStorage.setItem('cs_sync_lastExportAt', new Date(Date.now() - HOUR).toISOString());
+  test('a change committed while the export is reading stays unsent', async () => {
     SE.triggerAutoExport();
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(true);
+    // A save lands after the export noted what it covers but before it
+    // finished: it may be missing from the file, so it must not count as sent.
+    onListProjects = () => SE.triggerAutoExport();
+    await SE.exportToFolder(fakeFolder());
+    expect(unsent()).toBe(true);
+  });
+
+  test('the export file does not carry the coverage marker', async () => {
+    SE.triggerAutoExport();
+    const obj = await SE.exportSync();
+    expect(typeof obj._coversChangeRev).toBe('number');
+    expect(JSON.stringify(obj)).not.toContain('_coversChangeRev');
   });
 
   test('the first unsent change announces a status change', () => {
@@ -87,17 +120,25 @@ describe('unshared changes', () => {
     expect(seen.filter(r => r === 'local-change').length).toBe(1);
   });
 
-  test('saves made while applying an import are not this device\'s changes', async () => {
-    localStorage.setItem('cs_sync_lastExportAt', new Date(Date.now() - HOUR).toISOString());
-    await SE.executeImport({
-      newRemote: [{ id: 'proj_x', remote: { data: mkProject('proj_x') } }],
-      mergeTracking: [], conflicts: [],
-      syncObj: { _deviceId: 'dev_A' }
-    });
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(false);
-    // ...but the next save made here is.
+  test('writes that apply an import are not this device\'s changes', async () => {
+    await importOne('proj_x');
+    expect(unsent()).toBe(false);
+    SE.triggerAutoExport({ origin: SE.SYNC_ORIGIN_IMPORT });
+    expect(unsent()).toBe(false);
+  });
+
+  test('local edits flushed at the start of an import stay unsent', async () => {
+    window.__flushProjectToIDB = async () => { SE.triggerAutoExport(); };
+    await importOne('proj_y');
+    expect(unsent()).toBe(true);
+  });
+
+  test('a local save during an import is still counted', async () => {
+    // Untagged writes count whenever they happen; only import writes are skipped.
+    const run = importOne('proj_z');
     SE.triggerAutoExport();
-    expect(SE.getSyncStatus().hasUnsentChanges).toBe(true);
+    await run;
+    expect(unsent()).toBe(true);
   });
 });
 

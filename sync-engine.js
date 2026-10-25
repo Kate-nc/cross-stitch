@@ -30,10 +30,16 @@ const SyncEngine = (() => {
   // Powers the Sync Activity modal (Concept A).
   const LS_EVENT_LOG = "cs_sync_eventLog";
   const EVENT_LOG_MAX = 50;
-  // When this device last changed something that sync carries (a project
-  // save or a stash edit). Compared with LS_LAST_EXPORT so a device without
-  // automatic sync can say it has work its other devices have not seen.
-  const LS_LAST_LOCAL_CHANGE = "cs_sync_lastLocalChangeAt";
+  // Unshared-changes tracking. Every local change that sync carries (a
+  // project save or deletion, a stash edit) raises LS_LOCAL_CHANGE_REV. An
+  // export notes the revision before it reads anything, and a delivered
+  // export raises LS_SENT_CHANGE_REV to that noted revision, so a change
+  // committed while the export was reading is never counted as sent.
+  const LS_LOCAL_CHANGE_REV = "cs_sync_localChangeRev";
+  const LS_SENT_CHANGE_REV = "cs_sync_sentChangeRev";
+  // Writes made by applying an import carry this origin, so the other
+  // device's work is not mistaken for this device's unshared changes.
+  const SYNC_ORIGIN_IMPORT = "import";
   // "1" = the user chose "Don't remind me" on the import reminder.
   const LS_IMPORT_REMINDER_OFF = "cs_sync_importReminderOff";
   // A device that syncs by file is reminded to import once the last import
@@ -697,6 +703,9 @@ const SyncEngine = (() => {
     if (window.__flushProjectToIDB) {
       await window.__flushProjectToIDB();
     }
+    // Every change counted up to here is committed, so the reads below see
+    // it. Anything counted later may be missing from this file.
+    var coversChangeRev = _readNum(LS_LOCAL_CHANGE_REV);
 
     // Read all projects
     var allProjects = [];
@@ -832,15 +841,23 @@ const SyncEngine = (() => {
     // visible — see the rationale block above _encryptSyncObj.
     if (isEncryptionEnabled()) {
       if (!_sessionPassphrase) throw EncryptionError("passphrase_required", "Encryption is enabled but no passphrase has been set this session");
+      var encrypted;
       try {
-        return await _encryptSyncObj(syncObj, _sessionPassphrase);
+        encrypted = await _encryptSyncObj(syncObj, _sessionPassphrase);
       } catch (e) {
         if (e && e.name === "EncryptionError") throw e;
         throw EncryptionError("unavailable", (e && e.message) || "Encryption failed");
       }
+      return _withCoverage(encrypted, coversChangeRev);
     }
 
-    return syncObj;
+    return _withCoverage(syncObj, coversChangeRev);
+  }
+
+  // Non-enumerable, so it never reaches the written file.
+  function _withCoverage(obj, rev) {
+    try { Object.defineProperty(obj, "_coversChangeRev", { value: rev, enumerable: false, configurable: true }); } catch (e) {}
+    return obj;
   }
 
   // ── Compress / Decompress ────────────────────────────────────────────────
@@ -1143,7 +1160,7 @@ const SyncEngine = (() => {
             action: function () {
               var file = new File([blob], filename, { type: "application/octet-stream" });
               navigator.share({ files: [file], title: filename })
-                .then(function () { _markExportComplete(_ts); })
+                .then(function () { _markExportComplete(_ts, syncObj._coversChangeRev); })
                 .catch(function () {});
             }
           });
@@ -1180,7 +1197,7 @@ const SyncEngine = (() => {
     // timestamp must not advance — otherwise the sync status would claim the
     // device is up to date when it never sent anything.
     var cancelled = !!(result && result.cancelled);
-    if (!cancelled) _markExportComplete(syncObj._createdAt);
+    if (!cancelled) _markExportComplete(syncObj._createdAt, syncObj._coversChangeRev);
     // Stamped after compress(), so it never reaches the written file. Callers
     // read it to avoid reporting "exported successfully" for a dismissed sheet.
     syncObj._delivery = cancelled ? "cancelled" : (result && result.shared ? "shared" : "downloaded");
@@ -1190,10 +1207,15 @@ const SyncEngine = (() => {
   // Stamp the moment an export verifiably left the app (file written to the
   // sync folder, or download handed to the browser). See the note in
   // exportSync for why this must not run at build time.
-  function _markExportComplete(ts) {
+  // coversChangeRev: the local change revision noted before the export read
+  // anything (see exportSync). Absent, nothing is acknowledged as sent.
+  function _markExportComplete(ts, coversChangeRev) {
     // Timestamp first: _setProtocolState announces the change, and listeners
     // reading getSyncStatus() must already see the new export time.
     try { localStorage.setItem(LS_LAST_EXPORT, ts || new Date().toISOString()); } catch (e) {}
+    if (typeof coversChangeRev === "number" && coversChangeRev > _readNum(LS_SENT_CHANGE_REV)) {
+      try { localStorage.setItem(LS_SENT_CHANGE_REV, String(coversChangeRev)); } catch (e) {}
+    }
     _setProtocolState('completed','Sync file handed to the transport; receipt by another device is not confirmed.','export');
   }
 
@@ -2447,13 +2469,8 @@ const SyncEngine = (() => {
   }
 
   async function executeImport(plan, conflictResolutions, gateResolutions) {
-    // Saves made while an import is applied carry the other device's work,
-    // not this device's, so they must not mark this device as having
-    // unshared changes (see _noteLocalChange).
-    _importDepth++;
     try { var result = await _executeImport(plan,conflictResolutions,gateResolutions); clearPendingPlan(); return result; }
     catch(e) { _setProtocolState(e.state || 'failed',e.message); throw e; }
-    finally { _importDepth--; }
   }
   async function _executeImport(plan, conflictResolutions, gateResolutions) {
     // conflictResolutions: { [projectId]: "keep-local" | "keep-remote" | "keep-both" }
@@ -2542,7 +2559,7 @@ const SyncEngine = (() => {
         // "Delete all patterns" followed by a re-import in the same session
         // silently dropped every save while executeImport still reported the
         // projects as imported.
-        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:null });
+        await ProjectStorage.save(entry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:null, syncOrigin: SYNC_ORIGIN_IMPORT });
       } catch (saveErr) {
         if (saveErr && saveErr.name === "QuotaExceededError") {
           throw new Error("Not enough browser storage to import all projects — free up space or clear cached data and try again. (QuotaExceededError saving \"" + (entry.remote.data && entry.remote.data.name || entry.remote.id) + "\")");
@@ -2602,11 +2619,11 @@ const SyncEngine = (() => {
         merged.id = canon;
         // mergeTrackingProgress already resolved updatedAt to the later of
         // the two sides — preserve it rather than restamping with "now".
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null, syncOrigin: SYNC_ORIGIN_IMPORT });
         // Delete the now-orphaned local record (only if its id differs from canonical).
         if (oldLocalId && oldLocalId !== canon && ProjectStorage.delete) {
           try {
-            await ProjectStorage.delete(oldLocalId);
+            await ProjectStorage.delete(oldLocalId, { syncOrigin: SYNC_ORIGIN_IMPORT });
             // ProjectStorage.delete() writes a tombstone for the deleted ID. For idRewrite
             // deletions this is wrong: the deletion is a structural ID-convergence (not a
             // user deletion), so a tombstone would permanently block future imports from
@@ -2624,7 +2641,7 @@ const SyncEngine = (() => {
           }
         }
       } else {
-        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null });
+        await ProjectStorage.save(merged, { preserveUpdatedAt: true, resurrect: true, syncExpected: merged.id === freshLocal.id ? expectedProject : null, syncOrigin: SYNC_ORIGIN_IMPORT });
       }
     }
 
@@ -2633,7 +2650,7 @@ const SyncEngine = (() => {
       var cEntry = plan.conflicts[k];
       var resolution = conflictResolutions[cEntry.id] || "keep-local";
       if (resolution === "keep-remote") {
-        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local) });
+        await ProjectStorage.save(cEntry.remote.data, { preserveUpdatedAt: true, resurrect: true, syncExpected:_projectSignature(cEntry.local), syncOrigin: SYNC_ORIGIN_IMPORT });
       } else if (resolution === "keep-both") {
         // Keep local as-is; import remote as a new project via normal save logic
         var remoteCopy = _clone(cEntry.remote.data); // PERF (perf-6 #5)
@@ -2642,6 +2659,8 @@ const SyncEngine = (() => {
         if (priorCopy && !_sameChart(priorCopy,remoteCopy)) throw protocolError('conflicted','Sync copy identifier collision.');
         delete remoteCopy.createdAt;
         remoteCopy.name = (remoteCopy.name || "Untitled") + " (synced)";
+        // Not tagged as an import: keeping both is this device's choice, and the
+        // copy is a project the other device does not have.
         if (!priorCopy) await ProjectStorage.save(remoteCopy,{preserveUpdatedAt:true,resurrect:true});
       }
       // "keep-local" → do nothing
@@ -2840,7 +2859,7 @@ const SyncEngine = (() => {
     await _applyAttachments(attachmentInput);
     // Apply reviewed remote deletions through the normal storage cleanup path.
     for (var dc of (plan.semanticConflicts || [])) {
-      if (dc.id.indexOf('delete:') === 0 && gateResolutions[dc.id] === 'keep-remote') await ProjectStorage.delete(dc.projectId);
+      if (dc.id.indexOf('delete:') === 0 && gateResolutions[dc.id] === 'keep-remote') await ProjectStorage.delete(dc.projectId, { syncOrigin: SYNC_ORIGIN_IMPORT });
     }
     // 6. Record import timestamp and mark synced projects. The timestamp is
     // written before the completed state is announced, so listeners reading
@@ -2916,6 +2935,8 @@ const SyncEngine = (() => {
       var rp = byId[id];
       if (rp && rp.data) {
         try {
+          // A deliberate restore releases this device's deletion record, which
+          // its other devices need to hear about, so it counts as local work.
           await ProjectStorage.save(rp.data, { preserveUpdatedAt: true, resurrect: true });
           restored++; restoredIds.add(id);
         } catch (e) { _setProtocolState('failed',e.message); throw e; }
@@ -3054,7 +3075,7 @@ const SyncEngine = (() => {
     var writable = await fileHandle.createWritable();
     await writable.write(compressed);
     await writable.close();
-    _markExportComplete(syncObj._createdAt);
+    _markExportComplete(syncObj._createdAt, syncObj._coversChangeRev);
     _logEvent({
       type: "export-success",
       direction: "out",
@@ -3319,27 +3340,27 @@ const SyncEngine = (() => {
   }
 
   // Unshared-changes tracking for devices that sync by file.
-  var _importDepth = 0;
-  function _readTime(key) {
-    try { var t = Date.parse(localStorage.getItem(key) || ""); return isFinite(t) ? t : null; } catch (e) { return null; }
+  function _readNum(key) {
+    try { var n = Number(localStorage.getItem(key)); return isFinite(n) && n > 0 ? n : 0; } catch (e) { return 0; }
   }
   function _hasUnsentChanges() {
-    var change = _readTime(LS_LAST_LOCAL_CHANGE);
-    if (change == null) return false;
-    var sent = _readTime(LS_LAST_EXPORT);
-    return sent == null || change > sent;
+    return _readNum(LS_LOCAL_CHANGE_REV) > _readNum(LS_SENT_CHANGE_REV);
   }
   function _noteLocalChange() {
-    if (_importDepth > 0) return;
     var wasUnsent = _hasUnsentChanges();
-    try { localStorage.setItem(LS_LAST_LOCAL_CHANGE, new Date().toISOString()); } catch (e) {}
+    // Strictly increasing within a tab; seeding from the clock keeps two
+    // tabs changing at once from landing on the same revision.
+    var next = Math.max(_readNum(LS_LOCAL_CHANGE_REV) + 1, Date.now());
+    try { localStorage.setItem(LS_LOCAL_CHANGE_REV, String(next)); } catch (e) {}
     // Only devices without a connected folder show unshared changes; with a
     // folder, the export that follows announces itself.
     if (!wasUnsent && !_watchDirHandle) _notifyStatusChanged("local-change");
   }
 
-  function triggerAutoExport() {
-    _noteLocalChange();
+  // options.origin === "import": the write came from applying another
+  // device's sync file, so it is not this device's unshared work.
+  function triggerAutoExport(options) {
+    if (!(options && options.origin === SYNC_ORIGIN_IMPORT)) _noteLocalChange();
     if (window.WebDAVSync) window.WebDAVSync.changed();
     if (!isAutoSyncEnabled()) return;
     Promise.resolve(_watchDirHandle || getWatchDirectory()).then(function (dirHandle) {
@@ -4255,7 +4276,6 @@ const SyncEngine = (() => {
       deviceName: getDeviceName(),
       lastExportAt: lastExport,
       lastImportAt: lastImport,
-      lastLocalChangeAt: (function () { try { return localStorage.getItem(LS_LAST_LOCAL_CHANGE); } catch (e) { return null; } })(),
       hasUnsentChanges: _hasUnsentChanges(),
       hasFolderWatch: hasFolderWatchSupport(),
       hasWatchDir: !!_watchDirHandle,
@@ -4615,6 +4635,7 @@ const SyncEngine = (() => {
     // Constants (for testing)
     SYNC_FORMAT: SYNC_FORMAT,
     SYNC_VERSION: SYNC_VERSION,
+    SYNC_ORIGIN_IMPORT: SYNC_ORIGIN_IMPORT,
 
     // Test-only hooks for pure helpers. Exposed so unit tests can pin
     // down behaviour without re-implementing the heuristics. Not part

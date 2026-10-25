@@ -135,13 +135,15 @@ const StashBridge = (() => {
   // pattern library is mutated (auto-sync from the Creator, manual unlink, or
   // any other writer) so any open Manager / Home / Shopping view rebuilds in
   // place rather than waiting for the next visibilitychange.
-  function _dispatchPatternsChanged() {
+  // syncOrigin ("import"): the change follows from applying another device's
+  // sync file, so sync must not count it as this device's unshared work.
+  function _dispatchPatternsChanged(syncOrigin) {
     if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
     if (typeof CustomEvent !== 'function') return;
     try { window.dispatchEvent(new CustomEvent('cs:patternsChanged')); } catch (_) { /* swallow */ }
     try {
       if (window.SyncEngine && typeof window.SyncEngine.triggerAutoExport === 'function') {
-        window.SyncEngine.triggerAutoExport();
+        window.SyncEngine.triggerAutoExport(syncOrigin ? { origin: syncOrigin } : undefined);
       }
     } catch (_) { /* swallow */ }
   }
@@ -981,7 +983,9 @@ const StashBridge = (() => {
     // skeinData: array of { id, name, stitches, skeins, rgb }
     // fabricCt: the project's fabric count (e.g. 14, 18, 28) — stored so conflict
     //           detection can convert stitches to skeins using the correct count.
-    async syncProjectToLibrary(projectId, projectName, skeinData, status, fabricCt) {
+    // options.syncOrigin: passed on to sync (see _dispatchPatternsChanged).
+    async syncProjectToLibrary(projectId, projectName, skeinData, status, fabricCt, options) {
+      const syncOrigin = options && options.syncOrigin;
       try {
         return await _withManagerWriteLock('syncProjectToLibrary', async function () {
           const db = await openManagerDB();
@@ -1015,7 +1019,7 @@ const StashBridge = (() => {
                 if (existingIdx >= 0) patterns[existingIdx] = entry;
                 else patterns.push(entry);
                 store.put(patterns, "patterns");
-                tx.oncomplete = () => { _dispatchPatternsChanged(); resolve(); };
+                tx.oncomplete = () => { _dispatchPatternsChanged(syncOrigin); resolve(); };
                 tx.onerror = () => reject(tx.error);
                 tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
               };
@@ -1032,7 +1036,8 @@ const StashBridge = (() => {
 
     // Brief D — remove the auto-synced pattern library entry linked to a deleted project.
     // No-op when nothing is linked. Safe to call on every project delete.
-    async unlinkProjectFromLibrary(projectId) {
+    async unlinkProjectFromLibrary(projectId, options) {
+      const syncOrigin = options && options.syncOrigin;
       try {
         return await _withManagerWriteLock('unlinkProjectFromLibrary', async function () {
           const db = await openManagerDB();
@@ -1047,7 +1052,7 @@ const StashBridge = (() => {
                 const changed = filtered.length !== patterns.length;
                 if (changed) store.put(filtered, "patterns");
                 tx.oncomplete = () => {
-                  if (changed) _dispatchPatternsChanged();
+                  if (changed) _dispatchPatternsChanged(syncOrigin);
                   resolve();
                 };
                 tx.onerror = () => reject(tx.error);
