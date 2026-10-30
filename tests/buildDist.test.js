@@ -54,6 +54,13 @@ describe('dist contents', () => {
     }
   });
 
+  test('vendored libraries and fonts in assets/ are copied unchanged (licence headers kept)', () => {
+    for (const rel of ['assets/qrcode-generator.js', 'assets/jsqr.js', 'assets/jsqr.LICENSE',
+      'assets/fontkit.umd.min.js', 'assets/fonts/CrossStitchSymbols.base64.js']) {
+      expect([rel, read(rel).equals(fs.readFileSync(path.join(ROOT, rel)))]).toEqual([rel, true]);
+    }
+  });
+
   test('pages are copied unchanged', () => {
     for (const page of ['home.html', 'create.html', 'stitch.html', 'manifest.json']) {
       expect(read(page).equals(fs.readFileSync(path.join(ROOT, page)))).toBe(true);

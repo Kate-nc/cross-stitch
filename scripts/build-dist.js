@@ -14,6 +14,8 @@
 // Pattern Keeper-compatible PDF export must stay bit-stable, so its three
 // files are copied byte-for-byte, including where creator/extras-bundle.js
 // concatenates two of them (that bundle is minified section by section).
+// assets/ (vendored libraries with licence headers, the symbol font) and
+// sw.js are copied unchanged too.
 //
 // Vercel runs this as the build command and serves dist/ (vercel.json).
 'use strict';
@@ -85,6 +87,9 @@ const VERBATIM_SECTIONS = new Set(['pdfChartLayout.js', 'pdfExport.js']);
 // Files that must stay byte-identical for other reasons.
 //   sw.js: build-sw.js rewrites it between its BUILD MANIFEST markers.
 const COPY_ONLY = new Set(['sw.js']);
+// assets/ holds vendored libraries whose licence notices are plain comments
+// (minifying would strip them) and the symbol font the PDF worker loads.
+const COPY_ONLY_DIRS = ['assets/'];
 
 const SECTION_MARKER = /^\/\* ─── (.+?) ─── \*\/$/m;
 
@@ -163,7 +168,8 @@ function build(outDir) {
     const isJs = /\.(m?js)$/.test(rel);
     const isCss = /\.css$/.test(rel);
     const alreadyMin = /\.min\.(m?js|css)$/.test(rel);
-    if ((isJs || isCss) && !alreadyMin && !VERBATIM_FILES.has(rel) && !COPY_ONLY.has(rel)) {
+    const copyOnly = COPY_ONLY.has(rel) || COPY_ONLY_DIRS.some(dir => rel.startsWith(dir));
+    if ((isJs || isCss) && !alreadyMin && !VERBATIM_FILES.has(rel) && !copyOnly) {
       const code = bytes.toString('utf8');
       try {
         if (isCss) {
