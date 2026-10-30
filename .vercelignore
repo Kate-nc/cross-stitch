@@ -10,5 +10,6 @@
 /coverage
 /playwright-report
 /test-results
+/work
 /dist
 *.bat

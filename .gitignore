@@ -7,6 +7,8 @@ run_*.js
 inspect_*.js
 playwright-report/
 test-results/
+# Scratch output from the e2e and service-worker specs (screenshots, CDN mirror)
+work/
 tests/.tmp/
 
 # OS junk

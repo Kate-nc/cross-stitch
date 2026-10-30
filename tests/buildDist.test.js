@@ -32,7 +32,7 @@ const exists = rel => fs.existsSync(path.join(OUT, rel));
 
 describe('dist contents', () => {
   test('leaves out tests, reports, docs, build tools and JSX sources', () => {
-    for (const rel of ['tests', 'reports', 'TestUploads', 'docs', 'proposals', 'wiki', 'scripts', 'api', 'node_modules',
+    for (const rel of ['tests', 'reports', 'TestUploads', 'docs', 'proposals', 'wiki', 'scripts', 'api', 'node_modules', 'work',
       'serve.js', 'build-sw.js', 'package.json', 'vercel.json', 'README.md', 'AGENTS.md',
       'tracker-app.js', 'creator-main.js', 'manager-app.js', 'embroidery.js']) {
       expect([rel, exists(rel)]).toEqual([rel, false]);
@@ -181,7 +181,8 @@ describe('Pattern Keeper PDF export stays bit-stable', () => {
 
   test('extras-bundle.js keeps its copies verbatim while the rest is minified', () => {
     const bundle = read('creator/extras-bundle.js').toString('utf8');
-    for (const rel of ['creator/pdfChartLayout.js', 'creator/pdfExport.js']) {
+    // pdfChartLayout.js loads from its own <script> tag, not the bundle.
+    for (const rel of ['creator/pdfExport.js']) {
       expect([rel, bundle.includes(fs.readFileSync(path.join(ROOT, rel), 'utf8').trimEnd())]).toEqual([rel, true]);
     }
     expect(bundle.length).toBeLessThan(fs.statSync(path.join(ROOT, 'creator/extras-bundle.js')).size * 0.75);

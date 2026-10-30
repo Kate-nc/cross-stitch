@@ -67,7 +67,7 @@ Never edit the generated files directly. `scripts/build-dist.js` copies the app 
 
 ### Lazy loading
 
-[lazy-modules.js](../lazy-modules.js) installs stubs for `HelpDrawer` and `BackupRestore` and loads `help-drawer.js` / `backup-restore.js` on first use. [import-engine/lazy-shim.js](../import-engine/lazy-shim.js) does the same for `import-engine/bundle.js`. Lazily loaded files must stay in `sw.js`'s precache list (checked by `tests/swPrecacheSync.test.js`).
+[lazy-modules.js](../lazy-modules.js) installs stubs for `HelpDrawer` and `BackupRestore` and loads `help-drawer.js` / `backup-restore.js` on first use. [import-engine/lazy-shim.js](../import-engine/lazy-shim.js) does the same for `import-engine/bundle.js`. `creator/extras-bundle.js` (Materials & Output and the Adapt modal) loads through `window.loadCreatorExtras()` the first time either opens; `creator-main.js` shows a loading or retry message until then, and desktop prefetches it. Lazily loaded files must stay in `sw.js`'s precache list (checked by `tests/swPrecacheSync.test.js`).
 
 ## Key Files and Responsibilities
 

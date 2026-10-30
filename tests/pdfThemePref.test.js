@@ -66,7 +66,12 @@ describe('creator/bundle.js regenerated', () => {
     expect(/theme:\s*workshopTheme\[0\]\s*\?\s*"workshop"\s*:\s*"pk"/.test(BUNDLE_SRC)).toBe(true);
   });
 
-  test('bundle exposes Layout.themeColors helper', () => {
-    expect(/themeColors:\s*themeColors/.test(BUNDLE_SRC)).toBe(true);
+  test('the Creator pages load Layout.themeColors (creator/pdfChartLayout.js, its own script tag)', () => {
+    const layout = fs.readFileSync(path.join(__dirname, '..', 'creator', 'pdfChartLayout.js'), 'utf8');
+    expect(/themeColors:\s*themeColors/.test(layout)).toBe(true);
+    for (const page of ['create.html', 'index.html']) {
+      const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+      expect([page, /<script src="creator\/pdfChartLayout\.js"><\/script>/.test(html)]).toEqual([page, true]);
+    }
   });
 });

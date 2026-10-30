@@ -124,7 +124,7 @@ var PRECACHE_URLS = [
   // what keeps it available. Same reasoning as backup-restore.js above.
   './help-drawer.js',
   // The Tracker loads the PDF exporter on demand (export-pdf.js); the Creator
-  // has it inside creator/bundle.js.
+  // gets it from creator/extras-bundle.js.
   './creator/pdfExport.js',
   './sync-merge-helpers.js',
   './sync-attachment-codec.js',
@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "83c2e1f1e830c8d6556986f98a79471247ad413849eccd9e67b3217caa0d5878";
+var BUILD_ID = "75ee8b7636adf09c8d500f06f6dcda02a865c12dc557c408aa393e61cbf2adb2";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -296,10 +296,10 @@ var BUILD_ASSETS = {
     "sha256": "3f7d89ab647a57520873bc13823b19ae2fc6a8a58533c2e2d7cd1a118dd77df8"
   },
   "./index.html": {
-    "sha256": "c1cd7b4632f15ff9e6666738c598b8fc2f75eecb04204d8b3dc0223c11780ce7"
+    "sha256": "4c7bb7c1e9ed5548b6943364887c84b3f9a59fc9741f32801b5157a732f9d82c"
   },
   "./create.html": {
-    "sha256": "d3517ac42b37516481d6344c48a0d8f3662bafa035e18f842ce227593b7e3164"
+    "sha256": "5e8b02fdfcbd56dd4f183a0046827b9cc2e25f08d41025ace99179c1bcb8dfb5"
   },
   "./stitch.html": {
     "sha256": "bc94ddab29d0ebbdeca5c568dce4402032db84da71808da5bbcde39b1507ed0a"
@@ -329,16 +329,16 @@ var BUILD_ASSETS = {
     "sha256": "4c206b118d2794906c3178f35e4a7f8521f3504e35870fe1355d266326472e26"
   },
   "./changelog.js": {
-    "sha256": "f5458af7a61e09e8e249c395382e84f1653a2477023ebfb28ab3e96ad8aac799"
+    "sha256": "f6e7d2113cf5ebf484c0b4b6235abf99ed20c6776edbc444dee695037b5563ed"
   },
   "./runtime-loaders.js": {
-    "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
+    "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
   },
   "./lazy-modules.js": {
     "sha256": "aedb4ee3af7c1f93723612c4cb5bb9a96df558dc1b339b00caa578c496204cb1"
   },
   "./export-pdf.js": {
-    "sha256": "1f919aeedd05f7156e703bd628d8b1a908dfb4e360a570c5766085a2cc305bfb"
+    "sha256": "7e99d7e076647b36b249a262846ecefd1ae1686166f115d4870109dd2793b05d"
   },
   "./constants.js": {
     "sha256": "79faacefc8b904058c432e2654ed51870ad4aef448e3f916b033e3db4b43e984"
@@ -464,10 +464,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "a4b7a32b173a6ab0e7b31821b1e29da69632832b5f6fd02f2ab4161ea29bdddd"
+    "sha256": "101ae7b70eff31c746d88bb79d388c96a5c58fbb920b6c8debc9bd2c6cbe86d7"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "07cbb1bd4b3b0449f62166dc1eb20425d462401a5138ddd226d2afea22205386"
+    "sha256": "b700badcbfe6183ea55b8d06593a98110020d05261bbc9fffbf896f98eadcac0"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "a760d937fdb36c3ede33ed7b7e1afd2c9b81a1cab4b445161e2ed9e313e8bb5b"
@@ -488,7 +488,7 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "e3aa94e42bcbd58f5b6d98364230a0f385d593b5c02e880c1d28f437c5984010"
+    "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
     "sha256": "b631d19deb1601167ceb6b9fb1546d653861749600b1139c201903beec673677"
@@ -721,9 +721,7 @@ async function verifiedResponse(url) {
   if (!response.ok || response.type === 'opaque') throw new Error('Required asset failed: ' + url);
   if (expected && expected.sha256) {
     var bytes = await response.clone().arrayBuffer();
-    var digest = await crypto.subtle.digest('SHA-256', bytes);
-    var hex = Array.from(new Uint8Array(digest)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-    if (hex !== expected.sha256) throw new Error('Build mismatch: ' + url);
+    if (toHex(await crypto.subtle.digest('SHA-256', bytes)) !== expected.sha256) throw new Error('Build mismatch: ' + url);
   }
   return response;
 }
@@ -740,6 +738,38 @@ async function validateCandidate() {
     if (!(await cache.match(absolute(url)))) throw new Error('Missing cached asset: ' + url);
   }
 }
+// An update reuses files an earlier build already cached when their bytes
+// match this build's fingerprint (SHA-256 for local files, the pinned SRI
+// hash for CDN libraries), so only changed files are downloaded. The match is
+// checked on the cached bytes themselves, so a copy can never put bytes from
+// another build into this one.
+function toHex(buffer) {
+  return Array.from(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+function toBase64(buffer) {
+  var text = '';
+  var bytes = new Uint8Array(buffer);
+  for (var i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return btoa(text);
+}
+async function matchesBuild(response, expected) {
+  if (!expected || !response.ok || response.type === 'opaque') return false;
+  var bytes = await response.clone().arrayBuffer();
+  if (expected.sha256) return toHex(await crypto.subtle.digest('SHA-256', bytes)) === expected.sha256;
+  var pinned = /^sha384-(\S+)$/.exec(expected.integrity || '');
+  return !!pinned && toBase64(await crypto.subtle.digest('SHA-384', bytes)) === pinned[1];
+}
+async function earlierCaches() {
+  // Newest first; the digest check decides, so partial caches are safe to read.
+  return (await caches.keys()).filter(function (name) { return ownsCache(name) && name !== BUILD_CACHE; }).reverse();
+}
+async function reusable(url, names) {
+  for (var name of names) {
+    var cached = await (await caches.open(name)).match(absolute(url));
+    if (cached && await matchesBuild(cached, BUILD_ASSETS[url])) return cached;
+  }
+  return null;
+}
 self.addEventListener('install', function (event) {
   event.waitUntil((async function () {
     // Sequential writes also ensure a failed install cannot leave late writes
@@ -748,8 +778,18 @@ self.addEventListener('install', function (event) {
     if (await ready(BUILD_CACHE)) { await validateCandidate(); return; }
     await caches.delete(BUILD_CACHE);
     var cache = await caches.open(BUILD_CACHE);
+    var earlier = await earlierCaches();
     try {
-      for (var url of REQUIRED_URLS) await cache.put(absolute(url), await verifiedResponse(url));
+      for (var url of REQUIRED_URLS) await cache.put(absolute(url), (await reusable(url, earlier)) || await verifiedResponse(url));
+      // Optional features fetched by an earlier build (PDF export fonts, QR
+      // codes, ...) carry over when unchanged instead of downloading again.
+      for (var optional of Object.keys(BUILD_ASSETS)) {
+        if (REQUIRED_URLS.indexOf(optional) !== -1) continue;
+        try {
+          var kept = await reusable(optional, earlier);
+          if (kept) await cache.put(absolute(optional), kept);
+        } catch (_) { /* optional: fetched on first use instead */ }
+      }
       await cache.put(READY_URL, new Response(JSON.stringify({ build: BUILD_ID, completed: Date.now() })));
       await validateCandidate();
     } catch (error) {
