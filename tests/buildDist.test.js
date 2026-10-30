@@ -137,6 +137,33 @@ describe('minified output', () => {
     expect(after).toEqual(before);
   });
 
+  test('extras-bundle.js has a source map through its minified and verbatim sections', () => {
+    const { TraceMap, originalPositionFor } = require('@jridgewell/trace-mapping');
+    const code = read('creator/extras-bundle.js').toString('utf8');
+    expect(code).toMatch(/\/\/# sourceMappingURL=extras-bundle\.js\.map\n$/);
+    const raw = JSON.parse(read('creator/extras-bundle.js.map').toString('utf8'));
+    const map = new TraceMap(raw);
+    const lookup = (needle, from = 0) => {
+      const i = code.indexOf(needle, from);
+      expect([needle, i >= 0]).toEqual([needle, true]);
+      const before = code.slice(0, i);
+      const pos = originalPositionFor(map, { line: before.split('\n').length, column: i - before.lastIndexOf('\n') - 1 });
+      const text = raw.sourcesContent[raw.sources.indexOf(pos.source)].split('\n')[pos.line - 1];
+      return { source: pos.source, text };
+    };
+    // Minified components, before and after the protected PDF sections.
+    for (const [needle, source] of [['window.CreatorLegendTab', 'LegendTab.js'], ['window.CreatorMaterialsHub', 'MaterialsHub.js'],
+      ['window.CreatorShoppingListModal', 'ShoppingListModal.js']]) {
+      const hit = lookup(needle);
+      expect([needle, hit.source, hit.text.includes(needle)]).toEqual([needle, source, true]);
+    }
+    // A protected section maps line for line onto its own file.
+    const pdf = fs.readFileSync(path.join(ROOT, 'creator/pdfExport.js'), 'utf8').split('\n');
+    const k = pdf.findIndex(l => l.trim().length > 20);
+    const hit = lookup(pdf[k], code.indexOf('/* ─── pdfExport.js ─── */'));
+    expect([hit.source, hit.text]).toEqual(['pdfExport.js', pdf[k]]);
+  });
+
   test('minified scripts link a source map', () => {
     const code = read('helpers.js').toString('utf8');
     expect(code).toMatch(/\/\/# sourceMappingURL=helpers\.js\.map\n$/);
@@ -158,5 +185,58 @@ describe('Pattern Keeper PDF export stays bit-stable', () => {
       expect([rel, bundle.includes(fs.readFileSync(path.join(ROOT, rel), 'utf8').trimEnd())]).toEqual([rel, true]);
     }
     expect(bundle.length).toBeLessThan(fs.statSync(path.join(ROOT, 'creator/extras-bundle.js')).size * 0.75);
+  });
+});
+
+describe('build destination', () => {
+  const { checkOutDir, OWNED_MARKER } = require('../scripts/build-dist.js');
+  const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'stitchx-out-'));
+  const snapshot = dir => fs.readdirSync(dir, { recursive: true }).sort()
+    .map(f => { const p = path.join(dir, f); return f + ':' + (fs.statSync(p).isFile() ? sha256(fs.readFileSync(p)) : 'dir'); });
+
+  test('only dist/ may be used inside the repository', () => {
+    for (const rel of ['.', 'creator', 'tests', 'compiled', 'assets', 'dist/..', 'creator/dist']) {
+      expect(() => checkOutDir(path.resolve(ROOT, rel))).toThrow(/Refusing to build/);
+    }
+    expect(() => checkOutDir(path.dirname(ROOT))).toThrow(/contains the repository/);
+    expect(() => checkOutDir(path.join(ROOT, 'dist'))).not.toThrow();
+  });
+
+  test('outside the repository: new, empty or marked folders only', () => {
+    const empty = tmp();
+    const marked = tmp();
+    fs.writeFileSync(path.join(marked, OWNED_MARKER), '');
+    fs.writeFileSync(path.join(marked, 'old.js'), '');
+    const foreign = tmp();
+    fs.writeFileSync(path.join(foreign, 'notes.txt'), 'keep me');
+    try {
+      expect(() => checkOutDir(path.join(empty, 'new-folder'))).not.toThrow();
+      expect(() => checkOutDir(empty)).not.toThrow();
+      expect(() => checkOutDir(marked)).not.toThrow();
+      expect(() => checkOutDir(foreign)).toThrow(/not empty and was not made by this script/);
+    } finally {
+      for (const d of [empty, marked, foreign]) fs.rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  test('a refused destination is left untouched', () => {
+    // Check the guard first, so a regression fails here instead of deleting sources.
+    expect(() => checkOutDir(path.join(ROOT, 'creator'))).toThrow(/only dist/);
+    const foreign = tmp();
+    fs.writeFileSync(path.join(foreign, 'notes.txt'), 'keep me');
+    try {
+      for (const target of [path.join(ROOT, 'creator'), foreign]) {
+        const before = snapshot(target);
+        expect(() => execFileSync(process.execPath, [path.join(ROOT, 'scripts/build-dist.js'), target], { cwd: ROOT, stdio: 'pipe' }))
+          .toThrow(/Refusing to build/);
+        expect(snapshot(target)).toEqual(before);
+      }
+    } finally {
+      fs.rmSync(foreign, { recursive: true, force: true });
+    }
+  });
+
+  test('a build marks its folder so the next build may replace it', () => {
+    expect(exists(OWNED_MARKER)).toBe(true);
   });
 });
