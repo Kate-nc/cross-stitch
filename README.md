@@ -191,7 +191,7 @@ File > Preferences opens a 12-category panel (Profile & branding, Regional & uni
 
 ## Progressive Web App
 
-The service worker ([`sw.js`](sw.js)) validates and caches the offline application on first load. Reopen the app once installation completes before relying on offline access. Updates wait until all stitchx tabs and installed app windows close; reopen to use the update. Failed or incomplete downloads leave the working version available. Project data lives separately in IndexedDB.
+The service worker ([`sw.js`](sw.js)) validates and caches the offline application on first load. Reopen the app once installation completes before relying on offline access. Updates download only the files that changed (unchanged files are reused from the installed copy once their fingerprints match) and wait until all stitchx tabs and installed app windows close; reopen to use the update. Failed or incomplete downloads leave the working version available. Project data lives separately in IndexedDB.
 
 Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Vercel builds a minified copy of the site with `node scripts/build-dist.js` and serves the resulting `dist/` folder; `npm run serve:dist` builds and serves the same thing locally. See [the update lifecycle](reports/service-worker-lifecycle.md) for cache retention, recovery and validation.
 

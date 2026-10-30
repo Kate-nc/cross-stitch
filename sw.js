@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "83c2e1f1e830c8d6556986f98a79471247ad413849eccd9e67b3217caa0d5878";
+var BUILD_ID = "0d4ba856ad3510ada213f829cbbe87f5e35a75f1668a2d150f890e3167507938";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "4c206b118d2794906c3178f35e4a7f8521f3504e35870fe1355d266326472e26"
   },
   "./changelog.js": {
-    "sha256": "f5458af7a61e09e8e249c395382e84f1653a2477023ebfb28ab3e96ad8aac799"
+    "sha256": "73ad05615ce53ccbf100a8fb1235f95523726433a7b2dbde951b4d80c0d21960"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -721,9 +721,7 @@ async function verifiedResponse(url) {
   if (!response.ok || response.type === 'opaque') throw new Error('Required asset failed: ' + url);
   if (expected && expected.sha256) {
     var bytes = await response.clone().arrayBuffer();
-    var digest = await crypto.subtle.digest('SHA-256', bytes);
-    var hex = Array.from(new Uint8Array(digest)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-    if (hex !== expected.sha256) throw new Error('Build mismatch: ' + url);
+    if (toHex(await crypto.subtle.digest('SHA-256', bytes)) !== expected.sha256) throw new Error('Build mismatch: ' + url);
   }
   return response;
 }
@@ -740,6 +738,38 @@ async function validateCandidate() {
     if (!(await cache.match(absolute(url)))) throw new Error('Missing cached asset: ' + url);
   }
 }
+// An update reuses files an earlier build already cached when their bytes
+// match this build's fingerprint (SHA-256 for local files, the pinned SRI
+// hash for CDN libraries), so only changed files are downloaded. The match is
+// checked on the cached bytes themselves, so a copy can never put bytes from
+// another build into this one.
+function toHex(buffer) {
+  return Array.from(new Uint8Array(buffer)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+}
+function toBase64(buffer) {
+  var text = '';
+  var bytes = new Uint8Array(buffer);
+  for (var i = 0; i < bytes.length; i++) text += String.fromCharCode(bytes[i]);
+  return btoa(text);
+}
+async function matchesBuild(response, expected) {
+  if (!expected || !response.ok || response.type === 'opaque') return false;
+  var bytes = await response.clone().arrayBuffer();
+  if (expected.sha256) return toHex(await crypto.subtle.digest('SHA-256', bytes)) === expected.sha256;
+  var pinned = /^sha384-(\S+)$/.exec(expected.integrity || '');
+  return !!pinned && toBase64(await crypto.subtle.digest('SHA-384', bytes)) === pinned[1];
+}
+async function earlierCaches() {
+  // Newest first; the digest check decides, so partial caches are safe to read.
+  return (await caches.keys()).filter(function (name) { return ownsCache(name) && name !== BUILD_CACHE; }).reverse();
+}
+async function reusable(url, names) {
+  for (var name of names) {
+    var cached = await (await caches.open(name)).match(absolute(url));
+    if (cached && await matchesBuild(cached, BUILD_ASSETS[url])) return cached;
+  }
+  return null;
+}
 self.addEventListener('install', function (event) {
   event.waitUntil((async function () {
     // Sequential writes also ensure a failed install cannot leave late writes
@@ -748,8 +778,18 @@ self.addEventListener('install', function (event) {
     if (await ready(BUILD_CACHE)) { await validateCandidate(); return; }
     await caches.delete(BUILD_CACHE);
     var cache = await caches.open(BUILD_CACHE);
+    var earlier = await earlierCaches();
     try {
-      for (var url of REQUIRED_URLS) await cache.put(absolute(url), await verifiedResponse(url));
+      for (var url of REQUIRED_URLS) await cache.put(absolute(url), (await reusable(url, earlier)) || await verifiedResponse(url));
+      // Optional features fetched by an earlier build (PDF export fonts, QR
+      // codes, ...) carry over when unchanged instead of downloading again.
+      for (var optional of Object.keys(BUILD_ASSETS)) {
+        if (REQUIRED_URLS.indexOf(optional) !== -1) continue;
+        try {
+          var kept = await reusable(optional, earlier);
+          if (kept) await cache.put(absolute(optional), kept);
+        } catch (_) { /* optional: fetched on first use instead */ }
+      }
       await cache.put(READY_URL, new Response(JSON.stringify({ build: BUILD_ID, completed: Date.now() })));
       await validateCandidate();
     } catch (error) {

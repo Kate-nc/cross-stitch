@@ -42,12 +42,13 @@ function build(label) {
   worker = `const transport = self.fetch.bind(self); self.fetch = request => request.url.startsWith('https://cdnjs.cloudflare.com/') ? transport(new Request(new URL('/__cdn?url=' + encodeURIComponent(request.url), self.registration.scope), { integrity: request.integrity })) : transport(request);\n` + worker;
   return { files, worker, cache: original.CACHE_NAME + '-' + id };
 }
-let server, base, deployed, failure, held, serverOffline;
+let server, base, deployed, failure, held, serverOffline, requests;
 test.beforeAll(async () => {
   server = http.createServer((req, res) => {
     if (serverOffline) { req.socket.destroy(); return; }
     const url = new URL(req.url, 'http://localhost');
     const name = url.pathname.slice(1);
+    if (requests) requests.push(url.pathname === '/__cdn' ? 'cdn:' + url.searchParams.get('url') : name);
     res.setHeader('Cache-Control', 'no-store');
     if (url.pathname === '/__cdn') { res.setHeader('Content-Type', 'application/javascript'); res.end(failure?.kind === 'cdn-mismatch' ? Buffer.from('wrong CDN bytes') : cdn.get(url.searchParams.get('url'))); return; }
     if (name === 'sw.js') { res.setHeader('Content-Type', 'application/javascript'); res.end(deployed.worker); return; }
@@ -69,7 +70,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { held?.destroy(); await new Promise(resolve => server.close(resolve)); });
 test.beforeEach(async ({ context }) => {
-  failure = null; held = null; serverOffline = false; deployed = build('old-build');
+  failure = null; held = null; serverOffline = false; requests = null; deployed = build('old-build');
   await context.route('https://cdnjs.cloudflare.com/**', route => route.fulfill({ body: cdn.get(route.request().url()) || Buffer.from(''), contentType: 'application/javascript' }));
 });
 async function register(page) {
@@ -96,6 +97,18 @@ async function saveProject(page) {
 async function assertProject(page) {
   expect(await page.evaluate(async () => (await window.ProjectStorage.get('sw-sentinel')).name)).toBe('Preserved project');
 }
+const REACT = Object.keys(original.BUILD_ASSETS).find(u => u.includes('/react/'));
+async function cachedText(page, cacheName, url) {
+  return page.evaluate(async ([name, u]) => { const r = await (await caches.open(name)).match(new URL(u, location.href).href); return r ? r.text() : null; }, [cacheName, url]);
+}
+async function cachedHash(page, cacheName, url) {
+  return page.evaluate(async ([name, u]) => {
+    const r = await (await caches.open(name)).match(new URL(u, location.href).href);
+    if (!r) return null;
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await r.arrayBuffer()))).map(b => b.toString(16).padStart(2, '0')).join('');
+  }, [cacheName, url]);
+}
+const JSZIP = Object.keys(original.BUILD_ASSETS).find(u => u.includes('/jszip/'));
 async function version(page) { return page.evaluate(async () => (await fetch('/version.js')).text()); }
 for (const kind of ['404', 'disconnect', 'mismatch', 'cdn-mismatch']) {
   test(`failed ${kind} upgrade leaves old version offline`, async ({ page, context }) => {
@@ -104,7 +117,11 @@ for (const kind of ['404', 'disconnect', 'mismatch', 'cdn-mismatch']) {
     const old = deployed.cache;
     await saveProject(page);
     await page.evaluate(async () => { await caches.open('user-project-exports'); localStorage.setItem('project-sentinel', 'preserved'); });
-    deployed = build('new-build'); failure = { asset: 'stitch.html', kind };
+    // An update reuses unchanged files, so fail one it must download: version.js
+    // changes in every build, and an evicted CDN library is fetched again (JSZip:
+    // /home doesn't load it, so the old version still works offline).
+    if (kind === 'cdn-mismatch') await page.evaluate(([name, url]) => caches.open(name).then(c => c.delete(url)), [old, JSZIP]);
+    deployed = build('new-build'); failure = { asset: 'version.js', kind };
     expect(await update(page)).toBe('redundant');
     expect(await page.evaluate(() => caches.keys())).toEqual(expect.arrayContaining([old, 'user-project-exports']));
     expect(await page.evaluate(() => caches.keys())).not.toContain(deployed.cache);
@@ -167,7 +184,7 @@ test('uncontrolled first visit, two tabs, successful upgrade, offline routes and
 test('terminated installation leaves a partial candidate; retry commits and later activation cleans it', async ({ page, context }) => {
   await register(page); await page.goto(base + '/home');
   const old = deployed.cache;
-  deployed = build('interrupted-build'); failure = { asset: 'stitch.html', kind: 'hold' };
+  deployed = build('interrupted-build'); failure = { asset: 'version.js', kind: 'hold' };
   const updating = update(page).catch(() => 'terminated');
   await expect.poll(() => !!held).toBe(true);
   const cdp = await context.newCDPSession(page);
@@ -194,7 +211,7 @@ test('legacy v69 migration failure preserves its offline cache', async ({ page, 
   deployed.worker = transport + legacy;
   await register(page);
   await page.goto(base + '/home');
-  deployed = build('new-build'); failure = { asset: 'stitch.html', kind: '404' };
+  deployed = build('new-build'); failure = { asset: 'version.js', kind: '404' };
   expect(await update(page)).toBe('redundant');
   serverOffline = true;
     await context.setOffline(true);
@@ -202,4 +219,50 @@ test('legacy v69 migration failure preserves its offline cache', async ({ page, 
   expect(await version(page)).toContain('old-build');
   await expect(page.locator('#root')).not.toBeEmpty();
   expect(await page.evaluate(() => caches.keys())).toContain('cross-stitch-cache-v69');
+});
+
+test('a version-only update downloads only the files that changed', async ({ page }) => {
+  await register(page);
+  await page.goto(base + '/home');
+  deployed = build('new-build');
+  requests = [];
+  expect(await update(page)).toBe('installed');
+  const fetched = requests; requests = null;
+  // The update check fetches sw.js; version.js is the only changed file.
+  expect([...new Set(fetched)].sort()).toEqual(['sw.js', 'version.js']);
+  expect(await cachedText(page, deployed.cache, './version.js')).toContain('new-build');
+  expect(await cachedHash(page, deployed.cache, './stitch.html')).toBe(hash(deployed.files.get('stitch.html')));
+});
+
+test('altered or evicted cached copies are downloaded again and checked', async ({ page }) => {
+  await register(page);
+  await page.goto(base + '/home');
+  const old = deployed.cache;
+  await page.evaluate(([name, react]) => caches.open(name).then(async c => {
+    await c.put(new URL('/stitch.html', location.href).href, new Response('altered in the old cache'));
+    await c.delete(react);
+  }), [old, REACT]);
+  deployed = build('new-build');
+  requests = [];
+  expect(await update(page)).toBe('installed');
+  const fetched = requests; requests = null;
+  expect(fetched).toEqual(expect.arrayContaining(['stitch.html', 'cdn:' + REACT]));
+  expect(fetched).not.toContain('manager.html');
+  expect(await cachedHash(page, deployed.cache, './stitch.html')).toBe(hash(deployed.files.get('stitch.html')));
+  expect(await cachedHash(page, deployed.cache, REACT)).toBe(hash(cdn.get(REACT)));
+});
+
+test('optional files fetched by an earlier build carry over when unchanged', async ({ page }) => {
+  await register(page);
+  await page.goto(base + '/home');
+  expect(await page.evaluate(async () => (await fetch('/assets/jsqr.js')).status)).toBe(200);
+  expect(await cachedText(page, deployed.cache, './assets/jsqr.js')).not.toBeNull();
+  deployed = build('new-build');
+  requests = [];
+  expect(await update(page)).toBe('installed');
+  const fetched = requests; requests = null;
+  expect(fetched).not.toContain('assets/jsqr.js');
+  expect(await cachedHash(page, deployed.cache, './assets/jsqr.js')).toBe(hash(deployed.files.get('assets/jsqr.js')));
+  // Optional files nobody used are not fetched during the update.
+  expect(fetched).not.toContain('assets/fontkit.umd.min.js');
 });

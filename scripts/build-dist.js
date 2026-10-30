@@ -50,6 +50,7 @@ const EXCLUDE_DIRS = new Set([
   'coverage',
   'playwright-report',
   'test-results',
+  'work',           // scratch output from the e2e and service-worker specs
 ]);
 
 // Top-level files that are build tools or JSX sources compiled into compiled/.

@@ -32,7 +32,7 @@ const exists = rel => fs.existsSync(path.join(OUT, rel));
 
 describe('dist contents', () => {
   test('leaves out tests, reports, docs, build tools and JSX sources', () => {
-    for (const rel of ['tests', 'reports', 'TestUploads', 'docs', 'proposals', 'wiki', 'scripts', 'api', 'node_modules',
+    for (const rel of ['tests', 'reports', 'TestUploads', 'docs', 'proposals', 'wiki', 'scripts', 'api', 'node_modules', 'work',
       'serve.js', 'build-sw.js', 'package.json', 'vercel.json', 'README.md', 'AGENTS.md',
       'tracker-app.js', 'creator-main.js', 'manager-app.js', 'embroidery.js']) {
       expect([rel, exists(rel)]).toEqual([rel, false]);
