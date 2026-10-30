@@ -342,7 +342,7 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
             h: payload.h,
             size: 96,
             projectId: proj.id,
-            className: 'mpd-card-thumb-img',
+            className: 'mpd-card-thumb-img mpd-card-thumb-img--pattern',
             alt: ''
           })
         : (proj.thumbnail
