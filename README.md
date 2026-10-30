@@ -178,7 +178,7 @@ The Help drawer's Shortcuts tab is the reference. Common ones:
 
 ### Preferences
 
-File > Preferences opens a 12-category panel (Profile & branding, Regional & units, Notifications, Accessibility, Pattern Creator, Stitch Tracker, Stash Manager, Preview & display, PDF export, Sync backup & data, Onboarding & help, Advanced). Settings persist via `window.UserPrefs`. The bottom of every panel shows the version history from [`version.js`](version.js).
+File > Preferences opens a 12-category panel (Profile & branding, Regional & units, Notifications, Accessibility, Pattern Creator, Stitch Tracker, Stash Manager, Preview & display, PDF export, Sync backup & data, Onboarding & help, Advanced). Settings persist via `window.UserPrefs`. The bottom of every panel shows the version history from [`changelog.js`](changelog.js).
 
 ### Onboarding
 
@@ -193,7 +193,7 @@ File > Preferences opens a 12-category panel (Profile & branding, Regional & uni
 
 The service worker ([`sw.js`](sw.js)) validates and caches the offline application on first load. Reopen the app once installation completes before relying on offline access. Updates wait until all stitchx tabs and installed app windows close; reopen to use the update. Failed or incomplete downloads leave the working version available. Project data lives separately in IndexedDB.
 
-Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Static hosting and deployment rewrites remain unchanged. See [the update lifecycle](reports/service-worker-lifecycle.md) for cache retention, recovery and validation.
+Developers: run `node build-sw.js` after changing deployment assets (or `npm run build` after source changes). Commit `sw.js`; CI and the pre-commit hook check its fingerprints. Vercel builds a minified copy of the site with `node scripts/build-dist.js` and serves the resulting `dist/` folder; `npm run serve:dist` builds and serves the same thing locally. See [the update lifecycle](reports/service-worker-lifecycle.md) for cache retention, recovery and validation.
 
 - **Desktop (Chrome / Edge):** click the install icon in the address bar.
 - **iOS / iPadOS Safari:** Share > Add to Home Screen. Installing also stops Safari clearing stored patterns after seven days without a visit.
@@ -273,7 +273,7 @@ Never edit generated files by hand. `npm test` and the pre-commit hook fail when
 
 ### Versioning
 
-`APP_VERSION` in [`version.js`](version.js) is bumped automatically on each merge to `main`. `APP_CHANGELOG` in the same file is written by hand — add a plain-English entry for user-visible changes.
+`APP_VERSION` in [`version.js`](version.js) is bumped automatically on each merge to `main`. `APP_CHANGELOG` in [`changelog.js`](changelog.js) is written by hand — add a plain-English entry for user-visible changes.
 
 ---
 
@@ -383,7 +383,8 @@ creator/                       Creator components and hooks (see build-creator-b
 creator/pdfExport.js, creator/pdfChartLayout.js, pdf-export-worker.js
                                Pattern Keeper-compatible PDF export (bit-stable)
 sw.js / manifest.json          Service worker and PWA manifest
-version.js                     App version and in-app changelog
+version.js                     App version
+changelog.js                   In-app changelog (loaded when Version history opens)
 
 tests/                         Jest suites
 tests/e2e, tests/ipad, tests/perf, tests/mobile-audit   Playwright suites
@@ -440,7 +441,7 @@ Pull requests are welcome. Before submitting:
 4. No emoji or emoji-like symbols (✓ → ⚠ …) in user-facing strings — use the SVG icons in `icons.js` via `window.Icons.name()`, adding one if needed (24×24 viewBox, 1.6 stroke-width, `currentColor`). See [AGENTS.md](AGENTS.md).
 5. British English in user-visible text ("colour", "organiser").
 6. Canonical CSS design tokens (`--accent`, `--surface`, `--text-primary`, …) — no raw hex in component CSS.
-7. If you change something users can see, update the Help drawer ([`help-drawer.js`](help-drawer.js)) and add an `APP_CHANGELOG` entry.
+7. If you change something users can see, update the Help drawer ([`help-drawer.js`](help-drawer.js)) and add an `APP_CHANGELOG` entry in [`changelog.js`](changelog.js).
 
 ---
 

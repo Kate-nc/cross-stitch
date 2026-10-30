@@ -255,6 +255,6 @@ describe('review follow-ups', () => {
   });
 
   test('the changelog does not claim the unreachable revert flow', () => {
-    expect(fs.readFileSync('./version.js', 'utf8')).not.toMatch(/Revert to original, Start fresh/);
+    expect(fs.readFileSync('./changelog.js', 'utf8')).not.toMatch(/Revert to original, Start fresh/);
   });
 });

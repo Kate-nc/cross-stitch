@@ -26,11 +26,19 @@ describe('vercel.json', () => {
       'trailingSlash must be false; mismatched trailing-slash redirects can form loops');
   });
 
-  test('buildCommand is null — prevents Vercel running "node serve.js" as a build/start command', () => {
-    // null or absent both work; undefined means the key was not present in JSON
-    const val = config.buildCommand;
-    assert.ok(val === null || val === undefined || val === '',
-      'buildCommand must be null/absent; a start script in package.json causes Vercel to treat the project as Node.js');
+  test('buildCommand is the static dist build — never "node serve.js" or an npm script', () => {
+    // Vercel must build static files, not start a server. The only build
+    // allowed is the minified copy made by scripts/build-dist.js; an npm
+    // script (e.g. "npm start") could pull in serve.js and hang the build.
+    assert.strictEqual(config.buildCommand, 'node scripts/build-dist.js',
+      'buildCommand must be exactly "node scripts/build-dist.js"');
+    assert.ok(!/serve\.js|npm|yarn|pnpm/.test(config.buildCommand),
+      'buildCommand must not start serve.js or run a package.json script');
+  });
+
+  test('outputDirectory is dist — the folder scripts/build-dist.js writes', () => {
+    assert.strictEqual(config.outputDirectory, 'dist',
+      'outputDirectory must be "dist" so only the built site is served (not tests, reports or docs)');
   });
 
   test('no redirect rules that could form a loop', () => {

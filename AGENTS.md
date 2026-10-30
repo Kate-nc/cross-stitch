@@ -18,9 +18,14 @@ this file is a shorter pointer plus the most-broken house rule.
   stale; `node build-runtime-js.js --check` says which file.
 - After editing anything in `import-engine/`, run `node build-import-bundle.js`.
 - User-visible changes also need the in-app help ([help-drawer.js](help-drawer.js))
-  and the hand-written `APP_CHANGELOG` in [version.js](version.js) updated.
+  and the hand-written `APP_CHANGELOG` in [changelog.js](changelog.js) updated.
   `tests/helpDrawerShortcutsSync.test.js` fails if the help's shortcut list
   disagrees with the registered shortcuts.
+- Vercel deploys a minified copy, not the checkout: it runs
+  `node scripts/build-dist.js` and serves `dist/` (see `npm run serve:dist`
+  to try it locally). Keep shipped JS within ES2020 syntax, and add any new
+  non-app top-level folder to `EXCLUDE_DIRS` in that script and to
+  `.vercelignore`.
 - Keep every source file UTF-8. A legacy-encoding save once corrupted every
   `×`, `—`, `£` and `…` in the Preferences panel into `�`.
 

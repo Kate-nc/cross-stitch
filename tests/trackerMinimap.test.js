@@ -106,7 +106,7 @@ describe('wiring', () => {
   });
   test('help and the changelog describe it', () => {
     expect(read('help-drawer.js')).toMatch(/\["Pattern overview"/);
-    expect(read('version.js')).toMatch(/A pattern overview in the corner of the Tracker chart/);
+    expect(read('changelog.js')).toMatch(/A pattern overview in the corner of the Tracker chart/);
   });
   test('Fit can reach a one-pixel cell, so a 300-stitch side fits a 600 px box', () => {
     expect(read('useCanvasOverlays.js')).toMatch(/var SCS_MIN\s+= 1;/);

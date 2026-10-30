@@ -100,6 +100,6 @@ describe('how the Tracker draws it', () => {
   });
   test('help and the changelog mention it', () => {
     expect(read('help-drawer.js')).toMatch(/\["Finished stitches"/);
-    expect(read('version.js')).toMatch(/version: '1\.0\.132'/);
+    expect(read('changelog.js')).toMatch(/version: '1\.0\.132'/);
   });
 });

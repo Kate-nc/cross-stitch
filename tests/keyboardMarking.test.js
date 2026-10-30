@@ -97,7 +97,7 @@ describe('documentation', () => {
     expect(help).toMatch(/id: "t\.markRange"[^\n]*keys: \["Shift\+Enter"\]/);
     expect(help).toMatch(/id: "t\.legend"[^\n]*keys: \["G"\]/);
     expect(help).toMatch(/\["Marking with the keyboard"/);
-    expect(read('version.js')).toMatch(/You can now mark stitches without a mouse or touch screen/);
+    expect(read('changelog.js')).toMatch(/You can now mark stitches without a mouse or touch screen/);
   });
   test('no screen-reader announcement was added in this batch', () => {
     expect(handler).not.toMatch(/guideLiveRef|aria-live|textContent=/);

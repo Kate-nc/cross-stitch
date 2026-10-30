@@ -272,7 +272,7 @@ describe('the help and the changelog are in step', () => {
   });
 
   test('the changelog says what changed', () => {
-    const v = read('version.js');
+    const v = read('changelog.js');
     expect(has(v, 'Improved: one thread label and a fuller colour key everywhere.')).toBe(true);
     expect(has(v, 'Tidy stray stitches and Confetti Cleanup are now Reduce confetti')).toBe(true);
   });

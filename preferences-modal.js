@@ -1755,12 +1755,29 @@
 
   // --------------------------------------------------------------------
   // VERSION HISTORY
-  // Reads window.APP_CHANGELOG (version.js) and renders a collapsible
-  // list at the bottom of every settings panel.
+  // Renders window.APP_CHANGELOG as a collapsible list at the bottom of
+  // every settings panel. The list lives in changelog.js and is loaded the
+  // first time someone opens it, so pages don't download it up front.
   // --------------------------------------------------------------------
   function VersionHistory() {
-    var changelog = (window.APP_CHANGELOG || []);
     var os = useState(false); var open = os[0]; var setOpen = os[1];
+    var cs = useState(function () { return window.APP_CHANGELOG || null; });
+    var changelog = cs[0]; var setChangelog = cs[1];
+    var lf = useState(false); var loadFailed = lf[0]; var setLoadFailed = lf[1];
+    useEffect(function () {
+      if (!open || changelog) return;
+      var cancelled = false;
+      setLoadFailed(false);
+      var load = typeof window.loadScript === "function"
+        ? window.loadScript("changelog.js", { test: function () { return Array.isArray(window.APP_CHANGELOG); } })
+        : Promise.reject(new Error("loadScript unavailable"));
+      load.then(function () {
+        if (!cancelled) setChangelog(window.APP_CHANGELOG || []);
+      }).catch(function () {
+        if (!cancelled) setLoadFailed(true);
+      });
+      return function () { cancelled = true; };
+    }, [open, changelog]);
     return h("div", { style: { marginTop: 28, borderTop: "1px solid " + COLOURS.line, paddingTop: 16 } },
       h("button", {
         type: "button",
@@ -1782,7 +1799,12 @@
           "(current: v" + (window.APP_VERSION || "") + ")"
         )
       ),
-      open && h("div", { style: { marginTop: 14 } },
+      open && !changelog && h("p", { style: { marginTop: 14, marginBottom: 0, fontSize: 12, color: COLOURS.hint } },
+        loadFailed
+          ? "Version history couldn't be loaded. Check your connection, then close and reopen it."
+          : "Loading version history…"
+      ),
+      open && changelog && h("div", { style: { marginTop: 14 } },
         changelog.map(function (entry) {
           return h("div", { key: entry.version, style: { marginBottom: 16 } },
             h("div", { style: { display: "flex", gap: 8, alignItems: "baseline", marginBottom: 4 } },
