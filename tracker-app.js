@@ -2407,6 +2407,12 @@ const minimapPref=useTrackerPref('trackerMinimap',true);   // the pattern overvi
 const minimapApiRef=useRef(null);                          // set by the overview while it is mounted: cellsChanged(changes,nd)
 const[minimapFocusOpen,setMinimapFocusOpen]=useState(false);   // on a phone in Focus the overview stays shut until asked for
 const doneStyle=useTrackerPref('trackerDoneStyle','fill');   // how a finished stitch shows: 'fill' (thread colour, dimmed symbol) or 'tick' (corner tick)
+// The chart's grid lines (More > View > Grid lines). High contrast draws Standard as Bold; Subtle stays as chosen.
+const gridStyle=useTrackerPref('trackerGridStyle','standard');
+const gridColour=useTrackerPref('trackerGridColour','auto');
+const gridEvery=useTrackerPref('trackerGridEvery',10);
+const highContrastPref=!!useTrackerPref('a11yHighContrast',false);
+const gridStyleEff=highContrastPref&&gridStyle==='standard'?'bold':gridStyle;
 const[lowZoomFade,setLowZoomFade]=useState(()=>{try{const v=parseFloat(localStorage.getItem('cs_lowZoomFade')||'0');return Number.isFinite(v)?Math.max(0,Math.min(0.9,v)):0;}catch(_){return 0;}});
 useEffect(()=>{try{localStorage.setItem('cs_lowZoomFade',String(lowZoomFade));}catch(_){}},[lowZoomFade]);
 // tierRef: current render tier (1–4) with hysteresis; default zoom=1→scs=20→Tier 3
@@ -5444,27 +5450,25 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // are an SVG overlay the browser animates (see antsSvgRef), so animating
   // them never repaints the chart.
 
-  // Grid lines — tier-adaptive
-  if(tier===1){
-    // Tier 1: only 10-block lines, subtle spatial reference
-    ctx.lineWidth=1;
-    for(let gx=startX;gx<=endX;gx++){if(gx%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();}
-    for(let gy=startY;gy<=endY;gy++){if(gy%10!==0)continue;ctx.strokeStyle="rgba(204,204,204,0.4)";ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();}
-  }else{
-    const gridOp=tier===2?0.30:tier===3?0.50:0.60;
-    const grid10Op=tier===2?0.60:tier===3?0.90:1.0;
-    const grid10Lw=tier>=4?2:1;
-    for(let gx=startX;gx<=endX;gx++){
-      const is10=gx%10===0,is5=gx%5===0;if(!is5&&!is10)continue;
-      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
-      ctx.beginPath();ctx.moveTo(gut+gx*cSz,gut+startY*cSz);ctx.lineTo(gut+gx*cSz,gut+endY*cSz);ctx.stroke();
-    }
-    for(let gy=startY;gy<=endY;gy++){
-      const is10=gy%10===0,is5=gy%5===0;if(!is5&&!is10)continue;
-      ctx.lineWidth=is10?grid10Lw:1;ctx.strokeStyle=is10?`rgba(68,68,68,${grid10Op})`:`rgba(170,170,170,${gridOp})`;
-      ctx.beginPath();ctx.moveTo(gut+startX*cSz,gut+gy*cSz);ctx.lineTo(gut+endX*cSz,gut+gy*cSz);ctx.stroke();
-    }
-    ctx.lineWidth=1;
+  // Grid lines: a heavy line every gridEvery stitches and a light one half-way between, in the style, colour and
+  // strength chosen in More > View (trackerGridLook, colour-utils.js). Each kind is one path, stroked once.
+  {
+    // Auto's light or dark ink follows what is behind most cells: the fabric only in Symbol view with symbols drawn;
+    // the other views (and Symbol zoomed out) fill every cell with a pale or a thread colour.
+    const gridBg=stitchView==="symbol"&&tier>=3?chartFabricColour:null;
+    const gl=trackerGridLook({style:gridStyleEff,colour:gridColour,every:gridEvery,fabric:gridBg,tier});
+    const x0=gut+startX*cSz,x1=gut+endX*cSz,y0=gut+startY*cSz,y1=gut+endY*cSz;
+    const gridPath=(step,skip)=>{
+      ctx.beginPath();
+      for(let gx=Math.ceil(startX/step)*step;gx<=endX;gx+=step){if(skip&&gx%skip===0)continue;ctx.moveTo(gut+gx*cSz,y0);ctx.lineTo(gut+gx*cSz,y1);}
+      for(let gy=Math.ceil(startY/step)*step;gy<=endY;gy+=step){if(skip&&gy%skip===0)continue;ctx.moveTo(x0,gut+gy*cSz);ctx.lineTo(x1,gut+gy*cSz);}
+    };
+    ctx.save();ctx.setLineDash([]);ctx.lineCap="butt";
+    if(gl.minor&&gl.minorEvery){gridPath(gl.minorEvery,gl.every);ctx.lineWidth=gl.minor.width;ctx.strokeStyle=gl.minor.stroke;ctx.stroke();}
+    gridPath(gl.every,0);
+    if(gl.halo){ctx.lineWidth=gl.halo.width;ctx.strokeStyle=gl.halo.stroke;ctx.stroke();}
+    ctx.lineWidth=gl.major.width;ctx.strokeStyle=gl.major.stroke;ctx.stroke();
+    ctx.restore();
   }
 
   ProgressUnits.specialty.draw(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected);
@@ -5660,7 +5664,7 @@ const renderStitch=useCallback(()=>{if(!pat||!cmap||!stitchRef.current)return;
   // Overlays share the chart's geometry, so a tile move invalidates them too.
   const tileChanged = !prevTile || prevTile.x!==tile.x || prevTile.y!==tile.y || prevTile.w!==tile.w || prevTile.h!==tile.h || prevTile.full!==tile.full;
   if(tileChanged)redrawChartOverlays();
-},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);
+},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);
 
 // Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
@@ -9140,6 +9144,29 @@ return(
                   onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set('trackerDoneStyle',v);}catch(_){}}} aria-pressed={doneStyle===v}
                 >{l}</button>
               )}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:'var(--text-xs)',fontWeight:600,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Grid lines</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {[
+                ["trackerGridStyle","Strength",gridStyle,[["subtle","Subtle"],["standard","Standard"],["bold","Bold"]]],
+                ["trackerGridColour","Colour",gridColour,[["auto","Auto"],["dark","Dark"],["light","Light"],["accent","Terracotta"]]],
+                ["trackerGridEvery","Heavy line every",gridEvery,[[5,"5"],[10,"10"],[20,"20"]]]
+              ].map(([key,label,cur,opts])=>
+                <div key={key} role="group" aria-label={"Grid lines: "+label.toLowerCase()}>
+                  <div style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)",marginBottom:4}}>{label}{key==="trackerGridEvery"?" (stitches)":""}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {opts.map(([v,l])=>
+                      <button key={v}
+                        style={{padding:"5px 12px",borderRadius:"var(--radius-sm)",border:"1px solid "+(cur===v?"var(--accent)":"var(--border)"),background:cur===v?"var(--accent)":"var(--surface)",color:cur===v?"var(--text-on-accent)":"var(--text-secondary)",fontSize:'var(--text-sm)',cursor:"pointer",fontWeight:cur===v?600:400}}
+                        onClick={()=>{try{if(window.UserPrefs)window.UserPrefs.set(key,v);}catch(_){}}} aria-pressed={cur===v}
+                      >{l}</button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {highContrastPref&&gridStyle==="standard"&&<div role="status" style={{fontSize:'var(--text-xs)',color:"var(--text-secondary)"}}>High contrast is on, so Standard lines are drawn Bold.</div>}
             </div>
           </div>
           <div>

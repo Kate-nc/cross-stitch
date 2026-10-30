@@ -158,6 +158,9 @@
     // ─── Small screens (tracking audit TRACK-07) ────────────────────────
     trackerMinimap:         true,        // the pattern overview in the Tracker corner (shown only when the chart is bigger than its box)
     trackerDoneStyle:       "fill",      // how a finished stitch shows in Symbol and Colour views: fill (thread colour, dimmed symbol) | tick (corner tick)
+    trackerGridStyle:       "standard",  // chart grid lines: subtle | standard | bold (High contrast draws Standard as Bold)
+    trackerGridColour:      "auto",      // grid line ink: auto (dark on light fabric, light on dark) | dark | light | accent
+    trackerGridEvery:       10,          // a heavy grid line every 5 | 10 | 20 stitches
     trackerFocusOnPhone:    true,        // open the Tracker in Focus (top bar and strip tucked away) on a phone
     trackerHandedness:      "right",     // right | left: which side of the chart the controls strip sits on
     trackerHintsSeen:       false,       // the how-to-mark banners are shown until the first stitch is marked
@@ -311,6 +314,9 @@
   portableEnum("trackerMarkAllAs", ["ask", "catchup", "today"]);
   portableEnum("trackerLegendSort", ["id", "done", "count"]);
   portableEnum("trackerDoneStyle", ["fill", "tick"]);
+  portableEnum("trackerGridStyle", ["subtle", "standard", "bold"]);
+  portableEnum("trackerGridColour", ["auto", "dark", "light", "accent"]);
+  portableEnum("trackerGridEvery", [5, 10, 20]);
   portableEnum("stashDefaultBrand", ["DMC", "Anchor", "both"]);
   portableEnum("patternsDefaultSort", ["date_desc", "date_asc", "title_asc", "designer_asc", "status"]);
   portableEnum("patternsDefaultFilter", ["all", "wishlist", "owned", "inprogress", "completed"]);
