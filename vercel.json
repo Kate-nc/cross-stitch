@@ -1,6 +1,6 @@
 {
-  "buildCommand": null,
-  "outputDirectory": ".",
+  "buildCommand": "node scripts/build-dist.js",
+  "outputDirectory": "dist",
   "cleanUrls": false,
   "trailingSlash": false,
   "rewrites": [

@@ -1,0 +1,14 @@
+# Not needed to build or run the site. Vercel serves dist/, which
+# scripts/build-dist.js builds from the app files; these folders are kept
+# out of the upload too so they never reach the deployment.
+/reports
+/TestUploads
+/tests
+/proposals
+/docs
+/wiki
+/coverage
+/playwright-report
+/test-results
+/dist
+*.bat

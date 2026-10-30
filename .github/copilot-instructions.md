@@ -61,8 +61,9 @@ There is **no in-browser Babel**. The large JSX entry files (`tracker-app.js`, `
 | `tracker-app.js`, `creator-main.js`, `manager-app.js`, `embroidery.js` | `node build-runtime-js.js` | `compiled/*.compiled.js` |
 | any `import-engine/**` | `node build-import-bundle.js` | `import-engine/bundle.js` |
 | deployment assets (after other generators) | `node build-sw.js` | fingerprints in `sw.js` |
+| nothing (Vercel runs it on deploy) | `node scripts/build-dist.js` | `dist/`: minified copy of the site that Vercel serves (not committed) |
 
-Never edit the generated files directly. File order for the creator bundles is defined in `build-creator-bundle.js` (`ORDER` and `EXTRAS_ORDER`). `npm test` and the pre-commit hook fail when `compiled/` is stale.
+Never edit the generated files directly. `scripts/build-dist.js` copies the app files into `dist/`, minifies JS and CSS with esbuild (ES2020; the three Pattern Keeper PDF files stay byte-identical), and re-runs `build-sw.js --root dist` so the worker's fingerprints match the minified bytes. It empties its destination first, so it only accepts `dist/` inside the repository, or an outside folder that is new, empty or marked by an earlier build (`.build-dist-output`). Every minified script, including the section-by-section `extras-bundle.js`, gets a linked source map. Folders that are not part of the app (tests, reports, docs, ...) are listed in `EXCLUDE_DIRS` there and in `.vercelignore`. File order for the creator bundles is defined in `build-creator-bundle.js` (`ORDER` and `EXTRAS_ORDER`). `npm test` and the pre-commit hook fail when `compiled/` is stale.
 
 ### Lazy loading
 
@@ -95,7 +96,8 @@ Never edit the generated files directly. File order for the creator bundles is d
 | `help-drawer.js` | **All in-app help content**: topics, shortcut list, Getting Started |
 | `onboarding-wizard.js` / `coaching.js` | Welcome walkthroughs / coachmarks |
 | `user-prefs.js` / `preferences-modal.js` | Preference defaults (`UserPrefs.DEFAULTS`) / the Preferences panel |
-| `version.js` | `APP_VERSION` (auto-bumped) and `APP_CHANGELOG` (hand-written) |
+| `version.js` | `APP_VERSION` (auto-bumped) |
+| `changelog.js` | `APP_CHANGELOG` (hand-written), loaded when Version history is opened |
 
 ## Data Storage
 
@@ -172,7 +174,7 @@ Tests use **Jest** with CommonJS `require`. Most tests read browser source with 
 User-visible changes need matching updates to:
 
 1. [help-drawer.js](../help-drawer.js) — the in-app help and shortcut list. `tests/helpDrawerShortcutsSync.test.js` fails if the shortcut list and the real registrations disagree.
-2. `APP_CHANGELOG` in [version.js](../version.js) — the Version history in Preferences.
+2. `APP_CHANGELOG` in [changelog.js](../changelog.js) — the Version history in Preferences.
 3. [README.md](../README.md) and the user guides in [wiki/](../wiki/) when a feature is added, renamed or moved.
 
 ## Common Pitfalls

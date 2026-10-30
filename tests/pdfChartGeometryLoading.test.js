@@ -30,7 +30,7 @@ describe('pdf-chart-geometry.js loading contexts', () => {
     const walk = (dir) => {
       for (const e of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
         const rel = path.join(dir, e.name);
-        if (e.isDirectory()) { if (!/^(node_modules|\.git|tests|reports|wiki|docs|compiled|TestUploads|assets)$/.test(e.name)) walk(rel); }
+        if (e.isDirectory()) { if (!/^(node_modules|dist|\.git|tests|reports|wiki|docs|compiled|TestUploads|assets)$/.test(e.name)) walk(rel); }
         else if (/\.(js|html)$/.test(e.name)) files.push(rel);
       }
     };

@@ -1,6 +1,7 @@
 // Minimal static file server with one rewrite for /home (matches the
 // vercel.json production rewrite so dev behaviour aligns with prod).
-// Usage: node serve.js [port]
+// Usage: node serve.js [port] [--root dir]
+//   --root dist   serves the minified build from scripts/build-dist.js
 const http = require('http');
 const fs   = require('fs');
 const path = require('path');
@@ -9,7 +10,8 @@ const zlib = require('zlib');
 const argvPort = parseInt(process.argv[2], 10);
 const envPort = parseInt(process.env.PORT, 10);
 const PORT = !Number.isNaN(argvPort) ? argvPort : !Number.isNaN(envPort) ? envPort : 8000;
-const ROOT = __dirname;
+const rootFlag = process.argv.indexOf('--root');
+const ROOT = rootFlag === -1 ? __dirname : path.resolve(process.argv[rootFlag + 1]);
 // The sync relay function (api/relay.js), backed by Upstash when its
 // environment variables are set and by an in-memory store otherwise.
 const relay = require('./api/relay.js');

@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const SKIP = new Set(['node_modules', '.git', 'tests', 'reports', 'compiled', 'test-results', 'playwright-report', 'coverage', 'docs']);
+const SKIP = new Set(['node_modules', 'dist', '.git', 'tests', 'reports', 'compiled', 'test-results', 'playwright-report', 'coverage', 'docs']);
 const EXT = new Set(['.html', '.js', '.css', '.json', '.webmanifest']);
 const GENERATED = /bundle|\.min\.|-data\.js$|dmc-data|anchor-data|sample/;
 

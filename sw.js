@@ -1,4 +1,4 @@
-var CACHE_NAME = 'cross-stitch-cache-v70';
+var CACHE_NAME = 'cross-stitch-cache-v71';
 
 var PRECACHE_URLS = [
   // HTML pages
@@ -22,6 +22,8 @@ var PRECACHE_URLS = [
   // Shared local assets
   './styles.css',
   './version.js',
+  // Version history, loaded when Preferences > Version history is opened.
+  './changelog.js',
   './runtime-loaders.js',
   './lazy-modules.js',
   './export-pdf.js',
@@ -141,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "19cd07e311a7daafa2b39914bbe81f850eb58dfd3641bfb1a9b2a9d9d265ac18";
+var BUILD_ID = "14bdc9e79def4fff4a89d96dcd67e9dde6e7612a2d3145d5aa6a198b4e625ff1";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -155,6 +157,7 @@ var REQUIRED_URLS = [
   "./assets/icons/app-icon-512.png",
   "./styles.css",
   "./version.js",
+  "./changelog.js",
   "./runtime-loaders.js",
   "./lazy-modules.js",
   "./export-pdf.js",
@@ -323,7 +326,10 @@ var BUILD_ASSETS = {
     "sha256": "f992201e4d06c89fe2b0922e56ff32d592d9a6b8dae1584dcbb1c5517958ec3b"
   },
   "./version.js": {
-    "sha256": "6b85605a7d36eb142a9a66adf0deb47c9beec32ff4a32d2e7ed8dc209cd8f5d6"
+    "sha256": "4df25872b70695b37de81ca4c33beffab57f31fa656a6aa57d86b9b25ac583d6"
+  },
+  "./changelog.js": {
+    "sha256": "f5458af7a61e09e8e249c395382e84f1653a2477023ebfb28ab3e96ad8aac799"
   },
   "./runtime-loaders.js": {
     "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
@@ -653,7 +659,7 @@ var BUILD_ASSETS = {
     "sha256": "939ac378ce06c86a18c8e42cefc4907ec8c065edf51cb898eaead75db24a8ae7"
   },
   "./preferences-modal.js": {
-    "sha256": "42a621af84c3b97dd36890c055364c9bde92d554a685e1f62ebb3e7e32a6a075"
+    "sha256": "b5e7f16a3c29dbb6936ea8d0bec5dd3387399ff73df4f48ecf99e587f4f374ce"
   },
   "./coaching.js": {
     "sha256": "fdd2a7cea5a5780f52b6c3f5e240344d3dabe1faa6a4d8f2ad76db47f319ab4c"
@@ -675,9 +681,6 @@ var BUILD_ASSETS = {
   },
   "./embroidery.html": {
     "sha256": "df5132bb7529adc91eda916b89b0330c61c274769fe4395d7501b467e1ab8f49"
-  },
-  "./embroidery.js": {
-    "sha256": "ec2e4ea674fd96cd02f301428d997919fbe0db858247f21b31ea9e6c07a98577"
   },
   "./assets/fontkit.umd.min.js": {
     "sha256": "d8df561b9fba98e24f2e5130e40948809281bbbc55a20c412359f1a0a5eb35a6"
