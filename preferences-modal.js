@@ -382,6 +382,9 @@
   function TrackerPanel() {
     var doneStyle = usePref("trackerDoneStyle", "fill");
     var minimapOn = usePref("trackerMinimap", true);
+    var gridStyle = usePref("trackerGridStyle", "standard");
+    var gridColour = usePref("trackerGridColour", "auto");
+    var gridEvery = usePref("trackerGridEvery", 10);
     var defView = usePref("trackerDefaultView", "symbol");
     var defHl = usePref("trackerDefaultHighlightMode", "isolate");
     var dimLv = usePref("trackerDimLevel", 0.1);
@@ -427,6 +430,28 @@
           h(Segmented, { value: doneStyle[0] === "tick" ? "tick" : "fill", onChange: doneStyle[1], options: [
             { value: "fill", label: "Thread colour" },
             { value: "tick", label: "Corner tick" }
+          ]})
+        ),
+        h(Row, { label: "Grid line strength", desc: "How strongly the chart's grid lines are drawn. Standard and Bold add a thin halo so the lines show over dark and light stitches alike. With High contrast on, Standard is drawn Bold." },
+          h(Segmented, { value: gridStyle[0], onChange: gridStyle[1], options: [
+            { value: "subtle", label: "Subtle" },
+            { value: "standard", label: "Standard" },
+            { value: "bold", label: "Bold" }
+          ]})
+        ),
+        h(Row, { label: "Grid line colour", desc: "Auto draws dark lines, or light lines in Symbol view when the pattern is on a dark fabric." },
+          h(Segmented, { value: gridColour[0], onChange: gridColour[1], options: [
+            { value: "auto", label: "Auto" },
+            { value: "dark", label: "Dark" },
+            { value: "light", label: "Light" },
+            { value: "accent", label: "Terracotta" }
+          ]})
+        ),
+        h(Row, { label: "Heavy grid line every", desc: "How many stitches between the heavy lines. A lighter line marks the half-way point when the number is even." },
+          h(Segmented, { value: gridEvery[0], onChange: gridEvery[1], options: [
+            { value: 5, label: "5" },
+            { value: 10, label: "10" },
+            { value: 20, label: "20" }
           ]})
         ),
         h(Row, { label: "Pattern overview", desc: "A small map of the whole pattern in the corner of the chart, with finished areas in full thread colour and the rest faded. It shows only when the pattern is bigger than the chart box. Tap or drag it to jump there." },
