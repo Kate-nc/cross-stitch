@@ -333,14 +333,19 @@ function ProjectCard({ proj, onOpen, onChangeState, stashOk, stashMsg, cardExtra
     }, selected && window.Icons && window.Icons.check ? window.Icons.check() : null),
 
     // Thumbnail
-    h('div', { className: 'mpd-card-thumb', onClick: thumbClick },
+    // --ar (pattern width / height) lets the CSS zoom the preview to fill the
+    // strip, cropping at most half of it.
+    h('div', {
+      className: 'mpd-card-thumb', onClick: thumbClick,
+      style: (payload && payload.w && payload.h) ? { '--ar': payload.w / payload.h } : undefined
+    },
       (payload && payload.pattern && window.PartialStitchThumb)
         ? h(window.PartialStitchThumb, {
             pattern: payload.pattern,
             done: payload.done,
             w: payload.w,
             h: payload.h,
-            size: 96,
+            size: 320,
             projectId: proj.id,
             className: 'mpd-card-thumb-img mpd-card-thumb-img--pattern',
             alt: ''

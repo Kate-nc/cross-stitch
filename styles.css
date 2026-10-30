@@ -4033,8 +4033,16 @@ kbd {
   display: flex; align-items: center; justify-content: center;
 }
 .mpd-card-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* A drawn pattern preview keeps its own shape: centred, shrunk to fit, never cropped. */
-.mpd-card-thumb-img--pattern { max-width: 100%; max-height: 100%; object-fit: contain; background: transparent !important; }
+/* A drawn pattern preview keeps its shape and zooms in to fill the 90px strip,
+   centred. The zoom stops at twice the whole-pattern size, so at most half the
+   pattern is cropped; a very wide pattern can leave space above and below.
+   --ar (pattern width / height) is set on .mpd-card-thumb by home-screen.js. */
+.mpd-card-thumb-img--pattern {
+  flex: none; max-width: none; max-height: none;
+  width: min(max(100%, calc(90px * var(--ar, 1))), calc(2 * min(100%, calc(90px * var(--ar, 1))))) !important;
+  height: auto !important;
+  object-fit: contain; background: transparent !important; border-radius: 0 !important;
+}
 .mpd-card-thumb-placeholder { width: 100%; height: 100%; background: var(--surface-tertiary); }
 .mpd-card-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .mpd-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
