@@ -591,6 +591,26 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || (state.appMode === 'create' && state.tab === 'pattern')));
+  // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
+  // loaded the first time either is opened rather than on every Creator load.
+  const needExtras = state.tab === 'materials' || !!state.adaptModalOpen;
+  const [extrasReady, setExtrasReady] = useState(() => typeof window.CreatorMaterialsHub !== 'undefined');
+  const [extrasFailed, setExtrasFailed] = useState(false);
+  useEffect(() => {
+    if (extrasReady || !needExtras) return;
+    let live = true;
+    setExtrasFailed(false);
+    const load = typeof window.loadCreatorExtras === 'function' ? window.loadCreatorExtras() : Promise.reject(new Error('loader unavailable'));
+    load.then(() => { if (live) setExtrasReady(true); }).catch(() => {
+      if (!live) return;
+      setExtrasFailed(true);
+      if (state.adaptModalOpen) {
+        state.setAdaptModalOpen(false);
+        if (window.Toast) window.Toast.show({ message: "Adapt couldn't be loaded. Check your connection and try again.", type: 'error' });
+      }
+    });
+    return () => { live = false; };
+  }, [needExtras, extrasReady]);
   // How the chart relates to the settings in Convert (null, unknown, changed, same).
   const convertChartState = useMemo(function() {
     return window.convertChartState ? window.convertChartState(state.pat, state.lastGenSnapshot, state.conversionSettings, state.img) : null;
@@ -1322,7 +1342,7 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
         saveError={state.saveError}
         onRetrySave={io.retryAutoSave} />
       {state.preferencesOpen&&typeof window.PreferencesModal!=='undefined'&&React.createElement(window.PreferencesModal,{onClose:()=>state.setPreferencesOpen(false)})}
-      {state.adaptModalOpen&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
+      {state.adaptModalOpen&&extrasReady&&typeof window.AdaptModal!=='undefined'&&React.createElement(window.AdaptModal,{
         mode:state.adaptModalMode,
         onClose:()=>state.setAdaptModalOpen(false)
       })}
@@ -1525,10 +1545,13 @@ function CreatorApp({onSwitchToTrack=null, isActive=true}={}) {
             {state.pat&&state.pal&&!showConvertView&&<div className={"cs-page-fade cs-page-fade--"+state.tab}>
               <window.CreatorPatternTab/>
               <window.CreatorProjectTab/>
-              {/* Action plan §3.2: MaterialsHub lives in creator/extras-bundle.js
-                  which is loaded with `defer`. Guard against the brief window
-                  before the deferred script finishes parsing. */}
-              {typeof window.CreatorMaterialsHub!=="undefined"&&<window.CreatorMaterialsHub/>}
+              {/* MaterialsHub lives in creator/extras-bundle.js, loaded the
+                  first time Materials & Output opens (see needExtras above). */}
+              {extrasReady&&typeof window.CreatorMaterialsHub!=="undefined"
+                ?<window.CreatorMaterialsHub/>
+                :state.tab==="materials"&&<p role="status" style={{margin:0,padding:"var(--s-5) var(--s-4)",fontSize:"var(--text-md)",color:"var(--text-secondary)"}}>
+                  {extrasFailed?"Materials & Output couldn't be loaded. Check your connection, then open it again.":"Loading Materials & Output…"}
+                </p>}
             </div>}
             {showConvertView&&<div className="cvp-layout" style={{display:"flex",gap:20,padding:"12px 16px 16px 0",flex:1,minHeight:0}}>
               {/* Left: source image with crop / change controls */}

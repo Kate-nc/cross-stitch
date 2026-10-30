@@ -23,17 +23,17 @@ function writeIfChanged(target, content) {
 
 // ── Bundle layout ──────────────────────────────────────────────────────────
 // ORDER         → creator/bundle.js          (loaded eagerly on the Creator page)
-// EXTRAS_ORDER  → creator/extras-bundle.js   (loaded with `defer` so it parses
-//                                             after the main bundle without
-//                                             blocking initial HTML parsing —
-//                                             action plan §3.2)
+// EXTRAS_ORDER  → creator/extras-bundle.js   (loaded the first time
+//                                             Materials & Output or the Adapt
+//                                             modal opens: loadCreatorExtras
+//                                             in runtime-loaders.js)
 //
 // EXTRAS contains modules that are only needed for the Materials & Output
 // page (LegendTab/PrepareTab/ExportTab/MaterialsHub and their helpers) plus
-// the Stash-Adapt modal pipeline. Every consumer of these globals already
-// guards with `typeof window.X !== 'undefined'` (or is itself in extras),
-// so a slow extras-bundle never crashes the Pattern tab — the modal/tab
-// just stays hidden until the script finishes parsing.
+// the Stash-Adapt modal pipeline. creator-main.js shows a loading message
+// until it arrives. pdfChartLayout.js is not included: the Creator pages
+// load it with its own <script> tag because symbol-glyphs.js needs it from
+// the first render.
 const ORDER = [
   'context.js',
   // Auto-save state machine — pure helper used by useProjectIO.js to drive
@@ -114,7 +114,6 @@ const ORDER = [
 const EXTRAS_ORDER = [
   'matchQuality.js',
   'adaptationEngine.js',
-  'pdfChartLayout.js',
   'pdfExport.js',
   'zipBundle.js',
   'AdaptModal.js',

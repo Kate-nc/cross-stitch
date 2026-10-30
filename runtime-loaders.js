@@ -90,6 +90,14 @@
     return loadPromises[src];
   };
 
+  // Materials & Output and the Adapt modal (creator/extras-bundle.js). The
+  // Creator loads it the first time either is opened.
+  window.loadCreatorExtras = function () {
+    return window.loadScript('creator/extras-bundle.js', {
+      test: function () { return typeof window.CreatorMaterialsHub !== 'undefined'; }
+    });
+  };
+
   window.loadAnchorData = function (opts) {
     opts = opts || {};
     return window.loadScript('anchor-data.js', {

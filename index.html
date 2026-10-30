@@ -67,6 +67,7 @@
       'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js',
       'pdf-export-worker.js',
       'compiled/creator-main.compiled.js',
+      'creator/extras-bundle.js',
       'stats-page.js',
       'stats-activity.js'
     ].forEach(function (href) {
@@ -172,10 +173,9 @@ window.addEventListener('unhandledrejection',function(e){console.error('Unhandle
 <script src="creator/pdfChartLayout.js"></script>
 <script src="symbol-glyphs.js"></script>
 <script src="creator/bundle.js"></script>
-<!-- Action plan §3.2: Materials & Output components + Stash-Adapt modal
-     pipeline live in a separate bundle that downloads in parallel with the
-     main bundle but doesn't block HTML parsing. -->
-<script src="creator/extras-bundle.js" defer></script>
+<!-- Materials & Output and the Adapt modal (creator/extras-bundle.js) load
+     the first time they open: window.loadCreatorExtras in runtime-loaders.js,
+     called from creator-main.js. Desktop prefetches it above. -->
 <script src="runtime-loaders.js"></script>
 <script src="lazy-modules.js"></script>
 <!-- Lazy-load helpers — available to regular scripts -->

@@ -22855,8 +22855,9 @@ window.CreatorProjectTab = function CreatorProjectTab() {
           },
           style:{padding:"8px 18px",fontSize:'var(--text-md)',borderRadius:'var(--radius-md)',border:"1px solid var(--accent-light)",background:"var(--surface-secondary)",color:"var(--accent)",cursor:"pointer",fontWeight:600}
         }, "Kit This Project"),
-        typeof window.AdaptModal !== "undefined"
-          ? h("button", {
+        // AdaptModal is in creator/extras-bundle.js, which the Creator loads
+        // when the modal opens, so the button doesn't wait for it.
+        h("button", {
               onClick: function() {
                 ctx.setAdaptModalMode && ctx.setAdaptModalMode('brand');
                 ctx.setAdaptModalOpen && ctx.setAdaptModalOpen(true);
@@ -22869,7 +22870,6 @@ window.CreatorProjectTab = function CreatorProjectTab() {
               window.Icons && window.Icons.adapt ? h('span', {style:{display:'inline-flex'}}, window.Icons.adapt()) : null,
               "Adapt to brand"
             )
-          : null
       ),
       ctx.kittingResult && h("div", {style:{marginTop:'var(--s-2)',padding:"10px 14px",borderRadius:'var(--radius-md)',border:"1px solid var(--border)",background:"var(--surface-secondary)",fontSize:'var(--text-sm)'}},
         h("div", {style:{fontWeight:700,marginBottom:'var(--s-1)'}}, "Kitting check ("+ctx.kittingResult.total+" colours)"),

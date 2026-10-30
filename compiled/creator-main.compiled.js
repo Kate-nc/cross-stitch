@@ -1173,6 +1173,33 @@ function CreatorApp({
   // exists: the chart itself is Edit's. Without a chart the preview is all
   // there is to show.
   const showConvertView = !!(state.img && !state.isScratchMode && (!state.pat || state.appMode === 'create' && state.tab === 'pattern'));
+  // Materials & Output and the Adapt modal live in creator/extras-bundle.js,
+  // loaded the first time either is opened rather than on every Creator load.
+  const needExtras = state.tab === 'materials' || !!state.adaptModalOpen;
+  const [extrasReady, setExtrasReady] = useState(() => typeof window.CreatorMaterialsHub !== 'undefined');
+  const [extrasFailed, setExtrasFailed] = useState(false);
+  useEffect(() => {
+    if (extrasReady || !needExtras) return;
+    let live = true;
+    setExtrasFailed(false);
+    const load = typeof window.loadCreatorExtras === 'function' ? window.loadCreatorExtras() : Promise.reject(new Error('loader unavailable'));
+    load.then(() => {
+      if (live) setExtrasReady(true);
+    }).catch(() => {
+      if (!live) return;
+      setExtrasFailed(true);
+      if (state.adaptModalOpen) {
+        state.setAdaptModalOpen(false);
+        if (window.Toast) window.Toast.show({
+          message: "Adapt couldn't be loaded. Check your connection and try again.",
+          type: 'error'
+        });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [needExtras, extrasReady]);
   // How the chart relates to the settings in Convert (null, unknown, changed, same).
   const convertChartState = useMemo(function () {
     return window.convertChartState ? window.convertChartState(state.pat, state.lastGenSnapshot, state.conversionSettings, state.img) : null;
@@ -2191,7 +2218,7 @@ function CreatorApp({
     onRetrySave: io.retryAutoSave
   }), state.preferencesOpen && typeof window.PreferencesModal !== 'undefined' && React.createElement(window.PreferencesModal, {
     onClose: () => state.setPreferencesOpen(false)
-  }), state.adaptModalOpen && typeof window.AdaptModal !== 'undefined' && React.createElement(window.AdaptModal, {
+  }), state.adaptModalOpen && extrasReady && typeof window.AdaptModal !== 'undefined' && React.createElement(window.AdaptModal, {
     mode: state.adaptModalMode,
     onClose: () => state.setAdaptModalOpen(false)
   }), state.colourReplaceModal && typeof window.ColourReplaceModal !== 'undefined' && React.createElement(window.ColourReplaceModal, {
@@ -2465,7 +2492,15 @@ function CreatorApp({
     className: "canvas-area"
   }, state.pat && state.pal && !showConvertView && /*#__PURE__*/React.createElement("div", {
     className: "cs-page-fade cs-page-fade--" + state.tab
-  }, /*#__PURE__*/React.createElement(window.CreatorPatternTab, null), /*#__PURE__*/React.createElement(window.CreatorProjectTab, null), typeof window.CreatorMaterialsHub !== "undefined" && /*#__PURE__*/React.createElement(window.CreatorMaterialsHub, null)), showConvertView && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement(window.CreatorPatternTab, null), /*#__PURE__*/React.createElement(window.CreatorProjectTab, null), extrasReady && typeof window.CreatorMaterialsHub !== "undefined" ? /*#__PURE__*/React.createElement(window.CreatorMaterialsHub, null) : state.tab === "materials" && /*#__PURE__*/React.createElement("p", {
+    role: "status",
+    style: {
+      margin: 0,
+      padding: "var(--s-5) var(--s-4)",
+      fontSize: "var(--text-md)",
+      color: "var(--text-secondary)"
+    }
+  }, extrasFailed ? "Materials & Output couldn't be loaded. Check your connection, then open it again." : "Loading Materials & Output…")), showConvertView && /*#__PURE__*/React.createElement("div", {
     className: "cvp-layout",
     style: {
       display: "flex",

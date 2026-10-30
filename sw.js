@@ -123,8 +123,8 @@ var PRECACHE_URLS = [
   // offline user who had never opened Help would find it missing. Precaching is
   // what keeps it available. Same reasoning as backup-restore.js above.
   './help-drawer.js',
-  // The Tracker loads the PDF exporter on demand (export-pdf.js); the Creator
-  // has it inside creator/bundle.js.
+  // export-pdf.js loads the PDF exporter on demand: the Tracker always, the
+  // Creator until creator/extras-bundle.js (which also has it) has loaded.
   './creator/pdfExport.js',
   './sync-merge-helpers.js',
   './sync-attachment-codec.js',
@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "0d4ba856ad3510ada213f829cbbe87f5e35a75f1668a2d150f890e3167507938";
+var BUILD_ID = "5e5ae05c8de2089b4652b2765e72da32296e09f3fe36bebf1db46c816259294b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -296,10 +296,10 @@ var BUILD_ASSETS = {
     "sha256": "3f7d89ab647a57520873bc13823b19ae2fc6a8a58533c2e2d7cd1a118dd77df8"
   },
   "./index.html": {
-    "sha256": "c1cd7b4632f15ff9e6666738c598b8fc2f75eecb04204d8b3dc0223c11780ce7"
+    "sha256": "4c7bb7c1e9ed5548b6943364887c84b3f9a59fc9741f32801b5157a732f9d82c"
   },
   "./create.html": {
-    "sha256": "d3517ac42b37516481d6344c48a0d8f3662bafa035e18f842ce227593b7e3164"
+    "sha256": "5e8b02fdfcbd56dd4f183a0046827b9cc2e25f08d41025ace99179c1bcb8dfb5"
   },
   "./stitch.html": {
     "sha256": "bc94ddab29d0ebbdeca5c568dce4402032db84da71808da5bbcde39b1507ed0a"
@@ -329,10 +329,10 @@ var BUILD_ASSETS = {
     "sha256": "4c206b118d2794906c3178f35e4a7f8521f3504e35870fe1355d266326472e26"
   },
   "./changelog.js": {
-    "sha256": "73ad05615ce53ccbf100a8fb1235f95523726433a7b2dbde951b4d80c0d21960"
+    "sha256": "f6e7d2113cf5ebf484c0b4b6235abf99ed20c6776edbc444dee695037b5563ed"
   },
   "./runtime-loaders.js": {
-    "sha256": "4da10789a50dffe2450aebb36efa5dbdb7fc537e922f87748bd21947c202a1a1"
+    "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
   },
   "./lazy-modules.js": {
     "sha256": "aedb4ee3af7c1f93723612c4cb5bb9a96df558dc1b339b00caa578c496204cb1"
@@ -464,10 +464,10 @@ var BUILD_ASSETS = {
     "sha256": "4cc025f2bb7cad65c796f0730cb8d1cf378d88e464383b6d862d0b586df0b697"
   },
   "./creator/bundle.js": {
-    "sha256": "a4b7a32b173a6ab0e7b31821b1e29da69632832b5f6fd02f2ab4161ea29bdddd"
+    "sha256": "101ae7b70eff31c746d88bb79d388c96a5c58fbb920b6c8debc9bd2c6cbe86d7"
   },
   "./creator/extras-bundle.js": {
-    "sha256": "07cbb1bd4b3b0449f62166dc1eb20425d462401a5138ddd226d2afea22205386"
+    "sha256": "b700badcbfe6183ea55b8d06593a98110020d05261bbc9fffbf896f98eadcac0"
   },
   "./creator/import-wizard-bundle.js": {
     "sha256": "a760d937fdb36c3ede33ed7b7e1afd2c9b81a1cab4b445161e2ed9e313e8bb5b"
@@ -488,7 +488,7 @@ var BUILD_ASSETS = {
     "sha256": "d5dee5854794748cf4e9af900c8bc0a370020a64e111efe77dbdc596f2182382"
   },
   "./compiled/creator-main.compiled.js": {
-    "sha256": "e3aa94e42bcbd58f5b6d98364230a0f385d593b5c02e880c1d28f437c5984010"
+    "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
     "sha256": "b631d19deb1601167ceb6b9fb1546d653861749600b1139c201903beec673677"

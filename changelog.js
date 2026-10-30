@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: the Pattern Creator opens with less to download. Materials & Output now loads the first time you open it, with a short loading message on slower connections.',
       'Improved: app updates are much smaller. An update now downloads only the files that changed and reuses the rest from the copy already on your device, after checking each one is exactly right for the new version.',
       'Improved: pages open faster. Each one now downloads about half as much as before, which helps most on phones, tablets and slower connections. The list in Preferences > Version history now loads when you open it.',
       'Added: a compact view for the Stitch Tracker colour list. Press the Compact list button beside the sort buttons and each colour takes one slim line (number, name and % done, with a tick once finished), so about three times as many colours fit on screen. The selected colour\'s card at the top then holds Mark all done, Mark all lines done and Go to where it is parked, and the notes above the list are hidden. Comfortable list brings back the full tiles. The choice is remembered on each device separately.',
