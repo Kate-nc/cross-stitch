@@ -156,10 +156,10 @@ describe('colour families', () => {
 
 describe('suggestions and swatches', () => {
   test('nearestThreads returns the closest threads first and skips ones in the pattern', () => {
-    const red = DMC.find((d) => d.id === '321');
-    const near = PT.nearestThreads(red.lab, DMC, 5, { 321: true });
+    const red = DMC.find((d) => d.id === '666');
+    const near = PT.nearestThreads(red.lab, DMC, 5, { 666: true });
     expect(near).toHaveLength(5);
-    expect(near.map((d) => d.id)).not.toContain('321');
+    expect(near.map((d) => d.id)).not.toContain('666');
     expect(PT.colourFamily(near[0].lab)).toBe('reds');
   });
 

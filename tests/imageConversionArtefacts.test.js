@@ -38,7 +38,7 @@ const cell = (e) => ({ id: e.id, type: 'solid', rgb: e.rgb, lab: e.lab });
 
 describe('stitches are matched by CIEDE2000, like the palette is chosen', () => {
   test('a sky blue gets the perceptually nearer thread, not the Euclidean-Lab nearer one', () => {
-    const sky = lab(114, 164, 219), pal = [dmc('322'), dmc('334')];
+    const sky = lab(72, 136, 248), pal = [dmc('322'), dmc('334')];
     // The old Euclidean match preferred 322; ΔE2000 says 334 is much closer.
     expect(cie76(sky, pal[0].lab)).toBeLessThan(cie76(sky, pal[1].lab));
     expect(C.dE2000(sky, pal[1].lab)).toBeLessThan(C.dE2000(sky, pal[0].lab) - 2);
@@ -84,7 +84,7 @@ test('the dither anti-speck check compares ΔE, not squared distances', () => {
   // threshold and the lighter grey to its left, the lighter grey is kept.
   const light = dmc('318'), dark = dmc('414'), pal = [light, dark];
   let grey = null;
-  for (let v = 150; v <= 165 && grey === null; v++) {
+  for (let v = dark.rgb[0]; v <= light.rgb[0] && grey === null; v++) {
     const p = lab(v, v, v), dl = C.dE2000(p, light.lab), dd = C.dE2000(p, dark.lab);
     if (dd > 2.5 && dl - dd > 0.5 && dl - dd < 2) grey = v;
   }
@@ -141,7 +141,7 @@ describe('the palette has no near-copies and gives distinct small features a thr
   test('with blends on, a thread a blend needs is not pruned', () => {
     // A flat grey that only a blend of 3799 and 317 matches: neither thread
     // is any pixel's nearest solid on its own, but both are needed.
-    const w = 30, h = 10, data = image(w, h, () => [87, 87, 87]);
+    const w = 30, h = 10, data = image(w, h, () => [63, 63, 63]);
     const stash = [dmc('3799'), dmc('317')];
     const pal = C.quantizeConstrained(data, w, h, 2, stash, { seed: 1337, blends: true });
     expect(pal.map((e) => e.id).sort()).toEqual(['317', '3799']);
@@ -167,7 +167,7 @@ describe('the palette has no near-copies and gives distinct small features a thr
 });
 
 describe('foldRareColours', () => {
-  const GREEN = cell(dmc('3347')), ORANGE = cell(dmc('977')), BROWN = cell(dmc('3862'));
+  const GREEN = cell(dmc('3347')), ORANGE = cell(dmc('977')), BROWN = cell(dmc('435'));
   const NAVY = cell(dmc('939')), WHITE = cell(dmc('B5200'));
 
   test('a rare patch takes the colour it touches, not the nearest colour elsewhere', () => {
@@ -265,7 +265,7 @@ describe('edge and detail maps see colour as well as brightness', () => {
 
 test('the orphan contrast guard is measured in ΔE2000', () => {
   // Two saturated reds: over 30 apart in Euclidean Lab, under 30 in ΔE2000.
-  const A = cell(dmc('666')), B = cell(dmc('606'));
+  const A = cell(dmc('321')), B = cell(dmc('606'));
   expect(cie76(A.lab, B.lab)).toBeGreaterThan(30);
   expect(C.dE2000(A.lab, B.lab)).toBeLessThan(30);
   const m = grid(10, 10, (x, y) => (x === 5 && y === 5 ? B : A));

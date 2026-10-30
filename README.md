@@ -141,7 +141,7 @@ A Stats page (Stats in the top bar) aggregates data across all projects and the 
 
 ## Thread Data
 
-- **DMC:** retained stranded-cotton catalogue — 525 entries with derived CIE L\*a\*b\* and OKLab values for colour matching. Screen colours are approximations; some retained legacy entries lack traceable references. See the [complete colour audit](reports/dmc-colour-audit.md).
+- **DMC:** retained stranded-cotton catalogue — 525 entries with derived CIE L\*a\*b\* and OKLab values for colour matching. Screen colours are approximations, calibrated darker than the community online tables against a scanned thread card and an older independent palette ([calibration](reports/dmc-colour-calibration.md)). See also the [source audit](reports/dmc-colour-audit.md).
 - **Anchor:** full Anchor Stranded Cotton catalogue with reconciled RGB values from the official colour card, Stitchtastic, Cross-Stitched.com and sibalman/thread-converter. Contested colours are flagged.
 - **DMC ↔ Anchor conversions:** bidirectional table with confidence labels (`official`, `reconciled`, `single-source`). Both directions are stored independently so asymmetric mappings are preserved.
 - **Fabrics:** 11–22 count Aida, 25 count evenweave, and 28 / 32 count linen (worked over two).

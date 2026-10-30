@@ -73,7 +73,7 @@ it('resolves aliases without losing canonical IDs or leading zeros', () => {
 
 it('restores ID-only blends from corrected components consistently with matching', () => {
   const b = run('restoreStitch({id:"505+783",type:"blend",symbol:"X"})');
-  expect(Array.from(b.rgb)).toEqual([129, 138, 67]);
+  expect(Array.from(b.rgb)).toEqual([116, 113, 58]);
   expect(b.symbol).toBe('X');
   // 505 and 783 are too far apart for a new blend to pair them
   // (BLEND_MAX_PARTNER_DE); lift the limit to compare the composite formula.
@@ -107,4 +107,36 @@ test.each([
 it('leaves skip and empty placeholders intact', () => {
   expect(run('restoreStitch({id:"__skip__"}).type')).toBe('skip');
   expect(run('restoreStitch({id:"__empty__"}).rgb')).toEqual([255, 255, 255]);
+});
+
+describe('colour calibration (reports/dmc-colour-calibration.md)', () => {
+  const cal = require('../scripts/calibrate-dmc-colours');
+  const rows = cal.parseCsv(fs.readFileSync(cal.CSV_PATH, 'utf8')).rows;
+  const hex = rgb => '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+
+  it('ships exactly the calibrated value for every thread, in catalogue order', () => {
+    expect(rows.map(r => r.id)).toEqual(raw.map(r => r[0]));
+    rows.forEach((row, i) => {
+      const { rgb, method } = cal.calibrate(row);
+      expect([row.id, hex(raw[i].slice(2, 5)), row.final_hex, row.method]).toEqual([row.id, hex(rgb), hex(rgb), method]);
+    });
+  });
+
+  it('darkens without moving pure white or black, and never lightens a channel', () => {
+    expect(cal.curve([255, 255, 255])).toEqual([255, 255, 255]);
+    expect(cal.curve([0, 0, 0])).toEqual([0, 0, 0]);
+    for (const row of rows) {
+      const before = [1, 3, 5].map(i => parseInt(row.community_hex.slice(i, i + 2), 16));
+      const curved = cal.curve(before);
+      curved.forEach((v, k) => expect(v).toBeLessThanOrEqual(before[k]));
+    }
+  });
+
+  it('hand-corrects only threads where the scan and the older palette both disagree with the curve', () => {
+    const hand = rows.filter(r => r.method === 'hand');
+    expect(hand.length).toBe(Object.keys(VERIFIED).length);
+    for (const r of hand) expect(r.scan_hex && r.older_hex).toBeTruthy();
+    // Threads only one reference disagrees with keep the curved value.
+    for (const id of ['740', '3842', '223']) expect(rows.find(r => r.id === id).method).toBe('curve');
+  });
 });

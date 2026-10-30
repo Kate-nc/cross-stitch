@@ -12,7 +12,7 @@ test('fresh no-shading mapping uses physical blends and ignores previous palette
   const c = context();
   const result = vm.runInContext(`(() => {
     const p = ['3799','317'].map(id => DMC.find(t => t.id === id));
-    const raw = new Uint8ClampedArray([87,87,87,255]);
+    const raw = new Uint8ClampedArray([63,63,63,255]);
     const first = doMap(raw,1,1,p,true)[0];
     doMap(raw,1,1,DMC.slice(0,8),true);
     const second = doMap(raw,1,1,p,true)[0];
@@ -25,7 +25,7 @@ test('conversion retains blend components and uses them with shading off', () =>
   const r = vm.runInContext(`(() => {
     const p = ['3799','317'].map(id => DMC.find(t => t.id === id));
     const raw = new Uint8ClampedArray(20*20*4);
-    for(let i=0;i<400;i++) raw.set([87,87,87,255],i*4);
+    for(let i=0;i<400;i++) raw.set([63,63,63,255],i*4);
     return runCleanupPipeline(raw,20,20,{maxC:2,dith:false,allowBlends:true,allowedPalette:p,stitchCleanup:{enabled:false},orphans:0});
   })()`, c);
   expect(r.mapped.every(m => m.id === '317+3799')).toBe(true);
@@ -117,7 +117,7 @@ test('blend recipe budget reserves solid symbols within the 112-symbol ceiling',
 test.each([false,true])('worker and fallback agree with shading=%s and blend budget zero', dith => {
   const c=context();
   const settings={maxC:2,dith,allowBlends:true,maxBlends:0,allowedPalette:vm.runInContext("['3799','317'].map(id=>DMC.find(t=>t.id===id))",c),stitchCleanup:{enabled:false},orphans:0};
-  const raw=new Uint8ClampedArray(400*4);for(let i=0;i<400;i++)raw.set([87,87,87,255],4*i);
+  const raw=new Uint8ClampedArray(400*4);for(let i=0;i<400;i++)raw.set([63,63,63,255],4*i);
   const expected=c.runCleanupPipeline(raw,20,20,settings).mapped.map(m=>m.id);
   const messages=[];
   c.self=c;c.postMessage=m=>messages.push(m);c.importScripts=()=>{};
@@ -133,6 +133,6 @@ test('a conversion owns its candidate table even after another palette is prepar
     const p=['317','3799'].map(id=>DMC.find(t=>t.id===id));
     const table=findBest.precomputeBlends(p);
     findBest.precomputeBlends(DMC.slice(0,4));
-    return findBest(rgbToLab(87,87,87),p,true,table).id;
+    return findBest(rgbToLab(63,63,63),p,true,table).id;
   })()`,c)).toBe('317+3799');
 });

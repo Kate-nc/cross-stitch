@@ -81,7 +81,7 @@ A new picture starts with its long side at 100 stitches, never more than the pic
 
 **Thread brand** — **DMC** or **Anchor**. The pattern's colours are matched to that brand's stranded cotton, and its key, shopping list, Stitch Tracker, PDF and `.oxs` files use that brand's numbers.
 
-Screen colours are approximations; check physical threads when choosing materials. Catalogue corrections update patterns saved by thread number alone. Explicit imported or custom colours keep their saved colour when reopened. The [DMC catalogue audit](../reports/dmc-colour-audit.md) records source disagreements.
+Screen colours are approximations; check physical threads when choosing materials. Catalogue corrections update patterns saved by thread number alone. Explicit imported or custom colours keep their saved colour when reopened. DMC screen colours are calibrated darker than the community online tables, which look paler than real thread ([calibration](../reports/dmc-colour-calibration.md)); the [DMC catalogue audit](../reports/dmc-colour-audit.md) records source disagreements.
 
 **Threads (max)** — how many threads can appear (2–100). Each thread is one colour of stranded cotton, so this is how many to buy.
 

@@ -7,7 +7,10 @@ test('logo edge folding keeps at most five threads, no white threads and the ori
   const result = runWorker(p.linear.data, p.w, p.h, settings);
   const cells = result.mapped, threads = new Set(cells.filter(m=>m.id!=='__skip__').map(m=>m.id));
   expect(threads.size).toBeLessThanOrEqual(5);
-  expect(cells.some(m=>m.id!=='__skip__'&&m.rgb.every(v=>v>235))).toBe(false);
+  // White thread only where the picture itself is white (the logo has white
+  // lettering inside the navy): never from background edges or fringes.
+  const src = p.linear.data;
+  cells.forEach((m,i)=>{ if(m.id!=='__skip__'&&m.rgb.every(v=>v>235)) expect([0,1,2].every(k=>src[i*4+k]>235)).toBe(true); });
   expect(result.confettiData.final.singlesPct).toBeLessThan(1);
   // The page pipeline must match the worker bit for bit.
   vm.runInContext(fs.readFileSync('creator/generate.js','utf8'),W);
