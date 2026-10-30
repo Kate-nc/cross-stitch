@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: DMC thread colours on screen look closer to real thread. The usual online colour tables, which stitchx used before, show most threads lighter and paler than they are. Every DMC colour is now a little darker and richer, and 37 that were furthest off, mostly golds, olives, melon and geranium pinks, blues, violets and bright turquoises, are corrected. Patterns saved by thread number show the new colours when opened, and pictures you convert are matched against them. Thread numbers do not change.',
       'Fixed: pattern previews on Home and in the project manager keep the pattern\'s shape. A wide or tall pattern used to be stretched to fill a square; it now shows at its true proportions, centred, with space around it. On project manager cards the preview is drawn larger and zooms in to fill the picture strip, showing at least half of the pattern. Every stitch in a preview is drawn the same size.',
       'Improved: the Pattern Creator opens with less to download. Materials & Output now loads the first time you open it, with a short loading message on slower connections.',
       'Improved: app updates are much smaller. An update now downloads only the files that changed and reuses the rest from the copy already on your device, after checking each one is exactly right for the new version.',

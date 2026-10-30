@@ -1,0 +1,526 @@
+id,name,community_hex,scan_hex,scan_card_column,scan_card_row,older_hex,final_hex,method
+blanc,White,#fcfbf8,#fdfdfd,20,10,#eeeeee,#fbfaf6,curve
+ecru,Ecru,#f0eada,#f3e9ca,19,2,#fff7e7,#ece4d0,curve
+B5200,Snow White,#ffffff,#fdfdfd,20,9,#fcfcff,#ffffff,curve
+01,White Tin,#e3e3e6,#dadada,20,15,,#dbdbdf,curve
+02,Tin,#d7d7d8,#c2c2c2,20,16,,#ccccce,curve
+03,Medium Tin,#b8b8bb,#919194,20,17,,#a7a7aa,curve
+04,Dark Tin,#aeaeb1,#696669,20,18,,#9b9b9f,curve
+05,Light Driftwood,#e3ccbe,#d0bbb1,19,15,,#dbbfae,curve
+06,Medium Light Driftwood,#dcc6b8,#c4b0a3,19,16,,#d2b8a7,curve
+07,Driftwood,#8f7b6e,#8f7667,19,17,,#786355,curve
+08,Dark Driftwood,#6a5046,#543d30,19,18,,#51392f,curve
+09,Very Dark Cocoa,#55200e,#3b252b,18,7,,#3d1106,curve
+10,Very Light Tender Green,#edfed9,#f1edc5,12,1,,#e8fecf,curve
+11,Light Tender Green,#e2edb5,#f2f07d,12,2,,#dae8a3,curve
+12,Tender Green,#cdd99a,#e3e358,12,3,,#c0cf84,curve
+13,Medium Light Nile Green,#bff6e0,#afe8a2,10,2,,#aff3d7,curve
+14,Pale Apple Green,#d0fbb2,#ebf9a9,11,1,,#c4faa0,curve
+15,Apple Green,#d1eda4,#d7e482,11,2,,#c5e890,curve
+16,Light Chartreuse,#c9c258,#c2da59,11,3,,#bbb340,curve
+17,Light Yellow Plum,#e5e272,#eecd60,13,1,,#deda5a,curve
+18,Yellow Plum,#d9d56d,#e7bb48,13,2,,#cfca54,curve
+19,Medium Light Autumn Gold,#f7c95f,#f8b86e,14,15,,#f5bb47,curve
+20,Shrimp,#f7af93,#f8b1b2,17,14,,#f59c7d,curve
+21,Light Alizarin,#d79982,#da504e,17,15,,#cc836a,curve
+22,Alizarin,#bc604e,#b01c24,17,16,,#ac4837,curve
+23,Apple Blossom,#ede2ed,#f9eef1,3,1,,#e8dae8,curve
+24,White Lavender,#e0d7ee,#f1e2f1,4,12,,#d7cce9,curve
+25,Ultra Light Lavender,#dad2e9,#e1d2ea,4,13,,#d0c6e3,curve
+26,Pale Lavender,#d7cae6,#c5c0e7,4,14,,#ccbcdf,curve
+27,White Violet,#f0eef9,#e9e4ed,5,5,,#ece9f7,curve
+28,Medium Light Eggplant,#9086a9,#72677d,5,6,,#796e95,curve
+29,Eggplant,#674076,#34263c,5,7,,#4e2a5e,curve
+30,Medium Light Blueberry,#7d77a5,#766e9e,5,15,,#655f91,curve
+31,Blueberry,#50518d,#534e7c,5,16,,#393976,curve
+32,Dark Blueberry,#4d2e8a,#383661,5,17,,#361c73,curve
+33,Fuchsia,#9c599e,#8f366f,3,22,,#874189,curve
+34,Dark Fuchsia,#7d3064,#780d49,3,23,,#651d4c,curve
+35,Very Dark Fuchsia,#46052d,#5a012d,3,24,,#2f021b,curve
+150,Dusty Rose VDk,#ab0249,#a00928,2,26,#cf0053,#980032,curve
+151,Dusty Rose VLt,#f0ced4,#f5adc5,2,21,#ffcbd7,#ecc1c9,curve
+152,Shell Pink MLt,#e2a099,#cd7582,16,21,#e1a1a1,#da8b83,curve
+153,Violet VLt,#e6ccd9,#d7acdc,4,21,#eac5eb,#dfbfcf,curve
+154,Grape VDk,#572433,#28041a,4,11,#4b233a,#3f141f,curve
+155,Blue Violet MDk,#9891b6,#6b67bd,5,12,#9774b6,#827aa4,curve
+156,Blue Violet MLt,#a3aed1,#7889c4,5,10,#8577b4,#8f9bc5,curve
+157,Cornflower VLt,#bbc3d9,#98b4da,5,18,#b5b8ea,#aab4cf,curve
+158,Cornflower MDk,#4c526e,#1f2666,5,23,#393068,#353a55,curve
+159,Blue Gray Lt,#c7cad7,#9fa4c8,7,1,#bcb5de,#b9bccc,curve
+160,Blue Gray Med,#999fb7,#6a77a1,7,2,#8178a9,#838aa6,curve
+161,Blue Gray,#7880a4,#4b547c,7,3,#60568b,#606890,curve
+162,Blue Ultra VLt,#dbecf5,#bee0ea,6,11,#cae7f0,#d1e7f2,curve
+163,Celadon Grn Md,#4d8361,#426b57,9,19,#557a60,#366b49,curve
+164,Forest Grn Lt,#c8d8b8,#a6ca91,10,16,#bae4b6,#bacea7,curve
+165,Moss Grn VLt,#eff4a4,#e1d86e,12,4,#e1f477,#eaf190,curve
+166,Moss Grn MLt,#c0c840,#b0ad22,12,6,#adc238,#b0ba2a,curve
+167,Yel Beige VDk,#a77c49,#885030,13,22,#855d31,#936432,curve
+168,Pewter VLt,#d1d1d1,#b9c4c5,20,20,#b1aeb7,#c5c5c5,curve
+169,Pewter Lt,#848484,#747e7a,20,21,#827d7d,#6c6c6c,curve
+208,Lavender VDk,#835b8b,#613695,4,18,#9442a7,#6b4374,curve
+209,Lavender Dk,#a37ba7,#7f5eac,4,17,#ba72c6,#8f6393,curve
+210,Lavender Med,#c39fc3,#ac90d7,4,16,#d49fe1,#b48ab4,curve
+211,Lavender Lt,#e3cbe3,#cdb8eb,4,15,#e5bded,#dbbedb,curve
+221,Shell Pink VDk,#883e43,#750f18,16,25,#792631,#71292d,curve
+223,Shell Pink Lt,#cc847c,#a64457,16,22,#bb6864,#bf6c64,curve
+224,Shell Pink VLt,#ebb7af,#e5989a,16,20,#e2a598,#e5a69c,curve
+225,Shell Pink UVLt,#ffdfd5,#f6ced1,16,19,#f8d9cd,#ffd6ca,curve
+300,Mahogany VDk,#6f2f00,#4c110b,16,18,#6c3116,#561c00,curve
+301,Mahogany Med,#b35f2b,#a1381d,16,16,#aa5237,#a14719,curve
+304,Christmas Red M,#b71f33,#b30125,1,13,#a10c39,#a6101f,curve
+307,Lemon,#fded54,#f9ed33,15,2,#fde949,#fce83c,curve
+309,Rose Dk,#d62b5b,#b50e2b,2,15,#ba2044,#cb1943,curve
+310,Black,#000000,#030303,20,25,#000000,#000000,curve
+311,Navy Blue Med,#1c5066,#142b50,8,8,#002a64,#0e394d,curve
+312,Navy Blue Lt,#35668b,#1c3667,7,11,#1f3279,#214d74,curve
+315,Antq Mauve Md,#814952,#672533,4,5,#7d4246,#69323a,curve
+316,Antq Mauve Med,#b7737f,#b66186,4,3,#bc757f,#a65b67,curve
+317,Pewter Gray,#6c6c6c,#494e57,20,22,#6d6469,#535353,curve
+318,Steel Gray Lt,#ababab,#8c8d9e,20,13,#999b9d,#989898,curve
+319,Pistachio VDk,#205f2e,#18311b,10,14,#3a553b,#11471c,curve
+320,Pistachio Med,#69885a,#597b53,10,12,#608c59,#507142,curve
+321,Christmas Red,#c72b3b,#c60018,1,20,#bd1136,#b91926,curve
+322,Navy Blue VLt,#5a8fb8,#4c6da2,7,10,#3a609d,#4278a7,curve
+326,Rose VDk,#b33b4b,#ac0024,2,20,#ac1c37,#a12634,curve
+327,Violet Dk,#633666,#46204f,4,20,#5e0f77,#4b224d,curve
+333,Blue Violet VDk,#5c5478,#322882,5,14,#6e2e9b,#4e327f,hand
+334,Baby Blue Med,#739fc1,#547eb0,7,9,#6085b8,#5b8ab2,curve
+335,Rose,#ee546e,#e0305c,2,19,#d63d57,#e93c55,curve
+336,Navy Blue,#253b73,#17204a,7,13,#0c275e,#15265b,curve
+340,Blue Violet Med,#ada7c7,#6c73c3,5,11,#996dc3,#8c7cc0,hand
+341,Blue Violet Lt,#b7bfdd,#8fa1d1,5,9,#a39ad7,#a6afd4,curve
+347,Salmon VDk,#bf2d2d,#cb1f2a,1,6,#ab1b33,#af1b1b,curve
+349,Coral Dk,#d21035,#c70019,1,11,#c62c38,#c60721,curve
+350,Coral Med,#e04848,#e3271e,1,10,#de3f40,#d73131,curve
+351,Coral,#e96a67,#ed3c2c,1,9,#ed625b,#e3514e,curve
+352,Coral Lt,#fd9c97,#f3785e,1,8,#f78372,#fc8781,curve
+353,Peach,#fed7cc,#f9c0a5,1,7,#fdb4a1,#feccbf,curve
+355,Terra Cotta Dk,#984436,#861516,17,8,#97382b,#822e22,curve
+356,Terra Cotta Med,#c56a5b,#ae3d3c,17,6,#be5c4b,#b65143,curve
+367,Pistachio Dk,#617a52,#3e603a,10,13,#446b45,#49623a,curve
+368,Pistachio Lt,#a6c298,#7f9e6b,10,11,#7fc66d,#92b382,curve
+369,Pistachio VLt,#d7edcc,#bbd0a0,10,10,#cdefa6,#cce8bf,curve
+370,Mustard Med,#b89d64,#8c7245,12,25,#917245,#a7884c,curve
+371,Mustard,#bfa671,#917541,12,24,#9f8352,#af9259,curve
+372,Mustard Lt,#ccb784,#a69367,12,23,#ad9564,#bfa66c,curve
+400,Mahogany Dk,#8f430f,#6b150b,16,17,#813718,#782d06,curve
+402,Mahogany VLt,#f7a777,#ef7a5f,16,14,#ef9e74,#f5935f,curve
+407,Desert Sand M,#bb8161,#b26862,17,20,#b77159,#aa6949,curve
+413,Pewter Gray Dk,#565656,#323738,20,23,#4a4749,#3e3e3e,curve
+414,Steel Gray Dk,#8c8c8c,#626571,20,14,#766e72,#757575,curve
+415,Pearl Gray,#d3d3d6,#b0b3bb,20,12,#b8b9bd,#c7c7cb,curve
+420,Hazelnut Dk,#a07042,#864829,13,13,#855a30,#8b582c,curve
+422,Hazelnut Lt,#c69f7b,#bf8e65,13,11,#c99a67,#b88a63,curve
+433,Brown Med,#7a451f,#5f2511,18,15,#73421e,#622f10,curve
+434,Brown Lt,#985e33,#772d18,18,14,#8f5332,#82461f,curve
+435,Brown VLt,#b87748,#a25130,18,13,#a96538,#a75f31,curve
+436,Tan,#cb9051,#b36843,18,12,#c78559,#be7939,curve
+437,Tan Lt,#e4bb8e,#dc936c,18,11,#daa26f,#dcaa77,curve
+444,Lemon Dk,#ffd600,#f7ca1c,15,4,#f5bc13,#ffcb00,curve
+445,Lemon Lt,#fffb8b,#fbfd94,15,1,#fcf999,#fffa74,curve
+451,Shell Gray Dk,#917b73,#7d6261,18,3,#887773,#7a635b,curve
+452,Shell Gray Med,#c0b3ae,#a88d8d,18,2,#ad9994,#b0a19b,curve
+453,Shell Gray Lt,#d7cecb,#cdbbb3,18,1,#ccb8aa,#ccc1be,curve
+469,Avocado Grn,#72843c,#484b1c,11,17,#5b6533,#5a6c27,curve
+470,Avocado Lt,#94ab4f,#627523,11,16,#72813e,#718533,hand
+471,Avocado VLt,#aebf79,#7f803e,11,15,#9eb357,#9baf61,curve
+472,Avocado ULt,#d8e498,#beb562,11,14,#d1de75,#cedc82,curve
+498,Christmas Dk,#a7132b,#90011a,1,21,#970b2c,#930919,curve
+500,Blue Grn VDk,#044d33,#0e1b18,9,26,#1d362a,#112d20,hand
+501,Blue Grn Dk,#396f52,#334d46,9,25,#2f5446,#24563a,curve
+502,Blue Green,#5b9071,#57766a,9,24,#57826e,#437959,curve
+503,Blue Grn Med,#7bac94,#779e92,9,23,#89b89f,#63997e,curve
+504,Blue Grn VLt,#c4decc,,,,#acdac1,#b5d5bf,curve
+505,Grass Green Dk,#338362,#2e5d38,9,16,#ceddc1,#1f6b4a,curve
+506,Grass Green,#44774c,,,,,#2e5f35,curve
+507,Grass Green Med,#609268,,,,,#487c4f,curve
+508,Grass Green Lt,#80a984,,,,,#68956c,curve
+509,Grass Green VLt,#a2bfa2,,,,,#8daf8d,curve
+510,Grass Green UVLt,#bed4be,,,,,#aec9ae,curve
+511,Avocado Gray Dk,#616e56,,,,,#49553e,curve
+512,Avocado Gray Med,#809379,,,,,#687d61,curve
+513,Avocado Gray Lt,#a0b29c,,,,,#8ba087,curve
+514,Avocado Gray VLt,#bcccc0,,,,,#acbfb0,curve
+515,Avocado Gray UVLt,#d2dfd5,,,,,#c6d6ca,curve
+516,Avocado Gray Pale,#e8efe8,,,,,#e2eae2,curve
+517,Wedgewood Dk,#3b768f,#214e89,8,6,#216285,#265e78,curve
+518,Wedgewood Lt,#4f93a7,#4885a7,8,4,#50819c,#387d93,curve
+519,Sky Blue,#7eb1c8,#7cb0d1,8,3,#94b7cb,#669fba,curve
+520,Fern Green Dk,#666d4f,#37462f,12,15,#384526,#4d5438,curve
+522,Fern Green,#969e7e,#848d70,12,14,#808b6e,#808966,curve
+523,Fern Green Lt,#abb197,#959a7b,12,9,#959f7a,#989f81,curve
+524,Fern Green VLt,#c4cdac,#aeb18f,12,13,#aea78e,#b5c099,curve
+535,Ash Gray VLt,#636458,#42403f,20,19,#4b4b49,#4b4c40,curve
+543,Beige Brn UVLt,#f2e3ce,#e6c6b0,18,20,#ead0b5,#eedbc1,curve
+550,Violet VDk,#5c184e,#37063e,4,25,#580e5c,#440c37,curve
+552,Violet Med,#803a6b,#562871,4,24,#902f99,#682552,curve
+553,Violet,#a3638b,#683d87,4,23,#a449ac,#8a468d,hand
+554,Violet Lt,#dbb3cb,#b683bf,4,22,#dc9cde,#d1a1be,curve
+561,Jade VDk,#2c6a45,#27503e,9,21,#285e48,#1a512f,curve
+562,Jade Med,#53976a,#4c8357,9,15,#3b8c5a,#3b8151,curve
+563,Jade Lt,#8fc098,#81b995,9,14,#6ed39a,#78b082,curve
+564,Jade VLt,#a7cdaf,#a2d3a7,9,13,#95e4af,#93c09c,curve
+580,Moss Grn Dk,#888d33,#4f5515,12,8,#355f0b,#526315,hand
+581,Moss Green,#a7ae38,#707820,12,7,#838a29,#828a25,hand
+597,Turquoise,#5ba3b3,#5a94a7,8,15,#52adab,#438fa1,curve
+598,Turquoise Lt,#90c3cc,#89c0c7,8,14,#97d8d3,#79b4bf,curve
+600,Cranberry VDk,#cd2f63,#c0033d,3,12,#bf1c48,#c01c4b,curve
+601,Cranberry Dk,#d1286a,#d30f4f,3,11,#c62a53,#c51751,curve
+602,Cranberry Med,#e24874,#e3276b,3,10,#d63f68,#da315c,curve
+603,Cranberry,#ffa4be,#f05a96,3,9,#ed5d84,#ff90ae,curve
+604,Cranberry Lt,#ffb0be,#f481b6,3,8,#f793b2,#ff9dae,curve
+605,Cranberry VLt,#ffc0cd,#f6a1cc,3,7,#fbacc4,#ffb0c0,curve
+606,Bright Org-Red,#fa3203,#f40118,15,25,#f70f00,#f91f01,curve
+608,Bright Orange,#fd5d35,#f70e1f,15,24,#fd480c,#fc4521,curve
+610,Drab Brown Dk,#796047,#654824,13,18,#6b5039,#614830,curve
+611,Drab Brown,#967656,#644930,13,17,#7c5f46,#805e3e,curve
+612,Drab Brown Lt,#bc9a78,#a7865b,13,16,#a6885e,#ac8460,curve
+613,Drab Brown VLt,#dcc4aa,#dccba7,13,15,#b99f72,#d2b597,curve
+632,Desert Snd UVDk,#875539,#6c2a26,17,22,#7f4232,#703d24,curve
+633,Desert Snd Dk,#915f43,,,,,#7a472d,curve
+640,Beige Gray VDk,#857b61,#70644e,19,6,#817868,#6d6349,curve
+642,Beige Gray Dk,#a49878,#897c64,19,5,#958d79,#908260,curve
+644,Beige Gray Med,#ddd8cb,#c6bc9e,19,4,#c4bea6,#d4cebe,curve
+645,Beaver Gray VDk,#6e655c,#4f4a46,20,8,#5d5d54,#554c44,curve
+646,Beaver Gray Dk,#877d73,#726c5a,20,7,#6b6860,#70655b,curve
+647,Beaver Gray Med,#b0a69c,#909279,20,2,#908e85,#9d9287,curve
+648,Beaver Gray Lt,#bcb4ac,#b2a99a,20,6,#a7a69f,#aca299,curve
+666,Christmas Red Br,#e31d42,#eb0012,1,19,#ce1b33,#db0f2c,curve
+676,Old Gold Lt,#e5ce97,#e5ae7a,14,1,#ecbf7d,#dec181,curve
+677,Old Gold VLt,#f5eccb,#efd39c,13,10,#f2dc9f,#f2e7be,curve
+680,Old Gold Dk,#bc8d0e,#9f5e30,14,3,#b07b46,#a9702e,hand
+699,Christmas Grn,#056517,#145a19,11,9,#075b26,#024c0b,curve
+700,Christmas Grn Br,#07731b,#2a7528,11,8,#076c34,#025b0e,curve
+701,Christmas Grn Lt,#3f8f29,#3a842d,11,7,#217c36,#297818,curve
+702,Kelly Green,#47a72f,#4d9436,11,6,#379130,#30931c,curve
+703,Chartreuse,#7bb547,#6da93e,11,5,#63b330,#63a330,curve
+704,Chartreuse Br,#9ecf34,#7faf38,11,4,#88c53a,#89c220,curve
+712,Cream,#fffbef,#f5ecce,18,8,#f6efda,#fffaea,curve
+718,Plum,#9c2462,#a00747,3,19,#cb2089,#87144a,curve
+720,Orange Spice Dk,#e55c1f,#de2719,16,5,#c83a24,#de4410,curve
+721,Orange Spice M,#f27842,#ef4432,16,4,#f46440,#ee602c,curve
+722,Orange Spice Lt,#f7976f,#f67155,16,3,#f98756,#f58156,curve
+725,Topaz,#ffc840,#f6a445,15,8,#f9c15b,#ffba2a,curve
+726,Topaz Lt,#fdd755,#f7d252,15,7,#fddb63,#fccc3d,curve
+727,Topaz VLt,#fff1af,#fbf286,15,6,#fde98b,#ffed9c,curve
+728,Topaz Med,#e4b468,#ed9a38,14,9,#f2ae3f,#dca24f,curve
+729,Old Gold Med,#d0a53e,#c07438,14,2,#ce9657,#c6893e,hand
+730,Olive Green VDk,#827b30,#4b3c0c,12,19,#63520b,#5d5012,hand
+731,Olive Green Dk,#938b37,,,,#6b580b,#7d7423,curve
+732,Olive Green,#948c36,#645311,12,18,#725c0c,#716115,hand
+733,Olive Green Med,#bcb34c,#977b2a,12,17,#a78a44,#a38d37,hand
+734,Olive Green Lt,#c7c077,#b89646,12,16,#bb9c54,#b9b05f,curve
+738,Tan VLt,#eccc9e,#e0ad7c,18,10,#e2b783,#e7bf89,curve
+739,Tan UVLt,#f8e4c8,#f3ddaf,18,9,#f2deb9,#f6dcba,curve
+740,Tangerine,#ff8b00,#f53f1e,15,15,#fd6f1a,#ff7400,curve
+741,Tangerine Med,#ffa32b,#f66c24,15,14,#fc8b10,#ff8f19,curve
+742,Tangerine Lt,#ffbf57,#f78c31,15,13,#fdae3c,#ffaf3f,curve
+743,Yellow Med,#fed376,#f8b852,15,12,#fdd769,#fec75e,curve
+744,Yellow Pale,#ffe793,#f7d87b,15,11,#fee88d,#ffe07d,curve
+745,Yellow Lt Pale,#ffe9ad,#faeca8,15,10,#feeba5,#ffe39a,curve
+746,Off White,#fcfcee,#faf7d9,13,9,#faf2d5,#fbfbe9,curve
+747,Sky Blue VLt,#e5fcfd,#c9f0f1,8,9,#cee9ea,#defbfc,curve
+754,Peach Lt,#f7cbbf,#f1a98d,17,2,#f7c9b0,#f5beaf,curve
+758,Terra Cotta VLt,#eeaa9b,#e6887e,17,4,#e99f83,#e99785,curve
+760,Salmon,#f5adad,#f1737f,1,3,#ec8880,#f29a9a,curve
+761,Salmon Lt,#ffc9c9,#f5a7b2,1,2,#f8b4ad,#ffbbbb,curve
+762,Pearl Gray VLt,#ececec,#eaebea,20,11,#d1d0d2,#e7e7e7,curve
+772,Yel Green VLt,#e4ecd4,#e0eaaf,10,21,#d7efa7,#dce7c9,curve
+775,Baby Blue VLt,#d9ebf1,#cae3e8,7,5,#d4e3ef,#cfe5ed,curve
+776,Pink Med,#fcb0b9,,,,#fca8ad,#fb9da8,curve
+777,Red Deep,#913546,#7d0419,1,17,#9b0042,#7a212f,curve
+778,Antq Mauve VLt,#dfb3bb,#db96a4,4,1,#dca6a4,#d6a1aa,curve
+779,Brown,#624b45,#52302d,18,6,#53332d,#4a342f,curve
+780,Topaz UVDk,#94631a,#872f15,14,12,#945026,#894419,hand
+781,Topaz VDk,#a26d20,,,,#a25f1f,#8d5411,curve
+782,Topaz Dk,#ae7720,#a04d17,14,11,#b26923,#9b5f11,curve
+783,Topaz Med,#ce9124,#ca6226,14,10,#d0883d,#c97729,hand
+791,Cornflower VD,#464563,#17185d,5,24,#2d2068,#2f2f4b,curve
+792,Cornflower Dk,#555b7b,#2b3788,5,22,#454b8b,#3d4363,curve
+793,Cornflower Med,#707da2,#576a9c,5,20,#7c82b5,#58658d,curve
+794,Cornflower Lt,#8f9cc1,#7493c0,5,19,#a0b2d7,#7887b2,curve
+796,Royal Blue Dk,#11416d,#0a155c,6,9,#272276,#082b54,curve
+797,Royal Blue,#13477d,#1b2a73,6,8,#2b3288,#093065,curve
+798,Delft Blue Dk,#466a8e,#2c4f96,6,7,#4e5ca7,#2f5177,curve
+799,Delft Blue Med,#748eb6,#557cb2,6,6,#6b7fc0,#5c77a4,curve
+800,Delft Blue Pale,#c0ccde,#95bae0,6,4,#b5c7e9,#b0bfd5,curve
+801,Coffee Brn Dk,#653919,#4b1f11,18,16,#60391d,#4c240c,curve
+802,Baby Blue Dk,#4289ab,,,,,#2c7298,curve
+803,Blue Deep,#2c597c,#132755,7,12,#202754,#1a4164,curve
+804,Cornflower VDk,#316395,,,,,#1e4b7f,curve
+805,Blue VDk,#1c508b,,,,,#0e3974,curve
+806,Peacock Bl Dk,#3d95a5,,,,#1d6c87,#287f91,curve
+807,Peacock Blue,#64abba,#4f90ac,8,11,#558b9e,#4c98a9,curve
+808,Delft Med,#799db5,,,,,#6188a3,curve
+809,Delft Blue,#94a8c6,#799dd3,6,5,#919fd5,#7e94b8,curve
+813,Blue Lt,#a1c2d7,#6897c2,6,13,#7fa0c6,#8cb3cc,curve
+814,Garnet Dk,#7b001b,#4f0212,1,24,#711033,#63000e,curve
+815,Garnet Med,#87071f,#610119,1,23,#800b34,#700210,curve
+816,Garnet,#970b23,#900018,1,22,#921238,#810413,curve
+817,Coral Red VDk,#bb051f,#bf0112,1,12,#bb1630,#aa0210,curve
+818,Baby Pink,#ffdfd9,#f7d2dc,2,5,#fededd,#ffd6cf,curve
+819,Baby Pink Lt,#ffeeeb,#faf3e7,2,16,#fcebde,#ffe9e5,curve
+820,Royal Blue VDk,#0e365c,#030748,6,10,#151264,#062244,curve
+822,Beige Gray Lt,#e7e2d3,#e8dcc1,19,3,#e8dfc7,#e0dac7,curve
+823,Navy Blue Dk,#213063,#0b0a2b,7,14,#000b44,#121d4b,curve
+824,Blue VDk,#396987,#122e66,6,16,#284779,#214270,hand
+825,Blue Dk,#4781a5,#1d3f7a,6,15,#34588f,#2c5589,hand
+826,Blue Med,#6b9ebf,#406ba6,6,14,#5075a7,#5289af,curve
+827,Blue VLt,#bddded,#9cc5e4,6,12,#a4c1de,#add4e8,curve
+828,Blue UVLt,#c5e8ed,#bee1e8,8,1,#c3d7e6,#b6e2e8,curve
+829,Golden Olive VDk,#7e6b42,#603412,13,8,#64480c,#644519,hand
+830,Golden Olive Dk,#8d784b,#593915,13,7,#6e501d,#6a4d22,hand
+831,Golden Olive Med,#aa8f56,#76501b,13,6,#7c5f20,#836228,hand
+832,Golden Olive,#bd9b51,#905e22,13,5,#9c7230,#9e722e,hand
+833,Golden Olive Lt,#c8ab6c,#a87635,13,4,#b99956,#ba9853,curve
+834,Golden Olive VLt,#dbbe7f,#ca9a54,13,3,#d2b468,#d1ae67,curve
+838,Beige Brn VDk,#594937,#321a14,19,24,#4a3021,#413223,curve
+839,Beige Brn Dk,#675541,#442a1f,19,23,#5a3c2d,#4e3d2b,curve
+840,Beige Brn Med,#9a7c5c,#7a5547,19,22,#7a5939,#846444,curve
+841,Beige Brn Lt,#b69b7e,#9e766a,19,21,#a37d64,#a48566,curve
+842,Beige Brn VLt,#d1baa1,#bf9a8d,19,20,#cbb094,#c5a98c,curve
+844,Beaver Gray UDk,#484848,#37302a,19,9,#494842,#313131,curve
+869,Hazelnut VDk,#835e39,#613219,13,14,#784c28,#6b4624,curve
+890,Pistachio UDk,#174923,#0d200c,10,15,#324233,#0b3213,curve
+891,Carnation Dk,#ff5773,#f4124a,2,4,#ee3246,#ff3f5b,curve
+892,Carnation Med,#ff798c,#f5244f,2,3,#f44753,#ff6175,curve
+893,Carnation Lt,#fc90a2,#f53867,2,2,#f66879,#fb798d,curve
+894,Carnation VLt,#ffb2bb,#f571a6,2,1,#fd95a3,#ffa0aa,curve
+895,Hunter Grn VDk,#1b5300,#1f3b1c,10,26,#344b2e,#0e3b00,curve
+898,Coffee Brn VDk,#492a13,#3b150d,18,17,#532f1b,#321809,curve
+899,Rose Med,#f27688,#eb4f7a,2,18,#ea6b78,#ee5e71,curve
+900,Burnt Orange Dk,#d15807,#cc0e18,15,19,#c63117,#c54002,curve
+902,Garnet VDk,#822637,#57071e,4,7,#651329,#6a1523,curve
+904,Parrot Grn VDk,#557822,#2d4714,11,13,#386324,#3d6013,curve
+905,Parrot Grn Dk,#628a28,#3d6416,11,12,#467924,#4a7317,curve
+906,Parrot Grn Med,#7fb335,#4e8119,11,11,#6c9e29,#67a121,curve
+907,Parrot Grn Lt,#c7e666,#93b130,11,10,#9dc72d,#b9df4d,curve
+909,Emerald VDk,#156f49,#15601b,10,8,#106b43,#0a5632,curve
+910,Emerald Dk,#187e56,#26772e,10,7,#10814e,#0c663e,curve
+911,Emerald Med,#189065,#379245,10,6,#109256,#0c794c,curve
+912,Emerald Lt,#1b9d6b,#52a562,10,5,#36b26b,#0e8852,curve
+913,Nile Green Med,#6dab77,#6dba77,10,4,#55ca7d,#54985f,curve
+915,Plum Dk,#820043,#720122,3,21,#95085a,#6a002d,curve
+917,Plum Med,#9b1359,#a81052,3,20,#ac1071,#850941,curve
+918,Red Copper Dk,#82340a,#811915,16,11,#883630,#6a2004,curve
+919,Red Copper,#a64510,#8b120e,16,10,#9b371b,#922f07,curve
+920,Copper Med,#ac5414,#aa231a,16,9,#ab4836,#993c09,curve
+921,Copper,#c66218,#cf3726,16,8,#c0573d,#b84a0c,curve
+922,Copper Lt,#e27323,#e85339,16,7,#dd6e4c,#da5b13,curve
+924,Gray Green VDk,#566a6a,#1c3037,8,23,#384a4a,#3e5151,curve
+926,Gray Green Med,#98aeae,#647974,8,21,#617674,#6d8381,hand
+927,Gray Green Lt,#bdcbcb,#95aaa0,8,20,#9fa8a5,#adbebe,curve
+928,Gray Green VLt,#dde3e3,#c5cfca,8,19,#c0c6c0,#d4dbdb,curve
+930,Antq Blue Dk,#455c71,#273949,7,20,#495c6b,#2f4459,curve
+931,Antq Blue Med,#6a859e,#4d6786,7,19,#667684,#516d89,curve
+932,Antq Blue Lt,#a2b5c6,#7b92aa,7,18,#93a0af,#8da3b8,curve
+934,Blk Avocado,#313919,#1c1d12,11,21,#323324,#1e240c,curve
+935,Avocado Dk,#424d21,#2a2d1a,11,20,#383a2a,#2c3612,curve
+936,Avocado VDk,#4c5826,#35371a,11,19,#3f4227,#354015,curve
+937,Avocado Med,#627133,#404d18,11,18,#434f2c,#4a591f,curve
+938,Coffee UDk,#361f0e,#2f100c,18,18,#45271a,#221006,curve
+939,Navy VDk,#1b2853,#070219,7,15,#09092f,#0e173b,curve
+943,Aquamarine Med,#3d9384,#31976e,9,6,#009a77,#287d6c,curve
+945,Tawny,#fbd5bb,#efc3a1,16,13,#f6c19a,#facaaa,curve
+946,Burnt Org Med,#eb6307,#ef1e1f,15,18,#ed4115,#e54b02,curve
+947,Burnt Orange,#ff7b4d,#f81e1e,15,17,#fc4f16,#ff6336,curve
+948,Peach VLt,#fee7da,#f6dbc6,17,1,#fde6d3,#fee0d0,curve
+950,Desert Sand Lt,#eed3c4,#edc0a6,17,18,#e5ac8d,#e9c7b5,curve
+951,Tawny Lt,#ffe2cf,#f5d7b7,16,1,#faddb6,#ffdac2,curve
+954,Nile Green,#88ba91,#8bd592,10,3,#6fda8a,#71a97a,curve
+955,Nile Green Lt,#a2d6ad,#b4f0b8,10,1,#a8ebad,#8dcb9a,curve
+956,Geranium,#ff9191,#f52e73,2,7,#f7566d,#f95973,hand
+957,Geranium Pale,#fdb5b5,#f573ab,2,6,#fd99af,#fa90aa,hand
+958,Sea Green Dk,#3eb6a1,#54b092,9,3,#0db294,#29a48c,curve
+959,Sea Green Med,#59c7b4,#64c4a7,9,2,#72d0b7,#41b9a2,curve
+961,Dusty Rose Dk,#cf7373,#e53f6e,2,14,#de586c,#c25b5b,curve
+962,Dusty Rose Med,#e68a8a,#ec6283,2,13,#eb7183,#df7373,curve
+963,Dusty Rose UVLt,#ffd7d7,#f7c3d7,2,11,#fdccd1,#ffcccc,curve
+964,Sea Green Lt,#a9e2d8,#99e8d9,9,1,#a5e4d4,#95dace,curve
+966,Baby Green Med,#b9d7c0,#9cc79f,9,12,#94d28a,#a8ccb0,curve
+967,Peach Lt,#ffded5,#f9c5c4,15,20,#ffc2ac,#ffd5ca,curve
+968,Peach Med,#fbc3bc,,,,,#fab4ac,curve
+969,Peach Dk,#f2a594,,,,,#ee917e,curve
+970,Pumpkin Lt,#f78b13,#f64530,15,16,#fb6721,#f86222,hand
+971,Pumpkin,#f67f00,,,,#fc670d,#f36700,curve
+972,Canary Deep,#ffb515,#f68424,15,9,#fb9f11,#ffa30a,curve
+973,Canary Bright,#ffe300,#f8d62a,15,3,#fccd2d,#ffdb00,curve
+974,Winnie Pooh Gold,#ffd666,,,,,#ffcb4d,curve
+975,Golden Brn Dk,#914f12,#6c1d12,14,22,#813c11,#7a3808,curve
+976,Golden Brn Med,#c28142,#cb542d,14,20,#cf7532,#b3692c,curve
+977,Golden Brn Lt,#dc9c56,#eb7f52,14,19,#ec8f43,#d2873e,curve
+986,Forest Grn VDk,#405230,#1d3c16,10,20,#2e5230,#2a3a1d,curve
+987,Forest Grn Dk,#587141,#3d562c,10,19,#436838,#40592b,curve
+988,Forest Grn Med,#738b5b,#5c7640,10,18,#66924a,#5b7443,curve
+989,Forest Green,#8da675,#708e53,10,17,#71a74e,#76925d,curve
+991,Aquamarine Dk,#477b6e,#1e6049,9,11,#135f55,#306355,curve
+992,Aquamarine Lt,#6fae9f,#4f997c,9,9,#42b59e,#569b8a,curve
+993,Aquamarine VLt,#90c0b4,#71b79c,9,8,#62d8b6,#79b0a2,curve
+995,Elec Blue Dk,#2696b6,#116ccd,6,19,#0061b0,#156fb6,hand
+996,Elec Blue Med,#30c2ec,#43a7ec,6,17,#49a8eb,#1db3e7,curve
+3011,Khaki Dk,#898a58,#544822,12,22,#655935,#645c32,hand
+3012,Khaki Med,#a6a75d,#766838,12,21,#8b7b4e,#867d44,hand
+3013,Khaki Lt,#b9b982,#a59967,12,20,#afa97b,#a8a86a,curve
+3021,Brn Gray VDk,#4f4b41,#272017,19,8,#50403b,#38342b,curve
+3022,Brn Gray Med,#8e9078,#7b7b61,20,4,#848274,#777960,curve
+3023,Brn Gray Lt,#b1aa97,#9a937d,20,3,#a29b86,#9f9781,curve
+3024,Brn Gray VLt,#ebeae7,#cdcebe,20,5,#beb8ac,#e5e4e0,curve
+3031,Mocha VDk,#4b3c2a,#2f1a0f,18,24,#423014,#342718,curve
+3032,Mocha Med,#b39f8b,#867158,19,12,#9d8868,#a18a74,curve
+3033,Mocha VLt,#e3d8cc,#dbc2b0,19,10,#dbc7ad,#dbcebf,curve
+3041,Antq Violet Med,#956f7c,#69485d,5,3,#866a76,#7f5664,curve
+3042,Antq Violet Lt,#b79da7,#98869d,5,2,#af98a0,#a68893,curve
+3045,Yel Beige Dk,#bc966a,#9d6843,13,21,#af8152,#ac8051,curve
+3046,Yel Beige Med,#d8bc9a,#cba46c,13,20,#ceb074,#ceac84,curve
+3047,Yel Beige Lt,#e7d6c1,#e7d09c,13,19,#ead8ab,#e0cbb2,curve
+3051,Green Gray Dk,#5f6648,#3d401d,12,12,#4c4c1e,#474d31,curve
+3052,Green Gray Med,#889268,#71764d,12,11,#787e5c,#717c4f,curve
+3053,Green Gray,#9ca482,#8f9764,12,10,#999d75,#87906a,curve
+3064,Desert Sand,#c48e70,#b8665a,17,19,#ba7056,#b57758,curve
+3072,Beaver VLt,#e6e8e8,#d5d7ca,20,1,#d2d2ca,#dfe2e2,curve
+3078,Golden Yel VLt,#fdf9cd,#fbf6a1,15,5,#fcf6b6,#fcf7c0,curve
+3325,Baby Blue Lt,#b8d2e6,#94bfe2,7,7,#adcde7,#a7c6df,curve
+3326,Rose Lt,#fbadb4,#f48caa,2,17,#f9979c,#fa9aa2,curve
+3328,Salmon Dk,#e36d6d,#d63942,1,5,#be444a,#db5454,curve
+3340,Apricot Med,#ff836f,#f54d48,15,23,#fd6b4f,#ff6b56,curve
+3341,Apricot,#fcab98,#f67570,15,22,#fd8e78,#fb9882,curve
+3345,Hunter Grn Dk,#1b5915,#233410,10,25,#40552e,#0e410a,curve
+3346,Hunter Green,#406a3a,#4a5a26,10,24,#56743b,#2a5125,curve
+3347,Yel Green Med,#71935c,#606f35,10,23,#6d9646,#597d44,curve
+3348,Yel Green Lt,#ccd9b1,#b5b56d,10,22,#bedf74,#bfcf9f,curve
+3350,Dusty Rose UDk,#bc4365,#a6163b,2,25,#aa3949,#ac2d4c,curve
+3354,Dusty Rose Lt,#e4a6ac,#e980a1,2,22,#efa5ac,#dc9299,curve
+3362,Pine Grn Dk,#5e6b47,#444e32,11,24,#49523c,#465230,curve
+3363,Pine Grn Med,#728256,#586241,11,23,#617451,#5a6a3e,curve
+3364,Pine Green,#83975f,#7a8150,11,22,#8e9b6d,#6b8147,curve
+3371,Black Brown,#1e1108,#190b07,18,19,#36220e,#100803,curve
+3607,Plum Lt,#c54989,#c42a75,3,18,#d94c9d,#b63272,curve
+3608,Plum VLt,#ea9cc4,#e976b0,3,17,#ec81be,#e487b5,curve
+3609,Plum ULt,#f4aed5,#f29ed5,3,16,#f6b0df,#f19bca,curve
+3684,Garnet ExDk,#580b21,,,,,#400412,curve
+3685,Mauve VDk,#881531,#690720,3,6,#79263b,#710a1e,curve
+3687,Mauve,#c96b70,#ad335e,3,4,#b5455d,#bb5258,curve
+3688,Mauve Med,#e7a9ac,#cb5984,3,3,#dc7c86,#d8798c,hand
+3689,Mauve Lt,#fbbfc2,#f6aeca,3,2,#f8bbc8,#faafb3,curve
+3705,Melon Dk,#ff7992,#f42440,2,10,#f2494f,#f84859,hand
+3706,Melon Med,#ffadbc,#f64f81,2,9,#fd6e70,#fc7489,hand
+3708,Melon Lt,#ffcbd5,#f676a9,2,8,#fda0ae,#fc9db6,hand
+3712,Salmon Med,#f18787,#e8505c,1,4,#d95d5d,#ed7070,curve
+3713,Salmon VLt,#ffe2e2,#f7c6cf,1,1,#fdd5d0,#ffdada,curve
+3716,Dusty Rose MVLt,#ffbdbd,#f38cb1,2,12,#fcafb9,#ffadad,curve
+3721,Shell Pink Dk,#a14b51,#8d212a,16,24,#933b3d,#8c3439,curve
+3722,Shell Pink Med,#bc6c64,#9e3440,16,23,#a04b4c,#ac534c,curve
+3726,Antq Mauve Dk,#9b5b66,#8c3c4e,4,4,#95565c,#85434d,curve
+3727,Antq Mauve Lt,#dba9b2,#cb829d,4,2,#da9ea6,#d195a0,curve
+3731,Dusty Rose VDk,#da6783,#cf2e5b,2,24,#c34c5c,#d04e6b,curve
+3733,Dusty Rose,#e8879b,#e25e83,2,23,#ea7e86,#e27085,curve
+3740,Antq Violet Dk,#785762,#53303f,5,4,#71535d,#603f4a,curve
+3743,Antq Violet VLt,#d7cbd3,#c2b3ca,5,1,#cfc2c9,#ccbec7,curve
+3746,Blue Violet Dk,#776b98,#4949a1,5,13,#844ab5,#5f5282,curve
+3747,Blue Violet VLt,#d3d7ed,#c6cde4,5,8,#d0c5ec,#c7cce8,curve
+3750,Antq Blue VDk,#384c5e,#15253f,7,21,#1d4552,#243546,curve
+3752,Antq Blue VLt,#c7d1db,#9db6cb,7,17,#bac9cc,#b9c5d1,curve
+3753,Antq Blue UVLt,#dbe2e9,#c6dae5,7,16,#d9e6ec,#d1dae3,curve
+3755,Baby Blue,#93b4ce,#7ba9d6,7,8,#81a5d8,#7da2c1,curve
+3756,Baby Blue UVLt,#eefcfc,#f1f3f1,7,4,#e9f4fa,#e9fbfb,curve
+3760,Wedgewood Med,#3e85a2,#3a71a1,8,5,#467293,#296d8d,curve
+3761,Sky Blue Lt,#acd8e2,#a4dbe6,8,2,#b1d0df,#99ceda,curve
+3765,Peacock VDk,#347f8c,#215585,8,12,#175e78,#1f5e7b,hand
+3766,Peacock Lt,#99cfd9,#7ec2d4,8,10,#4b8aa1,#83c2cf,curve
+3768,Gray Green Dk,#657f7f,#414f58,8,22,#4c605f,#4c6767,curve
+3770,Tawny VLt,#ffeee3,#f9efe3,16,12,#fef1d8,#ffe9db,curve
+3771,Peach Dk,#f4bba9,#ee9875,17,3,#e8ac9b,#f1aa95,curve
+3772,Desert Snd VDk,#a06c50,#8d443f,17,21,#995744,#8b5339,curve
+3773,Desert Snd Med,#b67552,,,,#cf866d,#a45d3a,curve
+3774,Desert Snd VLt,#f3e1d7,#f1c6b8,17,17,#f3cfb4,#f0d9cc,curve
+3776,Mahogany Lt,#cf7939,#cd5130,16,15,#c96444,#c26124,curve
+3777,Terra Cotta VDk,#863022,#7d0814,17,9,#922f25,#6e1d13,curve
+3778,Terra Cotta Lt,#d98978,#c95550,17,5,#d2705c,#cf7260,curve
+3779,Rosewood UVLt,#f8cac8,#f1a29d,17,10,#f2ab95,#f6bcba,curve
+3781,Mocha Dk,#6b5743,#412b1e,19,14,#593f2b,#523f2d,curve
+3782,Mocha Lt,#d2bca6,#b09780,19,11,#b69d80,#c6ac92,curve
+3787,Brn Gray Dk,#625d50,#464432,19,7,#62524c,#4a4539,curve
+3790,Beige Gray UDk,#7f6a55,#755941,19,13,#6d5a4b,#67513d,curve
+3799,Pewter VDk,#424242,#252623,20,24,#39393d,#2c2c2c,curve
+3801,Christmas Lt,#e74967,#f3122c,1,18,#e4353d,#e0324e,curve
+3802,Antq Mauve VDk,#714149,#601527,4,6,#672a33,#592b32,curve
+3803,Mauve Dk,#ab3357,#801638,3,5,#872a43,#981f3f,curve
+3804,Cyclamen Dk,#e02876,#d3175b,3,15,#ce2b63,#d7175e,curve
+3805,Cyclamen,#f3478b,#dd276c,3,14,#df3c73,#f03074,curve
+3806,Cyclamen Lt,#ff8cae,#f069a2,3,13,#f15a91,#ff759b,curve
+3807,Cornflower Bl,#60678c,#3c4687,5,21,#4b599e,#484e75,curve
+3808,Turquoise UVDk,#366970,#133b4b,8,18,#03535c,#225058,curve
+3809,Turquoise VDk,#3f7c85,#20566a,8,17,#136a75,#29646d,curve
+3810,Turquoise Dk,#488e9a,#3b798d,8,16,#2d8d98,#317784,curve
+3811,Turquoise VLt,#bce3e6,#a9dadf,8,13,#a8e2e5,#acdbdf,curve
+3812,Sea Green VDk,#2f8c84,#288e71,9,4,#07a184,#1c756c,curve
+3813,Blue Green Lt,#b2d4bd,#a4c0b5,9,22,#86c3ab,#a0c9ad,curve
+3814,Aquamarine,#508b7d,#2e7964,9,10,#0b8673,#397465,curve
+3815,Celadon Dk,#477759,#3f6b4f,9,20,#437259,#305f41,curve
+3816,Celadon,#65a57d,#61957c,9,18,#60937a,#4c9165,curve
+3817,Celadon Lt,#99c3aa,#91b5a6,9,17,#81c6a4,#83b497,curve
+3818,Emerald UVDk,#115a3b,#0d4116,10,9,#005d2e,#084226,curve
+3819,Moss Grn Lt,#e0e868,#d7d654,12,5,#ccc959,#d7e24f,curve
+3820,Straw Dk,#dfb65f,#dc8c37,14,7,#dba53e,#d6a447,curve
+3821,Straw,#f3ce75,#e7a247,14,6,#ebbb52,#f0c15d,curve
+3822,Straw Lt,#f6dc98,#f3c46b,14,5,#f7d169,#f3d282,curve
+3823,Yellow UPale,#fffde3,#faf2cb,14,13,#fef5cd,#fffcdb,curve
+3824,Apricot Lt,#fecdc2,#f69d97,15,21,#fcae99,#fec0b3,curve
+3825,Pumpkin Pale,#fdbd96,#f59175,16,6,#fea370,#fcad80,curve
+3826,Golden Brown,#ad7239,#a1361e,14,21,#b16633,#9a5a24,curve
+3827,Golden Brn Pale,#f7bb77,#ed9263,14,18,#eaa664,#f5aa5f,curve
+3828,Hazelnut Brn,#b78b61,#a06a41,13,12,#aa7c43,#a67449,curve
+3829,Old Gold VDk,#a98204,#954e22,14,4,#a7671d,#9b6019,hand
+3830,Terra Cotta,#b95544,#a72a2a,17,7,#a94138,#a83d2e,curve
+3831,Raspberry Dk,#b32f48,#c0162d,1,16,#c12b52,#a11c31,curve
+3832,Raspberry Med,#db556e,#de264b,1,15,#e36370,#d13d55,curve
+3833,Raspberry Lt,#ea8699,#e74a6e,1,14,#ea8b96,#e46e83,curve
+3834,Grape Dk,#72375d,#4f183e,4,10,#6a2258,#5a2345,curve
+3835,Grape Med,#946083,#763d6c,4,9,#924d78,#7e486b,curve
+3836,Grape Lt,#ba91aa,#a96f9e,4,8,#c597b9,#a97a97,curve
+3837,Lavender UDk,#6c3a6e,#442077,4,19,#8a2a8f,#532555,curve
+3838,Lavender Bl Dk,#5c7294,#445da8,6,3,#606bad,#445a7e,curve
+3839,Lavender Bl Med,#7b8eab,#5e79bd,6,2,#7a7ec5,#637798,curve
+3840,Lavender Bl Lt,#b0c0da,#98b9e4,6,1,#b2bdea,#9db0d0,curve
+3841,Baby Blue Pale,#cddfed,#b8d9e7,7,6,#d9eaf2,#c0d6e8,curve
+3842,Wedgewood Dk,#32667c,#13376e,8,7,#06506a,#1f4d64,curve
+3843,Electric Blue,#14aad0,#197dd8,6,18,#28a3de,#0997c4,curve
+3844,Bright Turq Dk,#12aeba,#1182bb,6,22,#1f7fa0,#1889ac,hand
+3845,Bright Turq Med,#04c4ca,#24a7d7,6,21,#2badd1,#21aecc,hand
+3846,Bright Turq Lt,#06e3e6,#46c7eb,6,20,#5eccec,#44cfe7,hand
+3847,Teal Dk,#347d75,#174e47,8,26,#186358,#20655d,curve
+3848,Teal Med,#559392,#2f7269,8,25,#207e72,#3d7d7c,curve
+3849,Teal Lt,#52b3a4,#53988f,8,24,#35b193,#3aa190,curve
+3850,Bright Grn Dk,#378477,#278655,9,7,#208b46,#267f54,hand
+3851,Bright Grn Lt,#49b3a1,#4eb289,9,5,#61bb84,#32a18c,curve
+3852,Straw VDk,#cd9d37,#c86820,14,8,#e3a730,#c08823,curve
+3853,Autumn Gold Dk,#f29746,#eb572c,14,17,#ef8125,#ee812f,curve
+3854,Autumn Gold Med,#f2af68,#f28a55,14,16,#fbac56,#ee9c4f,curve
+3855,Autumn Gold Lt,#fad396,#f6c084,14,14,#fddfa0,#f9c780,curve
+3856,Mahogany UVLt,#ffd3b5,#f2b587,16,2,#fdbe8e,#ffc7a3,curve
+3857,Rosewood Dk,#68251a,#551411,17,13,#6a2f26,#4f150d,curve
+3858,Rosewood Med,#964a3f,#752225,17,12,#803a32,#803329,curve
+3859,Rosewood Lt,#ba8b7c,#b96153,17,11,#ba7a6c,#a97464,curve
+3860,Cocoa,#7d5d57,#603c3a,18,5,#896362,#65453f,curve
+3861,Cocoa Lt,#a68881,#916874,18,4,#ac8583,#927169,curve
+3862,Mocha Beige Dk,#8a6e4e,#7a4931,18,23,#6e492a,#735537,curve
+3863,Mocha Beige Med,#a4835c,#916046,18,22,#94725d,#906b44,curve
+3864,Mocha Beige Lt,#cbb69c,#c3977c,18,21,#c9aa92,#bea487,curve
+3865,Winter White,#f9f7f1,#fcfcf9,19,1,#fffdf9,#f7f5ed,curve
+3866,Mocha UVLt,#faf6f0,#ede4da,19,19,#f0e6d7,#f9f3ec,curve
+3880,Medium Very Dark Shell Pink,#ba6368,,,,,#a94b4f,curve
+3881,Pale Avocado Green,#d5dfb0,,,,,#cad69d,curve
+3882,Medium Light Cocoa,#a98379,,,,,#956b61,curve
+3883,Medium Light Copper,#df8c51,,,,,#d67539,curve
+3884,Medium Light Pewter,#b0b0b0,,,,,#9d9d9d,curve
+3885,Medium Very Dark Blue,#324e76,,,,,#1f375e,curve
+3886,Very Dark Plum,#6f1f41,,,,,#56102b,curve
+3887,Ultra Very Light Lavender,#b898cd,,,,,#a782c0,curve
+3888,Medium Dark Antique Violet,#906371,,,,,#794b59,curve
+3889,Medium Light Lemon,#fff5b3,,,,,#fff2a1,curve
+3890,Very Light Bright Turquoise,#80d9db,,,,,#68cfd1,curve
+3891,Very Dark Bright Turquoise,#0a848c,,,,,#046c75,curve
+3892,Medium Light Orange Spice,#efb38e,,,,,#eaa177,curve
+3893,Very Light Mocha Beige,#dfccb7,,,,,#d6bfa6,curve
+3894,Very Light Parrot Green,#bbdb69,,,,,#aad150,curve
+3895,Medium Dark Beaver Gray,#8c7f71,,,,,#756759,curve

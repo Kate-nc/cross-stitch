@@ -102,7 +102,7 @@ describe('restoreStoredPattern', () => {
 
   test('rebuilds rgb for stripped cells and keeps skips', () => {
     const out = w.restoreStoredPattern({ pattern: [{ id: '321', type: 'solid' }, { id: '__skip__' }] });
-    expect(Array.from(out[0].rgb)).toEqual([199, 43, 59]);
+    expect(Array.from(out[0].rgb)).toEqual([185, 25, 38]);
     expect(out[1].id).toBe('__skip__');
   });
 
