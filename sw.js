@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "bb408a531f4d8d36f870e96591e95bdad79a5517f63720971dd4f649b9cdbcfa";
+var BUILD_ID = "6e1857e93532144a572cd71b321a55bc16c70790fe7dff0656823b3993f1ad52";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -323,13 +323,13 @@ var BUILD_ASSETS = {
     "sha256": "30ed400c9978352785c40bcaf8ea28fb81a20f6d5f1dba58703d7191d62d93a0"
   },
   "./styles.css": {
-    "sha256": "f992201e4d06c89fe2b0922e56ff32d592d9a6b8dae1584dcbb1c5517958ec3b"
+    "sha256": "68bc2b51c92b9d72b759e700400f2379cdd4bda9476537980b571f13e2e60af3"
   },
   "./version.js": {
     "sha256": "a4ca6782de9c96ae89a97dacf4ecdaad267e072c60a7fdf1a5c456fa742d39ca"
   },
   "./changelog.js": {
-    "sha256": "f6e7d2113cf5ebf484c0b4b6235abf99ed20c6776edbc444dee695037b5563ed"
+    "sha256": "f8e5b1b16859cf07d42772bc86dd56404c4521b743edd163a805831dc63d9738"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -449,7 +449,7 @@ var BUILD_ASSETS = {
     "sha256": "ff0a0bd69e9fdd321b35d9fd04670413f3aa6c2a2e00fa2ba7f999bbfc7805e3"
   },
   "./home-screen.js": {
-    "sha256": "eb3d8cdc5b2f0ea7ac61d32a84fe889298743d769dc3177e8a8aeb69ae2ca96d"
+    "sha256": "686be4cdbfb8b961fa2a6c1959671075ec34922c0b11cff794c43a425fab7b7f"
   },
   "./home-app.js": {
     "sha256": "ded93aa42dae3a290239af620b21924e1fbac75f14e2cfb1bbba922a9fc58e92"
@@ -581,7 +581,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "34701690dce9b7b04ddf72596c60236adfc5c28fe817dc1495034572199fecfd"
+    "sha256": "ce9888bf830acaabd1bc6f9662475020cd770988dc7564a5d8623fe55ac1657b"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
@@ -623,7 +623,7 @@ var BUILD_ASSETS = {
     "sha256": "229c26018dc4b6763310aa8143f223838641589d4639fc19439854b9f0afbd57"
   },
   "./components/PartialStitchThumb.js": {
-    "sha256": "b42bf0c83c6a7a91d822b5700a7e150a10ade794a1cb8da926e0f96a94c5ec47"
+    "sha256": "756d572f621c8e43a615e74c8839a81037f9f610a180cccf9adbb2be43483f86"
   },
   "./components/Overlay.js": {
     "sha256": "0844fc8ccd2a4a038c7ca13b8f13478f5fdc6e77d952c6877ce5f3a7b6b12d6f"

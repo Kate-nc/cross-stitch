@@ -159,3 +159,48 @@ describe('anonProjectKey', () => {
     expect(internals.anonProjectKey(a)).not.toBe(internals.anonProjectKey(b));
   });
 });
+
+describe('fitDims (keeps the pattern shape)', () => {
+  test('a square pattern fills the square', () => {
+    const d = internals.fitDims(60, 60, 240);
+    expect(d.dispW).toBe(240);
+    expect(d.dispH).toBe(240);
+  });
+  test('a wide pattern keeps its proportions', () => {
+    const d = internals.fitDims(100, 50, 240);
+    expect(d.dispW).toBe(240);
+    expect(d.dispH).toBe(120);
+    expect(d.outW / d.outH).toBe(2);
+  });
+  test('a tall pattern keeps its proportions', () => {
+    const d = internals.fitDims(40, 120, 240);
+    expect(d.dispW).toBe(80);
+    expect(d.dispH).toBe(240);
+    expect(d.outH / d.outW).toBe(3);
+  });
+  test('small patterns get a whole number of pixels per cell, at least size on the long side', () => {
+    const d = internals.fitDims(70, 50, 240);
+    expect(d.big).toBe(false);
+    expect(Number.isInteger(d.cell)).toBe(true);
+    expect(d.outW).toBe(70 * d.cell);
+    expect(d.outH).toBe(50 * d.cell);
+    expect(Math.max(d.outW, d.outH)).toBeGreaterThanOrEqual(240);
+  });
+  test('big patterns are scaled down to the display box', () => {
+    const d = internals.fitDims(400, 200, 240);
+    expect(d.big).toBe(true);
+    expect(d.srcW).toBe(400);
+    expect(d.srcH).toBe(200);
+    expect(d.outW).toBe(240);
+    expect(d.outH).toBe(120);
+  });
+  test('very thin patterns never collapse to zero', () => {
+    const d = internals.fitDims(1000, 1, 64);
+    expect(d.dispH).toBeGreaterThanOrEqual(1);
+    expect(d.outH).toBeGreaterThanOrEqual(1);
+  });
+  test('rejects empty sizes', () => {
+    expect(internals.fitDims(0, 10, 64)).toBeNull();
+    expect(internals.fitDims(10, 10, 0)).toBeNull();
+  });
+});

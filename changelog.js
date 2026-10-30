@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Fixed: pattern previews on Home and in the project manager keep the pattern\'s shape. A wide or tall pattern used to be stretched to fill a square; it now shows at its true proportions, centred, with space around it. On project manager cards the preview is drawn larger and zooms in to fill the picture strip, showing at least half of the pattern. Every stitch in a preview is drawn the same size.',
       'Improved: the Pattern Creator opens with less to download. Materials & Output now loads the first time you open it, with a short loading message on slower connections.',
       'Improved: app updates are much smaller. An update now downloads only the files that changed and reuses the rest from the copy already on your device, after checking each one is exactly right for the new version.',
       'Improved: pages open faster. Each one now downloads about half as much as before, which helps most on phones, tablets and slower connections. The list in Preferences > Version history now loads when you open it.',
