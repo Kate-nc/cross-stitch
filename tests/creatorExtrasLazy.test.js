@@ -45,6 +45,20 @@ describe('extras bundle loads on demand', () => {
   });
 });
 
+describe('the PDF exporter runs once on the Creator pages', () => {
+  test('export-pdf.js gets it from the extras bundle there, not creator/pdfExport.js on its own', () => {
+    const src = read('export-pdf.js');
+    const creator = src.indexOf('window.__csPageKind === "creator" && typeof window.loadCreatorExtras === "function"');
+    const standalone = src.indexOf('window.loadScript(PDF_EXPORT_SRC');
+    expect(creator).toBeGreaterThan(-1);
+    expect(standalone).toBeGreaterThan(creator);
+  });
+
+  test.each(PAGES)('%s is marked as a Creator page before export-pdf.js can run', page => {
+    expect(read(page)).toMatch(/window\.__csPageKind = 'creator';/);
+  });
+});
+
 describe('pdfChartLayout.js is loaded once on the Creator pages', () => {
   test('the extras bundle no longer includes it', () => {
     expect(read('creator/extras-bundle.js')).not.toContain('/* ─── pdfChartLayout.js ─── */');

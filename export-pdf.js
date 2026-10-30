@@ -8,8 +8,9 @@
  * used fixed defaults (colour charts only) and the Tracker a separate,
  * older exporter that was not Pattern Keeper-compatible.
  *
- * Uses the PdfExport pipeline (creator/pdfExport.js) unchanged; on pages
- * that don't bundle it (the Tracker) it is loaded on first use.
+ * Uses the PdfExport pipeline (creator/pdfExport.js) unchanged, loaded on
+ * first use: on its own on the Tracker, and on the Creator pages through
+ * creator/extras-bundle.js, so it never runs twice there.
  *
  *   window.ExportPdf.optionsFromPrefs()  → PdfExport.runExport options
  *   window.ExportPdf.run(ctx)            → Promise<boolean> (true = downloaded)
@@ -71,6 +72,17 @@
 
   function ensureLoaded() {
     if (window.PdfExport && typeof window.PdfExport.runExport === "function") return Promise.resolve();
+    // The Creator pages get the exporter from creator/extras-bundle.js, which
+    // contains creator/pdfExport.js. Loading that file on its own there would
+    // run a second copy once Materials & Output loads the bundle, replacing
+    // window.PdfExport and spawning a second worker.
+    if (window.__csPageKind === "creator" && typeof window.loadCreatorExtras === "function") {
+      return window.loadCreatorExtras().then(function () {
+        if (!(window.PdfExport && typeof window.PdfExport.runExport === "function")) {
+          throw new Error("PDF export is not available on this page.");
+        }
+      });
+    }
     if (typeof window.loadScript !== "function") {
       return Promise.reject(new Error("PDF export is not available on this page."));
     }

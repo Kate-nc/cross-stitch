@@ -123,8 +123,8 @@ var PRECACHE_URLS = [
   // offline user who had never opened Help would find it missing. Precaching is
   // what keeps it available. Same reasoning as backup-restore.js above.
   './help-drawer.js',
-  // export-pdf.js loads the PDF exporter on demand: the Tracker always, the
-  // Creator until creator/extras-bundle.js (which also has it) has loaded.
+  // The Tracker loads the PDF exporter on demand (export-pdf.js); the Creator
+  // gets it from creator/extras-bundle.js.
   './creator/pdfExport.js',
   './sync-merge-helpers.js',
   './sync-attachment-codec.js',
@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "5e5ae05c8de2089b4652b2765e72da32296e09f3fe36bebf1db46c816259294b";
+var BUILD_ID = "75ee8b7636adf09c8d500f06f6dcda02a865c12dc557c408aa393e61cbf2adb2";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -338,7 +338,7 @@ var BUILD_ASSETS = {
     "sha256": "aedb4ee3af7c1f93723612c4cb5bb9a96df558dc1b339b00caa578c496204cb1"
   },
   "./export-pdf.js": {
-    "sha256": "1f919aeedd05f7156e703bd628d8b1a908dfb4e360a570c5766085a2cc305bfb"
+    "sha256": "7e99d7e076647b36b249a262846ecefd1ae1686166f115d4870109dd2793b05d"
   },
   "./constants.js": {
     "sha256": "79faacefc8b904058c432e2654ed51870ad4aef448e3f916b033e3db4b43e984"
