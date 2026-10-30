@@ -468,7 +468,7 @@
         },
         {
           heading: "Managing projects",
-          body: "Home is the hub for all your projects. Every pattern you create, open or import appears there, with a preview, its size and its progress. Filter by In progress, Not started or Finished; past 12 projects, Show all lists the rest. Each card opens the project in the Stitch Tracker; its More menu has Edit pattern, Export or print, Update chart and Project details. A project you have every thread for is marked You own every thread.",
+          body: "Home is the hub for all your projects. Every pattern you create, open or import appears there, with a preview in the pattern's own shape (a wide or tall pattern sits in its square with space around it, rather than being stretched), its size and its progress. Filter by In progress, Not started or Finished; past 12 projects, Show all lists the rest. Each card opens the project in the Stitch Tracker; its More menu has Edit pattern, Export or print, Update chart and Project details. A project you have every thread for is marked You own every thread.",
           bullets: [
             ["Active project", "The project you most recently opened. It is the one the Creator and Tracker open by default, and the one Home's Continue card offers first."],
             ["Switching projects", "Pick a project on Home, or use File > Switch Project… from any page."],

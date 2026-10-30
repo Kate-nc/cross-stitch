@@ -75,14 +75,38 @@
     return null;
   }
 
+  // ── sizing ───────────────────────────────────────────────────────────────
+  // Fits a w×h pattern inside a size×size box without changing its shape.
+  // disp*: the box the <img> is shown in (long side = size).
+  // src*:  the bitmap painted. Small patterns get a whole number of pixels
+  //        per cell (rounded up so the bitmap is at least `size` on its long
+  //        side), so every cell comes out the same width. Big patterns are
+  //        painted at 1px/cell and then scaled down to the display box.
+  function fitDims(w, h, size) {
+    w = w | 0; h = h | 0; size = size | 0;
+    if (w < 1 || h < 1 || size < 1) return null;
+    var long = Math.max(w, h);
+    var dispW = Math.max(1, Math.round(size * w / long));
+    var dispH = Math.max(1, Math.round(size * h / long));
+    var big = w * h > BIG_THRESHOLD;
+    var cell = big ? 1 : Math.max(1, Math.ceil(size / long));
+    return {
+      big: big, cell: cell,
+      srcW: w * cell, srcH: h * cell,
+      outW: big ? dispW : w * cell, outH: big ? dispH : h * cell,
+      dispW: dispW, dispH: dispH
+    };
+  }
+
   function renderToDataUrl(pattern, done, w, h, size, paletteMap) {
     if (typeof document === 'undefined' || !w || !h || !pattern) return '';
-    var cells = w * h;
-    var big = cells > BIG_THRESHOLD;
+    var dims = fitDims(w, h, size);
+    if (!dims) return '';
+    var cellPx = dims.cell;
 
-    // Step 1: paint at 1px/cell when big, else paint directly at target size.
-    var srcW = big ? w : size;
-    var srcH = big ? h : size;
+    // Step 1: paint every cell as a cellPx × cellPx block.
+    var srcW = dims.srcW;
+    var srcH = dims.srcH;
     var src = document.createElement('canvas');
     src.width = srcW; src.height = srcH;
     var sctx = src.getContext('2d');
@@ -95,8 +119,8 @@
 
     for (var y = 0; y < srcH; y++) {
       for (var x = 0; x < srcW; x++) {
-        var cx = big ? x : Math.floor(x * w / srcW);
-        var cy = big ? y : Math.floor(y * h / srcH);
+        var cx = (x / cellPx) | 0;
+        var cy = (y / cellPx) | 0;
         var idx = cy * w + cx;
         var cell = pattern[idx];
         var rgb = rgbOf(cell, paletteMap);
@@ -127,16 +151,17 @@
     }
     sctx.putImageData(img, 0, 0);
 
-    // Step 2: scale into target size with crisp nearest-neighbour.
-    if (!big && srcW === size && srcH === size) {
+    // Step 2 (big patterns only): scale down, keeping the shape, with crisp
+    // nearest-neighbour sampling.
+    if (dims.outW === srcW && dims.outH === srcH) {
       try { return src.toDataURL('image/png'); } catch (e) { return ''; }
     }
     var dst = document.createElement('canvas');
-    dst.width = size; dst.height = size;
+    dst.width = dims.outW; dst.height = dims.outH;
     var dctx = dst.getContext('2d');
     if (!dctx) return '';
     dctx.imageSmoothingEnabled = false;
-    dctx.drawImage(src, 0, 0, size, size);
+    dctx.drawImage(src, 0, 0, dims.outW, dims.outH);
     try { return dst.toDataURL('image/png'); } catch (e) { return ''; }
   }
 
@@ -158,7 +183,8 @@
    *                                (null/undefined → renders fully ghosted)
    *   w          {number}         pattern grid width (cells)
    *   h          {number}         pattern grid height (cells)
-   *   size       {number}         pixel size of the rendered square (default 64)
+   *   size       {number}         pixel size of the long side (default 64);
+   *                                the short side keeps the pattern's shape
    *   palette    {Array}          optional [{id, rgb:[r,g,b]}] fallback lookup
    *   projectId  {string}         optional cache scope
    *   className  {string}         optional class on the <img>
@@ -197,9 +223,12 @@
       return url;
     }, [pattern, done, w, h, size, projectId, paletteMap]);
 
+    var dims = fitDims(w, h, size);
+    var dispW = dims ? dims.dispW : size;
+    var dispH = dims ? dims.dispH : size;
     var imgStyle = {
-      width: size,
-      height: size,
+      width: dispW,
+      height: dispH,
       display: 'block',
       imageRendering: 'pixelated',
       background: '#f8fafc',
@@ -207,7 +236,7 @@
     };
 
     if (!dataUrl) {
-      // Empty state — neutral square, no broken-image icon.
+      // Empty state — neutral box, no broken-image icon.
       return React.createElement('div', {
         className: className,
         role: 'img',
@@ -220,8 +249,8 @@
       src: dataUrl,
       alt: alt,
       className: className,
-      width: size,
-      height: size,
+      width: dispW,
+      height: dispH,
       style: imgStyle,
       draggable: false
     });
@@ -239,6 +268,7 @@
     doneHash: doneHash,
     makeCacheKey: makeCacheKey,
     anonProjectKey: anonProjectKey,
+    fitDims: fitDims,
     cacheGet: cacheGet,
     cacheSet: cacheSet,
     _cache: cache,
