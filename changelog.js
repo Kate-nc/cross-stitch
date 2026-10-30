@@ -11,6 +11,7 @@ window.APP_CHANGELOG = [
     version: 'Unreleased',
     date: 'October 2026',
     notes: [
+      'Improved: the Stitch Tracker grid lines are easier to see. Each heavy line every 10 stitches now has a thin halo, so it shows over dark stitches as well as light ones; in Symbol view on a dark fabric the lines are drawn light; and zoomed far out they are no longer a faint grey. New Grid lines settings in More > View (and Preferences > Stitch Tracker) choose the strength (Subtle, Standard or Bold), the colour (Auto, Dark, Light or Terracotta) and the gap between heavy lines (5, 10 or 20 stitches). High contrast draws Standard lines Bold.',
       'Improved: the Pattern Creator opens with less to download. Materials & Output now loads the first time you open it, with a short loading message on slower connections.',
       'Improved: app updates are much smaller. An update now downloads only the files that changed and reuses the rest from the copy already on your device, after checking each one is exactly right for the new version.',
       'Improved: pages open faster. Each one now downloads about half as much as before, which helps most on phones, tablets and slower connections. The list in Preferences > Version history now loads when you open it.',

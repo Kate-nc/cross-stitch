@@ -174,6 +174,62 @@ function pendingStitchLook(rgb, fade) {
   return look;
 }
 
+// ── The Tracker chart's grid lines ───────────────────────────────────────────────────────────────────────────────
+// A heavy line every `every` stitches (10 by default) and, when `every` is even, a light one half-way between.
+// `style` is how strong they are (subtle | standard | bold), `colour` their ink (auto | dark | light | accent), `fabric`
+// what is behind most cells as '#rrggbb' (white when not given) and `tier` the zoom detail tier (1 = zoomed far out ...
+// 4 = close up). Auto picks dark ink on a light background and light ink on a dark one. Standard and Bold also draw a halo of the opposite
+// tone under each heavy line, so it shows over dark and light stitches alike. The result is plain strings, cached:
+// it is asked for on every paint.
+var GRID_INK_DARK = [27, 24, 20], GRID_INK_LIGHT = [255, 252, 245], GRID_INK_ACCENT = [184, 92, 56];
+var GRID_DARK_FABRIC_LUM = 120;   // below this fabric luminance, Auto draws light lines
+var GRID_STYLES = ['subtle', 'standard', 'bold'], GRID_COLOURS = ['auto', 'dark', 'light', 'accent'], GRID_INTERVALS = [5, 10, 20];
+// Per tier 1..4: heavy-line opacity and width, halo opacity (0 = none) and light-line opacity.
+// Subtle matches the old fixed look on a light fabric (dark grey, 1 px, 2 px close up).
+var GRID_STYLE_TABLE = {
+  subtle:   { a: [0.25, 0.5, 0.75, 0.85], w: [1, 1, 1, 2],     halo: [0, 0, 0, 0],          minor: [0, 0.11, 0.19, 0.22] },
+  standard: { a: [0.6, 0.75, 0.9, 1],     w: [1, 1, 1.5, 2],   halo: [0, 0.5, 0.5, 0.55],   minor: [0, 0.16, 0.25, 0.3] },
+  bold:     { a: [0.9, 1, 1, 1],          w: [1, 2, 2.5, 3],   halo: [0, 0.75, 0.75, 0.8],  minor: [0, 0.22, 0.32, 0.38] }
+};
+var _gridLookCache = new Map();
+function _hexRgb(hex) {
+  var m = typeof hex === 'string' && /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return [255, 255, 255];
+  var n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function _rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+function trackerGridLook(opts) {
+  opts = opts || {};
+  var style = GRID_STYLES.indexOf(opts.style) !== -1 ? opts.style : 'standard';
+  var colour = GRID_COLOURS.indexOf(opts.colour) !== -1 ? opts.colour : 'auto';
+  var every = GRID_INTERVALS.indexOf(opts.every) !== -1 ? opts.every : 10;
+  var tier = opts.tier >= 1 && opts.tier <= 4 ? Math.round(opts.tier) : 3;
+  var fabric = _hexRgb(opts.fabric);
+  var key = style + '|' + colour + '|' + every + '|' + tier + '|' + fabric.join(',');
+  var hit = _gridLookCache.get(key);
+  if (hit) return hit;
+  var darkFabric = lum709(fabric) < GRID_DARK_FABRIC_LUM;
+  // The light lines between stay neutral even with the accent ink: a second coloured grid would be noise.
+  var neutral = darkFabric ? GRID_INK_LIGHT : GRID_INK_DARK;
+  var ink = colour === 'dark' ? GRID_INK_DARK : colour === 'light' ? GRID_INK_LIGHT : colour === 'accent' ? GRID_INK_ACCENT : neutral;
+  var haloInk = lum709(ink) < 128 ? GRID_INK_LIGHT : GRID_INK_DARK;
+  var t = GRID_STYLE_TABLE[style], i = tier - 1;
+  var w = t.w[i];
+  var look = {
+    style: style, colour: colour, every: every,
+    major: { stroke: _rgba(ink, t.a[i]), width: w },
+    // The halo shows 1 px either side of the line: enough to lift it off a dark or light stitch without hiding the cell.
+    halo: t.halo[i] > 0 ? { stroke: _rgba(haloInk, t.halo[i]), width: w + 2 } : null,
+    // The light lines: half-way between the heavy ones, only when that falls on a whole stitch, and not zoomed far out.
+    minorEvery: every % 2 === 0 && t.minor[i] > 0 ? every / 2 : 0,
+    minor: t.minor[i] > 0 ? { stroke: _rgba(neutral, t.minor[i]), width: 1 } : null
+  };
+  if (_gridLookCache.size > 500) _gridLookCache.clear();
+  _gridLookCache.set(key, look);
+  return look;
+}
+
 /** Snapshot coverage before filtering. Alpha follows detectUniformBorder's 128
  * cutoff, after canvas premultiplied-alpha resizing. Never infer holes from RGB.
  * Alpha-bearing images already define their background; for opaque pictures,
@@ -3378,4 +3434,4 @@ _colourUtilsGlobal.RARE_COLOUR_CONTRAST_GUARD_DE = RARE_COLOUR_CONTRAST_GUARD_DE
 var EDGE_BLEND_MAX_DE_NO_DITHER = 18;
 _colourUtilsGlobal.EDGE_BLEND_MAX_DE_NO_DITHER = EDGE_BLEND_MAX_DE_NO_DITHER;
 
-if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }
+if (typeof module !== 'undefined' && module.exports) { module.exports = { findSolid, findBest, luminance, quantize, quantizeConstrained, doDither, doBayerDither, doRiemersma, doMap, buildPalette, restoreStitch, applyMedianFilter, applyGaussianBlur, applyBilateralFilter, labToRgb, applyUnsharpMask, generateSaliencyMap, morphologicalClean, generateEdgeMap, labelConnectedComponents, removeOrphanStitches, analyzeConfetti, confettiSummary, dE2000, UNIQUE_THRESHOLD_DE, disambiguateSimilarNeighbours, DISAMBIG_LEVEL_MAP, detectUniformBorder, mergeEdgeBlendColours, doneStitchLook, pendingStitchLook, trackerGridLook, GRID_STYLES, GRID_COLOURS, GRID_INTERVALS, DONE_MAX_LUM, PENDING_FADE, MIN_DONE_GAP, foldRareColours, RARE_COLOUR_CONTRAST_GUARD_DE, prunePalette, addDistinctColours, confettiCleanupPlan, runConfettiCleanup, CONFETTI_FLAT_MULTIPLIER, ORPHAN_CONTRAST_GUARD_DE, ORPHAN_EDGE_DILATION, linearAreaDownscale, LINEAR_SHRINK_MAX_SOURCE_AREA }; }

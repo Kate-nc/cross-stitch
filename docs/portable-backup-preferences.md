@@ -118,6 +118,9 @@ values fall back to defaults; no coercion of strings into numbers or booleans.
 - `cs_pref_trackerDimLevel`
 - `cs_pref_trackerDoneStyle`
 - `cs_pref_trackerFabricColour`
+- `cs_pref_trackerGridColour`
+- `cs_pref_trackerGridEvery`
+- `cs_pref_trackerGridStyle`
 - `cs_pref_trackerHighlightSkipDone`
 - `cs_pref_trackerIdleMinutes`
 - `cs_pref_trackerLegendSort`
