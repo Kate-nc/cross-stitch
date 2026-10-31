@@ -163,3 +163,167 @@ for (const size of ['large', 'huge']) {
       `${out.over200ms} of ${RHYTHM_TAPS} steady taps took over 200 ms`).toBeLessThanOrEqual(2);
   });
 }
+
+/* Taps on a chart that is already partly stitched (merged audit, fix #0).
+   ═══════════════════════════════════════════════════════════════════════════
+   Every spec above loads a fresh chart, and that hid the worst of the tap lag:
+   much of the per-tap work is proportional to the stitches already marked,
+   not to the chart. On the large fixture at 50% a tap took 1.2-1.8 s to show
+   (4x CPU) against ~110 ms fresh, because each mark rebuilt the thread-usage
+   estimate for every finished stitch before the browser could paint, and the
+   progress save ~400 ms later rebuilt the sync record for all of them.
+
+   Each case below taps eight cells, 1.5 s apart, at 4x CPU and reports:
+
+     interactionMs   input to the next paint (Event Timing), per tap — what the
+                     stitcher sees, including any wait behind work an earlier
+                     tap started. Asserted against a loose ceiling.
+     handlerMs       how long the tap's own event handlers ran (Event Timing
+                     processing time, the slowest event of each tap). Before
+                     fix #1 the whole Tracker re-render — with the thread-usage
+                     rebuild — ran inside the release handler: ~1.2 s on the
+                     large chart at 50%. It is now a few ms, and does not
+                     depend on the progress, so it is the stable guard.
+     snapshotCalls   whole-progress thread-usage snapshots built while tapping,
+                     directly or as a fallback rebuild of the live marks.
+                     Must be 0 since fix #6 (was one per tap, ~0.7 s each).
+     perTapBlockingMs total blocking time divided by taps — main-thread work the
+                     tap causes, whether or not it delays this tap's paint. It
+                     still includes the full autosave (fix #8) and the ledger
+                     write (#9), and is logged, not asserted, until those land.
+
+   Cases: 50% and 90% done; 50% with a long thread-usage history (one ledger
+   event per stitch ever marked, here 50 000 from another project); and a
+   mixed chart with half stitches, backstitch, knots, beads and specialty
+   stitches, which takes a different redraw path. */
+const PROGRESS_TAPS = 8;
+// A loose guard. What is left of a tap's delay is waiting behind save work: the
+// full autosave (fix #8) and, with a long history, the thread-usage ledger write
+// (fix #9). After fix #7 the medians were ~0.1 s (50%), ~1.2 s (90%) and ~1.9 s
+// (long history), varying by up to 2x between runs. Before fix #1: 3.4 s (50%)
+// and 6.8 s (90%), with every tap's own handler at ~1.2 s.
+const PROGRESS_TAP_CEILING_MS = 5000;
+const PROGRESS_HANDLER_CEILING_MS = 250;
+
+// Event Timing with processing times (perfProbes keeps only durations), and a
+// count of whole-progress thread-usage snapshots (fix #6: only load builds one).
+async function installHandlerProbe(page) {
+  await page.addInitScript(() => {
+    const H = window.__handlerProbe = [];
+    window.__snapshotCalls = 0;
+    const iv = setInterval(() => {
+      const A = window.ThreadAccounting;
+      if (!A || A.__counted) return;
+      const orig = A.snapshot, origLive = A.live;
+      A.snapshot = function () { window.__snapshotCalls++; return orig.apply(this, arguments); };
+      // The live marks fall back to a rebuild when something every estimate
+      // depends on changes; a tap must never need one.
+      window.__lives = [];
+      A.live = function () { const l = origLive.apply(this, arguments); window.__lives.push(l); return l; };
+      A.__counted = true; clearInterval(iv);
+    }, 10);
+    try {
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries()) if (e.interactionId) H.push({ id: e.interactionId, run: e.processingEnd - e.processingStart });
+      }).observe({ type: 'event', durationThreshold: 16 });
+    } catch (_) {}
+  });
+}
+function handlerTimes(entries) {
+  const by = new Map();
+  for (const e of entries) by.set(e.id, Math.max(by.get(e.id) || 0, e.run));
+  return [...by.values()].map(Math.round);
+}
+
+async function seedConsumptionHistory(page, events) {
+  // Built with the app's own accounting so every event is valid.
+  await page.evaluate(async (n) => {
+    const A = window.ThreadAccounting;
+    const pid = 'proj_history_seed';
+    const est = A.snapshot({ pattern: [{ id: '310', type: 'solid' }], done: [1], fabricCt: 14 }, {})['d:0'];
+    const ledger = A.empty();
+    A.baseline(ledger, pid, {}, null, new Date().toISOString());
+    const ops = [];
+    for (let i = 0; i < n; i++) ops.push({ projectId: pid, unit: 'd:' + i, seq: 1, kind: 'mark', estimate: est, enabled: false });
+    A.apply(ledger, {}, ops, new Date().toISOString(), {});
+    const db = await openManagerDB();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('manager_state', 'readwrite');
+        tx.objectStore('manager_state').put(ledger, A.KEY);
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }, events);
+}
+
+const PROGRESS_CASES = [
+  { name: 'large, 50% done', size: 'large', fixture: { doneFraction: 0.5 } },
+  { name: 'large, 90% done', size: 'large', fixture: { doneFraction: 0.9 } },
+  { name: 'large, 50% done, long thread-usage history', size: 'large', fixture: { doneFraction: 0.5 }, history: 50000 },
+  { name: 'medium, 50% done, mixed stitches', size: 'medium', fixture: { doneFraction: 0.5, mixed: true } },
+];
+
+for (const c of PROGRESS_CASES) {
+  test(`tap cost with progress: ${c.name}`, async ({ page }) => {
+    test.setTimeout(300000);
+    await suppressOnboarding(page);
+    await installProbes(page);
+    await installHandlerProbe(page);
+    await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
+    if (c.history) await seedConsumptionHistory(page, c.history);
+    await page.locator('input[type="file"]').first().setInputFiles(fixtureFor(c.size, c.fixture));
+    await page.waitForSelector('canvas', { timeout: 120000 });
+    // Load-time analysis, the first autosave and the accounting baseline settle.
+    await page.waitForTimeout(8000);
+    const box = await chartBox(page);
+    expect(box, 'no chart scroller found').not.toBeNull();
+
+    const cdp = await cpuThrottle(page, 4);
+    await resetProbes(page);
+    await page.evaluate(() => { window.__handlerProbe.length = 0; window.__snapshotCalls = 0; });
+    const rebuildsBefore = await page.evaluate(() => window.__lives.reduce((n, l) => n + l.rebuilds(), 0));
+    for (let i = 0; i < PROGRESS_TAPS; i++) {
+      await tap(cdp, Math.round(box.x + box.w * 0.3 + i * 23), Math.round(box.y + box.h * 0.55 + i * 17));
+      await page.waitForTimeout(SPACING_MS);
+    }
+    await page.waitForTimeout(1000);
+    const r = await readProbes(page);
+    await cdp.detach().catch(() => {});
+
+    const taps = interactions(r.events);
+    const handlers = handlerTimes(await page.evaluate(() => window.__handlerProbe.slice()));
+    const snapshotCalls = await page.evaluate(() => window.__snapshotCalls)
+      + await page.evaluate(() => window.__lives.reduce((n, l) => n + l.rebuilds(), 0)) - rebuildsBefore;
+    const out = {
+      case: c.name, cells: patternCells(c.size), taps: PROGRESS_TAPS,
+      interactionMs: stats(taps),
+      handlerMs: stats(handlers),
+      snapshotCalls,
+      perTapBlockingMs: Math.round(tbt(r.longTasks) / PROGRESS_TAPS),
+      longTasks: r.longTasks.length,
+      longestTaskMs: Math.round(Math.max(0, ...r.longTasks.map(l => l.d))),
+      fills: r.fills,
+      analysePosts: r.posts.filter(p => p.type === 'analyse').length,
+    };
+    console.log('TAP_PROGRESS ' + JSON.stringify(out));
+
+    expect(r.reactWrapped, 'React.createElement was never wrapped').toBe(true);
+    // Each tap paints its cell directly. (The analysis post is not used as the
+    // proof of a mark here: on a busy main thread its 500 ms debounce merges
+    // taps, so fewer posts than taps does not mean a tap was lost.)
+    expect(r.fills, 'the taps painted nothing — they probably did not mark a stitch')
+      .toBeGreaterThanOrEqual(PROGRESS_TAPS);
+    expect(out.analysePosts, 'no analysis posts — the taps did not change progress').toBeGreaterThan(0);
+    expect(taps.length, 'Event Timing saw no taps').toBeGreaterThan(0);
+    // A gross guard only; see PROGRESS_TAP_CEILING_MS.
+    // Fix #6: a mark re-estimates only what changed (ThreadAccounting.live).
+    // Each tap used to rebuild the estimate for every finished stitch.
+    expect(snapshotCalls, 'a tap rebuilt the whole thread-usage snapshot').toBe(0);
+    expect(out.handlerMs.median,
+      `the tap handlers on ${c.name} ran for ${out.handlerMs.median} ms (median) — is the Tracker re-render back inside them?`)
+      .toBeLessThan(PROGRESS_HANDLER_CEILING_MS);
+    expect(out.interactionMs.median,
+      `a tap on ${c.name} took ${out.interactionMs.median} ms to show (median)`).toBeLessThan(PROGRESS_TAP_CEILING_MS);
+  });
+}

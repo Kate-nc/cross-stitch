@@ -102,7 +102,13 @@ describe('progress record writer', () => {
 
   test('is throttled, not debounced', () => {
     const fn = block('function scheduleProgressWrite()', 'const writeProgressNowRef');
-    expect(fn).toMatch(/if \(!progressTimerRef\.current\) progressTimerRef\.current = setTimeout\(writeProgressNow, 400\)/);
+    // A pending timer is never restarted, so steady marking cannot postpone the write.
+    expect(fn).toMatch(/if \(progressTimerRef\.current\) return;/);
+    expect(fn).toMatch(/progressTimerRef\.current = setTimeout\(writeProgressNow, Math\.max\(400, lastProgressWriteRef\.current \+ gap - Date\.now\(\)\)\)/);
+    // Only large charts space their writes out.
+    expect(fn).toMatch(/const gap = pat && pat\.length > 40000 \? PROGRESS_GAP_LARGE_MS : 0;/);
+    const write = block('function writeProgressNow()', 'function scheduleProgressWrite()');
+    expect(write).toMatch(/if \(!o \|\| !o\.id \|\| savesBlockedRef\.current\) return;\n  lastProgressWriteRef\.current = Date\.now\(\);/);
   });
 
   test('the unload and tab-hidden handlers write it first', () => {

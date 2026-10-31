@@ -20,7 +20,12 @@
        isEditMode,      // boolean — when true, hook is a no-op
        dragEnabled,     // false keeps taps but disables drag/range gestures
        isolatedPreview, // true publishes paths through previewStore instead
-                        // of re-rendering the parent for every path change
+                        // of re-rendering the parent for every path change;
+                        // dragState then only reports 'range'/'shiftRange'
+                        // (anything else reads 'idle'), so a press or a
+                        // stroke does not re-render the parent at all
+       doneRef,         // optional live ref to `done`, read in place of the
+                        // rendered prop when present
      });
      // Spread handlers onto the grid container:
      //   <div {...handlers} />
@@ -569,6 +574,7 @@
 
   // ─── React hook ─────────────────────────────────────────────────────
   var TOUCH_STALE_MS = 5000;
+  var IDLE_CONTROLS = { mode: 'idle', path: new Set(), anchor: null, intent: null };
   function useDragMark(opts) {
     var R = (typeof window !== 'undefined' && window.React) || null;
     if (!R) {
@@ -629,13 +635,23 @@
                             anchor: null, intent: null });
     var dragState = _ds[0], setDragState = _ds[1];
 
+    // With an isolated preview the parent only shows controls for a rectangle
+    // (the touch range anchor and the Shift rubber band). Every other mode —
+    // a press waiting to become a tap, a stroke, a scroll — is drawn by the
+    // preview store or not at all, so it reads as idle here. Publishing those
+    // used to re-render the whole Tracker on every press and again on release.
+    function controlState(s) {
+      if (!optsRef.current.isolatedPreview || s.mode === 'range' || s.mode === 'shiftRange') return s;
+      return IDLE_CONTROLS;
+    }
+
     function syncDragState() {
-      var s = stateRef.current;
-      var prev = publishedRef.current;
+      var s = controlState(stateRef.current);
+      var prev = publishedRef.current || IDLE_CONTROLS;
       // The Tracker's preview subscribes separately. Only gesture mode and
       // anchor/intent changes need to reconcile its controls; path changes
       // must not rebuild the whole TrackerApp on every pointer sample.
-      if (prev && prev.mode === s.mode && prev.anchor === s.anchor && prev.intent === s.intent
+      if (prev.mode === s.mode && prev.anchor === s.anchor && prev.intent === s.intent
           && (optsRef.current.isolatedPreview || prev.path === s.path)) return;
       publishedRef.current = s;
       setDragState({
@@ -701,7 +717,9 @@
       var ctx = {
         w: o.w, h: o.h,
         pattern: patternRef.current,
-        done: doneRef.current,
+        // A parent that commits marks ahead of its own render can pass its
+        // live ref, so a stroke that starts on a just-tapped cell reads it.
+        done: (o.doneRef && o.doneRef.current) || doneRef.current,
         paint: !!o.paintMode,
         locked: !!o.touchLocked,
         dragEnabled: o.dragEnabled !== false,

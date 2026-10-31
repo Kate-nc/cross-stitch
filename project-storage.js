@@ -17,6 +17,11 @@ const ProjectStorage = (() => {
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
   const fencePrefix=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36);
   let fenceSequence=0, progressBaseCache=null;
+  // The progress record this page last wrote and committed, per project: when the
+  // next write reads back that very record (same writeId), TrackingSync.record can
+  // reuse its registers instead of re-reading one per finished stitch (seconds on a
+  // large chart).
+  const lastProgressPut=new Map();
   // One compact base only: retain marks and causal metadata, never chart cells.
   // Its token must match the metadata read in the SAME transaction as the
   // progress write. Any full write/recovery/legacy writer invalidates it.
@@ -984,10 +989,17 @@ const ProjectStorage = (() => {
           halfDone: data.halfDone, knotsDone: data.knotsDone, beadsDone: data.beadsDone,
           bsDone: data.bsDone, partialDone: data.partialDone, specialtyDone:data.specialtyDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
-          tabId: data.tabId || null, updatedAt: Date.now()
+          tabId: data.tabId || null, updatedAt: Date.now(),
+          // This write's identity, for reusing its sync registers next time (see
+          // lastProgressPut): timestamps can repeat within a millisecond.
+          writeId: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
         };
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
+        // Whether the marks are now on disk in a form reloading applies. False when the
+        // project is not stored yet, or the record's base is not the project's last full
+        // save (it would be ignored); the Tracker then stops relying on progress records.
+        let applies = false, accepted = false;   // accepted: this record was put (not turned away by a newer one)
         await new Promise((resolve, reject) => {
           const tx = db.transaction(["pendingImports", STORE_NAME, META_STORE], "readwrite");
           const store = tx.objectStore("pendingImports");
@@ -1028,17 +1040,35 @@ const ProjectStorage = (() => {
             const current = applyProgressRecord(project, rec, null, {typed:true,skipTracking:true});
             if (current !== project) {
               const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, beadsDone: rec.beadsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
-              rec.trackingSync = TrackingSync.record(previous, next).trackingSync;
+              // Only when the stored record is this page's last write (same tab, time and
+              // base) and is what `previous` was built from.
+              const mine = lastProgressPut.get(id);
+              const from = mine && prev && prev.writeId && prev.trackingSync && previous && previous.trackingSync === prev.trackingSync
+                && prev.writeId === mine.writeId && prev.baseWriteAt === mine.baseWriteAt ? mine.marks : null;
+              rec.trackingSync = TrackingSync.record(previous, next, undefined, from).trackingSync;
             }
             // A delayed call must not undo a newer navigation recovery (or unpick).
-            if (!prev || prev.baseWriteAt !== rec.baseWriteAt || prev.updatedAt <= rec.updatedAt) store.put(rec);
+            // Turned away (a newer record stands), nothing of this call is stored: false.
+            if (!prev || prev.baseWriteAt !== rec.baseWriteAt || prev.updatedAt <= rec.updatedAt) {
+              store.put(rec);
+              accepted = true;
+              applies = current !== project;
+            }
           };
           req.onsuccess = finish;
-          tx.oncomplete = () => resolve();
+          // Only a committed write may be reused next time; an aborted one leaves the
+          // entry for the last committed write (or none) in place.
+          tx.oncomplete = () => {
+            if (accepted) {
+              if (rec.trackingSync) lastProgressPut.set(id, {writeId:rec.writeId, baseWriteAt:rec.baseWriteAt, marks:rec.trackingSync.marks});
+              else lastProgressPut.delete(id);
+            }
+            resolve();
+          };
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
         });
-        return true;
+        return applies;
       } catch (err) {
         console.warn("ProjectStorage.saveProgress failed:", err);
         return false;

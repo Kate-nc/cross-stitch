@@ -50,7 +50,7 @@ describe('repaintChartCells', () => {
 describe('drawStitch', () => {
   test('takes a done override so a toggle can paint before setDone commits', () => {
     expect(src).toMatch(/function drawStitch\(ctx,cSz,viewportRect,isDoneAt\)\{/);
-    expect(src).toMatch(/let isDn=isDoneAt\?isDoneAt\(idx\):\(done&&done\[idx\]\);/);
+    expect(src).toMatch(/let isDn=isDoneAt\?isDoneAt\(idx\):\(liveDone&&liveDone\[idx\]\);/);
   });
 
   test('reads the guide and park markers through refs', () => {
@@ -111,7 +111,7 @@ describe('paintDoneChanges — toggled stitches', () => {
 
   test('every caller hands over its new done array', () => {
     expect(src).not.toMatch(/drawCellDirectly/);
-    expect(src).toMatch(/;paintDoneChanges\(changes,nd\);skipNextFullRedrawRef\.current=true;\}/); // markColourDone
+    expect(src).toMatch(/;paintDoneChanges\(changes,nd\);skipNextFullRedrawRef\.current=nd;\}/); // markColourDone
     expect((src.match(/  paintDoneChanges\(last,nd\);\n/g) || []).length).toBe(2);            // undo + redo
     expect(src).toMatch(/  paintDoneChangesRef\.current\(changes,nd\);/);                        // drag / range
     expect(src).toMatch(/  paintDoneChangesRef\.current\(\[\{idx:idx\}\],nd\);/);                // single tap

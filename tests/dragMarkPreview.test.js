@@ -49,14 +49,42 @@ describe('isolated drag preview scheduling',()=>{
     expect(global.requestAnimationFrame).toHaveBeenCalledTimes(1);
     expect(listener).not.toHaveBeenCalled();
     expect([...h.getDragState().path]).toEqual([25,26,27,28,29]);
-    // Pending and drag mode transitions update controls, path-only changes do not.
-    expect(setState).toHaveBeenCalledTimes(2);
+    // With an isolated preview, pending and drag are not controls: neither
+    // they nor path-only changes re-render the parent.
+    expect(setState).not.toHaveBeenCalled();
     h.handlers.onPointerUp(event(30));
     expect(h.commit).toHaveBeenCalledTimes(1);
     expect([...h.commit.mock.calls[0][0]]).toEqual([25,26,27,28,29,30]);
     expect(h.getDragState().mode).toBe('idle');
     frames.shift()();expect(listener).toHaveBeenCalledTimes(1);
     expect(h.previewStore.getSnapshot().mode).toBe('idle');
+  });
+
+  test('a plain tap does not re-render the parent on press or release',()=>{
+    const toggle=jest.fn();
+    const h=useDragMark({w:12,h:12,pattern:Array(144).fill({id:'310'}),done:new Uint8Array(144),
+      cellAtPoint:x=>x,isolatedPreview:true,onToggleCell:toggle});
+    h.handlers.onPointerDown(event(25));h.handlers.onPointerUp(event(25));
+    expect(toggle).toHaveBeenCalledWith(25);
+    expect(setState).not.toHaveBeenCalled();
+  });
+
+  test('rectangle modes still publish their controls',()=>{
+    const h=hook();
+    h.handlers.onPointerDown(event(25));h.handlers.onPointerUp(event(25));   // sets the anchor
+    h.handlers.onPointerDown({...event(30),shiftKey:true});
+    expect(setState).toHaveBeenLastCalledWith(expect.objectContaining({mode:'shiftRange',anchor:25}));
+    h.handlers.onPointerUp({...event(30),shiftKey:true});
+    expect(setState).toHaveBeenLastCalledWith(expect.objectContaining({mode:'idle',anchor:null}));
+    expect(setState).toHaveBeenCalledTimes(2);
+  });
+
+  test('a live doneRef decides the stroke direction over a stale prop',()=>{
+    const commit=jest.fn(),doneRef={current:new Uint8Array(144)};doneRef.current[25]=1;
+    const h=useDragMark({w:12,h:12,pattern:Array(144).fill({id:'310'}),done:new Uint8Array(144),doneRef,
+      cellAtPoint:x=>x,isolatedPreview:true,onCommitDrag:commit});
+    h.handlers.onPointerDown(event(25));h.handlers.onPointerMove(event(27));h.handlers.onPointerUp(event(27));
+    expect(commit.mock.calls[0][1]).toBe('unmark');
   });
 
   test('unsubscribed previews receive no callback and unmount cancels the queued frame',()=>{

@@ -13,6 +13,132 @@ Prototype for the work-area mode: [work-area-prototype.html](work-area-prototype
 
 ---
 
+## Update 2026-10-31: tap lag on charts with progress
+
+Every Phase 0 fixture was a fresh chart, and that hid the largest per-tap
+costs: they grow with the stitches *already marked*. On the large fixture at
+4x CPU, a tap took 3.4 s to show at 50% done and 6.8 s at 90%, against
+~110 ms fresh. Measured causes, per tap:
+
+- `ThreadAccounting.snapshot` rebuilt a thread-usage estimate for every
+  finished stitch inside the render, then `rtAmounts` summed them and the
+  `rtMarks` effect diffed every key (~0.7 s at 4x, before paint).
+- `StashBridge.applyConsumptionEvents` read and rewrote the whole stash
+  ledger (one event per stitch ever marked), then reloaded the stash and
+  re-rendered the tracker 2-3 more times.
+- The progress write ~400 ms later ran `TrackingSync.record` over every
+  finished stitch (~1.9 s at 4x).
+- The periodic autosave also wrote a second full copy under `auto_save`.
+- Pressing (not just releasing) re-rendered the whole tracker.
+
+**Landed** (fixes #0-#4 of the merged audit):
+
+| # | Change |
+|---|---|
+| 0 | `tap-cost.spec.js` "tap cost with progress": 50% and 90% done, a 50 000-event thread-usage history, and a mixed-stitch chart. Guards the tap handler time (stable) and a loose tap-to-paint ceiling. `trackerFixture` gained `mixed`, `id`, and an even spread for any done fraction (the old stride made 0.9 into 1.0). |
+| 1 | Taps and strokes paint, update every ref, then commit their React state as a transition (`commitMarkState`), so the stitch shows before the re-render. `doneRef` is set by a `setDone` wrapper and never re-assigned from state in render. `useKeptMemo` keeps the snapshot across restarted transitions. |
+| 2 | Thread-usage events reach the ledger every `RT_BATCH_MS` (2 s); hide, unload, history and project flushes still write at once. |
+| 3 | `useDragMark` with `isolatedPreview` only publishes rectangle modes, so press and stroke no longer re-render the tracker. |
+| 4 | The periodic autosave no longer writes `auto_save`; `loadProjectFromDB()` opens the project record when the legacy copy names one. |
+
+**After** (same harness, 1.5 s between taps): tap handlers run ~4 ms in
+every case (was ~1.2 s at 50%); median tap-to-paint 0.3-0.9 s at 50% and
+~1.4-1.9 s at 90%. With the page idle when a tap lands, it shows in ~50-80 ms.
+What remains is taps queuing behind the progress write and the autosave,
+which still block for seconds on these charts: fixes #6 (incremental
+thread-usage accounting), #7 (incremental sync metadata) and #8 (progress
+saved apart from the chart, R7 below) are next.
+
+**Fix #6 landed.** `ThreadAccounting.live()` keeps the marks `snapshot()`
+would build, re-estimating only what changed: a value compare of `done`
+against its last copy, the other stitch kinds when one of their fields is a
+new object, and a full rebuild only when the pattern, units map, fabric
+count, brand or waste settings change (or two marked stitches share a unit
+name). The Tracker syncs it in a commit effect instead of building the
+snapshot in render; load and cross-tab merges `adopt()` without reporting.
+`tests/threadAccountingLive.test.js` holds it equal to `snapshot()` over
+random walks of every kind of edit. Per tap: ~4 ms at 4x, was ~0.7 s; no
+snapshot is built while tapping (guarded in `tap-cost.spec.js`).
+
+It also showed why the tap-to-paint medians barely moved. While each tap's
+commit was slow, React merged several taps into one commit, and so into one
+progress write. Cheap commits mean one write per tap, and each write's
+`TrackingSync.record` costs ~2.3 s at 4x on the large fixture at 50%. On
+charts over 40 000 stitches the progress write now starts at least 3 s after
+the last one finished (hide and unload still write at once): 4 writes per 8
+rapid taps instead of 5-7. Median tap-to-paint on that fixture, rapid taps,
+4x CPU: ~2.4 s, before #6 2.3-3.2 s. At 5 s between taps the full autosave
+(which also runs `TrackingSync.record` and clones the record twice in
+`saveChecked`/`putAll`, ~6-8 s at 4x) lands between taps instead. Both are
+#7 and #8.
+
+**Fix #7 landed** (format unchanged). `TrackingSync.record` was ~0.9 s per
+call at 1x on the large fixture at 50% (~2.3 s at 4x), and the progress
+record it produces cost ~0.4 s more to clone into IndexedDB. Now:
+
+- Identical registers are one shared array (interned). Structured clone keeps
+  shared references and reads them back shared, so a stored chart of seeds
+  serialises in ~36 ms instead of ~154 ms and takes 1.1 MB instead of 3.6 MB.
+  JSON (sync files, backups) is unchanged.
+- A register read back is normalised once per distinct array, not per stitch.
+- `record` compares full crosses array to array instead of listing both
+  sides as keys; `merge` combines only keys both sides hold.
+- `saveProgress` passes `from`: when the record it reads back is its own last
+  write (same tab, time and base, and the overlay applied), `record` reuses
+  that write's registers instead of re-reading them.
+
+`tests/trackingSyncEquivalence.test.js` holds `record` (with and without
+`from`) and `merge` to byte-identical JSON against the previous module, frozen
+in `tests/fixtures/tracking-sync.reference.js`, over random projects with
+malformed and legacy metadata and chains of clone round-trips.
+`tests/progressSyncReuse.test.js` checks when reuse may happen.
+
+`record` per call: ~130 ms at 1x (was ~900). In the app at 4x, large fixture,
+8 rapid taps: median tap-to-paint 104 ms at 50% (was 2.2-3.4 s), 1.16 s at 90%
+(was 5-7 s); total blocking per run ~7 s (was 27-33 s). Left: the full
+autosave (#8) fires in every 5 s pause and costs ~5 s at 4x on this chart, and
+with a long history the thread-usage ledger write (#9) keeps the
+long-history case at ~1.9 s.
+
+**Fix #8 landed.** On charts over 40 000 stitches, a change to marks alone
+(the seven progress fields) no longer schedules the 5 s full save: the
+progress record already has the marks on disk, and reloading applies it while
+it is based on the last full save (`progressRecordCovers()`: CrossTabCoord's
+last-seen write is known, saving works). The full save then waits for
+`AUTOSAVE_MARKS_IDLE_MS` (60 s) without marking, at most
+`AUTOSAVE_MARKS_CAP_MS` (5 min); any other autosave input, tab hide, unload
+and explicit flushes save as before. A written progress record marks the save
+badge Saved while nothing else is unsaved. Smaller charts are unchanged. The
+non-mark input list is held equal to the autosave dependencies minus the mark
+fields by `tests/trackerTapLatency.test.js`;
+`tests/e2e/autosave-marks-deferral.spec.js` checks a reload with every full
+save blocked keeps the marks, that hiding the tab saves at once, and that a
+non-mark change saves within seconds. A two-tab setup on a large chart sees
+the other tab's marks when that tab pauses, hides or leaves, rather than
+within ~20 s.
+
+**Fix #9 landed** (format unchanged). The stash ledger holds an event per
+stitch ever marked, stored as one record read and written whole by each
+batch: 29 MB and ~0.7 s at 1x per write with 50 000 events. Now equal event
+parts (estimates, empty amounts) are shared (`share`, `compact` once a session
+in `applyConsumptionEvents`), which structured clone keeps: ~15 MB, read
+~140-200 ms, write ~90 ms. `apply()` collects heads only for the units the
+operations touch, without a JSON key per event, and `totals()` sorts only the
+project's events (same summation order). The Tracker writes the batch when
+marking pauses for `RT_IDLE_MS` (5 s), at most `RT_CAP_MS` (30 s) apart,
+instead of every 2 s. `tests/threadAccountingLedgerEquivalence.test.js` holds
+`apply`, `totals`, `state`, `sequences` and `compact` to identical JSON,
+numbers and errors against the previous module
+(`tests/fixtures/thread-accounting.reference.js`).
+
+**After #8 and #9** (4x CPU, large fixture, rapid taps): median tap-to-paint
+~150 ms at 50% done, ~130 ms at 50% with a 50 000-event history (was ~1.9 s),
+~1.4-1.6 s at 90%; at 5 s between taps on the 50% chart every tap is
+80-150 ms. What remains at 90% on this chart is the progress write itself
+(~2.3 s at 4x: reading, re-registering and cloning one sync register per
+finished stitch). Going further needs a compact stored form for the sync
+registers, a format change for sync and backups.
+
 ## Where things stand
 
 The expensive structural problem is solved. The chart and its overlays are

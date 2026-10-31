@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "7dcd21f702227cd264687650b649ac5e114bb055493ee94f2b27dbb72727defa";
+var BUILD_ID = "2cd8d8eb8cb25b751c1c335ec7b34b09e0a1ce6c0625af323bf6bad9baf68386";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "67f147d42d5cf8e3a9a55404b85c4cb41595cb409d64ded573926d5c1b2a8f1e"
   },
   "./changelog.js": {
-    "sha256": "af40a494e2f95147055a25dfb69e6309de032af0d13cb273c450723d3a582d04"
+    "sha256": "9046917d3d431350109a67e68d77894cd7a3d5cd37bcb10942ccb2618e492739"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -362,7 +362,7 @@ var BUILD_ASSETS = {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "75a18547c483925e84c286aca7a42cd0fe7caecf759ddff5e75f2b0659c3d1a7"
+    "sha256": "b3f0545b4227fa6e30255768947e033bac8dce77d532b95edc2a6c11213ce918"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -389,7 +389,7 @@ var BUILD_ASSETS = {
     "sha256": "8e541427d27420148aa0ec591e88668ba69b4e4ef9d9dfcf7e0e24d2383dc816"
   },
   "./tracking-sync.js": {
-    "sha256": "90287c017c37e47311f1e0e3b13ddb6ede89c9707c4683e9da7a5fd6c608ba35"
+    "sha256": "83ccb9ab7c70c5446c9b3e735146cdde25e9fd8f50c31416cf82f2a8b3965c87"
   },
   "./icons.js": {
     "sha256": "cdff8394675ae0243c1b24860c7079826b3cfa737be932733640a21832b13eae"
@@ -434,16 +434,16 @@ var BUILD_ASSETS = {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "f6298c601c19ef6c939609327ffaebb469eb0ade2cf4bf03f527f32b7a6152af"
+    "sha256": "8e5c99e6266ff1f757cb4cdb9bd1c61b527d04111f7733facdd16116db0087e6"
   },
   "./blob-store.js": {
     "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
   },
   "./thread-accounting.js": {
-    "sha256": "94b76336b443ed31e4662f3b8fc4fc7a1a69fc94cfddbc388e7ca0d06802612c"
+    "sha256": "7c1ee45a6c30bd3622e2cffabb94dc1888b7e54df2c5065353163df9318404e2"
   },
   "./stash-bridge.js": {
-    "sha256": "4d8e68c10f04fc0f0788caa5591011d923f416ee321387bf2c1036f8941283d2"
+    "sha256": "efd19dc3cf3d95b440ad6bcf76b0d15a5388ba8d94638be981c38f461dfa943d"
   },
   "./thread-catalogues.js": {
     "sha256": "ff0a0bd69e9fdd321b35d9fd04670413f3aa6c2a2e00fa2ba7f999bbfc7805e3"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "239c52f4a44c152b7cd637270de50faed7507c0c3084401cb4691a7d1f5dfef8"
+    "sha256": "b1615be3ff8ac34076d5f499c62cba8e9fdfb4123c7732de69679a302e67eca0"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -536,7 +536,7 @@ var BUILD_ASSETS = {
     "sha256": "ab02c07c8bc06fc8e5af987302a452d2a95b76573e117a654bb21442aeae096f"
   },
   "./useDragMark.js": {
-    "sha256": "c25619db489ac462112a2ea19e93af5f2f93dbd066591037017cc87816846854"
+    "sha256": "4e4781e38f51190003bd216c8371f63dbfc625ed37549ec261d227c7655c5bcc"
   },
   "./tracker-minimap.js": {
     "sha256": "438dd62ca44de0eaa812283d34f08e19a726ff2dc783bd16a9839d7acf3b89f3"

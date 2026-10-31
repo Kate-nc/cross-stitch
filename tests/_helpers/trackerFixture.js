@@ -108,6 +108,12 @@ function ensureTmp() { if (!fs.existsSync(TMP)) fs.mkdirSync(TMP, { recursive: t
  *                                       spread deterministically rather than in
  *                                       one block so colour progress is mixed
  * @param {string} [opts.name]         project name
+ * @param {string} [opts.id]           project id (fixed, so a spec can seed
+ *                                       storage that refers to it)
+ * @param {boolean} [opts.mixed=false] also add half stitches, backstitch,
+ *                                       French knots, beads and petite / long
+ *                                       stitches across the chart, about the
+ *                                       same share of each pre-marked done
  * @returns {string} absolute path to the fixture file
  */
 function makeTrackerFixture(opts) {
@@ -126,7 +132,7 @@ function makeTrackerFixture(opts) {
   // colour through it would look in the wrong cells.
   let h = 5381;
   for (const c of cols) for (let i = 0; i < c.id.length; i++) h = ((h * 33) ^ c.id.charCodeAt(i)) >>> 0;
-  const sig = `${sW}x${sH}-c${nColours}-d${Math.round(doneFraction * 100)}-p${h.toString(16)}`;
+  const sig = `${sW}x${sH}-c${nColours}-d${Math.round(doneFraction * 100)}${opts.mixed ? '-mx' : ''}${opts.id ? '-' + opts.id : ''}-p${h.toString(16)}`;
   const file = path.join(TMP, `tracker-${sig}.json`);
   if (fs.existsSync(file)) return file;
 
@@ -139,13 +145,19 @@ function makeTrackerFixture(opts) {
   const done = new Array(total).fill(0);
   // Deterministic 7-cell stride: no RNG, so two runs produce byte-identical
   // files and a cached fixture is always the one the parameters describe.
-  const doneEvery = doneFraction > 0 ? Math.max(1, Math.round(1 / doneFraction)) : 0;
+  // A fraction that is 1/n keeps the original every-nth-cell stride (and so the
+  // cached files existing specs were written against). Any other fraction is
+  // spread evenly instead: the stride rounded 0.9 up to "every cell".
+  const inv = doneFraction > 0 ? 1 / doneFraction : 0;
+  const doneEvery = inv && Math.abs(inv - Math.round(inv)) < 1e-9 ? Math.round(inv) : 0;
+  const isDone = i => doneEvery ? i % doneEvery === 0
+    : doneFraction > 0 && Math.floor((i + 1) * doneFraction) > Math.floor(i * doneFraction);
   const counts = new Array(nColours).fill(0);
   for (let i = 0; i < total; i++) {
     const ci = i % nColours;
     pattern[i] = cells[ci];
     counts[ci]++;
-    if (doneEvery && i % doneEvery === 0) done[i] = 1;
+    if (isDone(i)) done[i] = 1;
   }
 
   const project = {
@@ -160,8 +172,44 @@ function makeTrackerFixture(opts) {
     statsSessions: [], statsSettings: {},
     savedZoom: 1, savedScroll: { left: 0, top: 0 },
   };
+  if (opts.id) project.id = opts.id;
+  if (opts.mixed) addMixedStitches(project, cols, isDone);
   fs.writeFileSync(file, JSON.stringify(project), 'utf8');
   return file;
+}
+
+/* Every kind of stitch the tracker marks besides full crosses, on a sparse
+   grid so the chart still reads as a full-stitch pattern. Shapes follow the
+   loader (tracker-app.js processLoadedProject): half stitches and petites in
+   cells, knots and beads in half-cell units, backstitch and long stitches
+   between grid points. `isDone(n)` decides which of the n-th objects of each
+   kind start done, so the share matches the full stitches. */
+function addMixedStitches(project, cols, isDone) {
+  const { sW, sH } = project.settings;
+  const thread = n => { const c = cols[n % cols.length]; return { id: c.id, type: 'solid', rgb: c.rgb }; };
+  const halfStitches = [], halfDone = [], bsLines = [], bsDone = [], knots = [], knotsDone = [];
+  const beads = [], beadsDone = [], specialtyStitches = [], specialtyDone = [];
+  let n = 0;
+  for (let y = 3; y < sH - 3; y += 9) {
+    for (let x = 3; x < sW - 3; x += 9, n++) {
+      const t = thread(n), on = isDone(n);
+      const idx = y * sW + x + 2;
+      halfStitches.push([idx, { fwd: t }]);
+      if (on) halfDone.push([idx, { fwd: 1 }]);
+      bsLines.push({ x1: x, y1: y, x2: x + 2, y2: y + 1, colorId: t.id });
+      if (on) bsDone.push([x, y, x + 2, y + 1, t.id].join(','));
+      knots.push({ x: 2 * x + 9, y: 2 * y + 1, id: t.id, rgb: t.rgb });
+      if (on) knotsDone.push((2 * x + 9) + ',' + (2 * y + 1));
+      const uid = 'bead-' + n;
+      beads.push({ uid, x: 2 * x + 1, y: 2 * y + 9, id: 'MH-' + (n % 7), brand: 'millhill', label: 'Bead', rgb: t.rgb });
+      if (on) beadsDone.push(uid);
+      specialtyStitches.push({ uid: 'p-' + n, type: 'petite', x: x + 6, y: y + 6, thread: t });
+      specialtyStitches.push({ uid: 'l-' + n, type: 'long_stitch', x1: x, y1: y + 7, x2: x + 3, y2: y + 7, thread: t });
+      if (on) specialtyDone.push('p-' + n, 'l-' + n);
+    }
+  }
+  Object.assign(project, { halfStitches, halfDone, bsLines, bsDone, knots, knotsDone, beads, beadsDone,
+    specialtyVersion: 1, specialtyStitches, specialtyDone });
 }
 
 /** Convenience: `fixtureFor('large')` -> path, using the SIZES table. */
