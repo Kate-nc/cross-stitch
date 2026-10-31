@@ -203,12 +203,54 @@
     if(!safeId(pid))throw Error('Invalid consumption project identity');
     if(!ledger.projects[pid])ledger.projects[pid]={baseline:Object.fromEntries(Object.keys(marks).map(k=>[k,true])),date,reason:'Existing stock preserved; historical consumption unknown',legacy:legacy||null};
   }
+  // Sums in event-id order, as always (floating-point sums depend on order). Taking
+  // the project's events before sorting keeps that order and skips sorting the rest.
   function totals(ledger,pid) {
-    const out=dict();Object.keys(ledger.events).sort().map(id=>ledger.events[id]).forEach(e=>{if(pid&&e.projectId!==pid)return;Object.entries(e.debit||{}).forEach(([k,v])=>out[k]=(out[k]||0)+v);Object.entries(e.credit||{}).forEach(([k,v])=>out[k]=(out[k]||0)-v);});return out;
+    let ids=Object.keys(ledger.events);
+    if(pid)ids=ids.filter(id=>ledger.events[id].projectId===pid);
+    const out=dict();ids.sort().map(id=>ledger.events[id]).forEach(e=>{Object.entries(e.debit||{}).forEach(([k,v])=>out[k]=(out[k]||0)+v);Object.entries(e.credit||{}).forEach(([k,v])=>out[k]=(out[k]||0)-v);});return out;
+  }
+  /* Events are never edited once written, so equal parts can be one shared object:
+     the estimate (identical for every stitch of a thread and type) and the empty
+     debit/credit/remaining amounts most events carry. The ledger holds an event for
+     every stitch ever marked and is stored as one IndexedDB record, read and written
+     whole on each write; structured clone keeps shared references (and reads them
+     back shared), so this roughly halves its size and the time to read and write it.
+     JSON (backups, sync files) is unchanged. */
+  const EMPTY=Object.freeze({});
+  const sharedParts=new Map();const SHARE_MAX=2048;
+  function share(x,memo){
+    if(!x||typeof x!=='object')return x;
+    const known=memo&&memo.get(x);if(known)return known;
+    const key=JSON.stringify(x);let s=sharedParts.get(key);   // key order too: the stored JSON must not change
+    if(!s){if(sharedParts.size>=SHARE_MAX)sharedParts.clear();s=copy(x);sharedParts.set(key,s);}
+    if(memo)memo.set(x,s);
+    return s;
+  }
+  const emptyOr=d=>d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).length===0?EMPTY:d;
+  // Share the parts of every event in a ledger read from storage (it is owned by the
+  // caller, so objects can be recognised by identity). Content is unchanged.
+  function compact(ledger){
+    const memo=typeof WeakMap==='function'?new WeakMap():null;
+    Object.values(ledger.events||{}).forEach(e=>{
+      if(!e||typeof e!=='object')return;
+      if(e.estimate&&typeof e.estimate==='object')e.estimate=share(e.estimate,memo);
+      e.debit=emptyOr(e.debit);e.credit=emptyOr(e.credit);e.remainingDebits=emptyOr(e.remainingDebits);
+    });
+    return ledger;
   }
   function apply(ledger,threads,ops,date,protectedStock) {
-    const changed=new Set(),heads=dict();
-    Object.values(ledger.events).forEach(e=>{const k=JSON.stringify([e.projectId,e.unit]);if(!heads[k]||heads[k].seq<e.seq)heads[k]=e;});
+    const changed=new Set();
+    // The newest event of each (project, unit) the operations touch. Only those are
+    // ever looked up, so other events are skipped without building a key for each.
+    const want=new Map(),heads=new Map();
+    ops.forEach(op=>{if(op){if(!want.has(op.projectId))want.set(op.projectId,new Set());want.get(op.projectId).add(op.unit);}});
+    Object.values(ledger.events).forEach(e=>{
+      const units=want.get(e.projectId);if(!units||!units.has(e.unit))return;
+      let byUnit=heads.get(e.projectId);if(!byUnit)heads.set(e.projectId,byUnit=new Map());
+      const h=byUnit.get(e.unit);if(!h||h.seq<e.seq)byUnit.set(e.unit,e);
+    });
+    const headOf=(pid,unit)=>{const m=heads.get(pid);return m?m.get(unit):undefined;};
     ops.forEach(op=>{
       if(!safeId(op.projectId)||!safeId(op.unit)||!Number.isSafeInteger(op.seq)||op.seq<1)throw Error('Invalid consumption operation identity');
       if(!ledger.projects[op.projectId])throw Error('Consumption baseline required');
@@ -216,7 +258,7 @@
       if(!ledger.receipts)ledger.receipts={};
       if(op.token&&ledger.receipts[op.token])return;
       if(ledger.events[id]){if(op.token)ledger.receipts[op.token]=id;return;} // committed retry, including a lost acknowledgement
-      const headKey=JSON.stringify([op.projectId,op.unit]),head=heads[headKey];
+      const head=headOf(op.projectId,op.unit);
       const s=head?eventState(head):baselineState(ledger,op.projectId,op.unit);
       if(op.seq!==s.seq+1)throw Error('Consumption history changed. Reload the project before continuing.');
       if(!['mark','correction','unpick','undo-unpick','correct-project'].includes(op.kind))throw Error('Invalid consumption action');
@@ -239,9 +281,10 @@
         changed.add(k);
       });
       if(op.token)ledger.receipts[op.token]=id;
-      ledger.events[id]={id,projectId:op.projectId,unit:op.unit,seq:op.seq,kind:op.kind,date:op.date||date,active,estimate:copy(estimate),debit,credit,remainingDebits,unpicked,
+      ledger.events[id]={id,projectId:op.projectId,unit:op.unit,seq:op.seq,kind:op.kind,date:op.date||date,active,estimate:share(estimate),debit:emptyOr(debit),credit:emptyOr(credit),remainingDebits:emptyOr(remainingDebits),unpicked,
         description:op.kind==='unpick'?'Physically unpicked; used thread stays consumed':op.kind==='mark'?(op.enabled?'Stitched '+estimate.type:'Marked while live deductions were off'):op.kind==='undo-unpick'?'Corrected an accidental unpick; no new thread used':'Corrected accidental progress; only recorded stock debit returned'};
-      heads[headKey]=ledger.events[id];
+      if(!heads.has(op.projectId))heads.set(op.projectId,new Map());
+      heads.get(op.projectId).set(op.unit,ledger.events[id]);
     });
     return Array.from(changed);
   }
@@ -304,6 +347,6 @@
       mergedThreads[k].owned=Math.max(0,gross-(mt[k]||0));mergedThreads[k].partialStatus=null;
     });return ledger;
   }
-  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeStock,quantity,validate,sequences};root.ThreadAccounting=api;
+  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeStock,quantity,validate,sequences,compact};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

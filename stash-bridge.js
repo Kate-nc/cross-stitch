@@ -606,6 +606,7 @@ const StashBridge = (() => {
     }
   }
 
+  let _ledgerCompacted = false;
   async function _withThreadsWrite(opLabel, mutate, options) {
     const opts = options || {};
     await migrateToLatest(3);
@@ -864,6 +865,11 @@ const StashBridge = (() => {
       return _withThreadsWrite('consumption-events',function(threads,ctx){
         if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
         const ledger=ctx.record||A.empty();
+        // Once a session, share equal event parts (thread-accounting.js compact()):
+        // the ledger holds an event per stitch ever marked and is read and written
+        // whole, and sharing roughly halves that. Shared parts stay shared when read
+        // back, so later writes need not repeat it.
+        if(!_ledgerCompacted&&typeof A.compact==='function'){A.compact(ledger);_ledgerCompacted=true;}
         A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
         const requests=ctx.reservations||(R&&R.empty());
         if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');

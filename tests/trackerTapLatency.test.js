@@ -65,15 +65,16 @@ describe('thread-usage batching (#2)', () => {
   test('a mark queues its event and schedules one batched write instead of writing at once', () => {
     const effect = between('const marked=ctx.live.sync(', '},[pat,done,fabricCt,');
     expect(effect).toMatch(/localStorage\.setItem\(ctx\.outboxKey/);    // crash safety first
-    expect(effect).toMatch(/if\(!ctx\.batchTimer\)ctx\.batchTimer=setTimeout\(/);
-    expect(effect).toMatch(/RT_BATCH_MS\)/);
+    // Fix #9: written when marking pauses, and at least every RT_CAP_MS while it goes on.
+    expect(effect).toMatch(/if\(ctx\.batchTimer\)clearTimeout\(ctx\.batchTimer\);\n  if\(!ctx\.batchSince\)ctx\.batchSince=Date\.now\(\);/);
+    expect(effect).toMatch(/Math\.max\(0,Math\.min\(RT_IDLE_MS,RT_CAP_MS-\(Date\.now\(\)-ctx\.batchSince\)\)\)/);
     expect(effect).not.toMatch(/flushRtStashWriteRef\.current\(ctx\)\.catch\(\(\)=>\{\}\);\s*$/);
-    expect(SRC).toMatch(/const RT_BATCH_MS=\d+;/);
+    expect(SRC).toMatch(/const RT_IDLE_MS=\d+;\nconst RT_CAP_MS=\d+;/);
   });
 
   test('any flush takes the pending batch with it', () => {
     const flush = between('const flushRtStashWrite=useCallback(', 'const flushRtStashWriteRef=');
-    expect(flush).toMatch(/if\(ctx\.batchTimer\)\{clearTimeout\(ctx\.batchTimer\);ctx\.batchTimer=null;\}/);
+    expect(flush).toMatch(/if\(ctx\.batchTimer\)\{clearTimeout\(ctx\.batchTimer\);ctx\.batchTimer=null;\}ctx\.batchSince=null;/);
   });
 
   test('hiding the tab and leaving the page still flush straight away', () => {
@@ -109,5 +110,37 @@ describe('thread usage is kept up to date, not rebuilt per render (#6)', () => {
 
   test('the low-thread figures list the threads with marks', () => {
     expect(SRC).toMatch(/new Set\(\[\.\.\.rtMarkedKeys,\.\.\.Object\.keys\(used\)\]\)/);
+  });
+});
+
+describe('marks-only full saves wait on large charts (#8)', () => {
+  test('only large charts with nothing but marks unsaved, and a progress record that will be read back', () => {
+    const effect = between('autoSaveGenRef.current++;\n  // Marks-only changes on a large chart.', 'const saveTimer = setTimeout(');
+    expect(effect).toMatch(/const _deferMarks = pat\.length > 40000 && !autoSaveOtherDirtyRef\.current && progressRecordCovers\(\);/);
+    expect(effect).toMatch(/if \(!_prevOther \|\| _other\.some\(\(v, i\) => !Object\.is\(v, _prevOther\[i\]\)\)\) autoSaveOtherDirtyRef\.current = true;/);
+    expect(effect).toMatch(/Math\.min\(AUTOSAVE_MARKS_IDLE_MS, AUTOSAVE_MARKS_CAP_MS - /);
+    // The non-mark inputs are every autosave dependency except the seven mark fields.
+    const deps = between("}, [pat, pal, done, bsLines", ']);').replace(/\/\/[^\n]*/g, '');
+    const all = ('pat, pal, done, bsLines' + deps.slice('}, [pat, pal, done, bsLines'.length)).split(',').map(x => x.trim()).filter(Boolean);
+    const other = between('const _other = [', '];').slice('const _other = ['.length).split(',').map(x => x.trim()).filter(Boolean);
+    const marks = ['done', 'halfDone', 'knotsDone', 'beadsDone', 'bsDone', 'partialDone', 'specialtyDone'];
+    expect(all.filter(d => !marks.includes(d)).sort()).toEqual(other.sort());
+  });
+
+  test('a progress record counts only when it is based on the last full save and saving works', () => {
+    const fn = between('function progressRecordCovers() {', '\n}');
+    expect(fn).toMatch(/savesBlockedRef\.current \|\| saveUiRef\.current\.error \|\| saveUiRef\.current\.conflict/);
+    expect(fn).toMatch(/typeof seen\.lastWriteAt === 'number'/);
+  });
+
+  test('a written progress record marks the badge saved only while nothing else is unsaved', () => {
+    const write = between('function writeProgressNow() {', 'function scheduleProgressWrite()');
+    expect(write).toMatch(/ok === true && !recovery && !autoSaveOtherDirtyRef\.current && epoch === saveUiRef\.current\.epoch/);
+    expect(write).toMatch(/uiSavedGenRef\.current = Math\.max\(uiSavedGenRef\.current, uiGen\);/);
+  });
+
+  test('a full save or flush clears the deferral', () => {
+    expect(SRC).toMatch(/autoSaveOtherDirtyRef\.current = false;   \/\/ the snapshot below holds everything/);
+    expect(SRC).toMatch(/autoSaveOtherDirtyRef\.current=false;\n      autoSaveMarksSinceRef\.current=null;/);
   });
 });

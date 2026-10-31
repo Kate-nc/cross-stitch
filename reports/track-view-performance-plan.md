@@ -100,6 +100,45 @@ autosave (#8) fires in every 5 s pause and costs ~5 s at 4x on this chart, and
 with a long history the thread-usage ledger write (#9) keeps the
 long-history case at ~1.9 s.
 
+**Fix #8 landed.** On charts over 40 000 stitches, a change to marks alone
+(the seven progress fields) no longer schedules the 5 s full save: the
+progress record already has the marks on disk, and reloading applies it while
+it is based on the last full save (`progressRecordCovers()`: CrossTabCoord's
+last-seen write is known, saving works). The full save then waits for
+`AUTOSAVE_MARKS_IDLE_MS` (60 s) without marking, at most
+`AUTOSAVE_MARKS_CAP_MS` (5 min); any other autosave input, tab hide, unload
+and explicit flushes save as before. A written progress record marks the save
+badge Saved while nothing else is unsaved. Smaller charts are unchanged. The
+non-mark input list is held equal to the autosave dependencies minus the mark
+fields by `tests/trackerTapLatency.test.js`;
+`tests/e2e/autosave-marks-deferral.spec.js` checks a reload with every full
+save blocked keeps the marks, that hiding the tab saves at once, and that a
+non-mark change saves within seconds. A two-tab setup on a large chart sees
+the other tab's marks when that tab pauses, hides or leaves, rather than
+within ~20 s.
+
+**Fix #9 landed** (format unchanged). The stash ledger holds an event per
+stitch ever marked, stored as one record read and written whole by each
+batch: 29 MB and ~0.7 s at 1x per write with 50 000 events. Now equal event
+parts (estimates, empty amounts) are shared (`share`, `compact` once a session
+in `applyConsumptionEvents`), which structured clone keeps: ~15 MB, read
+~140-200 ms, write ~90 ms. `apply()` collects heads only for the units the
+operations touch, without a JSON key per event, and `totals()` sorts only the
+project's events (same summation order). The Tracker writes the batch when
+marking pauses for `RT_IDLE_MS` (5 s), at most `RT_CAP_MS` (30 s) apart,
+instead of every 2 s. `tests/threadAccountingLedgerEquivalence.test.js` holds
+`apply`, `totals`, `state`, `sequences` and `compact` to identical JSON,
+numbers and errors against the previous module
+(`tests/fixtures/thread-accounting.reference.js`).
+
+**After #8 and #9** (4x CPU, large fixture, rapid taps): median tap-to-paint
+~150 ms at 50% done, ~130 ms at 50% with a 50 000-event history (was ~1.9 s),
+~1.4-1.6 s at 90%; at 5 s between taps on the 50% chart every tap is
+80-150 ms. What remains at 90% on this chart is the progress write itself
+(~2.3 s at 4x: reading, re-registering and cloning one sync register per
+finished stitch). Going further needs a compact stored form for the sync
+registers, a format change for sync and backups.
+
 ## Where things stand
 
 The expensive structural problem is solved. The chart and its overlays are

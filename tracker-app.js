@@ -1834,8 +1834,10 @@ const[stashDeducted,setStashDeducted]=useState(false);
 
 // ── Real-time stash deduction (Proposal D implementation) ──────────────
 // Defaults match threadCostPerStitch() in threadCalc.js.
-// Thread-usage events reach the stash ledger in batches this far apart (see the thread-usage sync effect).
-const RT_BATCH_MS=2000;
+// Thread-usage events reach the stash ledger in batches: when marking pauses this
+// long, and at least this often while it goes on (see the thread-usage sync effect).
+const RT_IDLE_MS=5000;
+const RT_CAP_MS=30000;
 const RT_WASTE_DEFAULTS={enabled:false,tailAllowanceIn:1.5,threadRunLength:30,generalWasteMultiplier:1.10,strandCountOverride:null,lastWrittenAt:null};
 const[wastePrefs,setWastePrefs]=useState(()=>{
   try{const p=window.UserPrefs&&window.UserPrefs.get('rtWastePrefs');if(p&&typeof p==='object')return Object.assign({},RT_WASTE_DEFAULTS,p);}catch(_){}
@@ -2166,6 +2168,12 @@ const autoSaveFirstDirtyRef=useRef(null);
 // only when something changed since the last write and never touches the debounce.
 const autoSaveGenRef=useRef(0);
 const flushedGenRef=useRef(-1);
+// Marks-only changes on large charts (see the autosave effect): the previous run's
+// non-mark inputs, whether any of them is unsaved, and when the oldest deferred
+// marks-only change happened.
+const autoSaveOtherRef=useRef(null);
+const autoSaveOtherDirtyRef=useRef(true);
+const autoSaveMarksSinceRef=useRef(null);
 // The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
@@ -2592,7 +2600,7 @@ const flushRtStashWrite=useCallback(async(captured)=>{
   const write=captured?{ctx:captured}:rtWriteSnapshotRef.current;
   if(!write||!write.ctx||typeof StashBridge==='undefined')return;
   const ctx=write.ctx;
-  if(ctx.batchTimer){clearTimeout(ctx.batchTimer);ctx.batchTimer=null;}   // this write takes the batch
+  if(ctx.batchTimer){clearTimeout(ctx.batchTimer);ctx.batchTimer=null;}ctx.batchSince=null;   // this write takes the batch
   if(!ctx.projectId||savesBlockedRef.current)return;
   const run=async()=>{
     if(ctx.ready)await ctx.ready.catch(()=>{});
@@ -2664,12 +2672,17 @@ useEffect(()=>{
   // Crash recovery records the original assumptions before any asynchronous work.
   try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}
   catch(e){if(window.Toast)window.Toast.show({message:'Could not save pending consumption history. Keep this tab open and retry.',type:'warning'});}
-  // Batched: one write for every mark in the next RT_BATCH_MS rather than one per
-  // tap. Each write reads and rewrites the whole stash ledger, then reloads the
-  // stash and re-renders the Tracker. The outbox saved above already covers a
-  // crash; hiding or closing the tab, opening the history and saving the project
-  // all flush straight away.
-  if(!ctx.batchTimer)ctx.batchTimer=setTimeout(()=>{ctx.batchTimer=null;flushRtStashWriteRef.current(ctx).catch(()=>{});},RT_BATCH_MS);
+  // Batched, and written when marking pauses (RT_IDLE_MS), or every RT_CAP_MS while
+  // it goes on, rather than once per tap or every couple of seconds. Each write
+  // reads and rewrites the whole stash ledger — an event for every stitch ever
+  // marked, seconds on a phone once that history is long — then reloads the stash
+  // and re-renders the Tracker. The outbox saved above already covers a crash;
+  // hiding or closing the tab, opening the history and saving the project all
+  // flush straight away.
+  if(ctx.batchTimer)clearTimeout(ctx.batchTimer);
+  if(!ctx.batchSince)ctx.batchSince=Date.now();
+  ctx.batchTimer=setTimeout(()=>{ctx.batchTimer=null;ctx.batchSince=null;flushRtStashWriteRef.current(ctx).catch(()=>{});},
+    Math.max(0,Math.min(RT_IDLE_MS,RT_CAP_MS-(Date.now()-ctx.batchSince))));
 },[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,threadBrand]);
 useEffect(()=>{
   function onHidden(){if(document.hidden)flushRtStashWriteRef.current().catch(()=>{});}
@@ -4840,12 +4853,38 @@ function writeProgressNow() {
       tabId: window.CrossTabCoord ? window.CrossTabCoord.tabId : null
     };
     if (recovery) ProjectStorage.saveProgressRecovery(o.id, data);
+    const uiGen = uiGenRef.current, epoch = saveUiRef.current.epoch;
     const r = ProjectStorage.saveProgress(o.id, data);
     // The gap to the next write runs from when this one finishes: the write's
     // own work (the sync record) runs inside its transaction, after this returns.
-    if (r && r.then) r.then(function () { lastProgressWriteRef.current = Date.now(); }, function () {});
+    if (r && r.then) r.then(function (ok) {
+      lastProgressWriteRef.current = Date.now();
+      // With only marks unsaved, they are now on disk: the badge says Saved
+      // although the full save may be deferred (see the autosave effect).
+      if (ok === true && !recovery && !autoSaveOtherDirtyRef.current && epoch === saveUiRef.current.epoch
+          && projectIdRef.current === o.id && progressRecordCovers()) {
+        uiSavedGenRef.current = Math.max(uiSavedGenRef.current, uiGen);
+        saveUiRef.current.savedOnce = true;
+        setSavedAt(new Date());
+        refreshSaveUi();
+      }
+    }, function () {});
   } catch (_) {}
   return recoverySnapshot;
+}
+// Marks-only autosave on large charts: wait for this long a pause in marking, but no
+// longer than the cap since the first such change (see the autosave effect).
+const AUTOSAVE_MARKS_IDLE_MS = 60000;
+const AUTOSAVE_MARKS_CAP_MS = 300000;
+// Whether a progress write for the open project will be read back on reload: it
+// must be based on the project's last full save (CrossTabCoord's last-seen write,
+// set on load and by every save), and saving must be working.
+function progressRecordCovers() {
+  const id = projectIdRef.current;
+  if (!id || savesBlockedRef.current || saveUiRef.current.error || saveUiRef.current.conflict) return false;
+  if (typeof ProjectStorage === 'undefined' || typeof ProjectStorage.saveProgress !== 'function') return false;
+  const seen = window.CrossTabCoord && window.CrossTabCoord.getSeen ? window.CrossTabCoord.getSeen(id) : null;
+  return !!seen && typeof seen.lastWriteAt === 'number';
 }
 // Throttled, not debounced: the first mark after a pause is written ~400 ms later
 // however steadily marking continues. On a large chart each write also rebuilds
@@ -4872,13 +4911,34 @@ useEffect(() => {
   // 150 ms of main thread (structured clone of the whole record), so charts over
   // 40,000 stitches get a longer cap rather than a hitch every 10 s.
   autoSaveGenRef.current++;
-  if (!autoSaveFirstDirtyRef.current) autoSaveFirstDirtyRef.current = Date.now();
+  // Marks-only changes on a large chart. The progress record (writeProgressNow)
+  // already has every mark on disk within a few seconds, and reloading applies it
+  // while it is based on the project's last full save. The full save rewrites the
+  // whole chart — seconds of main thread on a phone for a large, well-progressed
+  // chart — so for marks alone it waits for a pause in marking (AUTOSAVE_MARKS_IDLE_MS)
+  // and runs at least every AUTOSAVE_MARKS_CAP_MS. Any other change saves as before,
+  // and hiding or leaving the page still writes everything at once.
+  const _other = [pat, pal, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned, halfStitches, singleStitchEdits, knots, specialtyStitches,
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
+    projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, focusColour, stitchMode, stitchView, highlightMode, achievedMilestones];
+  const _prevOther = autoSaveOtherRef.current;
+  autoSaveOtherRef.current = _other;
+  if (!_prevOther || _other.some((v, i) => !Object.is(v, _prevOther[i]))) autoSaveOtherDirtyRef.current = true;
+  const _deferMarks = pat.length > 40000 && !autoSaveOtherDirtyRef.current && progressRecordCovers();
+  if (!_deferMarks) autoSaveMarksSinceRef.current = null;
+  else if (!autoSaveMarksSinceRef.current) autoSaveMarksSinceRef.current = Date.now();
+  if (!_deferMarks && !autoSaveFirstDirtyRef.current) autoSaveFirstDirtyRef.current = Date.now();
   const _autoSaveCap = pat.length > 40000 ? 20000 : 10000;
-  const _autoSaveDelay = Math.max(0, Math.min(5000, _autoSaveCap - (Date.now() - autoSaveFirstDirtyRef.current)));
+  const _autoSaveDelay = _deferMarks
+    ? Math.max(0, Math.min(AUTOSAVE_MARKS_IDLE_MS, AUTOSAVE_MARKS_CAP_MS - (Date.now() - autoSaveMarksSinceRef.current)))
+    : Math.max(0, Math.min(5000, _autoSaveCap - (Date.now() - autoSaveFirstDirtyRef.current)));
   const saveTimer = setTimeout(() => {
     autoSaveFirstDirtyRef.current = null;
+    autoSaveMarksSinceRef.current = null;
     if (!autoSaveDirtyRef.current) return;
     autoSaveDirtyRef.current = false;
+    autoSaveOtherDirtyRef.current = false;   // the snapshot below holds everything; a later change sets it again
     const _gen = autoSaveGenRef.current;
     const _uiGen = uiGenRef.current;
     const project = buildSnapshot();
@@ -5044,6 +5104,8 @@ useEffect(() => {
     if(projectIdRef.current===project.id&&autoSaveGenRef.current===_gen){
       autoSaveDirtyRef.current=false;
       autoSaveFirstDirtyRef.current=null;
+      autoSaveOtherDirtyRef.current=false;
+      autoSaveMarksSinceRef.current=null;
     }
     return saveResult;
   };
