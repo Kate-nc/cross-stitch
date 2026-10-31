@@ -7,50 +7,170 @@
   const stable=x=>JSON.stringify(x,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.keys(v).sort().reduce((o,k)=>{Object.defineProperty(o,k,{value:v[k],enumerable:true});return o;},{}):v);
   const safeId=x=>typeof x==='string'&&x.length>0&&!['__proto__','constructor','prototype'].includes(x);
   const positive = (x, fallback, zero) => Number.isFinite(x) && (zero ? x >= 0 : x > 0) ? x : fallback;
-  function snapshot(p, prefs) {
+  // One stitch's estimate. Shared by snapshot() (every marked stitch) and
+  // live() (only the stitches that changed), so the two cannot disagree.
+  function estimator(p, prefs) {
     const wp=prefs||{}, fc=positive(p.fabricCt || (p.settings&&p.settings.fabricCt),14);
     const over=typeof root.stitchOverFor==='function'?root.stitchOverFor(fc):([25,28,32].includes(fc)?2:1);
     const assumptions={model:2, fabricCount:fc, stitchOver:over, strands:positive(wp.strandCountOverride,2),
       tailAllowanceIn:positive(wp.tailAllowanceIn,1.5,true), stitchesPerRun:positive(wp.threadRunLength,30),
       wasteMultiplier:positive(wp.generalWasteMultiplier,1.1,true), capacitySingleStrandIn:1890};
-    const out=dict(), map=x=>x instanceof Map?x:new Map(x||[]);
-    function add(unit, thread, weight, type, geometry) {
-      if(!thread || thread.id==null || String(thread.id).startsWith('__'))return;
-      const parts=thread.type==='blend'||(!thread.type&&['dmc','anchor'].includes(String(thread.brand||(p.settings&&p.settings.threadBrand)||'dmc').toLowerCase())&&String(thread.id).includes('+'))?(thread.threads||String(thread.id).split('+').map(id=>({id}))):[thread];
-      let weights=parts.map((t,i)=>positive(thread.blendRatio&&thread.blendRatio[i]!=null?thread.blendRatio[i]:t.strands,1,true));
-      if(!weights.some(x=>x>0))weights=weights.map(()=>1);
-      const sum=weights.reduce((a,b)=>a+b,0), amounts=dict();
-      const length=((geometry==null?4.8*weight:geometry)*assumptions.strands/(fc/over)+2*assumptions.tailAllowanceIn/assumptions.stitchesPerRun*weight)*assumptions.wasteMultiplier;
-      parts.forEach((t,i)=>{const k=String(t.brand||thread.brand||(p.settings&&p.settings.threadBrand)||'dmc').toLowerCase()+':'+t.id;amounts[k]=(amounts[k]||0)+length/1890*weights[i]/sum;});
-      out[(p.chartAccountingUnits&&p.chartAccountingUnits[unit])||unit]={type,amounts,assumptions:Object.assign({},assumptions,{weight,geometryInPerCount:geometry==null?4.8*weight:geometry,blendWeights:weights})};
-    }
-    (p.pattern||[]).forEach((t,i)=>{if(p.done&&p.done[i]===1)add('d:'+i,t,1,'full');});
+    const brand=p.settings&&p.settings.threadBrand, units=p.chartAccountingUnits;
+    return {
+      // Everything here that is not a stitch: when it changes, every estimate does.
+      // No brand estimates exactly as 'dmc' (every use defaults and lower-cases it).
+      signature:JSON.stringify([assumptions,String(brand||'dmc').toLowerCase()]),
+      key:unit=>(units&&units[unit])||unit,
+      estimate(thread, weight, type, geometry) {
+        if(!thread || thread.id==null || String(thread.id).startsWith('__'))return null;
+        const parts=thread.type==='blend'||(!thread.type&&['dmc','anchor'].includes(String(thread.brand||brand||'dmc').toLowerCase())&&String(thread.id).includes('+'))?(thread.threads||String(thread.id).split('+').map(id=>({id}))):[thread];
+        let weights=parts.map((t,i)=>positive(thread.blendRatio&&thread.blendRatio[i]!=null?thread.blendRatio[i]:t.strands,1,true));
+        if(!weights.some(x=>x>0))weights=weights.map(()=>1);
+        const sum=weights.reduce((a,b)=>a+b,0), amounts=dict();
+        const length=((geometry==null?4.8*weight:geometry)*assumptions.strands/(fc/over)+2*assumptions.tailAllowanceIn/assumptions.stitchesPerRun*weight)*assumptions.wasteMultiplier;
+        parts.forEach((t,i)=>{const k=String(t.brand||thread.brand||brand||'dmc').toLowerCase()+':'+t.id;amounts[k]=(amounts[k]||0)+length/1890*weights[i]/sum;});
+        return {type,amounts,assumptions:Object.assign({},assumptions,{weight,geometryInPerCount:geometry==null?4.8*weight:geometry,blendWeights:weights})};
+      },
+    };
+  }
+  function addFull(p, E, put) {
+    (p.pattern||[]).forEach((t,i)=>{if(p.done&&p.done[i]===1)put('d:'+i,t,1,'full');});
+  }
+  // Everything but full crosses: few enough to rebuild whenever any of it changes.
+  const REST_FIELDS=['halfStitches','halfDone','partialStitches','partialDone','specialtyStitches','specialtyDone','knots','knotsDone','bsLines','bsDone'];
+  function addRest(p, E, put) {
+    const map=x=>x instanceof Map?x:new Map(x||[]);
     const hs=map(p.halfStitches), hd=map(p.halfDone);
-    hs.forEach((cell,i)=>['fwd','bck'].forEach(side=>{if(hd.get(i)&&hd.get(i)[side])add('h:'+i+':'+side,cell[side],.5,'half');}));
+    hs.forEach((cell,i)=>['fwd','bck'].forEach(side=>{if(hd.get(i)&&hd.get(i)[side])put('h:'+i+':'+side,cell[side],.5,'half');}));
     let ps=map(p.partialStitches);
     if(root.ProgressUnits)ps=root.ProgressUnits.partialWithoutLegacyHalves(ps,hs,p.settings&&p.settings.threadBrand);
     const pd=map(p.partialDone);
-    ps.forEach((cell,i)=>['TL','TR','BL','BR'].forEach(pos=>{const m=pd.get(i);if(m&&(m instanceof Set?m.has(pos):m.includes(pos)))add('q:'+i+':'+pos,cell[pos],.25,'quarter');}));
+    ps.forEach((cell,i)=>['TL','TR','BL','BR'].forEach(pos=>{const m=pd.get(i);if(m&&(m instanceof Set?m.has(pos):m.includes(pos)))put('q:'+i+':'+pos,cell[pos],.25,'quarter');}));
     const sd=new Set(p.specialtyDone||[]);
     (p.specialtyStitches||[]).forEach(st=>{
       if(!sd.has(st.uid))return;
-      if(st.type==='petite')add('s:'+st.uid,st.thread,.5,'petite');
+      if(st.type==='petite')put('s:'+st.uid,st.thread,.5,'petite');
       else if(st.type==='long_stitch'){
         const length=Math.hypot(st.x2-st.x1,st.y2-st.y1);
-        if(Number.isFinite(length)&&length>0)add('s:'+st.uid,st.thread,length,'long stitch',2*length);
+        if(Number.isFinite(length)&&length>0)put('s:'+st.uid,st.thread,length,'long stitch',2*length);
       }
     });
     const kd=new Set(p.knotsDone||[]);
-    (p.knots||[]).forEach(k=>{if(kd.has(k.x+','+k.y))add('k:'+k.x+','+k.y,k,1,'knot');});
+    (p.knots||[]).forEach(k=>{if(kd.has(k.x+','+k.y))put('k:'+k.x+','+k.y,k,1,'knot');});
     const bd=new Set(p.bsDone||[]);
     (p.bsLines||[]).forEach(l=>{
       let {x1,y1,x2,y2}=l;if(![x1,y1,x2,y2].every(Number.isFinite))return;
       const distance=Math.hypot(x2-x1,y2-y1);if(!distance)return;
       if(x2<x1||(x2===x1&&y2<y1)){[x1,x2]=[x2,x1];[y1,y2]=[y2,y1];}
       const id=String(l.colorId!=null?l.colorId:l.color||''), key=[x1,y1,x2,y2,id].join(',');
-      if(bd.has(key))add('b:'+key,{id,brand:l.brand},distance,'backstitch',2*distance);
+      if(bd.has(key))put('b:'+key,{id,brand:l.brand},distance,'backstitch',2*distance);
     });
+  }
+  function snapshot(p, prefs) {
+    const E=estimator(p,prefs), out=dict();
+    const put=(unit,thread,weight,type,geometry)=>{const e=E.estimate(thread,weight,type,geometry);if(e)out[E.key(unit)]=e;};
+    addFull(p,E,put);addRest(p,E,put);
     return out;
+  }
+  /* The same marks as snapshot(), kept up to date instead of rebuilt.
+     snapshot() costs one estimate per marked stitch, so on a large chart that
+     is well under way every tap paid for every finished stitch. A live set
+     remembers what it last saw and only re-estimates what changed: the full
+     crosses whose done value flipped (a value compare, not an estimate, per
+     cell), and the other kinds — few — whenever any of their fields is a new
+     object (the Tracker never edits them in place). A new pattern, chart
+     units map, fabric count, thread brand or waste setting changes every
+     estimate, so it rebuilds.
+
+       sync(p, prefs)        bring the marks to p; returns the units marked or
+                             unmarked, [{unit, before, after}], in the shape the
+                             Tracker's ledger outbox takes (one of before/after
+                             is null). A unit whose estimate merely changed is
+                             updated but is not a change, as before.
+       adopt(p, prefs, m)    start from p, whose snapshot() is m, reporting
+                             nothing (a load, or progress merged from another
+                             tab, which is not stitching done here).
+       marks()               the current marks (read only)
+       threadKeys()          brand:id keys used by at least one mark
+       rebuilds()            how many syncs had to rebuild (for tests and probes) */
+  function live() {
+    let marks=dict(), seen=null, restKeys=new Set(), rebuilt=0;
+    const useCount=dict();
+    function count(e,d){Object.keys(e.amounts).forEach(k=>{const n=(useCount[k]||0)+d;if(n)useCount[k]=n;else delete useCount[k];});}
+    function put(k,e,changes){const prev=marks[k];if(prev)count(prev,-1);else if(changes)changes.push({unit:k,before:null,after:e});marks[k]=e;count(e,1);}
+    function drop(k,changes){const prev=marks[k];if(!prev)return;count(prev,-1);delete marks[k];if(changes)changes.push({unit:k,before:prev,after:null});}
+    function doneBits(d,n){const b=new Uint8Array(n);if(d)for(let i=0;i<n;i++)b[i]=d[i]===1?1:0;return b;}
+    // When two marked stitches share a unit name, snapshot() keeps the later
+    // one, and only a rebuild reproduces that. A units map that sends two
+    // stitches to one name always rebuilds. Otherwise two can share a name only
+    // when a stitch is mapped to a name that no mapped stitch has (a `shadow`
+    // name) and a stitch added since the map was made has that name unmapped.
+    // A change to either rebuilds while both are marked.
+    const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+    function oneToOne(u){if(!u)return true;const v=Object.values(u);return new Set(v).size===v.length;}
+    function shadowOf(u){const out=new Map();if(u)Object.keys(u).forEach(k=>{const v=u[k];if(!own(u,v))out.set(v,k);});return out;}
+    function remember(p,E,rest){
+      const n=(p.pattern||[]).length,u=p.chartAccountingUnits;
+      seen={pattern:p.pattern,units:u,signature:E.signature,simple:oneToOne(u),shadow:shadowOf(u),
+        done:doneBits(p.done,n),rest:REST_FIELDS.map(f=>p[f]),restRaw:rest.raw};
+    }
+    function restOf(p,E){
+      const byKey=new Map(),raw=new Set();
+      addRest(p,E,(unit,thread,weight,type,geometry)=>{const e=E.estimate(thread,weight,type,geometry);if(e){byKey.set(E.key(unit),e);raw.add(unit);}});
+      return {byKey,raw};
+    }
+    function rebuild(p,prefs,changes){
+      rebuilt++;
+      const E=estimator(p,prefs), next=snapshot(p,prefs), rest=restOf(p,E);
+      Object.keys(marks).forEach(k=>{if(!(k in next))drop(k,changes);});
+      Object.keys(next).forEach(k=>put(k,next[k],changes));
+      remember(p,E,rest);restKeys=new Set(rest.byKey.keys());
+    }
+    return {
+      sync(p,prefs){
+        const changes=[], E=estimator(p,prefs);
+        if(!seen||!seen.simple||p.pattern!==seen.pattern||p.chartAccountingUnits!==seen.units||E.signature!==seen.signature){
+          rebuild(p,prefs,changes);return changes;
+        }
+        const pat=p.pattern||[], d=p.done, old=seen.done, shadow=seen.shadow;
+        const next=REST_FIELDS.some((f,i)=>p[f]!==seen.rest[i])?restOf(p,E):null;
+        const restRaw=next?next.raw:seen.restRaw;
+        // Is raw unit u marked in p? (Full crosses: done and a real thread.)
+        const markedNow=u=>u!=null&&(u.startsWith('d:')?(()=>{const j=+u.slice(2);return !!d&&d[j]===1&&!!E.estimate(pat[j],1,'full');})():restRaw.has(u));
+        const flips=[];
+        for(let i=0;i<pat.length;i++){
+          if((!!d&&d[i]===1)===(old[i]===1))continue;
+          if(shadow.size){const u='d:'+i,k=E.key(u),other=shadow.has(k)?(k===u?shadow.get(k):k):null;
+            if(other!=null&&markedNow(other)){rebuild(p,prefs,changes);return changes;}}
+          flips.push(i);
+        }
+        if(next&&shadow.size){
+          for(const u of next.raw){const k=E.key(u);if(shadow.has(k)&&markedNow(k===u?shadow.get(k):k)){rebuild(p,prefs,changes);return changes;}}
+          for(const u of seen.restRaw){if(next.raw.has(u))continue;const k=E.key(u);if(shadow.has(k)&&markedNow(k===u?shadow.get(k):k)){rebuild(p,prefs,changes);return changes;}}
+        }
+        flips.forEach(i=>{
+          const on=!!d&&d[i]===1, k=E.key('d:'+i);
+          old[i]=on?1:0;
+          if(on){const e=E.estimate(pat[i],1,'full');if(e)put(k,e,changes);else drop(k,changes);}
+          else drop(k,changes);
+        });
+        if(next){
+          restKeys.forEach(k=>{if(!next.byKey.has(k))drop(k,changes);});
+          next.byKey.forEach((e,k)=>put(k,e,changes));
+          restKeys=new Set(next.byKey.keys());seen.rest=REST_FIELDS.map(f=>p[f]);seen.restRaw=next.raw;
+        }
+        return changes;
+      },
+      adopt(p,prefs,m){
+        const E=estimator(p,prefs), next=m||snapshot(p,prefs), rest=restOf(p,E);
+        Object.keys(marks).forEach(k=>{if(!(k in next))drop(k,null);});
+        Object.keys(next).forEach(k=>put(k,next[k],null));
+        remember(p,E,rest);restKeys=new Set(rest.byKey.keys());
+      },
+      marks:()=>marks,
+      threadKeys:()=>Object.keys(useCount),
+      rebuilds:()=>rebuilt,
+    };
   }
   function empty(){return {version:2,projects:{},events:{},receipts:{}};}
   function validateAmounts(a){
@@ -184,6 +304,6 @@
       mergedThreads[k].owned=Math.max(0,gross-(mt[k]||0));mergedThreads[k].partialStatus=null;
     });return ledger;
   }
-  const api={KEY,snapshot,empty,baseline,state,apply,totals,merge,mergeStock,quantity,validate,sequences};root.ThreadAccounting=api;
+  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeStock,quantity,validate,sequences};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

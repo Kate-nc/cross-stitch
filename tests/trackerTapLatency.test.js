@@ -63,7 +63,7 @@ describe('tap commit (#1)', () => {
 
 describe('thread-usage batching (#2)', () => {
   test('a mark queues its event and schedules one batched write instead of writing at once', () => {
-    const effect = between('const before=ctx.lastMarks;ctx.lastMarks=rtMarks;', '},[rtMarks,wastePrefs.enabled]);');
+    const effect = between('const marked=ctx.live.sync(', '},[pat,done,fabricCt,');
     expect(effect).toMatch(/localStorage\.setItem\(ctx\.outboxKey/);    // crash safety first
     expect(effect).toMatch(/if\(!ctx\.batchTimer\)ctx\.batchTimer=setTimeout\(/);
     expect(effect).toMatch(/RT_BATCH_MS\)/);
@@ -82,35 +82,32 @@ describe('thread-usage batching (#2)', () => {
   });
 });
 
-describe('whole-progress memos survive a restarted transition', () => {
-  const src = between('function useKeptMemo(fn,deps){', '\n}') + '\n}';
-  const make = () => {
-    const ref = { current: [] };
-    // eslint-disable-next-line no-new-func
-    return new Function('useRef', src + '\nreturn useKeptMemo;')(() => ref);
-  };
-
-  test('reuses the value for the same inputs, including after an interrupting render with the old ones', () => {
-    const useKeptMemo = make(), fn = jest.fn(x => ({ x }));
-    const oldDone = [0], newDone = [1];
-    const a = useKeptMemo(() => fn(oldDone), [oldDone, 1]);
-    const b = useKeptMemo(() => fn(newDone), [newDone, 2]);   // the transition
-    const c = useKeptMemo(() => fn(oldDone), [oldDone, 1]);   // a sync render before it commits
-    const d = useKeptMemo(() => fn(newDone), [newDone, 2]);   // the transition restarts
-    expect(fn).toHaveBeenCalledTimes(2);
-    expect(c).toBe(a);
-    expect(d).toBe(b);
+describe('thread usage is kept up to date, not rebuilt per render (#6)', () => {
+  test('no render rebuilds the snapshot; only load does', () => {
+    expect(SRC.match(/ThreadAccounting\.snapshot\(/g)).toHaveLength(1);
+    expect(SRC).toMatch(/const rtInitialMarks=window\.ThreadAccounting\.snapshot\(rtLoaded,loadedWaste\);/);
+    expect(SRC).not.toMatch(/const rtMarks=|const rtAmounts=|lastMarks/);
   });
 
-  test('recomputes when any input changes', () => {
-    const useKeptMemo = make(), fn = jest.fn(() => ({}));
-    const p = {};
-    useKeptMemo(fn, [p, 1]); useKeptMemo(fn, [p, 2]); useKeptMemo(fn, [{}, 2]);
-    expect(fn).toHaveBeenCalledTimes(3);
+  test('load starts the live marks from what is already marked, reporting nothing', () => {
+    expect(SRC).toMatch(/const rtLive=window\.ThreadAccounting\.live\(\);rtLive\.adopt\(rtLoaded,loadedWaste,rtInitialMarks\);/);
+    expect(SRC).toMatch(/initialMarks:rtInitialMarks,live:rtLive,/);
   });
 
-  test('the thread-usage snapshot and its totals use it', () => {
-    expect(SRC).toMatch(/const rtMarks=useKeptMemo\(\(\)=>window\.ThreadAccounting\.snapshot\(/);
-    expect(SRC).toMatch(/const rtAmounts=useKeptMemo\(/);
+  test('the commit effect turns what live.sync reports into ledger operations', () => {
+    const effect = between('const marked=ctx.live.sync(', '},[pat,done,fabricCt,');
+    expect(effect).toMatch(/const intent=ctx\.intents\[unit\];delete ctx\.intents\[unit\];/);
+    expect(effect).toMatch(/estimate:after\|\|before,kind:intent\|\|\(after\?'mark':'correction'\)/);
+    expect(effect).toMatch(/setRtMarkedKeys\(/);
+    // Every input the estimates read is a dependency, including the brand.
+    expect(SRC).toMatch(/\},\[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,threadBrand\]\);/);
+  });
+
+  test('progress merged from another tab is adopted, not reported as stitching', () => {
+    expect(SRC).toMatch(/rtContextRef\.current\.live\.adopt\(\{\.\.\.local,pattern:pat,done:nd,/);
+  });
+
+  test('the low-thread figures list the threads with marks', () => {
+    expect(SRC).toMatch(/new Set\(\[\.\.\.rtMarkedKeys,\.\.\.Object\.keys\(used\)\]\)/);
   });
 });

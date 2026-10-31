@@ -184,26 +184,44 @@ for (const size of ['large', 'huge']) {
                      rebuild — ran inside the release handler: ~1.2 s on the
                      large chart at 50%. It is now a few ms, and does not
                      depend on the progress, so it is the stable guard.
+     snapshotCalls   whole-progress thread-usage snapshots built while tapping,
+                     directly or as a fallback rebuild of the live marks.
+                     Must be 0 since fix #6 (was one per tap, ~0.7 s each).
      perTapBlockingMs total blocking time divided by taps — main-thread work the
                      tap causes, whether or not it delays this tap's paint. It
-                     still includes the whole-progress rebuilds (fixes #6-#8 in
-                     the audit) and is logged, not asserted, until those land.
+                     still includes the whole-progress save work (fixes #7-#8
+                     in the audit) and is logged, not asserted, until those land.
 
    Cases: 50% and 90% done; 50% with a long thread-usage history (one ledger
    event per stitch ever marked, here 50 000 from another project); and a
    mixed chart with half stitches, backstitch, knots, beads and specialty
    stitches, which takes a different redraw path. */
 const PROGRESS_TAPS = 8;
-// Generous: what is left of a tap's delay is mostly waiting behind the save
-// work (fixes #6-#8). Tighten this as those land. Before fix #1: 3.4 s (50%)
-// and 6.8 s (90%) median.
-const PROGRESS_TAP_CEILING_MS = 5000;
+// A gross guard only. What is left of a tap's delay is waiting behind the save
+// work — the progress write's sync record and the full autosave, fixes #7-#8 —
+// and where those land among the taps swings the median by seconds (2.4-6.8 s
+// at 90% across runs after fix #6). Tighten this as those land. Before fix #1:
+// 3.4 s (50%) and 6.8 s (90%) median, with every tap's own handler at ~1.2 s.
+const PROGRESS_TAP_CEILING_MS = 10000;
 const PROGRESS_HANDLER_CEILING_MS = 250;
 
-// Event Timing with processing times (perfProbes keeps only durations).
+// Event Timing with processing times (perfProbes keeps only durations), and a
+// count of whole-progress thread-usage snapshots (fix #6: only load builds one).
 async function installHandlerProbe(page) {
   await page.addInitScript(() => {
     const H = window.__handlerProbe = [];
+    window.__snapshotCalls = 0;
+    const iv = setInterval(() => {
+      const A = window.ThreadAccounting;
+      if (!A || A.__counted) return;
+      const orig = A.snapshot, origLive = A.live;
+      A.snapshot = function () { window.__snapshotCalls++; return orig.apply(this, arguments); };
+      // The live marks fall back to a rebuild when something every estimate
+      // depends on changes; a tap must never need one.
+      window.__lives = [];
+      A.live = function () { const l = origLive.apply(this, arguments); window.__lives.push(l); return l; };
+      A.__counted = true; clearInterval(iv);
+    }, 10);
     try {
       new PerformanceObserver((l) => {
         for (const e of l.getEntries()) if (e.interactionId) H.push({ id: e.interactionId, run: e.processingEnd - e.processingStart });
@@ -263,7 +281,8 @@ for (const c of PROGRESS_CASES) {
 
     const cdp = await cpuThrottle(page, 4);
     await resetProbes(page);
-    await page.evaluate(() => { window.__handlerProbe.length = 0; });
+    await page.evaluate(() => { window.__handlerProbe.length = 0; window.__snapshotCalls = 0; });
+    const rebuildsBefore = await page.evaluate(() => window.__lives.reduce((n, l) => n + l.rebuilds(), 0));
     for (let i = 0; i < PROGRESS_TAPS; i++) {
       await tap(cdp, Math.round(box.x + box.w * 0.3 + i * 23), Math.round(box.y + box.h * 0.55 + i * 17));
       await page.waitForTimeout(SPACING_MS);
@@ -274,10 +293,13 @@ for (const c of PROGRESS_CASES) {
 
     const taps = interactions(r.events);
     const handlers = handlerTimes(await page.evaluate(() => window.__handlerProbe.slice()));
+    const snapshotCalls = await page.evaluate(() => window.__snapshotCalls)
+      + await page.evaluate(() => window.__lives.reduce((n, l) => n + l.rebuilds(), 0)) - rebuildsBefore;
     const out = {
       case: c.name, cells: patternCells(c.size), taps: PROGRESS_TAPS,
       interactionMs: stats(taps),
       handlerMs: stats(handlers),
+      snapshotCalls,
       perTapBlockingMs: Math.round(tbt(r.longTasks) / PROGRESS_TAPS),
       longTasks: r.longTasks.length,
       longestTaskMs: Math.round(Math.max(0, ...r.longTasks.map(l => l.d))),
@@ -295,6 +317,9 @@ for (const c of PROGRESS_CASES) {
     expect(out.analysePosts, 'no analysis posts — the taps did not change progress').toBeGreaterThan(0);
     expect(taps.length, 'Event Timing saw no taps').toBeGreaterThan(0);
     // A gross guard only; see PROGRESS_TAP_CEILING_MS.
+    // Fix #6: a mark re-estimates only what changed (ThreadAccounting.live).
+    // Each tap used to rebuild the estimate for every finished stitch.
+    expect(snapshotCalls, 'a tap rebuilt the whole thread-usage snapshot').toBe(0);
     expect(out.handlerMs.median,
       `the tap handlers on ${c.name} ran for ${out.handlerMs.median} ms (median) — is the Tracker re-render back inside them?`)
       .toBeLessThan(PROGRESS_HANDLER_CEILING_MS);

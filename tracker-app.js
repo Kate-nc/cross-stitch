@@ -13,22 +13,6 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // renderStitch and the scroll handler both derive their answer from here so
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
-// useMemo whose last result survives a render React throws away. A tap commits
-// as a transition (commitMarkState), and React restarts a transition when any
-// other update lands before it commits, discarding that render's useMemo
-// results. For the whole-progress thread-usage snapshot that meant paying
-// ~0.7 s again per restart on a large, half-stitched chart at phone speed. The
-// value is a pure function of deps, so reusing a discarded render's is safe.
-// Two entries, because an update that interrupts the transition renders with
-// the previous inputs: one entry would swap old and new on every restart.
-function useKeptMemo(fn,deps){
-  const r=useRef([]),kept=r.current;
-  const same=c=>c.deps.length===deps.length&&c.deps.every((d,i)=>Object.is(d,deps[i]));
-  for(let i=0;i<kept.length;i++)if(same(kept[i]))return kept[i].value;
-  const value=fn();
-  r.current=[{deps,value}].concat(kept.slice(0,1));
-  return value;
-}
 
 // The analysis worker's view of the pattern: one Uint16 per stitch indexing
 // `ids`, with 0xFFFF for __skip__/__empty__. Mirrors toModel() in
@@ -1551,6 +1535,7 @@ bsSelectRef.current=bsSelect;
 const progressOwnerRef=useRef(null);
 const progressBaseRef=useRef({id:null,done:null,halfDone:null,knotsDone:null,beadsDone:null,bsDone:null,partialDone:null});
 const progressTimerRef=useRef(null);
+const lastProgressWriteRef=useRef(0);   // when writeProgressNow last wrote (scheduleProgressWrite spaces writes on large charts)
 // Save badge (header). One honest status for the whole project, derived from refs so that
 // updating it costs nothing on the mark path: React skips a setState to the same value.
 //   error > conflict > saving (a write in flight, or changes not yet written) > saved/idle
@@ -1849,7 +1834,7 @@ const[stashDeducted,setStashDeducted]=useState(false);
 
 // ── Real-time stash deduction (Proposal D implementation) ──────────────
 // Defaults match threadCostPerStitch() in threadCalc.js.
-// Thread-usage events reach the stash ledger in batches this far apart (see the rtMarks effect).
+// Thread-usage events reach the stash ledger in batches this far apart (see the thread-usage sync effect).
 const RT_BATCH_MS=2000;
 const RT_WASTE_DEFAULTS={enabled:false,tailAllowanceIn:1.5,threadRunLength:30,generalWasteMultiplier:1.10,strandCountOverride:null,lastWrittenAt:null};
 const[wastePrefs,setWastePrefs]=useState(()=>{
@@ -2589,19 +2574,18 @@ const difficultyMetrics=useMemo(()=>{
 
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
-// Capture assumptions with each progress transition. Preferences alone never create usage.
-const rtMarks=useKeptMemo(()=>window.ThreadAccounting.snapshot({...v3FieldsRef.current,pattern:pat,done,fabricCt,
-  halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,
-  settings:{threadBrand}},wastePrefs),[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,countsVer]);
-const rtAmounts=useKeptMemo(()=>{const out={};Object.values(rtMarks).forEach(m=>Object.entries(m.amounts).forEach(([k,v])=>out[k]=(out[k]||0)+v));return out;},[rtMarks]);
+// The threads (brand:id) that at least one marked stitch uses, as kept by the
+// project's live thread-usage marks (the sync effect below). Only changes when a
+// thread gains its first mark or loses its last, so it rarely re-renders.
+const[rtMarkedKeys,setRtMarkedKeys]=useState([]);
 const rtConsumption=useMemo(()=>{
   const out={},ctx=rtContextRef.current;
   const used=ctx&&ctx.accounting?window.ThreadAccounting.totals(ctx.accounting,ctx.projectId):{};
-  new Set([...Object.keys(rtAmounts),...Object.keys(used)]).forEach(key=>{const owned=globalStash[key]?StashBridge.stashEffectiveQty(globalStash[key]):null;
+  new Set([...rtMarkedKeys,...Object.keys(used)]).forEach(key=>{const owned=globalStash[key]?StashBridge.stashEffectiveQty(globalStash[key]):null;
     out[key]={key,skeinsConsumed:used[key]||0,ownedSkeins:owned,skeinsRemaining:owned};});
   return out;
-},[rtAmounts,globalStash,rtAccountingVersion]);
-rtWriteSnapshotRef.current={ctx:rtContextRef.current,amounts:rtAmounts,enabled:wastePrefs.enabled};
+},[rtMarkedKeys,globalStash,rtAccountingVersion]);
+rtWriteSnapshotRef.current={ctx:rtContextRef.current,enabled:wastePrefs.enabled};
 
 // Retain the exact pending operations on failure; a lost acknowledgement retries the same identities.
 const flushRtStashWrite=useCallback(async(captured)=>{
@@ -2658,17 +2642,24 @@ const openConsumptionHistory=useCallback(async()=>{
     ctx.accounting=ledger;setRtAccountingVersion(v=>v+1);setModal('rt_history');
   }catch(e){if(window.Toast)window.Toast.show({message:'Could not read consumption history. Please try again.',type:'warning'});}
 },[]);
+// Capture assumptions with each progress transition. Preferences alone never create usage.
+// The project's thread-usage marks (one estimate per marked stitch) live in
+// ctx.live, which re-estimates only what changed since the last commit. It used
+// to be rebuilt for every finished stitch inside each render, then diffed key by
+// key here: ~0.7 s per tap on a large, half-stitched chart at phone speed.
 useEffect(()=>{
-  const ctx=rtContextRef.current;if(!ctx)return;
+  const ctx=rtContextRef.current;if(!ctx||!ctx.live)return;
   // Initialisation can finish after a mark. Queue changes with their original assumptions.
-  const before=ctx.lastMarks;ctx.lastMarks=rtMarks;
-  const changes=[];
-  new Set([...Object.keys(before),...Object.keys(rtMarks)]).forEach(unit=>{
-    if(!!before[unit]===!!rtMarks[unit])return;
+  const marked=ctx.live.sync({...v3FieldsRef.current,pattern:pat,done,fabricCt,
+    halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,
+    settings:{threadBrand}},wastePrefs);
+  const keys=ctx.live.threadKeys();
+  setRtMarkedKeys(prev=>prev.length===keys.length&&keys.every(k=>prev.includes(k))?prev:keys);
+  if(!marked.length)return;
+  const changes=marked.map(({unit,before,after})=>{
     const intent=ctx.intents[unit];delete ctx.intents[unit];
-    changes.push({unit,estimate:rtMarks[unit]||before[unit],kind:intent||(rtMarks[unit]?'mark':'correction'),enabled:wastePrefs.enabled,date:new Date().toISOString()});
+    return {unit,estimate:after||before,kind:intent||(after?'mark':'correction'),enabled:wastePrefs.enabled,date:new Date().toISOString()};
   });
-  if(!changes.length)return;
   changes.forEach(c=>{c.token=crypto.randomUUID();ctx.outbox.push(c);});
   // Crash recovery records the original assumptions before any asynchronous work.
   try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}
@@ -2679,7 +2670,7 @@ useEffect(()=>{
   // crash; hiding or closing the tab, opening the history and saving the project
   // all flush straight away.
   if(!ctx.batchTimer)ctx.batchTimer=setTimeout(()=>{ctx.batchTimer=null;flushRtStashWriteRef.current(ctx).catch(()=>{});},RT_BATCH_MS);
-},[rtMarks,wastePrefs.enabled]);
+},[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,threadBrand]);
 useEffect(()=>{
   function onHidden(){if(document.hidden)flushRtStashWriteRef.current().catch(()=>{});}
   document.addEventListener('visibilitychange',onHidden);
@@ -2740,7 +2731,7 @@ useEffect(()=>{
   if(rtDebounceRef.current)clearTimeout(rtDebounceRef.current);
   rtDebounceRef.current=setTimeout(()=>{rtDebounceRef.current=null;flushRtStashWrite().catch(()=>{});},30000);
   return()=>{if(rtDebounceRef.current){clearTimeout(rtDebounceRef.current);rtDebounceRef.current=null;}};
-},[rtAmounts,wastePrefs.enabled]);
+},[done,halfDone,partialDone,knotsDone,bsDone,specialtyDone,wastePrefs.enabled]);
 
 // Low-thread toast: fires once per thread per session when skeinsRemaining first drops below 0.25.
 const prevRtConsumptionRef=useRef({});
@@ -3759,7 +3750,7 @@ async function mergeRemoteProject(info){
   const mergedMilestones=TM.mergeMilestones(local.achievedMilestones,remote.achievedMilestones);
   // Imported progress carries no evidence of new stitching in this tab. The
   // accompanying stash ledger is merged separately; missing usage stays unknown.
-  if(rtContextRef.current)rtContextRef.current.lastMarks=window.ThreadAccounting.snapshot({...local,pattern:pat,done:nd,
+  if(rtContextRef.current&&rtContextRef.current.live)rtContextRef.current.live.adopt({...local,pattern:pat,done:nd,
     halfDone:mergedHalf,knotsDone:mergedKnots,bsDone:mergedBs,partialDone:mergedQuarters,specialtyDone:mergedSpecialty},wastePrefs);
   // Counts of what the other tab added must not read as stitches done here just now.
   justLoadedRef.current=true;
@@ -4053,8 +4044,12 @@ function processLoadedProject(project){
   let{pal:newPal,cmap:newCmap}=buildPalette(restored,partialCells.concat(knotCells,bsCells,loadedSpecialty.map(o=>restoreStitch(o.thread,brand))));
   setPat(restored);setPal(newPal);setCmap(newCmap);
   const rtInitial=rtThreadUsage(restored,project.done,s.fabricCt||project.fc||14,loadedWaste);
-  const rtInitialMarks=window.ThreadAccounting.snapshot({...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14},loadedWaste);
-  const rtContext={projectId:project.id||ProjectStorage.newId(),initial:rtInitial,initialMarks:rtInitialMarks,lastMarks:rtInitialMarks,
+  const rtLoaded={...project,pattern:restored,fabricCt:s.fabricCt||project.fc||14};
+  const rtInitialMarks=window.ThreadAccounting.snapshot(rtLoaded,loadedWaste);
+  // What is marked on load is history, not stitching done now: the live marks
+  // start from it and report only what changes after (see the sync effect).
+  const rtLive=window.ThreadAccounting.live();rtLive.adopt(rtLoaded,loadedWaste,rtInitialMarks);
+  const rtContext={projectId:project.id||ProjectStorage.newId(),initial:rtInitial,initialMarks:rtInitialMarks,live:rtLive,
     accounting:null,ready:null,pending:[],intents:{},sequences:{},outbox:[]};
   const recoveryId=window.RecoveryStorage?JSON.parse(window.RecoveryStorage.current()||'null'):null;
   const outboxPrefix='cs_consumption_outbox:'+(recoveryId?recoveryId.id:'original')+':'+rtContext.projectId+':';
@@ -4818,11 +4813,13 @@ function retrySave() {
 // ── Progress record writer ──
 // Writes the marks, and only the marks, to ProjectStorage's small progress record.
 // Saving the whole project takes up to ~150 ms on a large chart so it happens every
-// few seconds; this takes a few ms, so marks are safe within about half a second.
+// few seconds; this is far smaller, so marks are safe within about half a second
+// (a few seconds on a large chart, see scheduleProgressWrite).
 function writeProgressNow() {
   if (progressTimerRef.current) { clearTimeout(progressTimerRef.current); progressTimerRef.current = null; }
   const o = progressOwnerRef.current;
   if (!o || !o.id || savesBlockedRef.current) return;
+  lastProgressWriteRef.current = Date.now();
   // The freshest marks, but only if they belong to the project the owner names.
   const live = doneRef.current;
   const done = (live && projectIdRef.current === o.id && live.length === o.done.length) ? live : o.done;
@@ -4844,12 +4841,23 @@ function writeProgressNow() {
     };
     if (recovery) ProjectStorage.saveProgressRecovery(o.id, data);
     const r = ProjectStorage.saveProgress(o.id, data);
-    if (r && r.catch) r.catch(function () {});
+    // The gap to the next write runs from when this one finishes: the write's
+    // own work (the sync record) runs inside its transaction, after this returns.
+    if (r && r.then) r.then(function () { lastProgressWriteRef.current = Date.now(); }, function () {});
   } catch (_) {}
   return recoverySnapshot;
 }
+// Throttled, not debounced: the first mark after a pause is written ~400 ms later
+// however steadily marking continues. On a large chart each write also rebuilds
+// the sync record for every finished stitch (seconds on a phone, until that is
+// made incremental), and now that a tap commits on its own every tap would start
+// one; so there, a write starts at least PROGRESS_GAP_LARGE_MS after the last one
+// finished. Hiding or closing the tab still writes at once.
+const PROGRESS_GAP_LARGE_MS = 3000;
 function scheduleProgressWrite() {
-  if (!progressTimerRef.current) progressTimerRef.current = setTimeout(writeProgressNow, 400);
+  if (progressTimerRef.current) return;
+  const gap = pat && pat.length > 40000 ? PROGRESS_GAP_LARGE_MS : 0;
+  progressTimerRef.current = setTimeout(writeProgressNow, Math.max(400, lastProgressWriteRef.current + gap - Date.now()));
 }
 const writeProgressNowRef = useRef(null);
 writeProgressNowRef.current = writeProgressNow;

@@ -49,6 +49,29 @@ which still block for seconds on these charts: fixes #6 (incremental
 thread-usage accounting), #7 (incremental sync metadata) and #8 (progress
 saved apart from the chart, R7 below) are next.
 
+**Fix #6 landed.** `ThreadAccounting.live()` keeps the marks `snapshot()`
+would build, re-estimating only what changed: a value compare of `done`
+against its last copy, the other stitch kinds when one of their fields is a
+new object, and a full rebuild only when the pattern, units map, fabric
+count, brand or waste settings change (or two marked stitches share a unit
+name). The Tracker syncs it in a commit effect instead of building the
+snapshot in render; load and cross-tab merges `adopt()` without reporting.
+`tests/threadAccountingLive.test.js` holds it equal to `snapshot()` over
+random walks of every kind of edit. Per tap: ~4 ms at 4x, was ~0.7 s; no
+snapshot is built while tapping (guarded in `tap-cost.spec.js`).
+
+It also showed why the tap-to-paint medians barely moved. While each tap's
+commit was slow, React merged several taps into one commit, and so into one
+progress write. Cheap commits mean one write per tap, and each write's
+`TrackingSync.record` costs ~2.3 s at 4x on the large fixture at 50%. On
+charts over 40 000 stitches the progress write now starts at least 3 s after
+the last one finished (hide and unload still write at once): 4 writes per 8
+rapid taps instead of 5-7. Median tap-to-paint on that fixture, rapid taps,
+4x CPU: ~2.4 s, before #6 2.3-3.2 s. At 5 s between taps the full autosave
+(which also runs `TrackingSync.record` and clones the record twice in
+`saveChecked`/`putAll`, ~6-8 s at 4x) lands between taps instead. Both are
+#7 and #8.
+
 ## Where things stand
 
 The expensive structural problem is solved. The chart and its overlays are
