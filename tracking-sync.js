@@ -12,12 +12,20 @@
     var n = Number(v);
     return Number.isSafeInteger(n) && n >= 0 ? n : null;
   }
+  function hasDone(p) { return !!p && (Array.isArray(p.done) || ArrayBuffer.isView(p.done)); }
   function marks(p) {
     var out = Object.create(null);
-    if (!p) return out;
-    if (Array.isArray(p.done) || ArrayBuffer.isView(p.done)) {
+    if (hasDone(p)) {
       for (var i = 0; i < p.done.length; i++) if (p.done[i]) out['d:' + i] = 1;
     }
+    var other = otherMarks(p);
+    Object.keys(other).forEach(function (k) { out[k] = 1; });
+    return out;
+  }
+  // Every mark but full crosses: few, so these are always listed in full.
+  function otherMarks(p) {
+    var out = Object.create(null);
+    if (!p) return out;
     [['halfDone', 'h:', ['fwd', 'bck']], ['partialDone', 'q:', ['TL', 'TR', 'BL', 'BR']]].forEach(function (spec) {
       (Array.isArray(p[spec[0]]) ? p[spec[0]] : []).forEach(function (e) {
         if (!Array.isArray(e) || e.length !== 2) return;
@@ -50,6 +58,34 @@
   function dominates(a, b) {
     return Object.keys(b).every(function (k) { return (own(a, k) ? a[k] : 0) >= b[k]; });
   }
+  /* Registers are never edited once made, so identical ones are kept as one
+     shared array. A chart that is well under way holds one register per
+     finished stitch, nearly all alike ([{value:1,clock:{}}], or one tab's
+     first mark); sharing them means IndexedDB stores and clones each distinct
+     one once (structured clone keeps shared references, and reads them back
+     shared), and normalising a register read back is done once per distinct
+     array instead of once per stitch. JSON (sync files, backups) is unchanged. */
+  var INTERN_MAX = 4096;
+  var interned = new Map();                       // JSON of a register -> its one shared array
+  var normalised = typeof WeakMap === 'function' ? new WeakMap() : null;   // array as read -> frontier
+  function intern(list) {
+    if (!list.length) return list;
+    var key = JSON.stringify(list), hit = interned.get(key);
+    if (hit) return hit;
+    if (interned.size >= INTERN_MAX) interned.clear();
+    interned.set(key, list);
+    return list;
+  }
+  var SEED = [{ value: 1, clock: {} }];
+  function seed() { return intern(SEED); }
+  // frontier() of a register read from storage, remembered per array.
+  function normalisedFrontier(list) {
+    var hit = normalised && normalised.get(list);
+    if (hit) return hit;
+    var f = intern(frontier(list));
+    if (normalised) normalised.set(list, f);
+    return f;
+  }
   function frontier(list) {
     var byClock = new Map();
     list.forEach(function (raw) {
@@ -62,16 +98,22 @@
     return all.filter(function (e, i) { return !all.some(function (other, j) { return i !== j && dominates(other.clock, e.clock); }); })
       .sort(function (a, b) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); });
   }
+  // The order registers are read in does not matter: every consumer sorts.
   function records(p) {
     var out = Object.create(null), meta = p && p.trackingSync;
     if (meta && meta.version === 1 && meta.marks && typeof meta.marks === 'object') {
-      Object.keys(meta.marks).sort().forEach(function (k) {
-        if (!validKey(k) || !Array.isArray(meta.marks[k])) return;
-        var f = frontier(meta.marks[k]);
+      var keys = Object.keys(meta.marks);
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i], list = meta.marks[k];
+        if (!validKey(k) || !Array.isArray(list)) continue;
+        var f = normalisedFrontier(list);
         if (f.length) out[k] = f;
-      });
+      }
     }
-    Object.keys(marks(p)).forEach(function (k) { if (!own(out, k)) out[k] = [{ value: 1, clock: {} }]; });
+    Object.keys(otherMarks(p)).forEach(function (k) { if (!own(out, k)) out[k] = seed(); });
+    if (hasDone(p)) {
+      for (var j = 0; j < p.done.length; j++) if (p.done[j] && !own(out, 'd:' + j)) out['d:' + j] = seed();
+    }
     return out;
   }
   function metadata(r) {
@@ -81,31 +123,70 @@
   }
   // Capture only explicit arrays. A serializer from an older build that omits a field cannot unpick it.
   // Called at the persistence boundary against the previous saved project/progress overlay.
-  function record(base, next, author) {
+  // What records() would read back from each output this module produced, kept
+  // so the next save of the same chain need not re-read every register (see `from`).
+  var readBack = typeof WeakMap === 'function' ? new WeakMap() : null;
+  // Only the marks that differ between base and next get a new register. Full
+  // crosses are compared array to array rather than listed as keys first: on a
+  // well-progressed chart that listing, done twice per save, was most of the cost.
+  //
+  // `from`, optional: the `trackingSync.marks` object an earlier record() call
+  // returned, when the caller knows base.trackingSync is that output read back
+  // from storage (ProjectStorage.saveProgress checks its own last write). The
+  // registers are then taken from that call instead of re-read from base. Each
+  // output can be used this way once; anything unknown falls back to reading.
+  function record(base, next, author, from) {
     base = base || {};
-    var out = Object.assign({}, next), before = marks(base), after = marks(next), r = records(base);
+    var r = null;
+    if (from && readBack) { r = readBack.get(from) || null; readBack.delete(from); }
+    if (!r) r = records(base);
+    var out = Object.assign({}, next), written = [];
     fields.forEach(function (f) { if (next[f] == null && base[f] != null) out[f] = base[f]; });
     var prefix = { d: 'done', h: 'halfDone', q: 'partialDone', k: 'knotsDone', b: 'bsDone', e: 'beadsDone', s:'specialtyDone' };
-    var keys = new Set(Object.keys(before).concat(Object.keys(after)));
-    keys.forEach(function (k) {
+    var a = author || actor;
+    function write(k, on) {
+      var clock = Object.create(null);
+      (r[k] || []).forEach(function (e) { Object.keys(e.clock).forEach(function (x) { clock[x] = Math.max(clock[x] || 0, e.clock[x]); }); });
+      clock[a] = (clock[a] || 0) + 1;
+      r[k] = intern([{ value: on ? 1 : 0, clock: clock }]);
+      written.push(k);
+    }
+    var before = otherMarks(base), after = otherMarks(next);
+    new Set(Object.keys(before).concat(Object.keys(after))).forEach(function (k) {
       var field = prefix[k[0]];
       if (!Array.isArray(next[field]) && !ArrayBuffer.isView(next[field])) return;
       if (!!before[k] === !!after[k]) return;
-      var clock = Object.create(null);
-      (r[k] || []).forEach(function (e) { Object.keys(e.clock).forEach(function (a) { clock[a] = Math.max(clock[a] || 0, e.clock[a]); }); });
-      var a = author || actor;
-      clock[a] = (clock[a] || 0) + 1;
-      r[k] = [{ value: after[k] ? 1 : 0, clock: clock }];
+      write(k, after[k]);
     });
+    if (hasDone(next)) {
+      var bd = hasDone(base) ? base.done : null, nd = next.done, n = Math.max(nd.length, bd ? bd.length : 0);
+      for (var i = 0; i < n; i++) {
+        var was = !!(bd && bd[i]), on = !!nd[i];
+        if (was !== on) write('d:' + i, on);
+      }
+    }
     // New projects and unchanged legacy marks acquire positive seeds, never invented removals.
-    Object.keys(after).forEach(function (k) { if (!own(r, k)) r[k] = [{ value: 1, clock: {} }]; });
+    // (Marks unchanged since base already have one from records(base); changed marks were just written.)
+    Object.keys(after).forEach(function (k) { if (!own(r, k)) r[k] = seed(); });
     out.trackingSync = metadata(r);
+    if (readBack) {
+      // records() of the stored copy normalises each register (clock keys sorted),
+      // drops a name it does not accept and seeds it again if it is marked.
+      written.forEach(function (k) { r[k] = intern(frontier(r[k])); });
+      Object.keys(r).forEach(function (k) {
+        if (k.charCodeAt(0) === 100 || validKey(k)) return;   // 'd:<n>' is always valid
+        if (after[k]) r[k] = seed(); else delete r[k];
+      });
+      readBack.set(out.trackingSync.marks, r);
+    }
     return out;
   }
   function merge(local, remote) {
     var l = records(local), r = records(remote), all = Object.create(null), active = Object.create(null);
     Array.from(new Set(Object.keys(l).concat(Object.keys(r)))).sort().forEach(function (k) {
-      all[k] = frontier((l[k] || []).concat(r[k] || []));
+      // records() registers are already frontiers, and frontier() of a frontier is
+      // itself: only a key both sides hold needs combining.
+      all[k] = l[k] && r[k] ? intern(frontier(l[k].concat(r[k]))) : (l[k] || r[k]);
       if (all[k].length && all[k].every(function (e) { return e.value === 1; })) active[k] = 1;
     });
     var out = { trackingSync: metadata(all) };
@@ -214,8 +295,8 @@
     return {values:values, valueSync:{version:1,fields:fields}, conflicts:conflicts};
   }
   var recordMarks = record;
-  record = function(base,next,author) {
-    var out = recordMarks(base,next,author), fields = {};
+  record = function(base,next,author,from) {
+    var out = recordMarks(base,next,author,from), fields = {};
     valueFields.forEach(function(f) { if (!own(next,f) && base && own(base,f)) out[f] = base[f]; });
     var beforeValues = valuesOf(base), nextValues = valuesOf(next);
     fieldsOf(base,next).forEach(function(f) {

@@ -189,20 +189,20 @@ for (const size of ['large', 'huge']) {
                      Must be 0 since fix #6 (was one per tap, ~0.7 s each).
      perTapBlockingMs total blocking time divided by taps — main-thread work the
                      tap causes, whether or not it delays this tap's paint. It
-                     still includes the whole-progress save work (fixes #7-#8
-                     in the audit) and is logged, not asserted, until those land.
+                     still includes the full autosave (fix #8) and the ledger
+                     write (#9), and is logged, not asserted, until those land.
 
    Cases: 50% and 90% done; 50% with a long thread-usage history (one ledger
    event per stitch ever marked, here 50 000 from another project); and a
    mixed chart with half stitches, backstitch, knots, beads and specialty
    stitches, which takes a different redraw path. */
 const PROGRESS_TAPS = 8;
-// A gross guard only. What is left of a tap's delay is waiting behind the save
-// work — the progress write's sync record and the full autosave, fixes #7-#8 —
-// and where those land among the taps swings the median by seconds (2.4-6.8 s
-// at 90% across runs after fix #6). Tighten this as those land. Before fix #1:
-// 3.4 s (50%) and 6.8 s (90%) median, with every tap's own handler at ~1.2 s.
-const PROGRESS_TAP_CEILING_MS = 10000;
+// A loose guard. What is left of a tap's delay is waiting behind save work: the
+// full autosave (fix #8) and, with a long history, the thread-usage ledger write
+// (fix #9). After fix #7 the medians were ~0.1 s (50%), ~1.2 s (90%) and ~1.9 s
+// (long history), varying by up to 2x between runs. Before fix #1: 3.4 s (50%)
+// and 6.8 s (90%), with every tap's own handler at ~1.2 s.
+const PROGRESS_TAP_CEILING_MS = 5000;
 const PROGRESS_HANDLER_CEILING_MS = 250;
 
 // Event Timing with processing times (perfProbes keeps only durations), and a

@@ -72,6 +72,34 @@ rapid taps instead of 5-7. Median tap-to-paint on that fixture, rapid taps,
 `saveChecked`/`putAll`, ~6-8 s at 4x) lands between taps instead. Both are
 #7 and #8.
 
+**Fix #7 landed** (format unchanged). `TrackingSync.record` was ~0.9 s per
+call at 1x on the large fixture at 50% (~2.3 s at 4x), and the progress
+record it produces cost ~0.4 s more to clone into IndexedDB. Now:
+
+- Identical registers are one shared array (interned). Structured clone keeps
+  shared references and reads them back shared, so a stored chart of seeds
+  serialises in ~36 ms instead of ~154 ms and takes 1.1 MB instead of 3.6 MB.
+  JSON (sync files, backups) is unchanged.
+- A register read back is normalised once per distinct array, not per stitch.
+- `record` compares full crosses array to array instead of listing both
+  sides as keys; `merge` combines only keys both sides hold.
+- `saveProgress` passes `from`: when the record it reads back is its own last
+  write (same tab, time and base, and the overlay applied), `record` reuses
+  that write's registers instead of re-reading them.
+
+`tests/trackingSyncEquivalence.test.js` holds `record` (with and without
+`from`) and `merge` to byte-identical JSON against the previous module, frozen
+in `tests/fixtures/tracking-sync.reference.js`, over random projects with
+malformed and legacy metadata and chains of clone round-trips.
+`tests/progressSyncReuse.test.js` checks when reuse may happen.
+
+`record` per call: ~130 ms at 1x (was ~900). In the app at 4x, large fixture,
+8 rapid taps: median tap-to-paint 104 ms at 50% (was 2.2-3.4 s), 1.16 s at 90%
+(was 5-7 s); total blocking per run ~7 s (was 27-33 s). Left: the full
+autosave (#8) fires in every 5 s pause and costs ~5 s at 4x on this chart, and
+with a long history the thread-usage ledger write (#9) keeps the
+long-history case at ~1.9 s.
+
 ## Where things stand
 
 The expensive structural problem is solved. The chart and its overlays are
