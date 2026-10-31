@@ -1048,7 +1048,11 @@ function drawParkMarker(ctx,pm,gut,cSz){ctx.save();parkMarkerPath(ctx,pm,gut,cSz
 // being redrawn, so a partial repaint draws exactly what a full one would.
 // isDoneAt (optional) overrides the done state, for callers that paint a
 // toggle before setDone has committed.
-function drawStitch(ctx,cSz,viewportRect,isDoneAt){let gut=G,dW=sW,dH=sH;const isDone=isDoneAt||(i=>!!(done&&done[i]));// Guide and park markers are read through refs: they are repainted
+function drawStitch(ctx,cSz,viewportRect,isDoneAt){let gut=G,dW=sW,dH=sH;// Marks come from the live ref, the array the newest tap painted, not the
+// rendered `done`: a tap commits its state as a transition, and a full redraw
+// for another update (a view change) can run before it — drawing the rendered
+// array would erase the stitch the tap just painted.
+const liveDone=doneRef.current||done;const isDone=isDoneAt||(i=>!!(liveDone&&liveDone[i]));// Guide and park markers are read through refs: they are repainted
 // incrementally (see the guide / park repaint effects) rather than by a
 // full renderStitch, so this function's closure may predate them.
 const hlRow=guideRef.current.row,hlCol=guideRef.current.col;const parkMarkers=parkMarkersRef.current,parkLayers=parkLayersRef.current;// Determine effective tier and animated feature opacities
@@ -1069,7 +1073,7 @@ function instructionCorners(ins){if(ins.type==='quarter')return[ins.corner];if(i
 // built per cell (the shared caches in colour-utils.js sit behind these).
 // They live across paints (a one-stitch repaint reuses them) and are rebuilt when the palette or the fade changes.
 const pendFade=tier<=2?lowZoomFade:0.5;let lc=stitchLookRef.current;if(lc.cmap!==cmap||lc.fade!==pendFade){lc=stitchLookRef.current={cmap:cmap,fade:pendFade,done:Object.create(null),pend:Object.create(null)};}const doneLooks=lc.done,pendLooks=lc.pend;function doneLookOf(m){const k=m.rgb[0]<<16|m.rgb[1]<<8|m.rgb[2];let l=doneLooks[k];if(!l)l=doneLooks[k]=doneStitchLook(m.rgb);return l;}function pendLookOf(m){const k=m.rgb[0]<<16|m.rgb[1]<<8|m.rgb[2];let l=pendLooks[k];if(!l)l=pendLooks[k]=pendingStitchLook(m.rgb,pendFade);return l;}// The "tick" done style: a dark corner triangle with a pale edge, readable on a pale or a dark cell.
-function drawDoneTick(px,py){const t=Math.max(4,Math.round(cSz*0.42));ctx.fillStyle="rgba(27,24,20,0.92)";ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+t);ctx.closePath();ctx.fill();ctx.strokeStyle="rgba(255,255,255,0.9)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py+t);ctx.stroke();}for(let y=startY;y<endY;y++){for(let x=startX;x<endX;x++){let idx=y*sW+x,m=pat[idx];if(!m)continue;let info=m.id==="__skip__"||m.id==="__empty__"?null:cmap?cmap[m.id]:null;let px=gut+x*cSz,py=gut+y*cSz;let isDn=isDoneAt?isDoneAt(idx):done&&done[idx];// ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
+function drawDoneTick(px,py){const t=Math.max(4,Math.round(cSz*0.42));ctx.fillStyle="rgba(27,24,20,0.92)";ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+t);ctx.closePath();ctx.fill();ctx.strokeStyle="rgba(255,255,255,0.9)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py+t);ctx.stroke();}for(let y=startY;y<endY;y++){for(let x=startX;x<endX;x++){let idx=y*sW+x,m=pat[idx];if(!m)continue;let info=m.id==="__skip__"||m.id==="__empty__"?null:cmap?cmap[m.id]:null;let px=gut+x*cSz,py=gut+y*cSz;let isDn=isDoneAt?isDoneAt(idx):liveDone&&liveDone[idx];// ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
 if(tier===1&&!partialStitches.has(idx)){if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}// Done is the thread colour; not done is that colour desaturated and lightened (colour-utils.js), so done
 // areas stand out at a glance, in greyscale too.
 ctx.fillStyle=isDn?doneLookOf(m).fill:pendLookOf(m).fill;ctx.fillRect(px,py,cSz,cSz);continue;}let dimmed=stitchView==="highlight"&&focusColour&&m.id!==focusColour&&m.id!=="__skip__"&&m.id!=="__empty__";const effectiveDimmed=dimmed&&highlightMode!=="outline"&&highlightMode!=="tint";const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#EFE7D6';// Unstitched cells show the pattern's fabric with a faint checker, as in the Creator (P2-2).
@@ -1148,10 +1152,12 @@ const renderStitchIfScrolledOut=useCallback(()=>{const painted=paintedRectRef.cu
 // `done` array reference changed — can skip the redundant full redraw. Anything
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
-// The skip names the exact array, not just "skip once": a tap commits as a
-// transition, so another update (a view or colour change) can commit first, and
-// that one must still get its full redraw.
-useEffect(()=>{const skip=skipNextFullRedrawRef.current;if(skip&&(skip===done||skip===bsDone)){skipNextFullRedrawRef.current=null;if(!specialtyStitches.length&&!beads.length)return;}renderStitch();},[renderStitch]);// The guide crosshair and park markers are repainted where they changed
+// The skip names the exact array, not just "skip once", and holds only when
+// nothing else that renderStitch draws changed in the same commit: a tap commits
+// as a transition, so another update (a view or colour change) can commit first
+// or alongside, and must still get its full redraw. Any full redraw also retires
+// the skip (the partial paint it stood for is superseded).
+const redrawInputsRef=useRef(null);useEffect(()=>{const inputs=[pat,cmap,scs,sW,sH,showCtr,bsLines,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected];const prev=redrawInputsRef.current;redrawInputsRef.current=inputs;const skip=skipNextFullRedrawRef.current;skipNextFullRedrawRef.current=null;const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length)return;renderStitch();},[renderStitch]);// The guide crosshair and park markers are repainted where they changed
 // rather than by a full renderStitch (they are not in its deps): moving the
 // guide repaints the old and new row and column, a park toggle repaints its
 // cell. drawStitch reads both through refs, so a later full repaint agrees.

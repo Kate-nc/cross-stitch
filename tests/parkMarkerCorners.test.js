@@ -203,7 +203,7 @@ describe('Spent park markers', () => {
 
   test('drawStitch skips spent markers, using the same done source as the cells', () => {
     expect(src).toMatch(/if\(isDone\(pm\.y\*sW\+pm\.x\)\)return; \/\/ spent/);
-    expect(src).toMatch(/const isDone=isDoneAt\|\|\(i=>!!\(done&&done\[i\]\)\);/);
+    expect(src).toMatch(/const isDone=isDoneAt\|\|\(i=>!!\(liveDone&&liveDone\[i\]\)\);/);   // live marks: a full redraw before a tap commits keeps it
   });
 
   test('legend counts skip spent markers and recompute when done changes', () => {

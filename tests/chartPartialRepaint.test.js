@@ -50,7 +50,7 @@ describe('repaintChartCells', () => {
 describe('drawStitch', () => {
   test('takes a done override so a toggle can paint before setDone commits', () => {
     expect(src).toMatch(/function drawStitch\(ctx,cSz,viewportRect,isDoneAt\)\{/);
-    expect(src).toMatch(/let isDn=isDoneAt\?isDoneAt\(idx\):\(done&&done\[idx\]\);/);
+    expect(src).toMatch(/let isDn=isDoneAt\?isDoneAt\(idx\):\(liveDone&&liveDone\[idx\]\);/);
   });
 
   test('reads the guide and park markers through refs', () => {

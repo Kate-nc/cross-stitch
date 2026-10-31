@@ -5389,7 +5389,12 @@ function drawParkMarker(ctx,pm,gut,cSz){
 // toggle before setDone has committed.
 function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   let gut=G,dW=sW,dH=sH;
-  const isDone=isDoneAt||(i=>!!(done&&done[i]));
+  // Marks come from the live ref, the array the newest tap painted, not the
+  // rendered `done`: a tap commits its state as a transition, and a full redraw
+  // for another update (a view change) can run before it — drawing the rendered
+  // array would erase the stitch the tap just painted.
+  const liveDone=doneRef.current||done;
+  const isDone=isDoneAt||(i=>!!(liveDone&&liveDone[i]));
   // Guide and park markers are read through refs: they are repainted
   // incrementally (see the guide / park repaint effects) rather than by a
   // full renderStitch, so this function's closure may predate them.
@@ -5485,7 +5490,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
       let px=gut+x*cSz,py=gut+y*cSz;
-      let isDn=isDoneAt?isDoneAt(idx):(done&&done[idx]);
+      let isDn=isDoneAt?isDoneAt(idx):(liveDone&&liveDone[idx]);
 
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
       if(tier===1&&!partialStitches.has(idx)){
@@ -5836,12 +5841,20 @@ const renderStitchIfScrolledOut=useCallback(()=>{
 // `done` array reference changed — can skip the redundant full redraw. Anything
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
-// The skip names the exact array, not just "skip once": a tap commits as a
-// transition, so another update (a view or colour change) can commit first, and
-// that one must still get its full redraw.
+// The skip names the exact array, not just "skip once", and holds only when
+// nothing else that renderStitch draws changed in the same commit: a tap commits
+// as a transition, so another update (a view or colour change) can commit first
+// or alongside, and must still get its full redraw. Any full redraw also retires
+// the skip (the partial paint it stood for is superseded).
+const redrawInputsRef=useRef(null);
 useEffect(()=>{
+  const inputs=[pat,cmap,scs,sW,sH,showCtr,bsLines,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected];
+  const prev=redrawInputsRef.current;
+  redrawInputsRef.current=inputs;
   const skip=skipNextFullRedrawRef.current;
-  if(skip&&(skip===done||skip===bsDone)){skipNextFullRedrawRef.current=null;if(!specialtyStitches.length&&!beads.length)return;}
+  skipNextFullRedrawRef.current=null;
+  const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));
+  if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length)return;
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed

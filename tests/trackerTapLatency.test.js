@@ -146,13 +146,24 @@ describe('marks-only full saves wait on large charts (#8)', () => {
 });
 
 describe('audit fixes', () => {
-  test('the full-redraw skip names the array it is for, so an earlier commit still redraws', () => {
-    const effect = between('// The skip names the exact array', '},[renderStitch]);');
-    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)\)\{skipNextFullRedrawRef\.current=null;/);
+  test('the full-redraw skip names its array, holds only when nothing else changed, and any redraw retires it', () => {
+    const effect = between('const redrawInputsRef=useRef(null);', '},[renderStitch]);');
+    expect(effect).toMatch(/const skip=skipNextFullRedrawRef\.current;\n  skipNextFullRedrawRef\.current=null;/);
+    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!specialtyStitches\.length&&!beads\.length\)return;/);
     expect(SRC).not.toMatch(/skipNextFullRedrawRef\.current=true/);
-    // Every site hands over the array it is about to commit.
     expect(SRC.match(/skipNextFullRedrawRef\.current=nd;/g).length).toBeGreaterThanOrEqual(6);
     expect(SRC).toMatch(/const next=Array\.from\(bsDoneSetRef\.current\);\n  skipNextFullRedrawRef\.current=next;\n  setBsDone\(next\);/);
+    // The inputs compared are renderStitch's dependencies minus the two mark arrays the skip can stand for.
+    const deps = between('const renderStitch=useCallback(', '\n},[').length;
+    const depList = SRC.slice(SRC.indexOf('const renderStitch=useCallback(') + deps).match(/^\n\},\[([^\]]*)\]\);/)[1].split(',');
+    const inputs = between('const inputs=[', '];').slice('const inputs=['.length).split(',');
+    expect(inputs.sort()).toEqual(depList.filter(d => d !== 'done' && d !== 'bsDone').sort());
+  });
+
+  test('a full redraw draws marks from the live ref, so a redraw before a tap commits keeps it', () => {
+    const fn = between('function drawStitch(ctx,cSz,viewportRect,isDoneAt){', 'const isDone=');
+    expect(fn).toMatch(/const liveDone=doneRef\.current\|\|done;/);
+    expect(SRC).toMatch(/let isDn=isDoneAt\?isDoneAt\(idx\):\(liveDone&&liveDone\[idx\]\);/);
   });
 
   test('edit-mode removal reads the live marks, not the rendered ones', () => {

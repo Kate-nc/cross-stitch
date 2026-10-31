@@ -99,13 +99,13 @@ test('a full save in between (a new base) reads the stored copy', async () => {
   expect(calls.map(c => !!c.from)).toEqual([false]);
 });
 
-test('without a tab id nothing is reused', async () => {
+test('without a tab id the last write is still known by its write id', async () => {
   await ProjectStorage.save(proj());
   const b = (await ProjectStorage.get('proj_s')).lastWriteAt;
   await ProjectStorage.saveProgress('proj_s', { done: marks(1), baseWriteAt: b });
   calls = [];
   await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b });
-  expect(calls.map(c => !!c.from)).toEqual([false]);
+  expect(calls.map(c => !!c.from)).toEqual([true]);
 });
 
 test('saveProgress says false when nothing reloading would apply was written', async () => {
@@ -118,4 +118,47 @@ test('saveProgress says false when nothing reloading would apply was written', a
   // The current base: written and applied.
   expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b, tabId: 'tab-1' })).toBe(true);
   expect((await ProjectStorage.get('proj_s')).done.slice(0, 3)).toEqual([0, 1, 1]);
+});
+
+describe('review of PR 405', () => {
+  const Store = require('fake-indexeddb/lib/FDBObjectStore');
+  const StoreClass = Store.default || Store;
+  const realNow = Date.now;
+  const realPut = StoreClass.prototype.put;
+  afterEach(() => { Date.now = realNow; StoreClass.prototype.put = realPut; });
+
+  test('a write turned away because a newer record is stored says false', async () => {
+    await ProjectStorage.save(proj());
+    const b = (await ProjectStorage.get('proj_s')).lastWriteAt;
+    const t = realNow();
+    Date.now = () => t + 10000;                                     // the newer record
+    expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b, tabId: 'tab-1' })).toBe(true);
+    Date.now = () => t;                                             // an older call arriving late
+    expect(await ProjectStorage.saveProgress('proj_s', { done: marks(3), baseWriteAt: b, tabId: 'tab-1' })).toBe(false);
+    Date.now = realNow;
+    expect((await ProjectStorage.get('proj_s')).done.slice(0, 5)).toEqual([0, 1, 1, 0, 0]);
+  });
+
+  test('an aborted write leaves nothing for the next one to reuse, even with the same timestamp', async () => {
+    await ProjectStorage.save(proj());
+    const b = (await ProjectStorage.get('proj_s')).lastWriteAt;
+    const t = realNow();
+    Date.now = () => t;
+    expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1), baseWriteAt: b, tabId: 'tab-1' })).toBe(true);
+    // The removal of that mark is put, then its transaction aborts.
+    let abortNext = true;
+    StoreClass.prototype.put = function () {
+      const r = realPut.apply(this, arguments);
+      if (abortNext && this.name === 'pendingImports') { abortNext = false; this.transaction.abort(); }
+      return r;
+    };
+    expect(await ProjectStorage.saveProgress('proj_s', { done: marks(), baseWriteAt: b, tabId: 'tab-1' })).toBe(false);
+    StoreClass.prototype.put = realPut;
+    expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b, tabId: 'tab-1' })).toBe(true);
+    Date.now = realNow;
+    const p = await ProjectStorage.get('proj_s');
+    expect(p.done.slice(0, 5)).toEqual([0, 1, 1, 0, 0]);
+    // The sync metadata must agree with the marks: mark 1 is not recorded as removed.
+    expect(TrackingSync.merge(p, {}).done.slice(0, 5)).toEqual([0, 1, 1, 0, 0]);
+  });
 });
