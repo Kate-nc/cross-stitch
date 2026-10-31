@@ -38,18 +38,32 @@ describe('scroll does not repaint while the viewport is inside the painted regio
     expect(tracker).not.toMatch(/OVERDRAW\s*=\s*Math\.max\(40,\s*20\s*\*\s*cSz\)/);
   });
 
-  test('renderStitch records the region it painted', () => {
-    expect(tracker).toMatch(/paintedRectRef\.current=\{[\s\S]{0,200}left:viewportRect\.left-od/);
-    // A null viewportRect means the whole chart was drawn, so every scroll
-    // position is already covered.
-    expect(tracker).toMatch(/paintedRectRef\.current=\{left:-Infinity,top:-Infinity,right:Infinity,bottom:Infinity/);
+  test('renderStitch paints the whole tile and records it, and who painted it', () => {
+    const fn = tracker.slice(tracker.indexOf('const renderStitch=useCallback('), tracker.indexOf('// Scroll-driven repaint.'));
+    // A full tile used to paint only the viewport plus a margin, and repaint
+    // as you scrolled out of it, on a canvas that already covered everything.
+    expect(fn).toMatch(/drawStitch\(ctx,scs,\{left:tile\.x, top:tile\.y, right:tile\.x\+paintW, bottom:tile\.y\+paintH,/);
+    expect(fn).not.toMatch(/tile\.full \? viewportRect/);
+    expect(fn).toMatch(/paintedRectRef\.current=\{\s*left:tile\.x, top:tile\.y, right:tile\.x\+tile\.w, bottom:tile\.y\+tile\.h, scs:scs\s*\};/);
+    expect(fn).toMatch(/chartPaintedByRef\.current=renderStitch;/);
   });
 
   test('the scroll handler skips the repaint when still inside that region', () => {
     const fn = tracker.slice(tracker.indexOf('const renderStitchIfScrolledOut'), tracker.indexOf('// PERF: single/bulk stitch toggles'));
     expect(fn).toMatch(/painted\.scs===scs/);
     expect(fn).toMatch(/l>=painted\.left&&t>=painted\.top&&r<=painted\.right&&b<=painted\.bottom\)return;/);
-    expect(fn).toMatch(/renderStitch\(\);/);
+    expect(fn).toMatch(/if\(shiftChartTile\(\)\)return;\n  renderStitch\(\);/);
+  });
+
+  test('only the part of the view that is chart is checked', () => {
+    // The scroller runs a few px past the chart (ruler borders; 60 px on
+    // tablets for the controls strip), which the tile can never cover. At the
+    // right or bottom edge the check failed on every frame, so each scroll
+    // frame repainted the whole tile: 150-350 ms frames when zoomed out.
+    const fn = tracker.slice(tracker.indexOf('const renderStitchIfScrolledOut'), tracker.indexOf('function shiftChartTile('));
+    expect(fn).toMatch(/const cr=off\.x\+G\+\(v\.x1-v\.x0\)\*scs\+2, cb=off\.y\+G\+\(v\.y1-v\.y0\)\*scs\+2;/);
+    expect(fn).toMatch(/const r=Math\.min\(cr,/);
+    expect(fn).toMatch(/b=Math\.min\(cb,/);
   });
 
   test('onScroll goes through the skip check, not straight to renderStitch', () => {
@@ -61,6 +75,55 @@ describe('scroll does not repaint while the viewport is inside the painted regio
     // A zoom change resizes the canvas and invalidates everything on it, so a
     // painted region recorded at a different scs must never be trusted.
     expect(tracker).toMatch(/scs:scs\s*\n?\s*\};/);
+  });
+});
+
+describe('a tile move keeps what is already drawn', () => {
+  const fn = tracker.slice(tracker.indexOf('function shiftChartTile('), tracker.indexOf('// PERF: single/bulk stitch toggles'));
+
+  test('it copies the overlap and paints only the uncovered strips, clipped', () => {
+    expect(fn).toMatch(/ctx\.drawImage\(canvas, ddx>0\?ax:0, ddy>0\?ay:0, W-ax, H-ay, ddx>0\?0:ax, ddy>0\?0:ay, W-ax, H-ay\);/);
+    expect(fn).toMatch(/ctx\.rect\(l,t,r-l,b-t\);ctx\.clip\(\);/);
+    expect(fn).toMatch(/drawStitch\(ctx,scs,\{left:l-m,top:t-m,right:r\+m,bottom:b\+m,/);
+    expect(fn).toMatch(/redrawChartOverlays\(\);\n  return true;/);
+  });
+
+  test('it refuses whenever the pixels on the canvas cannot be kept as they are', () => {
+    // Something drawn changed since the last full paint.
+    expect(fn).toMatch(/if\(chartPaintedByRef\.current!==renderStitch\)return false;/);
+    // A different size or render scale, a move bigger than the tile, or a
+    // move that is not a whole number of device pixels.
+    expect(fn).toMatch(/if\(tile\.full\|\|tile\.w!==prev\.w\|\|tile\.h!==prev\.h\)return false;/);
+    expect(fn).toMatch(/if\(want!==s\|\|canvas\.width!==Math\.round\(tile\.w\*s\)\|\|canvas\.height!==Math\.round\(tile\.h\*s\)\)return false;/);
+    expect(fn).toMatch(/Math\.abs\(dx\)>=tile\.w\|\|Math\.abs\(dy\)>=tile\.h\)return false;/);
+    expect(fn).toMatch(/Math\.abs\(ddx-Math\.round\(ddx\)\)>1e-6\|\|Math\.abs\(ddy-Math\.round\(ddy\)\)>1e-6\)return false;/);
+  });
+
+  test('every paint uses the detail tier for the current cell size', () => {
+    // The tier effect runs after the redraw effect, so a zoom across the Tier
+    // 3/4 boundary painted the previous tier and nothing repainted it. A kept
+    // tile would keep that mistake, so drawStitch works the tier out itself.
+    const draw = tracker.slice(tracker.indexOf('function drawStitch(ctx,cSz,viewportRect,isDoneAt){'), tracker.indexOf('const symAlpha='));
+    expect(draw).toMatch(/if\(!lockDetailLevel\)tierRef\.current=computeDetailTier\(cSz,tierRef\.current\);\n  const tier=lockDetailLevel\?3:tierRef\.current;/);
+  });
+});
+
+describe('two-finger pans', () => {
+  test('a zoom too small to change the cell size does not repaint the chart', () => {
+    // drawStitch draws with scs, never stitchZoom; with stitchZoom in the
+    // dependencies every fraction-of-a-percent zoom repainted the whole tile.
+    const deps = tracker.match(/\n\},\[pat,cmap,scs,sW,sH,showCtr,bsLines,done,[^\]]*\]\);/)[0];
+    expect(deps).not.toMatch(/stitchZoom/);
+    const inputs = tracker.slice(tracker.indexOf('const inputs=['), tracker.indexOf('const prev=redrawInputsRef.current;'));
+    expect(inputs).not.toMatch(/stitchZoom/);
+  });
+
+  test('the fingers must pinch past a dead band before the chart zooms', () => {
+    // Finger drift of a pixel or two zoomed on every move, and each zoom
+    // re-rendered the tracker: 79 frames over 50 ms in a 6-gesture pan.
+    expect(tracker).toMatch(/const PINCH_ZOOM_DEADBAND=0\.04;/);
+    expect(tracker).toMatch(/if\(!ts\.pinchZooming\)\{\n    if\(Math\.abs\(dist\/ts\.pinchDist-1\)<PINCH_ZOOM_DEADBAND\)dist=ts\.pinchDist;\n    else\{ts\.pinchZooming=true;ts\.pinchDist=dist;\}\n  \}/);
+    expect(tracker).toMatch(/ts\.pinchZoom=stitchZoomRef\.current;\n    ts\.pinchZooming=false;/);
   });
 });
 

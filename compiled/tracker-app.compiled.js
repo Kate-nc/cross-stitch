@@ -38,7 +38,13 @@ for(let x=r.x0;x<=r.x1;x++){let run=-1;for(let y=r.y0;y<=r.y1;y++){const edge=y<
 
    When the whole chart already fits in one tile the origin is (0,0) and the
    geometry is identical to the pre-tiling behaviour, so small patterns and
-   desktop are untouched. `full` records which regime a tile is in. */const CHART_TILE_OVERSCAN=typeof window!=='undefined'&&window.chartTileOverscan||300;// Geometry of the tile that should be showing for a given scroller position.
+   desktop are untouched. `full` records which regime a tile is in. */const CHART_TILE_OVERSCAN=typeof window!=='undefined'&&window.chartTileOverscan||300;// How close the view may get to the tile's edge before the tile moves on (see
+// renderStitchIfScrolledOut).
+const CHART_PAN_LOOKAHEAD=Math.round(CHART_TILE_OVERSCAN/3);// stitch.html?tileshift=0 turns off keeping the drawn tile on a move
+// (shiftChartTile), so the two can be compared on a real device with
+// ?perf=1. The emulated harness cannot settle it: its canvas is drawn on the
+// CPU, where copying the tile costs far more than on a phone's GPU.
+const CHART_TILE_SHIFT=!(typeof location!=='undefined'&&/[?&]tileshift=0(&|$)/.test(location.search));// Geometry of the tile that should be showing for a given scroller position.
 // `x`/`y` are in chart coordinates and name the chart pixel that lands on
 // canvas pixel 0.
 //
@@ -271,7 +277,12 @@ const[reconcile,setReconcile]=useState(null);// Marking a whole colour done: ask
 const[markAllAsk,setMarkAllAsk]=useState(null);const savesBlockedRef=useRef(false);const dragStateRef=useRef({isDragging:false,dragVal:1});const dragChangesRef=useRef([]);const scrollRafRef=useRef(null);// Canvas-space region currently painted on the chart, plus the cell size it
 // was painted at. Set by renderStitch, read by renderStitchIfScrolledOut to
 // skip repaints while the viewport is still inside it.
-const paintedRectRef=useRef(null);// Tile the chart canvas currently shows (see chartTileFor). Every conversion
+const paintedRectRef=useRef(null);// The renderStitch that last made the chart canvas match state: set by its
+// full paints, and by the redraw effect when a mark's own partial paint stood
+// in for one. While it is still the current renderStitch nothing drawn has
+// changed, so the pixels on the canvas are still right and a tile move can
+// keep them (shiftChartTile).
+const chartPaintedByRef=useRef(null);// Tile the chart canvas currently shows (see chartTileFor). Every conversion
 // between screen and chart coordinates has to add this origin back, so it is
 // the one place that knows where the canvas is, and it must be set before any
 // draw or hit-test reads it — renderStitch does that on the first paint.
@@ -1055,8 +1066,12 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){let gut=G,dW=sW,dH=sH;// Mark
 const liveDone=doneRef.current||done;const isDone=isDoneAt||(i=>!!(liveDone&&liveDone[i]));// Guide and park markers are read through refs: they are repainted
 // incrementally (see the guide / park repaint effects) rather than by a
 // full renderStitch, so this function's closure may predate them.
-const hlRow=guideRef.current.row,hlCol=guideRef.current.col;const parkMarkers=parkMarkersRef.current,parkLayers=parkLayersRef.current;// Determine effective tier and animated feature opacities
-const tier=lockDetailLevel?3:tierRef.current;const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);// Viewport culling: 20-cell overdraw buffer for smooth panning. A tiled
+const hlRow=guideRef.current.row,hlCol=guideRef.current.col;const parkMarkers=parkMarkersRef.current,parkLayers=parkLayersRef.current;// Determine effective tier and animated feature opacities. The tier is
+// brought up to date for this cell size here, not only in the tier effect:
+// that effect runs after the redraw effect, so a zoom across the Tier 3/4
+// boundary (where no fade animates, so nothing repaints) was painted with
+// the previous tier and stayed that way. computeDetailTier is idempotent.
+if(!lockDetailLevel)tierRef.current=computeDetailTier(cSz,tierRef.current);const tier=lockDetailLevel?3:tierRef.current;const symAlpha=lockDetailLevel?1.0:tierFadeRef.current.symbolOpacity;const bsHsAlpha=lockDetailLevel?1.0:tierFadeRef.current.bsHsOpacity;ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(0,0,gut+dW*cSz+2,gut+dH*cSz+2);// Viewport culling: 20-cell overdraw buffer for smooth panning. A tiled
 // caller passes its own margin (0 — the tile already includes it), so the
 // paint cannot spill past the backing store it was sized for.
 const OVERDRAW=viewportRect&&typeof viewportRect.overdraw==="number"?viewportRect.overdraw:chartOverdraw(cSz);let startX=0,startY=0,endX=dW,endY=dH;if(viewportRect){startX=Math.max(0,Math.floor((viewportRect.left-gut-OVERDRAW)/cSz));startY=Math.max(0,Math.floor((viewportRect.top-gut-OVERDRAW)/cSz));endX=Math.min(dW,Math.ceil((viewportRect.right-gut+OVERDRAW)/cSz));endY=Math.min(dH,Math.ceil((viewportRect.bottom-gut+OVERDRAW)/cSz));}// A work area clips the chart to its view: nothing outside is visible, so
@@ -1125,16 +1140,20 @@ if(!chartTileIsLive(canvas,ctx)&&!tile.full){// Shrink toward the viewport rathe
 // on what was showing, and clamped to the chart's bounds.
 const fullW=G+sW*scs+2,fullH=G+sH*scs+2;const viewportW=Math.max(1,el?el.clientWidth:tile.w);const viewportH=Math.max(1,el?el.clientHeight:tile.h);const reducedW=Math.max(viewportW,Math.floor(tile.w/2));const reducedH=Math.max(viewportH,Math.floor(tile.h/2));const xShift=Math.max(0,Math.floor((tile.w-reducedW)/2));const yShift=Math.max(0,Math.floor((tile.h-reducedH)/2));tile={x:Math.max(0,Math.min(tile.x+xShift,fullW-reducedW)),y:Math.max(0,Math.min(tile.y+yShift,fullH-reducedH)),w:reducedW,h:reducedH,full:false};ctx=applyChartTile(canvas,tile,G,{blankOnMove:false,scale:chartScale}).ctx;delete canvas.__chartTileProbe;}const prevTile=chartTileRef.current;// Carries the render scale too: repaintChartCells re-establishes this
 // transform for partial repaints and needs both halves of it.
-chartTileRef.current={x:tile.x,y:tile.y,w:tile.w,h:tile.h,full:tile.full,scale:chartScale};let viewportRect=null;if(el){const off=chartScrollOffset(scs);viewportRect={left:el.scrollLeft+off.x,top:el.scrollTop+off.y,width:el.clientWidth,height:el.clientHeight,right:el.scrollLeft+off.x+el.clientWidth,bottom:el.scrollTop+off.y+el.clientHeight};}// On a tile, the paintable region *is* the tile, so ask drawStitch for
-// exactly that and no overdraw on top: the tile already contains the margin,
-// and growing past it would only draw cells that get clipped away.
-const drawRect=tile.full?viewportRect:{left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,width:tile.w,height:tile.h,overdraw:0};drawStitch(ctx,scs,drawRect);// Record what is now on the canvas so the scroll handler can tell whether a
-// repaint is actually needed. Untiled, drawStitch paints viewportRect grown
-// by the overdraw margin, so that grown rect is the valid region; tiled, the
-// valid region is the tile itself. Null means the whole chart was drawn and
-// any scroll position is already covered.
-if(!tile.full){paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};}else if(viewportRect){const od=chartOverdraw(scs);paintedRectRef.current={left:viewportRect.left-od,top:viewportRect.top-od,right:viewportRect.right+od,bottom:viewportRect.bottom+od,scs:scs};}else{paintedRectRef.current={left:-Infinity,top:-Infinity,right:Infinity,bottom:Infinity,scs:scs};}// Overlays share the chart's geometry, so a tile move invalidates them too.
-const tileChanged=!prevTile||prevTile.x!==tile.x||prevTile.y!==tile.y||prevTile.w!==tile.w||prevTile.h!==tile.h||prevTile.full!==tile.full;if(tileChanged)redrawChartOverlays();},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);// Scroll-driven repaint. Previously every scroll frame ran a full
+chartTileRef.current={x:tile.x,y:tile.y,w:tile.w,h:tile.h,full:tile.full,scale:chartScale};// The paintable region *is* the tile, so ask drawStitch for exactly that and
+// no overdraw on top: the tile already contains the margin, and growing past
+// it would only draw cells that get clipped away. A full tile (the whole
+// view fits in one) is painted whole, once, so scrolling it never repaints;
+// it used to paint only the viewport plus a margin and repaint as you
+// scrolled out of it, on a canvas that already covered everything.
+// The backing store is the tile times the scale, rounded, so its last
+// device row or column can reach a fraction past the tile: paint to there.
+const paintW=Math.max(tile.w,canvas.width/chartScale),paintH=Math.max(tile.h,canvas.height/chartScale);drawStitch(ctx,scs,{left:tile.x,top:tile.y,right:tile.x+paintW,bottom:tile.y+paintH,width:paintW,height:paintH,overdraw:0});// Record what is now on the canvas so the scroll handler can tell whether a
+// repaint is actually needed, and which renderStitch painted it: a later
+// one means something drawn has changed, so shiftChartTile cannot reuse
+// these pixels.
+paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};chartPaintedByRef.current=renderStitch;// Overlays share the chart's geometry, so a tile move invalidates them too.
+const tileChanged=!prevTile||prevTile.x!==tile.x||prevTile.y!==tile.y||prevTile.w!==tile.w||prevTile.h!==tile.h||prevTile.full!==tile.full;if(tileChanged)redrawChartOverlays();},[pat,cmap,scs,sW,sH,showCtr,bsLines,done,stitchView,focusColour,halfStitches,halfDone,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected]);// Scroll-driven repaint. Previously every scroll frame ran a full
 // renderStitch, which repainted the visible slice plus a 20-cell margin from
 // scratch — measured at ~3,500 fillRect calls per touchmove and 51-127 s of
 // blocking across 8 pan gestures at 4x CPU throttle. The margin already
@@ -1143,7 +1162,37 @@ const tileChanged=!prevTile||prevTile.x!==tile.x||prevTile.y!==tile.y||prevTile.
 // bitmap on its own. Anything that changes what the chart *looks* like goes
 // through renderStitch (see its dependency array), which repaints and resets
 // the region, so this cannot serve stale pixels.
-const renderStitchIfScrolledOut=useCallback(()=>{const painted=paintedRectRef.current,el=stitchScrollRef.current;if(painted&&el&&painted.scs===scs){const off=chartScrollOffset(scs);const l=el.scrollLeft+off.x,t=el.scrollTop+off.y;const r=l+el.clientWidth,b=t+el.clientHeight;if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;}renderStitch();},[renderStitch,scs]);// PERF: single/bulk stitch toggles already paint their own changed cells directly
+//
+// Two refinements (reports/track-pan-performance-audit.md):
+// - Only the part of the view that is chart counts. The scroller reaches a
+//   few px past the chart (the rulers' borders; on tablets the 60 px margin
+//   kept for the controls strip), and the tile, clamped to the chart, can
+//   never cover that. At the right or bottom edge the check used to fail on
+//   every frame, so each scroll frame repainted the whole tile.
+// - The tile moves a little before the view reaches its edge (CHART_PAN_LOOKAHEAD),
+//   so a fast pan or a fling does not run into unpainted canvas. That is
+//   affordable because a move keeps what is already drawn (shiftChartTile).
+const renderStitchIfScrolledOut=useCallback(()=>{const painted=paintedRectRef.current,el=stitchScrollRef.current;if(painted&&el&&painted.scs===scs){const off=chartScrollOffset(scs);const v=viewBoundsRef.current;const cl=off.x,ct=off.y;const cr=off.x+G+(v.x1-v.x0)*scs+2,cb=off.y+G+(v.y1-v.y0)*scs+2;const l=Math.max(cl,el.scrollLeft+off.x-CHART_PAN_LOOKAHEAD),t=Math.max(ct,el.scrollTop+off.y-CHART_PAN_LOOKAHEAD);const r=Math.min(cr,el.scrollLeft+off.x+el.clientWidth+CHART_PAN_LOOKAHEAD),b=Math.min(cb,el.scrollTop+off.y+el.clientHeight+CHART_PAN_LOOKAHEAD);if(l>=painted.left&&t>=painted.top&&r<=painted.right&&b<=painted.bottom)return;}if(shiftChartTile())return;renderStitch();},[renderStitch,scs]);// Move the chart tile for a scroll by keeping what it already shows: the
+// overlapping part of the old tile is copied to its new place on the same
+// canvas, and only the strips that come into view are drawn (clipped, like
+// repaintChartCells, so they match a full paint exactly). A pan used to
+// redraw the whole tile, about five screens of cells on a phone, every 300 px
+// of travel: 100-400 ms per move at 4x CPU on a 400 x 500 chart.
+//
+// Returns false, leaving it to a full renderStitch, whenever the pixels on the
+// canvas cannot be trusted or kept as they are: something drawn changed since
+// they were painted, the tile changed size or render scale, it moved further
+// than its own size, or the move is not a whole number of device pixels (a
+// 1.5x scale and an odd move), which would blur the copy.
+function shiftChartTile(){const canvas=stitchRef.current,el=stitchScrollRef.current,prev=chartTileRef.current;if(!CHART_TILE_SHIFT||!canvas||!el||!pat||!cmap||!prev||!(prev.w>0)||prev.full)return false;if(chartPaintedByRef.current!==renderStitch)return false;const tile=chartTileFor(el,scs,sW,sH,G,viewBoundsRef.current);if(tile.full||tile.w!==prev.w||tile.h!==prev.h)return false;const s=prev.scale>0?prev.scale:1;const want=typeof window.chartRenderScale==="function"?window.chartRenderScale(tile.w*tile.h):1;if(want!==s||canvas.width!==Math.round(tile.w*s)||canvas.height!==Math.round(tile.h*s))return false;const dx=tile.x-prev.x,dy=tile.y-prev.y;if(!dx&&!dy||Math.abs(dx)>=tile.w||Math.abs(dy)>=tile.h)return false;const ddx=dx*s,ddy=dy*s;if(Math.abs(ddx-Math.round(ddx))>1e-6||Math.abs(ddy-Math.round(ddy))>1e-6)return false;const ctx=canvas.getContext("2d");const W=canvas.width,H=canvas.height,ax=Math.abs(Math.round(ddx)),ay=Math.abs(Math.round(ddy));// Device pixels, no transform. Drawing a canvas onto itself reads a copy of
+// the source first, so the overlap is safe.
+ctx.setTransform(1,0,0,1,0,0);ctx.drawImage(canvas,ddx>0?ax:0,ddy>0?ay:0,W-ax,H-ay,ddx>0?0:ax,ddy>0?0:ay,W-ax,H-ay);applyChartTile(canvas,tile,G,{blankOnMove:false,scale:s});chartTileRef.current={x:tile.x,y:tile.y,w:tile.w,h:tile.h,full:false,scale:s};// The uncovered strips: a full-height one for a sideways move, and one
+// across the kept columns for a move up or down. Worked out in device
+// pixels, so they meet the copied area exactly even when the tile's size
+// times the scale is not a whole number, then turned into chart pixels.
+const strips=[];const kx0=ddx>0?0:ax,kx1=ddx>0?W-ax:W;if(ddx>0)strips.push([W-ax,0,W,H]);else if(ddx<0)strips.push([0,0,ax,H]);if(ddy>0)strips.push([kx0,H-ay,kx1,H]);else if(ddy<0)strips.push([kx0,0,kx1,ay]);for(const st of strips){const l=tile.x+st[0]/s,t=tile.y+st[1]/s,r=tile.x+st[2]/s,b=tile.y+st[3]/s;if(r<=l||b<=t)continue;ctx.setTransform(s,0,0,s,-tile.x*s,-tile.y*s);ctx.save();ctx.beginPath();ctx.rect(l,t,r-l,b-t);ctx.clip();// One cell further on every side, so outlines and markers that overhang
+// into the strip from its neighbours are drawn too (see repaintChartCells).
+const m=scs;drawStitch(ctx,scs,{left:l-m,top:t-m,right:r+m,bottom:b+m,width:r-l+2*m,height:b-t+2*m,overdraw:0});ctx.restore();}paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};redrawChartOverlays();return true;}// PERF: single/bulk stitch toggles already paint their own changed cells directly
 // via paintDoneChanges() (see markColourDone / _commitBulk / _dragMarkOnToggle /
 // undoTrack / redoTrack) for instant feedback. Those call sites set
 // skipNextFullRedrawRef.current to the array they are about to commit (setDone, or
@@ -1157,7 +1206,8 @@ const renderStitchIfScrolledOut=useCallback(()=>{const painted=paintedRectRef.cu
 // as a transition, so another update (a view or colour change) can commit first
 // or alongside, and must still get its full redraw. Any full redraw also retires
 // the skip (the partial paint it stood for is superseded).
-const redrawInputsRef=useRef(null);useEffect(()=>{const inputs=[pat,cmap,scs,sW,sH,showCtr,bsLines,stitchView,focusColour,halfStitches,halfDone,stitchZoom,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected];const prev=redrawInputsRef.current;redrawInputsRef.current=inputs;const skip=skipNextFullRedrawRef.current;skipNextFullRedrawRef.current=null;const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length)return;renderStitch();},[renderStitch]);// The guide crosshair and park markers are repainted where they changed
+const redrawInputsRef=useRef(null);useEffect(()=>{const inputs=[pat,cmap,scs,sW,sH,showCtr,bsLines,stitchView,focusColour,halfStitches,halfDone,highlightMode,tintColor,tintOpacity,spotDimOpacity,trackerDimLevel,layerVis,bsThickness,lockDetailLevel,lowZoomFade,doneStyle,rowModeActive,currentRow,chartFabricColour,gridStyleEff,gridColour,gridEvery,trackerCanvasTexture,viewBounds,areaOn,workArea,knots,knotDoneSet,partialStitches,partialDone,bsSelect,beads,beadsDone,selectedBead,specialtyStitches,specialtyDone,specialtySelected];const prev=redrawInputsRef.current;redrawInputsRef.current=inputs;const skip=skipNextFullRedrawRef.current;skipNextFullRedrawRef.current=null;const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));// The mark painted its own cells, so the canvas matches state again.
+if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length){chartPaintedByRef.current=renderStitch;return;}renderStitch();},[renderStitch]);// The guide crosshair and park markers are repainted where they changed
 // rather than by a full renderStitch (they are not in its deps): moving the
 // guide repaints the old and new row and column, a park toggle repaints its
 // cell. drawStitch reads both through refs, so a later full repaint agrees.
@@ -1413,7 +1463,9 @@ const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));const sc
 function chartOwnsGesture(e){if(e.touches.length>1)return true;// Locked: a stray finger neither marks nor scrolls.
 if(touchLocked)return true;if(!_dragMarkActive)return false;if(!_dragMarkFlag)return false;if(paintMode)return true;// One finger in Mark mode scrolls natively (a quick swipe marks nothing) until it has rested on a stitch long
 // enough to paint; from then on the page must not scroll under it. See useDragMark.js, "Touch intent".
-const g=dragMarkGetStateRef.current&&dragMarkGetStateRef.current();return!!(g&&(g.mode==='drag'||g.armed||g.mode==='range'&&g.held));}// Two-finger pan momentum: after a pan (not a pinch) the chart coasts and
+const g=dragMarkGetStateRef.current&&dragMarkGetStateRef.current();return!!(g&&(g.mode==='drag'||g.armed||g.mode==='range'&&g.held));}// How far (as a share of the starting distance) two fingers must pinch or
+// spread before the chart zooms, so a two-finger pan stays a pan.
+const PINCH_ZOOM_DEADBAND=0.04;// Two-finger pan momentum: after a pan (not a pinch) the chart coasts and
 // slows, as native one-finger scrolling does in Navigate mode. Any new touch
 // or press stops it; off when the system asks for reduced motion.
 const panMomentumRafRef=useRef(null);function stopPanMomentum(){if(panMomentumRafRef.current){cancelAnimationFrame(panMomentumRafRef.current);panMomentumRafRef.current=null;}}function startPanMomentum(vx,vy){stopPanMomentum();const el=stitchScrollRef.current;if(!el)return;try{if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;}catch(_){}let last=performance.now();const step=now=>{const dt=Math.min(64,now-last);last=now;// Fingers moved by v px/ms, so the content scrolls the other way.
@@ -1427,11 +1479,17 @@ ts.mode="tap";}else if(e.touches.length===2){// Two fingers pan and pinch-zoom t
 // point between the fingers is recorded in zoom-independent content
 // units, so each move can put it back under the current midpoint at the
 // current zoom (same maths as handleStitchWheel).
-ts.mode="pinch";const container=stitchScrollRef.current;const t0=e.touches[0],t1=e.touches[1];ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);ts.pinchZoom=stitchZoomRef.current;ts.pinchSamples=[];if(container){const rect=container.getBoundingClientRect();const midX=(t0.clientX+t1.clientX)/2-rect.left;const midY=(t0.clientY+t1.clientY)/2-rect.top;ts.pinchAnchor={x:(container.scrollLeft+midX)/ts.pinchZoom,y:(container.scrollTop+midY)/ts.pinchZoom};}}}function handleTouchMove(e){if(!pat)return;if(chartOwnsGesture(e))e.preventDefault();const ts=touchStateRef.current;// One finger: nothing to do. In Mark mode it marks (useDragMark) and must
+ts.mode="pinch";const container=stitchScrollRef.current;const t0=e.touches[0],t1=e.touches[1];ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);ts.pinchZoom=stitchZoomRef.current;ts.pinchZooming=false;ts.pinchSamples=[];if(container){const rect=container.getBoundingClientRect();const midX=(t0.clientX+t1.clientX)/2-rect.left;const midY=(t0.clientY+t1.clientY)/2-rect.top;ts.pinchAnchor={x:(container.scrollLeft+midX)/ts.pinchZoom,y:(container.scrollTop+midY)/ts.pinchZoom};}}}function handleTouchMove(e){if(!pat)return;if(chartOwnsGesture(e))e.preventDefault();const ts=touchStateRef.current;// One finger: nothing to do. In Mark mode it marks (useDragMark) and must
 // not also pan — doing both moved the chart under the finger, so a drag
 // panned erratically and left a few stray marks. In Navigate mode the
 // compositor pans; scrolling here as well would double the speed.
-if(e.touches.length!==2||ts.mode!=="pinch"||!(ts.pinchDist>0)||!ts.pinchAnchor)return;const container=stitchScrollRef.current;if(!container)return;const t0=e.touches[0],t1=e.touches[1];const dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);// Absolute from the gesture start rather than compounded per move, so the
+if(e.touches.length!==2||ts.mode!=="pinch"||!(ts.pinchDist>0)||!ts.pinchAnchor)return;const container=stitchScrollRef.current;if(!container)return;const t0=e.touches[0],t1=e.touches[1];let dist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);// Two fingers never move quite rigidly: in a pan they drift a pixel or two
+// closer or apart, and that used to zoom by a fraction of a percent on every
+// move, re-rendering the tracker and repainting the whole chart each frame
+// of what was meant as a pan. The zoom now waits until the fingers have
+// pinched by PINCH_ZOOM_DEADBAND, then starts from there, so it follows the
+// fingers smoothly once it does engage.
+if(!ts.pinchZooming){if(Math.abs(dist/ts.pinchDist-1)<PINCH_ZOOM_DEADBAND)dist=ts.pinchDist;else{ts.pinchZooming=true;ts.pinchDist=dist;}}// Absolute from the gesture start rather than compounded per move, so the
 // anchor cannot drift. maxZoom (not the bare 4) so the scroll maths matches
 // the zoom actually applied; ceiling last, as in handleStitchWheel.
 const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,ts.pinchZoom*dist/ts.pinchDist));const rect=container.getBoundingClientRect();const midX=(t0.clientX+t1.clientX)/2-rect.left;const midY=(t0.clientY+t1.clientY)/2-rect.top;const a=ts.pinchAnchor;// Recent midpoints, for the release velocity (handleTouchEnd).
@@ -1442,7 +1500,7 @@ requestAnimationFrame(()=>{container.scrollLeft=a.x*newZoom-midX;container.scrol
 // the one-finger gesture the second finger interrupted).
 if(e.touches&&e.touches.length>0)return;// A two-finger pan that was still moving coasts on. Only a pan: if the
 // zoom moved, this was a pinch, and coasting would fight it.
-const sm=ts.pinchSamples;if(ts.mode==="pinch"&&sm&&sm.length>=2){const a=sm[0],b=sm[sm.length-1],dt=b.t-a.t;const recent=performance.now()-b.t<80;if(dt>0&&recent&&Math.abs(b.z/ts.pinchZoom-1)<0.03){const vx=(b.x-a.x)/dt,vy=(b.y-a.y)/dt;if(Math.hypot(vx,vy)>0.3)startPanMomentum(vx,vy);}}ts.mode="none";ts.pinchDist=0;ts.pinchAnchor=null;ts.pinchSamples=null;}function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}const ownedCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="owned").length,[skeinData,threadOwned]);const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);// ─── Keyboard shortcuts (migrated to central registry) ──────────────
+const sm=ts.pinchSamples;if(ts.mode==="pinch"&&sm&&sm.length>=2){const a=sm[0],b=sm[sm.length-1],dt=b.t-a.t;const recent=performance.now()-b.t<80;if(dt>0&&recent&&Math.abs(b.z/ts.pinchZoom-1)<0.03){const vx=(b.x-a.x)/dt,vy=(b.y-a.y)/dt;if(Math.hypot(vx,vy)>0.3)startPanMomentum(vx,vy);}}ts.mode="none";ts.pinchDist=0;ts.pinchAnchor=null;ts.pinchSamples=null;ts.pinchZooming=false;}function toggleOwned(id){setThreadOwned(prev=>{let cur=prev[id]||"";let next=cur===""?"owned":cur==="owned"?"tobuy":"";return{...prev,[id]:next};});}const ownedCount=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")==="owned").length,[skeinData,threadOwned]);const toBuyList=useMemo(()=>skeinData.filter(d=>(threadOwned[d.id]||"")!=="owned"),[skeinData,threadOwned]);// ─── Keyboard shortcuts (migrated to central registry) ──────────────
 // Scope hierarchy:
 //   tracker                    — active whenever the tracker is mounted
 //   tracker.notedit            — !isEditMode

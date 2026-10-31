@@ -149,7 +149,8 @@ describe('audit fixes', () => {
   test('the full-redraw skip names its array, holds only when nothing else changed, and any redraw retires it', () => {
     const effect = between('const redrawInputsRef=useRef(null);', '},[renderStitch]);');
     expect(effect).toMatch(/const skip=skipNextFullRedrawRef\.current;\n  skipNextFullRedrawRef\.current=null;/);
-    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!specialtyStitches\.length&&!beads\.length\)return;/);
+    // Skipping also records that the canvas matches state again (the mark painted its own cells), so a tile move can keep it.
+    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)&&marksOnly&&!specialtyStitches\.length&&!beads\.length\)\{chartPaintedByRef\.current=renderStitch;return;\}/);
     expect(SRC).not.toMatch(/skipNextFullRedrawRef\.current=true/);
     expect(SRC.match(/skipNextFullRedrawRef\.current=nd;/g).length).toBeGreaterThanOrEqual(6);
     expect(SRC).toMatch(/const next=Array\.from\(bsDoneSetRef\.current\);\n  skipNextFullRedrawRef\.current=next;\n  setBsDone\(next\);/);
