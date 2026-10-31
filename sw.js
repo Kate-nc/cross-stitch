@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "7dcd21f702227cd264687650b649ac5e114bb055493ee94f2b27dbb72727defa";
+var BUILD_ID = "7229dee5f799f57b5e625f95644dfa3ddbd623198cb31780e84535e2b1b4d79f";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "67f147d42d5cf8e3a9a55404b85c4cb41595cb409d64ded573926d5c1b2a8f1e"
   },
   "./changelog.js": {
-    "sha256": "af40a494e2f95147055a25dfb69e6309de032af0d13cb273c450723d3a582d04"
+    "sha256": "a959f969eb5323dd896315286afa03116423c5aab1c9f6b29c33820bc29cdc96"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -362,7 +362,7 @@ var BUILD_ASSETS = {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "75a18547c483925e84c286aca7a42cd0fe7caecf759ddff5e75f2b0659c3d1a7"
+    "sha256": "03f01ffa1ceb76bbbfd99c603370530c17bfce23ab7529e08c551638ba9a8f19"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "239c52f4a44c152b7cd637270de50faed7507c0c3084401cb4691a7d1f5dfef8"
+    "sha256": "dc1466b1ba4695c17c8fc720e2ea957fa9012c96f57de510827c0ae7b59ee433"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -536,7 +536,7 @@ var BUILD_ASSETS = {
     "sha256": "ab02c07c8bc06fc8e5af987302a452d2a95b76573e117a654bb21442aeae096f"
   },
   "./useDragMark.js": {
-    "sha256": "c25619db489ac462112a2ea19e93af5f2f93dbd066591037017cc87816846854"
+    "sha256": "4e4781e38f51190003bd216c8371f63dbfc625ed37549ec261d227c7655c5bcc"
   },
   "./tracker-minimap.js": {
     "sha256": "438dd62ca44de0eaa812283d34f08e19a726ff2dc783bd16a9839d7acf3b89f3"

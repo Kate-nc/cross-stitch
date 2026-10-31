@@ -713,9 +713,10 @@ async function saveProjectToDB(project, options) {
 }
 
 async function loadProjectFromDB() {
+  let legacy;
   try {
     const db = await getDB();
-    return new Promise((resolve, reject) => {
+    legacy = await new Promise((resolve, reject) => {
       let tx = db.transaction(STORE_NAME, "readonly");
       let store = tx.objectStore(STORE_NAME);
       let request = store.get("auto_save");
@@ -726,6 +727,18 @@ async function loadProjectFromDB() {
     console.error("Failed to load project from IndexedDB", err);
     return null;
   }
+  // The legacy copy is only refreshed now and then (the Tracker's periodic
+  // autosave writes just the project record), so when it names a project that
+  // has its own record, that record is the current one. Opening the stale copy
+  // instead could let the next save write old progress over new.
+  if (legacy && typeof legacy.id === 'string' && legacy.id && typeof ProjectStorage !== 'undefined'
+      && ProjectStorage && typeof ProjectStorage.get === 'function') {
+    try {
+      const current = await ProjectStorage.get(legacy.id);
+      if (current && current.pattern) return current;
+    } catch (_) { /* fall back to the legacy copy */ }
+  }
+  return legacy;
 }
 
 async function clearProjectFromDB() {

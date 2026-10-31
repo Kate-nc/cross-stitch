@@ -13,6 +13,42 @@ Prototype for the work-area mode: [work-area-prototype.html](work-area-prototype
 
 ---
 
+## Update 2026-10-31: tap lag on charts with progress
+
+Every Phase 0 fixture was a fresh chart, and that hid the largest per-tap
+costs: they grow with the stitches *already marked*. On the large fixture at
+4x CPU, a tap took 3.4 s to show at 50% done and 6.8 s at 90%, against
+~110 ms fresh. Measured causes, per tap:
+
+- `ThreadAccounting.snapshot` rebuilt a thread-usage estimate for every
+  finished stitch inside the render, then `rtAmounts` summed them and the
+  `rtMarks` effect diffed every key (~0.7 s at 4x, before paint).
+- `StashBridge.applyConsumptionEvents` read and rewrote the whole stash
+  ledger (one event per stitch ever marked), then reloaded the stash and
+  re-rendered the tracker 2-3 more times.
+- The progress write ~400 ms later ran `TrackingSync.record` over every
+  finished stitch (~1.9 s at 4x).
+- The periodic autosave also wrote a second full copy under `auto_save`.
+- Pressing (not just releasing) re-rendered the whole tracker.
+
+**Landed** (fixes #0-#4 of the merged audit):
+
+| # | Change |
+|---|---|
+| 0 | `tap-cost.spec.js` "tap cost with progress": 50% and 90% done, a 50 000-event thread-usage history, and a mixed-stitch chart. Guards the tap handler time (stable) and a loose tap-to-paint ceiling. `trackerFixture` gained `mixed`, `id`, and an even spread for any done fraction (the old stride made 0.9 into 1.0). |
+| 1 | Taps and strokes paint, update every ref, then commit their React state as a transition (`commitMarkState`), so the stitch shows before the re-render. `doneRef` is set by a `setDone` wrapper and never re-assigned from state in render. `useKeptMemo` keeps the snapshot across restarted transitions. |
+| 2 | Thread-usage events reach the ledger every `RT_BATCH_MS` (2 s); hide, unload, history and project flushes still write at once. |
+| 3 | `useDragMark` with `isolatedPreview` only publishes rectangle modes, so press and stroke no longer re-render the tracker. |
+| 4 | The periodic autosave no longer writes `auto_save`; `loadProjectFromDB()` opens the project record when the legacy copy names one. |
+
+**After** (same harness, 1.5 s between taps): tap handlers run ~4 ms in
+every case (was ~1.2 s at 50%); median tap-to-paint 0.3-0.9 s at 50% and
+~1.4-1.9 s at 90%. With the page idle when a tap lands, it shows in ~50-80 ms.
+What remains is taps queuing behind the progress write and the autosave,
+which still block for seconds on these charts: fixes #6 (incremental
+thread-usage accounting), #7 (incremental sync metadata) and #8 (progress
+saved apart from the chart, R7 below) are next.
+
 ## Where things stand
 
 The expensive structural problem is solved. The chart and its overlays are

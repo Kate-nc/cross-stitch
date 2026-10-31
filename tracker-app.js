@@ -13,6 +13,22 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // renderStitch and the scroll handler both derive their answer from here so
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
+// useMemo whose last result survives a render React throws away. A tap commits
+// as a transition (commitMarkState), and React restarts a transition when any
+// other update lands before it commits, discarding that render's useMemo
+// results. For the whole-progress thread-usage snapshot that meant paying
+// ~0.7 s again per restart on a large, half-stitched chart at phone speed. The
+// value is a pure function of deps, so reusing a discarded render's is safe.
+// Two entries, because an update that interrupts the transition renders with
+// the previous inputs: one entry would swap old and new on every restart.
+function useKeptMemo(fn,deps){
+  const r=useRef([]),kept=r.current;
+  const same=c=>c.deps.length===deps.length&&c.deps.every((d,i)=>Object.is(d,deps[i]));
+  for(let i=0;i<kept.length;i++)if(same(kept[i]))return kept[i].value;
+  const value=fn();
+  r.current=[{deps,value}].concat(kept.slice(0,1));
+  return value;
+}
 
 // The analysis worker's view of the pattern: one Uint16 per stitch indexing
 // `ids`, with 0xFFFF for __skip__/__empty__. Mirrors toModel() in
@@ -1218,15 +1234,28 @@ const hintLoadCountedRef=useRef(false);
 const showCtr=true;
 const[bsLines,setBsLines]=useState([]);
 
-const[done,setDone]=useState(null);
+const[done,_setDoneState]=useState(null);
 // ── BUGFIX: live ref to latest `done` so toggle/bulk callbacks always
 //    read the freshest array even when invoked before React commits a
 //    prior setDone. Prevents the "marking a new stitch unmarks all
 //    previous in-session stitches" regression caused by stale closures
 //    in fast-tap sequences (incremental counters survive because they
 //    use refs; the visible `done` array did not).
+// The ref is the newest array *requested*, set in the same call as the state.
+// It is deliberately not re-assigned during render: a tap's render runs as a
+// transition (see _dragMarkOnToggle), and any render that happens before it
+// commits still carries the previous array — copying that into the ref would
+// make the next tap start from it and drop the mark.
 const doneRef=useRef(null);
-doneRef.current=done;
+function setDone(nd){doneRef.current=nd;_setDoneState(nd);}
+// A tap or stroke paints its cells straight onto the chart, and every ref the
+// next tap, Undo or a save reads is updated by the calls inside fn. What is
+// left is re-rendering the Tracker (and the work keyed on `done`), which on a
+// well-progressed chart is long. Running those state updates as a transition
+// lets the browser show the stitch first instead of after that render.
+function commitMarkState(fn){
+  if(typeof React.startTransition==='function')React.startTransition(fn);else fn();
+}
 const[doneSnapshots,setDoneSnapshots]=useState([]);
 const lastSnapshotDateRef=useRef(null);
 const snapshotGenerationRef=useRef(0);
@@ -1820,6 +1849,8 @@ const[stashDeducted,setStashDeducted]=useState(false);
 
 // ── Real-time stash deduction (Proposal D implementation) ──────────────
 // Defaults match threadCostPerStitch() in threadCalc.js.
+// Thread-usage events reach the stash ledger in batches this far apart (see the rtMarks effect).
+const RT_BATCH_MS=2000;
 const RT_WASTE_DEFAULTS={enabled:false,tailAllowanceIn:1.5,threadRunLength:30,generalWasteMultiplier:1.10,strandCountOverride:null,lastWrittenAt:null};
 const[wastePrefs,setWastePrefs]=useState(()=>{
   try{const p=window.UserPrefs&&window.UserPrefs.get('rtWastePrefs');if(p&&typeof p==='object')return Object.assign({},RT_WASTE_DEFAULTS,p);}catch(_){}
@@ -2559,10 +2590,10 @@ const difficultyMetrics=useMemo(()=>{
 const difficulty=useMemo(()=>pal?calcDifficulty(pal.length,blendCount,totalStitchable,{fabricCt,bsCount:bsLines.length,confettiScore:difficultyMetrics.confettiScore,changeScore:difficultyMetrics.changeScore}):null,[pal,blendCount,totalStitchable,fabricCt,bsLines,difficultyMetrics]);
 
 // Capture assumptions with each progress transition. Preferences alone never create usage.
-const rtMarks=useMemo(()=>window.ThreadAccounting.snapshot({...v3FieldsRef.current,pattern:pat,done,fabricCt,
+const rtMarks=useKeptMemo(()=>window.ThreadAccounting.snapshot({...v3FieldsRef.current,pattern:pat,done,fabricCt,
   halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,
   settings:{threadBrand}},wastePrefs),[pat,done,fabricCt,halfStitches,halfDone,partialStitches,partialDone,knots,knotsDone,bsLines,bsDone,specialtyStitches,specialtyDone,wastePrefs,countsVer]);
-const rtAmounts=useMemo(()=>{const out={};Object.values(rtMarks).forEach(m=>Object.entries(m.amounts).forEach(([k,v])=>out[k]=(out[k]||0)+v));return out;},[rtMarks]);
+const rtAmounts=useKeptMemo(()=>{const out={};Object.values(rtMarks).forEach(m=>Object.entries(m.amounts).forEach(([k,v])=>out[k]=(out[k]||0)+v));return out;},[rtMarks]);
 const rtConsumption=useMemo(()=>{
   const out={},ctx=rtContextRef.current;
   const used=ctx&&ctx.accounting?window.ThreadAccounting.totals(ctx.accounting,ctx.projectId):{};
@@ -2577,6 +2608,7 @@ const flushRtStashWrite=useCallback(async(captured)=>{
   const write=captured?{ctx:captured}:rtWriteSnapshotRef.current;
   if(!write||!write.ctx||typeof StashBridge==='undefined')return;
   const ctx=write.ctx;
+  if(ctx.batchTimer){clearTimeout(ctx.batchTimer);ctx.batchTimer=null;}   // this write takes the batch
   if(!ctx.projectId||savesBlockedRef.current)return;
   const run=async()=>{
     if(ctx.ready)await ctx.ready.catch(()=>{});
@@ -2641,7 +2673,12 @@ useEffect(()=>{
   // Crash recovery records the original assumptions before any asynchronous work.
   try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}
   catch(e){if(window.Toast)window.Toast.show({message:'Could not save pending consumption history. Keep this tab open and retry.',type:'warning'});}
-  flushRtStashWriteRef.current(ctx).catch(()=>{});
+  // Batched: one write for every mark in the next RT_BATCH_MS rather than one per
+  // tap. Each write reads and rewrites the whole stash ledger, then reloads the
+  // stash and re-renders the Tracker. The outbox saved above already covers a
+  // crash; hiding or closing the tab, opening the history and saving the project
+  // all flush straight away.
+  if(!ctx.batchTimer)ctx.batchTimer=setTimeout(()=>{ctx.batchTimer=null;flushRtStashWriteRef.current(ctx).catch(()=>{});},RT_BATCH_MS);
 },[rtMarks,wastePrefs.enabled]);
 useEffect(()=>{
   function onHidden(){if(document.hidden)flushRtStashWriteRef.current().catch(()=>{});}
@@ -4850,7 +4887,13 @@ useEffect(() => {
       endOnce(_ok ? true : (saveResult && noWriteReason(saveResult.reason) ? null : false), saveResult && saveResult.reason);
       if(saveResult&&noWriteReason(saveResult.reason))return null;
       if(!_ok)return null;
-      return saveProjectToDB(project).catch(err => console.error("Tracker DB auto-save failed:", err)).then(function(){
+      // No second copy under the legacy "auto_save" key here: on a large chart
+      // it cloned the whole record again (~350 ms of main thread per autosave).
+      // The project record just written is what every page opens, and
+      // loadProjectFromDB() prefers it over the legacy copy when both name the
+      // same project. Leaving the page, handing off to the Creator and explicit
+      // flushes still refresh the legacy copy.
+      return Promise.resolve().then(function(){
         // Keep the Creator's tracker-field preservation container in sync so that if
         // the user switches to Creator mode, the next Creator auto-save won't overwrite
         // sessions, stats settings, milestones, etc. with stale data.
@@ -7691,17 +7734,19 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
     if(pref==='ask'){setMarkAllAsk({set:set,intent:intent,source:source});return false;}
     asCatchUp=pref==='catchup';
   }
-  pushBulkToggleHistory(changes,source,asCatchUp&&want===1);
-  applyDoneCountsDelta(changes,pat,nd);
   doneRef.current=nd;
   // PERF: paint just the changed cells directly instead of a full-viewport
   // renderStitch() redraw (previously called here unconditionally on every
   // drag-mark commit, then AGAIN via the done-dependent useEffect below).
   paintDoneChangesRef.current(changes,nd);
   skipNextFullRedrawRef.current=true;
-  setDone(nd);
-  _pulseCells(changes.map(function(c){return c.idx;}));
-  if(source==='range')_setRectSelectUsed(true);
+  commitMarkState(function(){
+    pushBulkToggleHistory(changes,source,asCatchUp&&want===1);
+    applyDoneCountsDelta(changes,pat,nd);
+    setDone(nd);
+    _pulseCells(changes.map(function(c){return c.idx;}));
+    if(source==='range')_setRectSelectUsed(true);
+  });
   // A stroke or rectangle that marked (or unmarked) a good many stitches at once offers a way back, because a stray
   // swipe is easy to make and hard to untangle later. Undo is the ordinary one (this was one history step).
   const _bulkMin=(window.TouchConstants&&window.TouchConstants.BULK_UNDO_MIN)||5;
@@ -7729,16 +7774,17 @@ const _dragMarkOnToggle=useCallback(function(idx){
   const nv=oldVal?0:1;
   const nd=new Uint8Array(cur);
   nd[idx]=nv;
-  pushTrackHistory([{idx:idx,oldVal:oldVal}]);
-  applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
   doneRef.current=nd;
   // PERF: paint just this cell directly instead of a full-viewport renderStitch()
   // redraw (previously called here unconditionally on every single tap, then
   // AGAIN via the done-dependent useEffect below).
   paintDoneChangesRef.current([{idx:idx}],nd);
   skipNextFullRedrawRef.current=true;
-  setDone(nd);
-
+  commitMarkState(function(){
+    pushTrackHistory([{idx:idx,oldVal:oldVal}]);
+    applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
+    setDone(nd);
+  });
 },[pat,focusColour,isColourLocked,fullStitchMatchesFocus,pushTrackHistory,applyDoneCountsDelta,renderStitch,recordAutoActivity,halfStitchCounts,layerVis.full]);
 
 const _dragMarkOnCommitDrag=useCallback(function(set,intent){
@@ -7772,7 +7818,7 @@ const _dragMarkFlag=!_dragMarkOverrideOff&&_dragMarkPref!==false;
 const _dragMarkActive=!_dragMarkOverrideOff&&!isEditMode&&stitchMode==="track"&&!!pat&&!!done;
 const _dragMark=(typeof window!=='undefined'&&window.useDragMark)
   ?window.useDragMark({
-    w:sW,h:sH,pattern:pat,done:done,
+    w:sW,h:sH,pattern:pat,done:done,doneRef:doneRef,
     cellAtPoint:_dragMarkCellAtPoint,
     onToggleCell:_dragMarkOnToggle,
     onCommitDrag:_dragMarkOnCommitDrag,
