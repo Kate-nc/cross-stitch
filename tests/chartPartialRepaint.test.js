@@ -111,7 +111,7 @@ describe('paintDoneChanges — toggled stitches', () => {
 
   test('every caller hands over its new done array', () => {
     expect(src).not.toMatch(/drawCellDirectly/);
-    expect(src).toMatch(/;paintDoneChanges\(changes,nd\);skipNextFullRedrawRef\.current=true;\}/); // markColourDone
+    expect(src).toMatch(/;paintDoneChanges\(changes,nd\);skipNextFullRedrawRef\.current=nd;\}/); // markColourDone
     expect((src.match(/  paintDoneChanges\(last,nd\);\n/g) || []).length).toBe(2);            // undo + redo
     expect(src).toMatch(/  paintDoneChangesRef\.current\(changes,nd\);/);                        // drag / range
     expect(src).toMatch(/  paintDoneChangesRef\.current\(\[\{idx:idx\}\],nd\);/);                // single tap

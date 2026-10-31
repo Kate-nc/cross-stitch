@@ -140,7 +140,59 @@ describe('marks-only full saves wait on large charts (#8)', () => {
   });
 
   test('a full save or flush clears the deferral', () => {
-    expect(SRC).toMatch(/autoSaveOtherDirtyRef\.current = false;   \/\/ the snapshot below holds everything/);
+    expect(SRC).toMatch(/const _hadOther = autoSaveOtherDirtyRef\.current;\n    autoSaveOtherDirtyRef\.current = false;/);
     expect(SRC).toMatch(/autoSaveOtherDirtyRef\.current=false;\n      autoSaveMarksSinceRef\.current=null;/);
+  });
+});
+
+describe('audit fixes', () => {
+  test('the full-redraw skip names the array it is for, so an earlier commit still redraws', () => {
+    const effect = between('// The skip names the exact array', '},[renderStitch]);');
+    expect(effect).toMatch(/if\(skip&&\(skip===done\|\|skip===bsDone\)\)\{skipNextFullRedrawRef\.current=null;/);
+    expect(SRC).not.toMatch(/skipNextFullRedrawRef\.current=true/);
+    // Every site hands over the array it is about to commit.
+    expect(SRC.match(/skipNextFullRedrawRef\.current=nd;/g).length).toBeGreaterThanOrEqual(6);
+    expect(SRC).toMatch(/const next=Array\.from\(bsDoneSetRef\.current\);\n  skipNextFullRedrawRef\.current=next;\n  setBsDone\(next\);/);
+  });
+
+  test('edit-mode removal reads the live marks, not the rendered ones', () => {
+    expect(SRC.replace(/\/\/[^\n]*/g, '')).not.toMatch(/new Uint8Array\(done\)/);
+  });
+
+  test('a failed progress write stops the marks-only deferral and writes everything soon', () => {
+    const fn = between('function progressWriteFailed(failed, id) {', '\n}');
+    expect(fn).toMatch(/progressFailedRef\.current = !!failed;/);
+    expect(fn).toMatch(/window\.__flushProjectToIDB\(\)/);
+    expect(between('function progressRecordCovers() {', '\n}')).toMatch(/if \(progressFailedRef\.current\) return false;/);
+    const write = between('function writeProgressNow() {', 'function scheduleProgressWrite()');
+    expect(write).toMatch(/if \(!recovery\) progressWriteFailed\(ok !== true, o\.id\);/);
+    expect(write).toMatch(/function \(\) \{ if \(!recovery\) progressWriteFailed\(true, o\.id\); \}/);
+  });
+
+  test('a full save that is not written keeps non-mark changes marked unsaved', () => {
+    expect(SRC).toMatch(/const _hadOther = autoSaveOtherDirtyRef\.current;\n    autoSaveOtherDirtyRef\.current = false;/);
+    expect(SRC).toMatch(/if\(!_ok&&_hadOther\)autoSaveOtherDirtyRef\.current=true;/);
+    expect(SRC).toMatch(/console\.error\("Tracker auto-save failed:", err\); if \(_hadOther\) autoSaveOtherDirtyRef\.current = true;/);
+  });
+});
+
+describe('review fixes', () => {
+  test('only the open project\'s progress writes decide whether progress records cover it', () => {
+    const fn = between('function progressWriteFailed(failed, id) {', '\n}');
+    expect(fn.indexOf('if (projectIdRef.current !== id) return;')).toBeLessThan(fn.indexOf('progressFailedRef.current = !!failed;'));
+  });
+
+  test('switching project writes anything unsaved for the current one first', () => {
+    const fn = between('function flushBeforeSwitch() {', '\n}');
+    expect(fn).toMatch(/autoSaveGenRef\.current === flushedGenRef\.current/);
+    expect(fn).toMatch(/window\.__flushProjectToIDB\(\)/);
+    expect(SRC).toMatch(/setProjectPickerOpen\(false\);\n    flushBeforeSwitch\(\)\.then\(\(\)=>ProjectStorage\.get\(meta\.id\)\)/);
+    expect(SRC).toMatch(/onOpenProject=\{\(meta\)=>\{flushBeforeSwitch\(\)\.then\(\(\)=>ProjectStorage\.get\(meta\.id\)\)/);
+  });
+
+  test('the ledger counts as compacted only once that write commits', () => {
+    const stash = require('fs').readFileSync(require('path').join(__dirname, '..', 'stash-bridge.js'), 'utf8');
+    expect(stash).toMatch(/A\.compact\(ledger\);compactedHere=true;/);
+    expect(stash).toMatch(/\.then\(function\(value\)\{\n        if\(compactedHere\)_ledgerCompacted=true;/);
   });
 });

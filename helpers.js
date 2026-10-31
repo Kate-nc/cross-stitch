@@ -735,7 +735,7 @@ async function loadProjectFromDB() {
       && ProjectStorage && typeof ProjectStorage.get === 'function') {
     try {
       const current = await ProjectStorage.get(legacy.id);
-      if (current && current.pattern) return current;
+      if (current && (current.pattern || current.p)) return current;
     } catch (_) { /* fall back to the legacy copy */ }
   }
   return legacy;

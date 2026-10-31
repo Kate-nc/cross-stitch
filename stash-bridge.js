@@ -862,6 +862,7 @@ const StashBridge = (() => {
       const projects=R&&ids.length?await this.materialProjects(ids):[];
       const prefs=window.UserPrefs?window.UserPrefs.get('rtWastePrefs')||{}:{};
       if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
+      let compactedHere=false;   // counted as done only once the write commits
       return _withThreadsWrite('consumption-events',function(threads,ctx){
         if(window.__restoringBackup>Date.now())throw new Error('Consumption saving is paused during restore');
         const ledger=ctx.record||A.empty();
@@ -869,7 +870,7 @@ const StashBridge = (() => {
         // the ledger holds an event per stitch ever marked and is read and written
         // whole, and sharing roughly halves that. Shared parts stay shared when read
         // back, so later writes need not repeat it.
-        if(!_ledgerCompacted&&typeof A.compact==='function'){A.compact(ledger);_ledgerCompacted=true;}
+        if(!_ledgerCompacted&&typeof A.compact==='function'){A.compact(ledger);compactedHere=true;}
         A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
         const requests=ctx.reservations||(R&&R.empty());
         if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');
@@ -884,7 +885,10 @@ const StashBridge = (() => {
         });
         const changed=A.apply(ledger,threads,mapped,ctx.now,protectedStock);
         return {record:ledger,value:{accounting:ledger,threads},changedKeys:changed};
-      },{recordKey:A.KEY,legacyKey:'rt_deduction:'+projectId,invalidateStats:true});
+      },{recordKey:A.KEY,legacyKey:'rt_deduction:'+projectId,invalidateStats:true}).then(function(value){
+        if(compactedHere)_ledgerCompacted=true;
+        return value;
+      });
     },
 
     // Absolute cumulative consumption, keyed by brand:id. The checkpoint and

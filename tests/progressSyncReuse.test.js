@@ -107,3 +107,15 @@ test('without a tab id nothing is reused', async () => {
   await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b });
   expect(calls.map(c => !!c.from)).toEqual([false]);
 });
+
+test('saveProgress says false when nothing reloading would apply was written', async () => {
+  // No stored project yet.
+  expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1), baseWriteAt: null, tabId: 'tab-1' })).toBe(false);
+  // A record based on an older full save: stored, but reloading ignores it.
+  await ProjectStorage.save(proj());
+  const b = (await ProjectStorage.get('proj_s')).lastWriteAt;
+  expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1), baseWriteAt: b - 1, tabId: 'tab-1' })).toBe(false);
+  // The current base: written and applied.
+  expect(await ProjectStorage.saveProgress('proj_s', { done: marks(1, 2), baseWriteAt: b, tabId: 'tab-1' })).toBe(true);
+  expect((await ProjectStorage.get('proj_s')).done.slice(0, 3)).toEqual([0, 1, 1]);
+});

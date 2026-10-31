@@ -42,13 +42,23 @@ test('a legacy copy with no stored project of its own is still returned', async 
   expect((await loadProjectFromDB()).done).toEqual([0, 1, 0, 0, 0, 0]);
 });
 
+test('a stored project in the compact .p form is preferred too', async () => {
+  await saveProjectToDB(proj({ done: [1, 0, 0, 0, 0, 0] }));
+  const compact = proj({ done: [1, 1, 0, 0, 0, 0] });
+  compact.p = compact.pattern.map(c => [c.id]); delete compact.pattern;
+  await ProjectStorage.save(compact);
+  const got = await loadProjectFromDB();
+  expect(got.p).toBeTruthy();
+  expect(got.done).toEqual([1, 1, 0, 0, 0, 0]);
+});
+
 test('no legacy copy is still nothing', async () => {
   await clearProjectFromDB();
   expect(await loadProjectFromDB()).toBeUndefined();
 });
 
 test('the periodic autosave writes only the project record; unload and flush still refresh the legacy copy', () => {
-  const start = TRACKER.indexOf('const project = buildSnapshot();\n    if (!project) return;\n    lastSnapshotRef.current = project;');
+  const start = TRACKER.indexOf('const project = buildSnapshot();\n    if (!project) {');
   expect(start).toBeGreaterThan(0);
   const body = TRACKER.slice(start, TRACKER.indexOf('}, _autoSaveDelay);', start));
   expect(body).toMatch(/persistProjectRecord\(project\)/);

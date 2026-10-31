@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "6e9e35d154e5d76c671b35791dab4e81aa4c32594dde5dae70cafd1b2f242840";
+var BUILD_ID = "a85feed976715e701d854c9f85cec7b558ef7239ce2010814bd112e1aebfb443";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -362,7 +362,7 @@ var BUILD_ASSETS = {
     "sha256": "434cff8dc936a9b28012a438176422fde06eb43c1890a5364c1cc6c2b2d967cd"
   },
   "./helpers.js": {
-    "sha256": "03f01ffa1ceb76bbbfd99c603370530c17bfce23ab7529e08c551638ba9a8f19"
+    "sha256": "b3f0545b4227fa6e30255768947e033bac8dce77d532b95edc2a6c11213ce918"
   },
   "./knots.js": {
     "sha256": "850de631376f77a9e6d40760603f74a7c19a51ef89a2ddd686e6cb4f4afa0b57"
@@ -389,7 +389,7 @@ var BUILD_ASSETS = {
     "sha256": "8e541427d27420148aa0ec591e88668ba69b4e4ef9d9dfcf7e0e24d2383dc816"
   },
   "./tracking-sync.js": {
-    "sha256": "cfad720c420e28f392a19e81c58f6862d5a75f372ef4c058a60fda55affb0612"
+    "sha256": "83ccb9ab7c70c5446c9b3e735146cdde25e9fd8f50c31416cf82f2a8b3965c87"
   },
   "./icons.js": {
     "sha256": "cdff8394675ae0243c1b24860c7079826b3cfa737be932733640a21832b13eae"
@@ -434,7 +434,7 @@ var BUILD_ASSETS = {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
   },
   "./project-storage.js": {
-    "sha256": "9575cfb608729136cf2d20239d11f9ccfd53999aad427afda86f48fed7183807"
+    "sha256": "3268f0a9e8a346a634a449efe26bff7d9bc5ea18e26715e8ef1c91559c8f4026"
   },
   "./blob-store.js": {
     "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
@@ -443,7 +443,7 @@ var BUILD_ASSETS = {
     "sha256": "7c1ee45a6c30bd3622e2cffabb94dc1888b7e54df2c5065353163df9318404e2"
   },
   "./stash-bridge.js": {
-    "sha256": "d121ca6a71c1193ee04c9e8757c988473262d0eefb1cf8ec9abfef79da28bd07"
+    "sha256": "efd19dc3cf3d95b440ad6bcf76b0d15a5388ba8d94638be981c38f461dfa943d"
   },
   "./thread-catalogues.js": {
     "sha256": "ff0a0bd69e9fdd321b35d9fd04670413f3aa6c2a2e00fa2ba7f999bbfc7805e3"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "da0fc8be85ae1fe85c7e2e703ba3a4be37fff4ad78c51892b5fdbadc94156894"
+    "sha256": "2c402f54472743de69b8c9838ebb034c6ef9650e41ce5c508a8550f5b910f08b"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"

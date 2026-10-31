@@ -992,6 +992,10 @@ const ProjectStorage = (() => {
         };
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
+        // Whether the marks are now on disk in a form reloading applies. False when the
+        // project is not stored yet, or the record's base is not the project's last full
+        // save (it would be ignored); the Tracker then stops relying on progress records.
+        let applies = false;
         await new Promise((resolve, reject) => {
           const tx = db.transaction(["pendingImports", STORE_NAME, META_STORE], "readwrite");
           const store = tx.objectStore("pendingImports");
@@ -1023,6 +1027,7 @@ const ProjectStorage = (() => {
             const prev = req.result;
             if(!project)return;
             if (project && project.chartRevision && rec.baseWriteAt !== project.lastWriteAt) return;
+            // From here a record is stored; it only counts (see `applies` below) if reloading will apply it.
             const previous = applyProgressRecord(project, prev, null, {typed:true});
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.
@@ -1030,6 +1035,7 @@ const ProjectStorage = (() => {
               if (!Array.isArray(rec[f]) && previous) rec[f] = Array.isArray(previous[f]) ? previous[f] : [];
             });
             const current = applyProgressRecord(project, rec, null, {typed:true,skipTracking:true});
+            applies = current !== project;
             if (current !== project) {
               const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, beadsDone: rec.beadsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
               // Only when the stored record is this page's last write (same tab, time and
@@ -1051,7 +1057,7 @@ const ProjectStorage = (() => {
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
         });
-        return true;
+        return applies;
       } catch (err) {
         console.warn("ProjectStorage.saveProgress failed:", err);
         return false;

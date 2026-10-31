@@ -58,7 +58,7 @@ describe('writes report to the badge', () => {
     const t = block('let _ended = false;', '}, _autoSaveDelay);');
     expect(t).toContain('beginSave();');
     expect(t).toMatch(/endOnce\(_ok \? true/);
-    expect(t).toMatch(/\.catch\(err => \{ console\.error\("Tracker auto-save failed:", err\); endOnce\(false, err\); \}\)/);
+    expect(t).toMatch(/\.catch\(err => \{ console\.error\("Tracker auto-save failed:", err\);[^}]*endOnce\(false, err\); \}\)/);
   });
   test('the flush (backup, sync, tab hidden, Retry) does too', () => {
     const f = block('window.__flushProjectToIDB = async function() {\n    if (isUnloadingRef', '// Save when the tab is hidden');

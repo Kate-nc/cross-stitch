@@ -167,13 +167,16 @@
     }
     // New projects and unchanged legacy marks acquire positive seeds, never invented removals.
     // (Marks unchanged since base already have one from records(base); changed marks were just written.)
-    Object.keys(after).forEach(function (k) { if (!own(r, k)) r[k] = seed(); });
+    var seeded = [];
+    Object.keys(after).forEach(function (k) { if (!own(r, k)) { r[k] = seed(); seeded.push(k); } });
     out.trackingSync = metadata(r);
     if (readBack) {
       // records() of the stored copy normalises each register (clock keys sorted),
       // drops a name it does not accept and seeds it again if it is marked.
+      // Only keys this call added can be ones it does not accept: the rest came from
+      // records() or an earlier pass of this.
       written.forEach(function (k) { r[k] = intern(frontier(r[k])); });
-      Object.keys(r).forEach(function (k) {
+      written.concat(seeded).forEach(function (k) {
         if (k.charCodeAt(0) === 100 || validKey(k)) return;   // 'd:<n>' is always valid
         if (after[k]) r[k] = seed(); else delete r[k];
       });

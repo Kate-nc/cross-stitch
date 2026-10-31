@@ -37,29 +37,34 @@ async function open(page) {
   await page.goto('/stitch.html?from=home');
   await page.locator('input[type="file"]').first().setInputFiles(fixture());
   await page.waitForSelector('canvas[aria-label^="Cross stitch pattern grid"]');
-  // The import's own full save, and the first progress write, settle.
   await expect(badge(page)).toHaveText(/saved/i, { timeout: 30000 });
-  await page.waitForTimeout(6000);
 }
+// Count full saves from here on, once the import's own saves have finished: no
+// full save for 4 s in a row (rather than a fixed wait, which a slow runner can
+// overrun and then blame a mark for the import's save).
 async function countFullSaves(page) {
   await page.evaluate(() => {
-    window.__fullSaves = 0;
+    window.__fullSaves = 0; window.__lastFullSave = Date.now();
     const save = ProjectStorage.save.bind(ProjectStorage);
-    ProjectStorage.save = function () { window.__fullSaves++; return save.apply(null, arguments); };
+    ProjectStorage.save = function () { window.__fullSaves++; window.__lastFullSave = Date.now(); return save.apply(null, arguments); };
   });
+  await expect.poll(() => page.evaluate(() => Date.now() - window.__lastFullSave), { timeout: 60000 }).toBeGreaterThan(4000);
+  await page.evaluate(() => { window.__fullSaves = 0; });
 }
-// Five clicks on separate stitches near the chart's top-left. The fixture has
-// every other stitch marked, so some clicks mark and some unmark; only the total
-// matters.
+// Five clicks near the chart's top-left, stepping right and down. The fixture has
+// every other stitch marked, so a click marks or unmarks; each must change the
+// count by exactly one, so every click is known to have toggled a stitch.
 async function markSome(page) {
   const box = await page.locator('canvas[aria-label^="Cross stitch pattern grid"]').boundingBox();
-  const before = await doneCount(page);
+  let count = await doneCount(page);
   for (let i = 0; i < 5; i++) {
     await page.mouse.click(box.x + 60 + i * 23, box.y + 80 + i * 17);
-    await page.waitForTimeout(250);
+    const before = count;
+    await expect.poll(() => doneCount(page)).not.toBe(before);
+    count = await doneCount(page);
+    expect(Math.abs(count - before)).toBe(1);
   }
-  await expect.poll(() => doneCount(page)).not.toBe(before);
-  return doneCount(page);
+  return count;
 }
 
 test('marks alone are written by the progress record, not a full save, and survive a reload', async ({ page }) => {

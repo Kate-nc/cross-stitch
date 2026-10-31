@@ -2174,6 +2174,8 @@ const flushedGenRef=useRef(-1);
 const autoSaveOtherRef=useRef(null);
 const autoSaveOtherDirtyRef=useRef(true);
 const autoSaveMarksSinceRef=useRef(null);
+const progressFailedRef=useRef(false);   // the last progress write failed (see progressWriteFailed)
+const progressKickRef=useRef(null);
 // The drag gesture lives in useDragMark; these let snapshotNow() read it synchronously.
 const dragMarkGetStateRef=useRef(null);
 const dragCommitFilterRef=useRef(null);
@@ -2446,7 +2448,7 @@ const renderStitchRef=useRef(null);
 // PERF: set true by single/bulk stitch-toggle paths that already painted their
 // changed cells directly (see paintDoneChanges call sites) so the full-viewport
 // renderStitch effect can skip a redundant redraw. See the effect below for detail.
-const skipNextFullRedrawRef=useRef(false);
+const skipNextFullRedrawRef=useRef(null);   // the done (or bsDone) array whose commit needs no full redraw
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -3189,7 +3191,7 @@ function markColourDone(cid,md,asCatchUp){const cur=doneRef.current;if(!pat||!cu
   if(changes.length>0){
     const n=changes.length,count=n===1?"1 stitch":n.toLocaleString('en-GB')+" stitches",name=colourDoneName(cmap&&cmap[cid]||{id:cid});
     offerStepUndo(changes,count+" of "+name+(md?" marked as done":" marked as not done"),"Undo "+count);   // `changes` is the history step
-    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=true;}
+    pushTrackHistory(changes,md&&asCatchUp);applyDoneCountsDelta(changes,pat,nd);paintDoneChanges(changes,nd);skipNextFullRedrawRef.current=nd;}
   doneRef.current=nd;setDone(nd);}
 // The chip on a colour row: always ask first, with the colour and the exact number of stitches, then go through the usual
 // catch-up or today question (requestMarkColourDone) when marking.
@@ -3332,7 +3334,7 @@ function undoTrack(){
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(redoChanges,pat,nd);
   paintDoneChanges(last,nd);
-  skipNextFullRedrawRef.current=true;
+  skipNextFullRedrawRef.current=nd;
   doneRef.current=nd;setDone(nd);
   setTrackHistory(prev=>prev.slice(0,-1));
   let redoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
@@ -3397,7 +3399,7 @@ function redoTrack(){
   for(let c of last)nd[c.idx]=c.oldVal;
   applyDoneCountsDelta(undoChanges,pat,nd);
   paintDoneChanges(last,nd);
-  skipNextFullRedrawRef.current=true;
+  skipNextFullRedrawRef.current=nd;
   doneRef.current=nd;setDone(nd);
   setRedoStack(prev=>prev.slice(0,-1));
   let undoEntry=(lastEntry&&lastEntry.type==="BULK_TOGGLE")
@@ -3455,7 +3457,7 @@ function handleStitchRemoval(cellIdx) {
 
   const newPat = [...pat];
   newPat[cellIdx] = { id:"__empty__", type:"skip", rgb:[255,255,255], lab:[100,0,0] };
-  if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=0; applyDoneCountsDelta([{idx:cellIdx,oldVal:1}],pat,nd); setDone(nd); }
+  if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=0; applyDoneCountsDelta([{idx:cellIdx,oldVal:1}],pat,nd); setDone(nd); }
   const newPal = rebuildPaletteCounts(newPat, pal);
   const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
   setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -3529,7 +3531,7 @@ function applyUndo() {
     if (previousEditEntry === null) newEdits.delete(cellIdx);
     else newEdits.set(cellIdx, previousEditEntry);
     setSingleStitchEdits(newEdits);
-    if (previousDone) { const nd=new Uint8Array(done); nd[cellIdx]=1; applyDoneCountsDelta([{idx:cellIdx,oldVal:0}],pat,nd); setDone(nd); }
+    if (previousDone) { const nd=new Uint8Array(doneRef.current||done); nd[cellIdx]=1; applyDoneCountsDelta([{idx:cellIdx,oldVal:0}],pat,nd); setDone(nd); }
     const newPal = rebuildPaletteCounts(newPat, pal);
     const newCmap = {}; newPal.forEach(p => { newCmap[p.id] = p; });
     setPat(newPat); setPal(newPal); setCmap(newCmap);
@@ -4859,6 +4861,7 @@ function writeProgressNow() {
     // own work (the sync record) runs inside its transaction, after this returns.
     if (r && r.then) r.then(function (ok) {
       lastProgressWriteRef.current = Date.now();
+      if (!recovery) progressWriteFailed(ok !== true, o.id);
       // With only marks unsaved, they are now on disk: the badge says Saved
       // although the full save may be deferred (see the autosave effect).
       if (ok === true && !recovery && !autoSaveOtherDirtyRef.current && epoch === saveUiRef.current.epoch
@@ -4868,7 +4871,7 @@ function writeProgressNow() {
         setSavedAt(new Date());
         refreshSaveUi();
       }
-    }, function () {});
+    }, function () { if (!recovery) progressWriteFailed(true, o.id); });
   } catch (_) {}
   return recoverySnapshot;
 }
@@ -4876,12 +4879,33 @@ function writeProgressNow() {
 // longer than the cap since the first such change (see the autosave effect).
 const AUTOSAVE_MARKS_IDLE_MS = 60000;
 const AUTOSAVE_MARKS_CAP_MS = 300000;
+// A progress write that fails leaves marks only in memory. Stop treating it as
+// cover, and if a full save is being held back for marks, write everything now.
+function progressWriteFailed(failed, id) {
+  if (projectIdRef.current !== id) return;   // a write for a project that has since been replaced says nothing about this one
+  progressFailedRef.current = !!failed;
+  if (!failed || !autoSaveMarksSinceRef.current || progressKickRef.current) return;
+  progressKickRef.current = setTimeout(() => {
+    progressKickRef.current = null;
+    try { const r = window.__flushProjectToIDB && window.__flushProjectToIDB(); if (r && r.catch) r.catch(() => {}); } catch (_) {}
+  }, 1000);
+}
+// Before another project replaces this one, write anything unsaved: a full save held
+// back for marks (see the autosave effect), or one still waiting on its debounce,
+// would otherwise be dropped when the effect's timer is cleared by the switch. Runs
+// while this project is still the loaded one, so the snapshot is of it.
+function flushBeforeSwitch() {
+  if (!autoSaveDirtyRef.current || autoSaveGenRef.current === flushedGenRef.current || typeof window.__flushProjectToIDB !== 'function') return Promise.resolve();
+  return Promise.resolve().then(() => window.__flushProjectToIDB()).catch(e => console.warn('Saving before switching projects failed:', e));
+}
 // Whether a progress write for the open project will be read back on reload: it
 // must be based on the project's last full save (CrossTabCoord's last-seen write,
-// set on load and by every save), and saving must be working.
+// set on load and by every save), saving must be working, and the last progress
+// write must have succeeded.
 function progressRecordCovers() {
   const id = projectIdRef.current;
   if (!id || savesBlockedRef.current || saveUiRef.current.error || saveUiRef.current.conflict) return false;
+  if (progressFailedRef.current) return false;
   if (typeof ProjectStorage === 'undefined' || typeof ProjectStorage.saveProgress !== 'function') return false;
   const seen = window.CrossTabCoord && window.CrossTabCoord.getSeen ? window.CrossTabCoord.getSeen(id) : null;
   return !!seen && typeof seen.lastWriteAt === 'number';
@@ -4938,17 +4962,22 @@ useEffect(() => {
     autoSaveMarksSinceRef.current = null;
     if (!autoSaveDirtyRef.current) return;
     autoSaveDirtyRef.current = false;
-    autoSaveOtherDirtyRef.current = false;   // the snapshot below holds everything; a later change sets it again
+    // The snapshot below holds everything; a later change sets this again. A save
+    // that does not get written (held, refused, failed) puts it back, so non-mark
+    // changes are never treated as covered by the progress record.
+    const _hadOther = autoSaveOtherDirtyRef.current;
+    autoSaveOtherDirtyRef.current = false;
     const _gen = autoSaveGenRef.current;
     const _uiGen = uiGenRef.current;
     const project = buildSnapshot();
-    if (!project) return;
+    if (!project) { if (_hadOther) autoSaveOtherDirtyRef.current = true; return; }
     lastSnapshotRef.current = project;
     let _ended = false;
     const _epoch = beginSave();
     const endOnce = (ok, err) => { if (_ended) return; _ended = true; endSave(ok, _uiGen, err, _epoch); };
     persistProjectRecord(project).then(function(saveResult){
       const _ok = !!(saveResult && saveResult.ok !== false && !noWriteReason(saveResult.reason));
+      if(!_ok&&_hadOther)autoSaveOtherDirtyRef.current=true;
       if(_ok){flushedGenRef.current=Math.max(flushedGenRef.current,_gen);
         // The full save changed the project's write time, which retires the progress record; if marks arrived while it ran, write a fresh one.
         if(autoSaveGenRef.current!==_gen)scheduleProgressWriteRef.current();}
@@ -4997,7 +5026,7 @@ useEffect(() => {
         }
         return null;
       });
-    }).catch(err => { console.error("Tracker auto-save failed:", err); endOnce(false, err); });
+    }).catch(err => { console.error("Tracker auto-save failed:", err); if (_hadOther) autoSaveOtherDirtyRef.current = true; endOnce(false, err); });
   }, _autoSaveDelay);
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
@@ -5801,13 +5830,18 @@ const renderStitchIfScrolledOut=useCallback(()=>{
 // PERF: single/bulk stitch toggles already paint their own changed cells directly
 // via paintDoneChanges() (see markColourDone / _commitBulk / _dragMarkOnToggle /
 // undoTrack / redoTrack) for instant feedback. Those call sites set
-// skipNextFullRedrawRef.current=true right before their setDone() so this effect
+// skipNextFullRedrawRef.current to the array they are about to commit (setDone, or
+// setBsDone for backstitch) so this effect
 // — which would otherwise repaint the *entire visible viewport* just because the
 // `done` array reference changed — can skip the redundant full redraw. Anything
 // that legitimately needs a full repaint (project load, zoom, view-mode change,
 // undo of an edit-mode snapshot, etc.) never sets the flag, so it still gets one.
+// The skip names the exact array, not just "skip once": a tap commits as a
+// transition, so another update (a view or colour change) can commit first, and
+// that one must still get its full redraw.
 useEffect(()=>{
-  if(skipNextFullRedrawRef.current){skipNextFullRedrawRef.current=false;if(!specialtyStitches.length&&!beads.length)return;}
+  const skip=skipNextFullRedrawRef.current;
+  if(skip&&(skip===done||skip===bsDone)){skipNextFullRedrawRef.current=null;if(!specialtyStitches.length&&!beads.length)return;}
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed
@@ -7809,7 +7843,7 @@ const _commitBulk=useCallback(function(set,intent,source,asCatchUp){
   // renderStitch() redraw (previously called here unconditionally on every
   // drag-mark commit, then AGAIN via the done-dependent useEffect below).
   paintDoneChangesRef.current(changes,nd);
-  skipNextFullRedrawRef.current=true;
+  skipNextFullRedrawRef.current=nd;
   commitMarkState(function(){
     pushBulkToggleHistory(changes,source,asCatchUp&&want===1);
     applyDoneCountsDelta(changes,pat,nd);
@@ -7849,7 +7883,7 @@ const _dragMarkOnToggle=useCallback(function(idx){
   // redraw (previously called here unconditionally on every single tap, then
   // AGAIN via the done-dependent useEffect below).
   paintDoneChangesRef.current([{idx:idx}],nd);
-  skipNextFullRedrawRef.current=true;
+  skipNextFullRedrawRef.current=nd;
   commitMarkState(function(){
     pushTrackHistory([{idx:idx,oldVal:oldVal}]);
     applyDoneCountsDelta([{idx:idx,oldVal:oldVal}],pat,nd);
@@ -8057,8 +8091,9 @@ function setBsKeysDone(keys,on,defer){
   if(!defer)commitBsDone();
 }
 function commitBsDone(){
-  skipNextFullRedrawRef.current=true;
-  setBsDone(Array.from(bsDoneSetRef.current));
+  const next=Array.from(bsDoneSetRef.current);
+  skipNextFullRedrawRef.current=next;
+  setBsDone(next);
 }
 // Repaint only the cells the lines cover (a line is drawn by the cells it passes through).
 function paintBsKeys(keys){
@@ -8148,7 +8183,7 @@ function applyUnpickPlan(p,undo){
     applyDoneCountsDelta(changes,pat,nd);
     doneRef.current=nd;
     paintDoneChangesRef.current(p.full.map(c=>({idx:c.idx})),nd);
-    skipNextFullRedrawRef.current=true;
+    skipNextFullRedrawRef.current=nd;
     setDone(nd);
   }
   if(p.half.length){
@@ -8447,7 +8482,7 @@ return(
   onPick={(meta)=>{
     // Close the modal immediately so the loading state doesn't appear stuck.
     setProjectPickerOpen(false);
-    ProjectStorage.get(meta.id).then(p=>{
+    flushBeforeSwitch().then(()=>ProjectStorage.get(meta.id)).then(p=>{
       if(p&&(p.pattern||p.p)&&p.settings){
         processLoadedProject(p);
         // Note: setActiveProject is synchronous (writes localStorage); do NOT chain .catch().
@@ -8683,7 +8718,7 @@ return(
     </div>
   )}
 
-  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={combinedDone} totalStitches={combinedTotal} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{ProjectStorage.get(meta.id).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
+  {statsView&&pat&&<StatsContainer statsTab={statsTab} setStatsTab={setStatsTab} statsSessions={statsSessions} statsSettings={statsSettings} totalCompleted={combinedDone} totalStitches={combinedTotal} halfStitchCounts={halfStitchCounts} onEditNote={editSessionNote} onEditSession={editSessionDetails} onDeleteSession={deleteSessionById} onMergeSession={mergeSessionWithNext} onUpdateSettings={setStatsSettings} onClose={()=>setStatsView(false)} projectName={projectName||(sW+'\u00D7'+sH+' pattern')} palette={pal} colourDoneCounts={colourDoneCounts} achievedMilestones={achievedMilestones} done={done} pat={pat} sW={sW} sH={sH} doneSnapshots={doneSnapshots} setDoneSnapshots={updateCompareSnapshots} sections={sections} currentProjectId={projectIdRef.current} onOpenProject={(meta)=>{flushBeforeSwitch().then(()=>ProjectStorage.get(meta.id)).then(project=>{if(project&&(project.pattern||project.p)&&project.settings){processLoadedProject(project);try{ProjectStorage.setActiveProject(project.id);}catch(_){};setStatsView(false);}}).catch(()=>{});}}/>}
 
   {trackerPreviewOpen&&pat&&<TrackerPreviewModal pat={pat} cmap={cmap} sW={sW} sH={sH} fabricCt={fabricCt} level={trackerPreviewLevel} onLevelChange={setTrackerPreviewLevel} onClose={()=>setTrackerPreviewOpen(false)}/>}
 
