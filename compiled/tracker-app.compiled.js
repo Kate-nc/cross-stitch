@@ -1525,7 +1525,7 @@ if(knotPressRef.current||bsPressRef.current)return;if(pat[idx].id==="__skip__"||
 // owned by useDragMark (see _dragMarkOnToggle / _dragMarkOnCommitDrag /
 // _dragMarkOnCommitRange below). The mousedown handler keeps only the
 // pan, edit-mode popover and navigate-mode branches above.
-e.preventDefault();}function handleStitchMouseMove(e){if(isPanningRef.current){doPan(e);setHoverInfo(null);updateHoverOverlay(null);return;}let gc=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);updateHoverOverlay(gc);if(dragStateRef.current.isDragging){setHoverInfo(null);}else if(pat&&gc&&gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH){let idx=gc.gy*sW+gc.gx;let cell=pat[idx];if(cell&&cell.id!=="__skip__"&&cell.id!=="__empty__"){// Only update state if the hovered cell actually changed
+e.preventDefault();}function handleStitchMouseMove(e){if(isPanningRef.current){doPan(e);setHoverInfo(null);updateHoverOverlay(null);return;}let gc=gridCoord(stitchRef,unpreviewedPoint(e),scs,G,false,chartTileRef.current);updateHoverOverlay(gc);if(dragStateRef.current.isDragging){setHoverInfo(null);}else if(pat&&gc&&gc.gx>=0&&gc.gx<sW&&gc.gy>=0&&gc.gy<sH){let idx=gc.gy*sW+gc.gx;let cell=pat[idx];if(cell&&cell.id!=="__skip__"&&cell.id!=="__empty__"){// Only update state if the hovered cell actually changed
 const hi=hoverInfoRef.current;if(!hi||hi.row!==gc.gy+1||hi.col!==gc.gx+1){// The hover bar writes the thread through formatThread (the cell, or its palette entry for the name).
 setHoverInfo({row:gc.gy+1,col:gc.gx+1,id:cell.id,name:formatThread(cmap&&cmap[cell.id]||cell,{variant:"name"})});}}else{setHoverInfo(null);}}else if(!dragStateRef.current.isDragging){setHoverInfo(null);}// C3: drag mutation now flows through useDragMark; mousemove only owns
 // pan + hover updates above.
@@ -1565,11 +1565,19 @@ function commitZoomPreview(){clearTimeout(wheelCommitTimerRef.current);const p=z
 // The anchor stays in screen coordinates: the new zoom can move or resize
 // the chart box (a notice above it coming or going), so its position is
 // measured when the scroll is placed.
-const cs0=(p.layerW-2)/sW;pendingZoomAnchorRef.current={cx:(p.mx-p.ox-p.tx)/p.k/cs0,cy:(p.my-p.oy-p.ty)/p.k/cs0,mx:p.mx,my:p.my};const z=Math.min(p.z,maxZoom);stitchZoomRef.current=z;const flush=window.ReactDOM&&window.ReactDOM.flushSync;if(flush)flush(()=>setStitchZoom(z));else setStitchZoom(z);// Nothing re-rendered (the zoom did not change, as in a pinch that only
+// Measured from the layer's box on screen now, not the origin recorded when
+// the preview began: if the chart scrolled meanwhile (a scrollbar drag, a
+// wheel event without Ctrl), the recorded origin is stale and the commit
+// would put the chart back where it was.
+const cs0=(p.layerW-2)/sW;const lr=layer.getBoundingClientRect();pendingZoomAnchorRef.current={cx:(p.mx-lr.left)/p.k/cs0,cy:(p.my-lr.top)/p.k/cs0,mx:p.mx,my:p.my};const z=Math.min(p.z,maxZoom);stitchZoomRef.current=z;const flush=window.ReactDOM&&window.ReactDOM.flushSync;if(flush)flush(()=>setStitchZoom(z));else setStitchZoom(z);// Nothing re-rendered (the zoom did not change, as in a pinch that only
 // panned): place the scroll at the current cell size.
 if(pendingZoomAnchorRef.current)applyZoomAnchor(scs);clear();// Paint what the new scroll position uncovered now, not on the scroll
 // event a frame later, so no blank edge shows.
-if(scrollRepaintRef.current)scrollRepaintRef.current();}function cancelZoomPreview(){clearTimeout(wheelCommitTimerRef.current);zoomPreviewRef.current=null;const layer=chartLayerRef.current;if(layer){layer.style.transform="";layer.style.willChange="";}}function applyZoomAnchor(cs){const a=pendingZoomAnchorRef.current,el=stitchScrollRef.current;pendingZoomAnchorRef.current=null;if(!a||!el)return;const v=viewBoundsRef.current,sr=el.getBoundingClientRect();el.scrollLeft=G+a.cx*cs-v.x0*cs-(a.mx-sr.left-el.clientLeft);el.scrollTop=G+a.cy*cs-v.y0*cs-(a.my-sr.top-el.clientTop);}// Runs once the committed zoom has rendered (layout effects run before the
+if(scrollRepaintRef.current)scrollRepaintRef.current();}// A pointer position as it would be without the zoom preview's scale, for
+// hit-testing against the chart's cell size while a preview is showing:
+// gridCoord measures from the canvas's box on screen, which the preview has
+// scaled, so without this the hover guide and thread named another stitch.
+function unpreviewedPoint(e){const p=zoomPreviewRef.current,canvas=stitchRef.current;if(!p||!canvas||!(p.k>0)||p.k===1)return e;const r=canvas.getBoundingClientRect();return{clientX:r.left+(e.clientX-r.left)/p.k,clientY:r.top+(e.clientY-r.top)/p.k};}function cancelZoomPreview(){clearTimeout(wheelCommitTimerRef.current);zoomPreviewRef.current=null;const layer=chartLayerRef.current;if(layer){layer.style.transform="";layer.style.willChange="";}}function applyZoomAnchor(cs){const a=pendingZoomAnchorRef.current,el=stitchScrollRef.current;pendingZoomAnchorRef.current=null;if(!a||!el)return;const v=viewBoundsRef.current,sr=el.getBoundingClientRect();el.scrollLeft=G+a.cx*cs-v.x0*cs-(a.mx-sr.left-el.clientLeft);el.scrollTop=G+a.cy*cs-v.y0*cs-(a.my-sr.top-el.clientTop);}// Runs once the committed zoom has rendered (layout effects run before the
 // redraw effect, so the chart is painted at the new scroll position). A zoom
 // change from anywhere else while a preview is showing drops the preview.
 React.useLayoutEffect(()=>{if(pendingZoomAnchorRef.current)applyZoomAnchor(scs);else if(zoomPreviewRef.current)cancelZoomPreview();},[scs,stitchZoom]);useEffect(()=>()=>clearTimeout(wheelCommitTimerRef.current),[]);// Throttle React zoom state to one update per animation frame.
@@ -1577,7 +1585,10 @@ React.useLayoutEffect(()=>{if(pendingZoomAnchorRef.current)applyZoomAnchor(scs);
 function scheduleZoomUpdate(newZoom){// Clamp here as well as in setStitchZoom: the wheel/pinch handlers read
 // stitchZoomRef back as `oldZoom` to compute their scroll-preserving scale
 // factor, so the ref must not drift above the device's canvas ceiling.
-stitchZoomRef.current=Math.min(newZoom,maxZoom);if(!zoomRafRef.current){zoomRafRef.current=requestAnimationFrame(()=>{setStitchZoom(stitchZoomRef.current);zoomRafRef.current=null;});}}function handleStitchWheel(e){if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();const container=stitchScrollRef.current;if(!container)return;{// Ctrl/Cmd + wheel and trackpad pinches arrive as a run of events: preview
+stitchZoomRef.current=Math.min(newZoom,maxZoom);if(!zoomRafRef.current){zoomRafRef.current=requestAnimationFrame(()=>{setStitchZoom(stitchZoomRef.current);zoomRafRef.current=null;});}}function handleStitchWheel(e){// A plain wheel scrolls the chart natively. Land a zoom still being
+// previewed first, so the scroll moves the committed chart rather than the
+// preview, whose idle commit would then put the old anchor back.
+if(!e.ctrlKey&&!e.metaKey){if(zoomPreviewRef.current)commitZoomPreview();return;}e.preventDefault();const container=stitchScrollRef.current;if(!container)return;{// Ctrl/Cmd + wheel and trackpad pinches arrive as a run of events: preview
 // them with a transform and commit when they pause (see Zoom preview).
 const normDy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;const delta=-normDy*0.005;const p=zoomPreviewRef.current||beginZoomPreview(e.clientX,e.clientY);if(p){reanchorZoomPreview(e.clientX,e.clientY);const oldZoom=p.z;const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));if(!updateZoomPreview(newZoom,e.clientX,e.clientY)){commitZoomPreview();}else{clearTimeout(wheelCommitTimerRef.current);wheelCommitTimerRef.current=setTimeout(commitZoomPreview,ZOOM_PREVIEW_WHEEL_IDLE_MS);}return;}}const rect=container.getBoundingClientRect();const mouseX=e.clientX-rect.left;const mouseY=e.clientY-rect.top;const canvasX=container.scrollLeft+mouseX;const canvasY=container.scrollTop+mouseY;// Normalise deltaY for deltaMode: 0=pixels, 1=lines (~16px), 2=pages (~400px)
 const normDy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;const delta=-normDy*0.005;const oldZoom=stitchZoomRef.current;// maxZoom (not the bare 4) so `scale` below matches the zoom that is

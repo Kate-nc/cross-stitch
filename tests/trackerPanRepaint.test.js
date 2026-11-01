@@ -165,6 +165,19 @@ describe('zoom preview: a pinch or wheel zoom is a transform until it ends', () 
     expect(tracker).toMatch(/function handleCanvasPointerDownCapture\(e\)\{\n[\s\S]{0,200}if\(zoomPreviewRef\.current&&touchStateRef\.current\.mode!=="pinch"\)commitZoomPreview\(\);/);
   });
 
+  test('hover hit-tests the pointer as it would be without the preview scale', () => {
+    // gridCoord measures from the canvas's box on screen, which the preview scales.
+    expect(tracker).toMatch(/let gc=gridCoord\(stitchRef,unpreviewedPoint\(e\),scs,G,false,chartTileRef\.current\);/);
+    expect(block).toMatch(/return\{clientX:r\.left\+\(e\.clientX-r\.left\)\/p\.k,clientY:r\.top\+\(e\.clientY-r\.top\)\/p\.k\};/);
+  });
+
+  test('a scroll during a preview cannot put the old anchor back', () => {
+    // A plain wheel lands the preview before it scrolls natively ...
+    expect(wheel).toMatch(/if\(!e\.ctrlKey&&!e\.metaKey\)\{if\(zoomPreviewRef\.current\)commitZoomPreview\(\);return;\}/);
+    // ... and the commit reads the layer's box on screen now, not the origin recorded when the preview began.
+    expect(block).toMatch(/const lr=layer\.getBoundingClientRect\(\);\n  pendingZoomAnchorRef\.current=\{\n    cx:\(p\.mx-lr\.left\)\/p\.k\/cs0, cy:\(p\.my-lr\.top\)\/p\.k\/cs0,/);
+  });
+
   test('wheel zoom previews too and commits when the events pause', () => {
     expect(wheel).toMatch(/const p=zoomPreviewRef\.current\|\|beginZoomPreview\(e\.clientX,e\.clientY\);/);
     expect(wheel).toMatch(/wheelCommitTimerRef\.current=setTimeout\(commitZoomPreview,ZOOM_PREVIEW_WHEEL_IDLE_MS\);/);

@@ -7343,7 +7343,7 @@ function handleStitchMouseMove(e){
     updateHoverOverlay(null);
     return;
   }
-  let gc=gridCoord(stitchRef,e,scs,G,false,chartTileRef.current);
+  let gc=gridCoord(stitchRef,unpreviewedPoint(e),scs,G,false,chartTileRef.current);
 
   updateHoverOverlay(gc);
 
@@ -7476,9 +7476,14 @@ function commitZoomPreview(){
   // The anchor stays in screen coordinates: the new zoom can move or resize
   // the chart box (a notice above it coming or going), so its position is
   // measured when the scroll is placed.
+  // Measured from the layer's box on screen now, not the origin recorded when
+  // the preview began: if the chart scrolled meanwhile (a scrollbar drag, a
+  // wheel event without Ctrl), the recorded origin is stale and the commit
+  // would put the chart back where it was.
   const cs0=(p.layerW-2)/sW;
+  const lr=layer.getBoundingClientRect();
   pendingZoomAnchorRef.current={
-    cx:(p.mx-p.ox-p.tx)/p.k/cs0, cy:(p.my-p.oy-p.ty)/p.k/cs0, mx:p.mx, my:p.my};
+    cx:(p.mx-lr.left)/p.k/cs0, cy:(p.my-lr.top)/p.k/cs0, mx:p.mx, my:p.my};
   const z=Math.min(p.z,maxZoom);
   stitchZoomRef.current=z;
   const flush=window.ReactDOM&&window.ReactDOM.flushSync;
@@ -7490,6 +7495,16 @@ function commitZoomPreview(){
   // Paint what the new scroll position uncovered now, not on the scroll
   // event a frame later, so no blank edge shows.
   if(scrollRepaintRef.current)scrollRepaintRef.current();
+}
+// A pointer position as it would be without the zoom preview's scale, for
+// hit-testing against the chart's cell size while a preview is showing:
+// gridCoord measures from the canvas's box on screen, which the preview has
+// scaled, so without this the hover guide and thread named another stitch.
+function unpreviewedPoint(e){
+  const p=zoomPreviewRef.current, canvas=stitchRef.current;
+  if(!p||!canvas||!(p.k>0)||p.k===1)return e;
+  const r=canvas.getBoundingClientRect();
+  return{clientX:r.left+(e.clientX-r.left)/p.k,clientY:r.top+(e.clientY-r.top)/p.k};
 }
 function cancelZoomPreview(){
   clearTimeout(wheelCommitTimerRef.current);
@@ -7530,7 +7545,10 @@ function scheduleZoomUpdate(newZoom){
 }
 
 function handleStitchWheel(e){
-  if(!e.ctrlKey&&!e.metaKey)return;
+  // A plain wheel scrolls the chart natively. Land a zoom still being
+  // previewed first, so the scroll moves the committed chart rather than the
+  // preview, whose idle commit would then put the old anchor back.
+  if(!e.ctrlKey&&!e.metaKey){if(zoomPreviewRef.current)commitZoomPreview();return;}
   e.preventDefault();
   const container=stitchScrollRef.current;
   if(!container)return;

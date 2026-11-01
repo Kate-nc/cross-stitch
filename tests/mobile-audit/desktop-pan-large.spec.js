@@ -157,3 +157,50 @@ test('zooming and picking a colour do not save the project, and come back after 
   expect(await zoomPercent(page), 'the zoom did not come back after a reload').toBe(zoom);
   expect(await page.locator('.ppal-tile--on').count(), 'the colour did not come back after a reload').toBe(1);
 });
+
+test('during a wheel zoom preview, hover names the stitch under the pointer and a plain wheel scroll stays put', async ({ page }) => {
+  test.setTimeout(240000);
+  await openLarge(page);
+  const box = await chartBox(page);
+  const x = Math.round(box.x + box.w * 0.4), y = Math.round(box.y + box.h / 2);
+  await page.mouse.move(x, y);
+  const hoverCell = () => page.evaluate(() => {
+    const m = /Row: (\d+)\s+Col: (\d+)/.exec(document.body.innerText);
+    return m ? { row: +m[1], col: +m[2] } : null;
+  });
+
+  // Zoom in with Ctrl + wheel, then move the pointer while the preview is still showing (it commits 160 ms
+  // after the last wheel event).
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -20); await page.waitForTimeout(16); }
+  await page.keyboard.up('Control');
+  const preview = await page.evaluate(() => document.querySelector('.tracker-chart-layer').style.transform);
+  await page.mouse.move(x + 37, y + 23);
+  const hover = await hoverCell();
+  const under = await cellAt(page, x + 37, y + 23);
+  console.log('PREVIEW_HOVER ' + JSON.stringify({ preview, hover, under }));
+  expect(preview, 'no zoom preview was showing — this measures nothing').toMatch(/scale/);
+  // The hover bar's row and column are 1-based.
+  expect(hover).toEqual({ row: Math.floor(under.cy) + 1, col: Math.floor(under.cx) + 1 });
+
+  // Zoom again, and scroll with a plain wheel before the preview commits: the scroll must stick.
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 4; i++) { await page.mouse.wheel(0, -20); await page.waitForTimeout(16); }
+  await page.keyboard.up('Control');
+  const beforeScroll = await cellAt(page, x + 37, y + 23);
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(800);
+  const settled = await cellAt(page, x + 37, y + 23);
+  const cellPx = await page.evaluate(() => {
+    const layer = document.querySelector('.tracker-chart-layer');
+    const sW = +/(\d+) columns/.exec(document.getElementById('tracker-chart-summary').textContent)[1];
+    return (parseFloat(layer.style.width) - 2) / sW;
+  });
+  console.log('PLAIN_WHEEL ' + JSON.stringify({ beforeScroll, settled, cellPx }));
+  expect(await page.evaluate(() => document.querySelector('.tracker-chart-layer').style.transform)).toBe('');
+  // The 300 px scroll moved the rows under the pointer. Before: the idle commit put the anchor from before the
+  // scroll back, so the same stitch ended up under the pointer again.
+  const rows = settled.cy - beforeScroll.cy;
+  expect(rows, `the rows under the pointer moved ${rows.toFixed(2)}, not about ${(300 / cellPx).toFixed(2)}`).toBeGreaterThan(0.5 * 300 / cellPx);
+  expect(rows).toBeLessThan(1.5 * 300 / cellPx);
+});
