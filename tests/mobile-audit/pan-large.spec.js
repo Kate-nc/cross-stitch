@@ -12,28 +12,32 @@
      3. whether a tile move keeps its pixels and draws only the uncovered
         strip, rather than repainting the tile;
      4. a pinch, which re-rendered and repainted on every cell-size step and
-        now previews with a CSS transform.
+        now previews with a CSS transform;
+     5. a chart with half stitches, backstitch, knots, beads and petite and
+        long stitches, whose petites and long stitches were all stroked on
+        every paint (clipped away) wherever the view was.
 
    Each runs on the 400 x 500, 60-colour fixture at 4x CPU and asserts on
    counted work (see tests/_helpers/panProbes.js); wall time is logged only. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
-const { installProbes, resetProbes, readProbes, chartBox, cpuThrottle } = require('../_helpers/perfProbes');
+const { installProbes, resetProbes, readProbes, chartBox, cpuThrottle, waitForSaved } = require('../_helpers/perfProbes');
 const { installPanProbes, resetPanProbes, readPanProbes, fixtureWith, zoomPercent, cellAt, scrollFrames } = require('../_helpers/panProbes');
 const { routeCdnLocally } = require('../_helpers/offlineCdn');
 
-async function openLarge(page, fields) {
+async function openLarge(page, fields, fixture) {
   await routeCdnLocally(page);
   await suppressOnboarding(page);
   await installProbes(page);
   await installPanProbes(page);
   await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.locator('input[type="file"]').first().setInputFiles(
-    fixtureWith(fixtureFor('large', { doneFraction: 0.3 }), Object.assign({ savedZoom: 1, savedScroll: { left: 2000, top: 2000 } }, fields)));
+    fixtureWith(fixture || fixtureFor('large', { doneFraction: 0.3 }), Object.assign({ savedZoom: 1, savedScroll: { left: 2000, top: 2000 } }, fields)));
   await page.waitForSelector('canvas', { timeout: 90000 });
   // The import's own save, the analysis and the first paints settle first.
-  await page.waitForTimeout(12000);
+  await page.waitForTimeout(12000);  // The import is saved in full a few seconds after it opens, which re-renders the tracker: let that finish first.
+  await waitForSaved(page);
 }
 
 /** Two fingers `spread` px apart (plus `drift` alternating per move), their
@@ -149,5 +153,22 @@ test('a pinch previews with a transform and keeps the stitch under the fingers',
   // repainted the whole tile. Now: a repaint per rebase (at 1.6x) and one at
   // the end, and a render for each.
   expect(p.paints, `${p.paints} chart paints during one pinch`).toBeLessThanOrEqual(6);
+  await cdp.detach().catch(() => {});
+});
+
+test('panning a mixed-stitch chart strokes only the objects in view', async ({ page }) => {
+  test.setTimeout(240000);
+  await openLarge(page, {}, fixtureFor('large', { doneFraction: 0.3, mixed: true }));
+  const cdp = await cpuThrottle(page, 4);
+  await resetProbes(page); await resetPanProbes(page);
+  await scrollFrames(page, 24, 12, 150);
+  const p = await readPanProbes(page);
+  console.log('MIXED_PAN ' + JSON.stringify(p));
+
+  expect(p.paints, 'the pan did not paint anything').toBeGreaterThanOrEqual(5);
+  // The fixture has ~2 400 petites (2 strokes each) and as many long stitches:
+  // ~7 300 strokes per paint when every object was drawn. A full tile at 100%
+  // holds a few hundred; a strip far fewer.
+  expect(p.strokes / p.paints, `${Math.round(p.strokes / p.paints)} strokes per paint`).toBeLessThan(1500);
   await cdp.detach().catch(() => {});
 });

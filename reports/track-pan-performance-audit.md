@@ -354,6 +354,90 @@ without internet access: with `PW_OFFLINE_CDN=1` the cdnjs scripts are served
 from `node_modules`, the same versions, so the pages' integrity hashes match.
 Without the variable it does nothing.
 
+## Follow-up: the "once-a-second" re-render, navigation saves and mixed charts
+
+**The re-render was not a timer.** `desktop-hover-cost` and
+`desktop-highlight-idle-cost` failed on `main` with ~1 470 elements per hover
+sweep and ~590 elements/s while idle. The running clock is already an external
+store (`elapsedStore`), so a tick re-renders only `LiveElapsed`. Recording
+which React state setters fired during the idle window showed instead:
+
+- the spec's click on a colour changed the saved working context, which
+  scheduled a **full save of the project** 5 s later (1.4 s of main thread on
+  desktop for the 400 x 500 chart);
+- `beginSave` / `endSave` set the save badge's state, re-rendering all of
+  `TrackerApp` twice, and the save's `cs:projectsChanged` made the header
+  reload its project list;
+- in the hover spec, the fixture's own first save (every opened project is
+  saved in full ~5 s after it opens) landed inside the sweep. The badge reads
+  "All changes saved" until that save starts, since it counts edits.
+
+**Navigation no longer saves the project.** `stitchZoom` and the working
+context (`focusColour`, `stitchMode`, `stitchView`, `highlightMode`) are out
+of the autosave's dependencies. A change to them, or a scroll, writes a small
+per-project navigation record to `localStorage` a second after it settles
+(`writeNavRecord`, key `cs_nav_<id>`: zoom, scroll in chart pixels, working
+context, time). Loading applies the record when it is newer than the project's
+`updatedAt` (`navRecordFor`), so a reload comes back to the same zoom, place
+and colour; a later save, from this device or another, wins. The project
+still carries these fields from its next full save, which leaving the page
+always makes, so sync is unchanged. The guide crosshair (`hlRow`/`hlCol`) is
+still saved with the project, as before.
+
+The two specs now wait for the fixture's first save (`waitForSaved` in
+`tests/_helpers/perfProbes.js`) before measuring, and both pass: 0 elements
+for the hover sweep, 0 per second idle in outline and isolate. One run in five
+saw a single stray render in the outline case that did not reproduce in four
+more runs or in a probe; most likely a late asynchronous result.
+
+**Mixed-stitch charts drew every object on every paint.**
+`ProgressUnits.specialty.draw` stroked every petite and long stitch in the
+pattern for each `drawStitch` call, clipped away outside the painted cells;
+with strip paints and one-stitch repaints that is several times per pan step
+or tap. It now takes the painted cells as `bounds` and skips objects outside
+them (the Creator's calls pass none and are unchanged), and keeps the done
+marks as a `Set` per array instead of building one per paint. Beads are no
+longer copied and sorted per paint (`beadDrawOrder`, `beadsDoneSet` are
+memoised). Backstitch and knots already skipped out-of-range objects before
+drawing.
+
+| Mixed 400 x 500 chart, one full tile | Strokes before | after | Desktop | Phone 4x |
+|---|---:|---:|---:|---:|
+| 40% zoom | 15 347 | 2 342 | 109 -> 93 ms | 450 -> 377 ms |
+| 100% zoom | 7 537 | 475 | 79 -> 59 ms | 350 -> 249 ms |
+
+The 16 desktop view/zoom captures of the mixed fixture are pixel-identical
+before and after, and tile shifting matches a full paint as before.
+
+**New specs** (both fail on the commit before these changes and pass now):
+`pan-large.spec.js` "panning a mixed-stitch chart strokes only the objects in
+view" (7 299 strokes per paint before, 65 now) and
+`desktop-pan-large.spec.js` "zooming and picking a colour do not save the
+project, and come back after a reload" (1 save before, 0 now).
+
+**Still open, found here.** Opening a project always schedules a full save
+~5 s later, even when nothing changed (the autosave treats its first run as a
+change). On a large chart that is seconds of main thread on a phone soon after
+every open. It is left alone here because loading may rely on that save to
+store what it migrates; skipping it safely needs a check of what loading
+changes.
+
+## Cross-check: another agent's analysis
+
+An independent analysis of `main` listed five causes. Where each stands on
+this branch:
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | Right-edge panning defeats the repaint cache (80 redraws in 80 steps) | Fixed (first follow-up): the check covers only the chart. `pan-large.spec.js` "right edge" guards it |
+| 2 | Finger-spacing noise triggers zoom updates (94 redraws) | Fixed: 4% dead band, the latest pan step only per frame, `stitchZoom` not a redraw input, the anchor kept. Guarded by "two-finger pan with finger drift" |
+| 3 | Mixed-stitch charts draw offscreen objects; beads copied and sorted per paint | Fixed in this follow-up: bounds culling for petites and long stitches, cached done sets, memoised bead order. No separate spatial index: the per-object bounds test is a few comparisons, and a full-list walk of the comparisons costs well under a millisecond on these fixtures |
+| 4 | Tile replacements redraw the whole tile and overlays | Fixed: `shiftChartTile` and `shiftChartOverlays` keep the overlap and draw the uncovered strip; the tile moves on 100 px before the view reaches its edge |
+| 5 | Zoom-only changes trigger heavyweight saves | Fixed for zoom and the working context (navigation record). Not done: lighter conflict-metadata reads and caching material requirements by chart revision, which make every save cheaper; the save on open noted above |
+
+Its last recommendation, validating on iPad (WebKit) and Android, is the
+real-device check below; this sandbox has neither.
+
 ## Real-device check
 
 Outstanding, as for the earlier reports. On the largest real pattern

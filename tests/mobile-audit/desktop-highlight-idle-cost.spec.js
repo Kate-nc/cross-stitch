@@ -22,7 +22,8 @@
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
-const { installProbes, resetProbes, readProbes } = require('../_helpers/perfProbes');
+const { routeCdnLocally } = require('../_helpers/offlineCdn');
+const { installProbes, resetProbes, readProbes, waitForSaved } = require('../_helpers/perfProbes');
 
 const IDLE_MS = 5000;
 
@@ -35,6 +36,7 @@ async function openWithHighlight(page, mode) {
     } catch (_) {}
   }, mode);
   await installProbes(page);
+  await routeCdnLocally(page);
   await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.locator('input[type="file"]').first().setInputFiles(fixtureFor('large'));
   await page.waitForSelector('canvas', { timeout: 90000 });
@@ -42,6 +44,8 @@ async function openWithHighlight(page, mode) {
   // Picking a colour in the list switches the chart to highlight view.
   await page.locator('.ppal-tile').first().click();
   await page.waitForTimeout(1500);
+  // The import's own save, if still running, re-renders the tracker: not idle work.
+  await waitForSaved(page);
 }
 
 async function measureIdle(page) {

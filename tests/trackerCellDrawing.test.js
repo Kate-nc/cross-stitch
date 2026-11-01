@@ -114,3 +114,51 @@ describe('drawStitch', () => {
     expect(drawStitch).toMatch(/function drawGlyph\(sym,font,ink,cx,cy\)\{\n    ctx\.fillStyle=ink;ctx\.font=font;ctx\.fillText\(sym,cx,cy\);\n  \}/);
   });
 });
+
+describe('mixed-stitch objects are only drawn where they can show', () => {
+  const PU = require('../progress-units.js');
+  const ctxMock = () => {
+    const c = { strokes: 0, rects: 0 };
+    Object.assign(c, { save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {}, setLineDash() {},
+      stroke() { c.strokes++; }, strokeRect() { c.rects++; } });
+    return c;
+  };
+  // A 100 x 100 chart with a petite and a long stitch every 10 cells: 100 of each.
+  const objects = [];
+  for (let y = 5; y < 100; y += 10) for (let x = 5; x < 100; x += 10) {
+    const thread = { id: '310', rgb: [0, 0, 0] };
+    objects.push({ uid: 'p' + x + '-' + y, type: 'petite', x, y, thread });
+    objects.push({ uid: 'l' + x + '-' + y, type: 'long_stitch', x1: x, y1: y + 2, x2: x + 3, y2: y + 2, thread });
+  }
+
+  test('without bounds every object is stroked, as the Creator still asks', () => {
+    const c = ctxMock();
+    PU.specialty.draw(c, objects, [], 0, 0, 10, null, null);
+    expect(c.strokes).toBe(100 * 2 + 100);
+  });
+
+  test('with bounds only the objects touching them are stroked', () => {
+    const c = ctxMock();
+    // Cells 20..40 x 20..40 hold the stitches at 25 and 35 in each direction.
+    PU.specialty.draw(c, objects, [], 0, 0, 10, null, null, { x0: 20, y0: 20, x1: 40, y1: 40 });
+    expect(c.strokes).toBe(4 * 2 + 4);
+  });
+
+  test('an object reaching into the bounds from outside is still drawn (the clip trims it)', () => {
+    const c = ctxMock();
+    // The long stitch from x 35 to 38 reaches x 37.5 ... it starts outside x0 = 37.
+    PU.specialty.draw(c, [objects.find(o => o.uid === 'l35-35')], [], 0, 0, 10, null, null, { x0: 37, y0: 30, x1: 50, y1: 40 });
+    expect(c.strokes).toBe(1);
+    const d = ctxMock();
+    PU.specialty.draw(d, [objects.find(o => o.uid === 'l35-35')], [], 0, 0, 10, null, null, { x0: 39, y0: 30, x1: 50, y1: 40 });
+    expect(d.strokes).toBe(0);
+  });
+
+  test('the tracker passes the painted cells, and keeps bead order and done set across paints', () => {
+    expect(drawStitch).toMatch(/ProgressUnits\.specialty\.draw\(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected,\{x0:startX,y0:startY,x1:endX,y1:endY\}\);/);
+    expect(drawStitch).not.toMatch(/beads\.slice\(\)\.sort/);
+    expect(drawStitch).not.toMatch(/beadsDone\.includes/);
+    expect(SRC).toMatch(/const beadDrawOrder=useMemo\(\(\)=>beads\.slice\(\)\.sort\(\(a,b\)=>Number\(a\.uid===selectedBead\)-Number\(b\.uid===selectedBead\)\),\[beads,selectedBead\]\);/);
+    expect(SRC).toMatch(/const beadsDoneSet=useMemo\(\(\)=>new Set\(beadsDone\),\[beadsDone\]\);/);
+  });
+});

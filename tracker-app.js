@@ -4270,8 +4270,10 @@ function processLoadedProject(project){
   }
   setSelectedColorId(null);setTrackHistory([]);setRedoStack([]);
   // Back to where the stitcher left off: colour, Mark or Navigate, and how the chart was drawn (TRACK-05).
+  // This device's navigation record, if it is newer than the project's last save (see writeNavRecord).
+  const _nav=navRecordFor(project);
   if(!_sameProjectReload){
-    const _wc=normaliseWorkingContext(project.workingContext,newPal);
+    const _wc=normaliseWorkingContext(_nav?_nav.workingContext:project.workingContext,newPal);
     setStitchMode(_wc?_wc.mode:"track");
     setFocusColour(_wc&&_wc.colour?_wc.colour:null);
     if(_wc&&_wc.view)setStitchView(_wc.view);
@@ -4471,16 +4473,18 @@ function processLoadedProject(project){
   })();
   createdAtRef.current=normalisedCreatedAt;
 
-  if(project.savedZoom!=null){
+  const _savedZoom=_nav&&_nav.zoom>0?_nav.zoom:project.savedZoom;
+  const _savedScroll=_nav&&_nav.scroll?_nav.scroll:project.savedScroll;
+  if(_savedZoom!=null){
     setTimeout(()=>{
-      setStitchZoom(project.savedZoom);
-      if(project.savedScroll&&stitchScrollRef.current){
+      setStitchZoom(_savedZoom);
+      if(_savedScroll&&stitchScrollRef.current){
         requestAnimationFrame(()=>{
           if(!stitchScrollRef.current)return;
           // Saved in chart coordinates; the scroller may be showing a work area.
           const off=chartScrollOffset();
-          stitchScrollRef.current.scrollLeft=project.savedScroll.left-off.x;
-          stitchScrollRef.current.scrollTop=project.savedScroll.top-off.y;
+          stitchScrollRef.current.scrollLeft=_savedScroll.left-off.x;
+          stitchScrollRef.current.scrollTop=_savedScroll.top-off.y;
         });
       }
     },100);
@@ -5079,9 +5083,9 @@ useEffect(() => {
   // and runs at least every AUTOSAVE_MARKS_CAP_MS. Any other change saves as before,
   // and hiding or leaving the page still writes everything at once.
   const _other = [pat, pal, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned, halfStitches, singleStitchEdits, knots, specialtyStitches,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, doneSnapshots,
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
-    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, focusColour, stitchMode, stitchView, highlightMode, achievedMilestones];
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones];
   const _prevOther = autoSaveOtherRef.current;
   autoSaveOtherRef.current = _other;
   if (!_prevOther || _other.some((v, i) => !Object.is(v, _prevOther[i]))) autoSaveOtherDirtyRef.current = true;
@@ -5167,10 +5171,45 @@ useEffect(() => {
   return () => clearTimeout(saveTimer);
 }, [pat, pal, done, bsLines, parkMarkers, totalTime, hlRow, hlCol, threadOwned,
     halfStitches, halfDone, singleStitchEdits, knots, knotsDone, beadsDone, bsDone, partialDone, specialtyStitches, specialtyDone,
-    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, stitchZoom, doneSnapshots,
+    sW, sH, fabricCt, skeinPrice, stitchSpeed, wastePrefs, originalPaletteState, statsSessions, statsSettings, projectName, doneSnapshots,
     // Everything else buildSnapshot() persists, so an edit to any of it is saved on its own (it used to wait for some unrelated change).
+    // Not the zoom or the working context (colour, Mark or Navigate, view, highlight style): looking around the chart
+    // is not an edit, and on a large chart a full save is seconds of main thread on a phone. Those are kept in the
+    // navigation record (writeNavRecord) and ride along with the next full save, which leaving the page always makes.
     projectDesigner, projectDescription, projectNotes, partialStitches, projectFabricColour, threadBrand,
-    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, focusColour, stitchMode, stitchView, highlightMode, achievedMilestones]);
+    stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea, breadcrumbs, achievedMilestones]);
+
+// ═══ Navigation record ═══
+// Where the stitcher is looking: the zoom, the scroll position and the working context (the colour in hand, Mark or
+// Navigate, the view and the highlight style). A change to these used to schedule a full save of the project, which on a
+// large chart is seconds of main thread on a phone, for what is not an edit. They are now written to a small record in
+// this device's storage, a second after they settle, and the project carries them from its next full save (leaving the
+// page always makes one). Loading a project applies the record when it is newer than the project's last save, so a
+// reload comes back to the same place; a newer save, from this device or another, wins.
+const NAV_RECORD_PREFIX="cs_nav_";
+const navTimerRef=useRef(0);
+function writeNavRecord(){
+  const id=projectIdRef.current;
+  if(!id||!pat)return;
+  const el=stitchScrollRef.current;
+  const off=chartScrollOffset();
+  try{
+    localStorage.setItem(NAV_RECORD_PREFIX+id,JSON.stringify({
+      at:Date.now(),
+      zoom:stitchZoomRef.current,
+      scroll:el?{left:el.scrollLeft+off.x,top:el.scrollTop+off.y}:null,
+      workingContext:workingContextForSave(focusColour,stitchMode,stitchView,highlightMode)||null,
+    }));
+  }catch(_){}
+}
+const writeNavRecordRef=useRef(null);
+writeNavRecordRef.current=writeNavRecord;
+function scheduleNavRecord(){
+  clearTimeout(navTimerRef.current);
+  navTimerRef.current=setTimeout(()=>{if(writeNavRecordRef.current)writeNavRecordRef.current();},1000);
+}
+useEffect(()=>{if(pat)scheduleNavRecord();},[stitchZoom,focusColour,stitchMode,stitchView,highlightMode]);
+useEffect(()=>()=>clearTimeout(navTimerRef.current),[]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -5387,6 +5426,22 @@ function workingContextForSave(colour, mode, view, highlight) {
   if (view === "highlight" && highlight) wc.highlight = highlight;
   return Object.keys(wc).length ? wc : undefined;
 }
+// The navigation record this device kept for a project (writeNavRecord in TrackerApp), when it is newer than the
+// project's last save, else null. A malformed record is ignored.
+function navRecordFor(project) {
+  if (!project || !project.id) return null;
+  var rec = null;
+  try { rec = JSON.parse(localStorage.getItem("cs_nav_" + project.id) || "null"); } catch (_) { return null; }
+  if (!rec || typeof rec !== "object" || typeof rec.at !== "number") return null;
+  var saved = Date.parse(project.updatedAt || "") || 0;
+  if (rec.at <= saved) return null;
+  return {
+    at: rec.at,
+    zoom: typeof rec.zoom === "number" && isFinite(rec.zoom) && rec.zoom > 0 ? rec.zoom : null,
+    scroll: rec.scroll && isFinite(rec.scroll.left) && isFinite(rec.scroll.top) ? { left: rec.scroll.left, top: rec.scroll.top } : null,
+    workingContext: rec.workingContext && typeof rec.workingContext === "object" ? rec.workingContext : undefined,
+  };
+}
 function normaliseWorkingContext(wc, pal) {
   if (!wc || typeof wc !== "object") return null;
   var out = { colour: null, mode: "track", view: null, highlight: null };
@@ -5517,6 +5572,11 @@ function drawParkMarker(ctx,pm,gut,cSz){
   ctx.fillStyle=`rgb(${pm.rgb[0]},${pm.rgb[1]},${pm.rgb[2]})`;ctx.fill();
   ctx.restore();
 }
+
+// Beads in paint order, the selected one last so its ring is on top, and the
+// done beads as a Set (drawStitch).
+const beadDrawOrder=useMemo(()=>beads.slice().sort((a,b)=>Number(a.uid===selectedBead)-Number(b.uid===selectedBead)),[beads,selectedBead]);
+const beadsDoneSet=useMemo(()=>new Set(beadsDone),[beadsDone]);
 
 // Paints the cells in viewportRect and everything drawn over them. Also the
 // single-cell / strip repaint path (repaintChartCells), clipped to the cells
@@ -5853,7 +5913,7 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.restore();
   }
 
-  ProgressUnits.specialty.draw(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected);
+  ProgressUnits.specialty.draw(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected,{x0:startX,y0:startY,x1:endX,y1:endY});
   // Centre marks, crosshair, backstitch, park markers, border — always draw (cheap)
   // Dash phase anchored to the chart origin (lineDashOffset = distance from
   // it), so the dashes sit in the same place whatever range is painted — a
@@ -5927,10 +5987,12 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   }
   if(beads.length){
     ctx.save();
-    beads.slice().sort((a,b)=>Number(a.uid===selectedBead)-Number(b.uid===selectedBead)).forEach(b=>{
+    // Draw order (the selected bead last) and the done set are worked out once
+    // per change (beadDrawOrder, beadsDoneSet), not copied and sorted per paint.
+    beadDrawOrder.forEach(b=>{
       const x=b.x/2,y=b.y/2;
       if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
-      const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDone.includes(b.uid);
+      const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDoneSet.has(b.uid);
       ctx.beginPath();ctx.ellipse(gut+x*cSz,gut+y*cSz,r,r*0.7,-Math.PI/4,0,Math.PI*2);
       ctx.fillStyle=marked?'rgb('+rgb.join(',')+')':'white';ctx.fill();
       ctx.strokeStyle=b.uid===selectedBead?'#B85C38':'rgb('+rgb.join(',')+')';ctx.lineWidth=b.uid===selectedBead?3:2;ctx.stroke();
@@ -9593,7 +9655,7 @@ return(
         a tablet with 1300 CSS px of height showed the chart through the same
         letterbox as a phone. */}
     <p id="tracker-chart-summary" className="tracker-chart-summary">{sW} columns by {sH} rows. {Math.round(stitchZoom*100)}% zoom. Focus the chart and use arrow keys to move the guide; Enter marks or unmarks in Mark mode. Ctrl+Z undoes. {layerVis.full===false?"Full crosses are hidden.":""}</p>
-    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:(chartCursorRef.current=(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive&&_dragMarkFlag?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),chartCursorNow()),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{scheduleNavRecord();if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:(chartCursorRef.current=(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive&&_dragMarkFlag?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),chartCursorNow()),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div aria-hidden="true" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}

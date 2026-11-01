@@ -10,12 +10,15 @@
      3. Overlays (counting aids, focus dimming, ...) were redrawn over the
         whole tile on every tile move; they now keep their pixels as the
         chart does.
+     4. Zooming or picking a colour scheduled a full save of the project
+        (seconds of main thread on a phone for a large chart), and re-rendered
+        the tracker around it; they now go to a small navigation record.
 
    On the 400 x 500, 60-colour fixture at 4x CPU, asserting on counts. */
 const { test, expect } = require('@playwright/test');
 const { fixtureFor, fixturePalette } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
-const { installProbes, resetProbes, readProbes, chartBox, cpuThrottle } = require('../_helpers/perfProbes');
+const { installProbes, resetProbes, readProbes, chartBox, cpuThrottle, waitForSaved } = require('../_helpers/perfProbes');
 const { installPanProbes, resetPanProbes, readPanProbes, fixtureWith, zoomPercent, cellAt, scrollFrames } = require('../_helpers/panProbes');
 const { routeCdnLocally } = require('../_helpers/offlineCdn');
 
@@ -29,7 +32,8 @@ async function openLarge(page, fields, storage) {
   await page.locator('input[type="file"]').first().setInputFiles(
     fixtureWith(fixtureFor('large', { doneFraction: 0.3 }), Object.assign({ savedZoom: 1, savedScroll: { left: 2000, top: 2000 } }, fields)));
   await page.waitForSelector('canvas', { timeout: 90000 });
-  await page.waitForTimeout(10000);
+  await page.waitForTimeout(10000);  // The import is saved in full a few seconds after it opens, which re-renders the tracker: let that finish first.
+  await waitForSaved(page);
 }
 
 const scrollPos = (page) => page.evaluate(() => { const s = document.querySelector('.tracker-chart-scroll'); return [s.scrollLeft, s.scrollTop]; });
@@ -124,4 +128,32 @@ test('overlays keep their pixels when the tile moves', async ({ page }) => {
   // than redrawing it over the whole tile.
   expect(p.overlayCopies, `${p.overlayCopies} overlay copies for ${p.chartCopies} tile moves`).toBeGreaterThanOrEqual(p.chartCopies * overlays);
   await cdp.detach().catch(() => {});
+});
+
+test('zooming and picking a colour do not save the project, and come back after a reload', async ({ page }) => {
+  test.setTimeout(240000);
+  await openLarge(page);
+  const box = await chartBox(page);
+  await page.mouse.move(Math.round(box.x + box.w / 2), Math.round(box.y + box.h / 2));
+  await resetProbes(page); await resetPanProbes(page);
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -20); await page.waitForTimeout(16); }
+  await page.keyboard.up('Control');
+  await page.locator('.ppal-tile').first().click();
+  // Longer than the autosave's 5 s wait.
+  await page.waitForTimeout(7000);
+  const p = await readPanProbes(page);
+  const zoom = await zoomPercent(page);
+  const focused = await page.locator('.ppal-tile--on').count();
+  console.log('NAV_NO_SAVE ' + JSON.stringify({ zoom, focused, saves: p.saves }));
+  expect(focused, 'the colour click missed').toBe(1);
+  expect(zoom, 'the wheel did not zoom').toBeGreaterThan(120);
+  expect(p.saves, 'zooming or picking a colour started a full save').toBe(0);
+
+  // The navigation record brings both back.
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('canvas', { timeout: 90000 });
+  await page.waitForTimeout(4000);
+  expect(await zoomPercent(page), 'the zoom did not come back after a reload').toBe(zoom);
+  expect(await page.locator('.ppal-tile--on').count(), 'the colour did not come back after a reload').toBe(1);
 });

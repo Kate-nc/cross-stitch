@@ -11,6 +11,8 @@
      chartCopies   the chart canvas drawn onto itself: a tile move that kept
                    its pixels (shiftChartTile)
      overlayCopies the same for the overlay canvases (shiftChartOverlays)
+     strokes       ctx.stroke calls: lines, mostly the mixed-stitch objects
+     saves         full project saves started (the save badge going to Saving)
 
    Plus helpers to load a fixture with project fields changed, and to read
    the zoom and the stitch under a point. */
@@ -18,8 +20,18 @@ const fs = require('fs');
 
 async function installPanProbes(page) {
   await page.addInitScript(() => {
-    const C = window.__pan = { paints: 0, chartCopies: 0, overlayCopies: 0 };
+    const C = window.__pan = { paints: 0, chartCopies: 0, overlayCopies: 0, strokes: 0, saves: 0 };
     const P = CanvasRenderingContext2D.prototype;
+    const st = P.stroke;
+    P.stroke = function () { C.strokes++; return st.apply(this, arguments); };
+    // Full saves of the project: the save badge going to "Saving".
+    const watch = () => {
+      const b = document.querySelector('.tb-proj-badge-saved');
+      if (!b) return setTimeout(watch, 200);
+      new MutationObserver(() => { if (/tb-proj-badge-saved--saving/.test(b.className)) { if (!C.__saving) C.saves++; C.__saving = true; } else C.__saving = false; })
+        .observe(b, { attributes: true, attributeFilter: ['class'] });
+    };
+    document.addEventListener('DOMContentLoaded', watch);
     const fr = P.fillRect;
     P.fillRect = function (x, y, w, h) {
       if (x === 0 && y === 0 && w > 1000 && h > 1000) C.paints++;
@@ -35,7 +47,7 @@ async function installPanProbes(page) {
   });
 }
 
-const resetPanProbes = (page) => page.evaluate(() => { const C = window.__pan; C.paints = 0; C.chartCopies = 0; C.overlayCopies = 0; });
+const resetPanProbes = (page) => page.evaluate(() => { const C = window.__pan; C.paints = 0; C.chartCopies = 0; C.overlayCopies = 0; C.strokes = 0; C.saves = 0; });
 const readPanProbes = (page) => page.evaluate(() => Object.assign({}, window.__pan));
 
 /** A fixture file's project with `fields` merged in, as setInputFiles input. */
