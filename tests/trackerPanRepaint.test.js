@@ -264,3 +264,30 @@ describe('overlays follow a tile move the way the chart does', () => {
     expect(fn(tileCells, { l: 0, t: 0, r: 99999, b: 99999 }, 10)).toEqual(tileCells);
   });
 });
+
+describe('a mouse pan does not re-render the tracker', () => {
+  test('panning is a ref, and the cursor is written directly', () => {
+    // As state it re-rendered all of TrackerApp when each pan started and
+    // ended: ~3 500 elements per drag in Navigate mode.
+    expect(tracker).not.toMatch(/\[isPanning,setIsPanning\]=useState/);
+    expect(tracker).not.toMatch(/setIsPanning\(/);
+    expect(tracker).toMatch(/const isPanningRef=useRef\(false\);/);
+    expect(tracker).toMatch(/function setPanning\(on\)\{\n  if\(isPanningRef\.current===on\)return;\n  isPanningRef\.current=on;\n  refreshChartCursor\(\);\n\}/);
+    expect(tracker).toMatch(/function chartCursorNow\(\)\{return isPanningRef\.current\?"grabbing":isSpaceDownRef\.current\?"grab":chartCursorRef\.current;\}/);
+  });
+
+  test('every pan start and end goes through setPanning', () => {
+    const start = tracker.slice(tracker.indexOf('function startPan(e){'), tracker.indexOf('function doPan(e){'));
+    expect(start).toMatch(/setPanning\(true\);/);
+    const nav = tracker.slice(tracker.indexOf('function beginNavPress('), tracker.indexOf('function toggleGuideAt('));
+    expect(nav).toMatch(/press\.dragging=true;[\s\S]{0,200}setPanning\(true\);/);
+    expect(nav).toMatch(/if\(press\.dragging\)\{setPanning\(false\);return;\}/);
+    expect(tracker).toMatch(/function handleStitchMouseMove\(e\)\{\n  if\(isPanningRef\.current\)\{/);
+  });
+
+  test('the render keeps the resting cursor for setPanning, and Space updates it without a render', () => {
+    expect(tracker).toMatch(/cursor:\(chartCursorRef\.current=\(/);
+    expect(tracker).toMatch(/isSpaceDownRef\.current=true;spaceDownTimeRef\.current=Date\.now\(\);spacePannedRef\.current=false;refreshChartCursor\(\);/);
+    expect(tracker).toMatch(/if\(e\.code==="Space"\)\{isSpaceDownRef\.current=false;spacePannedRef\.current=false;refreshChartCursor\(\);\}/);
+  });
+});

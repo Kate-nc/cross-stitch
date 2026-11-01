@@ -1716,7 +1716,22 @@ function setHoverInfo(info){
   renderHoverBar();
 }
 
-const[isPanning,setIsPanning]=useState(false);
+// A mouse pan (middle button, Space + drag, or a drag in Navigate mode) in
+// progress. A ref, not state: it only changes the cursor, which setPanning
+// writes directly, and as state it re-rendered the whole tracker when every
+// pan started and again when it ended.
+const isPanningRef=useRef(false);
+// The chart cursor when neither panning nor holding Space, as the last render
+// worked it out.
+const chartCursorRef=useRef("default");
+function chartCursorNow(){return isPanningRef.current?"grabbing":isSpaceDownRef.current?"grab":chartCursorRef.current;}
+// Write the chart cursor directly; panning and Space are not state.
+function refreshChartCursor(){const el=stitchScrollRef.current;if(el)el.style.cursor=chartCursorNow();}
+function setPanning(on){
+  if(isPanningRef.current===on)return;
+  isPanningRef.current=on;
+  refreshChartCursor();
+}
 const panStart=useRef({x:0,y:0,scrollX:0,scrollY:0});
 const stitchScrollRef=useRef(null);
 
@@ -7171,14 +7186,14 @@ function beginNavPress(e,gx,gy){
       if(Math.abs(dx)<=NAV_DRAG_PX&&Math.abs(dy)<=NAV_DRAG_PX)return;
       press.dragging=true;
       panStart.current={x:press.x,y:press.y,scrollX:press.sl,scrollY:press.st};
-      setIsPanning(true);
+      setPanning(true);
     }
     el.scrollLeft=press.sl-dx;el.scrollTop=press.st-dy;
   };
   const cleanup=()=>{window.removeEventListener("mousemove",move);window.removeEventListener("mouseup",up);navPressCleanupRef.current=null;};
   const up=()=>{
     cleanup();
-    if(press.dragging){setIsPanning(false);return;}
+    if(press.dragging){setPanning(false);return;}
     toggleGuideAt(gx,gy);
   };
   window.addEventListener("mousemove",move);
@@ -7260,7 +7275,7 @@ function handleStitchMouseDown(e){
   e.preventDefault();
 }
 function handleStitchMouseMove(e){
-  if(isPanning){
+  if(isPanningRef.current){
     doPan(e);
     setHoverInfo(null);
     updateHoverOverlay(null);
@@ -7298,13 +7313,13 @@ function handleStitchMouseLeave(){
   updateHoverOverlay(null);
 }
 function handleMouseUp(){
-  if(isPanning){setIsPanning(false);return;}
+  if(isPanningRef.current){setPanning(false);return;}
   // C3: drag commit owned by useDragMark via _dragMarkOnCommitDrag.
 }
 
 function startPan(e){
   if(!stitchScrollRef.current)return;
-  setIsPanning(true);
+  setPanning(true);
   if(isSpaceDownRef.current)spacePannedRef.current=true;
   panStart.current={x:e.clientX,y:e.clientY,scrollX:stitchScrollRef.current.scrollLeft,scrollY:stitchScrollRef.current.scrollTop};
 }
@@ -7716,7 +7731,7 @@ useScope("tracker.rowmode", !!isActive && rowModeActive && !isEditMode);
 useEffect(()=>{
   if(!isActive)return;
   function handleKeyUp(e){
-    if(e.code==="Space"){isSpaceDownRef.current=false;spacePannedRef.current=false;}
+    if(e.code==="Space"){isSpaceDownRef.current=false;spacePannedRef.current=false;refreshChartCursor();}
   }
   window.addEventListener("keyup",handleKeyUp);
   return()=>window.removeEventListener("keyup",handleKeyUp);
@@ -7995,7 +8010,7 @@ const trackerShortcuts=!isActive ? [] : [
   { id: "tracker.space", keys: "space", scope: "tracker",
     description: "Hold to pan canvas",
     when: e=>!(e.target&&e.target.closest&&e.target.closest('button,input,select,textarea,summary,a[href],[role="button"],[contenteditable]:not([contenteditable="false"])')),
-    run: () => { if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;} } },
+    run: () => { if(!isSpaceDownRef.current){isSpaceDownRef.current=true;spaceDownTimeRef.current=Date.now();spacePannedRef.current=false;refreshChartCursor();} } },
 
   // Shortcuts panel.
   { id: "tracker.shortcuts", keys: "?", scope: "tracker",
@@ -9578,7 +9593,7 @@ return(
         a tablet with 1300 CSS px of height showed the chart through the same
         letterbox as a phone. */}
     <p id="tracker-chart-summary" className="tracker-chart-summary">{sW} columns by {sH} rows. {Math.round(stitchZoom*100)}% zoom. Focus the chart and use arrow keys to move the guide; Enter marks or unmarks in Mark mode. Ctrl+Z undoes. {layerVis.full===false?"Full crosses are hidden.":""}</p>
-    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:isPanning?"grabbing":isSpaceDownRef.current?"grab":(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive&&_dragMarkFlag?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
+    <div ref={stitchScrollRef} className={"tracker-chart-scroll"+(drawer?" is-drawer":"")} onScroll={()=>{if(!scrollRafRef.current){scrollRafRef.current=requestAnimationFrame(()=>{renderStitchIfScrolledOut();scrollRafRef.current=null;})}}} style={{overflow:"auto",border:"0.5px solid var(--border)",borderRadius:"8px 8px 0 0",background:"var(--surface-tertiary)",cursor:(chartCursorRef.current=(!isEditMode&&stitchMode==="track"?(isShiftDown&&_dragMarkActive&&_dragMarkFlag?"cell":"crosshair"):!isEditMode&&stitchMode==="navigate"?"grab":"default"),chartCursorNow()),transition:"max-height 0.3s",position:"relative"}} onMouseUp={handleMouseUp} onMouseLeave={handleStitchMouseLeave}>
       <div aria-hidden="true" style={{ position: 'sticky', top: 0, zIndex: 3, display: 'flex', width: 'max-content', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ width: G, height: G, flexShrink: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', zIndex: 4 }}></div>
         {areaOn?colRuler.slice(viewBounds.x0,viewBounds.x1):colRuler}

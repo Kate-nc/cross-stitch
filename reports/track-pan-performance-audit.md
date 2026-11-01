@@ -137,9 +137,8 @@ Ordered by expected benefit for panning. None of these is done.
    compositor moves it. Worth doing only if the real-device check shows the
    copy is slow somewhere. It touches hit-testing, overlays and the canvas
    budget.
-5. **Mouse panning in Navigate mode re-renders `TrackerApp` twice per drag**
-   (`setIsPanning(true/false)`, used only for the cursor). A ref plus a direct
-   cursor style write would avoid both.
+5. ~~**Mouse panning in Navigate mode re-renders `TrackerApp` twice per drag.**~~
+   **Done**, see [Follow-up: mouse pans](#follow-up-mouse-pans).
 6. **Harness gaps.** `pan-cost.spec.js` uses a one-colour chart, rigid
    two-finger gestures and never reaches the chart's edge, which is how #1
    and #2 went unnoticed. It should add a jittered two-finger pan, a pan to
@@ -298,6 +297,28 @@ measured with `?tileshift=0`). The ants still follow the tile.
 **Not changed.** A highlight view on the phone emulation runs at ~50 ms a
 frame even between moves; that is the compositor blending several
 tile-sized overlay canvases on the CPU, which a real device does on its GPU.
+
+## Follow-up: mouse pans
+
+**Problem.** `isPanning` was React state, used only for the chart's cursor and
+for the mouse-move handler's "am I panning?" check. Each mouse pan (a drag in
+Navigate mode, the middle button, or Space + drag) set it at the start and
+cleared it at the end: two full `TrackerApp` renders per drag. Measured on
+desktop at 4x CPU, 5 drags on the 400 x 500 chart: 17 290 React elements
+created in Navigate mode (~3 500 a drag), 12 490 for Space and middle-button
+pans.
+
+**Change.** `isPanningRef` replaces the state, and `setPanning` writes the
+cursor to the scroller directly. The render still works out the resting
+cursor (Mark, Navigate, Edit, Shift held) into `chartCursorRef`, and
+`chartCursorNow` adds "grabbing" while panning and "grab" while Space is held.
+Space down and up now also update the cursor directly; before, releasing Space
+left the open hand showing until something else re-rendered the tracker.
+
+**Measured** (same 5 drags): 0 React elements in all three kinds of pan.
+Frames over 50 ms fell from 13-17 to 6-9, the rest being tile moves. The
+cursor is "grabbing" during each pan, "grab" while Space is still held after
+the button is released, and the mode's own cursor after that.
 
 ## Real-device check
 
