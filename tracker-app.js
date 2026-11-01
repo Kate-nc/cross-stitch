@@ -14,6 +14,55 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
 
+// "#rgb", "#rrggbb" or "rgb(r,g,b)" as [r,g,b], or null for anything else.
+// Used to put the chart's flat cell colours into image pixels (drawStitch).
+function parseChartColour(c){
+  if(typeof c!=="string")return null;
+  let m=/^#([0-9a-f]{3})$/i.exec(c);
+  if(m)return[0,1,2].map(i=>parseInt(m[1][i]+m[1][i],16));
+  m=/^#([0-9a-f]{6})$/i.exec(c);
+  if(m)return[0,2,4].map(i=>parseInt(m[1].slice(i,i+2),16));
+  m=/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i.exec(c);
+  if(m)return[+m[1],+m[2],+m[3]];
+  return null;
+}
+// The chart's cell outlines as grid lines (see drawStitch). codes holds each
+// cell's outline style, row by row, w x h cells from chart pixel x0, y0: 0 for
+// none, then OUTLINE_LINE's entries. A grid line takes the style of the cell
+// after it (right or below), else of the cell before, and each run of one
+// style is one fillRect, 1 px wide and centred on the line like the strokes
+// it replaces. The colours are a single layer as dark, overall, as the two
+// layers and one that per-cell strokes left on the two sides of an edge.
+const OUTLINE_LINE=[null,"rgba(0,0,0,0.117)","rgba(0,0,0,0.045)","rgba(0,0,0,0.088)","rgba(220,50,50,0.344)"];
+function drawOutlineGrid(ctx,codes,w,h,x0,y0,cSz){
+  let cur=0;
+  const put=(code,x,y,rw,rh)=>{if(code!==cur){ctx.fillStyle=OUTLINE_LINE[code];cur=code;}ctx.fillRect(x,y,rw,rh);};
+  for(let bx=0;bx<=w;bx++){
+    let rc=0,rs=0;
+    for(let j=0;j<=h;j++){
+      const code=j<h?((bx<w?codes[j*w+bx]:0)||(bx>0?codes[j*w+bx-1]:0)):0;
+      if(code!==rc){if(rc)put(rc,x0+bx*cSz-0.5,y0+rs*cSz,1,(j-rs)*cSz);rc=code;rs=j;}
+    }
+  }
+  for(let by=0;by<=h;by++){
+    let rc=0,rs=0;
+    for(let i=0;i<=w;i++){
+      const code=i<w?((by<h?codes[by*w+i]:0)||(by>0?codes[(by-1)*w+i]:0)):0;
+      if(code!==rc){if(rc)put(rc,x0+rs*cSz,y0+by*cSz-0.5,(i-rs)*cSz,1);rc=code;rs=i;}
+    }
+  }
+}
+// The small canvas drawStitch builds its one-pixel-per-cell image in, shared
+// by every paint (they run one at a time) and grown as needed.
+let _cellImageCanvas=null;
+function cellImageCanvas(w,h){
+  if(typeof document==="undefined")return null;
+  if(!_cellImageCanvas)_cellImageCanvas=document.createElement("canvas");
+  if(_cellImageCanvas.width<w)_cellImageCanvas.width=w;
+  if(_cellImageCanvas.height<h)_cellImageCanvas.height=h;
+  return _cellImageCanvas;
+}
+
 // The analysis worker's view of the pattern: one Uint16 per stitch indexing
 // `ids`, with 0xFFFF for __skip__/__empty__. Mirrors toModel() in
 // analysis-worker.js (tests/analysisWorkerProtocol.test.js holds them to the
@@ -5504,15 +5553,106 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.fillStyle="rgba(27,24,20,0.92)";ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py);ctx.lineTo(px+cSz,py+t);ctx.closePath();ctx.fill();
     ctx.strokeStyle="rgba(255,255,255,0.9)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px+cSz-t,py);ctx.lineTo(px+cSz,py+t);ctx.stroke();
   }
+  // A cell's symbol. A glyph atlas (each symbol drawn once, then copied with
+  // drawImage) was tried and is slower: fillText already draws from the
+  // browser's own glyph cache. Several callers draw inside a save/restore, so
+  // the font is set every time (browsers skip an unchanged font themselves).
+  function drawGlyph(sym,font,ink,cx,cy){
+    ctx.fillStyle=ink;ctx.font=font;ctx.fillText(sym,cx,cy);
+  }
+
+  // ── Cell backgrounds as one image ──
+  // Every full stitch's background is one flat colour at Tier 1 (any view)
+  // and in Symbol and Colour views at every tier; symbols, ticks and the rest
+  // are drawn on top. Rather than a fillStyle and a fillRect per cell (tens of
+  // thousands of each for a tile zoomed out), the colours go into an image
+  // with one pixel per cell, drawn once, scaled up without smoothing. Cells
+  // the loop below paints itself (unstitched cells above Tier 1, Tier 1 cells
+  // with quarter stitches) get the fabric colour the whole chart is first
+  // filled with.
+  let isolateBase=null;
+  const imgPath=(tier===1||layerVis.full)&&endX>startX&&endY>startY&&paintCellImage();
+  // A full stitch's background, as the loop below draws it, as a colour
+  // string or [r,g,b].
+  function cellBackground(m,idx){
+    const dn=isDone(idx);
+    if(tier===1)return dn?doneLookOf(m).fill:pendLookOf(m).fill;
+    if(stitchView==="symbol"||stitchView==="colour"){
+      const solid=tier<=2;
+      if(dn&&(solid||doneStyle!=="tick"))return doneLookOf(m).fill;
+      if(stitchView==="symbol"&&!solid)return chartFabricColour||"#fff";
+      return pendLookOf(m).fill;
+    }
+    const dimmed=!!(focusColour&&m.id!==focusColour);
+    if(highlightMode==="outline"||highlightMode==="tint")return m.rgb;
+    if(highlightMode==="spotlight")return dimmed?"#e8ecf0":m.rgb;
+    // Isolate: other colours dimmed; the highlighted colour, done in full,
+    // still to do at 25% over the fabric, worked out here.
+    if(dimmed)return[Math.round(255-(255-m.rgb[0])*trackerDimLevel),Math.round(255-(255-m.rgb[1])*trackerDimLevel),Math.round(255-(255-m.rgb[2])*trackerDimLevel)];
+    if(dn)return m.rgb;
+    if(!isolateBase)isolateBase=parseChartColour(chartFabricColour||"#fff")||[255,255,255];
+    return[0,1,2].map(i=>Math.round(m.rgb[i]*0.25+isolateBase[i]*0.75));
+  }
+  function paintCellImage(){
+    const w=endX-startX,h=endY-startY;
+    const base=parseChartColour(chartFabricColour||"#fff");
+    const skipT1=parseChartColour(chartFabricColour||"#f0f4f8");
+    const cv=cellImageCanvas(w,h);
+    if(!base||!skipT1||!cv)return false;
+    const img=new ImageData(w,h),d=img.data;
+    // Parsed once per colour string for the paint.
+    const parsed=new Map();
+    const px=c=>{if(typeof c!=="string")return c;let v=parsed.get(c);if(!v){v=parseChartColour(c)||[0,0,0];parsed.set(c,v);}return v;};
+    let o=0;
+    for(let y=startY;y<endY;y++)for(let x=startX;x<endX;x++,o+=4){
+      const idx=y*sW+x,m=pat[idx];
+      let c=base;
+      if(m){
+        if(m.id==="__skip__"||m.id==="__empty__"){if(tier===1)c=skipT1;}
+        else if(!(tier===1&&partialStitches.has(idx)))c=px(cellBackground(m,idx));
+      }
+      d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255;
+    }
+    cv.getContext("2d").putImageData(img,0,0);
+    ctx.save();ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(cv,0,0,w,h,gut+startX*cSz,gut+startY*cSz,w*cSz,h*cSz);
+    ctx.restore();
+    return true;
+  }
+
+  // ── Cell outlines as grid lines ──
+  // Each cell used to stroke its own outline (a strokeStyle and a strokeRect
+  // per cell). The loop now only notes each cell's outline style, and the
+  // outlines are drawn after it as long lines: one fillRect per run of the
+  // same style along each grid line, so a tile costs about rows + columns
+  // calls instead of one per cell. A single path of many small rectangles
+  // was tried and is slower than the strokeRects. Drawn per cell, the next
+  // cell's fill covered half of each shared edge, so an edge was two layers
+  // of outline on one side and one on the other; a line here is one even
+  // layer of about the same total darkness (OUTLINE_LINE). In row mode the
+  // outlines must sit under each row's tint, and at Tier 1 only cells with
+  // quarter stitches have one, so both keep the per-cell strokeRect.
+  const outlineGrid=cSz>=4&&tier>=2&&!rowModeActive;
+  const olW=endX-startX, olH=endY-startY;
+  const olCodes=outlineGrid&&olW>0&&olH>0?new Uint8Array(olW*olH):null;
+  const OUTLINE_STYLE=[null,"rgba(0,0,0,0.08)","rgba(0,0,0,0.03)","rgba(0,0,0,0.06)","rgba(220,50,50,0.25)"];
+  function addOutline(code,x,y,px,py){
+    if(olCodes){olCodes[(y-startY)*olW+(x-startX)]=code;return;}
+    ctx.strokeStyle=OUTLINE_STYLE[code];ctx.strokeRect(px,py,cSz,cSz);
+  }
+
   for(let y=startY;y<endY;y++){
     for(let x=startX;x<endX;x++){
       let idx=y*sW+x,m=pat[idx];if(!m)continue;
       let info=(m.id==="__skip__"||m.id==="__empty__")?null:(cmap?cmap[m.id]:null);
+      // Already in the cell image (see above): skip this cell's fill.
+      const imgCell=imgPath&&m.id!=="__skip__"&&m.id!=="__empty__"&&!(tier===1&&partialStitches.has(idx));
       let px=gut+x*cSz,py=gut+y*cSz;
       let isDn=isDoneAt?isDoneAt(idx):(liveDone&&liveDone[idx]);
 
       // ── Tier 1 fast path: flat color blocks, no symbols, no cell borders ──
       if(tier===1&&!partialStitches.has(idx)){
+        if(imgPath)continue;
         if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#f0f4f8";ctx.fillRect(px,py,cSz,cSz);continue;}
         // Done is the thread colour; not done is that colour desaturated and lightened (colour-utils.js), so done
         // areas stand out at a glance, in greyscale too.
@@ -5525,8 +5665,9 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
       const dimR=Math.round(255-(255-m.rgb[0])*trackerDimLevel),dimG=Math.round(255-(255-m.rgb[1])*trackerDimLevel),dimB=Math.round(255-(255-m.rgb[2])*trackerDimLevel);
       const dimFill=effectiveDimmed?`rgb(${dimR},${dimG},${dimB})`:'#EFE7D6';
       // Unstitched cells show the pattern's fabric with a faint checker, as in the Creator (P2-2).
-      if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);ctx.globalAlpha=0.25;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1;if(cSz>=4){ctx.strokeStyle=m.id==="__empty__"?"rgba(220,50,50,0.25)":"rgba(0,0,0,0.06)";ctx.strokeRect(px,py,cSz,cSz);}
+      if(m.id==="__skip__"||m.id==="__empty__"){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);ctx.globalAlpha=0.25;drawCk(ctx,px,py,cSz);ctx.globalAlpha=1;
         let hs=halfStitches.get(idx);
+        if(cSz>=4)addOutline(m.id==="__empty__"?4:3,x,y,px,py);
         if(hs&&layerVis.half&&bsHsAlpha>0.01){
           let hd=halfDone.get(idx)||{};
           ctx.save();ctx.globalAlpha=bsHsAlpha;
@@ -5545,26 +5686,26 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         const showSym=info&&symAlpha>0.01&&(!solid||cSz>=7);
         if(isDn&&(solid||doneStyle!=="tick")){
           const lk=doneLookOf(m);
-          ctx.fillStyle=lk.fill;ctx.fillRect(px,py,cSz,cSz);
-          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=lk.ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
+          if(!imgCell){ctx.fillStyle=lk.fill;ctx.fillRect(px,py,cSz,cSz);}
+          if(showSym){ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,isSymV?fSym:fCol,lk.ink,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
         }else{
           let ink;
-          if(isSymV&&!solid){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);ink="#1B1814";}
-          else{const pl=pendLookOf(m);ctx.fillStyle=pl.fill;ctx.fillRect(px,py,cSz,cSz);ink=pl.ink;}
-          if(showSym){ctx.globalAlpha=symAlpha;ctx.fillStyle=ink;ctx.font=isSymV?fSym:fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
+          if(isSymV&&!solid){if(!imgCell){ctx.fillStyle=chartFabricColour||"#fff";ctx.fillRect(px,py,cSz,cSz);}ink="#1B1814";}
+          else{const pl=pendLookOf(m);if(!imgCell){ctx.fillStyle=pl.fill;ctx.fillRect(px,py,cSz,cSz);}ink=pl.ink;}
+          if(showSym){ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,isSymV?fSym:fCol,ink,px+cSz/2,py+cSz/2);ctx.globalAlpha=1;}
           if(isDn)drawDoneTick(px,py);
         }
       }else if(highlightMode==="outline"||highlightMode==="tint"){
-        ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);
-        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}
+        if(!imgCell){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
+        if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,fCol,luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)",px+cSz/2,py+cSz/2);ctx.restore();}
         if(highlightMode==="tint"&&focusColour&&m.id===focusColour){const tr=parseInt(tintColor.slice(1,3),16),tg=parseInt(tintColor.slice(3,5),16),tb=parseInt(tintColor.slice(5,7),16);ctx.fillStyle=`rgba(${tr},${tg},${tb},${tintOpacity})`;ctx.fillRect(px,py,cSz,cSz);}
       }else if(highlightMode==="spotlight"){
-        if(dimmed){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}
-        else{ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)";ctx.font=fCol;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
+        if(dimmed){if(!imgCell){ctx.fillStyle="#e8ecf0";ctx.fillRect(px,py,cSz,cSz);}}
+        else{if(!imgCell){ctx.fillStyle=`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}if(!isDn&&info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,fCol,luminance(m.rgb)>140?"rgba(0,0,0,0.8)":"rgba(255,255,255,0.95)",px+cSz/2,py+cSz/2);ctx.restore();}if(cSz>=4){const lum2=luminance(m.rgb);ctx.strokeStyle=lum2>140?"rgba(26,26,46,0.85)":"rgba(255,255,255,0.85)";ctx.lineWidth=1.5;ctx.strokeRect(px+0.75,py+0.75,cSz-1.5,cSz-1.5);ctx.lineWidth=1;}}
       }else{
-        if(isDn){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}
-        else if(dimmed){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);if(symAlpha>0.01&&trackerDimLevel<0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`;ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}else if(symAlpha>0.01&&trackerDimLevel>=0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle=luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)';ctx.font=fHlDim;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
-        else{ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;ctx.fillStyle="#1B1814";ctx.font=fHlFocus;ctx.fillText(info.symbol,px+cSz/2,py+cSz/2);ctx.restore();}}
+        if(isDn){if(!imgCell){ctx.fillStyle=effectiveDimmed?dimFill:`rgb(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]})`;ctx.fillRect(px,py,cSz,cSz);}}
+        else if(dimmed){if(!imgCell){ctx.fillStyle=dimFill;ctx.fillRect(px,py,cSz,cSz);}if(symAlpha>0.01&&trackerDimLevel<0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,fHlDim,`rgba(0,0,0,${Math.max(0.04,0.12-trackerDimLevel*0.4)})`,px+cSz/2,py+cSz/2);ctx.restore();}else if(symAlpha>0.01&&trackerDimLevel>=0.25&&info&&cSz>=8){ctx.save();ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,fHlDim,luminance(m.rgb)>140?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.6)',px+cSz/2,py+cSz/2);ctx.restore();}}
+        else{if(!imgCell){ctx.fillStyle=`rgba(${m.rgb[0]},${m.rgb[1]},${m.rgb[2]},0.25)`;ctx.fillRect(px,py,cSz,cSz);}if(info&&symAlpha>0.01){ctx.save();ctx.globalAlpha=symAlpha;drawGlyph(info.symbol,fHlFocus,"#1B1814",px+cSz/2,py+cSz/2);ctx.restore();}}
       }
       // Tier 4: thread ID secondary label below the symbol (cell > 40px)
       if(tier>=4&&cSz>40&&info&&symAlpha>0.01&&m.id!=="__skip__"&&m.id!=="__empty__"){
@@ -5590,13 +5731,15 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
         ctx.restore();
       }
       drawPartial(partialStitches.get(idx),m,px,py,idx);
-      if(cSz>=4){ctx.strokeStyle=(effectiveDimmed&&layerVis.full)?"rgba(0,0,0,0.03)":"rgba(0,0,0,0.08)";ctx.strokeRect(px,py,cSz,cSz);}
+      if(cSz>=4)addOutline((effectiveDimmed&&layerVis.full)?2:1,x,y,px,py);
     }
     // R11: dim rows outside the current row — one pass per row covers all tiers.
     if(rowModeActive&&y!==currentRow){ctx.fillStyle='rgba(255,255,255,0.55)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
     // R11: highlight the current row with a subtle tint drawn after cells so it stays visible.
     if(rowModeActive&&y===currentRow){ctx.fillStyle='rgba(37,99,235,0.12)';ctx.fillRect(gut+startX*cSz,gut+y*cSz,(endX-startX)*cSz,cSz);}
   }
+
+  if(olCodes)drawOutlineGrid(ctx,olCodes,olW,olH,gut+startX*cSz,gut+startY*cSz,cSz);
 
   // color-11: thread sheen — second pass gradient overlay on stitched cells
   if(trackerCanvasTexture&&cSz>=6){

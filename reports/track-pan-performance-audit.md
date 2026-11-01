@@ -126,19 +126,9 @@ Ordered by expected benefit for panning. None of these is done.
 
 1. ~~**Pinch zoom repaints the full tile on every cell-size step.**~~ **Done**,
    see [Follow-up: zoom preview](#follow-up-zoom-preview).
-2. **Per-cell drawing cost.** Every cell is a `fillStyle` set, a `fillRect`,
-   a `strokeRect` for its outline and, from Tier 3, a `font` set and a
-   `fillText`. In the phone profile the three draw calls split the JS time
-   roughly evenly. Options:
-   - Stroke all cell outlines as one path per paint instead of a `strokeRect`
-     per cell. Not pixel-identical: today each interior edge is stroked twice
-     and half-covered by the next cell's fill, so the alpha needs retuning
-     (about 0.15 single-stroked for today's 0.08 double) and a visual check.
-   - Draw symbols from a small glyph atlas (one per font size, ink colour and
-     symbol, rendered at the device scale) with `drawImage` instead of
-     `fillText`. Glyph rasterisation is the most expensive per-cell operation.
-   - Skip redundant `fillStyle` / `font` assignments when the value has not
-     changed since the last cell.
+2. ~~**Per-cell drawing cost.**~~ **Done** for backgrounds and outlines, see
+   [Follow-up: per-cell drawing cost](#follow-up-per-cell-drawing-cost). Symbol
+   text (a `fillText` per cell) is what is left.
 3. **Overlays redraw the whole tile on every move.** `redrawChartOverlays()`
    runs on each tile move. Counting aids and the thread-usage overlay walk
    every cell in the tile; the outline-highlight ants rebuild their SVG path
@@ -198,6 +188,67 @@ each one full repaint; zooming out to 3–8 px cells means a tile of up to
 Desktop Ctrl + wheel from 100% to 350% and back: 1 and 4 frames over 50 ms,
 worst 150 ms. A two-finger pan that never pinches is unchanged (0 frames over
 50 ms).
+
+## Follow-up: per-cell drawing cost
+
+**Problem.** Every cell in a tile cost a `fillStyle` and `fillRect` for its
+background, a `strokeStyle` and `strokeRect` for its outline, and from Tier 3 a
+`font` and `fillText` for its symbol: about 64 000 canvas calls for a desktop
+tile at 75%, 170 000 at 30%. Switching each kind off in turn (phone emulation,
+4x CPU) put the outlines at about a third of the drawing time zoomed out, the
+backgrounds at most of the rest, and the text at most of it once symbols show.
+
+**What changed** (in `drawStitch`):
+
+- **Backgrounds as one image.** A full stitch's background is one flat colour
+  in every view (Isolate's 25% fill becomes its colour over the fabric, worked
+  out). The colours go into an `ImageData` with one pixel per cell, drawn once
+  and scaled up with smoothing off; the loop skips those fills. Unstitched
+  cells, Tier 1 cells with quarter stitches and the Tint overlay still draw
+  themselves.
+- **Outlines as grid lines.** The loop records each cell's outline style; after
+  it, `drawOutlineGrid` draws one `fillRect` per run of one style along each
+  grid line, so a tile costs about rows + columns calls. Per-cell strokes were
+  half covered by the next cell's fill, leaving an edge two layers dark on one
+  side and one on the other; a line is now one even layer of the same overall
+  darkness (`OUTLINE_LINE`). Row mode (outlines under each row's tint) and
+  Tier 1 keep the per-cell `strokeRect`.
+- Every symbol goes through one `drawGlyph`.
+
+**Tried and dropped.** Batching outlines into one path of small rectangles per
+row and colour, reproducing the old strokes exactly region by region, made a
+tile slower (desktop 30%: 121 to 317 ms): the rasteriser handles one path of
+thousands of small rectangles worse than as many `strokeRect`s. A glyph atlas
+(each symbol drawn once, copied with `drawImage`) was also slower than
+`fillText`, which already draws from the browser's glyph cache, and skipping
+unchanged `font` assignments drew symbols in the wrong font where a caller's
+`restore()` had put the old one back.
+
+**Measured** (one full-tile repaint, median of 20, 400 x 500 chart):
+
+| | Desktop before | after | Phone 4x before | after |
+|---|---:|---:|---:|---:|
+| Symbol 30% | 121 ms | 51-68 ms | 649 ms | 416 ms |
+| Symbol 75% | 85 ms | 62 ms | 275 ms | 287 ms |
+| Symbol 160% | 42 ms | 39 ms | 175 ms | 206 ms |
+| Colour 75% | 72 ms | 70 ms | 289 ms | 241 ms |
+| Isolate 100% | 87 ms | 57 ms | 388 ms | 271 ms |
+
+The phone figures vary by ±50 ms run to run, and on this harness a repaint
+with every draw call switched off still takes ~190 ms (the jump and the
+CPU-drawn canvas), so from 75% up the phone change is within the noise.
+Canvas calls per desktop tile at 75%: ~64 000 before, ~28 000 after, nearly
+all of them the symbols' `fillStyle`, `font` and `fillText`.
+
+**Look.** Captured before and after in 48 cases (Symbol, Colour and the four
+highlight styles; zoom 15% to 230%; DPR 1, 1.5 and 2) and compared pixel by
+pixel: the mean difference is 0.3 to 2 levels out of 255. The largest are
+single pixels where grid lines cross (up to 66 at 2x), where the old strokes
+left a 4/3/2/1-layer gradient over the crossing's four pixels and the lines
+now leave an even two. At DPR 1.5 zoomed far out the old per-cell fills left
+faint pale seams between stitches (their edges fall on half pixels); the
+image has none. Tile shifting still matches a full paint to within the usual
+anti-aliasing noise.
 
 ## Real-device check
 
