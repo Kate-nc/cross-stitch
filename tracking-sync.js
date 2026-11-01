@@ -184,6 +184,98 @@
     }
     return out;
   }
+  /* Progress records hold only the registers that differ from their base's.
+     ProjectStorage's progress record used to carry trackingSync for the whole
+     chart: one register per finished stitch, read back, rebuilt, sorted and
+     written again on every progress write (most of a second on a phone at
+     30% of a 200 000-stitch chart, as a freeze shortly after marking). It is
+     based on one full save (its baseWriteAt), and that save already holds
+     every register the marks have not changed since, so the record now keeps
+     just the changed ones: a "delta" of { version: 1, marks: { key: register } }.
+
+     `p` below is always the base project (its trackingSync as saved) with a
+     progress record's marks laid over it. withDelta(p, delta) is then
+     records(p) with the delta's registers in place, the trackingSync the
+     record stands for, and gives what record() would have stored, as
+     records() reads it back. */
+  // records(p)[k] for one key, without listing them all. `other` is otherMarks(p).
+  function baseRegister(p, k, other) {
+    var meta = p && p.trackingSync;
+    if (meta && meta.version === 1 && meta.marks && typeof meta.marks === 'object' && own(meta.marks, k) && validKey(k) && Array.isArray(meta.marks[k])) {
+      var f = normalisedFrontier(meta.marks[k]);
+      if (f.length) return f;
+    }
+    if (own(other, k)) return seed();
+    if (k.charCodeAt(0) === 100 && hasDone(p)) {   // 'd:<n>', seeded by records() only in that spelling
+      var i = Number(k.slice(2));
+      if (String(i) === k.slice(2) && p.done[i]) return seed();
+    }
+    return null;
+  }
+  // A delta as read from storage: valid keys only, each register normalised.
+  function cleanDelta(delta) {
+    var out = Object.create(null), m = delta && delta.version === 1 && delta.marks;
+    if (!m || typeof m !== 'object') return out;
+    Object.keys(m).forEach(function (k) {
+      if (!validKey(k) || !Array.isArray(m[k])) return;
+      var f = normalisedFrontier(m[k]);
+      if (f.length) out[k] = f;
+    });
+    return out;
+  }
+  // The progress record that follows one whose marks `previous` carries (over
+  // the base's trackingSync) and whose registers were `delta`: `delta` plus a
+  // register for each mark that differs between `previous` and `next`. The
+  // same writes record(previous with the full trackingSync, next) would make,
+  // in time proportional to the chart's cells and the delta, not the marks.
+  function recordDelta(previous, delta, next, author) {
+    previous = previous || {};
+    var out = cleanDelta(delta), a = author || actor;
+    var before = otherMarks(previous), after = otherMarks(next);
+    var prefix = { d: 'done', h: 'halfDone', q: 'partialDone', k: 'knotsDone', b: 'bsDone', e: 'beadsDone', s: 'specialtyDone' };
+    function write(k, on) {
+      // A name records() does not accept is never read back: it is seeded
+      // again while marked, so a register for it would be dropped anyway.
+      if (k.charCodeAt(0) !== 100 && !validKey(k)) return;
+      var clock = Object.create(null), cur = own(out, k) ? out[k] : baseRegister(previous, k, before);
+      (cur || []).forEach(function (e) { Object.keys(e.clock).forEach(function (x) { clock[x] = Math.max(clock[x] || 0, e.clock[x]); }); });
+      clock[a] = (clock[a] || 0) + 1;
+      out[k] = intern(frontier([{ value: on ? 1 : 0, clock: clock }]));
+    }
+    new Set(Object.keys(before).concat(Object.keys(after))).forEach(function (k) {
+      var field = prefix[k[0]];
+      if (!Array.isArray(next[field]) && !ArrayBuffer.isView(next[field])) return;
+      if (!!before[k] === !!after[k]) return;
+      write(k, after[k]);
+    });
+    if (hasDone(next)) {
+      var bd = hasDone(previous) ? previous.done : null, nd = next.done, n = Math.max(nd.length, bd ? bd.length : 0);
+      for (var i = 0; i < n; i++) {
+        var was = !!(bd && bd[i]), on = !!nd[i];
+        if (was !== on) write('d:' + i, on);
+      }
+    }
+    return { version: 1, marks: out };
+  }
+  function withDelta(p, delta) {
+    var r = records(p), d = cleanDelta(delta);
+    Object.keys(d).forEach(function (k) { r[k] = d[k]; });
+    return metadata(r);
+  }
+  // The delta for a full trackingSync (from an older build's progress record):
+  // its registers that differ from records(p).
+  function deltaFrom(p, full) {
+    var out = Object.create(null), m = full && full.version === 1 && full.marks, other = otherMarks(p);
+    if (!m || typeof m !== 'object') return { version: 1, marks: out };
+    Object.keys(m).forEach(function (k) {
+      if (!validKey(k) || !Array.isArray(m[k])) return;
+      var f = normalisedFrontier(m[k]);
+      if (!f.length) return;
+      var b = baseRegister(p, k, other);
+      if (f !== b && (!b || JSON.stringify(f) !== JSON.stringify(b))) out[k] = f;
+    });
+    return { version: 1, marks: out };
+  }
   function merge(local, remote) {
     var l = records(local), r = records(remote), all = Object.create(null), active = Object.create(null);
     Array.from(new Set(Object.keys(l).concat(Object.keys(r)))).sort().forEach(function (k) {
@@ -310,7 +402,7 @@
     out.valueSync = {version:1,fields:fields};
     return out;
   };
-  var api = { record: record, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf };
+  var api = { record: record, recordDelta: recordDelta, withDelta: withDelta, deltaFrom: deltaFrom, merge: merge, marks: marks, mergeValues: mergeValues, valueRecord: valueRecord, valueFrontier: valueFrontier, canonical: canonical, valuesOf: valuesOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TrackingSync = api;
 })(typeof window !== 'undefined' ? window : this);
