@@ -4100,6 +4100,8 @@ function processLoadedProject(project){
     }
   }}catch(_){}
   const _sameProjectReload=!!project.id&&project.id===projectIdRef.current; // a reload of what is on screen keeps the person's current mode and view
+  // The outgoing project's pending navigation, written under its own id before the id changes.
+  if(!_sameProjectReload&&flushNavRecordRef.current)flushNavRecordRef.current();
   projectIdRef.current = project.id || null;
   let s=project.settings||{};
   const nextW=project.w||s.sW||project.settings?.w||80;
@@ -5109,7 +5111,10 @@ useEffect(() => {
     autoSaveOtherDirtyRef.current = false;
     const _gen = autoSaveGenRef.current;
     const _uiGen = uiGenRef.current;
-    const project = buildSnapshot();
+    // The latest render's builder, not this effect's: navigation (zoom, the working context) is deliberately not
+    // a dependency, so a change to it after this timer was set would otherwise be saved as it was, with a newer
+    // updatedAt than the navigation record that has it right, which then loses on the next load.
+    const project = buildSnapshotRef.current ? buildSnapshotRef.current() : null;
     if (!project) { if (_hadOther) autoSaveOtherDirtyRef.current = true; return; }
     lastSnapshotRef.current = project;
     let _ended = false;
@@ -5193,11 +5198,16 @@ function writeNavRecord(){
   if(!id||!pat)return;
   const el=stitchScrollRef.current;
   const off=chartScrollOffset();
+  let scroll=el?{left:el.scrollLeft+off.x,top:el.scrollTop+off.y}:null;
+  try{
+    // The scroller is gone while the Tracker unmounts: keep the position the record already has.
+    if(!scroll){const prev=JSON.parse(localStorage.getItem(NAV_RECORD_PREFIX+id)||"null");if(prev&&prev.scroll)scroll=prev.scroll;}
+  }catch(_){}
   try{
     localStorage.setItem(NAV_RECORD_PREFIX+id,JSON.stringify({
       at:Date.now(),
       zoom:stitchZoomRef.current,
-      scroll:el?{left:el.scrollLeft+off.x,top:el.scrollTop+off.y}:null,
+      scroll:scroll,
       workingContext:workingContextForSave(focusColour,stitchMode,stitchView,highlightMode)||null,
     }));
   }catch(_){}
@@ -5206,10 +5216,21 @@ const writeNavRecordRef=useRef(null);
 writeNavRecordRef.current=writeNavRecord;
 function scheduleNavRecord(){
   clearTimeout(navTimerRef.current);
-  navTimerRef.current=setTimeout(()=>{if(writeNavRecordRef.current)writeNavRecordRef.current();},1000);
+  navTimerRef.current=setTimeout(()=>{navTimerRef.current=0;if(writeNavRecordRef.current)writeNavRecordRef.current();},1000);
 }
+// Write a navigation change still waiting for its second now: when the page is hidden (a phone may suspend or
+// discard it before the timer runs), before another project replaces this one (while the record still belongs to
+// it), and when the Tracker unmounts.
+function flushNavRecord(){
+  if(!navTimerRef.current)return;
+  clearTimeout(navTimerRef.current);
+  navTimerRef.current=0;
+  if(writeNavRecordRef.current)writeNavRecordRef.current();
+}
+const flushNavRecordRef=useRef(null);
+flushNavRecordRef.current=flushNavRecord;
 useEffect(()=>{if(pat)scheduleNavRecord();},[stitchZoom,focusColour,stitchMode,stitchView,highlightMode]);
-useEffect(()=>()=>clearTimeout(navTimerRef.current),[]);
+useEffect(()=>()=>{if(flushNavRecordRef.current)flushNavRecordRef.current();},[]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -5338,6 +5359,9 @@ useEffect(() => {
   function onVisibility() {
     if (document.visibilityState !== 'hidden') return;
     writeProgressNowRef.current();
+    // Navigation is not part of the full save's generation (it is not an edit), so write it here, before the
+    // early return: it is a few bytes, synchronous.
+    if (flushNavRecordRef.current) flushNavRecordRef.current();
     if (autoSaveGenRef.current === flushedGenRef.current) return;
     try { const r = window.__flushProjectToIDB && window.__flushProjectToIDB(); if (r && r.catch) r.catch(function(){}); } catch (_) {}
   }

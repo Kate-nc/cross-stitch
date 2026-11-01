@@ -136,3 +136,37 @@ describe('palm guard reaches touches the Tracker handles itself (French knots)',
   });
 });
 
+
+describe('the navigation record reaches storage, and a queued full save does not undo it', () => {
+  test('the queued autosave builds its snapshot from the latest render, not the one that queued it', () => {
+    // Navigation is not an autosave dependency, so the timer's own closure can predate a zoom or colour change;
+    // its save would then store the old values with a newer time than the navigation record, which then loses.
+    const start = tracker.indexOf('const saveTimer = setTimeout(() => {');
+    const effect = tracker.slice(start, tracker.indexOf('persistProjectRecord(project).then', start));
+    expect(effect).toMatch(/const project = buildSnapshotRef\.current \? buildSnapshotRef\.current\(\) : null;/);
+    expect(effect).not.toMatch(/const project = buildSnapshot\(\);/);
+  });
+
+  test('hiding the page writes pending navigation before deciding whether a full save is needed', () => {
+    const v = tracker.slice(tracker.indexOf('function onVisibility() {'), tracker.indexOf("document.addEventListener('visibilitychange', onVisibility);"));
+    const flush = v.indexOf('if (flushNavRecordRef.current) flushNavRecordRef.current();');
+    expect(flush).toBeGreaterThan(-1);
+    expect(flush).toBeLessThan(v.indexOf('if (autoSaveGenRef.current === flushedGenRef.current) return;'));
+  });
+
+  test('a project switch writes the outgoing project\'s pending navigation under its own id first', () => {
+    const load = tracker.slice(tracker.indexOf('const _sameProjectReload=!!project.id&&project.id===projectIdRef.current;'));
+    const flush = load.indexOf('if(!_sameProjectReload&&flushNavRecordRef.current)flushNavRecordRef.current();');
+    expect(flush).toBeGreaterThan(-1);
+    expect(flush).toBeLessThan(load.indexOf('projectIdRef.current = project.id || null;'));
+    // The record is keyed by projectIdRef at the moment it is written.
+    expect(tracker).toMatch(/function writeNavRecord\(\)\{\n  const id=projectIdRef\.current;/);
+  });
+
+  test('unmounting writes pending navigation, keeping the last scroll when the scroller is gone', () => {
+    expect(tracker).toMatch(/useEffect\(\(\)=>\(\)=>\{if\(flushNavRecordRef\.current\)flushNavRecordRef\.current\(\);\},\[\]\);/);
+    expect(tracker).toMatch(/if\(!scroll\)\{const prev=JSON\.parse\(localStorage\.getItem\(NAV_RECORD_PREFIX\+id\)\|\|"null"\);if\(prev&&prev\.scroll\)scroll=prev\.scroll;\}/);
+    // A flush with nothing pending writes nothing.
+    expect(tracker).toMatch(/function flushNavRecord\(\)\{\n  if\(!navTimerRef\.current\)return;/);
+  });
+});

@@ -204,3 +204,72 @@ test('during a wheel zoom preview, hover names the stitch under the pointer and 
   expect(rows, `the rows under the pointer moved ${rows.toFixed(2)}, not about ${(300 / cellPx).toFixed(2)}`).toBeGreaterThan(0.5 * 300 / cellPx);
   expect(rows).toBeLessThan(1.5 * 300 / cellPx);
 });
+
+test('navigation changed while a full save is queued is what that save stores', async ({ page }) => {
+  test.setTimeout(240000);
+  // Opening the fixture queues its first full save about 5 s later. Zoom and pick a colour before it runs.
+  await routeCdnLocally(page);
+  await suppressOnboarding(page);
+  await installPanProbes(page);
+  await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
+  await page.locator('input[type="file"]').first().setInputFiles(
+    fixtureWith(fixtureFor('large', { doneFraction: 0.3 }), { savedZoom: 1, savedScroll: { left: 2000, top: 2000 } }));
+  await page.waitForSelector('canvas', { timeout: 90000 });
+  await page.waitForTimeout(1500);
+  const badge = () => page.evaluate(() => (document.querySelector('.tb-proj-badge-saved') || {}).textContent || '');
+  expect(await badge(), 'the first save already ran — the test cannot queue navigation behind it').not.toMatch(/^Saved/);
+  const box = await chartBox(page);
+  await page.mouse.move(Math.round(box.x + box.w / 2), Math.round(box.y + box.h / 2));
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -20); await page.waitForTimeout(16); }
+  await page.keyboard.up('Control');
+  // The wheel preview commits 160 ms after the last event (a click on the colour list does not land it).
+  await page.waitForTimeout(500);
+  await page.locator('.ppal-tile').first().click();
+  const zoom = await zoomPercent(page);
+  // The queued save runs, after the navigation record was written.
+  await waitForSaved(page);
+  expect(zoom).toBeGreaterThan(120);
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('canvas', { timeout: 90000 });
+  await page.waitForTimeout(4000);
+  const after = { zoom: await zoomPercent(page), focused: await page.locator('.ppal-tile--on').count() };
+  console.log('QUEUED_SAVE_NAV ' + JSON.stringify({ zoom, after }));
+  // Before: the queued save stored the zoom and context from when it was queued, with a newer time than the
+  // navigation record, so the reload came back at 100% with no colour.
+  expect(after.zoom, 'the zoom from before the queued save came back').toBe(zoom);
+  expect(after.focused, 'the colour picked before the queued save did not come back').toBe(1);
+});
+
+test('hiding the page writes navigation still waiting for its second, without a full save', async ({ page }) => {
+  test.setTimeout(240000);
+  await openLarge(page);
+  const id = await page.evaluate(() => Object.keys(localStorage).find((k) => k.startsWith('cs_nav_')));
+  expect(id, 'no navigation record after opening').toBeTruthy();
+  const readNav = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), id);
+  const before = await readNav();
+  await resetPanProbes(page);
+  const box = await chartBox(page);
+  await page.mouse.move(Math.round(box.x + box.w / 2), Math.round(box.y + box.h / 2));
+  await page.keyboard.down('Control');
+  for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -20); await page.waitForTimeout(16); }
+  await page.keyboard.up('Control');
+  // The wheel preview commits after 160 ms; the record would be written a second after that. Hide the page in
+  // between, stopping timers first as a suspended page would.
+  await page.waitForTimeout(300);
+  const zoom = await zoomPercent(page);
+  const written = await page.evaluate((k) => {
+    const hi = setTimeout(() => {}, 0);
+    for (let t = 0; t <= hi; t++) clearTimeout(t);   // a suspended page runs no timers
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return JSON.parse(localStorage.getItem(k) || 'null');
+  }, id);
+  await page.waitForTimeout(1500);
+  const p = await readPanProbes(page);
+  console.log('HIDE_FLUSH ' + JSON.stringify({ zoom, before: before && before.zoom, written: written && written.zoom, saves: p.saves }));
+  expect(written.at, 'hiding the page did not write the navigation record').toBeGreaterThan(before.at);
+  expect(Math.round(written.zoom * 100)).toBe(zoom);
+  expect(p.saves, 'hiding the page after a navigation change started a full save').toBe(0);
+});

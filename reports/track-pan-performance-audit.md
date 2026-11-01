@@ -422,6 +422,38 @@ every open. It is left alone here because loading may rely on that save to
 store what it migrates; skipping it safely needs a check of what loading
 changes.
 
+## Follow-up: two gaps in the navigation record (PR review audit)
+
+An audit of PR #406 at `4851cbc` found two persistence regressions in the
+navigation record, both confirmed and fixed:
+
+1. **A queued full save stored stale navigation.** The autosave timer called
+   the `buildSnapshot` of the render that queued it. Navigation is no longer an
+   autosave dependency, so a zoom or colour change made while a save was queued
+   did not replace the timer, and the save stored the old zoom and working
+   context with a newer `updatedAt` than the navigation record, which then lost
+   on load. The timer now builds from `buildSnapshotRef.current` (the latest
+   render). Reproduced in the browser: open a project, zoom to 160% and pick a
+   colour before its first save runs, reload: it came back at 100% with no
+   colour. Now it comes back as left.
+2. **Pending navigation was not written when the page was hidden.** The record
+   was written only by its one-second timer, which a suspended page may never
+   run, and the tab-hidden handler returned early because navigation does not
+   change the full save's generation. `flushNavRecord` now writes a pending
+   record synchronously when the page is hidden (before that check), before a
+   different project replaces this one (while the record still belongs to the
+   outgoing project's id), and when the Tracker unmounts (keeping the last
+   scroll if the scroller is already gone). Reproduced by zooming, stopping all
+   timers and hiding the page: no record was written; now it is, with no full
+   save.
+
+Guards: `desktop-pan-large.spec.js` "navigation changed while a full save is
+queued is what that save stores" and "hiding the page writes navigation still
+waiting for its second, without a full save" (both fail on `4851cbc`, pass
+now); `workingContext.test.js` checks the timer's builder, the flush before
+the generation check, the flush before the project id changes, and the
+unmount flush.
+
 ## Cross-check: another agent's analysis
 
 An independent analysis of `main` listed five causes. Where each stands on
