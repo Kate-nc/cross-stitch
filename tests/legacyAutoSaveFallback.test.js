@@ -58,7 +58,7 @@ test('no legacy copy is still nothing', async () => {
 });
 
 test('the periodic autosave writes only the project record; unload and flush still refresh the legacy copy', () => {
-  const start = TRACKER.indexOf('const project = buildSnapshot();\n    if (!project) {');
+  const start = TRACKER.indexOf('const project = buildSnapshotRef.current ? buildSnapshotRef.current() : null;\n    if (!project) {');
   expect(start).toBeGreaterThan(0);
   const body = TRACKER.slice(start, TRACKER.indexOf('}, _autoSaveDelay);', start));
   expect(body).toMatch(/persistProjectRecord\(project\)/);

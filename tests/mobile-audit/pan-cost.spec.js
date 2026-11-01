@@ -12,6 +12,11 @@
  *      that actually overflows.
  *
  * A pan is only counted as real if scrollLeft/scrollTop actually moved.
+ *
+ * This spec uses a one-colour chart and rigid fingers and never reaches the
+ * chart's edge. pan-large.spec.js and desktop-pan-large.spec.js cover the
+ * large many-coloured chart, finger drift, the edges, tile moves, pinch and
+ * wheel zoom, mouse pans and overlays (reports/track-pan-performance-audit.md).
  */
 const { test, expect } = require('@playwright/test');
 

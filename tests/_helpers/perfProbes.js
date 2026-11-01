@@ -125,4 +125,19 @@ function stats(values) {
   return { n: s.length, max: r(s[s.length - 1]), median: r(s[Math.floor(s.length / 2)]), total: r(s.reduce((a, b) => a + b, 0)) };
 }
 
-module.exports = { installProbes, resetProbes, readProbes, cpuThrottle, chartBox, tbt, stats, interactions };
+/** Wait until an opened fixture's first save has been written. A project is
+ *  saved in full about 5 s after it opens, and that save re-renders the
+ *  tracker (the badge goes to Saving and back): a measurement that overlaps it
+ *  counts the save, not what it set out to measure. Until then the badge reads
+ *  "All changes saved" (it counts edits, and opening is not one), so this
+ *  waits for "Saved ..." with no write in flight. */
+async function waitForSaved(page, timeout = 60000) {
+  await page.waitForFunction(() => {
+    const b = document.querySelector('.tb-proj-badge-saved');
+    return !!b && !/tb-proj-badge-saved--(saving|pending)/.test(b.className) && /^Saved\b/.test(b.textContent.trim());
+  }, null, { timeout });
+  // The badge settles with the save's last render; let that commit.
+  await page.waitForTimeout(300);
+}
+
+module.exports = { installProbes, resetProbes, readProbes, cpuThrottle, chartBox, tbt, stats, interactions, waitForSaved };

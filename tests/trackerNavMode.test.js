@@ -48,7 +48,7 @@ describe('Navigate mode press', () => {
 
   test('a release without a drag toggles the guide', () => {
     const b = body('function beginNavPress(e,gx,gy){', '\nuseEffect(');
-    expect(b).toMatch(/if\(press\.dragging\)\{setIsPanning\(false\);return;\}\s*toggleGuideAt\(gx,gy\);/);
+    expect(b).toMatch(/if\(press\.dragging\)\{setPanning\(false\);return;\}\s*toggleGuideAt\(gx,gy\);/);
     const t = body('function toggleGuideAt(gx,gy){', '\n}\n');
     expect(t).toMatch(/if\(g\.row===gy&&g\.col===gx\)\{setHlRow\(-1\);setHlCol\(-1\);\}/);
   });

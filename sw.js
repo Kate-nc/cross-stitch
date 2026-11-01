@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "491912cbac8d8eecb8f081618a06eb056678833cf9dcd3e351b1fa95e1ccb938";
+var BUILD_ID = "260358b10b87e17c7f04215b09ce8b93b565e1f84064137774a386217507a3cc";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "90e89f231c03ce4282695b133372c10a5e7c184a862ecf34d49c6a4ccb47621d"
   },
   "./changelog.js": {
-    "sha256": "9046917d3d431350109a67e68d77894cd7a3d5cd37bcb10942ccb2618e492739"
+    "sha256": "a239d244fe71aa1b350777141fcd6ce368f7b15985787eb108d225e09c0a3b95"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -428,7 +428,7 @@ var BUILD_ASSETS = {
     "sha256": "50b89b4c2607d32dc39d4a13620b86d02d762f71a9d0cb93032ac83a8c00b97c"
   },
   "./progress-units.js": {
-    "sha256": "4679a5862d34a39eeda14ab2f64c178b4bcffb2e93f4a83a69868492e774cfa6"
+    "sha256": "018679243c92ac7e7bd833347629bc7b6fbaec20bc42e7ed37796ca7bd75fec0"
   },
   "./creator/SpecialtyStitchPanel.js": {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "b1615be3ff8ac34076d5f499c62cba8e9fdfb4123c7732de69679a302e67eca0"
+    "sha256": "004c5f4ab11a1b8428caea92fe759eed5eb0260c664c5dea19761a6839832b0d"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"
@@ -581,7 +581,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "d16a68c0b4341d06bbc45f69b3a93041c7b61d0fd82271001a5683833d6ffba1"
+    "sha256": "724740566e4556c41cfc1fe93285e1d49948d49a4fab128adfffc6880b23fbc0"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"

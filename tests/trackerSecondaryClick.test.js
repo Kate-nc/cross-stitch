@@ -92,7 +92,8 @@ test('Navigate touch hold parks once; movement, second touch and mode changes ca
     for (const cancel of ['none','move','second','mode']) {
       const h=harness({stitchMode:'navigate'}), c=h.ctx;
       Object.assign(c,{navHoldRef:{current:null},suppressNavClickUntilRef:{current:0},navigator:{},
-        window:{TouchConstants:{LONG_PRESS_MS:500,TAP_SLOP_PX:10}},useEffect:jest.fn()});
+        window:{TouchConstants:{LONG_PRESS_MS:500,TAP_SLOP_PX:10}},useEffect:jest.fn(),
+        zoomPreviewRef:{current:null},touchStateRef:{current:{mode:'none'}},commitZoomPreview:jest.fn()});
       const source=['isMacSecondaryClick','clearNavHold','handleCanvasPointerDownCapture','handleCanvasPointerMoveCapture'].map(n=>fn(src,n)).join('\n');
       const effect=src.match(/useEffect\(\(\)=>clearNavHold,\[stitchMode,isEditMode,pat\]\);/)[0];
       const handlers=new Function('ctx','with(ctx){'+source+effect+'return {handleCanvasPointerDownCapture,handleCanvasPointerMoveCapture};}')(c);

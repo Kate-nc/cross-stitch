@@ -323,12 +323,32 @@
   function specialtySegments(o) {
     return o.type === 'petite' ? [[o.x,o.y,o.x+0.5,o.y+0.5],[o.x,o.y+0.5,o.x+0.5,o.y]] : [[o.x1,o.y1,o.x2,o.y2]];
   }
-  function specialtyDraw(ctx, objects, done, x, y, size, visible, selected) {
+  // The done marks as a Set, built once per array rather than on every paint.
+  var _markSets = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function markSet(done) {
+    if (!done || !_markSets || typeof done !== 'object') return new Set(done || []);
+    var s = _markSets.get(done);
+    if (!s) { s = new Set(done); _markSets.set(done, s); }
+    return s;
+  }
+  // bounds (optional), in cells: {x0, y0, x1, y1}. Objects wholly outside it are
+  // skipped: the Tracker paints only its visible tile, a strip of it after a
+  // scroll, or a single stitch after a tap, and stroking every object in the
+  // pattern each time (clipped away) was most of a mixed chart's paint.
+  function specialtyDraw(ctx, objects, done, x, y, size, visible, selected, bounds) {
     if(!objects.length)return;
-    var marks=new Set(done || []);
+    var marks=markSet(done);
     ctx.save(); ctx.lineCap='round';
     objects.forEach(function(o) {
       if (visible && visible[o.type] === false) return;
+      if (bounds) {
+        // Half a cell of margin covers the line width; the selection box reaches 3.5 px past the stitch, more than
+        // half a cell zoomed far out, so the selected object gets that much more.
+        var pad = selected === o.uid ? Math.max(0.5, 4 / size) : 0.5;
+        var ox0 = o.type === 'petite' ? o.x : Math.min(o.x1, o.x2), ox1 = o.type === 'petite' ? o.x + 0.5 : Math.max(o.x1, o.x2);
+        var oy0 = o.type === 'petite' ? o.y : Math.min(o.y1, o.y2), oy1 = o.type === 'petite' ? o.y + 0.5 : Math.max(o.y1, o.y2);
+        if (ox1 < bounds.x0 - pad || ox0 > bounds.x1 + pad || oy1 < bounds.y0 - pad || oy0 > bounds.y1 + pad) return;
+      }
       ctx.strokeStyle='rgb('+o.thread.rgb.join(',')+')'; ctx.lineWidth=Math.max(1,size*0.08);
       ctx.globalAlpha=marks.has(o.uid)?0.4:1;
       ctx.setLineDash(marks.has(o.uid)?[2,2]:[]);

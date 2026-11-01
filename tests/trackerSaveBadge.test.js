@@ -113,12 +113,21 @@ describe('everything the snapshot persists is saved when it changes', () => {
     'singleStitchEdits', 'halfStitches', 'halfDone', 'partialStitches', 'knots', 'knotsDone', 'statsSessions', 'statsSettings',
     'achievedMilestones', 'doneSnapshots', 'projectName', 'projectDesigner', 'projectDescription', 'sW', 'sH', 'fabricCt',
     'skeinPrice', 'stitchSpeed', 'wastePrefs', 'projectFabricColour', 'threadBrand', 'breadcrumbs', 'stitchingStyle', 'blockW',
-    'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea', 'stitchZoom'];
+    'blockH', 'focusBlock', 'startCorner', 'colourSequence', 'workArea'];
+  // Navigation (the zoom, the scroll and the working context) is persisted too, but a change to it is not an edit:
+  // it goes to the navigation record, and the next full save carries it.
+  const NAVIGATION = ['stitchZoom', 'focusColour', 'stitchMode', 'stitchView', 'highlightMode'];
   const deps = text => text.slice(text.lastIndexOf('[')).replace(/\/\/[^\n]*/g, '').split(/[\s,\[\]]+/).filter(Boolean);
   test('the autosave effect depends on all of them', () => {
-    const eff = block('useEffect(() => {\n  if (!pat || !pal) return;\n  autoSaveDirtyRef', '// Save the freshest snapshot before the page unloads');
+    const eff = block('useEffect(() => {\n  if (!pat || !pal) return;\n  autoSaveDirtyRef', '// ═══ Navigation record ═══');
     const d = deps(eff.slice(eff.indexOf('}, [pat, pal, done')));
     for (const name of PERSISTED) expect(d).toContain(name);
+    for (const name of NAVIGATION) expect(d).not.toContain(name);
+  });
+  test('navigation changes write the navigation record instead', () => {
+    expect(src).toMatch(/useEffect\(\(\)=>\{if\(pat\)scheduleNavRecord\(\);\},\[stitchZoom,focusColour,stitchMode,stitchView,highlightMode\]\);/);
+    // The scroll position too, which no save ever followed.
+    expect(src).toMatch(/onScroll=\{\(\)=>\{scheduleNavRecord\(\);/);
   });
   test('the badge counts all of them as changes except the view-only ones (zoom, the guide, the spotlight block)', () => {
     const eff = block('// Count changes to data the project saves', '// A cross-tab conflict dialog is open');

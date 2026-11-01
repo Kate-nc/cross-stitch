@@ -17,7 +17,8 @@
 const { test, expect } = require('@playwright/test');
 const { fixtureFor } = require('../_helpers/trackerFixture');
 const { suppressOnboarding } = require('../_helpers/deviceEmulation');
-const { installProbes, resetProbes, readProbes, chartBox } = require('../_helpers/perfProbes');
+const { routeCdnLocally } = require('../_helpers/offlineCdn');
+const { installProbes, resetProbes, readProbes, chartBox, waitForSaved } = require('../_helpers/perfProbes');
 
 const STEPS = 60;
 const SWEEP_PX = 600;
@@ -26,10 +27,13 @@ test('hover sweep across the large chart', async ({ page }) => {
   test.setTimeout(240000);
   await suppressOnboarding(page);
   await installProbes(page);
+  await routeCdnLocally(page);
   await page.goto('/stitch.html?from=home', { waitUntil: 'load', timeout: 120000 });
   await page.locator('input[type="file"]').first().setInputFiles(fixtureFor('large'));
   await page.waitForSelector('canvas', { timeout: 90000 });
   await page.waitForTimeout(4000);
+  // The import is saved a few seconds after it opens; that save's re-render is not the hover's.
+  await waitForSaved(page);
 
   const box = await chartBox(page);
   expect(box, 'no chart scroller found').not.toBeNull();

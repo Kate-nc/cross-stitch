@@ -55,7 +55,7 @@ describe('C3 — legacy drag-mark plumbing removed', () => {
 
   test('handleMouseUp no longer commits a legacy drag (pan release retained)', () => {
     // Pan release must remain so middle-click / space-drag pan still ends.
-    expect(TRACKER).toMatch(/function handleMouseUp\([^)]*\)\s*\{[^}]*isPanning[^}]*setIsPanning\(false\)/);
+    expect(TRACKER).toMatch(/function handleMouseUp\([^)]*\)\s*\{[^}]*isPanningRef\.current[^}]*setPanning\(false\)/);
     // The legacy commit lines must be gone.
     expect(TRACKER).not.toMatch(/handleMouseUp\([^)]*\)\s*\{[\s\S]{0,400}pushTrackHistory\(\[\.\.\.dragChangesRef/);
   });
