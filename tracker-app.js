@@ -5057,12 +5057,13 @@ function progressRecordCovers() {
   return !!seen && typeof seen.lastWriteAt === 'number';
 }
 // Throttled, not debounced: the first mark after a pause is written ~400 ms later
-// however steadily marking continues. On a large chart each write also rebuilds
-// the sync record for every finished stitch (seconds on a phone, until that is
-// made incremental), and now that a tap commits on its own every tap would start
-// one; so there, a write starts at least PROGRESS_GAP_LARGE_MS after the last one
-// finished. Hiding or closing the tab still writes at once.
-const PROGRESS_GAP_LARGE_MS = 3000;
+// however steadily marking continues. A write keeps only the sync registers of
+// marks changed since the last full save (TrackingSync.recordDelta), but still
+// copies the whole done array, and a tap commits on its own; so on a large chart
+// a write starts at least PROGRESS_GAP_LARGE_MS after the last one finished. It
+// was 3 s while each write rebuilt a register for every finished stitch (most of
+// a second on a phone). Hiding or closing the tab still writes at once.
+const PROGRESS_GAP_LARGE_MS = 1000;
 function scheduleProgressWrite() {
   if (progressTimerRef.current) return;
   const gap = pat && pat.length > 40000 ? PROGRESS_GAP_LARGE_MS : 0;

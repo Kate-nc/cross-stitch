@@ -983,12 +983,13 @@ function flushBeforeSwitch(){if(!autoSaveDirtyRef.current||autoSaveGenRef.curren
 // set on load and by every save), saving must be working, and the last progress
 // write must have succeeded.
 function progressRecordCovers(){const id=projectIdRef.current;if(!id||savesBlockedRef.current||saveUiRef.current.error||saveUiRef.current.conflict)return false;if(progressFailedRef.current)return false;if(typeof ProjectStorage==='undefined'||typeof ProjectStorage.saveProgress!=='function')return false;const seen=window.CrossTabCoord&&window.CrossTabCoord.getSeen?window.CrossTabCoord.getSeen(id):null;return!!seen&&typeof seen.lastWriteAt==='number';}// Throttled, not debounced: the first mark after a pause is written ~400 ms later
-// however steadily marking continues. On a large chart each write also rebuilds
-// the sync record for every finished stitch (seconds on a phone, until that is
-// made incremental), and now that a tap commits on its own every tap would start
-// one; so there, a write starts at least PROGRESS_GAP_LARGE_MS after the last one
-// finished. Hiding or closing the tab still writes at once.
-const PROGRESS_GAP_LARGE_MS=3000;function scheduleProgressWrite(){if(progressTimerRef.current)return;const gap=pat&&pat.length>40000?PROGRESS_GAP_LARGE_MS:0;progressTimerRef.current=setTimeout(writeProgressNow,Math.max(400,lastProgressWriteRef.current+gap-Date.now()));}const writeProgressNowRef=useRef(null);writeProgressNowRef.current=writeProgressNow;const scheduleProgressWriteRef=useRef(null);scheduleProgressWriteRef.current=scheduleProgressWrite;useEffect(()=>{if(!pat||!pal)return;autoSaveDirtyRef.current=true;// Debounce 5 s after the last change, but cap how long a change can stay unsaved:
+// however steadily marking continues. A write keeps only the sync registers of
+// marks changed since the last full save (TrackingSync.recordDelta), but still
+// copies the whole done array, and a tap commits on its own; so on a large chart
+// a write starts at least PROGRESS_GAP_LARGE_MS after the last one finished. It
+// was 3 s while each write rebuilt a register for every finished stitch (most of
+// a second on a phone). Hiding or closing the tab still writes at once.
+const PROGRESS_GAP_LARGE_MS=1000;function scheduleProgressWrite(){if(progressTimerRef.current)return;const gap=pat&&pat.length>40000?PROGRESS_GAP_LARGE_MS:0;progressTimerRef.current=setTimeout(writeProgressNow,Math.max(400,lastProgressWriteRef.current+gap-Date.now()));}const writeProgressNowRef=useRef(null);writeProgressNowRef.current=writeProgressNow;const scheduleProgressWriteRef=useRef(null);scheduleProgressWriteRef.current=scheduleProgressWrite;useEffect(()=>{if(!pat||!pal)return;autoSaveDirtyRef.current=true;// Debounce 5 s after the last change, but cap how long a change can stay unsaved:
 // without a cap, marking steadily (each mark restarts the timer) saved nothing
 // until the first 5 s pause. A full save of a very large chart costs about
 // 150 ms of main thread (structured clone of the whole record), so charts over

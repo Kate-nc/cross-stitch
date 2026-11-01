@@ -17,11 +17,6 @@ const ProjectStorage = (() => {
   const LEGACY_EPOCH = '2020-01-01T00:00:00Z';
   const fencePrefix=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36);
   let fenceSequence=0, progressBaseCache=null;
-  // The progress record this page last wrote and committed, per project: when the
-  // next write reads back that very record (same writeId), TrackingSync.record can
-  // reuse its registers instead of re-reading one per finished stitch (seconds on a
-  // large chart).
-  const lastProgressPut=new Map();
   // One compact base only: retain marks and causal metadata, never chart cells.
   // Its token must match the metadata read in the SAME transaction as the
   // progress write. Any full write/recovery/legacy writer invalidates it.
@@ -193,6 +188,9 @@ const ProjectStorage = (() => {
     const next = Object.assign({}, out);
     ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => { if (Array.isArray(rec[f])) next[f] = rec[f]; });
     if (rec.trackingSync) return Object.assign(out, { trackingSync: rec.trackingSync });
+    // A delta over the project it is based on (TrackingSync.recordDelta): rebuilt
+    // over the project's own registers, whatever `previous` holds.
+    if (rec.trackingSyncDelta) return Object.assign(out, { trackingSync: TrackingSync.withDelta(Object.assign({}, out, { trackingSync: project.trackingSync }), rec.trackingSyncDelta) });
     const tracked = TrackingSync.record(previous || project, next, "progress-" + (rec.tabId || rec.updatedAt || "legacy"));
     return Object.assign(out, { trackingSync: tracked.trackingSync });
   }
@@ -989,10 +987,7 @@ const ProjectStorage = (() => {
           halfDone: data.halfDone, knotsDone: data.knotsDone, beadsDone: data.beadsDone,
           bsDone: data.bsDone, partialDone: data.partialDone, specialtyDone:data.specialtyDone,
           baseWriteAt: typeof data.baseWriteAt === "number" ? data.baseWriteAt : null,
-          tabId: data.tabId || null, updatedAt: Date.now(),
-          // This write's identity, for reusing its sync registers next time (see
-          // lastProgressPut): timestamps can repeat within a millisecond.
-          writeId: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)
+          tabId: data.tabId || null, updatedAt: Date.now()
         };
         const db = await getDB();
         if (!db.objectStoreNames.contains("pendingImports")) return false;
@@ -1031,7 +1026,8 @@ const ProjectStorage = (() => {
             const prev = req.result;
             if(!project)return;
             if (project && project.chartRevision && rec.baseWriteAt !== project.lastWriteAt) return;
-            const previous = applyProgressRecord(project, prev, null, {typed:true});
+            // The marks of the record this one follows, over the base's trackingSync.
+            const previous = applyProgressRecord(project, prev, null, {typed:true,skipTracking:true});
             // Missing fields from an older writer preserve the latest overlay,
             // including a prior unpick represented by an empty/missing list.
             ["halfDone", "knotsDone", "beadsDone", "bsDone", "partialDone", "specialtyDone"].forEach(f => {
@@ -1040,12 +1036,15 @@ const ProjectStorage = (() => {
             const current = applyProgressRecord(project, rec, null, {typed:true,skipTracking:true});
             if (current !== project) {
               const next = Object.assign({}, current, { halfDone: rec.halfDone, knotsDone: rec.knotsDone, beadsDone: rec.beadsDone, bsDone: rec.bsDone, partialDone: rec.partialDone, specialtyDone:rec.specialtyDone });
-              // Only when the stored record is this page's last write (same tab, time and
-              // base) and is what `previous` was built from.
-              const mine = lastProgressPut.get(id);
-              const from = mine && prev && prev.writeId && prev.trackingSync && previous && previous.trackingSync === prev.trackingSync
-                && prev.writeId === mine.writeId && prev.baseWriteAt === mine.baseWriteAt ? mine.marks : null;
-              rec.trackingSync = TrackingSync.record(previous, next, undefined, from).trackingSync;
+              // Only the registers that differ from the base's (TrackingSync.recordDelta):
+              // the marks changed since the last full save, not one per finished stitch.
+              // A record from an older build holds them all; it is cut down once here.
+              let delta = null;
+              if (previous !== project) {
+                if (prev.trackingSyncDelta) delta = prev.trackingSyncDelta;
+                else delta = TrackingSync.deltaFrom(previous, applyProgressRecord(project, prev, null, {typed:true}).trackingSync);
+              }
+              rec.trackingSyncDelta = TrackingSync.recordDelta(previous, delta, next);
             }
             // A delayed call must not undo a newer navigation recovery (or unpick).
             // Turned away (a newer record stands), nothing of this call is stored: false.
@@ -1056,15 +1055,7 @@ const ProjectStorage = (() => {
             }
           };
           req.onsuccess = finish;
-          // Only a committed write may be reused next time; an aborted one leaves the
-          // entry for the last committed write (or none) in place.
-          tx.oncomplete = () => {
-            if (accepted) {
-              if (rec.trackingSync) lastProgressPut.set(id, {writeId:rec.writeId, baseWriteAt:rec.baseWriteAt, marks:rec.trackingSync.marks});
-              else lastProgressPut.delete(id);
-            }
-            resolve();
-          };
+          tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
           tx.onabort = () => reject(tx.error || new Error("Progress save aborted"));
         });
@@ -1114,7 +1105,9 @@ const ProjectStorage = (() => {
           if (newer && newer.updatedAt > rec.updatedAt && applyProgressRecord(project, newer) !== project) {
             next = applyProgressRecord(project, newer);
           } else {
-            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, trackingSync: next.trackingSync }));
+            // `next` is also put as the project below, under the same lastWriteAt, so
+            // the record differs from its base in no register.
+            pending.put(Object.assign({}, rec, { id: PROGRESS_PREFIX + id, trackingSyncDelta: {version:1, marks:{}} }));
           }
           // Materialise once on recovery, never on every mark. Keep the full-save
           // revision/tab stamps: this is the same overlay get() normally presents.
