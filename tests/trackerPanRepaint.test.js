@@ -85,7 +85,7 @@ describe('a tile move keeps what is already drawn', () => {
     expect(fn).toMatch(/ctx\.drawImage\(canvas, ddx>0\?ax:0, ddy>0\?ay:0, W-ax, H-ay, ddx>0\?0:ax, ddy>0\?0:ay, W-ax, H-ay\);/);
     expect(fn).toMatch(/ctx\.rect\(l,t,r-l,b-t\);ctx\.clip\(\);/);
     expect(fn).toMatch(/drawStitch\(ctx,scs,\{left:l-m,top:t-m,right:r\+m,bottom:b\+m,/);
-    expect(fn).toMatch(/redrawChartOverlays\(\);\n  return true;/);
+    expect(fn).toMatch(/shiftChartOverlays\(prev,tile\);\n  return true;/);
   });
 
   test('it refuses whenever the pixels on the canvas cannot be kept as they are', () => {
@@ -211,5 +211,56 @@ describe('remaining tracker touch targets', () => {
     expect(tracker).toMatch(/className="ppal-check"/);
     expect(css).toMatch(/\.ppal-check\{ width:16px; height:16px; cursor:pointer; \}/);
     expect(css).toMatch(/input\[type=checkbox\], \.ppal-check\{ width:24px; height:24px; \}/);
+  });
+});
+
+describe('overlays follow a tile move the way the chart does', () => {
+  const shift = tracker.slice(tracker.indexOf('function shiftChartOverlays(prev,tile){'), tracker.indexOf('function regionCellRange('));
+
+  test('shiftChartTile hands the move to shiftChartOverlays instead of redrawing them whole', () => {
+    const fn = tracker.slice(tracker.indexOf('function shiftChartTile('), tracker.indexOf('// PERF: single/bulk stitch toggles'));
+    expect(fn).toMatch(/shiftChartOverlays\(prev,tile\);\n  return true;/);
+    expect(fn).not.toMatch(/redrawChartOverlays\(\)/);
+  });
+
+  test('the overlap is copied with "copy", so translucent overlays do not stack on themselves', () => {
+    // source-over turned the focus overlay's 94% dim into 99.6% after a few moves.
+    expect(shift).toMatch(/ctx\.globalAlpha=1;ctx\.globalCompositeOperation="copy";\n      ctx\.drawImage\(canvas,/);
+    expect(shift).toMatch(/applyChartTile\(canvas,tile,G,\{scale:1,blankOnMove:false\}\);/);
+  });
+
+  test('each uncovered strip is clipped and cleared before the overlay draws into it', () => {
+    expect(shift).toMatch(/ctx\.rect\(st\.l,st\.t,st\.r-st\.l,st\.b-st\.t\);ctx\.clip\(\);\n        ctx\.clearRect\(st\.l,st\.t,st\.r-st\.l,st\.b-st\.t\);\n        o\.draw\(st\);/);
+  });
+
+  test('an overlay whose canvas is not on the previous tile is drawn whole', () => {
+    expect(shift).toMatch(/if\(!canvas\|\|!at\|\|at\.x!==prev\.x\|\|at\.y!==prev\.y\|\|at\.w!==W\|\|at\.h!==H\|\|\(at\.scale\|\|1\)!==1\|\|canvas\.width!==W\|\|canvas\.height!==H\)\{o\.draw\(\);continue;\}/);
+  });
+
+  test('the canvas overlays register their canvas; the SVG ants are redrawn whole', () => {
+    for (const [name, ref] of [['threadUsage', 'threadUsageCanvasRef'], ['countingAids', 'countingAidsCanvasRef'], ['recPulse', 'recOverlayCanvasRef'], ['focusBlock', 'focusOverlayCanvasRef'], ['breadcrumbs', 'breadcrumbCanvasRef']]) {
+      expect(tracker).toMatch(new RegExp('registerChartOverlay\\("' + name + '",[^\\n]*\\(\\)=>' + ref + '\\.current\\)'));
+    }
+    expect(tracker).toMatch(/registerChartOverlay\("ants",draw\)/);
+  });
+
+  test('the per-cell overlays only walk the uncovered strip, and ignore rAF timestamps', () => {
+    const tu = tracker.slice(tracker.indexOf('═══ Thread usage overlay rendering ═══'), tracker.indexOf('═══ Recommendation pulsing border animation ═══'));
+    expect(tu).toMatch(/const rg=\(region&&typeof region==="object"\)\?region:null;/);
+    expect(tu).toMatch(/const r0=regionCellRange\(tileCellRange\(prep\.tile,scs\),rg,scs\);/);
+    const ca = tracker.slice(tracker.indexOf('═══ Counting aids overlay ═══'), tracker.indexOf('Marching-ants outline'));
+    expect(ca).toMatch(/const rg=\(region&&typeof region==="object"\)\?region:null;/);
+    expect(ca).toMatch(/const cr=regionCellRange\(tileCellRange\(prep\.tile,scs\),rg&&\{l:rg\.l-20,t:rg\.t-20,r:rg\.r\+20,b:rg\.b\+20\},scs\);/);
+  });
+
+  test('regionCellRange narrows the tile cells to those a region touches', () => {
+    const src = tracker.slice(tracker.indexOf('function regionCellRange('), tracker.indexOf('// Point an overlay canvas at the chart'));
+    const fn = new Function('G', src + 'return regionCellRange;')(28);
+    const tileCells = { x0: 10, y0: 20, x1: 60, y1: 90 };
+    expect(fn(tileCells, null, 10)).toBe(tileCells);
+    // chart px 28 + 10*c is the left of cell c
+    expect(fn(tileCells, { l: 28 + 400, t: 28 + 300, r: 28 + 455, b: 28 + 301 }, 10)).toEqual({ x0: 40, y0: 30, x1: 46, y1: 31 });
+    // never outside the tile
+    expect(fn(tileCells, { l: 0, t: 0, r: 99999, b: 99999 }, 10)).toEqual(tileCells);
   });
 });

@@ -1498,14 +1498,72 @@ const chartTileRef=useRef({x:0,y:0,w:0,h:0,full:true});
 const chartOverlayRedrawRef=useRef({});
 function redrawChartOverlays(){
   const reg=chartOverlayRedrawRef.current;
-  for(const k in reg){try{reg[k]();}catch(e){console.error("overlay redraw failed: "+k,e);}}
+  for(const k in reg){try{reg[k].draw();}catch(e){console.error("overlay redraw failed: "+k,e);}}
 }
 // Register an overlay's draw function under `name` for the lifetime of an
 // effect. Returns the cleanup to hand back from the effect, so an overlay that
 // unmounts cannot leave a stale closure being called on every scroll.
-function registerChartOverlay(name,draw){
-  chartOverlayRedrawRef.current[name]=draw;
+//
+// canvasOf, when given, returns the overlay's canvas, and says the overlay can
+// be moved with the chart's tile the way the chart is (shiftChartOverlays):
+// its pixels copied along and only the uncovered strips drawn. draw is then
+// called with a region ({l,t,r,b} in chart pixels) inside a clip to it, after
+// the region is cleared; it must draw everything that touches the region (the
+// clip trims the rest), and may use the region to skip what does not.
+function registerChartOverlay(name,draw,canvasOf){
+  chartOverlayRedrawRef.current[name]={draw:draw,canvasOf:canvasOf||null};
   return()=>{delete chartOverlayRedrawRef.current[name];};
+}
+// The chart's tile has moved from prev to tile (same size) by shiftChartTile.
+// Overlays that can follow it keep their pixels the same way: the overlap is
+// copied to its new place and only the strips that came into view are drawn.
+// Any other overlay, or one whose canvas is not on prev (resized, released
+// while the page was hidden), is drawn whole as before.
+function shiftChartOverlays(prev,tile){
+  const reg=chartOverlayRedrawRef.current;
+  const dx=tile.x-prev.x, dy=tile.y-prev.y, W=tile.w, H=tile.h;
+  const ax=Math.abs(dx), ay=Math.abs(dy);
+  // The new tile less the part copied from the old one, in chart pixels.
+  const strips=[];
+  const kx0=tile.x+(dx>0?0:ax), kx1=tile.x+(dx>0?W-ax:W);
+  if(dx>0)strips.push({l:tile.x+W-ax,t:tile.y,r:tile.x+W,b:tile.y+H});
+  else if(dx<0)strips.push({l:tile.x,t:tile.y,r:tile.x+ax,b:tile.y+H});
+  if(dy>0)strips.push({l:kx0,t:tile.y+H-ay,r:kx1,b:tile.y+H});
+  else if(dy<0)strips.push({l:kx0,t:tile.y,r:kx1,b:tile.y+ay});
+  for(const k in reg){
+    const o=reg[k];
+    try{
+      const canvas=o.canvasOf&&o.canvasOf();
+      const at=canvas&&canvas.__chartTile;
+      if(!canvas||!at||at.x!==prev.x||at.y!==prev.y||at.w!==W||at.h!==H||(at.scale||1)!==1||canvas.width!==W||canvas.height!==H){o.draw();continue;}
+      const ctx=canvas.getContext("2d");
+      // "copy", not the default "source-over": an overlay is translucent, so
+      // drawing it over its own old pixels would stack the two (a 94% dim
+      // becoming 99.6%). copy also clears everything outside the copied area,
+      // which is exactly the strips about to be drawn.
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation="copy";
+      ctx.drawImage(canvas,dx>0?ax:0,dy>0?ay:0,W-ax,H-ay,dx>0?0:ax,dy>0?0:ay,W-ax,H-ay);
+      ctx.restore();
+      applyChartTile(canvas,tile,G,{scale:1,blankOnMove:false});
+      for(const st of strips){
+        if(st.r<=st.l||st.b<=st.t)continue;
+        ctx.save();
+        ctx.beginPath();ctx.rect(st.l,st.t,st.r-st.l,st.b-st.t);ctx.clip();
+        ctx.clearRect(st.l,st.t,st.r-st.l,st.b-st.t);
+        o.draw(st);
+        ctx.restore();
+      }
+    }catch(e){console.error("overlay shift failed: "+k,e);}
+  }
+}
+// The cells a region (chart pixels) touches, within the tile's cells r.
+function regionCellRange(r,region,cSz){
+  if(!region)return r;
+  return{
+    x0:Math.max(r.x0,Math.floor((region.l-G)/cSz)),y0:Math.max(r.y0,Math.floor((region.t-G)/cSz)),
+    x1:Math.min(r.x1,Math.ceil((region.r-G)/cSz)),y1:Math.min(r.y1,Math.ceil((region.b-G)/cSz)),
+  };
 }
 // Point an overlay canvas at the chart's current tile and return its context.
 // Overlays sit on the chart's geometry, so they share its tile exactly.
@@ -6044,7 +6102,7 @@ function shiftChartTile(){
     ctx.restore();
   }
   paintedRectRef.current={left:tile.x,top:tile.y,right:tile.x+tile.w,bottom:tile.y+tile.h,scs:scs};
-  redrawChartOverlays();
+  shiftChartOverlays(prev,tile);
   return true;
 }
 // PERF: single/bulk stitch toggles already paint their own changed cells directly
@@ -6199,15 +6257,18 @@ useEffect(()=>{
   const ps=analysisResult.perStitch;
   const W=analysisResult.sW,H=analysisResult.sH;
   if(!ps||W!==sW||H!==sH)return;
-  const draw=()=>{
+  // region: the strip a tile move uncovered (see shiftChartOverlays); a
+  // number is requestAnimationFrame's timestamp, meaning the whole tile.
+  const draw=(region)=>{
     const prep=prepareOverlayTile(canvas);
     if(!prep)return;
     const ctx=prep.ctx;
-    clearOverlayTile(ctx,prep.tile);
-    // Bounded by the tile rather than pat.length: this loop is now re-run
-    // whenever the tile moves, and walking 200k cells per scroll would cost
-    // far more than the tiling saves.
-    const r0=tileCellRange(prep.tile,scs);
+    const rg=(region&&typeof region==="object")?region:null;
+    if(!rg)clearOverlayTile(ctx,prep.tile);
+    // Bounded by the tile rather than pat.length, and on a tile move by the
+    // strip that came into view: walking every cell of the tile on each move
+    // was the costliest overlay redraw.
+    const r0=regionCellRange(tileCellRange(prep.tile,scs),rg,scs);
     for(let y=r0.y0;y<r0.y1;y++)for(let x=r0.x0;x<r0.x1;x++){
       const i=y*W+x;
       const cell=pat[i];
@@ -6232,7 +6293,7 @@ useEffect(()=>{
   };
   cancelAnimationFrame(threadUsageRafRef.current);
   threadUsageRafRef.current=requestAnimationFrame(draw);
-  const unregister=registerChartOverlay("threadUsage",draw);
+  const unregister=registerChartOverlay("threadUsage",draw,()=>threadUsageCanvasRef.current);
   return()=>{cancelAnimationFrame(threadUsageRafRef.current);unregister();};
 },[analysisResult,threadUsageMode,scs,pat,sW,sH]);
 
@@ -6301,7 +6362,7 @@ useEffect(()=>{
   // Registered so a tile move repaints the boxes at their new origin. The
   // static form is used because the pulse loop, when running, supplies its own
   // animation; when it is not running this is the only thing that redraws.
-  const unregister=registerChartOverlay("recPulse",()=>draw(true));
+  const unregister=registerChartOverlay("recPulse",()=>draw(true),()=>recOverlayCanvasRef.current);
   if(prefersReducedMotion){draw(true);return unregister;}
   // Also suspend while the tab is hidden — rAF is already throttled when
   // backgrounded, but this releases the callback entirely so a phone that
@@ -6375,7 +6436,7 @@ useEffect(()=>{
   }}
   };
   draw();
-  return registerChartOverlay("focusBlock",draw);
+  return registerChartOverlay("focusBlock",draw,()=>focusOverlayCanvasRef.current);
 },[focusBlock,focusEnabled,stitchingStyle,scs,sW,sH,blockW,blockH,liveParkKey]);
 
 // ═══ Breadcrumb trail overlay ═══
@@ -6409,7 +6470,7 @@ useEffect(()=>{
   });
   };
   draw();
-  return registerChartOverlay("breadcrumbs",draw);
+  return registerChartOverlay("breadcrumbs",draw,()=>breadcrumbCanvasRef.current);
 },[breadcrumbs,breadcrumbVisible,scs,sW,sH,blockW,blockH,statsSessions]);
 
 // ═══ Counting aids overlay ═══
@@ -6424,15 +6485,19 @@ useEffect(()=>{
   // Below this cell size the badges and counts stack on top of each other, so
   // draw none (the sidebar says to zoom in).
   if(scs<COUNTING_AIDS_MIN_CELL){const p0=prepareOverlayTile(canvas);if(p0)clearOverlayTile(p0.ctx,p0.tile);return ()=>{cancelAnimationFrame(countingAidsRafRef.current);};}
-  const draw=()=>{
+  // region: as for the thread-usage overlay (see shiftChartOverlays).
+  const draw=(region)=>{
     const prep=prepareOverlayTile(canvas);
     if(!prep)return;
     const ctx=prep.ctx;
-    clearOverlayTile(ctx,prep.tile);
+    const rg=(region&&typeof region==="object")?region:null;
+    if(!rg)clearOverlayTile(ctx,prep.tile);
     const bCols=Math.ceil(sW/blockW),bRows=Math.ceil(sH/blockH);
     // Culled to the tile rather than the raw viewport: the tile is what this
     // canvas can actually hold, and it already carries the overscan margin.
-    const cr=tileCellRange(prep.tile,scs);
+    // On a tile move, only the blocks near the uncovered strip: widened by
+    // 20 px, as a badge can reach a little past its own column.
+    const cr=regionCellRange(tileCellRange(prep.tile,scs),rg&&{l:rg.l-20,t:rg.t-20,r:rg.r+20,b:rg.b+20},scs);
     const visC0=Math.max(0,Math.floor(cr.x0/blockW));
     const visC1=Math.min(bCols,Math.ceil(cr.x1/blockW)+1);
     const visR0=Math.max(0,Math.floor(cr.y0/blockH));
@@ -6587,7 +6652,7 @@ useEffect(()=>{
     }
   };
   countingAidsRafRef.current=requestAnimationFrame(draw);
-  const unregister=registerChartOverlay("countingAids",draw);
+  const unregister=registerChartOverlay("countingAids",draw,()=>countingAidsCanvasRef.current);
   return ()=>{cancelAnimationFrame(countingAidsRafRef.current);unregister();};
 },[pat,done,sW,sH,scs,focusColour,stitchView,countingAidsEnabled,countRunMin,countRunDir,countNinjaEnabled,blockW,blockH,focusBlock,countsVer,analysisResult,lockDetailLevel]);
 

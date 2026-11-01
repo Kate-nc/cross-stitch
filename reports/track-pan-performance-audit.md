@@ -129,12 +129,9 @@ Ordered by expected benefit for panning. None of these is done.
 2. ~~**Per-cell drawing cost.**~~ **Done** for backgrounds and outlines, see
    [Follow-up: per-cell drawing cost](#follow-up-per-cell-drawing-cost). Symbol
    text (a `fillText` per cell) is what is left.
-3. **Overlays redraw the whole tile on every move.** `redrawChartOverlays()`
-   runs on each tile move. Counting aids and the thread-usage overlay walk
-   every cell in the tile; the outline-highlight ants rebuild their SVG path
-   for the whole tile. Cheap when those modes are off; with them on, each move
-   costs a full-tile pass. They could keep their pixels the same way the chart
-   now does.
+3. ~~**Overlays redraw the whole tile on every move.**~~ **Done** for the
+   canvas overlays, see [Follow-up: overlays](#follow-up-overlays). The
+   outline-highlight ants (SVG) still rebuild their path on each move.
 4. **A fixed grid of tile canvases** (as map apps do) would remove the copy
    entirely: each 512 px tile is painted once when it comes into view and the
    compositor moves it. Worth doing only if the real-device check shows the
@@ -249,6 +246,58 @@ now leave an even two. At DPR 1.5 zoomed far out the old per-cell fills left
 faint pale seams between stitches (their edges fall on half pixels); the
 image has none. Tile shifting still matches a full paint to within the usual
 anti-aliasing noise.
+
+## Follow-up: overlays
+
+**Problem.** Every tile move called each overlay's draw for the whole tile:
+the canvas overlays cleared and redrew everything, and the per-cell ones (the
+thread-usage map, counting aids) walked every cell of the tile. Timed per
+overlay over a 150-frame pan of a 400 x 500 chart at 100% (15 moves):
+
+| Overlay | Desktop | Phone 4x |
+|---|---:|---:|
+| Thread usage | 274 ms | 617 ms |
+| Ants (SVG path) | 25 ms | 103 ms |
+| Counting aids | 12 ms | 85 ms |
+| Recommendation boxes | 5 ms | 58 ms |
+
+The thread-usage overlay cannot currently be turned on: `setThreadUsageMode`
+has no caller left in the app. It is fixed anyway, since it is the overlay
+the change helps most, but nobody hits it today.
+
+**Change.** `registerChartOverlay` takes a third argument returning the
+overlay's canvas. `shiftChartTile` now calls `shiftChartOverlays`, which for
+each such overlay copies the overlap to its new place on the same canvas
+(with `globalCompositeOperation = "copy"`: an overlay is translucent, and
+drawing it over its own old pixels stacked them, turning the focus overlay's
+94% dim into 99.6%), then for each uncovered strip clips to it, clears it and
+calls the overlay's draw with the strip. Any draw is correct under the clip;
+the thread-usage overlay and counting aids also use the strip to walk only
+its cells (counting aids widened by 20 px, as a badge can reach past its
+column). Focus dimming, breadcrumbs and the recommendation boxes draw as
+before, clipped. An overlay whose canvas is not on the previous tile (resized,
+released while the page was hidden) and the SVG ants are drawn whole, as
+before.
+
+**Measured** (same pan, overlay time inside tile moves):
+
+| Overlay | Desktop before | after | Phone before | after |
+|---|---:|---:|---:|---:|
+| Thread usage | 274 ms | 59 ms | 617 ms | 253 ms |
+| Counting aids | 12 ms | 8 ms | 85 ms | 44 ms |
+| Recommendation boxes | 5 ms | 4.5 ms | 57 ms | 22 ms |
+
+**Checked** by panning in four directions at 100% and 160% (desktop and phone)
+with the thread-usage map, counting aids, focus dimming and the
+recommendation boxes on, then comparing every overlay canvas with a full
+redraw of the same view: thread usage, focus and recommendations identical;
+counting aids within 20-116 pixels of anti-aliasing on badges and ticks, the
+same as two full redraws at different tile positions differ (0-43 pixels,
+measured with `?tileshift=0`). The ants still follow the tile.
+
+**Not changed.** A highlight view on the phone emulation runs at ~50 ms a
+frame even between moves; that is the compositor blending several
+tile-sized overlay canvases on the CPU, which a real device does on its GPU.
 
 ## Real-device check
 

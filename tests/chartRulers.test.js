@@ -156,7 +156,7 @@ describe('Tracker counting aids', () => {
     expect(tracker).toMatch(/const COUNTING_AIDS_MIN_CELL=12;/);
     expect(effect).toMatch(/if\(scs<COUNTING_AIDS_MIN_CELL\)\{[^}]*clearOverlayTile/);
     // the gate comes before anything is drawn
-    expect(effect.indexOf('scs<COUNTING_AIDS_MIN_CELL')).toBeLessThan(effect.indexOf('const draw=()=>'));
+    expect(effect.indexOf('scs<COUNTING_AIDS_MIN_CELL')).toBeLessThan(effect.indexOf('const draw=(region)=>'));
     // a badge is 11 px tall; the minimum must leave room for one per row
     const min = Number(/const COUNTING_AIDS_MIN_CELL=(\d+);/.exec(tracker)[1]);
     const badgeH = Number(/drawBadge\(label,bpx-tw,bpy,tw,(\d+)\)/.exec(effect)[1]);
