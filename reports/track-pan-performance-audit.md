@@ -139,10 +139,7 @@ Ordered by expected benefit for panning. None of these is done.
    budget.
 5. ~~**Mouse panning in Navigate mode re-renders `TrackerApp` twice per drag.**~~
    **Done**, see [Follow-up: mouse pans](#follow-up-mouse-pans).
-6. **Harness gaps.** `pan-cost.spec.js` uses a one-colour chart, rigid
-   two-finger gestures and never reaches the chart's edge, which is how #1
-   and #2 went unnoticed. It should add a jittered two-finger pan, a pan to
-   the right and bottom edges, and the 400 × 500 multi-colour fixture.
+6. ~~**Harness gaps.**~~ **Done**, see [Follow-up: pan specs](#follow-up-pan-specs).
 
 ## Follow-up: zoom preview
 
@@ -319,6 +316,43 @@ left the open hand showing until something else re-rendered the tracker.
 Frames over 50 ms fell from 13-17 to 6-9, the rest being tile moves. The
 cursor is "grabbing" during each pan, "grab" while Space is still held after
 the button is released, and the mode's own cursor after that.
+
+## Follow-up: pan specs
+
+`pan-cost.spec.js` pans a one-colour 200 x 250 chart with two perfectly rigid
+fingers and never reaches the chart's edge, which is how the two-finger jitter
+and the edge repaint went unnoticed. Two new specs cover each fix in this
+report on the 400 x 500, 60-colour fixture at 4x CPU, asserting on counted
+work. Counters are in `tests/_helpers/panProbes.js`: `paints` counts
+`drawStitch` calls (each starts with a fill of the whole chart rect),
+`chartCopies` and `overlayCopies` count canvases drawn onto themselves (a tile
+move that kept its pixels).
+
+[pan-large.spec.js](../tests/mobile-audit/pan-large.spec.js) (phone project):
+
+| Test | Old code (before this report) | Now | Asserts |
+|---|---|---|---|
+| Two-finger pan, fingers drifting ±1 px | 15 168 elements, 58 paints | 0, 4 | zoom unchanged, elements < 500, paints < 10 |
+| 120 frames along the right edge at 40% | 120 paints | 6 | paints < frames / 4 |
+| 150-frame diagonal pan at 75% | 0 tile moves kept their pixels | 16 kept, 32 paints | copies >= 5, paints <= 2 x copies + 3, no render |
+| One pinch to ~240% | 56 paints, 32 200 elements | 2 paints | zoom x1.8, no transform left, stitch under the fingers within 1 cell, paints <= 6 |
+
+[desktop-pan-large.spec.js](../tests/mobile-audit/desktop-pan-large.spec.js) (desktop project):
+
+| Test | Old code | Now | Asserts |
+|---|---|---|---|
+| 3 mouse pans each: Navigate, middle button, Space | 12 210 / 8 778 / 8 784 elements; Space left the open hand showing after release | 0 each | 0 elements; cursor grabbing while dragging, grab while Space is held, the mode's cursor after |
+| 25 Ctrl + wheel events, 100% to ~350% | 43 paints; the point under the pointer drifted 10 cells | 3 paints, within 1 px | zoom x2, no transform left, anchor within 1 cell, paints <= 6 |
+| 150-frame pan with counting aids and focus dimming | 0 tile moves kept | 16 moves, 48 overlay copies | overlay copies >= tile moves x overlays |
+
+Each test was run against the code before this report (all 9 fail, with the
+figures above) and against this branch (all pass). The wheel anchor drift was
+a bug nobody had measured; the transform preview fixed it.
+
+`tests/_helpers/offlineCdn.js` lets these specs (and any that call it) run
+without internet access: with `PW_OFFLINE_CDN=1` the cdnjs scripts are served
+from `node_modules`, the same versions, so the pages' integrity hashes match.
+Without the variable it does nothing.
 
 ## Real-device check
 
