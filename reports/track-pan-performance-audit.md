@@ -124,12 +124,8 @@ and [tests/trackerTapLatency.test.js](../tests/trackerTapLatency.test.js).
 
 Ordered by expected benefit for panning. None of these is done.
 
-1. **Pinch zoom repaints the full tile on every cell-size step.** During a real
-   pinch `scs` changes almost every frame, and each change re-renders
-   `TrackerApp` and repaints the whole tile. Scale the existing canvas with a
-   CSS transform during the gesture and repaint once when it ends (or when the
-   scale drifts past, say, 1.5×). This is the next biggest source of jank on
-   touch devices.
+1. ~~**Pinch zoom repaints the full tile on every cell-size step.**~~ **Done**,
+   see [Follow-up: zoom preview](#follow-up-zoom-preview).
 2. **Per-cell drawing cost.** Every cell is a `fillStyle` set, a `fillRect`,
    a `strokeRect` for its outline and, from Tier 3, a `font` set and a
    `fillText`. In the phone profile the three draw calls split the JS time
@@ -162,13 +158,56 @@ Ordered by expected benefit for panning. None of these is done.
    and #2 went unnoticed. It should add a jittered two-finger pan, a pan to
    the right and bottom edges, and the 400 × 500 multi-colour fixture.
 
+## Follow-up: zoom preview
+
+**Problem.** During a pinch the zoom changed on every touch move. Each change
+re-rendered `TrackerApp`, and every time the cell size moved by a pixel it
+repainted the whole tile: about 40 full repaints to pinch from 100% to 300%.
+The anchor also lagged during the gesture, because the scroll was set in a
+separate animation frame from the zoom. Ctrl/Cmd + wheel and trackpad pinches
+(which arrive as wheel events) did the same per event.
+
+**Change.** While zooming, the chart layer (`.tracker-chart-layer`: the canvas,
+every overlay, the guide and hover lines) is moved and scaled with a CSS
+transform, which the compositor applies with no repaint and no React render.
+The zoom is committed once: when fewer than two fingers remain, the touch is
+cancelled, a press arrives, or (wheel) 160 ms after the last event. The commit
+renders synchronously (`ReactDOM.flushSync`), a layout effect puts the stitch
+that was under the anchor back under it (worked out in cells, measured against
+where the chart box is after the new render), the redraw effect paints, and the
+transform comes off in the same task, so no intermediate frame shows. The
+preview is committed early and begun again (a "rebase") when the scaled tile
+would no longer cover the part of the view that shows chart, or at 1.6×, where
+the stretched pixels get soft. A zoom change from anywhere else drops the
+preview. The rulers and the detail tier update at the commit.
+
+**Measured** (phone emulation, 4× CPU, 400 × 500 chart, one pinch of 30 moves
+with the midpoint drifting 20 × 10 px):
+
+| Gesture | Before: frames over 50 ms / worst / fillRect | After |
+|---|---|---|
+| Spread 120 → 300 px from 100% (to 238%) | 53 / 817 ms / 56 244 | 5 / 317 ms / 1 726 |
+| Pinch 240 → 90 px from 100% (to 39%) | 30 / 1 600 ms / 219 347 | 4 / 1 500 ms / 60 698 |
+| Pinch 240 → 90 px from 40% (to 16%) | 20 / 1 233 ms / 678 311 | 4–7 / 1 300–1 800 ms / 195 000 |
+
+The stitch under the fingers stays put during and after the gesture (to
+within a pixel at the final cell size); before, it wandered by up to 13 cells
+mid-gesture. The remaining long frames are the rebases and the final commit,
+each one full repaint; zooming out to 3–8 px cells means a tile of up to
+~130 000 cells, which recommendation 2 (cheaper per-cell drawing) addresses.
+Desktop Ctrl + wheel from 100% to 350% and back: 1 and 4 frames over 50 ms,
+worst 150 ms. A two-finger pan that never pinches is unchanged (0 frames over
+50 ms).
+
 ## Real-device check
 
 Outstanding, as for the earlier reports. On the largest real pattern
 available, zoomed out and at normal zoom:
 
 1. Open `stitch.html?perf=1`, pan for 10 s with one finger and 10 s with two,
-   including along the right edge, and press **Copy**.
+   including along the right edge, pinch in and out a few times, and press
+   **Copy**. While pinching, check that the stitch under your fingers stays
+   there and that the chart comes back sharp when you lift them.
 2. Repeat with `stitch.html?perf=1&tileshift=0` (old full repaint on each tile
    move; fixes #1, #2, #4 and #5 still apply).
 3. Paste both into this report. If the first is not clearly better, fall back

@@ -123,7 +123,51 @@ describe('two-finger pans', () => {
     // re-rendered the tracker: 79 frames over 50 ms in a 6-gesture pan.
     expect(tracker).toMatch(/const PINCH_ZOOM_DEADBAND=0\.04;/);
     expect(tracker).toMatch(/if\(!ts\.pinchZooming\)\{\n    if\(Math\.abs\(dist\/ts\.pinchDist-1\)<PINCH_ZOOM_DEADBAND\)dist=ts\.pinchDist;\n    else\{ts\.pinchZooming=true;ts\.pinchDist=dist;\}\n  \}/);
-    expect(tracker).toMatch(/ts\.pinchZoom=stitchZoomRef\.current;\n    ts\.pinchZooming=false;/);
+    expect(tracker).toMatch(/ts\.pinchZoom=stitchZoomRef\.current;\n    ts\.startZoom=ts\.pinchZoom;\n    ts\.pinchZooming=false;/);
+  });
+});
+
+describe('zoom preview: a pinch or wheel zoom is a transform until it ends', () => {
+  const block = tracker.slice(tracker.indexOf('// ═══ Zoom preview'), tracker.indexOf('// Throttle React zoom state to one update per animation frame.'));
+  const move = tracker.slice(tracker.indexOf('function handleTouchMove(e){'), tracker.indexOf('function handleTouchEnd(e){'));
+  const end = tracker.slice(tracker.indexOf('function handleTouchEnd(e){'), tracker.indexOf('function toggleOwned('));
+  const wheel = tracker.slice(tracker.indexOf('function handleStitchWheel(e){'), tracker.indexOf('// R6 — who owns a one-finger drag'));
+
+  test('the chart layer is what gets transformed', () => {
+    expect(tracker).toMatch(/<div ref=\{chartLayerRef\} className="tracker-chart-layer"/);
+    expect(block).toMatch(/layer\.style\.transform="translate\("\+tx\+"px,"\+ty\+"px\) scale\("\+k\+"\)";/);
+  });
+
+  test('a pinch move updates the transform, not the zoom state, once zooming has engaged', () => {
+    expect(move).toMatch(/if\(ts\.pinchZooming\)\{[\s\S]*?if\(zoomPreviewRef\.current\)\{[\s\S]*?updateZoomPreview\(newZoom,cmx,cmy\)[\s\S]*?return;\n    \}\n  \}\n  if\(newZoom!==stitchZoomRef\.current\)scheduleZoomUpdate\(newZoom\);/);
+  });
+
+  test('it rebases when the scaled tile stops covering the view or is stretched too far', () => {
+    expect(block).toMatch(/const ZOOM_PREVIEW_MAX_SCALE=1\.6;/);
+    expect(block).toMatch(/if\(k>=ZOOM_PREVIEW_MAX_SCALE\)return false;/);
+    expect(block).toMatch(/return X\(p\.canvas\.l\)<=nl\+1&&Y\(p\.canvas\.t\)<=nt\+1&&X\(p\.canvas\.r\)>=nr-1&&Y\(p\.canvas\.b\)>=nb-1;/);
+    expect(move).toMatch(/commitZoomPreview\(\);\n        ts\.pinchZoom=stitchZoomRef\.current;ts\.pinchDist=dist;/);
+  });
+
+  test('the commit renders synchronously and places the anchored stitch before the redraw', () => {
+    expect(block).toMatch(/if\(flush\)flush\(\(\)=>setStitchZoom\(z\)\);else setStitchZoom\(z\);/);
+    // Layout effects run before the redraw effect, so the chart paints at the new scroll.
+    expect(block).toMatch(/React\.useLayoutEffect\(\(\)=>\{\n  if\(pendingZoomAnchorRef\.current\)applyZoomAnchor\(scs\);\n  else if\(zoomPreviewRef\.current\)cancelZoomPreview\(\);\n\},\[scs,stitchZoom\]\);/);
+    // The anchor is measured against the chart box where it is after the new zoom rendered.
+    expect(block).toMatch(/const v=viewBoundsRef\.current, sr=el\.getBoundingClientRect\(\);/);
+    // A redraw the commit already did is not done twice.
+    expect(tracker).toMatch(/if\(chartPaintedByRef\.current===renderStitch\)return;/);
+  });
+
+  test('it is committed when the pinch ends, is cancelled, or a press arrives', () => {
+    expect(end).toMatch(/if\(zoomPreviewRef\.current&&ts\.mode==="pinch"&&!\(e\.touches&&e\.touches\.length>=2\)\)commitZoomPreview\(\);\n  if\(e\.touches&&e\.touches\.length>0\)return;/);
+    expect(tracker).toMatch(/canvas\.addEventListener\("touchcancel",te,\{passive:false\}\);/);
+    expect(tracker).toMatch(/function handleCanvasPointerDownCapture\(e\)\{\n[\s\S]{0,200}if\(zoomPreviewRef\.current&&touchStateRef\.current\.mode!=="pinch"\)commitZoomPreview\(\);/);
+  });
+
+  test('wheel zoom previews too and commits when the events pause', () => {
+    expect(wheel).toMatch(/const p=zoomPreviewRef\.current\|\|beginZoomPreview\(e\.clientX,e\.clientY\);/);
+    expect(wheel).toMatch(/wheelCommitTimerRef\.current=setTimeout\(commitZoomPreview,ZOOM_PREVIEW_WHEEL_IDLE_MS\);/);
   });
 });
 

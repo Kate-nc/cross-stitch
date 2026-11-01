@@ -5926,6 +5926,9 @@ useEffect(()=>{
   const skip=skipNextFullRedrawRef.current;
   skipNextFullRedrawRef.current=null;
   const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));
+  // Already painted by this very renderStitch (a zoom commit paints before
+  // its effect runs), so the canvas matches state.
+  if(chartPaintedByRef.current===renderStitch)return;
   // The mark painted its own cells, so the canvas matches state again.
   if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length){chartPaintedByRef.current=renderStitch;return;}
   renderStitch();
@@ -6913,6 +6916,9 @@ function isMacSecondaryClick(e){
   return e.button===0&&e.ctrlKey&&!!(window.Shortcuts&&window.Shortcuts.isMac&&window.Shortcuts.isMac());
 }
 function handleCanvasPointerDownCapture(e){
+  // Hit-testing reads the canvas's box on screen, which a zoom preview has
+  // scaled, so a press lands the previewed zoom first.
+  if(zoomPreviewRef.current&&touchStateRef.current.mode!=="pinch")commitZoomPreview();
   lastPointerTypeRef.current=e.pointerType||"mouse";
   lastSecondaryPressRef.current=(e.button===2||isMacSecondaryClick(e))?Date.now():0;
   clearNavHold();
@@ -7101,6 +7107,128 @@ function doPan(e){
   stitchScrollRef.current.scrollTop=panStart.current.scrollY-dy;
 }
 
+// ═══ Zoom preview: pinch and trackpad zoom without a repaint per step ═══
+// A pinch changes the zoom on every touch move, and each change used to
+// re-render the tracker and, whenever the cell size moved a pixel, repaint the
+// whole chart tile: roughly 40 full repaints to pinch from 100% to 300%.
+// Instead, while a pinch (or a run of Ctrl/Cmd + wheel or trackpad-pinch
+// events) is under way, the chart layer (canvas, overlays, guide and hover
+// lines together) is scaled and moved with a CSS transform, which the
+// compositor does without any repaint, and the zoom is committed once at the
+// end. It is also committed early ("rebased") when the scaled tile would no
+// longer cover the view, or past ZOOM_PREVIEW_MAX_SCALE, where the stretched
+// pixels get blurry. The rulers keep their old numbers until the commit.
+const ZOOM_PREVIEW_MAX_SCALE=1.6;
+const ZOOM_PREVIEW_WHEEL_IDLE_MS=160;
+const chartLayerRef=useRef(null);
+// {z0, z, k, tx, ty, ox, oy: layer origin on screen, ax, ay: anchor in layer
+//  pixels, mx, my: anchor on screen, canvas / layerW / layerH / view: layer
+//  and screen geometry when the preview began}
+const zoomPreviewRef=useRef(null);
+// Set by commitZoomPreview, read once the new zoom has rendered: the stitch
+// (in cells, fractional) that must end up under the screen point mx, my.
+const pendingZoomAnchorRef=useRef(null);
+const wheelCommitTimerRef=useRef(0);
+// The latest renderStitchIfScrolledOut, for the commit, which runs inside an
+// older render's handler after flushSync has rendered a new one.
+const scrollRepaintRef=useRef(null);
+function beginZoomPreview(mx,my){
+  const layer=chartLayerRef.current, canvas=stitchRef.current, el=stitchScrollRef.current;
+  if(!layer||!canvas||!el||!sW)return null;
+  layer.style.transform="";
+  const lr=layer.getBoundingClientRect(), cr=canvas.getBoundingClientRect(), sr=el.getBoundingClientRect();
+  if(!(lr.width>0)||!(cr.width>0))return null;
+  const vl=sr.left+el.clientLeft, vt=sr.top+el.clientTop;
+  const p={z0:stitchZoomRef.current,z:stitchZoomRef.current,k:1,tx:0,ty:0,
+    ox:lr.left,oy:lr.top,ax:mx-lr.left,ay:my-lr.top,mx:mx,my:my,
+    canvas:{l:cr.left-lr.left,t:cr.top-lr.top,r:cr.right-lr.left,b:cr.bottom-lr.top},
+    layerW:lr.width,layerH:lr.height,
+    // The part of the scroller the chart shows through: the rulers cover G
+    // along the top and left.
+    view:{l:vl+G,t:vt+G,r:vl+el.clientWidth,b:vt+el.clientHeight}};
+  layer.style.transformOrigin="0 0";
+  layer.style.willChange="transform";
+  zoomPreviewRef.current=p;
+  return p;
+}
+// Show zoom z with the preview's anchor under screen point mx, my. Returns
+// false when the preview should be committed and begun again: the scaled tile
+// no longer covers the part of the view that shows chart, or it is stretched
+// past ZOOM_PREVIEW_MAX_SCALE.
+function updateZoomPreview(z,mx,my){
+  const p=zoomPreviewRef.current, layer=chartLayerRef.current;
+  if(!p||!layer)return true;
+  const k=z/p.z0, tx=mx-p.ox-k*p.ax, ty=my-p.oy-k*p.ay;
+  p.z=z;p.k=k;p.tx=tx;p.ty=ty;p.mx=mx;p.my=my;
+  layer.style.transform="translate("+tx+"px,"+ty+"px) scale("+k+")";
+  if(k>=ZOOM_PREVIEW_MAX_SCALE)return false;
+  const X=v=>p.ox+tx+k*v, Y=v=>p.oy+ty+k*v;
+  const nl=Math.max(p.view.l,X(0)), nt=Math.max(p.view.t,Y(0));
+  const nr=Math.min(p.view.r,X(p.layerW)), nb=Math.min(p.view.b,Y(p.layerH));
+  if(nr<=nl||nb<=nt)return true;
+  return X(p.canvas.l)<=nl+1&&Y(p.canvas.t)<=nt+1&&X(p.canvas.r)>=nr-1&&Y(p.canvas.b)>=nb-1;
+}
+// Keep the zoom where it is but zoom about a new screen point from here on
+// (the wheel follows the pointer; a pinch keeps its first anchor).
+function reanchorZoomPreview(mx,my){
+  const p=zoomPreviewRef.current;
+  if(!p)return;
+  p.ax=(mx-p.ox-p.tx)/p.k;p.ay=(my-p.oy-p.ty)/p.k;
+}
+// Commit the previewed zoom and position for real: one zoom state change,
+// rendered synchronously so the transform comes off in the same frame as the
+// chart appears at its new size. The stitch under the anchor point stays under
+// it, worked out in cells, so the commit lands exactly where the preview
+// showed, give or take the rounding of the cell size to a whole pixel.
+function commitZoomPreview(){
+  clearTimeout(wheelCommitTimerRef.current);
+  const p=zoomPreviewRef.current, layer=chartLayerRef.current, el=stitchScrollRef.current;
+  zoomPreviewRef.current=null;
+  if(!p)return;
+  const clear=()=>{if(layer){layer.style.transform="";layer.style.willChange="";}};
+  if(!layer||!el||!sW){clear();return;}
+  // The layer is sW cells plus 2 px wide at the committed cell size.
+  // The anchor stays in screen coordinates: the new zoom can move or resize
+  // the chart box (a notice above it coming or going), so its position is
+  // measured when the scroll is placed.
+  const cs0=(p.layerW-2)/sW;
+  pendingZoomAnchorRef.current={
+    cx:(p.mx-p.ox-p.tx)/p.k/cs0, cy:(p.my-p.oy-p.ty)/p.k/cs0, mx:p.mx, my:p.my};
+  const z=Math.min(p.z,maxZoom);
+  stitchZoomRef.current=z;
+  const flush=window.ReactDOM&&window.ReactDOM.flushSync;
+  if(flush)flush(()=>setStitchZoom(z));else setStitchZoom(z);
+  // Nothing re-rendered (the zoom did not change, as in a pinch that only
+  // panned): place the scroll at the current cell size.
+  if(pendingZoomAnchorRef.current)applyZoomAnchor(scs);
+  clear();
+  // Paint what the new scroll position uncovered now, not on the scroll
+  // event a frame later, so no blank edge shows.
+  if(scrollRepaintRef.current)scrollRepaintRef.current();
+}
+function cancelZoomPreview(){
+  clearTimeout(wheelCommitTimerRef.current);
+  zoomPreviewRef.current=null;
+  const layer=chartLayerRef.current;
+  if(layer){layer.style.transform="";layer.style.willChange="";}
+}
+function applyZoomAnchor(cs){
+  const a=pendingZoomAnchorRef.current, el=stitchScrollRef.current;
+  pendingZoomAnchorRef.current=null;
+  if(!a||!el)return;
+  const v=viewBoundsRef.current, sr=el.getBoundingClientRect();
+  el.scrollLeft=G+a.cx*cs-v.x0*cs-(a.mx-sr.left-el.clientLeft);
+  el.scrollTop=G+a.cy*cs-v.y0*cs-(a.my-sr.top-el.clientTop);
+}
+// Runs once the committed zoom has rendered (layout effects run before the
+// redraw effect, so the chart is painted at the new scroll position). A zoom
+// change from anywhere else while a preview is showing drops the preview.
+React.useLayoutEffect(()=>{
+  if(pendingZoomAnchorRef.current)applyZoomAnchor(scs);
+  else if(zoomPreviewRef.current)cancelZoomPreview();
+},[scs,stitchZoom]);
+useEffect(()=>()=>clearTimeout(wheelCommitTimerRef.current),[]);
+
 // Throttle React zoom state to one update per animation frame.
 // stitchZoomRef.current is updated immediately so scroll maths stays accurate.
 function scheduleZoomUpdate(newZoom){
@@ -7121,6 +7249,21 @@ function handleStitchWheel(e){
   e.preventDefault();
   const container=stitchScrollRef.current;
   if(!container)return;
+  {
+    // Ctrl/Cmd + wheel and trackpad pinches arrive as a run of events: preview
+    // them with a transform and commit when they pause (see Zoom preview).
+    const normDy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;
+    const delta=-normDy*0.005;
+    const p=zoomPreviewRef.current||beginZoomPreview(e.clientX,e.clientY);
+    if(p){
+      reanchorZoomPreview(e.clientX,e.clientY);
+      const oldZoom=p.z;
+      const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,oldZoom+delta));
+      if(!updateZoomPreview(newZoom,e.clientX,e.clientY)){commitZoomPreview();}
+      else{clearTimeout(wheelCommitTimerRef.current);wheelCommitTimerRef.current=setTimeout(commitZoomPreview,ZOOM_PREVIEW_WHEEL_IDLE_MS);}
+      return;
+    }
+  }
   const rect=container.getBoundingClientRect();
   const mouseX=e.clientX-rect.left;
   const mouseY=e.clientY-rect.top;
@@ -7221,7 +7364,10 @@ function handleTouchStart(e){
     const container=stitchScrollRef.current;
     const t0=e.touches[0],t1=e.touches[1];
     ts.pinchDist=Math.hypot(t1.clientX-t0.clientX,t1.clientY-t0.clientY);
+    // A wheel or trackpad zoom still being previewed lands first.
+    if(zoomPreviewRef.current)commitZoomPreview();
     ts.pinchZoom=stitchZoomRef.current;
+    ts.startZoom=ts.pinchZoom;
     ts.pinchZooming=false;
     ts.pinchSamples=[];
     if(container){
@@ -7261,17 +7407,46 @@ function handleTouchMove(e){
   // the zoom actually applied; ceiling last, as in handleStitchWheel.
   const newZoom=Math.min(maxZoom,Math.max(MIN_STITCH_ZOOM,ts.pinchZoom*dist/ts.pinchDist));
   const rect=container.getBoundingClientRect();
-  const midX=(t0.clientX+t1.clientX)/2-rect.left;
-  const midY=(t0.clientY+t1.clientY)/2-rect.top;
+  const cmx=(t0.clientX+t1.clientX)/2, cmy=(t0.clientY+t1.clientY)/2;
+  const midX=cmx-rect.left;
+  const midY=cmy-rect.top;
   const a=ts.pinchAnchor;
   // Recent midpoints, for the release velocity (handleTouchEnd).
   const now=performance.now();
   (ts.pinchSamples||(ts.pinchSamples=[])).push({t:now,x:midX,y:midY,z:newZoom});
   while(ts.pinchSamples.length>2&&now-ts.pinchSamples[0].t>100)ts.pinchSamples.shift();
+  if(ts.pinchZooming){
+    // Zooming: shown with a transform and committed when the pinch ends (see
+    // Zoom preview), instead of a zoom, a re-render and often a full repaint
+    // on every move.
+    if(!zoomPreviewRef.current){
+      // Hand over from the pan: put the scroll where this move would have,
+      // so the stitch under the fingers stays there, and preview from here.
+      if(ts.panRaf){cancelAnimationFrame(ts.panRaf);ts.panRaf=0;}
+      container.scrollLeft=a.x*ts.pinchZoom-midX;
+      container.scrollTop=a.y*ts.pinchZoom-midY;
+      beginZoomPreview(cmx,cmy);
+    }
+    if(zoomPreviewRef.current){
+      if(!updateZoomPreview(newZoom,cmx,cmy)){
+        // The scaled tile no longer covers the view (or is too stretched):
+        // commit and carry on previewing from the committed zoom.
+        commitZoomPreview();
+        ts.pinchZoom=stitchZoomRef.current;ts.pinchDist=dist;
+        const r2=container.getBoundingClientRect();
+        ts.pinchAnchor={x:(container.scrollLeft+cmx-r2.left)/ts.pinchZoom,y:(container.scrollTop+cmy-r2.top)/ts.pinchZoom};
+        beginZoomPreview(cmx,cmy);
+      }
+      return;
+    }
+  }
   if(newZoom!==stitchZoomRef.current)scheduleZoomUpdate(newZoom);
   // After the zoom render (same frame as scheduleZoomUpdate's rAF), so the
-  // content is already its new size when the scroll is clamped to it.
-  requestAnimationFrame(()=>{
+  // content is already its new size when the scroll is clamped to it. Only
+  // the latest move's scroll is kept.
+  if(ts.panRaf)cancelAnimationFrame(ts.panRaf);
+  ts.panRaf=requestAnimationFrame(()=>{
+    ts.panRaf=0;
     container.scrollLeft=a.x*newZoom-midX;
     container.scrollTop=a.y*newZoom-midY;
   });
@@ -7283,6 +7458,9 @@ function handleTouchEnd(e){
   // A pinch ends when all fingers have lifted. A finger left on the
   // glass does not start a new gesture (useDragMark has already abandoned
   // the one-finger gesture the second finger interrupted).
+  // A zoom being previewed is committed as soon as fewer than two fingers
+  // remain (or the browser cancels the gesture).
+  if(zoomPreviewRef.current&&ts.mode==="pinch"&&!(e.touches&&e.touches.length>=2))commitZoomPreview();
   if(e.touches&&e.touches.length>0)return;
   // A two-finger pan that was still moving coasts on. Only a pan: if the
   // zoom moved, this was a pinch, and coasting would fight it.
@@ -7290,7 +7468,7 @@ function handleTouchEnd(e){
   if(ts.mode==="pinch"&&sm&&sm.length>=2){
     const a=sm[0],b=sm[sm.length-1],dt=b.t-a.t;
     const recent=performance.now()-b.t<80;
-    if(dt>0&&recent&&Math.abs(b.z/ts.pinchZoom-1)<0.03){
+    if(dt>0&&recent&&Math.abs(b.z/(ts.startZoom||ts.pinchZoom)-1)<0.03){
       const vx=(b.x-a.x)/dt,vy=(b.y-a.y)/dt;
       if(Math.hypot(vx,vy)>0.3)startPanMomentum(vx,vy);
     }
@@ -7800,6 +7978,7 @@ useShortcuts(trackerShortcuts.map(entry=>Object.assign({},entry,{
 
 // Update stable handler refs every render (cheap assignment, no DOM work)
 wheelHandlerRef.current=handleStitchWheel;
+scrollRepaintRef.current=renderStitchIfScrolledOut;
 touchStartHandlerRef.current=handleTouchStart;
 touchMoveHandlerRef.current=handleTouchMove;
 touchEndHandlerRef.current=handleTouchEnd;
@@ -7838,10 +8017,14 @@ useEffect(()=>{
   canvas.addEventListener("touchstart",ts,{passive:false});
   canvas.addEventListener("touchmove",tm,{passive:false});
   canvas.addEventListener("touchend",te,{passive:false});
+  // A cancelled touch ends the gesture too, or a previewed zoom would be left
+  // showing as a transform.
+  canvas.addEventListener("touchcancel",te,{passive:false});
   return()=>{
     canvas.removeEventListener("touchstart",ts);
     canvas.removeEventListener("touchmove",tm);
     canvas.removeEventListener("touchend",te);
+    canvas.removeEventListener("touchcancel",te);
   };
 },[!!pat]);
 
@@ -9208,7 +9391,7 @@ return(
             scroller's extent. With no work area the shift is 0 and the
             geometry is exactly as before. */}
         <div className="tracker-chart-view" style={{ position: 'relative', width: (viewBounds.x1-viewBounds.x0)*scs+2, height: (viewBounds.y1-viewBounds.y0)*scs+2, overflow: areaOn ? 'hidden' : undefined }}>
-        <div className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
+        <div ref={chartLayerRef} className="tracker-chart-layer" style={{ position: 'absolute', left: -viewBounds.x0*scs, top: -viewBounds.y0*scs, width: sW*scs+2, height: sH*scs+2 }}>
           <canvas ref={stitchRef} role="application" tabIndex="0" aria-describedby="tracker-chart-summary tracker-chart-status" aria-label="Cross stitch pattern grid. Right-click a stitch to select its colour and enter Highlight view; Shift + right-click parks or unparks its thread (Ctrl+click and Shift+Ctrl+click on a Mac). The arrow keys move the guide. In Mark mode Enter or Space marks the stitch at the guide and Shift+Enter fills a rectangle from the last one; Menu or Shift+F10 parks a thread at the guide." style={{display:"block",position:"absolute",zIndex:2, left: -G, top: -G, touchAction:(touchLocked||(_dragMarkActive&&_dragMarkFlag&&paintMode))?"none":"pan-x pan-y", WebkitTouchCallout:"none"}} onMouseDown={handleStitchMouseDown} onMouseMove={handleStitchMouseMove} onKeyDown={handleStitchKeyDown} {...dragMarkHandlers} onContextMenu={handleStitchContextMenu} onPointerDownCapture={handleCanvasPointerDownCapture} onPointerMoveCapture={handleCanvasPointerMoveCapture} onPointerUpCapture={clearNavHold} onPointerCancelCapture={clearNavHold}/>
 
           {_dragMarkActive&&_dragMark.previewStore&&<DragMarkOverlay store={_dragMark.previewStore} pulse={dragMarkPulse} w={sW} h={sH} scs={scs} G={G}/>}
