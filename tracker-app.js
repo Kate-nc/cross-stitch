@@ -4906,6 +4906,10 @@ const buildSnapshot = () => {
     statsSessions:statsSessionsRef.current, deletedSessionIds: deletedSessionIdsRef.current.length ? deletedSessionIdsRef.current.slice() : undefined, statsSettings, achievedMilestones, doneSnapshots, deletedSnapshotIds:deletedSnapshotIdsRef.current.slice(),
     savedZoom: stitchZoom,
     savedScroll: stitchScrollRef.current ? { left: stitchScrollRef.current.scrollLeft + chartScrollOffset().x, top: stitchScrollRef.current.scrollTop + chartScrollOffset().y } : null,
+    // When the zoom, scroll and working context above were read (navRecordFor compares a navigation record against
+    // this, not updatedAt: a save stamps updatedAt when it writes, which can be after a navigation change made
+    // while it waited, and that change would then lose to the older navigation this snapshot holds).
+    navigationAt: Date.now(),
     breadcrumbs, stitchingStyle, blockW, blockH, focusBlock, startCorner, colourSequence, workArea,
     workingContext: workingContextForSave(focusColour, stitchMode, stitchView, highlightMode),
     ...v3FieldsRef.current
@@ -5230,7 +5234,9 @@ function flushNavRecord(){
 const flushNavRecordRef=useRef(null);
 flushNavRecordRef.current=flushNavRecord;
 useEffect(()=>{if(pat)scheduleNavRecord();},[stitchZoom,focusColour,stitchMode,stitchView,highlightMode]);
-useEffect(()=>()=>{if(flushNavRecordRef.current)flushNavRecordRef.current();},[]);
+// A layout cleanup, not a passive one: those run after React has detached the scroller, so the latest scroll
+// position would be lost; this runs while it is still there.
+React.useLayoutEffect(()=>()=>{if(flushNavRecordRef.current)flushNavRecordRef.current();},[]);
 
 // Save the freshest snapshot before the page unloads (best-effort fire-and-forget).
 // Uses only refs so the handler is never stale; drag in-progress mutations are applied
@@ -5457,7 +5463,11 @@ function navRecordFor(project) {
   var rec = null;
   try { rec = JSON.parse(localStorage.getItem("cs_nav_" + project.id) || "null"); } catch (_) { return null; }
   if (!rec || typeof rec !== "object" || typeof rec.at !== "number") return null;
-  var saved = Date.parse(project.updatedAt || "") || 0;
+  // The project's navigation is as of navigationAt (when its snapshot read it); a project saved before that field
+  // existed is judged by its save time.
+  var saved = typeof project.navigationAt === "number" && isFinite(project.navigationAt)
+    ? project.navigationAt
+    : (Date.parse(project.updatedAt || "") || 0);
   if (rec.at <= saved) return null;
   return {
     at: rec.at,

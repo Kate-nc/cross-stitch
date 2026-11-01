@@ -117,6 +117,20 @@ describe('navRecordFor', () => {
     store.cs_nav_p1 = JSON.stringify({ at: at + 5, zoom: 1, scroll: null, workingContext: null });
     expect(navRecordFor(project)).toEqual({ at: at + 5, zoom: 1, scroll: null, workingContext: undefined });
   });
+  test('a save is judged by when its snapshot read the navigation, not when it was written', () => {
+    // saveChecked awaits a read before save() stamps updatedAt, so a navigation change flushed in between has an
+    // earlier time than that save's updatedAt, yet is newer than the navigation the save holds.
+    const inFlight = { id: 'p1', updatedAt: new Date(at + 5000).toISOString(), navigationAt: at };
+    store.cs_nav_p1 = JSON.stringify({ at: at + 2000, zoom: 3 });
+    expect(navRecordFor(inFlight)).toMatchObject({ zoom: 3 });
+    // A save that read the navigation after the record was written still wins.
+    expect(navRecordFor({ id: 'p1', updatedAt: inFlight.updatedAt, navigationAt: at + 3000 })).toBeNull();
+    // A project saved before navigationAt existed falls back to updatedAt.
+    expect(navRecordFor({ id: 'p1', updatedAt: inFlight.updatedAt })).toBeNull();
+  });
+  test('the snapshot records when it read the navigation', () => {
+    expect(tracker).toMatch(/savedScroll: stitchScrollRef\.current \?[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*navigationAt: Date\.now\(\),/);
+  });
   test('malformed or missing records, and projects without an id, are ignored', () => {
     store.cs_nav_p1 = '{not json';
     expect(navRecordFor(project)).toBeNull();
@@ -164,7 +178,9 @@ describe('the navigation record reaches storage, and a queued full save does not
   });
 
   test('unmounting writes pending navigation, keeping the last scroll when the scroller is gone', () => {
-    expect(tracker).toMatch(/useEffect\(\(\)=>\(\)=>\{if\(flushNavRecordRef\.current\)flushNavRecordRef\.current\(\);\},\[\]\);/);
+    // A layout cleanup: a passive one runs after the scroller ref is detached, losing the latest scroll.
+    expect(tracker).toMatch(/React\.useLayoutEffect\(\(\)=>\(\)=>\{if\(flushNavRecordRef\.current\)flushNavRecordRef\.current\(\);\},\[\]\);/);
+    expect(tracker).not.toMatch(/\buseEffect\(\(\)=>\(\)=>\{if\(flushNavRecordRef\.current\)/);
     expect(tracker).toMatch(/if\(!scroll\)\{const prev=JSON\.parse\(localStorage\.getItem\(NAV_RECORD_PREFIX\+id\)\|\|"null"\);if\(prev&&prev\.scroll\)scroll=prev\.scroll;\}/);
     // A flush with nothing pending writes nothing.
     expect(tracker).toMatch(/function flushNavRecord\(\)\{\n  if\(!navTimerRef\.current\)return;/);

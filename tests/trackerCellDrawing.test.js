@@ -154,6 +154,18 @@ describe('mixed-stitch objects are only drawn where they can show', () => {
     expect(d.strokes).toBe(0);
   });
 
+  test('zoomed far out, a selected object just outside the bounds still draws its selection box', () => {
+    // At 4 px cells the box (3.5 px past the stitch) reaches beyond the half-cell margin.
+    const o = objects.find(x => x.uid === 'l35-35');   // x 35..38, y 37
+    const bounds = { x0: 38.7, y0: 30, x1: 50, y1: 40 };  // 0.7 cell to the right of its end
+    const sel = ctxMock();
+    PU.specialty.draw(sel, [o], [], 0, 0, 4, null, o.uid, bounds);
+    expect(sel.rects).toBe(1);
+    const plain = ctxMock();
+    PU.specialty.draw(plain, [o], [], 0, 0, 4, null, null, bounds);
+    expect(plain.strokes).toBe(0);
+  });
+
   test('the tracker passes the painted cells, and keeps bead order and done set across paints', () => {
     expect(drawStitch).toMatch(/ProgressUnits\.specialty\.draw\(ctx,specialtyStitches,specialtyDone,gut,gut,cSz,layerVis,specialtySelected,\{x0:startX,y0:startY,x1:endX,y1:endY\}\);/);
     expect(drawStitch).not.toMatch(/beads\.slice\(\)\.sort/);

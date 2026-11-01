@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "de0fce8c253821a8da62fe71cf761504cbbcb5c73cf112c7797552b534f96db1";
+var BUILD_ID = "260358b10b87e17c7f04215b09ce8b93b565e1f84064137774a386217507a3cc";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -428,7 +428,7 @@ var BUILD_ASSETS = {
     "sha256": "50b89b4c2607d32dc39d4a13620b86d02d762f71a9d0cb93032ac83a8c00b97c"
   },
   "./progress-units.js": {
-    "sha256": "c9994ef662908c7f5db50debd6459dc5f94361aa6002881f95a9f670b2455234"
+    "sha256": "018679243c92ac7e7bd833347629bc7b6fbaec20bc42e7ed37796ca7bd75fec0"
   },
   "./creator/SpecialtyStitchPanel.js": {
     "sha256": "ee290e9f8fda8595302704b1ba85acbecef07d0e1282b038aea79c34e6bd822d"
@@ -491,7 +491,7 @@ var BUILD_ASSETS = {
     "sha256": "2eb7e8ca02c17975bfd998c16b9434277c0a4fee79a293274df5863bf6afaa7c"
   },
   "./compiled/tracker-app.compiled.js": {
-    "sha256": "278d33e55588493a860656954d1fc333c5351caea74aedac9276f30af51bd050"
+    "sha256": "004c5f4ab11a1b8428caea92fe759eed5eb0260c664c5dea19761a6839832b0d"
   },
   "./stats-activity.js": {
     "sha256": "14f14b1e70c4e99fe30f89d1eee77e293ca5bcf9580faf5967adb2ba55b5f134"

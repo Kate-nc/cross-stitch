@@ -342,10 +342,12 @@
     objects.forEach(function(o) {
       if (visible && visible[o.type] === false) return;
       if (bounds) {
-        // Half a cell of margin covers the line width and the selection box.
+        // Half a cell of margin covers the line width; the selection box reaches 3.5 px past the stitch, more than
+        // half a cell zoomed far out, so the selected object gets that much more.
+        var pad = selected === o.uid ? Math.max(0.5, 4 / size) : 0.5;
         var ox0 = o.type === 'petite' ? o.x : Math.min(o.x1, o.x2), ox1 = o.type === 'petite' ? o.x + 0.5 : Math.max(o.x1, o.x2);
         var oy0 = o.type === 'petite' ? o.y : Math.min(o.y1, o.y2), oy1 = o.type === 'petite' ? o.y + 0.5 : Math.max(o.y1, o.y2);
-        if (ox1 < bounds.x0 - 0.5 || ox0 > bounds.x1 + 0.5 || oy1 < bounds.y0 - 0.5 || oy0 > bounds.y1 + 0.5) return;
+        if (ox1 < bounds.x0 - pad || ox0 > bounds.x1 + pad || oy1 < bounds.y0 - pad || oy0 > bounds.y1 + pad) return;
       }
       ctx.strokeStyle='rgb('+o.thread.rgb.join(',')+')'; ctx.lineWidth=Math.max(1,size*0.08);
       ctx.globalAlpha=marks.has(o.uid)?0.4:1;
