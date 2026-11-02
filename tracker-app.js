@@ -2742,7 +2742,7 @@ const flushRtStashWrite=useCallback(async(captured)=>{
   if(!ctx.projectId||savesBlockedRef.current)return;
   const run=async()=>{
     if(ctx.ready)await ctx.ready.catch(()=>{});
-    if(!ctx.accounting){const r=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,[]);ctx.accounting=r.accounting;}
+    if(!ctx.accounting){const r=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.baselineMarks,[]);ctx.accounting=r.accounting;}
     while(ctx.outbox.length){
       // Two recovery keys may contain the same operation after a peer copied
       // an outbox. Deduplicate before allocating sequences, not just at commit.
@@ -2756,7 +2756,7 @@ const flushRtStashWrite=useCallback(async(captured)=>{
       // Save identities before attempting the transaction, so a lost acknowledgement
       // after closing the tab replays exactly the same events.
       try{localStorage.setItem(ctx.outboxKey,JSON.stringify(ctx.outbox));}catch(e){console.warn('Consumption recovery storage unavailable',e);}
-      const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,batch);
+      const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.baselineMarks,batch);
       ctx.accounting=result.accounting;
       ctx.outbox=ctx.outbox.filter(c=>!batch.some(op=>op.token===c.token));
       try{
@@ -4215,10 +4215,14 @@ function processLoadedProject(project){
       rtContext.outbox.push(...saved);rtContext.recoveredKeys.push({key,value});
     }
   }}catch(e){console.warn('Unreadable pending consumption history',e);}
+  // The project's baseline is written with its first operation. Recovered
+  // operations that never committed may already be in the saved marks, so the
+  // baseline is the marks from before them (ThreadAccounting.marksBefore).
+  rtContext.baselineMarks=window.ThreadAccounting.marksBefore(rtInitialMarks,rtContext.outbox);
   if(!project.id)projectIdRef.current=rtContext.projectId;
   rtContextRef.current=rtContext;
   if(typeof StashBridge!=='undefined'){
-    rtContext.ready=StashBridge.applyConsumptionEvents(rtContext.projectId,rtInitialMarks,[]).then(result=>{
+    rtContext.ready=StashBridge.applyConsumptionEvents(rtContext.projectId,rtContext.baselineMarks,[]).then(result=>{
       rtContext.accounting=result.accounting;
       if(rtContext.outbox.length)setTimeout(()=>flushRtStashWriteRef.current(rtContext).catch(()=>{}),0);
       if(rtContextRef.current===rtContext){setGlobalStash(result.threads);setRtAccountingVersion(v=>v+1);}
@@ -10524,7 +10528,7 @@ return(
             const A=window.ThreadAccounting,units=new Set([...Object.keys(ctx.initialMarks),...Object.values(ctx.accounting.events).filter(e=>e.projectId===ctx.projectId).map(e=>e.unit)]);
             const ops=[];units.forEach(unit=>{const st=A.state(ctx.accounting,ctx.projectId,unit);if(Object.values(st.debits).some(v=>v>0)){
               const seq=st.seq+1;ctx.sequences[unit]=seq;ops.push({projectId:ctx.projectId,unit,seq,kind:'correct-project',estimate:st.estimate});}});
-            const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.initialMarks,ops);
+            const result=await StashBridge.applyConsumptionEvents(ctx.projectId,ctx.baselineMarks,ops);
             if(rtContextRef.current!==ctx)return;
             ctx.accounting=result.accounting;
             setGlobalStash(result.threads);

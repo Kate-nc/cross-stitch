@@ -399,6 +399,23 @@
       mergedThreads[k].owned=Math.max(0,gross-(mt[k]||0));mergedThreads[k].partialStatus=null;
     });return ledger;
   }
-  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact};root.ThreadAccounting=api;
+  /* The marks before some pending operations, given the marks after them. The
+     Tracker writes a project's baseline with its first operation, so after a
+     crash that saved progress but not the pending operations, the reloaded marks
+     already include them: as a baseline they would make the replayed marks look
+     like history and charge nothing. Each operation says how its unit stood
+     before it (a mark or undo-unpick found it unmarked, a correction or unpick
+     found it marked), and the earliest one on a unit decides. Only the keys
+     matter to a baseline. */
+  function marksBefore(marks,ops){
+    const out=Object.assign(dict(),marks),seen=new Set();
+    (ops||[]).filter(op=>op&&safeId(op.unit)).sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).forEach(op=>{
+      if(seen.has(op.unit))return;seen.add(op.unit);
+      if(op.kind==='mark'||op.kind==='undo-unpick')delete out[op.unit];
+      else if(op.kind==='correction'||op.kind==='unpick')out[op.unit]=out[op.unit]||op.estimate||true;
+    });
+    return out;
+  }
+  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact,marksBefore};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
