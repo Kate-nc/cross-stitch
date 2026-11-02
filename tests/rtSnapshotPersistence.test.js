@@ -6,7 +6,7 @@ const start=src.indexOf('const flushRtStashWrite=useCallback');
 const body=src.slice(start,src.indexOf('const flushRtStashWriteRef=',start));
 async function harness(){
  const idb=new FDBFactory();await store(idb,{threads:{[key]:{owned:1}},schema_version:3});
- const ctx={projectId:'p',initialMarks:{},outbox:[{...op(1),token:'test'}],sequences:{},ready:Promise.resolve(),outboxKey:'recovery'};
+ const ctx={projectId:'p',initialMarks:{},baselineMarks:{},outbox:[{...op(1),token:'test'}],sequences:{},ready:Promise.resolve(),outboxKey:'recovery'};
  const refs={write:{current:{ctx,enabled:true}},context:{current:ctx}};
  const stash=bridge(idb),display={current:null},localStorage={setItem(){}};
  const debounce={current:null},flushRef={current:null};
@@ -55,4 +55,21 @@ test('duplicate recovered outboxes do not leave gaps in later occurrence sequenc
  h.ctx.outbox.push({...op(2,'unpick'),seq:undefined,token:'next'});await h.flush();
  const s=await store(h.idb);expect(Object.values(s[A.KEY].events).map(e=>e.seq)).toEqual([1,2]);
  expect(A.quantity(s.threads[key])).toBeCloseTo(1-cost,14);
+});
+test('a crash after saving progress but before the first batch commits still charges the replayed stitches',async()=>{
+ // Session 1 opened p with nothing marked (no baseline is written on open), marked
+ // d:0, saved progress and closed before the batched write. Session 2 reloads the
+ // saved marks (d:0 marked) and recovers the pending mark from the outbox.
+ const h=await harness(),saved=marks([1]);
+ h.ctx.initialMarks=saved;h.ctx.outbox=[{...op(1),token:'pending',date:'2026-01-01T00:00:00Z'}];
+ // As the Tracker does on load: the baseline is the marks from before the recovered operations.
+ h.ctx.baselineMarks=A.marksBefore(saved,h.ctx.outbox);
+ expect(Object.keys(h.ctx.baselineMarks)).toEqual([]);
+ await h.flush();
+ const s=await store(h.idb);
+ expect(s[A.KEY].projects.p.baseline).toEqual({});
+ expect(A.quantity(s.threads[key])).toBeCloseTo(1-cost,14);expect(h.ctx.outbox).toEqual([]);
+ // The Tracker computes it right after reading the recovered outbox, and every write uses it.
+ expect(src).toMatch(/rtContext\.baselineMarks=window\.ThreadAccounting\.marksBefore\(rtInitialMarks,rtContext\.outbox\);/);
+ expect(src).not.toMatch(/applyConsumptionEvents\([^,]+,(ctx\.initialMarks|rtInitialMarks),/);
 });

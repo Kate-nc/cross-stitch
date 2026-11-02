@@ -871,7 +871,12 @@ const StashBridge = (() => {
         // whole, and sharing roughly halves that. Shared parts stay shared when read
         // back, so later writes need not repeat it.
         if(!_ledgerCompacted&&typeof A.compact==='function'){A.compact(ledger);compactedHere=true;}
-        A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
+        // The baseline is written with the first operation, not when a project is
+        // opened (the Tracker calls this with none on load). It still records the
+        // marks on load, which are what this session's operations follow from. A
+        // device that only opened a project then keeps no baseline of its own to
+        // differ from another device's, so syncing adopts the other one.
+        if((operations||[]).length)A.baseline(ledger,projectId,initialMarks,ctx.legacy,ctx.now);
         const requests=ctx.reservations||(R&&R.empty());
         if(R&&Object.keys(requests.projects).some(id=>requests.projects[id].enabled&&!ids.includes(id)))throw new Error('Reservations changed while saving consumption. Retry the pending save.');
         const plan=R?R.plan(threads,requests,projects.filter(p=>requests.projects[p.id]&&requests.projects[p.id].enabled),prefs):null;
