@@ -18,11 +18,27 @@ test('concurrent projects and stale manager edits preserve both charges and purc
 });
 test('old project baseline preserves stock and v1 checkpoints without inventing history',async()=>{
   const old={version:1,threads:{[key]:{observed:.3,deducted:.2}}};await store(idb,{'rt_deduction:p':old});
-  const r=await a.applyConsumptionEvents('p',marks(),[]);
-  expect(await stock()).toBe(1);expect(await history()).toEqual([]);
+  // Opening the project (no operations) records no baseline yet.
+  const opened=await a.applyConsumptionEvents('p',marks(),[]);
+  expect(opened.accounting.projects.p).toBeUndefined();expect(await stock()).toBe(1);
+  // The first operation records it, from the marks on load and the v1 checkpoint.
+  const r=await a.applyConsumptionEvents('p',marks(),[op(1,'correction')]);
+  expect(await stock()).toBe(1);
   expect(r.accounting.projects.p).toMatchObject({baseline:{'d:0':true},legacy:old,reason:expect.stringContaining('historical consumption unknown')});
-  await a.applyConsumptionEvents('p',{},[op(1,'correction')]);expect(await stock()).toBe(1);
   await a.applyConsumptionEvents('p',{},[op(2)]);expect(await stock()).toBeCloseTo(1-cost,14);
+});
+test('a project only opened here takes the baseline another device stitched from',async()=>{
+  await a.applyConsumptionEvents('p',marks(),[]);   // opened here with d:0 already marked, no stitching
+  const local=await store(idb);expect(local[A.KEY].projects.p).toBeUndefined();
+  // Another device opened p with nothing marked and stitched d:1.
+  const remote={threads:{[key]:{owned:1}},[A.KEY]:A.empty()};
+  A.baseline(remote[A.KEY],'p',{},null,'2026-01-01');A.apply(remote[A.KEY],remote.threads,[op(1,'mark','d:1')],'2026-01-02');
+  const report={},merged=syncEngine({ThreadAccounting:A}).mergeStash(local,remote,{report});
+  expect(report.consumptionConflicts).toEqual([]);expect(merged[A.KEY].projects.p).toEqual(remote[A.KEY].projects.p);
+  // Stitching here afterwards continues from that baseline rather than writing one.
+  await store(idb,merged);
+  const r=await a.applyConsumptionEvents('p',marks(),[op(1,'mark','d:2')]);
+  expect(r.accounting.projects.p.baseline).toEqual({});expect(await stock()).toBeCloseTo(1-2*cost,14);
 });
 test('changing preferences does not revalue an existing event; later stitches retain new assumptions',async()=>{
   await a.applyConsumptionEvents('p',{},[op(1)]);
