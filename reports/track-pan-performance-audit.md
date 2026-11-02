@@ -470,6 +470,60 @@ this branch:
 Its last recommendation, validating on iPad (WebKit) and Android, is the
 real-device check below; this sandbox has neither.
 
+## Follow-up: panning and marking (the progress write)
+
+Reported after the fixes above: on a large chart the tracker froze often when
+going back and forth between panning and marking. Measured with a pan of six
+gestures, each followed by five taps, on the 400 x 500 fixture (30% done,
+about 60 000 finished stitches) at 4x CPU on a Pixel 5 profile:
+
+| | progress write | worst frame | long tasks |
+|---|---|---|---|
+| `main` before PR 406 | 410-1070 ms each | ~750 ms | ~4.5 s |
+| PR 406 | 480-870 ms each | 680-820 ms | ~5.4 s |
+| this follow-up | 17-80 ms each | 280-330 ms | 1.0-1.7 s |
+
+The freezes were not the pan: in both builds they were the progress write
+(`ProjectStorage.saveProgress`), throttled to start ~0.4 s after the first
+mark and at most every 3 s on a large chart, so it usually landed just as the
+next pan began. Its record carried `trackingSync` for the whole chart, one
+register per finished stitch, and every write read it back (structured-clone
+decode, ~380 ms), rebuilt it (`TrackingSync.record`, ~170 ms), sorted it
+(`metadata`, ~120 ms) and wrote it again (~290 ms), however few marks had
+changed. The cost grows with how much of the chart is done. PR 406 removed
+the pan lag that hid it; a two-finger pan with finger drift no longer stalls
+for seconds (max frame 5.6 s before).
+
+Fix: the record keeps only the registers that differ from the full save it is
+based on (`trackingSyncDelta`, from `TrackingSync.recordDelta`): the marks
+changed since that save, typically a few hundred. Readers rebuild the whole
+`trackingSync` from the base project and the delta (`TrackingSync.withDelta`
+in `applyProgressRecord`), so loading, full saves, backups and sync see what
+the full record held. A full record from an older build is cut down to a
+delta by the next write (`TrackingSync.deltaFrom`); an older build reading a
+delta record falls back to its legacy path, which rebuilds registers from the
+marks, so no marks are lost either way. The write path no longer calls
+`TrackingSync.record`, and the reuse of the previous write's registers
+(`lastProgressPut`, `writeId`) is gone. With writes this cheap,
+`PROGRESS_GAP_LARGE_MS` is 1 s instead of 3 s.
+
+The frames still over 200 ms in that run are tile moves during the pan:
+~25 ms of script, then canvas raster in headless Chromium's software GPU, as
+noted earlier; the old full repaint cost the same there.
+
+Tests: `tests/progressDelta.test.js` holds the rebuilt metadata to the full
+record's (as `records()` reads it back) over random chains with malformed and
+legacy metadata, the older-build upgrade, and a 200 000-cell chart whose delta
+stays at the changed marks. `tests/progressRecordDelta.test.js` (was
+`progressSyncReuse.test.js`) checks the stored record through ProjectStorage:
+only changed marks stored, no full `TrackingSync.record` on the write path,
+another page's write kept, a new base after a full save, and an older build's
+full record cut down.
+
+Not changed: the full save on large charts still rebuilds metadata for the
+whole chart, but runs only after a minute's pause in marking (at most five
+minutes) or when anything else changes.
+
 ## Real-device check
 
 Outstanding, as for the earlier reports. On the largest real pattern
