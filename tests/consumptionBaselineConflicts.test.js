@@ -6,7 +6,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const {IDBFactory, IDBKeyRange} = require('fake-indexeddb');
-const {A, op, estimate, cost, key, syncEngine, clone} = require('./support/consumption-harness');
+const {A, op, estimate, cost, key, syncEngine, clone, prefs} = require('./support/consumption-harness');
 
 const json = x => JSON.parse(JSON.stringify(x));
 // A device's ledger: one baseline per project, then stitching events.
@@ -124,6 +124,21 @@ describe('mergeStash with conflicting thread-usage histories', () => {
     expect(merged[A.KEY].projects.p).toEqual(a.ledger.projects.p);
     // Merging again changes nothing.
     expect(se.mergeStash(merged, remote).threads[key].owned).toBeCloseTo(1 - 2 * cost, 14);
+  });
+
+  test('rebuilds stock for a thread used only by the incoming events left out', () => {
+    const se = syncEngine({ThreadAccounting: A});
+    const other = A.snapshot({pattern: [{id: '550', brand: 'dmc'}], done: [1], fabricCt: 14}, prefs)['d:0'];
+    // Both hold 1 skein of 310 before stitching: local as half a skein plus an
+    // about-half partial, remote as 1 less its own (left out) stitching on p.
+    const lt = {[key]: {owned: .5, partialStatus: 'about-half'}, 'dmc:550': {owned: 1}}, ll = A.empty();
+    A.baseline(ll, 'p', {}, null, '2026-01-01'); A.apply(ll, lt, [op(1, 'mark', 'd:1', other)], '2026-01-02');
+    const rt = {[key]: {owned: 1}}, rl = A.empty();
+    A.baseline(rl, 'p', {'d:0': true}, null, '2026-01-03'); A.apply(rl, rt, [op(1, 'mark', 'd:1')], '2026-01-04');
+    const report = {}, merged = se.mergeStash({threads: lt, [A.KEY]: ll}, {threads: rt, [A.KEY]: rl}, {report});
+    expect(report.consumptionConflicts).toEqual(['p']);
+    expect(A.quantity(merged.threads[key])).toBeCloseTo(1, 14);
+    expect(A.quantity(merged.threads['dmc:550'])).toBeCloseTo(1 - other.amounts['dmc:550'], 14);
   });
 });
 

@@ -390,7 +390,9 @@
     const a=local[KEY]||empty(),b=remote[KEY]||empty(),contained=mergeContained(a,b),ledger=contained.ledger,at=totals(a),bt=totals(b),mt=totals(ledger);
     if(report)report.conflicts=contained.conflicts;
     Object.keys(mergedThreads).forEach(k=>{
-      if(!(k in mt))return;
+      // Also a thread used only by incoming events left out above: its stock is
+      // still rebuilt from each side's gross, with nothing to subtract.
+      if(!(k in mt)&&!(k in at)&&!(k in bt))return;
       const l=(local.threads||{})[k],r=(remote.threads||{})[k];
       const gross=Math.max(l?quantity(l)+(at[k]||0):-Infinity,r?quantity(r)+(bt[k]||0):-Infinity,0);
       if((mt[k]||0)>gross+1e-12)throw Error('Combined consumption exceeds recorded stock. Reconcile inventory before syncing these copies.');
