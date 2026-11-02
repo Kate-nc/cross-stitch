@@ -480,6 +480,49 @@
       ]
     },
     {
+      id: "offline", area: "Using stitchx offline",
+      sections: [
+        {
+          heading: "Does stitchx work without internet?",
+          body: "Yes. Once stitchx has been set up on a device, you can create, edit and stitch with no internet at all: on a plane, in the garden or anywhere the Wi-Fi is poor. The one thing it needs is internet the very first time, so it can save itself onto your device.",
+          bullets: [
+            ["The first time needs internet", "Open stitchx for the first time while you are connected. If the first visit is with no connection, it cannot open at all, the same as any website you have never been to."],
+            ["Leave it open for a minute or two", "On that first visit stitchx copies itself onto your device in the background while you look around. Nothing tells you when it has finished, so give it a minute or two (longer on a slow connection) before you go offline."],
+            ["One visit covers everything", "You do not need to open every page. Opening any page saves Home, the Pattern Creator, the Stitch Tracker and the Stash Manager together."],
+            ["Check it worked", "While a connection is still close at hand, turn on aeroplane mode (or turn off Wi-Fi) and open stitchx again. If it opens, you are ready. If it does not, reconnect, open stitchx, wait a little longer and try again."],
+            ["Same device, same browser, same address", "The offline copy belongs to the browser you used, on that device. Bookmark the page, or install stitchx as an app, and open it the same way each time. Another browser or another device needs its own first visit online. A private or incognito window forgets everything, including your projects, when you close it, so it cannot be used offline."],
+            ["Your projects are always on your device", "Projects, stitching progress and your stash are saved on this device as you work, whether or not you are online. Nothing is lost if the connection drops halfway through."]
+          ]
+        },
+        {
+          heading: "Install stitchx as an app",
+          body: "Installing is optional, but it makes offline use easier: stitchx gets its own icon and opens in its own window, so there is no address to remember. Install it while you are online.",
+          bullets: [
+            ["Computer", "In Chrome or Edge, use the install button at the end of the address bar, or Install in the browser's menu. In Safari on a Mac, choose File > Add to Dock."],
+            ["iPad and iPhone", "In Safari, tap Share, then Add to Home Screen. From then on, open stitchx from the Home Screen icon. This matters on an iPad: a website's stored projects can be cleared after about a week without a visit, but the Home Screen app's are kept."],
+            ["Projects you already made in Safari", "On an iPad or iPhone, the Home Screen app keeps its own projects, separate from Safari. To bring projects across, use File > Export Backup in Safari, then File > Restore from Backup… in the Home Screen app."],
+            ["Android", "In Chrome, open the menu and choose Add to Home screen or Install app."]
+          ]
+        },
+        {
+          heading: "What works offline",
+          bullets: [
+            ["Works offline", "Creating and editing patterns, converting pictures, importing pattern files from your device, the Stitch Tracker, Stats, the Stash Manager and Pattern Library, File > Export Backup and Restore from Backup…, Download (.json) and folder sync."],
+            ["Use once online first", "PDF export downloads its fonts the first time you use it, and then keeps them. If you plan to export PDFs offline, export one while you are still connected."],
+            ["Needs internet", "Sync by pairing and automatic WebDAV sync. They wait while you are offline and catch up when you reconnect. Getting a new version of stitchx also needs internet."]
+          ]
+        },
+        {
+          heading: "Updates and problems offline",
+          bullets: [
+            ["Updates", "When you are online, new versions download quietly in the background. They take effect after you close every stitchx tab and app window and open it again. While you are offline, you keep using the version you have."],
+            ["Application asset unavailable", "This message means part of stitchx has not been saved on this device yet, for example because an update was interrupted. Connect to the internet, close every stitchx tab and app window, then open it again."],
+            ["Clearing browsing data", "Clearing your browser's data for this site removes the offline copy of stitchx and your projects too. Use File > Export Backup first."]
+          ]
+        }
+      ]
+    },
+    {
       id: "glossary", area: "Glossary",
       sections: [
         {
@@ -1143,7 +1186,7 @@
   // ── Category navigation components ────────────────────────────────────
   var TOPIC_ICONS = {
     creator: "wand", tracker: "needle", manager: "box",
-    saving: "save", glossary: "gradCap",
+    saving: "save", offline: "cloudOff", glossary: "gradCap",
     stats: "barChart", "stitching-style": "halfStitch"
   };
 
