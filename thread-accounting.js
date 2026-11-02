@@ -319,12 +319,30 @@
     Object.values(totals(ledger)).forEach(n=>{if(!Number.isFinite(n)||n < -1e-12)throw Error('Invalid consumption total');});
     return ledger;
   }
+  const projectsWithEvents=l=>{const s=new Set();Object.values(l.events).forEach(e=>s.add(e.projectId));return s;};
+  /* The Tracker records a baseline when a project is first opened on a device,
+     so two devices that opened it before their stashes synced hold different
+     ones. A baseline with no events after it recorded no thread use: keep the
+     other side's, whose events depend on it. With neither used, keep the earlier
+     (then the smaller), so the result does not depend on merge order. With both
+     used the histories really differ, and this returns null. */
+  function pickBaseline(l,lUsed,r,rUsed){
+    if(lUsed&&rUsed)return null;
+    if(lUsed)return l;if(rUsed)return r;
+    if(l.date!==r.date)return r.date<l.date?r:l;
+    return stable(r)<stable(l)?r:l;
+  }
   function merge(a,b) {
     a=a||empty();b=b||empty();validate(a);validate(b);
-    const out=copy(a);
-    Object.entries(b.projects).forEach(([id,p])=>{if(!out.projects[id])out.projects[id]=copy(p);
-      else if(stable(out.projects[id].baseline)!==stable(p.baseline)||stable(out.projects[id].legacy)!==stable(p.legacy))throw Error('Conflicting consumption baselines. Reconcile inventory before syncing these copies.');
-      else if (p.date < out.projects[id].date) out.projects[id].date = p.date;});
+    const out=copy(a);let aUsed=null,bUsed=null;
+    Object.entries(b.projects).forEach(([id,p])=>{const o=out.projects[id];if(!o)out.projects[id]=copy(p);
+      else if(stable(o.baseline)!==stable(p.baseline)||stable(o.legacy)!==stable(p.legacy)){
+        if(!aUsed){aUsed=projectsWithEvents(a);bUsed=projectsWithEvents(b);}
+        const keep=pickBaseline(o,aUsed.has(id),p,bUsed.has(id));
+        if(!keep)throw Error('Conflicting consumption baselines. Reconcile inventory before syncing these copies.');
+        if(keep===p)out.projects[id]=copy(p);
+      }
+      else if (p.date < o.date) o.date = p.date;});
     Object.entries(b.events).forEach(([id,e])=>{
       validateAmounts(e.debit);validateAmounts(e.credit);
       if(id!==JSON.stringify([e.projectId,e.unit,e.seq])||!Number.isSafeInteger(e.seq)||e.seq<1)throw Error('Invalid consumption event identity');
@@ -335,18 +353,52 @@
       }else out.events[id]=copy(e);
     });Object.entries(b.receipts||{}).forEach(([token,id])=>{if(out.receipts[token]&&out.receipts[token]!==id)throw Error('Conflicting consumption receipt');out.receipts[token]=id;});return validate(out);
   }
+  // A ledger split into one small ledger per project (record, events, receipts).
+  function byProject(l){
+    const out=new Map(),part=pid=>{let p=out.get(pid);if(!p)out.set(pid,p=empty());return p;};
+    Object.entries(l.projects).forEach(([pid,p])=>{part(pid).projects[pid]=p;});
+    Object.entries(l.events).forEach(([id,e])=>{part(e.projectId).events[id]=e;});
+    Object.entries(l.receipts||{}).forEach(([t,id])=>{const e=l.events[id];if(e)part(e.projectId).receipts[t]=id;});
+    return out;
+  }
+  /* merge(), but a project whose two histories cannot be combined keeps this
+     device's history (a) and leaves out the incoming one (b), instead of the
+     whole merge failing. Returns {ledger, conflicts}, conflicts being the
+     project ids left out. Leaving out events never charges thread twice: the
+     other device's stitching on that project is just not charged here. A
+     malformed ledger still throws. */
+  function mergeContained(a,b) {
+    a=a||empty();b=b||empty();
+    try{return {ledger:merge(a,b),conflicts:[]};}catch(e){validate(a);validate(b);}
+    const pa=byProject(a),pb=byProject(b),bad=new Set();
+    pb.forEach((part,pid)=>{try{merge(pa.get(pid)||empty(),part);}catch(e){bad.add(pid);}});
+    // A receipt token names one event; two names for it is a contradiction too.
+    Object.entries(b.receipts||{}).forEach(([t,id])=>{const mine=(a.receipts||{})[t];if(mine&&mine!==id&&b.events[id])bad.add(b.events[id].projectId);});
+    const kept=empty();
+    Object.entries(b.projects).forEach(([pid,p])=>{if(!bad.has(pid))kept.projects[pid]=p;});
+    Object.entries(b.events).forEach(([id,e])=>{if(!bad.has(e.projectId))kept.events[id]=e;});
+    Object.entries(b.receipts||{}).forEach(([t,id])=>{if(kept.events[id])kept.receipts[t]=id;});
+    return {ledger:merge(a,kept),conflicts:Array.from(bad).sort()};
+  }
   // Reconstruct each side's stock before its known events, reconcile that stock,
   // then subtract the union once. A side without a ledger is an inventory baseline.
-  function mergeStock(local,remote,mergedThreads) {
-    const a=local[KEY]||empty(),b=remote[KEY]||empty(),ledger=merge(a,b),at=totals(a),bt=totals(b),mt=totals(ledger);
+  // Each side's gross uses its whole ledger: gross stock does not change with
+  // stitching, so leaving a project's incoming events out of the union leaves
+  // that stitching uncharged here rather than charging it twice. report, when
+  // given, receives {conflicts} from mergeContained.
+  function mergeStock(local,remote,mergedThreads,report) {
+    const a=local[KEY]||empty(),b=remote[KEY]||empty(),contained=mergeContained(a,b),ledger=contained.ledger,at=totals(a),bt=totals(b),mt=totals(ledger);
+    if(report)report.conflicts=contained.conflicts;
     Object.keys(mergedThreads).forEach(k=>{
-      if(!(k in mt))return;
+      // Also a thread used only by incoming events left out above: its stock is
+      // still rebuilt from each side's gross, with nothing to subtract.
+      if(!(k in mt)&&!(k in at)&&!(k in bt))return;
       const l=(local.threads||{})[k],r=(remote.threads||{})[k];
       const gross=Math.max(l?quantity(l)+(at[k]||0):-Infinity,r?quantity(r)+(bt[k]||0):-Infinity,0);
       if((mt[k]||0)>gross+1e-12)throw Error('Combined consumption exceeds recorded stock. Reconcile inventory before syncing these copies.');
       mergedThreads[k].owned=Math.max(0,gross-(mt[k]||0));mergedThreads[k].partialStatus=null;
     });return ledger;
   }
-  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeStock,quantity,validate,sequences,compact};root.ThreadAccounting=api;
+  const api={KEY,snapshot,live,empty,baseline,state,apply,totals,merge,mergeContained,mergeStock,quantity,validate,sequences,compact};root.ThreadAccounting=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

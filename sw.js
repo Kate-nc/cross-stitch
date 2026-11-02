@@ -143,7 +143,7 @@ var PRECACHE_URLS = [
 ];
 
 // BEGIN GENERATED BUILD MANIFEST
-var BUILD_ID = "09ac562f340f03445ded52521a1e47306cc39d0a7c2b5d87541c5be8323c76ec";
+var BUILD_ID = "bd3b949ad1bb527ad6cdfef8a3724ad46d7bfee74565315e946ec88e882c0e7b";
 var REQUIRED_URLS = [
   "./home.html",
   "./index.html",
@@ -329,7 +329,7 @@ var BUILD_ASSETS = {
     "sha256": "c26d16a8557bb6513c1aae732e1bc4d78cf1f6dbd58ef1d4d8d3892ced18e62b"
   },
   "./changelog.js": {
-    "sha256": "fbbc9f86a699eeb0eac6fa0234f4679c2e23f0f7bb87921729a172eef86622c6"
+    "sha256": "dc563dc98bb8b266ddc237806cdad4a396e4834b63b0e66e14ea6bc1e4f404e2"
   },
   "./runtime-loaders.js": {
     "sha256": "cb91a7f4c3837329cd9bffbd3f15dbe8adef7812448ce2a6912e31eeddda240a"
@@ -410,7 +410,7 @@ var BUILD_ASSETS = {
     "sha256": "d69ec0a18a53bd7690a5e1b8e14e3f1ae2acd5e925e2c46cf7d0549f88e85b90"
   },
   "./modals.js": {
-    "sha256": "29d6fb7f1db9a638c923f52629dfff8d6b5a9cc77442acfceeaa957dc3533790"
+    "sha256": "1199253f48d8fb6dcc43b1d36487554b262c1a467acceb260e8172d746189821"
   },
   "./threadCalc.js": {
     "sha256": "31ba15cfebe413fdcf691953b742ba7bcaeab4700ac5a1e1c49e9174fc7cb3fe"
@@ -440,7 +440,7 @@ var BUILD_ASSETS = {
     "sha256": "869beee9fe5502c2ad614ef9e8b3d6d452abb7ff1fbc6bcf7667dba99f083113"
   },
   "./thread-accounting.js": {
-    "sha256": "7c1ee45a6c30bd3622e2cffabb94dc1888b7e54df2c5065353163df9318404e2"
+    "sha256": "e5c6806a6e078bc38036ceb4f1586b5a20f659289e3f2ebd554f10bdc4cfb7cd"
   },
   "./stash-bridge.js": {
     "sha256": "efd19dc3cf3d95b440ad6bcf76b0d15a5388ba8d94638be981c38f461dfa943d"
@@ -581,7 +581,7 @@ var BUILD_ASSETS = {
     "sha256": "77b3759d887dd998f80bd7da66e9f00b2641276b57cec5bf8ad895d334e151cc"
   },
   "./help-drawer.js": {
-    "sha256": "20ac7a02382f1be609e0cc8118def85d7d49b0dfd8c86da2c1ced1367588a81c"
+    "sha256": "f9ff6b07574db4865cac7458ea69267cd8cf9d2524a541c133f5e471164fdd9e"
   },
   "./creator/pdfExport.js": {
     "sha256": "70e7b15e8bb57d00f3e71b98d82da8abbc961b6f05a859aa99bd712299417310"
@@ -596,7 +596,7 @@ var BUILD_ASSETS = {
     "sha256": "9d302aef429305ff28bf6a6b08814dbdc9d405308dacd76c293253be5ccdf067"
   },
   "./sync-engine.js": {
-    "sha256": "c201f748d8734162b5cf38a49ccb68b4bd0f32d954c6b4080465a821d7c22267"
+    "sha256": "87c9fb24dbc34a74a5483ad4f18d13295a73bfe03efbf5a77f5b5ddc3395b635"
   },
   "./webdav-sync.js": {
     "sha256": "eb6cceb9c949c479b79108eeae059db6022221763d97ba454578672be887a39c"
