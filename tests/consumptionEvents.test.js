@@ -40,6 +40,22 @@ test('a project only opened here takes the baseline another device stitched from
   const r=await a.applyConsumptionEvents('p',marks(),[op(1,'mark','d:2')]);
   expect(r.accounting.projects.p.baseline).toEqual({});expect(await stock()).toBeCloseTo(1-2*cost,14);
 });
+test('marksBefore rebuilds the marks from before pending operations',()=>{
+  const at=(o,date)=>({...o,date});
+  const after={'d:0':estimate,'d:2':estimate};
+  const before=A.marksBefore(after,[
+    at(op(1,'mark','d:0'),'2026-01-01T00:00:02Z'),          // marked during the session: was unmarked
+    at(op(1,'correction','d:1'),'2026-01-01T00:00:01Z'),    // unmarked during the session: was marked
+    at(op(2,'mark','d:1'),'2026-01-01T00:00:03Z'),          // later op on d:1 does not decide
+    at(op(1,'unpick','d:3'),'2026-01-01T00:00:04Z'),        // unpicked: was marked
+    at(op(1,'undo-unpick','d:4'),'2026-01-01T00:00:05Z'),   // restored: was unmarked
+  ]);
+  expect(Object.keys(before).sort()).toEqual(['d:1','d:2','d:3']);
+  expect(after).toEqual({'d:0':estimate,'d:2':estimate});   // input untouched
+  expect(A.marksBefore(after,[])).toEqual(after);
+  // Order is by date, not outbox position: the earliest operation on a unit decides.
+  expect(Object.keys(A.marksBefore({},[at(op(2,'mark','d:5'),'2026-01-02'),at(op(1,'correction','d:5'),'2026-01-01')]))).toEqual(['d:5']);
+});
 test('changing preferences does not revalue an existing event; later stitches retain new assumptions',async()=>{
   await a.applyConsumptionEvents('p',{},[op(1)]);
   const expensive=marks([1],{...prefs,strandCountOverride:4})['d:0'];
