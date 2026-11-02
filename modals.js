@@ -448,7 +448,7 @@ function SyncActivityModal({ onClose }) {
     if (filter === 'all') return true;
     if (filter === 'in') return e.direction === 'in';
     if (filter === 'out') return e.direction === 'out';
-    if (filter === 'errors') return /-fail|-error|permission/i.test(e.type);
+    if (filter === 'errors') return /-fail|-error|permission|consumption-conflict/i.test(e.type);
     return true;
   });
 
@@ -468,7 +468,7 @@ function SyncActivityModal({ onClose }) {
 
   function eventIcon(type) {
     if (/permission/i.test(type)) return Icons.warning ? Icons.warning() : null;
-    if (/-fail|-error/i.test(type)) return Icons.warning ? Icons.warning() : null;
+    if (/-fail|-error|consumption-conflict/i.test(type)) return Icons.warning ? Icons.warning() : null;
     if (type === 'pending-review') return Icons.cloudAlert ? Icons.cloudAlert() : null;
     if (type === 'export-success') return Icons.cloudSync ? Icons.cloudSync() : null;
     if (type === 'import-success') return Icons.cloudCheck ? Icons.cloudCheck() : null;
@@ -494,6 +494,8 @@ function SyncActivityModal({ onClose }) {
         return 'Folder permission required';
       case 'watcher-error':
         return 'Sync watcher error';
+      case 'consumption-conflict':
+        return 'Thread usage from ' + dev + ' not combined';
       default:
         return e.type;
     }

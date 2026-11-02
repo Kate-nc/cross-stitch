@@ -88,10 +88,12 @@ test('sync unions independent events, repeats idempotently, retains historical c
   expect(se.mergeStash(right,merged)[A.KEY].events).toEqual(merged[A.KEY].events);
   await store(idb,merged);await a.applyConsumptionEvents('p',{},[op(1)]);expect(await stock()).toBeCloseTo(1-2*cost,14);
 });
-test('sync refuses incompatible immutable events and overdraw instead of rewriting history',async()=>{
+test('sync keeps local history over incompatible immutable events and refuses overdraw instead of rewriting history',async()=>{
   await a.applyConsumptionEvents('p',{},[op(1)]);const l=await store(idb),r=clone(l),se=syncEngine({ThreadAccounting:A});
   Object.values(r[A.KEY].events)[0].estimate.assumptions.strands=6;
-  expect(()=>se.mergeStash(l,r)).toThrow('Conflicting consumption history');
+  expect(()=>A.merge(l[A.KEY],r[A.KEY])).toThrow('Conflicting consumption history');
+  const report={},kept=se.mergeStash(l,r,{report});
+  expect(report.consumptionConflicts).toEqual(['p']);expect(kept[A.KEY].events).toEqual(l[A.KEY].events);
   const large={...estimate,amounts:{[key]:.8}},x={threads:{[key]:{owned:1}},[A.KEY]:A.empty()},y=clone(x);
   A.baseline(x[A.KEY],'x',{},null,'now');A.apply(x[A.KEY],x.threads,[op(1,'mark','d:0',large,'x')],'now');
   A.baseline(y[A.KEY],'y',{},null,'now');A.apply(y[A.KEY],y.threads,[op(1,'mark','d:0',large,'y')],'now');

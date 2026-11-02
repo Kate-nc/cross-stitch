@@ -518,6 +518,49 @@ const SyncEngine = (() => {
     } catch (e) {}
   }
 
+  // ── Thread-usage histories that could not be combined ───────────────────
+  // ThreadAccounting.mergeContained keeps this device's history for such a
+  // project and leaves the incoming one out, so the rest of the sync file
+  // still imports. Each project is flagged once per sending device (activity
+  // log, console and a toast), not on every check of the sync folder.
+  var LS_CONSUMPTION_CONFLICTS = "cs_sync_consumptionConflictsFlagged";
+  function _flagConsumptionConflicts(projectIds, syncObj, localMap) {
+    if (!projectIds || !projectIds.length) return;
+    var deviceId = (syncObj && syncObj._deviceId) || "unknown";
+    var flagged = {};
+    try { flagged = JSON.parse(localStorage.getItem(LS_CONSUMPTION_CONFLICTS) || "{}") || {}; } catch (e) { flagged = {}; }
+    var fresh = projectIds.filter(function (id) { return !flagged[deviceId + "|" + id]; });
+    if (!fresh.length) return;
+    fresh.forEach(function (id) { flagged[deviceId + "|" + id] = new Date().toISOString(); });
+    try { localStorage.setItem(LS_CONSUMPTION_CONFLICTS, JSON.stringify(flagged)); } catch (e) {}
+    var remote = Object.create(null);
+    ((syncObj && syncObj.projects) || []).forEach(function (e) { if (e && e.id) remote[e.id] = e; });
+    var names = fresh.map(function (id) {
+      var l = localMap && localMap[id], r = remote[id];
+      return (l && l.name) || (r && r.data && r.data.name) || id;
+    });
+    var label = names.length === 1 ? '"' + names[0] + '"' : names.length + " projects (" + names.join(", ") + ")";
+    var message = "Thread usage for " + label + " was recorded separately on "
+      + ((syncObj && syncObj._deviceName) || "another device")
+      + " and could not be combined. This device kept its own record, so stitching done there on "
+      + (names.length === 1 ? "this project" : "these projects")
+      + " is not taken off your stash here. Check stock for its threads in the Stash Manager.";
+    try { console.warn("SyncEngine[consumption]: " + message); } catch (e) {}
+    _logEvent({
+      type: "consumption-conflict",
+      direction: "in",
+      deviceId: (syncObj && syncObj._deviceId) || null,
+      deviceName: (syncObj && syncObj._deviceName) || null,
+      projectCount: fresh.length,
+      message: message
+    });
+    try {
+      if (typeof window !== "undefined" && window.Toast && window.Toast.show) {
+        window.Toast.show({ message: message, type: "warning", duration: 12000 });
+      }
+    } catch (e) {}
+  }
+
   // ── Per-device "last imported" tracking ─────────────────────────────────
   // Records the most recent successful import per source device, so the
   // "Devices in this folder" panel (Concept B) can show "imported ✓" next
@@ -1793,7 +1836,12 @@ const SyncEngine = (() => {
     // Consumption events travel with stock, including zero-debit observations.
     if ((localStash && localStash.thread_consumption_v2) || (remoteStash && remoteStash.thread_consumption_v2)) {
       if (!window.ThreadAccounting) throw new Error('Consumption history support is required to sync this stash');
-      merged.thread_consumption_v2 = window.ThreadAccounting.mergeStock(localStash||{},remoteStash||{},merged.threads);
+      var accountingReport = {};
+      merged.thread_consumption_v2 = window.ThreadAccounting.mergeStock(localStash||{},remoteStash||{},merged.threads,accountingReport);
+      // Projects whose thread-usage histories could not be combined keep this
+      // device's history (see mergeContained). Reported to the caller, not
+      // stored on merged: _stashMergeChangesAnything compares merged as JSON.
+      if (opts && opts.report) opts.report.consumptionConflicts = accountingReport.conflicts || [];
     }
     if ((localStash&&localStash.thread_reservations_v1)||(remoteStash&&remoteStash.thread_reservations_v1)) {
       var lr=localStash&&localStash.thread_reservations_v1, rr=remoteStash&&remoteStash.thread_reservations_v1;
@@ -2446,7 +2494,9 @@ const SyncEngine = (() => {
         if (c.local && c.local.id) presentProjectIds[c.local.id] = true;
         if (c.idRewrite && c.idRewrite.canonicalId) presentProjectIds[c.idRewrite.canonicalId] = true;
       });
-      plan.stashMerge = mergeStash(localStash, syncObj.stash, { presentProjectIds: presentProjectIds });
+      var stashReport = {};
+      plan.stashMerge = mergeStash(localStash, syncObj.stash, { presentProjectIds: presentProjectIds, report: stashReport });
+      _flagConsumptionConflicts(stashReport.consumptionConflicts, syncObj, localMap);
       // Carried on the plan (a plain map, so it survives pending-plan
       // persistence) so executeImport can re-merge against the live stash
       // with the same orphan guard.
@@ -2678,6 +2728,7 @@ const SyncEngine = (() => {
     // Inventory and accounting form one reviewed snapshot. Never sum deltas,
     // take max(stock), or write a stale prepare-time balance. Reads, conflict
     // checks, quantities and checkpoints share one transaction, even without locks.
+    var consumptionConflicts = null;
     if (plan.stashMerge) {
       await _withManagerStateLock('sync-import-stash',async function() {
         var db = await openManagerDB();
@@ -2696,7 +2747,8 @@ const SyncEngine = (() => {
               var A = window.ThreadAccounting, ledger = null;
               if (local.thread_consumption_v2 || plan.syncObj.stash.thread_consumption_v2) {
                 if (!A) throw new Error('Consumption history support is required.');
-                ledger = A.merge(local.thread_consumption_v2 || A.empty(),plan.syncObj.stash.thread_consumption_v2 || A.empty());
+                var contained = A.mergeContained(local.thread_consumption_v2 || A.empty(),plan.syncObj.stash.thread_consumption_v2 || A.empty());
+                ledger = contained.ledger; consumptionConflicts = contained.conflicts;
                 var totals = A.totals(ledger);
                 Object.keys(totals).forEach(function(k) {
                   var row = value.threads[k];
@@ -2727,6 +2779,9 @@ const SyncEngine = (() => {
           tx.onabort = tx.onerror = function() { reject(tx.error || new Error('Inventory write failed; retry the sync file.')); };
         }); } finally { db.close(); }
       });
+      // Re-merged against the live stash, so this can name a project the
+      // prepare step did not; already-flagged ones stay quiet.
+      _flagConsumptionConflicts(consumptionConflicts, plan.syncObj, plan.localMap);
     }
 
     // 5. Absorb remote tombstones: merge the remote's deleted-project list into
