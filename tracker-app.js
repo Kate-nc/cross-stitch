@@ -14,6 +14,106 @@ const deepClone=typeof structuredClone==='function'?structuredClone:(x)=>JSON.pa
 // the two cannot drift apart.
 function chartOverdraw(cSz){return Math.max(40,20*cSz);}
 
+// How far each kind of chart object reaches past its own geometry, in pixels, at
+// a stitch size of cSz: what drawStitch draws for it. A bead: its radius (3 px at
+// least) and half the selected bead's 3 px ring, plus a pixel of anti-aliasing. A
+// French knot: its radius (2 px at least) and half its outline. A petite or long
+// stitch: half its line width (round caps reach as far), plus a pixel; selected,
+// the dashed box 3 px outside it as well. Used both to cull objects when painting
+// and to size a partial repaint (objectDirtyCells), so the two cannot disagree.
+function beadReachPx(cSz){return Math.max(3,cSz*0.24)+2;}
+function knotReachPx(cSz){return Math.max(2,cSz*0.3)+Math.max(1.5,cSz*0.1)/2+0.5;}
+function specialtyReachPx(cSz,selected){const sw=Math.max(1,cSz*0.08)/2+1;return selected?sw+4:sw;}
+// A backstitch line: half its width (round caps reach as far) with the selected
+// line's 5 px halo, plus a pixel.
+function backstitchReachPx(thickness){return (Math.max(1,thickness||1)+5)/2+1;}
+
+// The stitches a repaint of cells x0..x1, y0..y1 must cover so that every bead,
+// petite, long stitch, French knot and backstitch line drawn over them is
+// repainted whole, along with any neighbouring stitch holding a half stitch, a
+// quarter stitch or a park marker (drawn to its corners, so the clip's margin
+// would cut through it).
+// Wherever a clip edge crosses an anti-aliased shape (a stroke, an ellipse, a
+// symbol), the pixels just inside it rasterise a little differently from the same
+// shape unclipped (measured: up to 24 levels on a few pixels), so a repaint that
+// cut through an object would not match a full paint. The region grows by whole
+// stitches, so its edges stay on stitch boundaries, where the clip only crosses
+// the crisp outline fills (as on any chart without these objects), and grows
+// again while another object reaches in (one can reach the next). A dense chain of
+// objects could keep it growing: after MAX passes it reports converged:false and
+// the caller repaints its whole tile instead (no clip edge inside the canvas at
+// all). padPx: how far past its stitches the clip reaches. o: {specialty,
+// specialtySelected, beads, knots, bsLines (or index: buildObjectIndex of them),
+// layerVis, sW, sH, bsReachPx, and cellHas(idx): whether stitch idx holds a half
+// or quarter stitch or a park marker}. Not clamped to the chart.
+// Chart objects bucketed by position in OBJECT_BUCKET-stitch squares, built once per
+// change of the object lists, so sizing a repaint looks only at what is near it rather
+// than at every object on the chart on every pass (12 000 on a 400 x 500 test chart).
+const OBJECT_BUCKET=8;
+function buildObjectIndex(specialty,beads,knots,bsLines){
+  const buckets=new Map(),B=OBJECT_BUCKET;
+  const add=(kind,obj,x0,y0,x1,y1)=>{
+    const it={kind,obj,x0,y0,x1,y1};
+    for(let by=Math.floor(y0/B);by<=Math.floor(y1/B);by++)for(let bx=Math.floor(x0/B);bx<=Math.floor(x1/B);bx++){
+      const k=bx*65536+by;let a=buckets.get(k);if(!a)buckets.set(k,a=[]);a.push(it);
+    }
+  };
+  (specialty||[]).forEach(s=>{if(s.type==='petite')add('s',s,s.x,s.y,s.x+0.5,s.y+0.5);else add('s',s,Math.min(s.x1,s.x2),Math.min(s.y1,s.y2),Math.max(s.x1,s.x2),Math.max(s.y1,s.y2));});
+  (beads||[]).forEach(b=>add('b',b,b.x/2,b.y/2,b.x/2,b.y/2));
+  (knots||[]).forEach(k=>add('k',k,k.x/2,k.y/2,k.x/2,k.y/2));
+  (bsLines||[]).forEach(l=>add('l',l,Math.min(l.x1,l.x2),Math.min(l.y1,l.y2),Math.max(l.x1,l.x2),Math.max(l.y1,l.y2)));
+  return{B,buckets};
+}
+// The objects in an index whose bucket overlaps x0..x1, y0..y1 (in stitches), once each.
+function objectsNear(index,x0,y0,x1,y1){
+  const B=index.B,out=[],seen=new Set();
+  for(let by=Math.floor(y0/B);by<=Math.floor(y1/B);by++)for(let bx=Math.floor(x0/B);bx<=Math.floor(x1/B);bx++){
+    const a=index.buckets.get(bx*65536+by);
+    if(a)for(let i=0;i<a.length;i++)if(!seen.has(a[i])){seen.add(a[i]);out.push(a[i]);}
+  }
+  return out;
+}
+function objectDirtyCells(x0,y0,x1,y1,padPx,cSz,o){
+  let bx0=x0,by0=y0,bx1=x1,by1=y1;
+  const p=padPx/cSz,vis=o.layerVis||{};
+  const sReach=specialtyReachPx(cSz,false)/cSz,sSel=specialtyReachPx(cSz,true)/cSz;
+  const bReach=beadReachPx(cSz)/cSz,kReach=knotReachPx(cSz)/cSz,bsReach=(o.bsReachPx||0)/cSz;
+  const index=o.index||buildObjectIndex(o.specialty,o.beads,o.knots,o.bsLines);
+  // How far any object can reach past its own geometry, and past the clip: what to look near.
+  const look=Math.max(sSel,bReach,kReach,bsReach)+p;
+  const W=o.sW||0,H=o.sH||0,cellHas=o.cellHas,knotsShown=vis.french_knot!==false;
+  let converged=false;
+  for(let pass=0;pass<12;pass++){
+    let grew=false;
+    const take=(ox0,oy0,ox1,oy1)=>{
+      if(ox1<bx0-p||ox0>bx1+p||oy1<by0-p||oy0>by1+p)return;
+      const nx0=Math.floor(ox0),ny0=Math.floor(oy0),nx1=Math.ceil(ox1),ny1=Math.ceil(oy1);
+      if(nx0<bx0){bx0=nx0;grew=true;}if(ny0<by0){by0=ny0;grew=true;}
+      if(nx1>bx1){bx1=nx1;grew=true;}if(ny1>by1){by1=ny1;grew=true;}
+    };
+    const near=objectsNear(index,bx0-look,by0-look,bx1+look,by1+look);
+    for(let i=0;i<near.length;i++){
+      const it=near[i];let r;
+      if(it.kind==='s'){if(vis[it.obj.type]===false)continue;r=o.specialtySelected===it.obj.uid?sSel:sReach;}
+      else if(it.kind==='b')r=bReach;
+      else if(it.kind==='k'){if(!knotsShown)continue;r=kReach;}
+      else r=bsReach;
+      take(it.x0-r,it.y0-r,it.x1+r,it.y1+r);
+    }
+    // The ring of stitches around the region: one holding a half or quarter stitch
+    // or a park marker joins it whole.
+    if(cellHas&&W){
+      const rx0=Math.max(0,bx0-1),ry0=Math.max(0,by0-1),rx1=Math.min(W,bx1+1),ry1=Math.min(H||Infinity,by1+1);
+      for(let y=ry0;y<ry1;y++)for(let x=rx0;x<rx1;x++){
+        if(x>=bx0&&x<bx1&&y>=by0&&y<by1){x=bx1-1;continue;}
+        if(cellHas(y*W+x))take(x,y,x+1,y+1);
+      }
+    }
+    if(!grew){converged=true;break;}
+  }
+  return{x0:bx0,y0:by0,x1:bx1,y1:by1,converged};
+}
+
 // "#rgb", "#rrggbb" or "rgb(r,g,b)" as [r,g,b], or null for anything else.
 // Used to put the chart's flat cell colours into image pixels (drawStitch).
 function parseChartColour(c){
@@ -2590,6 +2690,9 @@ const renderStitchRef=useRef(null);
 // changed cells directly (see paintDoneChanges call sites) so the full-viewport
 // renderStitch effect can skip a redundant redraw. See the effect below for detail.
 const skipNextFullRedrawRef=useRef(null);   // the done (or bsDone) array whose commit needs no full redraw
+// A mark's own paint since the last redraw decision could not cover every object it
+// touches exactly (repaintChartCells fell back): its commit repaints in full.
+const markPaintFellBackRef=useRef(false);
 
 const focusableColors=useMemo(()=>{
   if(!pal)return[];
@@ -6084,10 +6187,14 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
   // highlight view, other colours' knots are faded like their stitches.
   if(knots.length>0&&layerVis.french_knot){
     const kr=Math.max(2,cSz*0.3);
+    // How far a knot reaches, in stitches: its radius and half its outline. Zoomed far
+    // out the 2 px minimum radius is more than half a stitch, and a knot culled at half
+    // a stitch could still reach into a partial repaint's clip and be left out of it.
+    const kReach=Math.max(0.5,knotReachPx(cSz)/cSz);
     ctx.save();
     knots.forEach(k=>{
       const kx=k.x/2,ky=k.y/2;
-      if(kx<startX-0.5||kx>endX+0.5||ky<startY-0.5||ky>endY+0.5)return;
+      if(kx<startX-kReach||kx>endX+kReach||ky<startY-kReach||ky>endY+kReach)return;
       const rgb=k.rgb||(cmap&&cmap[k.id]&&cmap[k.id].rgb)||[0,0,0];
       const col="rgb("+rgb[0]+","+rgb[1]+","+rgb[2]+")";
       const kDone=knotDoneSet.has(k.x+","+k.y);
@@ -6107,9 +6214,13 @@ function drawStitch(ctx,cSz,viewportRect,isDoneAt){
     ctx.save();
     // Draw order (the selected bead last) and the done set are worked out once
     // per change (beadDrawOrder, beadsDoneSet), not copied and sorted per paint.
+    // How far a bead reaches, in stitches: its radius (3 px at least) and half the
+    // selected bead's 3 px outline. Zoomed far out that is more than half a stitch, and a
+    // bead culled at half a stitch could still reach into a partial repaint's clip.
+    const bReach=Math.max(0.5,beadReachPx(cSz)/cSz);
     beadDrawOrder.forEach(b=>{
       const x=b.x/2,y=b.y/2;
-      if(x<startX-0.5||x>endX+0.5||y<startY-0.5||y>endY+0.5)return;
+      if(x<startX-bReach||x>endX+bReach||y<startY-bReach||y>endY+bReach)return;
       const rgb=b.rgb||[128,128,128],r=Math.max(3,cSz*0.24),marked=beadsDoneSet.has(b.uid);
       ctx.beginPath();ctx.ellipse(gut+x*cSz,gut+y*cSz,r,r*0.7,-Math.PI/4,0,Math.PI*2);
       ctx.fillStyle=marked?'rgb('+rgb.join(',')+')':'white';ctx.fill();
@@ -6321,12 +6432,19 @@ useEffect(()=>{
   redrawInputsRef.current=inputs;
   const skip=skipNextFullRedrawRef.current;
   skipNextFullRedrawRef.current=null;
+  const fellBack=markPaintFellBackRef.current;
+  markPaintFellBackRef.current=false;
   const marksOnly=!!prev&&inputs.every((v,i)=>Object.is(v,prev[i]));
   // Already painted by this very renderStitch (a zoom commit paints before
   // its effect runs), so the canvas matches state.
   if(chartPaintedByRef.current===renderStitch)return;
-  // The mark painted its own cells, so the canvas matches state again.
-  if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!specialtyStitches.length&&!beads.length){chartPaintedByRef.current=renderStitch;return;}
+  // The mark painted its own cells, so the canvas matches state again. That holds on a
+  // chart with beads, petites and long stitches too: the partial repaint is drawStitch
+  // itself, clipped, and draws every object that reaches into the clip (their culling
+  // allows for each object's size; see drawStitch). It used to be refused whenever the
+  // chart had any bead or petite or long stitch at all, so every mark on such a chart
+  // also repainted the whole tile (tests/mobile-audit/desktop-mixed-mark-repaint.spec.js).
+  if(skip&&(skip===done||skip===bsDone)&&marksOnly&&!fellBack){chartPaintedByRef.current=renderStitch;return;}
   renderStitch();
 },[renderStitch]);
 // The guide crosshair and park markers are repainted where they changed
@@ -6954,6 +7072,16 @@ const rafIdRef = useRef(null);
 // Only the part on the current tile is painted: the canvas covers just the
 // visible slice, and off-tile cells are repainted from state when scrolled
 // to (renderStitchIfScrolledOut), so drawing them would be clipped away.
+// objectDirtyCells (top of the file) for this chart, clamped to it.
+const chartObjectIndex=useMemo(()=>buildObjectIndex(specialtyStitches,beads,knots,bsLines),[specialtyStitches,beads,knots,bsLines]);
+function objectDirtyBox(x0,y0,x1,y1,pad){
+  const pm=parkMarkersRef.current;
+  const parkAt=pm&&pm.length?new Set(pm.map(m=>m.y*sW+m.x)):null;
+  const b=objectDirtyCells(x0,y0,x1,y1,pad,scs,{index:chartObjectIndex,specialtySelected,layerVis,sW,sH,
+    bsReachPx:backstitchReachPx(bsThickness),
+    cellHas:idx=>halfStitches.has(idx)||partialStitches.has(idx)||(!!parkAt&&parkAt.has(idx))});
+  return{x0:Math.max(0,b.x0),y0:Math.max(0,b.y0),x1:Math.min(sW,b.x1),y1:Math.min(sH,b.y1),converged:b.converged};
+}
 function repaintChartCells(x0,y0,x1,y1,isDoneAt){
   const canvas=stitchRef.current;
   if(!canvas||!pat||!cmap)return;
@@ -6967,19 +7095,31 @@ function repaintChartCells(x0,y0,x1,y1,isDoneAt){
   // origin and render scale) that renderStitch left it in.
   const s=t.scale>0?t.scale:1;
   ctx.setTransform(s,0,0,s,-t.x*s,-t.y*s);
-  const left=G+x0*scs,top=G+y0*scs,right=G+x1*scs,bottom=G+y1*scs;
-  ctx.save();
   // The clip reaches a little past the cells: a park marker's outline (and
   // a cell's own outline) overhangs its edge by up to a pixel, and that
-  // overhang must be drawn or erased with the cell.
+  // overhang must be drawn or erased with the cell. It also takes in, whole,
+  // every bead, petite, long stitch and knot drawn over them (objectDirtyBox).
   const sp=2;
+  let box=objectDirtyBox(x0,y0,x1,y1,sp);
+  // Objects chained too far to settle (zoomed far out on a densely decorated chart):
+  // paint just the cells, as before, and report it, so a mark's commit repaints the
+  // tile in full rather than skipping. A region that settles, however large, is
+  // painted as it is: exact, and never more than one full paint's work.
+  const fellBack=!box.converged;
+  if(fellBack)box={x0,y0,x1,y1};
+  const left=G+box.x0*scs,top=G+box.y0*scs,right=G+box.x1*scs,bottom=G+box.y1*scs;
+  ctx.save();
   ctx.beginPath();ctx.rect(left-sp,top-sp,right-left+2*sp,bottom-top+2*sp);ctx.clip();
   // Paint one cell further on every side than the cells themselves, so
   // everything that overlaps the clipped area — neighbours' outlines and
-  // markers — is drawn, in the same order as a full paint.
-  const m=scs;
+  // markers — is drawn, in the same order as a full paint. Stitches smaller
+  // than the clip's overhang (1 px, zoomed right out) need more than one: the
+  // clip reaches two stitches out, and drawStitch's opening fabric fill would
+  // blank any stitch inside it that is not also painted.
+  const m=scs<sp?scs*(Math.ceil(sp/scs)+1):scs;
   drawStitch(ctx,scs,{left:left-m,top:top-m,right:right+m,bottom:bottom+m,width:right-left+2*m,height:bottom-top+2*m,overdraw:0},isDoneAt);
   ctx.restore();
+  return fellBack;
 }
 // Paint stitches that were just marked or unmarked, ahead of the setDone
 // that will commit them (callers set skipNextFullRedrawRef so that commit
@@ -7005,8 +7145,8 @@ function paintDoneChanges(changes,nd){
   if(!on.length)return;
   const isDoneAt=i=>!!nd[i];
   const tileCells=(r.x1-r.x0)*(r.y1-r.y0);
-  if(on.length>Math.max(64,tileCells/8)){repaintChartCells(r.x0,r.y0,r.x1,r.y1,isDoneAt);return;}
-  for(let i=0;i<on.length;i++){const x=on[i]%sW,y=(on[i]-x)/sW;repaintChartCells(x,y,x+1,y+1,isDoneAt);}
+  if(on.length>Math.max(64,tileCells/8)){if(repaintChartCells(r.x0,r.y0,r.x1,r.y1,isDoneAt))markPaintFellBackRef.current=true;return;}
+  for(let i=0;i<on.length;i++){const x=on[i]%sW,y=(on[i]-x)/sW;if(repaintChartCells(x,y,x+1,y+1,isDoneAt))markPaintFellBackRef.current=true;}
 }
 // Memoised callers (_commitBulk, _dragMarkOnToggle) hold an older render's
 // closure; going through this ref makes them paint with the current zoom,
@@ -8808,7 +8948,7 @@ function paintBsKeys(keys){
   keys.forEach(k=>{(idx.get(k)||[]).forEach(i=>{const ln=bsLines[i];x0=Math.min(x0,ln.x1,ln.x2);x1=Math.max(x1,ln.x1,ln.x2);y0=Math.min(y0,ln.y1,ln.y2);y1=Math.max(y1,ln.y1,ln.y2);});});
   if(x0>x1)return;
   const nd=doneRef.current;
-  repaintChartCells(Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1,i=>!!(nd&&nd[i]));
+  if(repaintChartCells(Math.floor(x0)-1,Math.floor(y0)-1,Math.ceil(x1)+1,Math.ceil(y1)+1,i=>!!(nd&&nd[i])))markPaintFellBackRef.current=true;
 }
 function pushBsHistory(keys,on,colourId){
   if(!keys.length)return;

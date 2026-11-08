@@ -349,11 +349,13 @@ for (const c of PROGRESS_CASES) {
     // Each tap used to rebuild the estimate for every finished stitch.
     expect(snapshotCalls, 'a tap rebuilt the whole thread-usage snapshot').toBe(0);
     if (c.fixture.mixed) {
-      // On a mixed chart most taps repaint the whole tile instead of their
-      // stitch (measured: 9 full and 7 clipped paints for 8 taps, every run;
-      // baseline report, "Ranked findings"). A ratchet: no more than that.
+      // A tap that marks a full stitch repaints just that stitch (with every bead,
+      // petite and long stitch over it, whole) even though the chart has them:
+      // was 9 full and 7 clipped paints for 8 taps. Two of these taps land on a
+      // half stitch or a knot, whose marks repaint the tile on any chart; that is
+      // all the full repaints left (2 in every run). A ratchet.
       expect(out.paints.full + out.paints.partial, 'fewer chart paints than taps — the taps did not all mark').toBeGreaterThanOrEqual(PROGRESS_TAPS);
-      expect(out.paints.full, `${out.paints.full} full chart repaints for ${PROGRESS_TAPS} taps`).toBeLessThanOrEqual(PROGRESS_TAPS + 1);
+      expect(out.paints.full, `${out.paints.full} full chart repaints for ${PROGRESS_TAPS} taps`).toBeLessThanOrEqual(2);
     } else {
       // A tap paints its own stitch (one clipped repaint) and nothing else.
       expect(out.paints.partial, `${out.paints.partial} stitch repaints for ${PROGRESS_TAPS} taps (one each expected) — did every tap mark?`).toBe(PROGRESS_TAPS);
