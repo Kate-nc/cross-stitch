@@ -1,0 +1,5443 @@
+{
+ "kind": "track-mode-baseline",
+ "startedAt": "2026-11-08T14:52:43.910Z",
+ "build": {
+  "appVersion": "1.0.240",
+  "commit": "efb1ef0d48d1f9fdd6c965d8fbdc01909f2f4d33",
+  "dirtyFiles": 5,
+  "swCache": "cross-stitch-cache-v71",
+  "swBuildId": "9580854d2ce9283d7af63b22e2eb2e3bbe39a1e042d7ee76d707467738c67ea9",
+  "served": "working tree via serve.js (not dist/); service workers blocked"
+ },
+ "environment": {
+  "browser": "Chromium 153.0.8010.12 (headless)",
+  "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "host": "Linux 6.18.44-fc-v310, 4 x Intel(R) Xeon(R) Processor @ 2.30GHz, 16 GB",
+  "node": "v22.23.4",
+  "profiling": true,
+  "profiles": {
+   "phone": "Pixel 5 emulation (393 x 851, DPR 2.75, touch), 4x CPU throttle",
+   "desktop": "1440 x 900, DPR 1, no throttle"
+  },
+  "caveat": "Emulated. Canvases are drawn in software; CPU throttling scales script, not GPU or raster. Not a physical-device measurement."
+ },
+ "scenarios": {
+  "open-large-50": [
+   {
+    "profile": {
+     "offsetMs": 2011852,
+     "frames": [
+      {
+       "t": 9401,
+       "d": 3839,
+       "sampledMs": 3839,
+       "selfTop": [
+        [
+         "(anonymous)",
+         2015
+        ],
+        [
+         "put",
+         239
+        ],
+        [
+         "records",
+         236
+        ],
+        [
+         "marksBefore",
+         235
+        ],
+        [
+         "own",
+         204
+        ],
+        [
+         "merge",
+         132
+        ]
+       ],
+       "appCallers": [
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > merge (tracking-sync.js:279)",
+         1447
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > rtThreadUsage (threadCalc.js:289)",
+         328
+        ],
+        [
+         "addFull (thread-accounting.js:36) > put (thread-accounting.js:71) > estimate (thread-accounting.js:24)",
+         279
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > marksBefore (thread-accounting.js:410)",
+         235
+        ],
+        [
+         "snapshot (thread-accounting.js:69) > addFull (thread-accounting.js:36) > put (thread-accounting.js:71)",
+         205
+        ]
+       ]
+      },
+      {
+       "t": 3285,
+       "d": 3567,
+       "sampledMs": 3566,
+       "selfTop": [
+        [
+         "recover",
+         1062
+        ],
+        [
+         "S.<computed>",
+         839
+        ],
+        [
+         "records",
+         398
+        ],
+        [
+         "own",
+         372
+        ],
+        [
+         "(garbage collector)",
+         291
+        ],
+        [
+         "(anonymous)",
+         251
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1978
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > records (tracking-sync.js:102)",
+         217
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         194
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         184
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         181
+        ]
+       ]
+      },
+      {
+       "t": 1068,
+       "d": 2194,
+       "sampledMs": 2194,
+       "selfTop": [
+        [
+         "S.<computed>",
+         848
+        ],
+        [
+         "recover",
+         535
+        ],
+        [
+         "records",
+         180
+        ],
+        [
+         "own",
+         176
+        ],
+        [
+         "(anonymous)",
+         142
+        ],
+        [
+         "metadata",
+         74
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1463
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         181
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         180
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         176
+        ],
+        [
+         "recover (project-storage.js:1098) > buildStatsSummary (project-storage.js:46)",
+         38
+        ]
+       ]
+      },
+      {
+       "t": 6893,
+       "d": 1028,
+       "sampledMs": 1028,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         645
+        ],
+        [
+         "rememberProgressBase",
+         286
+        ],
+        [
+         "(garbage collector)",
+         39
+        ],
+        [
+         "get result",
+         39
+        ],
+        [
+         "(program)",
+         15
+        ],
+        [
+         "(native)",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         684
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         287
+        ],
+        [
+         "get (project-storage.js:861)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 7923,
+       "d": 1012,
+       "sampledMs": 1012,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         620
+        ],
+        [
+         "rememberProgressBase",
+         287
+        ],
+        [
+         "(garbage collector)",
+         58
+        ],
+        [
+         "get result",
+         39
+        ],
+        [
+         "(program)",
+         4
+        ],
+        [
+         "(native)",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         659
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         287
+        ],
+        [
+         "readSessionCheckpoints (project-storage.js:949) > getDB (project-storage.js:352) > root.IDBDatabase.transaction (recovery-storage.js:24)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 14,
+       "d": 789,
+       "sampledMs": 788,
+       "selfTop": [
+        [
+         "(idle)",
+         361
+        ],
+        [
+         "(program)",
+         260
+        ],
+        [
+         "buildSnapshot",
+         39
+        ],
+        [
+         "snapshotNow",
+         38
+        ],
+        [
+         "(anonymous)",
+         31
+        ],
+        [
+         "saveProgressRecovery",
+         11
+        ]
+       ],
+       "appCallers": [
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959) > buildSnapshot (compiled/tracker-app.compiled.js:948)",
+         39
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         19
+        ],
+        [
+         "handleBeforeUnload (compiled/tracker-app.compiled.js:1043) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         18
+        ],
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071) > target.setItem (recovery-storage.js:44)",
+         9
+        ],
+        [
+         "handleBeforeUnload (compiled/tracker-app.compiled.js:1043) > writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071)",
+         6
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 27,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 7,
+     "tbtMs": 11801,
+     "longestMs": 3837,
+     "top": [
+      3837,
+      3556,
+      2184,
+      1013,
+      1005
+     ]
+    },
+    "frames": {
+     "n": 24,
+     "over50": 6,
+     "over100": 5,
+     "worstMs": 3566
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 8,
+     "scriptMs": 12163,
+     "forcedLayoutMs": 0,
+     "renderMs": 14,
+     "totalMs": 12903,
+     "longest": [
+      {
+       "t": 9401,
+       "d": 3839,
+       "blocking": 3788,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 3837,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      },
+      {
+       "t": 3285,
+       "d": 3567,
+       "blocking": 3508,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 3557,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1068,
+       "d": 2194,
+       "blocking": 2137,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 2185,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        },
+        {
+         "d": 6,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 6893,
+       "d": 1028,
+       "blocking": 965,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 1012,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 7923,
+       "d": 1012,
+       "blocking": 959,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 1006,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 14,
+       "d": 789,
+       "blocking": 91,
+       "renderMs": 4,
+       "scripts": [
+        {
+         "d": 56,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        },
+        {
+         "d": 51,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        },
+        {
+         "d": 10,
+         "invoker": "http://127.0.0.1:38459/symbol-glyphs.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "symbol-glyphs.js:1"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1773.4,
+     "byStore": {
+      "manager_state.get": {
+       "n": 3,
+       "ms": 0.3,
+       "maxMs": 0.2
+      },
+      "project_meta.getAll": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 33.3,
+       "maxMs": 16.8
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 1732.2,
+       "maxMs": 872.7
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 1.3,
+       "maxMs": 0.7
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 2.3,
+       "maxMs": 1.6
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0.5,
+       "maxMs": 0.5
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      }
+     },
+     "writeTx": 3,
+     "writeTxMs": {
+      "n": 3,
+      "p50": 2255,
+      "p75": 5848,
+      "p95": 5848,
+      "max": 5848
+     },
+     "writeTxByStore": {
+      "manager_state": 1,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 39,
+     "localStorageBytes": 531
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0.6,
+      "maxSyncMs": 0.6,
+      "settleMs": 95.3,
+      "maxSettleMs": 95.3
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 0.6,
+      "maxSyncMs": 0.6,
+      "settleMs": 17226.6,
+      "maxSettleMs": 8828
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 99,
+      "maxSettleMs": 99
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 1185,
+      "maxSyncMs": 593.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 1387.4,
+      "maxSyncMs": 597.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1868.4,
+      "maxSyncMs": 1868.4,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "nav": {
+     "domContentLoaded": 896,
+     "load": 941
+    },
+    "firstFullPaintMs": 13774,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "heapMb": 295.8,
+    "heapAfterGcMb": 121.6,
+    "cpuProbeMs": 21
+   }
+  ],
+  "open-large-50-history": [
+   {
+    "profile": {
+     "offsetMs": 2039682,
+     "frames": [
+      {
+       "t": 7998,
+       "d": 3790,
+       "sampledMs": 3790,
+       "selfTop": [
+        [
+         "(anonymous)",
+         1956
+        ],
+        [
+         "records",
+         278
+        ],
+        [
+         "own",
+         239
+        ],
+        [
+         "put",
+         195
+        ],
+        [
+         "marksBefore",
+         181
+        ],
+        [
+         "metadata",
+         141
+        ]
+       ],
+       "appCallers": [
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > merge (tracking-sync.js:279)",
+         1393
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > rtThreadUsage (threadCalc.js:289)",
+         367
+        ],
+        [
+         "addFull (thread-accounting.js:36) > put (thread-accounting.js:71) > estimate (thread-accounting.js:24)",
+         241
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > marksBefore (thread-accounting.js:410)",
+         181
+        ],
+        [
+         "snapshot (thread-accounting.js:69) > addFull (thread-accounting.js:36) > put (thread-accounting.js:71)",
+         165
+        ]
+       ]
+      },
+      {
+       "t": 3354,
+       "d": 2250,
+       "sampledMs": 2250,
+       "selfTop": [
+        [
+         "S.<computed>",
+         663
+        ],
+        [
+         "recover",
+         641
+        ],
+        [
+         "records",
+         235
+        ],
+        [
+         "own",
+         225
+        ],
+        [
+         "metadata",
+         143
+        ],
+        [
+         "(anonymous)",
+         130
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1371
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         133
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > records (tracking-sync.js:102)",
+         121
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         115
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         113
+        ]
+       ]
+      },
+      {
+       "t": 1110,
+       "d": 2225,
+       "sampledMs": 2226,
+       "selfTop": [
+        [
+         "S.<computed>",
+         841
+        ],
+        [
+         "recover",
+         558
+        ],
+        [
+         "records",
+         189
+        ],
+        [
+         "own",
+         180
+        ],
+        [
+         "(anonymous)",
+         139
+        ],
+        [
+         "(garbage collector)",
+         99
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1475
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         189
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         187
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         180
+        ],
+        [
+         "recover (project-storage.js:1098) > buildStatsSummary (project-storage.js:46)",
+         29
+        ]
+       ]
+      },
+      {
+       "t": 6568,
+       "d": 1036,
+       "sampledMs": 1037,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         603
+        ],
+        [
+         "rememberProgressBase",
+         330
+        ],
+        [
+         "(garbage collector)",
+         56
+        ],
+        [
+         "get result",
+         39
+        ],
+        [
+         "(program)",
+         4
+        ],
+        [
+         "structuredClone",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         642
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         331
+        ],
+        [
+         "readSessionCheckpoints (project-storage.js:949) > getDB (project-storage.js:352) > root.IDBDatabase.transaction (recovery-storage.js:24)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 5626,
+       "d": 941,
+       "sampledMs": 941,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         601
+        ],
+        [
+         "rememberProgressBase",
+         260
+        ],
+        [
+         "(garbage collector)",
+         41
+        ],
+        [
+         "get result",
+         36
+        ],
+        [
+         "(program)",
+         3
+        ],
+        [
+         "readSessionCheckpoints",
+         0
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         637
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         260
+        ],
+        [
+         "readSessionCheckpoints (project-storage.js:949)",
+         0
+        ]
+       ]
+      },
+      {
+       "t": 3,
+       "d": 776,
+       "sampledMs": 775,
+       "selfTop": [
+        [
+         "(idle)",
+         361
+        ],
+        [
+         "(program)",
+         241
+        ],
+        [
+         "snapshotNow",
+         40
+        ],
+        [
+         "buildSnapshot",
+         38
+        ],
+        [
+         "(anonymous)",
+         18
+        ],
+        [
+         "saveProgressRecovery",
+         13
+        ]
+       ],
+       "appCallers": [
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959) > buildSnapshot (compiled/tracker-app.compiled.js:948)",
+         38
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         21
+        ],
+        [
+         "handleBeforeUnload (compiled/tracker-app.compiled.js:1043) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         19
+        ],
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071) > target.setItem (recovery-storage.js:44)",
+         10
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071)",
+         7
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 50000,
+    "collection": null,
+    "wallS": 28,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 7,
+     "tbtMs": 10377,
+     "longestMs": 3753,
+     "top": [
+      3753,
+      2249,
+      2218,
+      1030,
+      938
+     ]
+    },
+    "frames": {
+     "n": 26,
+     "over50": 5,
+     "over100": 5,
+     "worstMs": 2233
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 8,
+     "scriptMs": 10771,
+     "forcedLayoutMs": 0,
+     "renderMs": 14,
+     "totalMs": 11470,
+     "longest": [
+      {
+       "t": 7998,
+       "d": 3790,
+       "blocking": 3704,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 3753,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 33,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 3354,
+       "d": 2250,
+       "blocking": 2200,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2250,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1110,
+       "d": 2225,
+       "blocking": 2170,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2218,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 6568,
+       "d": 1036,
+       "blocking": 983,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 1030,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 5626,
+       "d": 941,
+       "blocking": 890,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 938,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 3,
+       "d": 776,
+       "blocking": 109,
+       "renderMs": 5,
+       "scripts": [
+        {
+         "d": 59,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        },
+        {
+         "d": 53,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        },
+        {
+         "d": 9,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 8,
+         "invoker": "http://127.0.0.1:38459/symbol-glyphs.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "symbol-glyphs.js:1"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1576.2,
+     "byStore": {
+      "manager_state.get": {
+       "n": 3,
+       "ms": 1.2,
+       "maxMs": 1.2
+      },
+      "project_meta.getAll": {
+       "n": 1,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 1,
+       "maxMs": 0.9
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 1.1,
+       "maxMs": 1
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 31.9,
+       "maxMs": 17.9
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 1534.5,
+       "maxMs": 854.7
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 1.1,
+       "maxMs": 0.6
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 1,
+       "maxMs": 1
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      }
+     },
+     "writeTx": 3,
+     "writeTxMs": {
+      "n": 3,
+      "p50": 2282,
+      "p75": 4541,
+      "p95": 4541,
+      "max": 4541
+     },
+     "writeTxByStore": {
+      "manager_state": 1,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 39,
+     "localStorageBytes": 531
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0.9,
+      "maxSyncMs": 0.9,
+      "settleMs": 118.2,
+      "maxSettleMs": 118.2
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 1.2,
+      "maxSyncMs": 1,
+      "settleMs": 14496.9,
+      "maxSettleMs": 7476.3
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0.6,
+      "maxSyncMs": 0.6,
+      "settleMs": 111.2,
+      "maxSettleMs": 111.2
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 991.2,
+      "maxSyncMs": 604.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 1174,
+      "maxSyncMs": 416.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1860.8,
+      "maxSyncMs": 1860.8,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "nav": {
+     "domContentLoaded": 903,
+     "load": 952
+    },
+    "firstFullPaintMs": 12528,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "heapMb": 162.5,
+    "heapAfterGcMb": 137.7,
+    "cpuProbeMs": 23
+   }
+  ],
+  "open-large-50-collection": [
+   {
+    "profile": {
+     "offsetMs": 2071103,
+     "frames": [
+      {
+       "t": 8352,
+       "d": 4331,
+       "sampledMs": 4331,
+       "selfTop": [
+        [
+         "(anonymous)",
+         2061
+        ],
+        [
+         "records",
+         346
+        ],
+        [
+         "own",
+         317
+        ],
+        [
+         "put",
+         305
+        ],
+        [
+         "marksBefore",
+         295
+        ],
+        [
+         "metadata",
+         136
+        ]
+       ],
+       "appCallers": [
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > merge (tracking-sync.js:279)",
+         1361
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > rtThreadUsage (threadCalc.js:289)",
+         404
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > marksBefore (thread-accounting.js:410)",
+         295
+        ],
+        [
+         "addFull (thread-accounting.js:36) > put (thread-accounting.js:71) > estimate (thread-accounting.js:24)",
+         283
+        ],
+        [
+         "snapshot (thread-accounting.js:69) > addFull (thread-accounting.js:36) > put (thread-accounting.js:71)",
+         245
+        ]
+       ]
+      },
+      {
+       "t": 2767,
+       "d": 2625,
+       "sampledMs": 2626,
+       "selfTop": [
+        [
+         "S.<computed>",
+         762
+        ],
+        [
+         "recover",
+         701
+        ],
+        [
+         "records",
+         344
+        ],
+        [
+         "own",
+         279
+        ],
+        [
+         "(anonymous)",
+         165
+        ],
+        [
+         "metadata",
+         134
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1540
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > records (tracking-sync.js:102)",
+         186
+        ],
+        [
+         "withDelta (tracking-sync.js:260) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         170
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         157
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > metadata (tracking-sync.js:119)",
+         152
+        ]
+       ]
+      },
+      {
+       "t": 912,
+       "d": 1837,
+       "sampledMs": 1837,
+       "selfTop": [
+        [
+         "S.<computed>",
+         726
+        ],
+        [
+         "recover",
+         506
+        ],
+        [
+         "records",
+         112
+        ],
+        [
+         "(anonymous)",
+         107
+        ],
+        [
+         "own",
+         97
+        ],
+        [
+         "(garbage collector)",
+         93
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         1303
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         138
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         112
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         97
+        ],
+        [
+         "recover (project-storage.js:1098) > buildStatsSummary (project-storage.js:46)",
+         28
+        ]
+       ]
+      },
+      {
+       "t": 6552,
+       "d": 1190,
+       "sampledMs": 1190,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         736
+        ],
+        [
+         "rememberProgressBase",
+         338
+        ],
+        [
+         "(garbage collector)",
+         61
+        ],
+        [
+         "get result",
+         47
+        ],
+        [
+         "(program)",
+         5
+        ],
+        [
+         "Vg",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         783
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         338
+        ]
+       ]
+      },
+      {
+       "t": 5414,
+       "d": 1135,
+       "sampledMs": 1135,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         670
+        ],
+        [
+         "rememberProgressBase",
+         360
+        ],
+        [
+         "(garbage collector)",
+         54
+        ],
+        [
+         "get result",
+         41
+        ],
+        [
+         "(program)",
+         6
+        ],
+        [
+         "structuredClone",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         711
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         362
+        ],
+        [
+         "readSessionCheckpoints (project-storage.js:949) > getDB (project-storage.js:352) > root.IDBDatabase.transaction (recovery-storage.js:24)",
+         1
+        ],
+        [
+         "get (project-storage.js:861)",
+         0
+        ]
+       ]
+      },
+      {
+       "t": 2,
+       "d": 681,
+       "sampledMs": 682,
+       "selfTop": [
+        [
+         "(idle)",
+         310
+        ],
+        [
+         "(program)",
+         213
+        ],
+        [
+         "buildSnapshot",
+         40
+        ],
+        [
+         "snapshotNow",
+         35
+        ],
+        [
+         "(anonymous)",
+         25
+        ],
+        [
+         "saveProgressRecovery",
+         13
+        ]
+       ],
+       "appCallers": [
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959) > buildSnapshot (compiled/tracker-app.compiled.js:948)",
+         40
+        ],
+        [
+         "handleBeforeUnload (compiled/tracker-app.compiled.js:1043) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         18
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         17
+        ],
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071) > target.setItem (recovery-storage.js:44)",
+         8
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071)",
+         7
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": {
+     "n": 150,
+     "side": 120
+    },
+    "wallS": 30,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 7,
+     "tbtMs": 11431,
+     "longestMs": 4280,
+     "top": [
+      4280,
+      2621,
+      1830,
+      1181,
+      1130
+     ]
+    },
+    "frames": {
+     "n": 23,
+     "over50": 5,
+     "over100": 5,
+     "worstMs": 2600
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 7,
+     "scriptMs": 11815,
+     "forcedLayoutMs": 0,
+     "renderMs": 11,
+     "totalMs": 12403,
+     "longest": [
+      {
+       "t": 8352,
+       "d": 4331,
+       "blocking": 4231,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4281,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 46,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 2767,
+       "d": 2625,
+       "blocking": 2572,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2621,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 912,
+       "d": 1837,
+       "blocking": 1781,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1830,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 6552,
+       "d": 1190,
+       "blocking": 1135,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 1182,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 5414,
+       "d": 1135,
+       "blocking": 1082,
+       "renderMs": 2,
+       "scripts": [
+        {
+         "d": 1130,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 2,
+       "d": 681,
+       "blocking": 93,
+       "renderMs": 3,
+       "scripts": [
+        {
+         "d": 53,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        },
+        {
+         "d": 50,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        },
+        {
+         "d": 8,
+         "invoker": "http://127.0.0.1:38459/symbol-glyphs.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "symbol-glyphs.js:1"
+        },
+        {
+         "d": 8,
+         "invoker": "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js",
+         "type": "classic-script",
+         "fn": "",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1620.3,
+     "byStore": {
+      "manager_state.get": {
+       "n": 3,
+       "ms": 0.7,
+       "maxMs": 0.7
+      },
+      "project_meta.getAll": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0.5,
+       "maxMs": 0.5
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 0.9,
+       "maxMs": 0.9
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 29.1,
+       "maxMs": 14.7
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 1582.8,
+       "maxMs": 797
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 1.1,
+       "maxMs": 1
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 0.9,
+       "maxMs": 0.8
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0.8,
+       "maxMs": 0.8
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0.5,
+       "maxMs": 0.5
+      }
+     },
+     "writeTx": 3,
+     "writeTxMs": {
+      "n": 3,
+      "p50": 1886,
+      "p75": 4518,
+      "p95": 4518,
+      "max": 4518
+     },
+     "writeTxByStore": {
+      "manager_state": 1,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 39,
+     "localStorageBytes": 531
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 100.3,
+      "maxSettleMs": 100.3
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 15684.2,
+      "maxSettleMs": 8133.8
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 95.2,
+      "maxSettleMs": 95.2
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 775.3,
+      "maxSyncMs": 404,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 1659.1,
+      "maxSyncMs": 586.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1898.6,
+      "maxSyncMs": 1898.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "nav": {
+     "domContentLoaded": 750,
+     "load": 784
+    },
+    "firstFullPaintMs": 13319,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "heapMb": 391.6,
+    "heapAfterGcMb": 121.9,
+    "cpuProbeMs": 24
+   }
+  ],
+  "open-huge-50-desktop": [
+   {
+    "profile": {
+     "offsetMs": 2104259,
+     "frames": [
+      {
+       "t": 5161,
+       "d": 2785,
+       "sampledMs": 2785,
+       "selfTop": [
+        [
+         "(anonymous)",
+         1758
+        ],
+        [
+         "records",
+         146
+        ],
+        [
+         "put",
+         142
+        ],
+        [
+         "marksBefore",
+         104
+        ],
+        [
+         "(garbage collector)",
+         97
+        ],
+        [
+         "own",
+         96
+        ]
+       ],
+       "appCallers": [
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > merge (tracking-sync.js:279)",
+         990
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > rtThreadUsage (threadCalc.js:289)",
+         570
+        ],
+        [
+         "addFull (thread-accounting.js:36) > put (thread-accounting.js:71) > estimate (thread-accounting.js:24)",
+         234
+        ],
+        [
+         "snapshot (thread-accounting.js:69) > addFull (thread-accounting.js:36) > put (thread-accounting.js:71)",
+         124
+        ],
+        [
+         "_hydrate (compiled/tracker-app.compiled.js:936) > processLoadedProject (compiled/tracker-app.compiled.js:799) > marksBefore (thread-accounting.js:410)",
+         104
+        ]
+       ]
+      },
+      {
+       "t": 2179,
+       "d": 1376,
+       "sampledMs": 1375,
+       "selfTop": [
+        [
+         "S.<computed>",
+         416
+        ],
+        [
+         "recover",
+         344
+        ],
+        [
+         "records",
+         162
+        ],
+        [
+         "own",
+         113
+        ],
+        [
+         "(garbage collector)",
+         97
+        ],
+        [
+         "(anonymous)",
+         84
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         796
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         89
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > metadata (tracking-sync.js:119)",
+         80
+        ],
+        [
+         "applyProgressRecord (project-storage.js:169) > withDelta (tracking-sync.js:260) > records (tracking-sync.js:102)",
+         73
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         70
+        ]
+       ]
+      },
+      {
+       "t": 1128,
+       "d": 1011,
+       "sampledMs": 1011,
+       "selfTop": [
+        [
+         "S.<computed>",
+         396
+        ],
+        [
+         "recover",
+         268
+        ],
+        [
+         "(garbage collector)",
+         82
+        ],
+        [
+         "records",
+         67
+        ],
+        [
+         "own",
+         54
+        ],
+        [
+         "(anonymous)",
+         45
+        ]
+       ],
+       "appCallers": [
+        [
+         "recover (project-storage.js:1098)",
+         696
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > metadata (tracking-sync.js:119)",
+         68
+        ],
+        [
+         "record (tracking-sync.js:393) > record (tracking-sync.js:138) > records (tracking-sync.js:102)",
+         67
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         54
+        ],
+        [
+         "recover (project-storage.js:1098) > buildStatsSummary (project-storage.js:46)",
+         14
+        ]
+       ]
+      },
+      {
+       "t": 9,
+       "d": 1001,
+       "sampledMs": 1001,
+       "selfTop": [
+        [
+         "S.<computed>",
+         577
+        ],
+        [
+         "(idle)",
+         278
+        ],
+        [
+         "(program)",
+         62
+        ],
+        [
+         "put",
+         28
+        ],
+        [
+         "buildSnapshot",
+         18
+        ],
+        [
+         "snapshotNow",
+         17
+        ]
+       ],
+       "appCallers": [
+        [
+         "saveProjectToDB (helpers.js:688)",
+         605
+        ],
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959) > buildSnapshot (compiled/tracker-app.compiled.js:948)",
+         18
+        ],
+        [
+         "handleBeforeUnload (compiled/tracker-app.compiled.js:1043) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         9
+        ],
+        [
+         "onVisibility (compiled/tracker-app.compiled.js:1077) > writeProgressNow (compiled/tracker-app.compiled.js:970) > snapshotNow (compiled/tracker-app.compiled.js:959)",
+         8
+        ],
+        [
+         "writeProgressNow (compiled/tracker-app.compiled.js:970) > saveProgressRecovery (project-storage.js:1071) > target.setItem (recovery-storage.js:44)",
+         4
+        ]
+       ]
+      },
+      {
+       "t": 7946,
+       "d": 798,
+       "sampledMs": 798,
+       "selfTop": [
+        [
+         "add",
+         714
+        ],
+        [
+         "(program)",
+         27
+        ],
+        [
+         "(anonymous)",
+         17
+        ],
+        [
+         "(garbage collector)",
+         10
+        ],
+        [
+         "projectThreadEntries",
+         7
+        ],
+        [
+         "yk",
+         5
+        ]
+       ],
+       "appCallers": [
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > projectThreadEntries (threadCalc.js:108) > add (threadCalc.js:111)",
+         714
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181)",
+         17
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > projectThreadEntries (threadCalc.js:108)",
+         8
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > renderColourActions (compiled/tracker-app.compiled.js:1909)",
+         1
+        ],
+        [
+         "threadKeyRow (helpers.js:2599) > threadParts (helpers.js:2545) > _threadNameFor (helpers.js:2534)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 3621,
+       "d": 653,
+       "sampledMs": 652,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         363
+        ],
+        [
+         "rememberProgressBase",
+         179
+        ],
+        [
+         "(garbage collector)",
+         82
+        ],
+        [
+         "get result",
+         26
+        ],
+        [
+         "get",
+         1
+        ],
+        [
+         "query",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         389
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         179
+        ],
+        [
+         "get (project-storage.js:861)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 29,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 8,
+     "tbtMs": 7418,
+     "longestMs": 2765,
+     "top": [
+      2765,
+      1372,
+      1010,
+      772,
+      652
+     ]
+    },
+    "frames": {
+     "n": 93,
+     "over50": 8,
+     "over100": 7,
+     "worstMs": 2783
+    },
+    "react": {
+     "commits": 10
+    },
+    "paints": {
+     "full": 2,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 8,
+     "scriptMs": 8130,
+     "forcedLayoutMs": 0,
+     "renderMs": 27,
+     "totalMs": 8509,
+     "longest": [
+      {
+       "t": 5161,
+       "d": 2785,
+       "blocking": 2716,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2765,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        },
+        {
+         "d": 18,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 2179,
+       "d": 1376,
+       "blocking": 1322,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1372,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 1128,
+       "d": 1011,
+       "blocking": 961,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1011,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "recover",
+         "at": "project-storage.js:1098"
+        }
+       ]
+      },
+      {
+       "t": 9,
+       "d": 1001,
+       "blocking": 569,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 327,
+         "invoker": "DOMWindow.onpagehide",
+         "type": "event-listener",
+         "fn": "handleBeforeUnload",
+         "at": "compiled/tracker-app.compiled.js:1043"
+        },
+        {
+         "d": 305,
+         "invoker": "IDBOpenDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "helpers.js:649"
+        },
+        {
+         "d": 24,
+         "invoker": "#document.onvisibilitychange",
+         "type": "event-listener",
+         "fn": "onVisibility",
+         "at": "compiled/tracker-app.compiled.js:1077"
+        }
+       ]
+      },
+      {
+       "t": 7946,
+       "d": 798,
+       "blocking": 747,
+       "renderMs": 25,
+       "scripts": [
+        {
+         "d": 772,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 3621,
+       "d": 653,
+       "blocking": 602,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 652,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 855.4,
+     "byStore": {
+      "manager_state.get": {
+       "n": 9,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "project_meta.getAll": {
+       "n": 2,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "projects.get": {
+       "n": 4,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 4,
+       "ms": 0.2,
+       "maxMs": 0.1
+      },
+      "sync_state.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.put": {
+       "n": 2,
+       "ms": 14.9,
+       "maxMs": 7.7
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 838.2,
+       "maxMs": 432.8
+      },
+      "project_meta.put": {
+       "n": 2,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 2,
+       "ms": 0.3,
+       "maxMs": 0.2
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.getAll": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      }
+     },
+     "writeTx": 4,
+     "writeTxMs": {
+      "n": 4,
+      "p50": 22,
+      "p75": 1079,
+      "p95": 2497,
+      "max": 2497
+     },
+     "writeTxByStore": {
+      "manager_state": 2,
+      "projects,project_meta,stats_summaries,pendingImports": 2
+     },
+     "localStorageWrites": 48,
+     "localStorageBytes": 1143
+    },
+    "spans": {
+     "ProjectStorage.listProjects": {
+      "n": 2,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 877.8,
+      "maxSettleMs": 859.5
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 8418.2,
+      "maxSettleMs": 4333.7
+     },
+     "StashBridge.getGlobalStash": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 28,
+      "maxSettleMs": 16.1
+     },
+     "TrackingSync.record": {
+      "n": 2,
+      "syncMs": 449.8,
+      "maxSyncMs": 233.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.withDelta": {
+      "n": 3,
+      "syncMs": 702.1,
+      "maxSyncMs": 239.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "TrackingSync.merge": {
+      "n": 1,
+      "syncMs": 1190.1,
+      "maxSyncMs": 1190.1,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.snapshot": {
+      "n": 1,
+      "syncMs": 433.3,
+      "maxSyncMs": 433.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.live": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.applyConsumptionEvents": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 945.6,
+      "maxSettleMs": 945.6
+     },
+     "ThreadAccounting.compact": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.apply": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ThreadAccounting.totals": {
+      "n": 2,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "setPattern": {
+      "n": 1,
+      "ms": 0.2,
+      "maxMs": 0.2,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     },
+     "analyse": {
+      "n": 1,
+      "ms": 0.5,
+      "maxMs": 0.5,
+      "rtt": {
+       "n": 1,
+       "p50": 5,
+       "p75": 5,
+       "p95": 5,
+       "max": 5
+      }
+     }
+    },
+    "nav": {
+     "domContentLoaded": 1056,
+     "load": 1081
+    },
+    "firstFullPaintMs": 8774,
+    "untilFirstPaint": null,
+    "fullSavesStarted": 0,
+    "heapMb": 901.8,
+    "heapAfterGcMb": 273.9,
+    "cpuProbeMs": 5
+   }
+  ],
+  "mark-large-mixed-50": [
+   {
+    "profile": {
+     "offsetMs": 2115178,
+     "frames": [
+      {
+       "t": 20555,
+       "d": 328,
+       "sampledMs": 328,
+       "selfTop": [
+        [
+         "(anonymous)",
+         127
+        ],
+        [
+         "(idle)",
+         89
+        ],
+        [
+         "estimate",
+         18
+        ],
+        [
+         "count",
+         16
+        ],
+        [
+         "(program)",
+         13
+        ],
+        [
+         "put",
+         6
+        ]
+       ],
+       "appCallers": [
+        [
+         "sync (thread-accounting.js:130) > restOf (thread-accounting.js:117) > addRest (thread-accounting.js:41)",
+         74
+        ],
+        [
+         "restOf (thread-accounting.js:117) > addRest (thread-accounting.js:41) > estimate (thread-accounting.js:24)",
+         35
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > coloursFromProject (progress-units.js:410)",
+         26
+        ],
+        [
+         "sync (thread-accounting.js:130) > put (thread-accounting.js:100) > count (thread-accounting.js:99)",
+         16
+        ],
+        [
+         "coloursFromProject (progress-units.js:410) > specialtyNormalise (progress-units.js:294) > specialtyValid (progress-units.js:286)",
+         8
+        ]
+       ]
+      },
+      {
+       "t": 23027,
+       "d": 214,
+       "sampledMs": 214,
+       "selfTop": [
+        [
+         "(anonymous)",
+         71
+        ],
+        [
+         "(idle)",
+         58
+        ],
+        [
+         "sync",
+         13
+        ],
+        [
+         "(program)",
+         11
+        ],
+        [
+         "count",
+         11
+        ],
+        [
+         "estimate",
+         8
+        ]
+       ],
+       "appCallers": [
+        [
+         "sync (thread-accounting.js:130) > restOf (thread-accounting.js:117) > addRest (thread-accounting.js:41)",
+         47
+        ],
+        [
+         "restOf (thread-accounting.js:117) > addRest (thread-accounting.js:41) > estimate (thread-accounting.js:24)",
+         23
+        ],
+        [
+         "sync (thread-accounting.js:130)",
+         14
+        ],
+        [
+         "sync (thread-accounting.js:130) > put (thread-accounting.js:100) > count (thread-accounting.js:99)",
+         11
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         10
+        ]
+       ]
+      },
+      {
+       "t": 11997,
+       "d": 143,
+       "sampledMs": 142,
+       "selfTop": [
+        [
+         "(idle)",
+         78
+        ],
+        [
+         "fillText",
+         12
+        ],
+        [
+         "(anonymous)",
+         10
+        ],
+        [
+         "(program)",
+         9
+        ],
+        [
+         "drawStitch",
+         8
+        ],
+        [
+         "sync",
+         4
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         15
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         12
+        ],
+        [
+         "sync (thread-accounting.js:130)",
+         4
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > specialtyDraw (progress-units.js:338)",
+         3
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180)",
+         2
+        ]
+       ]
+      },
+      {
+       "t": 24381,
+       "d": 128,
+       "sampledMs": 129,
+       "selfTop": [
+        [
+         "(idle)",
+         93
+        ],
+        [
+         "fillText",
+         8
+        ],
+        [
+         "(anonymous)",
+         7
+        ],
+        [
+         "(program)",
+         5
+        ],
+        [
+         "sync",
+         3
+        ],
+        [
+         "drawGlyph",
+         2
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         10
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         5
+        ],
+        [
+         "sync (thread-accounting.js:130)",
+         3
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > specialtyDraw (progress-units.js:338)",
+         3
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180)",
+         2
+        ]
+       ]
+      },
+      {
+       "t": 22009,
+       "d": 123,
+       "sampledMs": 124,
+       "selfTop": [
+        [
+         "(idle)",
+         82
+        ],
+        [
+         "(anonymous)",
+         8
+        ],
+        [
+         "fillText",
+         6
+        ],
+        [
+         "(program)",
+         4
+        ],
+        [
+         "drawGlyph",
+         3
+        ],
+        [
+         "sync",
+         3
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         9
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > _drawHalfStitchCell (compiled/tracker-app.compiled.js:1109) > drawHalfTriangle (helpers.js:837)",
+         3
+        ],
+        [
+         "sync (thread-accounting.js:130)",
+         3
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > specialtyDraw (progress-units.js:338)",
+         2
+        ]
+       ]
+      },
+      {
+       "t": 20409,
+       "d": 123,
+       "sampledMs": 122,
+       "selfTop": [
+        [
+         "(idle)",
+         85
+        ],
+        [
+         "fillText",
+         9
+        ],
+        [
+         "(anonymous)",
+         7
+        ],
+        [
+         "(program)",
+         5
+        ],
+        [
+         "drawGlyph",
+         2
+        ],
+        [
+         "yk",
+         2
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         12
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > specialtyDraw (progress-units.js:338)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         4
+        ],
+        [
+         "paintCellImage (compiled/tracker-app.compiled.js:1180) > px (compiled/tracker-app.compiled.js:1181) > parseChartColour (compiled/tracker-app.compiled.js:14)",
+         2
+        ],
+        [
+         "HeaderProjectSwitcher (header.js:176) > initials (header.js:252)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5,
+     "mixed": true
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 30,
+    "interactions": {
+     "n": 12,
+     "p50": 80,
+     "p75": 104,
+     "p95": 464,
+     "max": 464,
+     "inputDelay": {
+      "n": 12,
+      "p50": 9,
+      "p75": 19,
+      "p95": 21,
+      "max": 21
+     },
+     "handler": {
+      "n": 12,
+      "p50": 8,
+      "p75": 9,
+      "p95": 226,
+      "max": 226
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 62,
+      "p75": 86,
+      "p95": 234,
+      "max": 234
+     },
+     "samples": [
+      80,
+      88,
+      88,
+      72,
+      72,
+      56,
+      80,
+      64,
+      464,
+      104,
+      248,
+      112
+     ]
+    },
+    "longTasks": {
+     "n": 8,
+     "tbtMs": 483,
+     "longestMs": 228,
+     "top": [
+      228,
+      145,
+      108,
+      102,
+      96
+     ]
+    },
+    "frames": {
+     "n": 848,
+     "over50": 13,
+     "over100": 10,
+     "worstMs": 333
+    },
+    "react": {
+     "commits": 87
+    },
+    "paints": {
+     "full": 12,
+     "partial": 10
+    },
+    "loaf": {
+     "count": 21,
+     "scriptMs": 1093,
+     "forcedLayoutMs": 11,
+     "renderMs": 25,
+     "totalMs": 2195,
+     "longest": [
+      {
+       "t": 20555,
+       "d": 328,
+       "blocking": 179,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 226,
+         "invoker": "DIV#root.onpointerup",
+         "type": "event-listener",
+         "fn": "Aj",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 23027,
+       "d": 214,
+       "blocking": 96,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 142,
+         "invoker": "DIV#root.onpointerup",
+         "type": "event-listener",
+         "fn": "Aj",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 11997,
+       "d": 143,
+       "blocking": 14,
+       "renderMs": 6,
+       "scripts": [
+        {
+         "d": 58,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 24381,
+       "d": 128,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 33,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 22009,
+       "d": 123,
+       "blocking": 33,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 33,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 5,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      },
+      {
+       "t": 20409,
+       "d": 123,
+       "blocking": 37,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 33,
+         "invoker": "DIV#root.onpointerdown",
+         "type": "event-listener",
+         "fn": "Aj",
+         "at": "ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 106,
+     "byStore": {
+      "project_meta.get": {
+       "n": 25,
+       "ms": 4.2,
+       "maxMs": 1
+      },
+      "pendingImports.get": {
+       "n": 25,
+       "ms": 2.9,
+       "maxMs": 0.7
+      },
+      "pendingImports.put": {
+       "n": 25,
+       "ms": 93.8,
+       "maxMs": 12.5
+      }
+     },
+     "writeTx": 25,
+     "writeTxMs": {
+      "n": 25,
+      "p50": 7,
+      "p75": 53,
+      "p95": 66,
+      "max": 78
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 14,
+      "pendingImports,projects,project_meta": 11
+     },
+     "localStorageWrites": 13,
+     "localStorageBytes": 28079
+    },
+    "spans": {
+     "ThreadAccounting.totals": {
+      "n": 6,
+      "syncMs": 0.5,
+      "maxSyncMs": 0.5,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 14,
+      "syncMs": 12.3,
+      "maxSyncMs": 2.5,
+      "settleMs": 93.3,
+      "maxSettleMs": 12
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 11,
+      "syncMs": 9.9,
+      "maxSyncMs": 1.4,
+      "settleMs": 627.1,
+      "maxSettleMs": 81.6
+     },
+     "TrackingSync.recordDelta": {
+      "n": 11,
+      "syncMs": 362.7,
+      "maxSyncMs": 39.2,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 9,
+      "ms": 1.7,
+      "maxMs": 0.6,
+      "rtt": {
+       "n": 9,
+       "p50": 6,
+       "p75": 7,
+       "p95": 10,
+       "max": 10
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 16030,
+    "cpuProbeMs": 21,
+    "marked": 9,
+    "perTap": {
+     "commits": 7.25,
+     "fullPaints": 1,
+     "partialPaints": 0.83
+    },
+    "chartCopies": 0,
+    "heapBeforeMb": 93.2,
+    "heapAfterGcMb": 98.2
+   }
+  ],
+  "pmp-large-50": [
+   {
+    "profile": {
+     "offsetMs": 2145085,
+     "frames": [
+      {
+       "t": 26129,
+       "d": 72,
+       "sampledMs": 66,
+       "selfTop": [
+        [
+         "(garbage collector)",
+         66
+        ],
+        [
+         "prepareOverlayTile",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "loop (compiled/tracker-app.compiled.js:1379) > draw (compiled/tracker-app.compiled.js:1361) > prepareOverlayTile (compiled/tracker-app.compiled.js:326)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 18563,
+       "d": 71,
+       "sampledMs": 73,
+       "selfTop": [
+        [
+         "(garbage collector)",
+         70
+        ],
+        [
+         "applyChartTile",
+         4
+        ]
+       ],
+       "appCallers": [
+        [
+         "draw (compiled/tracker-app.compiled.js:1361) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         4
+        ]
+       ]
+      },
+      {
+       "t": 18917,
+       "d": 52,
+       "sampledMs": 52,
+       "selfTop": [
+        [
+         "(anonymous)",
+         23
+        ],
+        [
+         "(native)",
+         8
+        ],
+        [
+         "(program)",
+         3
+        ],
+        [
+         "useCoachingSequence",
+         2
+        ],
+        [
+         "v",
+         2
+        ],
+        [
+         "zk",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181)",
+         26
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > useCoachingSequence (coaching.js:203)",
+         2
+        ],
+        [
+         "HelpHintBanner (keyboard-utils.js:126) > isCoarsePointer (helpers.js:414)",
+         1
+        ],
+        [
+         "TrackerProgressStrip (tracker-progress-strip.js:24)",
+         1
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > isPhoneScreen (compiled/tracker-app.compiled.js:145)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 32,
+    "interactions": {
+     "n": 12,
+     "p50": 64,
+     "p75": 80,
+     "p95": 80,
+     "max": 80,
+     "inputDelay": {
+      "n": 12,
+      "p50": 18,
+      "p75": 19,
+      "p95": 20,
+      "max": 20
+     },
+     "handler": {
+      "n": 12,
+      "p50": 3,
+      "p75": 4,
+      "p95": 9,
+      "max": 9
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 52,
+      "p75": 58,
+      "p95": 68,
+      "max": 68
+     },
+     "samples": [
+      64,
+      64,
+      64,
+      80,
+      80,
+      80,
+      80,
+      64,
+      64,
+      64,
+      64,
+      64
+     ]
+    },
+    "longTasks": {
+     "n": 25,
+     "tbtMs": 2216,
+     "longestMs": 173,
+     "top": [
+      173,
+      171,
+      165,
+      164,
+      164
+     ]
+    },
+    "frames": {
+     "n": 924,
+     "over50": 26,
+     "over100": 24,
+     "worstMs": 167
+    },
+    "react": {
+     "commits": 98
+    },
+    "paints": {
+     "full": 0,
+     "partial": 62
+    },
+    "loaf": {
+     "count": 3,
+     "scriptMs": 47,
+     "forcedLayoutMs": 0,
+     "renderMs": 5,
+     "totalMs": 195,
+     "longest": [
+      {
+       "t": 26129,
+       "d": 72,
+       "blocking": 0,
+       "renderMs": 3,
+       "scripts": []
+      },
+      {
+       "t": 18563,
+       "d": 71,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": []
+      },
+      {
+       "t": 18917,
+       "d": 52,
+       "blocking": 0,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 30,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 9,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        },
+        {
+         "d": 8,
+         "invoker": "Worker.onmessage",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 33.2,
+     "byStore": {
+      "project_meta.get": {
+       "n": 20,
+       "ms": 1.4,
+       "maxMs": 0.9
+      },
+      "pendingImports.get": {
+       "n": 20,
+       "ms": 2.6,
+       "maxMs": 0.6
+      },
+      "pendingImports.put": {
+       "n": 20,
+       "ms": 24.3,
+       "maxMs": 3.6
+      }
+     },
+     "writeTx": 20,
+     "writeTxMs": {
+      "n": 20,
+      "p50": 13,
+      "p75": 18,
+      "p95": 107,
+      "max": 196
+     },
+     "writeTxByStore": {
+      "projects,project_meta,pendingImports": 12,
+      "pendingImports,projects,project_meta": 8
+     },
+     "localStorageWrites": 19,
+     "localStorageBytes": 33481
+    },
+    "spans": {
+     "ThreadAccounting.totals": {
+      "n": 7,
+      "syncMs": 0.4,
+      "maxSyncMs": 0.3,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveSessionCheckpoint": {
+      "n": 12,
+      "syncMs": 8,
+      "maxSyncMs": 1.7,
+      "settleMs": 380.3,
+      "maxSettleMs": 197.4
+     },
+     "ProjectStorage.saveProgress": {
+      "n": 8,
+      "syncMs": 6.1,
+      "maxSyncMs": 1.3,
+      "settleMs": 153.7,
+      "maxSettleMs": 28.1
+     },
+     "TrackingSync.recordDelta": {
+      "n": 8,
+      "syncMs": 37,
+      "maxSyncMs": 6.9,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {
+     "analyse": {
+      "n": 12,
+      "ms": 5.3,
+      "maxMs": 1.1,
+      "rtt": {
+       "n": 12,
+       "p50": 8,
+       "p75": 10,
+       "p95": 12,
+       "max": 12
+      }
+     }
+    },
+    "taps": 12,
+    "windowMs": 19537,
+    "cpuProbeMs": 23,
+    "marked": 12,
+    "perTap": {
+     "commits": 8.17,
+     "fullPaints": 0,
+     "partialPaints": 5.17
+    },
+    "chartCopies": 25,
+    "heapBeforeMb": 86.5,
+    "heapAfterGcMb": 91.3
+   }
+  ],
+  "zoom-large-50": [
+   {
+    "profile": {
+     "offsetMs": 2177625,
+     "frames": [
+      {
+       "t": 25745,
+       "d": 404,
+       "sampledMs": 404,
+       "selfTop": [
+        [
+         "fillText",
+         240
+        ],
+        [
+         "(idle)",
+         64
+        ],
+        [
+         "drawGlyph",
+         26
+        ],
+        [
+         "drawStitch",
+         16
+        ],
+        [
+         "getBoundingClientRect",
+         13
+        ],
+        [
+         "(program)",
+         8
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         145
+        ],
+        [
+         "animate (compiled/tracker-app.compiled.js:1325) > drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         121
+        ],
+        [
+         "relayout (tracker-minimap.js:125)",
+         13
+        ],
+        [
+         "animate (compiled/tracker-app.compiled.js:1325) > drawStitch (compiled/tracker-app.compiled.js:1134)",
+         9
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         8
+        ]
+       ]
+      },
+      {
+       "t": 11697,
+       "d": 260,
+       "sampledMs": 260,
+       "selfTop": [
+        [
+         "(idle)",
+         93
+        ],
+        [
+         "setTransform",
+         44
+        ],
+        [
+         "(program)",
+         38
+        ],
+        [
+         "getBoundingClientRect",
+         27
+        ],
+        [
+         "drawStitch",
+         14
+        ],
+        [
+         "paintCellImage",
+         4
+        ]
+       ],
+       "appCallers": [
+        [
+         "applyChartTile (compiled/tracker-app.compiled.js:87)",
+         33
+        ],
+        [
+         "relayout (tracker-minimap.js:125)",
+         27
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         14
+        ],
+        [
+         "draw (compiled/tracker-app.compiled.js:1361) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         12
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180)",
+         4
+        ]
+       ]
+      },
+      {
+       "t": 28010,
+       "d": 240,
+       "sampledMs": 240,
+       "selfTop": [
+        [
+         "(idle)",
+         125
+        ],
+        [
+         "(program)",
+         32
+        ],
+        [
+         "getBoundingClientRect",
+         25
+        ],
+        [
+         "drawStitch",
+         9
+        ],
+        [
+         "(anonymous)",
+         5
+        ],
+        [
+         "_hexRgb",
+         5
+        ]
+       ],
+       "appCallers": [
+        [
+         "relayout (tracker-minimap.js:125)",
+         27
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         9
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > trackerGridLook (colour-utils.js:202) > _hexRgb (colour-utils.js:195)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180) > px (compiled/tracker-app.compiled.js:1181)",
+         3
+        ]
+       ]
+      },
+      {
+       "t": 22463,
+       "d": 225,
+       "sampledMs": 225,
+       "selfTop": [
+        [
+         "(idle)",
+         111
+        ],
+        [
+         "getBoundingClientRect",
+         45
+        ],
+        [
+         "fillText",
+         18
+        ],
+        [
+         "(program)",
+         13
+        ],
+        [
+         "sg",
+         4
+        ],
+        [
+         "drawGlyph",
+         3
+        ]
+       ],
+       "appCallers": [
+        [
+         "relayout (tracker-minimap.js:125)",
+         46
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         21
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180) > cellBackground (compiled/tracker-app.compiled.js:1178)",
+         3
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawOutlineGrid (compiled/tracker-app.compiled.js:21)",
+         2
+        ]
+       ]
+      },
+      {
+       "t": 24639,
+       "d": 211,
+       "sampledMs": 210,
+       "selfTop": [
+        [
+         "(idle)",
+         121
+        ],
+        [
+         "fillText",
+         27
+        ],
+        [
+         "getBoundingClientRect",
+         21
+        ],
+        [
+         "drawGlyph",
+         10
+        ],
+        [
+         "(program)",
+         9
+        ],
+        [
+         "drawStitch",
+         3
+        ]
+       ],
+       "appCallers": [
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         37
+        ],
+        [
+         "relayout (tracker-minimap.js:125)",
+         21
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134)",
+         3
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181) > useStitchCounts (useStitchCounts.js:26)",
+         1
+        ],
+        [
+         "Header (header.js:490)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 12870,
+       "d": 210,
+       "sampledMs": 211,
+       "selfTop": [
+        [
+         "(idle)",
+         89
+        ],
+        [
+         "setTransform",
+         46
+        ],
+        [
+         "getBoundingClientRect",
+         26
+        ],
+        [
+         "(program)",
+         15
+        ],
+        [
+         "chartTileFor",
+         5
+        ],
+        [
+         "px",
+         5
+        ]
+       ],
+       "appCallers": [
+        [
+         "applyChartTile (compiled/tracker-app.compiled.js:87)",
+         37
+        ],
+        [
+         "relayout (tracker-minimap.js:125)",
+         26
+        ],
+        [
+         "draw (compiled/tracker-app.compiled.js:1361) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         10
+        ],
+        [
+         "chartTileFor (compiled/tracker-app.compiled.js:68)",
+         5
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > paintCellImage (compiled/tracker-app.compiled.js:1180) > px (compiled/tracker-app.compiled.js:1181)",
+         5
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 0.2,
+    "history": 0,
+    "collection": null,
+    "wallS": 30,
+    "interactions": {
+     "n": 16,
+     "p50": 224,
+     "p75": 280,
+     "p95": 488,
+     "max": 488,
+     "inputDelay": {
+      "n": 16,
+      "p50": 0,
+      "p75": 14,
+      "p95": 27,
+      "max": 27
+     },
+     "handler": {
+      "n": 16,
+      "p50": 81,
+      "p75": 96,
+      "p95": 193,
+      "max": 193
+     },
+     "presentation": {
+      "n": 16,
+      "p50": 138,
+      "p75": 157,
+      "p95": 295,
+      "max": 295
+     },
+     "samples": [
+      320,
+      280,
+      200,
+      136,
+      288,
+      200,
+      184,
+      224,
+      224,
+      240,
+      256,
+      200,
+      224,
+      488,
+      184,
+      296
+     ]
+    },
+    "longTasks": {
+     "n": 30,
+     "tbtMs": 1857,
+     "longestMs": 289,
+     "top": [
+      289,
+      205,
+      193,
+      155,
+      141
+     ]
+    },
+    "frames": {
+     "n": 818,
+     "over50": 19,
+     "over100": 17,
+     "worstMs": 467
+    },
+    "react": {
+     "commits": 17
+    },
+    "paints": {
+     "full": 20,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 17,
+     "scriptMs": 1582,
+     "forcedLayoutMs": 550,
+     "renderMs": 355,
+     "totalMs": 3333,
+     "longest": [
+      {
+       "t": 25745,
+       "d": 404,
+       "blocking": 303,
+       "renderMs": 146,
+       "scripts": [
+        {
+         "d": 193,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        },
+        {
+         "d": 139,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "animate",
+         "at": "compiled/tracker-app.compiled.js:1325"
+        }
+       ]
+      },
+      {
+       "t": 11697,
+       "d": 260,
+       "blocking": 111,
+       "renderMs": 29,
+       "scripts": [
+        {
+         "d": 129,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 28010,
+       "d": 240,
+       "blocking": 58,
+       "renderMs": 31,
+       "scripts": [
+        {
+         "d": 77,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 22463,
+       "d": 225,
+       "blocking": 117,
+       "renderMs": 11,
+       "scripts": [
+        {
+         "d": 98,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 24639,
+       "d": 211,
+       "blocking": 96,
+       "renderMs": 6,
+       "scripts": [
+        {
+         "d": 80,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      },
+      {
+       "t": 12870,
+       "d": 210,
+       "blocking": 65,
+       "renderMs": 8,
+       "scripts": [
+        {
+         "d": 106,
+         "invoker": "#document.onkeydown",
+         "type": "event-listener",
+         "fn": "dispatch",
+         "at": "shortcuts.js:174"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 3.4,
+     "byStore": {},
+     "writeTx": 0,
+     "writeTxMs": {
+      "n": 0
+     },
+     "writeTxByStore": {},
+     "localStorageWrites": 11,
+     "localStorageBytes": 955
+    },
+    "spans": {},
+    "workers": {},
+    "zooms": [
+     20,
+     30,
+     40,
+     50,
+     60,
+     70,
+     80,
+     90,
+     100,
+     90,
+     80,
+     70,
+     60,
+     50,
+     40,
+     30,
+     20
+    ],
+    "steps": 16
+   }
+  ],
+  "pmp-large-50-overlays": [
+   {
+    "profile": {
+     "offsetMs": 2208086,
+     "frames": [
+      {
+       "t": 11866,
+       "d": 120,
+       "sampledMs": 120,
+       "selfTop": [
+        [
+         "setTransform",
+         55
+        ],
+        [
+         "applyChartTile",
+         12
+        ],
+        [
+         "fillText",
+         7
+        ],
+        [
+         "save",
+         5
+        ],
+        [
+         "draw",
+         5
+        ],
+        [
+         "is",
+         4
+        ]
+       ],
+       "appCallers": [
+        [
+         "applyChartTile (compiled/tracker-app.compiled.js:87)",
+         37
+        ],
+        [
+         "drawStitch (compiled/tracker-app.compiled.js:1134) > drawGlyph (compiled/tracker-app.compiled.js:1167)",
+         11
+        ],
+        [
+         "draw (compiled/tracker-app.compiled.js:1361) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         11
+        ],
+        [
+         "draw (compiled/tracker-app.compiled.js:1380) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         10
+        ],
+        [
+         "draw (compiled/tracker-app.compiled.js:1396) > prepareOverlayTile (compiled/tracker-app.compiled.js:326) > applyChartTile (compiled/tracker-app.compiled.js:87)",
+         9
+        ]
+       ]
+      },
+      {
+       "t": 18171,
+       "d": 64,
+       "sampledMs": 65,
+       "selfTop": [
+        [
+         "(garbage collector)",
+         61
+        ],
+        [
+         "(program)",
+         2
+        ],
+        [
+         "b",
+         1
+        ],
+        [
+         "clearRect",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "loop (compiled/tracker-app.compiled.js:1379) > draw (compiled/tracker-app.compiled.js:1361)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 37,
+    "interactions": {
+     "n": 12,
+     "p50": 88,
+     "p75": 128,
+     "p95": 168,
+     "max": 168,
+     "inputDelay": {
+      "n": 12,
+      "p50": 28,
+      "p75": 32,
+      "p95": 52,
+      "max": 52
+     },
+     "handler": {
+      "n": 12,
+      "p50": 1,
+      "p75": 2,
+      "p95": 19,
+      "max": 19
+     },
+     "presentation": {
+      "n": 12,
+      "p50": 56,
+      "p75": 98,
+      "p95": 150,
+      "max": 150
+     },
+     "samples": [
+      136,
+      112,
+      128,
+      72,
+      72,
+      160,
+      88,
+      88,
+      80,
+      168,
+      80,
+      80
+     ]
+    },
+    "longTasks": {
+     "n": 27,
+     "tbtMs": 3436,
+     "longestMs": 234,
+     "top": [
+      234,
+      230,
+      217,
+      207,
+      203
+     ]
+    },
+    "frames": {
+     "n": 919,
+     "over50": 30,
+     "over100": 25,
+     "worstMs": 233
+    },
+    "react": {
+     "commits": 25
+    },
+    "paints": {
+     "full": 1,
+     "partial": 48
+    },
+    "loaf": {
+     "count": 2,
+     "scriptMs": 177,
+     "forcedLayoutMs": 1,
+     "renderMs": 183,
+     "totalMs": 184,
+     "longest": [
+      {
+       "t": 11866,
+       "d": 120,
+       "blocking": 70,
+       "renderMs": 120,
+       "scripts": [
+        {
+         "d": 116,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "",
+         "at": "compiled/tracker-app.compiled.js:1917"
+        }
+       ]
+      },
+      {
+       "t": 18171,
+       "d": 64,
+       "blocking": 13,
+       "renderMs": 63,
+       "scripts": [
+        {
+         "d": 61,
+         "invoker": "FrameRequestCallback",
+         "type": "user-callback",
+         "fn": "",
+         "at": "compiled/tracker-app.compiled.js:1917"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 2.5,
+     "byStore": {},
+     "writeTx": 0,
+     "writeTxMs": {
+      "n": 0
+     },
+     "writeTxByStore": {},
+     "localStorageWrites": 5,
+     "localStorageBytes": 685
+    },
+    "spans": {},
+    "workers": {},
+    "taps": 12,
+    "windowMs": 23331,
+    "cpuProbeMs": 24,
+    "marked": 0,
+    "perTap": {
+     "commits": 2.08,
+     "fullPaints": 0.08,
+     "partialPaints": 4
+    },
+    "chartCopies": 24,
+    "heapBeforeMb": 86.7,
+    "heapAfterGcMb": 87.6
+   }
+  ],
+  "sync-export-huge-50": [
+   {
+    "profile": {
+     "offsetMs": 2244762,
+     "frames": [
+      {
+       "t": 20152,
+       "d": 4959,
+       "sampledMs": 4958,
+       "selfTop": [
+        [
+         "S.<computed>",
+         1489
+        ],
+        [
+         "finish",
+         1337
+        ],
+        [
+         "rememberProgressBase",
+         632
+        ],
+        [
+         "own",
+         372
+        ],
+        [
+         "metadata",
+         341
+        ],
+        [
+         "record",
+         245
+        ]
+       ],
+       "appCallers": [
+        [
+         "finish (project-storage.js:565) > putAll (project-storage.js:537)",
+         1547
+        ],
+        [
+         "finish (project-storage.js:565)",
+         1414
+        ],
+        [
+         "finish (project-storage.js:565) > putAll (project-storage.js:537) > rememberProgressBase (project-storage.js:23)",
+         632
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         372
+        ],
+        [
+         "finish (project-storage.js:565) > record (tracking-sync.js:393) > metadata (tracking-sync.js:119)",
+         341
+        ]
+       ]
+      },
+      {
+       "t": 32570,
+       "d": 4394,
+       "sampledMs": 4394,
+       "selfTop": [
+        [
+         "compress",
+         1588
+        ],
+        [
+         "Tt",
+         909
+        ],
+        [
+         "encode",
+         643
+        ],
+        [
+         "vt",
+         467
+        ],
+        [
+         "Zt",
+         394
+        ],
+        [
+         "C",
+         148
+        ]
+       ],
+       "appCallers": [
+        [
+         "_exportToFolder (sync-engine.js:3125) > compress (sync-engine.js:911)",
+         4354
+        ],
+        [
+         "exportSync (sync-engine.js:703) > _verifyAttachments (sync-engine.js:195)",
+         3
+        ],
+        [
+         "Header (header.js:490)",
+         2
+        ],
+        [
+         "exportSync (sync-engine.js:703)",
+         2
+        ],
+        [
+         "_exportToFolder (sync-engine.js:3125) > _deviceSyncFileName (sync-engine.js:1281)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 25112,
+       "d": 3478,
+       "sampledMs": 3478,
+       "selfTop": [
+        [
+         "add",
+         3322
+        ],
+        [
+         "projectThreadEntries",
+         71
+        ],
+        [
+         "(anonymous)",
+         51
+        ],
+        [
+         "(garbage collector)",
+         28
+        ],
+        [
+         "(program)",
+         4
+        ],
+        [
+         "ti",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:612) > projectThreadEntries (threadCalc.js:108) > add (threadCalc.js:111)",
+         3322
+        ],
+        [
+         "tx.oncomplete (project-storage.js:612) > projectThreadEntries (threadCalc.js:108)",
+         121
+        ],
+        [
+         "tx.oncomplete (project-storage.js:612) > threadDemandRows (threadCalc.js:65)",
+         1
+        ],
+        [
+         "tx.oncomplete (project-storage.js:612)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 17691,
+       "d": 2457,
+       "sampledMs": 2457,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         1428
+        ],
+        [
+         "rememberProgressBase",
+         762
+        ],
+        [
+         "(garbage collector)",
+         184
+        ],
+        [
+         "get result",
+         78
+        ],
+        [
+         "(program)",
+         3
+        ],
+        [
+         "(idle)",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         1506
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         762
+        ],
+        [
+         "get (project-storage.js:861)",
+         0
+        ]
+       ]
+      },
+      {
+       "t": 30202,
+       "d": 2101,
+       "sampledMs": 2101,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         1234
+        ],
+        [
+         "rememberProgressBase",
+         668
+        ],
+        [
+         "(garbage collector)",
+         126
+        ],
+        [
+         "get result",
+         68
+        ],
+        [
+         "(program)",
+         3
+        ],
+        [
+         "now",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         1302
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         668
+        ],
+        [
+         "get (project-storage.js:861) > _readProgress (project-storage.js:1128)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 28605,
+       "d": 1535,
+       "sampledMs": 1534,
+       "selfTop": [
+        [
+         "S.<computed>",
+         1472
+        ],
+        [
+         "put",
+         59
+        ],
+        [
+         "(program)",
+         3
+        ],
+        [
+         "(anonymous)",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "saveProjectToDB (helpers.js:688)",
+         1531
+        ],
+        [
+         "listProjects (project-storage.js:1227)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "huge",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": null,
+    "wallS": 39,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 8,
+     "tbtMs": 18826,
+     "longestMs": 4947,
+     "top": [
+      4947,
+      4388,
+      3476,
+      2451,
+      2098
+     ]
+    },
+    "frames": {
+     "n": 113,
+     "over50": 8,
+     "over100": 7,
+     "worstMs": 4933
+    },
+    "react": {
+     "commits": 6
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 7,
+     "scriptMs": 19141,
+     "forcedLayoutMs": 0,
+     "renderMs": 4,
+     "totalMs": 19171,
+     "longest": [
+      {
+       "t": 20152,
+       "d": 4959,
+       "blocking": 4899,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 4947,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 32570,
+       "d": 4394,
+       "blocking": 4339,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 4388,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        }
+       ]
+      },
+      {
+       "t": 25112,
+       "d": 3478,
+       "blocking": 3427,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 3476,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:612"
+        }
+       ]
+      },
+      {
+       "t": 17691,
+       "d": 2457,
+       "blocking": 2402,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 2451,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 30202,
+       "d": 2101,
+       "blocking": 2050,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 2099,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 28605,
+       "d": 1535,
+       "blocking": 1483,
+       "renderMs": 0,
+       "scripts": [
+        {
+         "d": 1533,
+         "invoker": "IDBOpenDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "helpers.js:649"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 3082.7,
+     "byStore": {
+      "projects.get": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "project_meta.get": {
+       "n": 2,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "pendingImports.getAll": {
+       "n": 3,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "pendingImports.get": {
+       "n": 3,
+       "ms": 0.8,
+       "maxMs": 0.8
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 3077.9,
+       "maxMs": 1545.9
+      },
+      "project_meta.put": {
+       "n": 1,
+       "ms": 0.1,
+       "maxMs": 0.1
+      },
+      "stats_summaries.put": {
+       "n": 1,
+       "ms": 1.1,
+       "maxMs": 1.1
+      },
+      "project_meta.getAll": {
+       "n": 3,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.get": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 2,
+       "ms": 0.2,
+       "maxMs": 0.2
+      },
+      "pendingImports.put": {
+       "n": 1,
+       "ms": 0.5,
+       "maxMs": 0.5
+      }
+     },
+     "writeTx": 5,
+     "writeTxMs": {
+      "n": 5,
+      "p50": 1576,
+      "p75": 1579,
+      "p95": 4962,
+      "max": 4962
+     },
+     "writeTxByStore": {
+      "projects,project_meta,stats_summaries,pendingImports": 1,
+      "manager_state": 2,
+      "projects": 1,
+      "pendingImports": 1
+     },
+     "localStorageWrites": 10,
+     "localStorageBytes": 752
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 1.5,
+      "maxSyncMs": 1.5,
+      "settleMs": 19363.3,
+      "maxSettleMs": 19363.3
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 10905,
+      "maxSettleMs": 10905
+     },
+     "ProjectStorage.get": {
+      "n": 2,
+      "syncMs": 1.1,
+      "maxSyncMs": 1,
+      "settleMs": 4585.8,
+      "maxSettleMs": 2466.8
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.7,
+      "maxSyncMs": 0.7,
+      "settleMs": 8438.2,
+      "maxSettleMs": 8438.2
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 1142.7,
+      "maxSyncMs": 1142.7,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 1597.2,
+      "maxSettleMs": 1597.2
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 1572.6,
+      "maxSettleMs": 1552.9
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "exportMs": 19363,
+    "fileBytes": 888914
+   }
+  ],
+  "sync-export-large-50-collection": [
+   {
+    "profile": {
+     "offsetMs": 2283731,
+     "frames": [
+      {
+       "t": 26347,
+       "d": 10509,
+       "sampledMs": 10508,
+       "selfTop": [
+        [
+         "compress",
+         3208
+        ],
+        [
+         "Tt",
+         2314
+        ],
+        [
+         "encode",
+         1850
+        ],
+        [
+         "vt",
+         1187
+        ],
+        [
+         "Zt",
+         758
+        ],
+        [
+         "C",
+         398
+        ]
+       ],
+       "appCallers": [
+        [
+         "_exportToFolder (sync-engine.js:3125) > compress (sync-engine.js:911)",
+         10288
+        ],
+        [
+         "_verifyAttachments (sync-engine.js:195) > verify (sync-attachment-codec.js:6) > _attachmentOwner (sync-engine.js:129)",
+         9
+        ],
+        [
+         "_exportAttachments (sync-engine.js:149)",
+         7
+        ],
+        [
+         "_exportToFolder (sync-engine.js:3125)",
+         3
+        ],
+        [
+         "exportSync (sync-engine.js:703) > _verifyAttachments (sync-engine.js:195)",
+         2
+        ]
+       ]
+      },
+      {
+       "t": 16202,
+       "d": 1807,
+       "sampledMs": 1808,
+       "selfTop": [
+        [
+         "finish",
+         528
+        ],
+        [
+         "S.<computed>",
+         528
+        ],
+        [
+         "rememberProgressBase",
+         214
+        ],
+        [
+         "record",
+         165
+        ],
+        [
+         "own",
+         129
+        ],
+        [
+         "records",
+         80
+        ]
+       ],
+       "appCallers": [
+        [
+         "finish (project-storage.js:565)",
+         567
+        ],
+        [
+         "finish (project-storage.js:565) > putAll (project-storage.js:537)",
+         559
+        ],
+        [
+         "finish (project-storage.js:565) > putAll (project-storage.js:537) > rememberProgressBase (project-storage.js:23)",
+         214
+        ],
+        [
+         "record (tracking-sync.js:138) > records (tracking-sync.js:102) > own (tracking-sync.js:8)",
+         129
+        ],
+        [
+         "finish (project-storage.js:565) > record (tracking-sync.js:393)",
+         102
+        ]
+       ]
+      },
+      {
+       "t": 19165,
+       "d": 1229,
+       "sampledMs": 1229,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         774
+        ],
+        [
+         "rememberProgressBase",
+         236
+        ],
+        [
+         "(garbage collector)",
+         172
+        ],
+        [
+         "get result",
+         39
+        ],
+        [
+         "(program)",
+         6
+        ],
+        [
+         "transaction",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         813
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         236
+        ],
+        [
+         "readSessionCheckpoints (project-storage.js:949) > getDB (project-storage.js:352) > root.IDBDatabase.transaction (recovery-storage.js:24)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 15254,
+       "d": 945,
+       "sampledMs": 946,
+       "selfTop": [
+        [
+         "tx.oncomplete",
+         589
+        ],
+        [
+         "rememberProgressBase",
+         266
+        ],
+        [
+         "(garbage collector)",
+         47
+        ],
+        [
+         "get result",
+         41
+        ],
+        [
+         "get",
+         2
+        ],
+        [
+         "(program)",
+         1
+        ]
+       ],
+       "appCallers": [
+        [
+         "tx.oncomplete (project-storage.js:872)",
+         630
+        ],
+        [
+         "get (project-storage.js:861) > rememberProgressBase (project-storage.js:23)",
+         266
+        ],
+        [
+         "get (project-storage.js:861) > _readProgress (project-storage.js:1128)",
+         1
+        ],
+        [
+         "get (project-storage.js:861)",
+         1
+        ],
+        [
+         "loop (compiled/tracker-app.compiled.js:1379) > draw (compiled/tracker-app.compiled.js:1361)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 25537,
+       "d": 781,
+       "sampledMs": 780,
+       "selfTop": [
+        [
+         "computeFingerprint",
+         283
+        ],
+        [
+         "Tt",
+         186
+        ],
+        [
+         "C",
+         115
+        ],
+        [
+         "encode",
+         38
+        ],
+        [
+         "Zt",
+         30
+        ],
+        [
+         "(anonymous)",
+         16
+        ]
+       ],
+       "appCallers": [
+        [
+         "exportSync (sync-engine.js:703) > computeFingerprint (sync-engine.js:390) > computeDeflateFingerprint (sync-engine.js:381)",
+         420
+        ],
+        [
+         "exportSync (sync-engine.js:703) > computeFingerprint (sync-engine.js:390)",
+         284
+        ],
+        [
+         "exportSync (sync-engine.js:703) > computeFingerprint (sync-engine.js:390) > stringToUint8Array (sync-engine.js:374)",
+         45
+        ],
+        [
+         "exportSync (sync-engine.js:703)",
+         13
+        ],
+        [
+         "openManagerDB (sync-engine.js:630) > openManagerDB (helpers.js:2854) > idb.open (recovery-storage.js:19)",
+         1
+        ]
+       ]
+      },
+      {
+       "t": 18390,
+       "d": 615,
+       "sampledMs": 615,
+       "selfTop": [
+        [
+         "S.<computed>",
+         568
+        ],
+        [
+         "put",
+         28
+        ],
+        [
+         "(anonymous)",
+         4
+        ],
+        [
+         "(program)",
+         4
+        ],
+        [
+         "TrackerApp",
+         3
+        ],
+        [
+         "request.onsuccess",
+         2
+        ]
+       ],
+       "appCallers": [
+        [
+         "saveProjectToDB (helpers.js:688)",
+         596
+        ],
+        [
+         "listProjects (project-storage.js:1227)",
+         4
+        ],
+        [
+         "TrackerApp (compiled/tracker-app.compiled.js:181)",
+         4
+        ],
+        [
+         "request.onsuccess (project-storage.js:1234)",
+         3
+        ],
+        [
+         "saveProjectToDB (helpers.js:688) > root.IDBDatabase.transaction (recovery-storage.js:24)",
+         1
+        ]
+       ]
+      }
+     ]
+    },
+    "fixture": {
+     "size": "large",
+     "done": 0.5
+    },
+    "zoom": 1,
+    "history": 0,
+    "collection": {
+     "n": 150,
+     "side": 120
+    },
+    "wallS": 39,
+    "interactions": {
+     "n": 0,
+     "inputDelay": {
+      "n": 0
+     },
+     "handler": {
+      "n": 0
+     },
+     "presentation": {
+      "n": 0
+     },
+     "samples": []
+    },
+    "longTasks": {
+     "n": 12,
+     "tbtMs": 15879,
+     "longestMs": 10388,
+     "top": [
+      10388,
+      1799,
+      1222,
+      942,
+      779
+     ]
+    },
+    "frames": {
+     "n": 154,
+     "over50": 49,
+     "over100": 43,
+     "worstMs": 10483
+    },
+    "react": {
+     "commits": 5
+    },
+    "paints": {
+     "full": 0,
+     "partial": 0
+    },
+    "loaf": {
+     "count": 50,
+     "scriptMs": 21173,
+     "forcedLayoutMs": 0,
+     "renderMs": 42,
+     "totalMs": 21396,
+     "longest": [
+      {
+       "t": 26347,
+       "d": 10509,
+       "blocking": 10399,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 10388,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": ""
+        },
+        {
+         "d": 5,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "sync-engine.js:146"
+        }
+       ]
+      },
+      {
+       "t": 16202,
+       "d": 1807,
+       "blocking": 1750,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1799,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "finish",
+         "at": "project-storage.js:565"
+        }
+       ]
+      },
+      {
+       "t": 19165,
+       "d": 1229,
+       "blocking": 1174,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 1222,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 15254,
+       "d": 945,
+       "blocking": 894,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 943,
+         "invoker": "IDBTransaction.oncomplete",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:872"
+        }
+       ]
+      },
+      {
+       "t": 25537,
+       "d": 781,
+       "blocking": 731,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 780,
+         "invoker": "IDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "project-storage.js:1132"
+        }
+       ]
+      },
+      {
+       "t": 18390,
+       "d": 615,
+       "blocking": 548,
+       "renderMs": 1,
+       "scripts": [
+        {
+         "d": 597,
+         "invoker": "IDBOpenDBRequest.onsuccess",
+         "type": "event-listener",
+         "fn": "",
+         "at": "helpers.js:649"
+        },
+        {
+         "d": 8,
+         "invoker": "MessagePort.onmessage",
+         "type": "event-listener",
+         "fn": "U",
+         "at": "ajax/libs/react/18.2.0/umd/react.production.min.js:?"
+        }
+       ]
+      }
+     ]
+    },
+    "storage": {
+     "mainThreadMs": 1199.1,
+     "byStore": {
+      "projects.get": {
+       "n": 153,
+       "ms": 9.5,
+       "maxMs": 1
+      },
+      "project_meta.get": {
+       "n": 152,
+       "ms": 6.6,
+       "maxMs": 0.9
+      },
+      "pendingImports.getAll": {
+       "n": 153,
+       "ms": 12.9,
+       "maxMs": 1
+      },
+      "pendingImports.get": {
+       "n": 153,
+       "ms": 8.2,
+       "maxMs": 1.9
+      },
+      "projects.put": {
+       "n": 2,
+       "ms": 1151.6,
+       "maxMs": 595.6
+      },
+      "project_meta.put": {
+       "n": 1,
+       "ms": 1,
+       "maxMs": 1
+      },
+      "stats_summaries.put": {
+       "n": 1,
+       "ms": 0.5,
+       "maxMs": 0.5
+      },
+      "project_meta.getAll": {
+       "n": 3,
+       "ms": 0.7,
+       "maxMs": 0.7
+      },
+      "manager_state.get": {
+       "n": 1,
+       "ms": 0,
+       "maxMs": 0
+      },
+      "manager_state.put": {
+       "n": 2,
+       "ms": 5.8,
+       "maxMs": 5.7
+      },
+      "pendingImports.put": {
+       "n": 1,
+       "ms": 0.5,
+       "maxMs": 0.5
+      }
+     },
+     "writeTx": 5,
+     "writeTxMs": {
+      "n": 5,
+      "p50": 626,
+      "p75": 633,
+      "p95": 1810,
+      "max": 1810
+     },
+     "writeTxByStore": {
+      "projects,project_meta,stats_summaries,pendingImports": 1,
+      "manager_state": 2,
+      "projects": 1,
+      "pendingImports": 1
+     },
+     "localStorageWrites": 10,
+     "localStorageBytes": 754
+    },
+    "spans": {
+     "SyncEngine.exportToFolder": {
+      "n": 1,
+      "syncMs": 2.4,
+      "maxSyncMs": 2.4,
+      "settleMs": 21564.5,
+      "maxSettleMs": 21564.5
+     },
+     "PatternIO.serializePattern": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "ProjectStorage.saveChecked": {
+      "n": 1,
+      "syncMs": 1,
+      "maxSyncMs": 1,
+      "settleMs": 3153.7,
+      "maxSettleMs": 3153.7
+     },
+     "ProjectStorage.get": {
+      "n": 152,
+      "syncMs": 11.2,
+      "maxSyncMs": 1,
+      "settleMs": 979385.2,
+      "maxSettleMs": 6481
+     },
+     "ProjectStorage.save": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 2184.2,
+      "maxSettleMs": 2184.2
+     },
+     "TrackingSync.record": {
+      "n": 1,
+      "syncMs": 400.6,
+      "maxSyncMs": 400.6,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     },
+     "StashBridge.syncProjectToLibrary": {
+      "n": 1,
+      "syncMs": 0.1,
+      "maxSyncMs": 0.1,
+      "settleMs": 653.5,
+      "maxSettleMs": 653.5
+     },
+     "ProjectStorage.listProjects": {
+      "n": 3,
+      "syncMs": 0.9,
+      "maxSyncMs": 0.9,
+      "settleMs": 49,
+      "maxSettleMs": 21.1
+     },
+     "ThreadAccounting.totals": {
+      "n": 1,
+      "syncMs": 0,
+      "maxSyncMs": 0,
+      "settleMs": 0,
+      "maxSettleMs": 0
+     }
+    },
+    "workers": {},
+    "exportMs": 21565,
+    "fileBytes": 2807168
+   }
+  ]
+ }
+}

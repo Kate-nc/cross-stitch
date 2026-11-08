@@ -154,7 +154,7 @@ npm run lint:css-tokens
 npm run start               # node serve.js, port 8000
 ```
 
-Playwright suites: `npm run test:e2e` (touch tablet), `npm run test:ipad` (WebKit), `npm run test:mobile-audit`, `npm run perf:baseline`.
+Playwright suites: `npm run test:e2e` (touch tablet), `npm run test:ipad` (WebKit), `npm run test:mobile-audit`, `npm run perf:baseline`. `npm run perf:track-baseline` measures the Stitch Tracker scenario matrix behind [reports/track-mode-performance-baseline.md](../reports/track-mode-performance-baseline.md) (`ONLY=`, `PROFILE=1`, `REPEATS=`; `CHROME=` for a non-Playwright browser binary).
 
 ### Test Suite (`tests/`)
 
